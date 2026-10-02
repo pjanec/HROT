@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ⭐⭐⭐ THE SMOKE SUITE (S1′) — one entity, one behaviour, "is it obviously broken?"
+
+    📄 docs/blueprints/DESIGN_Smoke_Suite.md
+
+    ⛔⛔ WHY ITS OWN PROJECT, and not a folder in Hrot.ClusterRunner.Integration.Tests:
+    📐 Batch 101 (BP-378) measured three unfiltered runs of that project — 89 / 75 / 117 of 174,
+    ABORTED every time, under 59–118 OutOfMemoryExceptions at EntityRepository..ctor
+    (FdpConfig.MAX_ENTITIES = 1_000_000 per harness, not released between tests).
+    ⇒ a suite built inside it would inherit the disease on day one and could never be gated.
+
+    ⭐ This project stays SMALL on purpose — a handful of scenarios, a handful of harnesses.
+    ⛔ If it ever stops finishing, SPLIT it; do not stop gating it.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      ⭐⭐ EditorHarness is REUSED, not copied (ruling 9: no two implementations of one concept).
+      It is 340 lines of real editor+sim wiring and it lives in the integration project.
+      ⚠ Referencing that project brings its ASSEMBLY, not its tests: xUnit discovers tests in the
+        project under test only, so the 174 do not run here. Measured in the gate table.
+    -->
+    <ProjectReference
+      Include="..\Hrot.ClusterRunner.Integration.Tests\Hrot.ClusterRunner.Integration.Tests.csproj" />
+  </ItemGroup>
+
+</Project>

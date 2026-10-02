@@ -44,6 +44,8 @@ public sealed class VariableRowSampler
     private sealed class Cell
     {
         public uint?   AtPulse;
+        /// <summary>⭐ Batch 97 (97d) — the BINDING generation this sample was taken at.</summary>
+        public uint    AtBinding;
         public bool    Taken;
         public byte[]  Bytes = Array.Empty<byte>();
         public object? Object;
@@ -81,16 +83,21 @@ public sealed class VariableRowSampler
         if (!_byRow.TryGetValue(key, out var sample))
             _byRow[key] = sample = new Cell();
 
-        uint? pulse = row.AssetTick?.Invoke();
+        uint? pulse   = row.AssetTick?.Invoke();
+        uint  binding = EntityBindingFrame.Current;
 
-        // ⭐⭐ The sample condition, and BOTH halves are load-bearing:
+        // ⭐⭐ The sample condition, and ALL THREE parts are load-bearing:
         //   • never taken  ⇒ take one NOW. 📌 rule 4a: a row pinned while PAUSED must show its value
         //     immediately, and while paused the pulse does not move — without this clause it would
         //     wait for a resume that may never come.
         //   • the pulse MOVED ⇒ the sim produced new values. 📌 rule 2.
+        //   • ⭐⭐⭐ Batch 97 (97d) — the BINDING moved ⇒ this row is now ABOUT A DIFFERENT ENTITY.
+        //     📌 R-76's second clock. ⛔ It fires REGARDLESS OF RUN STATE, which is the whole point:
+        //     while the debugger holds time the value pulse never moves, so without this a selection
+        //     change would show the previous entity's value until the run continued.
         // ⛔ A row with no pulse at all samples exactly once and then holds, which is the honest
         //   answer: nothing can tell it the world changed.
-        if (!sample.Taken || pulse != sample.AtPulse)
+        if (!sample.Taken || pulse != sample.AtPulse || binding != sample.AtBinding)
         {
             byte[] bytes;
             try { bytes = row.ReadValue().ToArray(); }
@@ -113,8 +120,9 @@ public sealed class VariableRowSampler
             sample.Bytes   = bytes;
             sample.Object  = obj;
             sample.Written = written;
-            sample.AtPulse = pulse;
-            sample.Taken   = true;
+            sample.AtPulse   = pulse;
+            sample.AtBinding = binding;
+            sample.Taken     = true;
         }
 
         // ⭐ The rewritten row. ⛔ `Origin` is untouched, so grouping, the highlight cache and the

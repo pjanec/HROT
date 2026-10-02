@@ -67,11 +67,11 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -259,12 +259,12 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         bridge.Should().NotBeNull($"ScanForRegistrars must discover '{registrarName}'");
 
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)_liveRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
                            ? (object)actionReg
                            : (object)bpStaging)
             .ToArray();
@@ -279,47 +279,16 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         return (def!, alc);
     }
 
-    // ── Slot-count accessor (reuses BlueprintBlackboardPartitions.GetSlotCount) ────
-
-    private static unsafe int GetProvisionedSlotCount(EntityRepository world, Fdp.Core.Entity entity)
-    {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        throw new InvalidOperationException(
-            "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
-    }
+    // ⛔ CE-376: the slot-COUNT helper is deleted. It counted every occurrence slot including the
+    //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
+    //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
     private static unsafe bool TrySlotOffset(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        return false;
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
     }
 
     private void AssignBehavior(EntityRepository world, Fdp.Core.Entity entity, string behaviorName)
@@ -373,29 +342,33 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         var (def, alc) = BuildDefFromDto(dto);
 
-        // Manifest: three co-bound Behavior nodes ⇒ ONE entry.
-        def.StatefulWorkingSlots.Should().NotBeNull("Behavior-scoped stateful asset must carry a slot manifest");
-        def.StatefulWorkingSlots!.Count.Should().Be(1,
-            "three nodes binding one Behavior-scoped variable dedup to a single manifest entry");
-
+        // ⭐⭐ CE-437 — three co-bound Behavior nodes still share ONE location, but that location is
+        //   the behaviour's BLOCK (St.sharedCursor), not a side slot ⇒ the manifest declares none.
+        //   ⛔ This used to assert one deduped manifest entry under the Behavior-scope key.
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, sharedVar);
-        def.StatefulWorkingSlots[0].SlotKey.Should().Be(behaviorKey,
-            "the single entry's key must be the Behavior-scope key FNV-1a(assetId, variableId)");
+        (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>())
+            .Should().BeEmpty("CE-437: the only stateful variable is block-resident");
+        def.BlackboardLayoutType!.GetField("St")!.FieldType.GetField(sharedVar)
+            .Should().NotBeNull("CE-437: the shared variable is a field of the block's State half");
 
         // Provisioning: one shared slot.
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
 
-        GetProvisionedSlotCount(world, entity).Should().Be(1,
-            "one deduped manifest entry ⇒ exactly one provisioned partition slot");
-        TrySlotOffset(world, entity, behaviorKey).Should().BeTrue(
-            "the shared Behavior slot must be attached under its scope-aware key");
+        // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY — a count also counts the two ROOT
+        //   slots (root params, root cursor), which is why this read "1" and found 3.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, System.Array.Empty<int>(),
+            "CE-437: no authored side slot — the shared state is in the root block");
+        TrySlotOffset(world, entity, behaviorKey).Should().BeFalse(
+            "CE-437: nothing is attached under the old Behavior-scope key — one home");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, sharedVar).Cursor
+            .Should().Be(0, "the block is allocated wide enough to hold the shared state, and starts zeroed");
 
         world.Dispose();
         alc.Unload();
@@ -447,27 +420,91 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         var (def, alc) = BuildDefFromDto(dto);
 
-        // Two distinct Node keys + one shared Behavior key (the two "shared" nodes dedup).
+        // ⭐ CE-437: two distinct Node keys stay side slots; the shared Behavior variable is in the block.
+        //   ⛔ This used to be 3 entries (the shared one dedup'd to a third side slot).
         def.StatefulWorkingSlots.Should().NotBeNull("mixed stateful asset must carry a slot manifest");
-        def.StatefulWorkingSlots!.Count.Should().Be(3,
-            "two Node-scoped nodes (distinct keys) + one shared Behavior key (two bindings dedup) ⇒ 3 entries");
+        def.StatefulWorkingSlots!.Count.Should().Be(2,
+            "two Node-scoped nodes (distinct keys) ⇒ 2 entries; the shared Behavior variable is block-resident");
 
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
 
-        GetProvisionedSlotCount(world, entity).Should().Be(3,
-            "three deduped manifest entries ⇒ exactly three provisioned partition slots");
+        // ⭐ CE-376: the manifest's OWN keys, so the two Node-scoped slots and the one shared
+        //   Behavior slot are named rather than totalled. ⛔ The two ROOT slots are added by the
+        //   helper — a count here silently absorbed them.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
+            "two Node-scoped slots exactly as the manifest names them (CE-437: the shared one is in the block)");
 
-        // The shared Behavior slot must exist under its scope-aware key.
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, "shared");
-        TrySlotOffset(world, entity, behaviorKey).Should().BeTrue(
-            "the shared Behavior slot must be attached under its scope-aware key");
+        TrySlotOffset(world, entity, behaviorKey).Should().BeFalse(
+            "CE-437: the shared variable has no side slot");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(0, "CE-437: the block holds the shared state");
+
+        world.Dispose();
+        alc.Unload();
+        weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
+    }
+
+    // ── TEST 3 — CE-420 / CE-426 ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-420</c>, closed by <c>CE-426</c> — <b>an authored default on a <c>Role=State</c>
+    /// variable reaches the block.</b> 🔒 User, <c>2026-09-28</c>: <i>"working state zero init - isn't
+    /// that wrong, no editor saved defaults here?"</i> ⛔ Before this the bake list held the packed
+    /// (Input) fields only, so the default the editor offered and saved was dropped with no diagnostic.
+    ///
+    /// <para>⭐ And the second half is <c>CE-421</c>'s ruling: a RE-assign starts the block from empty
+    /// again, so a mutated State returns to its AUTHORED DEFAULT — not to zero, and not to the value
+    /// the previous assign left.</para>
+    ///
+    /// <para>⚠ Inverse-edit red-proof: delete the <c>EmitStateDefaultBake</c> call in
+    /// <c>EmitParseParamsLocal</c> and both reads return 0.</para>
+    /// </summary>
+    [Fact]
+    public void Assign_BakesAnAuthoredStateDefault_IntoTheBlock_AndReassignRestoresIt()
+    {
+        WeakReference<AssemblyLoadContext>[] weakRefs;
+        StateDefault_Body(out weakRefs);
+        AwaitAlcCollection(weakRefs);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void StateDefault_Body(out WeakReference<AssemblyLoadContext>[] weakRefs)
+    {
+        var assetId = new Guid("b3000003-0000-0000-0000-000000000000");
+        const string assetName = "S3StateDefault";
+        var n1 = new Guid("b3300003-0000-0000-0000-000000000001");
+
+        var stateVar = StateVar("shared", WorkingStateScope.Behavior);
+        stateVar.DefaultValueJson = "{\"Cursor\":7}";
+
+        var dto = BuildAsset(
+            assetId, assetName,
+            new[] { ParamVar(ParamVarName), stateVar },
+            new[] { (n1, "Action_shared", "shared") });
+
+        var (def, alc) = BuildDefFromDto(dto);
+
+        var world = CreateWorld();
+        Fdp.Core.Entity entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+
+        AssignBehavior(world, entity, assetName);
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(7, "CE-420: the authored State default is BAKED into the block at assign");
+
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor = 99;
+        AssignBehavior(world, entity, assetName);
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(7, "CE-421: a re-assign starts from empty and re-bakes — the authored default, not 99, not 0");
 
         world.Dispose();
         alc.Unload();

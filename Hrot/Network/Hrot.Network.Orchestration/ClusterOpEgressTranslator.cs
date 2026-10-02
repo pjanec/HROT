@@ -108,16 +108,30 @@ public sealed class ClusterOpEgressTranslator : IDisposable
         {
             NedClusterOpType opType = intent.Operation switch
             {
-                StorageOpType.Export       => NedClusterOpType.ExportArchive,
-                StorageOpType.Import       => NedClusterOpType.ImportArchive,
+                StorageOpType.Export           => NedClusterOpType.ExportArchive,
+                StorageOpType.Import           => NedClusterOpType.ImportArchive,
                 StorageOpType.SaveScenario => NedClusterOpType.SaveScenario,
-                _                          => NedClusterOpType.SaveScenario,
+                // CE-278: SaveScenario=2 retired; reject an unmapped storage op instead of silently
+                // routing it to the dead op (previously the default fell through to SaveScenario).
+                _ => throw new System.ArgumentOutOfRangeException(
+                         nameof(intent.Operation), intent.Operation,
+                         "Unsupported storage op for egress (SaveScenario=2 retired, CE-278)."),
             };
+
+            // ⭐⭐ CE-277(c0, HTTP): the distributed JSON save carries its relative NAME, not an ExerciseId. It
+            //    is serialized as {"ScenarioName": name} so BOTH master-side paths read it identically — the
+            //    in-process ClusterOpRequestAdapter.ToExecuteStorageOpIntent and the networked
+            //    ClusterOpMasterTranslator below. ⛔ The ArchivePayloadDto used by Export/Import has
+            //    no name field, so a SaveScenarioJson routed through it would silently lose the target name.
+            string payload = intent.Operation == StorageOpType.SaveScenario
+                ? new System.Text.Json.Nodes.JsonObject { ["ScenarioName"] = intent.ScenarioName }.ToJsonString()
+                : JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default);
+
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.RequestId,
                 OperationType = opType,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default),
+                PayloadJson   = payload,
             });
         }
 

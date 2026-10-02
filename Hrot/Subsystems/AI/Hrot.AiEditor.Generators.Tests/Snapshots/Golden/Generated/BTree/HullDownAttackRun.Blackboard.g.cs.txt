@@ -5,8 +5,17 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 56)]
 public struct HullDownAttackRun_Blackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.HullDownAttackParams Params;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct HullDownAttackRun_Block
+{
+    [FieldOffset(0)]
+    public HullDownAttackRun_Blackboard In;
 }

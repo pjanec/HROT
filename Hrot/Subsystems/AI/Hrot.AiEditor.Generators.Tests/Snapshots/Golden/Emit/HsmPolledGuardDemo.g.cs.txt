@@ -1,0 +1,29 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000151-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmPolledGuardDemo
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmPolledGuardDemo");
+
+        var waiting = builder.State("Waiting", stableId: new Guid("51000000-0000-0000-0000-00000000000a"))
+            .Initial();
+        builder.State("Finished", stableId: new Guid("51000000-0000-0000-0000-00000000000b"))
+            .Final();
+        waiting.On(0).GoTo("Finished", visualId: new Guid("51000000-0000-0000-0000-0000000000c1")).GuardId(36109).Polled();
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmPolledGuardDemo", AssetId = "00000151-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

@@ -39,4 +39,27 @@ public enum SelectionOrigin
 
     /// <summary>⭐ The My Blueprint / outline panel — a variable, parameter or graph row.</summary>
     VariableOutline,
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>U5</c> / <c>E3</c> — <b>the MAP BACKGROUND itself is the focused surface</b>: the operator
+    /// clicked the map, not an entity on it.
+    ///
+    /// <para>⭐ This is the whole of <c>U5</c>'s answer, and it needed no new seam. The design recorded
+    /// the gap as <i>"the details shell has no 'map background selected' CONTEXT —
+    /// <c>PopulateEmptyMapMenu</c> proves empty space is a click target for a MENU; selection-as-context
+    /// is new"</i>, and predicted the fix would be <i>"a small addition to an existing interface, not new
+    /// infrastructure"</i>. 📐 Measured: the machinery is already end-to-end —
+    /// <c>EditorSelectionStore.NotifySurfaceFocused</c> is how a surface claims focus (a LEVEL, called
+    /// every frame it holds it), <c>DetailsContext.Focus</c> carries it, and
+    /// <c>DetailsViewPredicates.FocusIs</c> is how a view's predicate reads it. ⇒ the map is just
+    /// another contributing surface, and the zones view's predicate is one <c>FocusIs</c> call.</para>
+    ///
+    /// <para>⚠ <b>Why it is the BACKGROUND and not "the map".</b> Clicking an ENTITY on the map already
+    /// produces an entity selection, which the entity-shaped views route on. ⛔ Naming this
+    /// <c>Map</c> would make those two gestures indistinguishable, and the zones list is precisely what
+    /// you want when nothing on the map is selected.</para>
+    ///
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.5, §3-U5.
+    /// </summary>
+    MapBackground,
 }

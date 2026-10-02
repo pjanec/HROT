@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T08_ActionLeaf
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Action(CgfNodes.Action_Wander,
                 visualId: new Guid("b9020000-0000-0000-0000-000000000001"));
 

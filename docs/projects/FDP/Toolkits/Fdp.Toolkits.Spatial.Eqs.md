@@ -116,7 +116,7 @@ Brain-tier result cache. Written by `EqsResultUpdateSystem`; read by BTree nodes
 
 ```csharp
 [ComponentId(GlobalComponentIds.EqsCognitiveBuffer)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public struct EqsCognitiveBuffer
 {
     public int            Count;                 // valid entries (0-16)

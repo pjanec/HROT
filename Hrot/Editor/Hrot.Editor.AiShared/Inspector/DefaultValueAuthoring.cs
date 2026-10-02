@@ -96,13 +96,39 @@ public static class DefaultValueAuthoring
     /// routes here.
     /// </para>
     /// </remarks>
+    /// <param name="seed">
+    /// ⭐⭐⭐ <b>The value to OPEN OVER, when it is not the declaration's default.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect this closes</b> *(user, <c>2026-08-20</c>: "opened Edit on a variable row
+    /// which was showing '312'. The Edit variable dialog opened with value '0'")*. 📐 This method only
+    /// ever hydrated <c>varEntry.DefaultValueJson</c> ⇒ ⛔ <b>a PAUSED edit opened at the DECLARATION's
+    /// default while the row showed the LIVE value</b>, and an OK would then have written that default
+    /// over the running value — 📌 the <c>BP-367</c> shape, one layer up.</para>
+    ///
+    /// <para>⚠ <b>Fails SAFE</b>: null, or a value of the wrong type, falls back to the declaration —
+    /// ⛔ a variable the run has not written yet must not open over a guess.</para>
+    /// </summary>
+    /// <remarks>⭐ Callers pass this only when the edit TARGETS the live blackboard; deciding that is
+    /// <c>VariableEditCommit.TargetFor</c>'s job, ⛔ not this method's.</remarks>
     public static IEditSession OpenSession(
         IComponentEditService editService,
         BlackboardVariableEntry varEntry,
-        EditScope? scope = null)
+        EditScope? scope = null,
+        object? seed = null)
     {
-        var instance = Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
-        return editService.Open(instance, varEntry.FieldType, scope);
+        var instance = varEntry.FieldType.IsInstanceOfType(seed)
+            ? seed!
+            : Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
+
+        // ⭐⭐⭐ Batch 97 (97a) — A SCALAR IS OPENED THROUGH A ONE-FIELD WRAPPER.
+        // 🔴🔴 BP-356: CreateLeafBinding needs a MEMBER and a document ROOT has none, so a scalar
+        //    variable's root came back with Binding == null and DrawLeafNode's
+        //    `node.Binding?.SetBoxed(value)` silently discarded the designer's typing.
+        // ⭐ ScalarEditBox<T> gives the root a bound CHILD; ⛔ the wrapper never escapes the session —
+        //   CommitAndSerialize and the live-bytes arm both unwrap. ⛔ StructEdit is untouched.
+        var editType = ScalarEditBox.EditTypeFor(varEntry.FieldType);
+        return editService.Open(
+            ScalarEditBox.Wrap(instance, varEntry.FieldType), editType, scope);
     }
 
     // ── Commit + serialize ────────────────────────────────────────────────────
@@ -117,7 +143,11 @@ public static class DefaultValueAuthoring
     /// <returns>The JSON-serialized committed value.</returns>
     public static string CommitAndSerialize(IEditSession session, Type fieldType)
     {
-        var committed = session.Commit();
+        // ⭐⭐⭐ Batch 97 (97a) — UNWRAP FIRST. ⛔ A scalar session commits a ScalarEditBox<T>, and the
+        //    declaration must receive `7`, ⛔ never `{"Value":7}`. ⚠ Serializing the box AS fieldType
+        //    would not even fail loudly — it would write `{}` through the catch below and look like a
+        //    serialisation quirk rather than the wrapper leaking.
+        var committed = ScalarEditBox.Unwrap(session.Commit(), fieldType);
         try
         {
             return JsonSerializer.Serialize(committed, fieldType, JsonOptions);

@@ -469,4 +469,32 @@ public sealed class BTreeMapperRoundTripTests
         // IsDirty is excluded from DTO (session-only); restored asset should not be dirty
         restored.IsDirty.Should().BeFalse("mapping does not activate dirty state");
     }
+
+    /// <summary>
+    /// ⛔⛔ <c>CE-428</c> + <c>CE-431</c> — the two new authoring fields must survive an EDITOR save
+    /// (DTO → model → DTO). 📌 Measured: <c>BehaviorTreeAssetMapper</c> rebuilds both directions field by field,
+    /// so before this both were silently dropped — an editor save would have unbound a behaviour's resolver and
+    /// every subtree site's params variable.
+    /// </summary>
+    [Fact]
+    public void ResolverRef_AndSubtreeParamsVariable_SurviveAnEditorRoundTrip()
+    {
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = Guid.NewGuid(), Name = "RoundTrip",
+            Resolver = new BTreeResolverRefDto { AssetId = Guid.Parse("00000428-0000-0000-0000-000000000001"), Name = "T40Resolver" },
+        };
+        dto.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = Guid.NewGuid(),
+            Subtree  = new BTreeSubtreePayloadDto { SubtreeName = "Child", ParamsVariable = "ChildParams" },
+        });
+
+        var back = BehaviorTreeAssetMapper.ToDto(BehaviorTreeAssetMapper.FromDto(dto));
+
+        back.Resolver.Should().NotBeNull();
+        back.Resolver!.AssetId.Should().Be(dto.Resolver.AssetId);
+        back.Resolver.Name.Should().Be("T40Resolver");
+        back.Nodes.OfType<BTreeSubtreeNodeDto>().Single().Subtree!.ParamsVariable.Should().Be("ChildParams");
+    }
 }

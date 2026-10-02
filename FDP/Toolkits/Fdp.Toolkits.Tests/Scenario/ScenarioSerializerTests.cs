@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<TestPhysicsCollider>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<CachedSpeedComponent>();
-            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
+            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoScenario)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
@@ -52,6 +52,50 @@ namespace Fdp.Toolkit.Scenario.Tests
             var builder = new ScenarioSerializerBuilder(subsystemType);
             foreach (var t in translators) builder.RegisterTranslator(t);
             return builder.Build();
+        }
+
+        // ── CE-275 ② — the ownership save gate ────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-275 ② / OQ8 — a host writes ONLY the entities it is the network-agnostic primary
+        /// owner of.</b> <c>CollectSaveableEntities</c> now gates on <c>HasAuthority</c>
+        /// (<c>NetworkAuthority.PrimaryOwnerId == LocalNodeId</c>, absent ⇒ owned) as well as
+        /// <c>ScenarioIgnoreTag</c>. This proves all three arms in one save:
+        /// a locally-owned entity is saved; a REMOTELY-owned one (e.g. a replicated IG-authored persistable
+        /// sketch) is EXCLUDED — the gap that <c>ScenarioIgnoreTag</c>-only filtering left open; and an entity
+        /// with NO <c>NetworkAuthority</c> is saved (the editor / AllInOne single-node cluster writes
+        /// everything). 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </summary>
+        [Fact]
+        public void Serialize_AppliesTheOwnershipGate_SavingOnlyOwnedEntities()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+
+            // Locally owned (PrimaryOwnerId == LocalNodeId) → saved.
+            var owned = _repo.CreateEntity();
+            _repo.SetComponent(owned, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
+            _repo.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+
+            // Owned by a FOREIGN node → excluded (we replicate it but do not own it).
+            var foreign = _repo.CreateEntity();
+            _repo.SetComponent(foreign, new DummyPosition { X = 2f, Y = 0f, Z = 0f });
+            _repo.AddComponent(foreign, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            // No NetworkAuthority at all (editor / AllInOne) → owned by construction → saved.
+            var editorLike = _repo.CreateEntity();
+            _repo.SetComponent(editorLike, new DummyPosition { X = 3f, Y = 0f, Z = 0f });
+
+            var dom      = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+            var entities = dom["Entities"]!.AsObject();
+
+            // owned + editorLike are written; the foreign one is dropped.
+            Assert.Equal(2, entities.Count);
+
+            var savedX = entities
+                .Select(kv => kv.Value!["DummyPosition"]!["X"]!.GetValue<float>())
+                .OrderBy(x => x)
+                .ToArray();
+            Assert.Equal(new[] { 1f, 3f }, savedX);   // non-vacuous: the X=2 foreign entity is the one dropped
         }
 
         // �� RoundTrip_1to1_PreservesAllFields ������������������������������������
@@ -228,7 +272,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         // �� DataPolicyNoSave_ComponentExcluded �����������������������������������
 
         /// <summary>
-        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
+        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> and
         /// must be absent from the serialized DOM.
         /// </summary>
         [Fact]
@@ -245,7 +289,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
             Assert.False(entityNode.ContainsKey("NoSaveVelocity"),
-                "NoSave component must be absent from the DOM.");
+                "NoScenario component must be absent from the DOM.");
             Assert.True(entityNode.ContainsKey("DummyPosition"),
                 "Saveable component must still appear in the DOM.");
         }
@@ -477,6 +521,63 @@ namespace Fdp.Toolkit.Scenario.Tests
             };
             var serializer = BuildSerializer();
             Assert.Throws<InvalidOperationException>(() => serializer.Deserialize(_repo, dom));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE411_R1</c> — the LENIENT half of the unknown-component policy.</b> The same
+        /// DOM that throws under the default policy loads under
+        /// <see cref="UnknownComponentPolicy.WarnAndSkip"/>: the alien key is skipped, the entity
+        /// survives, and the known components on it are still injected.
+        ///
+        /// <para>🔒 <b>Why this option exists.</b> 📐 Measured 2026-09-28: P4 retired
+        /// <c>BrainBlackboard</c> without migrating the scenario corpus, so every scenario still
+        /// carrying the key was unloadable — the 2PC <c>PrepareLive</c> faulted, the commit was
+        /// skipped, and no exercise could start. ⇒ on a live cluster, refusing the whole scenario
+        /// is a worse outcome than loading it one component short.</para>
+        ///
+        /// <para>⛔ <b>It does not replace the migration chain.</b> A PLANNED retirement ships a
+        /// migrator (<c>V2ToV3_RemoveBrainBlackboard</c>); this policy is the safety net for the
+        /// ones nobody planned. And the strict default stays — see the test below, which is the
+        /// reason this is a policy and not a behaviour change.</para>
+        /// </summary>
+        [Fact]
+        public void CE411_R1_UnknownComponentKey_IsSkipped_UnderWarnAndSkip()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 7f });
+
+            var dom = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            var entitiesNode = (JsonObject)dom["Entities"]!;
+            var entityNode   = (JsonObject)entitiesNode.First().Value!;
+            entityNode.Add("RetiredComponent999", new JsonObject { ["Field"] = JsonValue.Create(42) });
+
+            using var freshRepo = new EntityRepository();
+            RegisterCommonComponents(freshRepo);
+            var lenient = new ScenarioSerializerBuilder("TestSubsystem")
+                .WithUnknownComponentPolicy(UnknownComponentPolicy.WarnAndSkip)
+                .Build();
+
+            // ⭐ No throw — and the entity is still there with its KNOWN component intact.
+            lenient.Deserialize(freshRepo, dom);
+
+            var loaded = new List<Entity>();
+            foreach (var e in freshRepo.Query().With<DummyPosition>().Build())
+                loaded.Add(e);
+
+            Assert.Single(loaded);
+            Assert.Equal(7f, freshRepo.GetComponent<DummyPosition>(loaded[0]).X);
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE411_R2</c></b> — the default is still <see cref="UnknownComponentPolicy.Throw"/>.
+        /// ⛔ If this ever flips, every editor and CI load silently starts dropping data, which is
+        /// exactly what the test below was written to prevent.
+        /// </summary>
+        [Fact]
+        public void CE411_R2_TheDefaultPolicyIsStillThrow()
+        {
+            Assert.Equal(UnknownComponentPolicy.Throw, BuildSerializer().UnknownComponentPolicy);
         }
 
         /// <summary>

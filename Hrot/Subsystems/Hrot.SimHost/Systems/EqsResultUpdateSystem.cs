@@ -29,6 +29,14 @@ namespace Hrot.SimHost.Systems
     ///     bypass the C# 12 [InlineArray] ldobj defensive-copy trap (Design §8.1).</item>
     /// </list></para>
     /// </summary>
+    // ⭐⭐ CE-165 — the second system carried by BOTH CgfLogicPack (Brain) and SimHostCoreLogicPack
+    // (MuscleGround), so a node in both roles registers it twice unless the composition root deduplicates.
+    // ⚠ Stated honestly: unlike UnitHierarchySystem, a second tick here has NOT been measured to corrupt —
+    // it loops over buffers and writes results rather than accumulating. It is marked anyway because it is
+    // a singleton BY DESIGN (one EQS result pump per node) and a duplicate registration is a composition
+    // defect whatever the second tick happens to cost. If a legitimate need for two instances ever appears,
+    // remove the attribute and say why — do not weaken the guard.
+    [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class EqsResultUpdateSystem : IEcsModuleSystem
     {
@@ -103,34 +111,15 @@ namespace Hrot.SimHost.Systems
                             break;
                         }
                     }
-                    else if (view.HasComponent<PartMetadata>(candidate))
+                    else if (EqsSensorKey.Resolve(view, candidate, out long net, out int index, out _)
+                                 is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy
+                             && net == evt.ParentNetworkId && index == evt.LocalChildIndex)
                     {
-                        // Child-entity sensor: try PartMetadata path first, even when LocalChildIndex==0
-                        // (InstanceId=0 is a valid first child index).
-                        var meta = view.GetComponentRO<PartMetadata>(candidate);
-                        if (meta.InstanceId == evt.LocalChildIndex &&
-                            view.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
-                            view.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == evt.ParentNetworkId)
-                        {
-                            observer = candidate;
-                            break;
-                        }
+                        // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) —
+                        //   InstanceId 0 is a valid first child index — or a legacy sensor on the networked entity itself.
+                        observer = candidate;
+                        break;
                     }
-                    else if (evt.LocalChildIndex == 0)
-                    {
-                        // Legacy single-sensor: matched by NetworkIdentity on the entity itself
-                        // (only when candidate has no PartMetadata).
-                        if (view.HasComponent<NetworkIdentity>(candidate))
-                        {
-                            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(candidate);
-                            if (netId.Value == evt.ParentNetworkId)
-                            {
-                                observer = candidate;
-                                break;
-                            }
-                        }
-                    }
-                    // No else: if LocalChildIndex != 0 and candidate has no PartMetadata, skip.
                 }
                 if (observer.IsNull || !repo.IsAlive(observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(observer)) continue;

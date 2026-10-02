@@ -516,6 +516,144 @@ namespace Hrot.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
+        // ── CE-259ap — DOES LIVE INGRESS REACH A NODE IN RunningReplay? ──────────────────────────
+        //
+        // 🔒 The question the user asked on 2026-09-11, and the prerequisite CE-259ap's whole lean turns
+        //    on: docs/designs/replay-and-modules/DESIGN.md §2.1 claims TogglableInputGroup being disabled
+        //    is what "blocks live DDS ingress" during playback. If that were true, the two inert
+        //    mechanisms (the lifecycle gate and GhostCreationSystem.BypassLifecycle) would be dead weight
+        //    and the right answer would be DELETION. If it is false, the bypass is LOAD-BEARING.
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>MEASURED: <c>RunningReplay</c> does NOT stop a directly-registered
+        /// <c>SystemPhase.Input</c> system — so live DDS ingress DOES reach a replaying node.</b>
+        ///
+        /// <para>📐 The real <c>ReferenceReplayLoadHandler</c>, the real <c>Commit(PrepareReplay)</c>, a
+        /// real <c>ModuleHostKernel</c>. The probe stands in for <c>CycloneNetworkIngressSystem</c>, which
+        /// carries the same <c>[UpdateInPhase(SystemPhase.Input)]</c> and is registered the same way —
+        /// directly, never into a togglable group. ⚠ A stand-in because this project does not reference
+        /// <c>Fdp.Network.Cyclone</c>; the companion rail below asserts the real registrations have exactly
+        /// this shape, so the two together carry the claim.</para>
+        ///
+        /// <para>⛔⛔ <b>Why this is not a nit.</b> Ingress translators call
+        /// <c>GhostCreationSystem.CreateGhost(...)</c> DIRECTLY on the Input phase. That sets
+        /// <c>EntityLifecycle.Ghost</c> and registers the entity in the <c>NetworkEntityMap</c> — on a node
+        /// whose world is being restored from a recording. With <c>TkbIdentity</c> present,
+        /// <c>GhostPromotionSystem</c> (now built by <c>EntityCreationPack</c>, and ungated) then promotes
+        /// it. ⇒ the exact corruption §3.10.3 feared, with nothing in the way.</para>
+        /// </summary>
+        [Fact(Timeout = 20_000)]
+        public void RunningReplay_DoesNotStopADirectlyRegisteredInputPhaseSystem()
+        {
+            using var world  = new EntityRepository();
+            using var kernel = new ModuleHostKernel(world, new EventAccumulator());
+
+            var probe = new InputPhaseIngressProbe();
+            kernel.RegisterGlobalSystem(probe);   // ⭐ exactly how every CycloneNetworkIngressSystem is wired
+            kernel.InitializeForTest();
+
+            var inputGroup     = new TogglableInputGroup("test-input");
+            var simGroup       = new TogglableSimulationGroup("test-sim");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
+            var ghostSys       = new GhostCreationSystem(new NetworkEntityMap());
+            var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
+
+            // ⚠ A real controller: the handler rejects null. It is never asked to open a file — only
+            //   Commit(PrepareReplay) is exercised, and that path is the pure state flip.
+            var controller = new EcsRecordReplayController(kernel, nodeId: 1, world);
+
+            var handler = new ReferenceReplayLoadHandler(
+                controller,
+                inputGroup:       inputGroup,
+                simGroup:         simGroup,
+                postSimGroup:     postSimGroup,
+                lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                storageDirectory: _tempDir);
+
+            // ── Enter RunningReplay. Commit is the state flip; no prepared file is needed for it. ──
+            handler.Commit(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = NodeOpType.PrepareReplay,
+                DomainPayload = Guid.NewGuid(),
+            }, repo: null);
+
+            // ⛔ Anti-vacuity: the handler really did enter the replay state.
+            Assert.False(inputGroup.Enabled);
+            Assert.False(lifecycleGroup.Enabled);
+            Assert.True(ghostSys.BypassLifecycle);
+
+            // ⭐⭐ SYNCHRONOUS ticks, deliberately — no background loop and no Task.Delay.
+            //   ⚠ A first version spun RunKernelLoop for 200 ms, which measured the same thing but added
+            //     real CPU contention: LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState
+            //     (a timing-sensitive sibling, 3/3 green in isolation) then failed in ~1 run of 2 under
+            //     the parallel suite. ⇒ the load was MINE, so it goes rather than being explained away.
+            //   ⭐ Driving kernel.Update directly is what the loop did anyway, and it makes this rail
+            //     DETERMINISTIC instead of a 200 ms race.
+            int before = probe.Executions;
+            for (int i = 0; i < 3; i++) kernel.Update(0.016f);
+            int after = probe.Executions;
+
+            Assert.True(after > before,
+                "A directly-registered SystemPhase.Input system kept running while the node was in " +
+                "RunningReplay — which is the ANSWER to CE-259ap's prerequisite: live DDS ingress is NOT " +
+                "gated during playback. TogglableInputGroup holds the LOGIC-PACK input systems " +
+                "(MissionControlExecutionSystem, FireProcessingSystem, …); every " +
+                "CycloneNetworkIngressSystem is registered directly, outside it. If this assertion ever " +
+                "FAILS, ingress has become gated and CE-259ap's two inert mechanisms are dead weight to " +
+                "delete rather than defects to fix — so re-read that row before 'fixing' this test.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The companion half: the REAL ingress systems are registered exactly as the probe is —
+        /// directly, never into a togglable group — and nothing wires the one mechanism that WOULD gate
+        /// them from the replay path.</b>
+        ///
+        /// <para>📐 Measured <c>2026-09-11</c>: <c>CycloneNetworkIngressSystem</c> exposes
+        /// <c>IsWorldStateFrozen</c>, a <c>Func&lt;bool&gt;</c> checked once per <c>Execute</c> that skips
+        /// exactly the <c>TranslatorClass.WorldState</c> translators — ⭐⭐ <b>precisely the gate replay
+        /// needs.</b> ⛔ It has ONE production writer, <c>CgfSubsystem.WireWorldStateFreezeGate</c>, driven
+        /// by the <b>DEBUGGER halt</b> (<c>CgfClusterDebugTimeController.IsWorldStateFrozen =&gt;
+        /// _halted</c>, <c>DQ30-C</c>) — not by <c>RunningReplay</c>, and on one host only. ⇒ an
+        /// under-adopted seam, which is why <c>CE-259ap</c>'s lean is to ADOPT it rather than to honour
+        /// <c>BypassLifecycle</c> or populate the lifecycle group.</para>
+        /// </summary>
+        [Fact]
+        public void TheReplayPathWiresNoWorldStateFreeze_AndIngressIsNeverInATogglableGroup()
+        {
+            var handler = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "FDP/Toolkits/Fdp.Toolkits/Orchestration/Handlers/ReferenceReplayLoadHandler.cs"));
+
+            // ⭐ The replay path toggles four GROUPS and a bypass flag — and touches no ingress gate.
+            Assert.Contains("_inputGroup.Enabled", handler);
+            Assert.DoesNotContain("IsWorldStateFrozen", handler);
+
+            // ⛔ Every production registration of the ingress system is direct. If one is ever wrapped in
+            //   a togglable group this reddens, and that is the good outcome — it would mean replay
+            //   isolation grew a real gate.
+            foreach (var path in new[]
+            {
+                "Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs",
+                "Hrot/Network/Hrot.Network.BDC/Replication/BdcReplicationModule.cs",
+                "Hrot/Network/Hrot.Network.NED/Translators/Map/EntityStatesIngressPack.cs",
+            })
+            {
+                var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));
+                Assert.Contains("CycloneNetworkIngressSystem", src);
+                Assert.DoesNotContain("TogglableInputGroup", src);
+            }
+        }
+
+        /// <summary>⭐ Stands in for <c>CycloneNetworkIngressSystem</c>: same phase, same registration shape.</summary>
+        [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
+        private sealed class InputPhaseIngressProbe : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
+        {
+            public int Executions;
+            public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt) => Executions++;
+        }
+
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>
             {

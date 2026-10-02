@@ -1,0 +1,258 @@
+using System;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+
+namespace Hrot.ScenarioEditor.Map
+{
+    /// <summary>
+    /// ⭐⭐ <b>The registries a host may contribute to, handed out by <see cref="MapInteractionPack"/> at
+    /// the one moment when contributing is safe.</b>
+    ///
+    /// <para>⚠⚠ <b>The moment matters, and getting it wrong fails silently.</b>
+    /// <c>StatelessGizmoSystem</c>'s constructor sizes its visibility cache from
+    /// <c>registry.Rules.Count</c> (<c>:49-50</c>), and <c>Execute</c>'s guard is
+    /// <c>if (r &lt; cache.Length &amp;&amp; !cache[r]) continue;</c> — so a rule registered AFTER the
+    /// system exists lands beyond the cache and <b>ignores its visibility policy entirely</b>. Not a
+    /// crash; a silent semantic difference. The pack invokes
+    /// <see cref="MapInteractionContext.ContributeExtras"/> before constructing the systems, which closes
+    /// that hazard by construction instead of by each host remembering it.</para>
+    /// </summary>
+    public sealed class MapInteractionRegistries
+    {
+        internal MapInteractionRegistries(
+            GizmoRegistry gizmos,
+            StatelessGizmoRegistry stateless,
+            GizmoSettingsRegistry settings,
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus interactionBus)
+        {
+            Gizmos         = gizmos;
+            Stateless      = stateless;
+            Settings       = settings;
+            Buffer         = buffer;
+            InteractionBus = interactionBus;
+        }
+
+        /// <summary>Stateful gizmo definitions — the tool half (<c>UXI-07</c>'s territory).</summary>
+        public GizmoRegistry Gizmos { get; }
+
+        /// <summary>Stateless projectors — the map half.</summary>
+        public StatelessGizmoRegistry Stateless { get; }
+
+        /// <summary>The shared settings store (§3.2c: standalone and injectable, never per-host state).</summary>
+        public GizmoSettingsRegistry Settings { get; }
+
+        /// <summary>The one buffer every gizmo system writes into.</summary>
+        public DebugPrimitiveBuffer Buffer { get; }
+
+        /// <summary>The interaction bus the constructed systems will use.</summary>
+        public FdpEventBus InteractionBus { get; }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The input to <see cref="MapInteractionPack.Build"/> — <c>UXI-23</c> <c>S2b</c>.</b>
+    /// 📄 Design: <c>docs/UX/UX_Feature_Map_Parity.md</c> §3.2, §3.2a, §3.2b, ⭐ **§3.2d (the amendments)**.
+    ///
+    /// <para>🔒 <b>It deliberately carries NO <c>ModuleHostKernel</c>, and that is the whole point.</b>
+    /// The user's ruling is <i>"pack owns construction, host decides scheduling"</i>, and
+    /// <c>DESIGN_Subsystem_Composition_Unification.md</c> §3.2 forbids any shared bundle from registering
+    /// a module, a global system, a translator or a participant — because the run-set follows the host's
+    /// ROLE. Withholding the kernel makes that violation <b>unreachable rather than merely forbidden</b>,
+    /// which is the same technique <c>UiBundleContext</c> uses.</para>
+    /// </summary>
+    public sealed class MapInteractionContext
+    {
+        /// <summary>The world the gizmo systems will run over. Required.</summary>
+        public required EntityRepository World { get; init; }
+
+        /// <summary>
+        /// The interaction bus. Optional: when null the pack creates one and runs
+        /// <c>InteractionEventRegistry.RegisterAll</c> over it, which is what every host does by hand today.
+        /// </summary>
+        public FdpEventBus? InteractionBus { get; init; }
+
+        /// <summary>
+        /// The settings store. Optional: when null the pack creates a private one.
+        /// ⭐ §3.2c — a host may pass a SHARED instance (a "2D map station" persisting its own file), or its
+        /// own, or an empty one. That choice belongs to whoever owns the instance, not to the pack.
+        /// </summary>
+        public GizmoSettingsRegistry? Settings { get; init; }
+
+        /// <summary>
+        /// Which entities carry drag handles. ⭐ Genuinely per-host: a dumb terminal draws handles for
+        /// everything (<c>null</c>), an editor draws them only on the selection.
+        ///
+        /// <para>⛔ This gates <c>DataDrivenGizmoSystem</c> ONLY. There is deliberately no stateless
+        /// equivalent here: <c>S2a</c> measured that SimHost passed this same predicate to
+        /// <c>StatelessGizmoSystem</c> as well, where it acts as one blanket gate over every projector and
+        /// left the map dark (<c>CE-123</c>). The map is not gated by selection.</para>
+        /// </summary>
+        public Func<ISimulationView, Entity, bool>? IsSelectedPredicate { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b>The predicate three of the five hosts hand-wrote identically</b> — <i>"selected"</i> means
+        /// the entity carries a <c>SelectionState</c> with <c>IsSelected</c>.
+        ///
+        /// <para>⛔ <b>NOT a default.</b> 🔒 <c>null</c> is a real, documented policy — <i>"an IG draws
+        /// handles on everything, an editor draws them only on the selection"</i> — so defaulting this
+        /// would silently change what IG and CGF draw. ⭐ This exists so the three hosts that DO want it
+        /// stop writing the same four lines; the choice stays theirs.</para>
+        /// </summary>
+        public static readonly Func<ISimulationView, Entity, bool> SelectedEntitiesOnly =
+            static (view, entity) =>
+                view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
+                view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected;
+
+        // ══ UXI-11 — the SELECTION half of the pack ═════════════════════════════
+        // 📄 docs/UX/UX_Feature_Selection.md §2.7.10.
+        // 🔒 User, 2026-09-20: "we want to unify across host also the bootstrap code as far as
+        //    possible, including this entity selection stuff."
+        // ⚠⚠ MapInteractionPack's header used to list "selection systems" among what is deliberately NOT
+        //    here. That was written when selection WAS host-shaped: five hosts each hand-rolled a store
+        //    and a writer. S-1..S-3b made the wiring identical on every host, which turns the exclusion
+        //    into exactly the five-way duplication this pack exists to remove. ⇒ the pack CONSTRUCTS;
+        //    the host still SCHEDULES (the 2026-08-28 ruling is untouched).
+
+        /// <summary>
+        /// ⭐ The host's inspector context, resolved at USE time. Supplying it is what makes
+        /// <c>SelectionNotificationSystem</c> do anything — ⛔ a host with no ImGui inspector passes
+        /// nothing and the system no-ops, which is a fact about that host rather than a silent default.
+        /// </summary>
+        public Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector { get; init; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-300</c> — the AI editors' entity cell, as a SINK.</b>
+        /// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+        ///
+        /// <para>⚠ <b>A DELEGATE, and that is an ASSEMBLY fact, not style:</b> the cell
+        /// (<c>SharedEntitySelection</c>) lives in <c>Hrot.Editor.AiShared</c>, which this assembly
+        /// does not and must not reference. ⭐ Same shape and same reason as
+        /// <c>SelectionEgressSystem</c>'s publish delegate (<c>R-134</c>).</para>
+        ///
+        /// <para>⭐ <b>It replaces <c>CallbackSelectionBridge</c>, which hung off
+        /// <c>SelectionInteractionSystem.OnSelectionChanged</c> — a MAP GESTURE.</b> ⇒ an inspector
+        /// click, an orbat select, a context-menu <i>Select</i> or a remote <c>CMD_SET_SELECTION</c>
+        /// never moved the AI editors' entity, so every Watch/Details live-value row kept projecting
+        /// the PREVIOUS one. 🔴 The third instance of the shape <c>S-3</c> fixed inbound and
+        /// <c>S-6</c> outbound.</para>
+        ///
+        /// <para>⚠ A host with no AI editors passes nothing and nothing happens — a fact about that
+        /// host, not a silent default.</para>
+        /// </summary>
+        public Action<Entity?>? AiEntitySelection { get; init; }
+
+        /// <summary>
+        /// ⭐ The host's rubber-band visual, if it draws one. <c>null</c> ⇒ box-select still SELECTS, it
+        /// just draws no marquee — which is what SimHost and IG do today.
+        /// </summary>
+        public Hrot.ScenarioEditor.Gizmos.RubberBandState? RubberBand { get; init; }
+
+        /// <summary>
+        /// ⚠ Optional host follow-through invoked after a map click selects an entity — IG uses it to
+        /// publish its network click. ⛔ Not a selection write; the pack's systems own that.
+        /// </summary>
+        public Action<Entity, System.Numerics.Vector3>? OnMapSelectionChanged { get; init; }
+
+        /// <summary>
+        /// 🔴 <b>Whether the gizmo group starts enabled.</b> Default <c>false</c> — <c>GZH-003</c>
+        /// headless-first.
+        ///
+        /// <para>⚠⚠ <b>This exists because "start disabled everywhere" was measured unsafe.</b> The only
+        /// production driver of <c>GizmoExecutionController.AddListener()</c> is
+        /// <c>PerspectiveCoordinatorSystem</c>; <c>LocalTerminalModule</c> and
+        /// <c>GizmoCapabilitiesTracker</c> are registered by no host at all. So a standalone IG or editor
+        /// has no viewer-attach path, and starting disabled would shut their gate permanently — which is
+        /// exactly why both hard-set <c>Enabled = true</c> today.</para>
+        ///
+        /// <para>⭐ The per-host TRUTH survives as one named input; only the four scattered literals die.
+        /// 🔒 <c>R-137</c>: unification removes the duplication, not the capability. §3.2d ①.</para>
+        /// </summary>
+        public bool StartEnabled { get; init; }
+
+        /// <summary>
+        /// ⭐ Primitive-buffer capacity. Default matches <c>DebugPrimitiveBuffer</c>'s own default; IG asks
+        /// for <c>4096</c> because it draws the richest frame. 🔒 <c>R-137</c>: a per-host number that was
+        /// a constructor argument stays a per-host number, named once.
+        /// </summary>
+        public int? BufferCapacity { get; init; }
+
+        /// <summary>
+        /// Optional breakpoint manager, forwarded to the two interactive systems. Host-supplied because
+        /// only the editor and the replay browser have one.
+        /// </summary>
+        public Fdp.Toolkit.Diagnostics.Gizmos.IActiveViewProvider? BreakpointManager { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>UXI-07</c> step 3b — the <c>Spawn</c> tool's whole behaviour</b>, for the tool set the
+        /// pack registers on <see cref="MapInteraction.Tools"/>.
+        ///
+        /// <para>🔒 <b>This is the host-bound half of <c>Q26</c> constraint 3</b> (<i>"a tool descriptor is
+        /// shared; its activation is host-bound"</i>): the DESCRIPTOR and the arm body are shared in
+        /// <see cref="Tools.ScenarioToolRegistrations"/>; the one genuinely per-host input arrives here.</para>
+        ///
+        /// <para>⛔ <see langword="null"/> on a host that composes no spawn adapter. ⚠ <c>Spawn</c> is still
+        /// REGISTERED — 🔒 the user's <c>2026-08-10</c> ruling forbids a per-subsystem tool whitelist — and
+        /// it REPORTS why it did nothing (ruling 49) rather than being absent.</para>
+        /// </summary>
+        public Action? StartPlacementMode { get; init; }
+
+        /// <summary>
+        /// Where <i>"this host cannot service tool X"</i> goes. ⭐ Defaults to the FDP log.
+        /// ⚠ Separate from <c>ReportMapDiagnostic</c>: that one is the self-check's channel, and merging
+        /// them would put a tool's refusal into the map's health report.
+        /// </summary>
+        public Action<string>? ReportUnserviceableTool { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b>Live units for the shared <c>Measure</c> tool</b> — <c>UXI-07</c> step 4a.
+        ///
+        /// <para>🔒 Same <c>Q26</c> constraint 3 split as <see cref="StartPlacementMode"/>: the Measure
+        /// gizmo and its arm are SHARED, but WHERE the unit preference lives is host-bound. 📐 IG keeps it
+        /// in an IG-INTERNAL <c>MeasureToolGizmoSettings</c> registered by its own
+        /// <c>GizmoRegistrar</c>, which this assembly cannot reference — ⛔ so the pack cannot read the
+        /// setting itself, however tempting that looks.</para>
+        ///
+        /// <para>🔴 <b>What it replaced:</b> IG built a SECOND <c>MeasureGizmo</c> in
+        /// <c>MeasureToolGizmoAdapter</c> purely to push units onto it — two implementations of one
+        /// concept (ruling 9), and the second one armed straight on <c>GlobalGizmoManager</c>, bypassing
+        /// the arbiter. ⇒ ⭐ a PULL source lets the surviving surface keep its behaviour while owning no
+        /// instance.</para>
+        ///
+        /// <para>⛔ <see langword="null"/> ⇒ the gizmo uses its own settable <c>DisplayUnits</c> (metres).</para>
+        /// </summary>
+        public Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? MeasureUnits { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
+        /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
+        /// default to everything else.
+        ///
+        /// <para>⭐ The right axis: policy varies per HOST and per PROJECTOR. An attribute or an interface
+        /// member could only vary per projector, which is why §3.4's design needed a resolver rather than
+        /// a declaration. 📄 <c>UX_Feature_Map_Parity.md</c> §3.2f.</para>
+        /// </summary>
+        public Func<Type, IGizmoVisibilityPolicy?>? VisibilityPolicyResolver { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>S3</c> — where the map's diagnostics go.</b> Defaults to the FDP log.
+        ///
+        /// <para>🔒 Same contract as <c>ToolActivationDrainSystem.reportUnserviceable</c>: it carries the
+        /// NAME and the REASON, because <i>"nothing happened"</i> is indistinguishable from <i>"not
+        /// implemented"</i> to the operator holding the mouse. A rail injects a recorder.</para>
+        /// </summary>
+        public Action<string>? ReportMapDiagnostic { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b>The host's own gizmos.</b> Invoked AFTER the reflection pass and BEFORE the systems are
+        /// constructed — see <see cref="MapInteractionRegistries"/> for why that ordering is load-bearing.
+        ///
+        /// <para>📐 Four hosts need this, for projectors reflection cannot find: <c>EntityEditorLabelGizmo</c>
+        /// and <c>EntityEditorPolylineGizmo</c> (deliberately attribute-less — their constructors need a
+        /// <c>BehaviorRegistry</c>), <c>RubberBandGizmo</c>, <c>ReplaySpatialBoundsGizmo</c>,
+        /// <c>LayerControlGizmo</c>, <c>EntityDragGizmoDefinition</c>.</para>
+        /// </summary>
+        public Action<MapInteractionRegistries>? ContributeExtras { get; init; }
+    }
+}

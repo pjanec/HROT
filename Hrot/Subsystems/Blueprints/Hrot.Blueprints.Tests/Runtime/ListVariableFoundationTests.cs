@@ -74,7 +74,7 @@ public sealed class ListVariableFoundationTests
     ///
     /// <para>
     /// ⚠ <c>Hrot.AI.Behaviors.StructDemoData</c> is deliberately a type the registry does NOT carry —
-    /// a curated one (<c>MemberSlotList</c>) resolves at the first table hit and never reaches the arm
+    /// a curated one (<c>Fdp.Core.FixedString64</c>) resolves at the first table hit and never reaches the arm
     /// under test.
     /// </para>
     /// </summary>

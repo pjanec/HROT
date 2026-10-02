@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Examples.UrbanCombat;
 using Fdp.Examples.UrbanCombat.Brains;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
@@ -98,14 +99,20 @@ namespace Fdp.Examples.UrbanCombat.Tests
         {
             _director.SetupAmbushScenario();
 
-            // The APC is the only entity with both PassengerBuffer and BrainHsm128.
+            // The APC is the only entity with both a PassengerBuffer and an HSM brain.
+            // ⚠ O7c-④d (2026-09-23): BrainHsm128 is deleted, so "has an HSM brain" is no longer a
+            //   component to query on — it is BehaviorState.BrainTier, which is what it always
+            //   MEANT. ⭐ The selector is the same claim, read from its actual source.
             int passengerCount = -1;
             var q = _app.World.Query()
                 .With<PassengerBuffer>()
-                .With<BrainHsm128>()
+                .With<BehaviorState>()
                 .Build();
             foreach (var entity in q)
             {
+                if (_app.World.GetComponent<BehaviorState>(entity).BrainTier
+                    != BehaviorConstants.BrainTierHsm) continue;
+
                 var buf = _app.World.GetComponent<PassengerBuffer>(entity);
                 passengerCount = buf.Count;
                 break; // only one APC
@@ -213,13 +220,17 @@ namespace Fdp.Examples.UrbanCombat.Tests
             // Run 100 frames — APC should have moved north from Y=-80 toward centre.
             _app.RunSimulation(100);
 
+            // ⚠ O7c-④d: the HSM brain is BehaviorState.BrainTier, not a component (see above).
             var q = _app.World.Query()
                 .With<SimTransform>()
-                .With<BrainHsm128>()
+                .With<BehaviorState>()
                 .Build();
 
             foreach (var e in q)
             {
+                if (_app.World.GetComponent<BehaviorState>(e).BrainTier
+                    != BehaviorConstants.BrainTierHsm) continue;
+
                 var tf = _app.World.GetComponent<SimTransform>(e);
                 Assert.True(tf.Position.Y > -90f,
                     $"APC should have moved north from Y=-80; actual Y={tf.Position.Y}");

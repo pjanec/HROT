@@ -72,9 +72,14 @@ is the base-class library that HROT consumes.
 HROT is the **application layer**. It implements a military combined-arms simulation
 on top of FDP. Key concerns exclusive to HROT:
 
-- A **Brain/Muscle** split-authority model: the CGF node owns all cognitive state
-  (behavior trees, mission plans, entity spawn authority); the SimHost node owns all
-  physical state (kinematics, physics, combat resolution, sensor coverage).
+- A **Brain/Muscle** split-authority model: the CGF node holds cognitive state
+  (behavior trees, mission plans); the SimHost node holds physical state (kinematics,
+  physics, combat resolution, sensor coverage).
+  **This is a configured division of labour, not a protocol restriction.** Every ECS node
+  can create entities (by targeting itself), and ownership is held **per component** and is
+  **transferable at runtime** over the `OwnershipUpdate` topic — CGF's only special status is
+  as broadcast arbiter for *unowned* create requests. See
+  [`RULINGS.md` `R-138`](../blueprints/RULINGS.md).
 - A **visual AI behavior authoring** suite: separate graphical editors for Behavior
   Trees and Hierarchical State Machines with hot-reload, live debug overlays, and
   breakpoint support.
@@ -264,7 +269,7 @@ nodes visible to operators:
 |    CGF  (Brain)           |<------------------------->|  SimHost (Muscle)  |
 |  Behavior Trees,          |  NavigationStatus         |  Ground kinematics |
 |  Mission Planning,        |<-- WorldPos (ghost) ------>  Combat / Ballistics|
-|  Entity spawn authority   |                            |  Perception (LOS)  |
+|  Broadcast arbitration    |                            |  Perception (LOS)  |
 +---------------------------+                            +--------+-----------+
          |                                                        |
          |  EntityMaster, WorldPos                               | WorldPos,
@@ -286,7 +291,7 @@ transparently.
 | Attribute | Brain (CGF) | Muscle (SimHost) |
 |-----------|-------------|-----------------|
 | NodeRole flags | `Brain` | `MuscleGround \| Perception` |
-| ECS components owned | `BehaviorState`, `BrainBlackboard`, `MissionPlan`, `TargetMemory` | `SimTransform`, `WorldPos`, `NavigationStatus`, `PhysicsState` |
+| ECS components owned | `BehaviorState`, `BrainInterrupts`, `BlueprintBlackboard{256,1024,4096,16384}` (occurrence-slot tiers), `MissionPlan`, `TargetMemory` | `SimTransform`, `WorldPos`, `NavigationStatus`, `PhysicsState` |
 | DDS writes | `EntityMaster`, `NavigationIntent`, `WeaponFireIntent` | `WorldPos`, `NavigationStatus`, `EntityDamage` |
 | Spawn authority | Default processor for `CreateEntityRequest` | Not a default processor |
 | AI systems | BTree interpreter, HSM kernel, mission adapter | None |
@@ -307,7 +312,6 @@ transparently.
 | `Hrot.BTree.Editor` | (embedded) | Visual BTree authoring with live debug overlay |
 | `Hrot.Hsm.Editor` | (embedded) | Visual HSM authoring with live debug overlay |
 | `Hrot.ReplayBrowser` | `replaybrowser` | Offline recording inspection, search, and JSON export |
-| `Hrot.StrideMock` | `stridemock` | Stride engine mock node for CI / GPU-free environments |
 | `Hrot.ClusterRunner` | -- | Single entry-point executable for the entire cluster |
 
 ### 5.5 HROT Engine Layer
@@ -348,7 +352,6 @@ Selection is configuration-time: higher-level code is protocol-agnostic.
 
 **Runner:**
 - [Hrot.ClusterRunner](Hrot/Runner/Hrot.ClusterRunner.md)
-- [Hrot.FakeStrideApp](Hrot/Runner/Hrot.FakeStrideApp.md)
 
 **Subsystems:**
 - [Hrot.Orchestrator](Hrot/Subsystems/Hrot.Orchestrator.md)
@@ -359,7 +362,7 @@ Selection is configuration-time: higher-level code is protocol-agnostic.
 - [Hrot.Editor](Hrot/Subsystems/Hrot.Editor.md)
 - [Hrot.AI.Behaviors](Hrot/Subsystems/Hrot.AI.Behaviors.md)
 - [Hrot.ReplayBrowser](Hrot/Subsystems/Hrot.ReplayBrowser.md)
-- [Hrot.StrideMock](Hrot/Subsystems/Hrot.StrideMock.md)
+- [Hrot.NodeComposition](Hrot/Subsystems/Hrot.NodeComposition.md)
 
 **Blueprints:**
 - [Hrot.Blueprints.Core](Hrot/Blueprints/Hrot.Blueprints.Core.md)
@@ -388,7 +391,7 @@ not be possible through a public NuGet API.
 
 | Library | Path | What it provides | Why embedded |
 |---------|------|-----------------|--------------|
-| **FastBTree** (`Fbt.*`) | `FDP/ExtDeps/FastBTree/` | Behavior tree runtime kernel, compiler, fluent builder, source generator attributes (`[BTreeDefinition]`, `[BTreeAction]`, `[BTreeCondition]`) | Core data structures (`BrainBlackboard`, `BehaviorTreeBlob`) must be shared between the kernel and application code; no stable ABI boundary. |
+| **FastBTree** (`Fbt.*`) | `FDP/ExtDeps/FastBTree/` | Behavior tree runtime kernel, compiler, fluent builder, source generator attributes (`[BTreeDefinition]`, `[BTreeAction]`, `[BTreeCondition]`) | Core data structures (`BehaviorTreeBlob`) must be shared between the kernel and application code; no stable ABI boundary. (The `Interpreter`/`ActionRegistry` blackboard type parameter is bound to `byte` — the tree ticks against a byte ref into an occurrence slot's bytes, so no per-entity blackboard type needs to cross the boundary.) |
 | **FastHSM** (`Fhsm.*`) | `FDP/ExtDeps/FastHSM/` | Hierarchical state machine kernel, compiler, `HsmBuilder` fluent API, HSM instance structs | Same reason as FastBTree; `HsmDefinitionBlob` is co-designed with the simulation's entity component layout. |
 | **GizmoMap** | `FDP/ExtDeps/GizmoMap/` | Debug visualization over DDS: `DebugPrimitive` wire type, `GizmoMap.Network` DDS topics, `GizmoMap.Contracts` canonical types | The `DebugPrimitive` type must be identical at the CLR level in every assembly in the process; this is enforced via `TypeForwards.cs` in `Fdp.Diagnostics.Contracts`. |
 | **NodeEdit** | `FDP/ExtDeps/NodeEdit/` | Generic node-graph canvas widget (ImGui-based): `NodeEditor.Core` (host interfaces) + `NodeEditor.UI` (canvas renderer) | Used by both the Blueprint editor and the BTree/HSM editors; a shared in-repo version allows simultaneous evolution across all three consumers. |
@@ -572,7 +575,9 @@ See [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md).
    ```
 
 3. Use the `Hrot.BTree.Editor` canvas to compose the tree visually, or write it using
-   the `BTreeBuilder<BrainBlackboard, BTreeContext>` fluent API directly.
+   the `BTreeBuilder<MyPatrolParams, BTreeContext>` fluent API directly (the builder's own DTO type
+   is a build-time-only key for `Marshal.OffsetOf` in selector-form bindings; the compiled tree ticks
+   against the root params occurrence slot regardless of what you name it here).
 
 4. Register the behavior in `AiBehaviorFactory` with a unique integer ID (use 3000+
    range per project convention):
@@ -710,7 +715,6 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 | Project | Category | Description | Doc |
 |---------|----------|-------------|-----|
 | `Hrot.ClusterRunner` | Executable | Single entry point for the entire cluster; polyglot runner | [link](Hrot/Runner/Hrot.ClusterRunner.md) |
-| `Hrot.FakeStrideApp` | Executable | Standalone Raylib host for StrideMock subsystem | [link](Hrot/Runner/Hrot.FakeStrideApp.md) |
 
 ### 9.10 HROT Subsystems
 
@@ -718,13 +722,13 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 |---------|----------|-------------|-----|
 | `Hrot.Orchestrator` | Subsystem | Cluster state machine, 2PC coordinator, NAS gateway, asset inventory | [link](Hrot/Subsystems/Hrot.Orchestrator.md) |
 | `Hrot.SimHost` | Subsystem | Authoritative Muscle node: kinematics, physics, combat, LOS perception | [link](Hrot/Subsystems/Hrot.SimHost.md) |
-| `Hrot.CGF` | Subsystem | Brain node: AI behavior trees, mission planning, entity spawn authority | [link](Hrot/Subsystems/Hrot.CGF.md) |
+| `Hrot.CGF` | Subsystem | Brain node: AI behavior trees, mission planning, broadcast arbiter for unowned create requests | [link](Hrot/Subsystems/Hrot.CGF.md) |
 | `Hrot.IG` | Subsystem | Image Generator: 2-D tactical map, ghost replication, operator pick | [link](Hrot/Subsystems/Hrot.IG.md) |
 | `Hrot.ExCon` | Subsystem | Exercise Control operator station (IOS): scenario control, monitoring | [link](Hrot/Subsystems/Hrot.ExCon.md) |
 | `Hrot.Editor` | Subsystem | Offline scenario authoring, entity placement, mission planning, zone authoring | [link](Hrot/Subsystems/Hrot.Editor.md) |
 | `Hrot.AI.Behaviors` | Subsystem / Library | 8 runtime AI behaviors; BTree + HSM definitions, tactical order mappers | [link](Hrot/Subsystems/Hrot.AI.Behaviors.md) |
 | `Hrot.ReplayBrowser` | Subsystem | Offline recording inspection, search, diff, JSON export, causality jump | [link](Hrot/Subsystems/Hrot.ReplayBrowser.md) |
-| `Hrot.StrideMock` | Subsystem | Stride engine mock node (GPU-free, CI-friendly) | [link](Hrot/Subsystems/Hrot.StrideMock.md) |
+| `Hrot.NodeComposition` | Subsystem | Node composition root (`StrideNodeBootstrapper`) consumed by the real Stride host | [link](Hrot/Subsystems/Hrot.NodeComposition.md) |
 
 ### 9.11 HROT Blueprints
 
@@ -791,8 +795,10 @@ predictable 60 Hz tick latency regardless of tree complexity.
 BTree action dispatch tables, HSM action dispatch tables, gizmo registrar tables, and
 TKB descriptor registrations are all emitted by Roslyn source generators. Adding a new
 behavior, gizmo, or descriptor DTO requires only the domain attribute -- no manual
-registration. The generators also enforce invariants at compile time (e.g. `FDP_001`
-enforces the 100-byte `BehaviorParameters` limit).
+registration. The generators also enforce invariants at compile time (e.g. `FDP_001`,
+a capacity bound on `[SharedAiAction]`/`[SharedAiCondition]` DTOs — the largest tier's payload
+— the actual root-params slot has no fixed size; it is bounded per-behaviour by the
+occurrence-slot tier ladder, up to 16 096 B).
 
 **8. Blueprint scripting as a compile-time and runtime concern**
 Blueprint `.bp.json` assets can be compiled at MSBuild time (via
@@ -893,7 +899,6 @@ All generated documentation lives under `docs/`.
 | Document | Project |
 |----------|---------|
 | [Hrot.ClusterRunner](Hrot/Runner/Hrot.ClusterRunner.md) | Cluster executable entry point |
-| [Hrot.FakeStrideApp](Hrot/Runner/Hrot.FakeStrideApp.md) | Standalone StrideMock host |
 
 ### 12.6 HROT Subsystem Documents
 
@@ -907,7 +912,7 @@ All generated documentation lives under `docs/`.
 | [Hrot.Editor](Hrot/Subsystems/Hrot.Editor.md) | Scenario editor |
 | [Hrot.AI.Behaviors](Hrot/Subsystems/Hrot.AI.Behaviors.md) | Runtime AI behaviors |
 | [Hrot.ReplayBrowser](Hrot/Subsystems/Hrot.ReplayBrowser.md) | Replay inspection tool |
-| [Hrot.StrideMock](Hrot/Subsystems/Hrot.StrideMock.md) | Stride engine mock |
+| [Hrot.NodeComposition](Hrot/Subsystems/Hrot.NodeComposition.md) | Node composition root for the real Stride host |
 
 ### 12.7 HROT Blueprint Documents
 

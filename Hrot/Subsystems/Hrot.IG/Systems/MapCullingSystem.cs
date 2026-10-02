@@ -58,6 +58,23 @@ public class MapCullingSystem : IEcsModuleSystem
         float maxY = _viewport.WorldMaxY;
         float zoom = _viewport.Zoom;
 
+        // CE-131: an UNSET viewport is not a small viewport - it carries NO information, and culling
+        // against it is not culling, it is blanking.
+        //
+        // MapCameraViewport's four bounds are auto-properties with no initializer, so they start at 0f:
+        // a degenerate point at the origin, against which every entity tests OUT of view. They are filled
+        // from the projected screen corners in IgApplication.Update - inside `if (!_headless)`. So on a
+        // headless node, or before the first frame with a real camera, this system marked EVERY entity
+        // invisible, every tick.
+        //
+        // This went unnoticed for a long time because IG's map was in fact drawn by SimHost's and CGF's
+        // entity projectors, which ignored culling entirely. UXI-23 S2a merged those away, which is what
+        // finally made it visible (docs/UX/UX_Feature_Map_Parity.md 3.9j.5b).
+        //
+        // Absence means VISIBLE - the same rule EntityPresentationGizmo and CullingStateVisibilityPolicy
+        // already follow. A host with a real viewport culls exactly as before.
+        bool viewportIsSet = maxX > minX && maxY > minY;
+
         // Resolve LOD once per frame — all entities share the same zoom level.
         byte lod = zoom < CullingStateConstants.LodIconOnlyZoomThreshold
             ? CullingStateConstants.LodIconOnly
@@ -73,7 +90,8 @@ public class MapCullingSystem : IEcsModuleSystem
             float x = transform.Position.X;
             float y = transform.Position.Y;
 
-            bool inView = x >= minX && x <= maxX && y >= minY && y <= maxY;
+            bool inView = !viewportIsSet
+                       || (x >= minX && x <= maxX && y >= minY && y <= maxY);
 
             var state = new CullingState { IsVisible = inView, LodLevel = lod };
 

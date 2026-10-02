@@ -381,7 +381,7 @@ For AiPrimitive in BTree: the `ctx.Self` from `BTreeContext`. Generated thunk wr
 
 ```csharp
 public static NodeStatus BTreeTick(
-    ref BrainBlackboard bb,
+    ref byte bb,   // the entity's root-params occurrence slot bytes
     ref BehaviorTreeState state,
     ref BTreeContext ctx,
     int paramIndex)
@@ -1400,28 +1400,29 @@ private object MarshalFromBytes(ReadOnlySpan<byte> bytes, Type t)
 
 ### 8.6 Reading AiPrimitive working state
 
-Identical pattern, with the layout starting at offset 8 (first 8 bytes are the structure hash header, per Compiler DD §10.4):
+Not a single component read any more — each AiPrimitive's working state is its own **occurrence slot** in
+the entity's tier component. Walk `BlueprintTierTable.Ascending` to find which tier the entity carries,
+then walk that tier's slot table for the occurrence keyed `{fqn}@{offset}@{slotKey}`, and project at the
+slot's own `PayloadOffset` (this is exactly `BlueprintDebugSession.CaptureAiPrimitiveOccurrences`, already
+in production):
 
 ```csharp
 private void CaptureAiPrimitiveState(
     Entity self, BlueprintDefinition def, DebugMapIndex map,
     Dictionary<string, object> outFields)
 {
-    if (!_view.HasComponent<Blackboard1024>(self)) return;
-    ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(self);
+    if (!BlueprintTierTable.TryGetView(_view, self, out var mem, out var slotTable)) return;
 
-    Span<byte> bytes;
-    unsafe { fixed (byte* p = bb.Memory) bytes = new Span<byte>(p, Blackboard1024.TotalSize); }
-
-    ulong storedHash = MemoryMarshal.Read<ulong>(bytes);
-    if (storedHash != def.StructureHash) return;   // stale; thunk hasn't initialized yet
-
-    // Working-state fields start at offset 8
-    foreach (var field in map.StateLayout.Fields)
+    foreach (var slot in slotTable.WhereStructureHashMatches(def.StructureHash))
     {
-        var fieldType = ResolveType(field.Type);
-        var fieldBytes = bytes.Slice(8 + field.OffsetBytes, field.SizeBytes);
-        outFields[field.Name] = MarshalFromBytes(fieldBytes, fieldType);
+        Span<byte> bytes = slot.BytesFrom(mem);   // the slot's own PayloadOffset / PayloadSize
+
+        foreach (var field in map.StateLayout.Fields)
+        {
+            var fieldType = ResolveType(field.Type);
+            var fieldBytes = bytes.Slice(field.OffsetBytes, field.SizeBytes);
+            outFields[field.Name] = MarshalFromBytes(fieldBytes, fieldType);
+        }
     }
 }
 ```

@@ -236,7 +236,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(PerceptionApplicationComponentIds.SensorContactList)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct SensorContactList
     {
         /// <summary>Number of valid contact entries (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
@@ -286,7 +286,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(PerceptionApplicationComponentIds.ActiveSensorTracks)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct ActiveSensorTracks
     {
         /// <summary>Number of currently acquired tracks (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>

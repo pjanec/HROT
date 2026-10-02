@@ -4,19 +4,37 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>HrotStrideApp</RootNamespace>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- ST-PORT: app.manifest is matched by Stride/.gitignore's "*.manifest" and is committed on
+         NEITHER branch, so a clean clone could not build this project on any machine (CS1926).
+         Made conditional rather than committing a file the ignore rule excludes: a Windows dev who
+         has one still gets it. -->
+    <ApplicationManifest Condition="Exists('app.manifest')">app.manifest</ApplicationManifest>
 
     <OutputPath>..\Bin\Windows\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
     <!-- Force msbuild to check to rebuild this assembly instead of letting VS IDE guess -->
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+
+    <!-- HrotStrideApp.Windows does not define any CycloneDDS IDL topics.
+         The code-generator is pulled transitively through the ProjectReference chain but
+         fails on Stride/Windows projects due to command-line length.  Suppress it. -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\HrotStrideApp.Game\HrotStrideApp.Game.csproj" />
+  </ItemGroup>
+
+  <!-- ST-PORT drift: the coordinator line moved CycloneDDS.NET 0.2.3 -> 0.3.2, which requires
+       Microsoft.CodeAnalysis.Common >= 4.8.0, while Stride.Core.Assets.CompilerApp 4.2.1.2487 pins
+       it at = 3.6.0 (NU1107). NuGet's own named resolution: reference the higher version directly.
+       A build-graph pin only; the asset compiler is IncludeAssets="build". -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
 
 </Project>

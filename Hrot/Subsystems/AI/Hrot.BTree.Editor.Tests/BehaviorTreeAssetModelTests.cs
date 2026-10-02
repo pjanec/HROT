@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Model;
@@ -170,5 +171,57 @@ public sealed class BehaviorTreeAssetModelTests
         asset.FindNode(idB).Should().NotBeNull();
         asset.FindBlobIndex(idA).Should().Be(0);
         asset.FindBlobIndex(idB).Should().Be(1);
+    }
+
+    // ── CE-435: a State variable is always Behavior-scoped ────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-435</c> — <b>flipping a variable to <c>Role=State</c> also pins its scope to
+    /// <c>Behavior</c>.</b>
+    ///
+    /// <para>🔴 <b>Inverse-edit red-proof:</b> drop the <c>Scope = scope</c> clause from
+    /// <c>BehaviorTreeAsset.UpdateVariableRole</c> and this fails with <c>Node</c> — which is the
+    /// enum's DEFAULT and the value whose standalone slot both bridge emitters SILENTLY SKIP
+    /// (<c>CE-423</c>). ⇒ before this slice, two clicks in the Variables panel produced a State
+    /// variable with no storage and no diagnostic.</para>
+    ///
+    /// <para>⛔ This is about the AUTHORED scope only. <c>OccurrenceSlotKey</c>'s <c>Node</c> arm is
+    /// untouched — it keys node-BOUND working state for hosted AiPrimitives, which is the common
+    /// case and is not authored here.</para>
+    /// </summary>
+    [Fact]
+    public void UpdateVariableRole_to_State_pins_the_scope_to_Behavior()
+    {
+        var asset = MakeAsset();
+        asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
+            "Cursor", typeof(int), Comment: null,
+            Role:  Hrot.AiEditor.Persistence.BlackboardVariableRole.Input,
+            Scope: Hrot.AiEditor.Persistence.WorkingStateScope.Node));   // Node is the enum default
+
+        asset.UpdateVariableRole("Cursor", Hrot.AiEditor.Persistence.BlackboardVariableRole.State);
+
+        var v = asset.BlackboardVariables.Single(x => x.Name == "Cursor");
+        v.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.State);
+        v.Scope.Should().Be(Hrot.AiEditor.Persistence.WorkingStateScope.Behavior,
+            "CE-435: Behavior is the only authorable scope, and Node silently provisions nothing");
+    }
+
+    /// <summary>
+    /// ⭐ The other direction is a NO-OP on scope: going back to <c>Input</c> must not invent a
+    /// scope change, because an Input variable's scope is meaningless and never read.
+    /// </summary>
+    [Fact]
+    public void UpdateVariableRole_to_Input_leaves_the_scope_alone()
+    {
+        var asset = MakeAsset();
+        asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
+            "Cursor", typeof(int), Comment: null,
+            Role:  Hrot.AiEditor.Persistence.BlackboardVariableRole.State,
+            Scope: Hrot.AiEditor.Persistence.WorkingStateScope.Behavior));
+
+        asset.UpdateVariableRole("Cursor", Hrot.AiEditor.Persistence.BlackboardVariableRole.Input);
+
+        asset.BlackboardVariables.Single(x => x.Name == "Cursor").Scope
+             .Should().Be(Hrot.AiEditor.Persistence.WorkingStateScope.Behavior);
     }
 }

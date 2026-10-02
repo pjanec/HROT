@@ -69,10 +69,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             var guardAttr     = symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.Name == "HsmGuardAttribute");
             bool hasSharedCond         = symbol.GetAttributes().Any(IsSharedAiConditionAttr);
             bool hasSharedAction        = symbol.GetAttributes().Any(IsSharedAiActionAttr);
-            bool hasSharedHeavy         = symbol.GetAttributes().Any(IsSharedAiHeavyActionAttr);
-            bool hasSharedHeavyCondition = symbol.GetAttributes().Any(IsSharedAiHeavyConditionAttr);
 
-            if (actionAttr == null && guardAttr == null && !hasSharedCond && !hasSharedAction && !hasSharedHeavy && !hasSharedHeavyCondition) return null;
+            if (actionAttr == null && guardAttr == null && !hasSharedCond && !hasSharedAction) return null;
 
             // Only generate adapters for publicly accessible methods; private/protected
             // methods (e.g., test fixtures) must not appear in generated code.
@@ -106,7 +104,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 };
             }
 
-            if (hasSharedCond || hasSharedAction || hasSharedHeavy || hasSharedHeavyCondition)
+            if (hasSharedCond || hasSharedAction)
             {
                 return new MethodInfo
                 {
@@ -114,9 +112,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     FullName     = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
                     IsSharedAi   = true,
                     IsSharedCondition     = hasSharedCond,
-                    IsSharedAction        = hasSharedAction || hasSharedHeavy,
-                    IsSharedHeavy         = hasSharedHeavy,
-                    IsSharedHeavyCondition = hasSharedHeavyCondition,
+                    IsSharedAction        = hasSharedAction,
                     IsStatic     = symbol.IsStatic,
                     Symbol       = symbol,
                     WritesChannels = CollectWritesChannels(symbol),
@@ -129,10 +125,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiConditionAttribute";
         private static bool IsSharedAiActionAttr(AttributeData a)
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiActionAttribute";
-        private static bool IsSharedAiHeavyActionAttr(AttributeData a)
-            => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiHeavyActionAttribute";
-        private static bool IsSharedAiHeavyConditionAttr(AttributeData a)
-            => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.SharedAiHeavyConditionAttribute";
         private static bool IsWritesChannelAttr(AttributeData a)
             => a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.WritesChannelAttribute";
 
@@ -209,27 +201,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         if (e != null) result.Add(e);
                     }
                 }
-                if (info.IsSharedAction && !info.IsSharedHeavy)
+                if (info.IsSharedAction)
                 {
                     foreach (var attr in sym.GetAttributes().Where(IsSharedAiActionAttr))
                     {
                         var e = BuildEntry(context, sym, attr, isCondition: false, info.WritesChannels);
-                        if (e != null) result.Add(e);
-                    }
-                }
-                if (info.IsSharedHeavy)
-                {
-                    foreach (var attr in sym.GetAttributes().Where(IsSharedAiHeavyActionAttr))
-                    {
-                        var e = BuildHeavyEntry(context, sym, attr, info.WritesChannels);
-                        if (e != null) result.Add(e);
-                    }
-                }
-                if (info.IsSharedHeavyCondition)
-                {
-                    foreach (var attr in sym.GetAttributes().Where(IsSharedAiHeavyConditionAttr))
-                    {
-                        var e = BuildHeavyConditionEntry(context, sym, attr);
                         if (e != null) result.Add(e);
                     }
                 }
@@ -281,117 +257,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
                 IsCondition  = isCondition,
                 WritesChannels = writes,
-            };
-        }
-
-        private static SharedAiEntry? BuildHeavyEntry(
-            SourceProductionContext context,
-            IMethodSymbol sym,
-            AttributeData attr,
-            List<int> writes)
-        {
-            if (attr.ConstructorArguments.Length < 3) return null;
-            var dtoTypeSymbol   = attr.ConstructorArguments[0].Value as INamedTypeSymbol;
-            string? fieldName   = attr.ConstructorArguments[1].Value as string;
-            var heavyCompSymbol = attr.ConstructorArguments[2].Value as INamedTypeSymbol;
-            if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName) || heavyCompSymbol == null) return null;
-
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
-            if (offset == null || fieldTypeSymbol == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BHU003_UnknownField, sym.Locations.FirstOrDefault(),
-                    sym.Name, fieldName, dtoTypeSymbol.ToDisplayString()));
-                return null;
-            }
-
-            bool isHeavyManaged = heavyCompSymbol.IsReferenceType;
-            string heavyCompFqn = heavyCompSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            string? heavyFieldName = null;
-            string? heavyDtoFqn = null;
-
-            if (!isHeavyManaged)
-            {
-                if (attr.ConstructorArguments.Length < 5) return null;
-                heavyFieldName = attr.ConstructorArguments[3].Value as string;
-                var heavyDtoSymbol = attr.ConstructorArguments[4].Value as INamedTypeSymbol;
-                if (string.IsNullOrEmpty(heavyFieldName) || heavyDtoSymbol == null) return null;
-                heavyDtoFqn = heavyDtoSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            }
-
-            return new SharedAiEntry
-            {
-                MethodName   = sym.Name,
-                FullName     = sym.ContainingType.ToDisplayString() + "." + sym.Name,
-                FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                Offset       = offset.Value,
-                CompoundKey  = HsmActionKey.CompoundKeyName(
-                    sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
-                IsCondition  = false,
-                IsHeavy      = true,
-                IsHeavyManaged    = isHeavyManaged,
-                HeavyComponentFqn = heavyCompFqn,
-                HeavyFieldName    = heavyFieldName,
-                HeavyDtoFqn       = heavyDtoFqn,
-                WritesChannels = writes,
-            };
-        }
-
-        private static SharedAiEntry? BuildHeavyConditionEntry(
-            SourceProductionContext context,
-            IMethodSymbol sym,
-            AttributeData attr)
-        {
-            // Condition attribute arg order: arg0=dtoType, arg1=fieldName, arg2=heavyCompType,
-            //   arg3=heavyDtoType, arg4=heavyFieldName (optional; present => unmanaged)
-            if (attr.ConstructorArguments.Length < 4) return null;
-            var dtoTypeSymbol   = attr.ConstructorArguments[0].Value as INamedTypeSymbol;
-            string? fieldName   = attr.ConstructorArguments[1].Value as string;
-            var heavyCompSymbol = attr.ConstructorArguments[2].Value as INamedTypeSymbol;
-            var heavyDtoSymbol  = attr.ConstructorArguments[3].Value as INamedTypeSymbol;
-            if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName) || heavyCompSymbol == null) return null;
-
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
-            if (offset == null || fieldTypeSymbol == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    BHU003_UnknownField, sym.Locations.FirstOrDefault(),
-                    sym.Name, fieldName, dtoTypeSymbol.ToDisplayString()));
-                return null;
-            }
-
-            // heavyFieldName (arg4) present => unmanaged; absent => managed.
-            string? heavyFieldName = null;
-            string? heavyDtoFqn    = null;
-            bool isHeavyManaged    = true;
-            string heavyCompFqn    = heavyCompSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            if (attr.ConstructorArguments.Length >= 5)
-            {
-                heavyFieldName = attr.ConstructorArguments[4].Value as string;
-                if (!string.IsNullOrEmpty(heavyFieldName))
-                {
-                    isHeavyManaged = false;
-                    if (heavyDtoSymbol == null) return null;
-                    heavyDtoFqn = heavyDtoSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                }
-            }
-
-            return new SharedAiEntry
-            {
-                MethodName   = sym.Name,
-                FullName     = sym.ContainingType.ToDisplayString() + "." + sym.Name,
-                FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                Offset       = offset.Value,
-                CompoundKey  = HsmActionKey.CompoundKeyName(
-                    sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
-                IsCondition  = true,
-                IsHeavy      = true,
-                IsHeavyManaged    = isHeavyManaged,
-                HeavyComponentFqn = heavyCompFqn,
-                HeavyFieldName    = heavyFieldName,
-                HeavyDtoFqn       = heavyDtoFqn,
-                WritesChannels    = new List<int>(),
             };
         }
 
@@ -548,7 +413,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + " },");
+                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + " },");
             }
             sb.AppendLine("        };");
             sb.AppendLine();
@@ -561,10 +426,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId)");
+            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId, HsmCommandWriter* writer)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (GuardTable.TryGetValue(guardId, out var guardPtr))");
-            sb.AppendLine("                return ((delegate* <void*, void*, ushort, bool>)guardPtr)(instance, context, eventId);");
+            sb.AppendLine("                return ((delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)guardPtr)(instance, context, eventId, writer);");
             sb.AppendLine("            return true; // No guard = always pass");
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -656,7 +521,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + ");");
+                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + ");");
             }
 
             foreach (var entry in sharedAiEntries)
@@ -666,7 +531,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     ? "Guard_" + entry.MethodName + "_At" + entry.Offset
                     : "Action_" + entry.MethodName + "_At" + entry.Offset;
                 if (entry.IsCondition)
-                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + thunkName + ");");
+                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + thunkName + ");");
                 else
                     sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + thunkName + ");");
             }
@@ -720,28 +585,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
             sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
-            if (entry.IsHeavy)
-            {
-                if (entry.IsHeavyManaged)
-                {
-                    sb.AppendLine("            var heavy = repo.GetComponent<" + entry.HeavyComponentFqn + ">(bridge->Self);");
-                    sb.AppendLine("            return global::" + entry.FullName + "(ref field, heavy, bridge->Self, repo);");
-                }
-                else
-                {
-                    sb.AppendLine("            ref var heavyComp = ref repo.GetComponentRW<" + entry.HeavyComponentFqn + ">(bridge->Self);");
-                    sb.AppendLine("            ref var heavy = ref Unsafe.As<byte, " + entry.HeavyDtoFqn + ">(");
-                    sb.AppendLine("                ref Unsafe.AddByteOffset(ref Unsafe.As<" + entry.HeavyComponentFqn + ", byte>(ref heavyComp), (IntPtr)0));");
-                    sb.AppendLine("            return global::" + entry.FullName + "(ref field, ref heavy, bridge->Self, repo);");
-                }
-            }
-            else
-            {
-                sb.AppendLine("            return global::" + entry.FullName + "(ref field, bridge->Self, repo);");
-            }
+            sb.AppendLine("                " + BlackboardParamsExpression.At("repo", "bridge->Self", entry.Offset) + ");");
+            sb.AppendLine("            return global::" + entry.FullName + "(ref field, bridge->Self, repo);");
             sb.AppendLine("        }");
             sb.AppendLine();
         }
@@ -758,31 +604,31 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
-            sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
-            if (entry.IsHeavy)
-            {
-                if (entry.IsHeavyManaged)
-                {
-                    sb.AppendLine("            var heavy = repo.GetComponent<" + entry.HeavyComponentFqn + ">(bridge->Self);");
-                    sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
-                    sb.AppendLine("            global::" + entry.FullName + "(ref field, heavy, bridge->Self, repo);");
-                }
-                else
-                {
-                    sb.AppendLine("            ref var heavyComp = ref repo.GetComponentRW<" + entry.HeavyComponentFqn + ">(bridge->Self);");
-                    sb.AppendLine("            ref var heavy = ref Unsafe.As<byte, " + entry.HeavyDtoFqn + ">(");
-                    sb.AppendLine("                ref Unsafe.AddByteOffset(ref Unsafe.As<" + entry.HeavyComponentFqn + ", byte>(ref heavyComp), (IntPtr)0));");
-                    sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
-                    sb.AppendLine("            global::" + entry.FullName + "(ref field, ref heavy, bridge->Self, repo);");
-                }
-            }
-            else
-            {
-                sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
-                sb.AppendLine("            global::" + entry.FullName + "(ref field, bridge->Self, repo);");
-            }
+            // ⭐⭐⭐ P2 / BP-297 — THIS THUNK USED TO READ ITS DTO AT A BAKED OFFSET INTO THE ENTITY'S
+            //   ONE BrainBlackboard, so two concurrently-active regions running the same action
+            //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
+            //   (region, state) the kernel stamped (O6) and by this action's compound key.
+            //
+            sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
+            sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
+            sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
+                          + "UL ^ (ulong)sizeof(" + entry.FieldTypeFqn + ");");
+            // ⭐⭐⭐ CE-444 (R-155, DESIGN_Parameter_Model §P.3/§P.9, option B): the action reads its host's field
+            //   LIVE every call. The occurrence caches only the host offset (looked up once at attach); ⛔ it used to
+            //   COPY the field at activation, so a host write mid-activity was never seen.
+            sb.AppendLine("            ref var __ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<"
+                          + "int, global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
+            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out int* __hostOffset);");
+            sb.AppendLine("            if (__freshlyAttached)");
+            sb.AppendLine("                *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer) + " + entry.Offset + ";");
+            sb.AppendLine("            _ = __ws;");
+            sb.AppendLine("            byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(repo, bridge->Self, out int __rootLen);");
+            sb.AppendLine("            int __at = *__hostOffset;");
+            sb.AppendLine("            if (__at < 0 || __at + sizeof(" + entry.FieldTypeFqn + ") > __rootLen)");
+            sb.AppendLine("                throw new global::System.InvalidOperationException($\"CE-444: " + entry.MethodName + " at host offset {__at} does not fit the {__rootLen}-byte root block.\");");
+            sb.AppendLine("            ref var field = ref *(" + entry.FieldTypeFqn + "*)(__root + __at);");
+            sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
+            sb.AppendLine("            global::" + entry.FullName + "(ref field, bridge->Self, repo);");
             sb.AppendLine("        }");
             sb.AppendLine();
         }
@@ -836,8 +682,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             public bool IsSharedAi  { get; set; }
             public bool IsSharedCondition { get; set; }
             public bool IsSharedAction    { get; set; }
-            public bool IsSharedHeavy     { get; set; }
-            public bool IsSharedHeavyCondition { get; set; }
             public IMethodSymbol? Symbol  { get; set; }
             public List<int> WritesChannels { get; set; } = new List<int>();
         }
@@ -851,12 +695,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             public string CompoundKey  { get; set; } = "";
             public string Lane         { get; set; } = "global::Fhsm.Kernel.Data.CommandLane.None";
             public bool   IsCondition  { get; set; }
-            // Heavy-action fields (populated only when IsHeavy == true)
-            public bool IsHeavy { get; set; }
-            public bool IsHeavyManaged    { get; set; }
-            public string? HeavyComponentFqn { get; set; }
-            public string? HeavyFieldName    { get; set; }
-            public string? HeavyDtoFqn       { get; set; }
             public List<int> WritesChannels { get; set; } = new List<int>();
         }
     }

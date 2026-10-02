@@ -23,8 +23,8 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BTreeWindowIds =
     [
-        "ai_inspector_btree",
-        "ai_runtime_inspector_btree",
+        // ⛔ CE-303 (2026-09-21): 'ai_runtime_inspector_*' is GONE — RuntimeInspectorWindow
+        //    dissolved into details.runtime.<kind> views (§4's closed question Q-iii).
         "ai_trace_timeline_btree",
         "ai_find_results_btree",
         "ai_blackboard_variables_btree",
@@ -33,8 +33,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] HsmWindowIds =
     [
-        "ai_inspector_hsm",
-        "ai_runtime_inspector_hsm",
         "ai_trace_timeline_hsm",
         "ai_find_results_hsm",
         "ai_blackboard_variables_hsm",
@@ -43,8 +41,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BlueprintWindowIds =
     [
-        "ai_inspector_blueprint",
-        "ai_runtime_inspector_blueprint",
         "ai_trace_timeline_blueprint",
         "ai_find_results_blueprint",
         "ai_blackboard_variables_blueprint",
@@ -181,21 +177,34 @@ public sealed class EditorSubsystemBlueprintWindowsTests
     }
 
     /// <summary>
-    /// AIE-048: after RegisterWindows, the Variables window is registered
-    /// with the Blueprint perspective and PerspectiveBound scope.
+    /// ⛔⛔ <b><c>L5</c> — RE-EXPRESSED. This asserted <c>ai_variables_blueprint</c>
+    /// *(<c>BlueprintVariablesManagedWindow</c>)*, which is now RETIRED per <c>Q38</c>'s list.</b>
+    ///
+    /// <para>⭐⭐ <b>The CLAIM survives the retirement: Blueprint still has a variables surface.</b>
+    /// ⚠ It is a DIFFERENT one — the per-perspective <c>AiVariablesWindow</c>
+    /// *(<c>ai_variable_values_blueprint</c>)* plus <c>BlueprintDetailsWindow</c> hosting the shared
+    /// <c>VariableDetailsSection</c> *(<c>U-6</c>, Batch 82)* — and that replacement being LIVE is
+    /// exactly §6 <c>L5</c>'s precondition for retiring the old one.</para>
+    ///
+    /// <para>⛔ <b>Deleting this rail was the wrong move</b>: it would have removed the only check that
+    /// Blueprint has a variables surface at all. ⭐ Re-pointing it keeps the question and updates the
+    /// answer.</para>
     /// </summary>
     [Fact]
-    public void EditorSubsystem_RegisterWindows_RegistersVariablesWindow_ForBlueprint()
+    public void EditorSubsystem_RegisterWindows_RegistersAVariablesSurface_ForBlueprint()
     {
         var subsystem = new EditorSubsystem();
         var wm = MakeWindowManager();
 
         subsystem.RegisterWindows(wm);
 
-        Assert.True(wm.TryGetWindow("ai_variables_blueprint", out var varWin),
-            "Expected Variables window 'ai_variables_blueprint' to be registered.");
+        Assert.True(wm.TryGetWindow("ai_variable_values_blueprint", out var varWin),
+            "Expected the Blueprint variables table 'ai_variable_values_blueprint' to be registered.");
         Assert.Equal("Blueprint", varWin!.OwningPerspective);
         Assert.Equal(WindowScope.PerspectiveBound, varWin.Scope);
+
+        // ⭐ …and the retired one is gone.
+        Assert.False(wm.TryGetWindow("ai_variables_blueprint", out _));
     }
 
     // ── AIE-020/021/022: Canvas windows (BATCH-05) ────────────────────────────

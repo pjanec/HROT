@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by translators to write the DDS <c>ClusterOpStatus</c> topic.
     /// </summary>
     [EventId(9011)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterOpCompletedEvent
     {
         public Guid RequestId;
@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Orchestration
     /// contains a managed <c>object?</c> field.
     /// </summary>
     [EventId(9012)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ExecuteNodeOpIntent
     {
         public Guid TransactionId;
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Orchestration
     /// also consumed by <c>ClusterMaster</c> to correlate 2PC ACKs.
     /// </summary>
     [EventId(9013)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeOpCompletedEvent
     {
         public Guid TransactionId;
@@ -73,13 +73,33 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by <c>NodeOpSlaveTranslator</c> to write <c>NodeHeartbeat</c> DDS topic.
     /// </summary>
     [EventId(9014)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeHeartbeatEvent
     {
         public int    NodeId;
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
+        // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
+        // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
+        // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
+    }
+
+    /// <summary>
+    /// Published ONCE at join by <c>ClusterSlave</c> — the node's static capability token set
+    /// (OpenGL-extension-style namespaced: <c>fdp.role.*</c> role tokens + feature tokens like
+    /// <c>fdp.reliable-init</c>). Consumed by the egress translator to write the durable
+    /// <c>NodeCapabilities</c> DDS topic, and (ingress) republished from that topic for the orchestrator/cache
+    /// gather (AQ-70 §Q70-B/C, cluster-master §8). The <see cref="NodeRole"/> mask is DERIVED from the
+    /// <c>fdp.role.*</c> subset at ingest via <see cref="NodeRoleTokens"/> — nobody publishes the mask, so it
+    /// cannot drift (supersedes CE-282 roles-on-heartbeat).
+    /// </summary>
+    [EventId(9022)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeCapabilitiesEvent
+    {
+        public int      NodeId;
+        public string[] Capabilities;
     }
 
     /// <summary>
@@ -87,7 +107,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by translators to write the DDS <c>ClusterStateTopic</c> topic.
     /// </summary>
     [EventId(9015)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterStateTransitionedEvent
     {
         /// <summary>New cluster state.</summary>
@@ -103,7 +123,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.
     /// </summary>
     [EventId(9016)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterStateUpdateEvent
     {
         /// <summary>New cluster state.</summary>
@@ -118,7 +138,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <c>ClusterUiCache</c> to update <c>AvailableScenarios</c> / <c>AvailableExercises</c>.
     /// </summary>
     [EventId(9017)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct AssetInventoryUpdateEvent
     {
         public string[] LocalScenarios;
@@ -133,7 +153,7 @@ namespace Fdp.Toolkit.Orchestration
     /// reading internal state from any process manager.
     /// </summary>
     [EventId(9018)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct EpisodeStateChangedEvent
     {
         /// <summary>Snapshot of all currently active episode IDs at time of publication.</summary>
@@ -150,7 +170,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <see cref="DomainPayload"/> is a managed reference.</para>
     /// </summary>
     [EventId(9019)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public sealed class ClusterOpIntent
     {
         /// <summary>Unique identifier that links this command to its status reply.</summary>

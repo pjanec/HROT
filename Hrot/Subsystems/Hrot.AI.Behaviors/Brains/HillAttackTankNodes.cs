@@ -348,7 +348,7 @@ namespace Hrot.AI.Behaviors.Brains
                 BehaviorLog.Warn(ref ctx, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet or was destroyed.");
                 return NodeStatus.Failure;
             }
-            if (!ctx.World.IsAlive(targetEntity))
+            if (!CombatLife.IsAlive(ctx.World, targetEntity))   // CE-466: knocked out (Health <= 0) or gone
                 return NodeStatus.Success;
 
             if (ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
@@ -522,7 +522,9 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
-        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr)
+        [Fdp.Toolkit.Behavior.BehaviorResolver("HullDownAttackRun",
+            ParamsType = typeof(Hrot.AI.Behaviors.Brains.HullDownAttackParams))]
+        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr, int capacity)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -557,7 +559,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0")]
         public static void Deactivate_CreepToAndBeyondSlot(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -577,7 +579,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0")]
         public static void Deactivate_AimAndFireSpecific(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)

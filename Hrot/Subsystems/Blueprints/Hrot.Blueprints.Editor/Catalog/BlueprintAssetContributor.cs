@@ -29,7 +29,30 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
     public AssetKind Kind => AssetKind.Blueprint;
 
     /// <inheritdoc/>
-    public string? BaseFolder => AssetRoots.AssetsFor(Kind);
+    /// <remarks>
+    /// ⭐⭐ <b>This is the root this contributor ACTUALLY SCANS</b> — the one handed to the
+    /// constructor — ⛔ <b>not</b> <c>AssetRoots.AssetsFor(Kind)</c>.
+    ///
+    /// <para>🔴 <b>Measured <c>2026-09-19</c> (asset-management review round 4, F2):</b> it used to
+    /// return <c>AssetsFor(Kind)</c>, which is <c>ConfiguredRoot ?? AppContext.BaseDirectory</c>
+    /// (<c>AssetRoots.cs:260</c>) — ⛔ <b>no source walk-up</b>. The composition roots build this
+    /// contributor from <c>ResolveAssetsRoot(...)</c> (<c>ConfiguredRoot</c> → <b>walk-up</b> → output
+    /// dir), so on any host with a source tree and no configured root the property named
+    /// <c>&lt;binDir&gt;/Assets/Blueprints</c> while this object was enumerating
+    /// <c>&lt;sourceTree&gt;/Assets/Blueprints</c>. ⚠ <b>Silently</b> — <c>AssetRoots.ReportBase</c>
+    /// warns only when NEITHER config nor a source tree answered, which is the other case.</para>
+    ///
+    /// <para>📌 The divergence was already visible downstream: <c>AssetRelPath.RelPath</c> carries a
+    /// <c>"../"</c>-recovery branch written for exactly this mismatch ("the contributor scanned the
+    /// source project dir … while baseFolder resolves to the bin/output dir … surfacing as bogus '..'
+    /// tree levels in the browser"). ⭐ That branch stays as a defensive fallback for contributors
+    /// that genuinely cannot name a root; it is no longer load-bearing for this one.</para>
+    ///
+    /// <para>🔒 The general rule this restores — <c>CLAUDE.md</c>, THE SILENT-DEFAULT PATTERN:
+    /// <i>a production caller that HAS a dependency must PASS it.</i> The composition root computed
+    /// the root and handed it over; this property was ignoring it.</para>
+    /// </remarks>
+    public string? BaseFolder => _rootDirectory;
 
     /// <inheritdoc/>
     public event Action? ContributorChanged;

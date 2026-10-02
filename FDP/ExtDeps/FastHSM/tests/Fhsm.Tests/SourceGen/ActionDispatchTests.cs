@@ -24,7 +24,7 @@ namespace Fhsm.Tests.SourceGen
         }
 
         [HsmGuard(Name = "TestGuard")]
-        internal static bool TestGuard(void* instance, void* context, ushort eventId)
+        internal static bool TestGuard(void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             _guardCallCount++;
             return true;
@@ -67,7 +67,7 @@ namespace Fhsm.Tests.SourceGen
             _guardCallCount = 0;
             ushort id = ComputeHash("TestGuard");
             
-            bool result = Fhsm.Kernel.HsmActionDispatcher.EvaluateGuard(id, null, null, 123);
+            bool result = Fhsm.Kernel.HsmActionDispatcher.EvaluateGuard(id, null, null, 123, null);
             
             Assert.True(result);
             Assert.Equal(1, _guardCallCount);
@@ -83,7 +83,7 @@ namespace Fhsm.Tests.SourceGen
         [Fact]
         public void Dispatcher_Unknown_Guard_Returns_True()
         {
-            bool result = Fhsm.Kernel.HsmActionDispatcher.EvaluateGuard(9999, null, null, 0);
+            bool result = Fhsm.Kernel.HsmActionDispatcher.EvaluateGuard(9999, null, null, 0, null);
             Assert.True(result);
         }
 

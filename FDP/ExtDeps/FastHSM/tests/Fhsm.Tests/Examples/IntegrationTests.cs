@@ -102,15 +102,29 @@ namespace Fhsm.Tests.Examples
             for(int i=0; i<5; i++) HsmKernel.Update(blob, ref instance, context, 0.016f);
             
             Assert.Equal(1, _entryCount); // A entered
-            Assert.Equal(1, _activityCount); // Activity runs post-RTC in same batch of updates
-            
-            // Send Dummy event to drive cycle and hit Activity phase again
-            var dummyEvt = new HsmEvent { EventId = 999, Priority = EventPriority.Normal }; 
-            HsmEventQueue.TryEnqueue(&instance, 64, dummyEvt);
+
+            // ⭐⭐⭐ CE-334 (2026-09-26) — THE ACTIVITY ASSERTIONS INVERTED, AND THE OLD ONES WERE A
+            //    WORKAROUND WRITTEN INTO A RAIL.
+            //
+            // 🔴 What stood here: `Assert.Equal(1, _activityCount)` after five ticks, then a DUMMY
+            //    EVENT (id 999, matching no transition) enqueued purely to "drive cycle and hit
+            //    Activity phase again", then `Assert.Equal(2, _activityCount)`. ⛔ That is the
+            //    one-shot encoded as expected behaviour — a FOURTH independent workaround beyond the
+            //    three §31.18.2 records, and the only one that lived inside the engine's own suite.
+            //
+            // ⭐ Now an active state's activity runs EVERY tick, so the count tracks TICKS. The claim
+            //    the rail actually cares about — "entering A runs its activity, and the machine keeps
+            //    running it" — is stronger this way, and needs no synthetic event to provoke it.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.2.1; rail
+            //    Fhsm.Tests.Kernel.ActivitySteadyStateTests.CE334_R1.
+            int afterEntry = _activityCount;
+            Assert.True(afterEntry >= 1,
+                "entering A must run its activity at least once in that batch of updates");
+
+            // ⭐ No dummy event: five more quiet ticks must each dispatch the activity.
             for(int i=0; i<5; i++) HsmKernel.Update(blob, ref instance, context, 0.016f);
-            
-            // Now it should pass through Entry -> RTC -> Activity.
-            Assert.Equal(2, _activityCount);
+
+            Assert.Equal(afterEntry + 5, _activityCount);
             
             // Transition A -> B
             var transEvt = new HsmEvent { EventId = 10, Priority = EventPriority.Normal };

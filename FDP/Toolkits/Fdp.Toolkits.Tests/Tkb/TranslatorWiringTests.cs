@@ -28,6 +28,9 @@ namespace Fdp.Toolkit.Tkb.Tests
             public IEnumerable<Type> GetConsumedDescriptors()
                 => Array.Empty<Type>();
 
+            public IEnumerable<Type> GetProducedComponents()
+                => Array.Empty<Type>();
+
             public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
             {
                 InjectCount++;
@@ -51,7 +54,6 @@ namespace Fdp.Toolkit.Tkb.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();

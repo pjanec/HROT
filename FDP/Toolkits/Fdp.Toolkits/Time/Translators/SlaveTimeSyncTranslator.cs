@@ -46,6 +46,13 @@ namespace Fdp.Toolkit.Time.Translators
         public long   SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>CONTROL PLANE</b> (<c>DQ30-C</c>) — the NTP handshake that keeps the slave clock anchored.
+        /// ⛔⛔ Letting this stop with the simulation is <c>DQ30-A</c>'s deadlock: the node would
+        /// freeze and never hear the command that un-freezes it.
+        /// </summary>
+        public TranslatorClass Category => TranslatorClass.ControlPlane;
+
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>
         /// <param name="eventBus">Event bus shared with <see cref="Controllers.SlaveSyncController"/>.</param>

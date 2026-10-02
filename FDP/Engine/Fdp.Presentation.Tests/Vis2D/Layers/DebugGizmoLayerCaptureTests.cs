@@ -1,100 +1,75 @@
-// SC-B28-4 through SC-B28-6: DebugGizmoLayer activates and deactivates capture mode
-// in response to exclusive InputCaptureBinding primitives.
+// SC-B28: exclusive InputCaptureBinding handling.
+//
+// 🔴🔴 RE-HOMED 2026-09-10 (R4, docs/DESIGN_Gizmo_Renderer_Seam.md §6).
+//   ⛔ SC-B28-4 and SC-B28-5 asserted `layer.TestHook_IsCaptureActive`, which was a HARD-CODED
+//     `=> false`. ⇒ SC-B28-4's `Assert.True` could NEVER pass and SC-B28-5's `Assert.False` was
+//     VACUOUSLY GREEN — it would have stayed green with the whole capture mechanism ripped out.
+//     SC-B28-6 drove `layer.HandleHover(...)`, which is an EMPTY BODY (the layer declines IMapLayer
+//     input; the inner terminal polls the hardware instead).
+//   🔒 The honest position, stated rather than papered over with a constant: the live capture state is
+//     `GizmoMap.Presentation.DebugGizmoLayer._activeTool` — private, one assembly down, behind a
+//     `HandleInput` that polls Raylib. ⛔ It is NOT railable headlessly at this layer, and a hook
+//     returning a constant so a rail can claim otherwise is worse than an admitted gap (R-142 ③).
+//   ⭐⭐ What IS railable, and now is: the two halves the capture path is actually built from —
+//     ① the BINDING primitive the backend emits, whose fields the terminal scans, and
+//     ② the layer's OnInteraction publication, which is how a captured interaction reaches FDP.
+//   ⭐ The terminal's own scan-and-filter behaviour is railed where it belongs and CAN run:
+//     GizmoLayerEntityHitTestTests (11/11, via PickTopmostEntityAnchorUnderCapture) and
+//     GizmoMap.Presentation.Tests (41/41).
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Presentation.Tests;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
-using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Layers;
+using GizmoMap.Network;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Layers
 {
-    // DebugGizmoLayer.Update() routes through GizmoMap.Presentation.DebugGizmoLayer.HandleInput,
-    // which unconditionally reads ImGuiNET.ImGui.GetIO() to respect ImGui's mouse/keyboard
-    // capture state. That call requires a current ImGui context (GImGui != null) or the native
-    // ImGui.NET build aborts the process (Linux build has assertions enabled). Use the shared
-    // headless ImGuiTestFixture and the "ImGui Sequential" collection like the other ImGui-touching
-    // test classes.
-    [Collection("ImGui Sequential")]
     public class DebugGizmoLayerCaptureTests
     {
-        // Minimal IInputProvider stub: all values default to zero / false.
-        private sealed class StubInput : IInputProvider
-        {
-            public Vector2 MousePosition   => Vector2.Zero;
-            public Vector2 MouseDelta      => Vector2.Zero;
-            public float MouseWheelMove    => 0f;
-            public bool IsMouseCaptured    => false;
-            public bool IsKeyboardCaptured => false;
-            public bool IsMouseButtonPressed(MapMouseButton b)  => false;
-            public bool IsMouseButtonDown(MapMouseButton b)     => false;
-            public bool IsMouseButtonReleased(MapMouseButton b) => false;
-            public bool IsKeyPressed(MapKeyboardKey k)  => false;
-            public bool IsKeyDown(MapKeyboardKey k)     => false;
-            public bool IsKeyReleased(MapKeyboardKey k) => false;
-            public int GetKeyPressed() => 0;
-        }
-
-        // Build a buffer that contains one exclusive InputCaptureBinding.
-        private static DebugPrimitiveBuffer MakeBindingBuffer(long networkId = 1L)
-        {
-            var buf = new DebugPrimitiveBuffer(16);
-            var prim = DebugPrimitive.MakeInputCaptureBinding(networkId, subElementId: 0, exclusive: true);
-            buf.Append(prim);
-            return buf;
-        }
-
-        // SC-B28-4: Update pushes a tool named "GizmoCaptureProxy" when an exclusive
-        // InputCaptureBinding is present in the buffer.
+        // SC-B28-4: an exclusive InputCaptureBinding carries its anchor in StructNetworkId (offset 24)
+        // and its flags in ConditionMask — the two fields the terminal's capture scan reads.
+        // 📄 DESIGN_Gizmo_Anchor_Identity.md §2 ⑫b: the binding's anchor arrives in a DIFFERENT slot
+        //    from a hit-testable primitive's BoxAnchorId, which is why the old filter compared halves.
         [Fact]
-        public void SC_B28_4_Update_PushesCaptureTool_WhenExclusiveBindingPresent()
+        public void SC_B28_4_ExclusiveBinding_CarriesAnchorAndFlags()
+        {
+            var prim = DebugPrimitive.MakeInputCaptureBinding(
+                networkId: 90210L, subElementId: 2, exclusive: true, wantsRawInput: true);
+
+            Assert.Equal(DebugPrimitiveShape.InputCaptureBinding, prim.Shape);
+            Assert.Equal(90210L, prim.StructNetworkId);
+            Assert.Equal((ushort)2, prim.SubElementId);
+            Assert.Equal(1u, prim.ConditionMask & 1u);   // exclusive
+            Assert.Equal(2u, prim.ConditionMask & 2u);   // wantsRawInput
+        }
+
+        // SC-B28-5: a NON-exclusive binding leaves the exclusive bit clear, so the terminal's filter is
+        // never armed. ⭐ The pair 4/5 is what pins the bit; either alone passes for a constant.
+        [Fact]
+        public void SC_B28_5_NonExclusiveBinding_LeavesTheExclusiveBitClear()
+        {
+            var prim = DebugPrimitive.MakeInputCaptureBinding(
+                networkId: 90210L, subElementId: 0, exclusive: false, wantsRawInput: false);
+
+            Assert.Equal(0u, prim.ConditionMask & 1u);
+            Assert.Equal(0u, prim.ConditionMask & 2u);
+        }
+
+        // SC-B28-6: a captured interaction reaching the layer publishes a GizmoDragUpdateEvent with the
+        // world position — the assertion the old rail wanted, through the route that actually carries it.
+        [Fact]
+        public void SC_B28_6_CapturedDrag_PublishesDragUpdateEventWithWorldPos()
         {
             var bus    = new FdpEventBus();
-            var buf    = MakeBindingBuffer();
-            var layer  = new DebugGizmoLayer(31, buf, bus);
+            var layer  = new DebugGizmoLayer(31, new DebugPrimitiveBuffer(16), bus);
 
-            using var fixture = new ImGuiTestFixture();
-            layer.Update(0f);
-
-            Assert.True(layer.TestHook_IsCaptureActive);
-        }
-
-        // SC-B28-5: Update pops the capture tool when the InputCaptureBinding
-        // disappears from the buffer on the next frame.
-        [Fact]
-        public void SC_B28_5_Update_PopsCaptureToolWhenBindingGone()
-        {
-            var bus    = new FdpEventBus();
-            var buf    = MakeBindingBuffer();
-            var layer  = new DebugGizmoLayer(31, buf, bus);
-
-            using var fixture = new ImGuiTestFixture();
-
-            // Frame 1: binding present -- capture active.
-            layer.Update(0f);
-
-            // Frame 2: clear buffer (no binding) -- capture inactive.
-            buf.Clear();
-            layer.Update(0f);
-
-            Assert.False(layer.TestHook_IsCaptureActive);
-        }
-
-        // SC-B28-6: HandleHover on the pushed capture tool publishes a GizmoDragUpdateEvent.
-        [Fact]
-        public void SC_B28_6_GizmoCaptureProxyTool_HandleHover_PublishesDragUpdateEvent()
-        {
-            var bus    = new FdpEventBus();
-            var buf    = MakeBindingBuffer();
-            var layer  = new DebugGizmoLayer(31, buf, bus);
-
-            using var fixture = new ImGuiTestFixture();
-            layer.Update(0f);
-
-            layer.HandleHover(new Vector2(10f, 20f));
+            layer.OnInteraction(
+                new GizmoPickToken { AnchorId = 90210L },   // §6.7 — the id IS the identity
+                GizmoInteractionEventKind.DragUpdate,
+                new Vector3(10f, 20f, 0f), actionId: 0, stateFlags: 0);
 
             bus.SwapBuffers();
             var events = bus.Read<GizmoDragUpdateEvent>();
@@ -102,6 +77,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             Assert.Equal(1, events.Length);
             Assert.Equal(10f, events[0].WorldPos.X, precision: 3);
             Assert.Equal(20f, events[0].WorldPos.Y, precision: 3);
+            Assert.Equal(90210L, events[0].Token.AnchorId);
         }
     }
 }

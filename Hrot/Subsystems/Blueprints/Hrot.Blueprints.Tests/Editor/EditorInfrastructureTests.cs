@@ -92,7 +92,7 @@ public sealed class EditorInfrastructureTests
     [Fact]
     public void BlueprintEditorModule_OnEditorActivated_RegistersMenuEntries()
     {
-        var registrar = new MockWindowRegistrar();
+        var registrar = new MockShellCommandRegistrar();
         var module = CreateModule(registrar);
         module.RegisterWindow(new CountingWindow("Win1"));
         module.RegisterWindow(new CountingWindow("Win2"));
@@ -104,7 +104,7 @@ public sealed class EditorInfrastructureTests
     [Fact]
     public void BlueprintEditorModule_DrawAllWindows_OnlyDrawsVisible()
     {
-        var module = CreateModule(new MockWindowRegistrar());
+        var module = CreateModule(new MockShellCommandRegistrar());
         var visible = new CountingWindow("Visible") { IsVisible = true };
         var hidden  = new CountingWindow("Hidden")  { IsVisible = false };
         module.RegisterWindow(visible);
@@ -118,11 +118,17 @@ public sealed class EditorInfrastructureTests
     [Fact]
     public void MasterSyncTimeControllerAdapter_ImplementsInterface()
     {
-        Assert.True(typeof(MasterSyncTimeControllerAdapter).IsAssignableTo(typeof(IBlueprintTimeController)));
+        // ⭐ CE-350: this asserted `IsAssignableTo(typeof(IBlueprintTimeController))` — the obsolete
+        //    alias, now deleted. ⛔ It was the test's ONLY assertion, so dropping the line would have
+        //    left a test that asserts nothing and still passes: the worst possible outcome.
+        // ⇒ re-pointed at the interface the adapter actually implements, which is the claim the
+        //   test's own NAME makes.
+        Assert.True(typeof(MasterSyncTimeControllerAdapter)
+            .IsAssignableTo(typeof(Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController)));
     }
 
     // Helper: create a BlueprintEditorModule with a null-sink output console.
-    private static BlueprintEditorModule CreateModule(IWindowRegistrar registrar)
+    private static BlueprintEditorModule CreateModule(IShellCommandRegistrar registrar)
     {
         return new BlueprintEditorModule(
             registrar,

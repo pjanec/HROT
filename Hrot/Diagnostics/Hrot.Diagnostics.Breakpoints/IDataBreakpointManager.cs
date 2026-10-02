@@ -150,6 +150,37 @@ public interface IDataBreakpointManager
             + "fall back to a whole-component write: Blackboard1024 is shared by BTree, HSM and "
             + "Blueprint at disjoint offsets, so the fallback would clobber other subsystems' state.");
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MIN</c> — is the SIMULATION CLOCK halted?</b> 📌 <c>R-126</c>, the user's ruling:
+    /// <i>"time is paused OR debugger hit a breakpoint — in both cases the simulation is stopped and we
+    /// can write new values."</i> ⇒ ⭐ <b>there is ONE source of "paused", and it is the clock</b> —
+    /// ⛔ not <see cref="IsPaused"/>, which answers the much narrower <i>"is the DEBUGGER holding a
+    /// rewound tick?"</i>
+    ///
+    /// <para>⚠⚠ <b><c>AS-1b</c>: implementations MUST read the LIVE WORLD's <c>GlobalTime</c>
+    /// singleton</b> — ⛔ <b>never</b> the time controller's <c>GetCurrentState()</c>, which hard-codes
+    /// its delta to <c>0</c> and therefore answers <i>"halted"</i> for ever. 📌 Pinned by
+    /// <c>ThePauseFlagOnTheClockIsFalseWhilePausedTests</c>.</para>
+    ///
+    /// <para>⛔⛔ <b>The default THROWS and must not answer <c>false</c>.</b> ⚠ A silent <c>false</c>
+    /// here reads as <i>"the simulation is advancing"</i>, so every live edit would be refused with a
+    /// message about pausing something the designer already paused — 📌 exactly the confusion
+    /// <c>M-36</c> cost three handoffs. ⭐ A manager that cannot see a clock says so out loud.</para>
+    /// </summary>
+    bool IsClockHalted()
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not implement IsClockHalted, so it cannot say whether the "
+            + "simulation is advancing. Answering 'not halted' by default would refuse every live "
+            + "edit and blame the designer for it.");
+
+    // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE from this interface. 📄 DESIGN_Staged_Live_Write.md §6's W3
+    //    row; 📌 R-130 ("yellow makes no sense if the value is directly written now").
+    // ⭐ Every live edit now goes through StageFieldMutation, in every run state, and the kernel's
+    //   PreFrame ResumeAndDrainSystem pulls it into the repository at the next advancing tick.
+    // ⚠ IsClockHalted above SURVIVES deliberately: it answers "is the simulation advancing?", which is
+    //   a truthful general question about the clock (R-126 names the clock as the one source of
+    //   "paused"), and it is railed. ⛔ Losing its last caller does not make a predicate wrong —
+    //   📌 CLAUDE.md: "unreferenced is not unintentional."
 
     // ---- Hit callback (called by DataBreakpointSystem) -----------------
 

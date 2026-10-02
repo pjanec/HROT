@@ -4,16 +4,8 @@ using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
 
-/// <summary>
-/// Published by <see cref="GlobalContextProcessManager"/> after the local
-/// Orchestrator.json has been serialized and committed.
-/// Consumed by <see cref="StorageProcessManager"/> to prepend the orchestrator's
-/// own manifest entry before the NAS pull.
-/// </summary>
-internal struct GlobalContextManifestReadyEvent
-{
-    public FileManifestEntry Entry;
-}
+// CE-278: GlobalContextManifestReadyEvent retired — it carried the SaveScenario=2 Orchestrator.json
+// manifest entry from GlobalContextProcessManager to StorageProcessManager; both ends are removed.
 
 /// <summary>
 /// Published by <see cref="ClusterMaster"/> when a PrefetchScenario operation step is
@@ -46,6 +38,28 @@ internal struct PrefetchStagingCompletedEvent
 }
 
 /// <summary>
+/// ⭐⭐⭐ <c>L8</c> — published by <see cref="AssetPrefetchProcessManager"/> when the WHOLE distribution
+/// of a scenario is finished: the NAS copy AND every node's <c>PrefetchFiles</c> acknowledgement.
+///
+/// <para>⭐ This is the fact a parked transition waits on, and it is not a new measurement — the saga
+/// already tracks a per-node acknowledgement set and already knows when it empties. What was missing is
+/// that the set forgot which request started it, so nothing could be correlated back; the tracker now
+/// carries the originating request id and this event relays it.</para>
+///
+/// <para>⛔ Do NOT confuse it with <see cref="PrefetchStagingCompletedEvent"/>, which fires when the
+/// server-side COPY finishes — half-way through, while the nodes have not yet been told anything.
+/// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.1.</para>
+/// </summary>
+internal struct PrefetchDistributionCompletedEvent
+{
+    /// <summary>The request that started the distribution — the transition's own request id.</summary>
+    public Guid   RequestId;
+    public string ScenarioId;
+    /// <summary><c>false</c> when the copy failed or any node acknowledged a failure.</summary>
+    public bool   IsSuccess;
+}
+
+/// <summary>
 /// Published by <see cref="ClusterMaster"/> when an ExportArchive SerializeLocal fan-out
 /// is initiated. Carries the archive request context so <see cref="StorageProcessManager"/>
 /// can route the completed NAS pull to the correct archive request ID.
@@ -58,6 +72,20 @@ internal struct ExportArchiveBegunEvent
     public Guid ArchiveRequestId;
     /// <summary>Cancellation token source for the NAS pull; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+}
+
+/// <summary>
+/// CE-277(c2) — published by <see cref="ClusterMaster"/> when a <c>SaveScenarioJson</c> SerializeLocal
+/// fan-out is initiated. Carries the transaction id → scenario name mapping so
+/// <see cref="StorageProcessManager"/> can, after the NAS pull, run <c>ScenarioMergeCore</c> on the pulled
+/// per-node slices and write the one canonical <c>scenarios/&lt;name&gt;/scenario.json</c>.
+/// </summary>
+internal struct SaveScenarioJsonBegunEvent
+{
+    /// <summary>SerializeLocal fan-out transaction ID (matches the ClusterOpCompletedEvent.RequestId).</summary>
+    public Guid TransactionId;
+    /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
+    public string ScenarioName;
 }
 
 /// <summary>

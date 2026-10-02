@@ -166,14 +166,14 @@ Fix any error CS before proceeding. No batch is done until `Build succeeded` and
 
 **Key constraints** (details in TASK-DETAIL.md):
 - Must be `unsafe struct`
-- Must carry `[DataPolicy(DataPolicy.NoSave)]`
+- Must carry `[DataPolicy(DataPolicy.NoScenario)]`
 - `public const int Capacity = 16` inside the struct
 - `fixed long SubordinateEntities[Capacity]` and `fixed ushort TacticalDesignations[Capacity]`
 - `sizeof(UnitRoster)` must equal **164 bytes** = 4 (Count) + 128 (16*8) + 32 (16*2)
 
 **Tests required:**
 - `Unsafe.SizeOf<UnitRoster>() == 164`
-- `DataPolicy` attribute has `NoSave` set
+- `DataPolicy` attribute has `NoScenario` set
 - `UnitRoster.Capacity == 16`
 - Boundary write test: writing to index 15 does not corrupt adjacent memory
 

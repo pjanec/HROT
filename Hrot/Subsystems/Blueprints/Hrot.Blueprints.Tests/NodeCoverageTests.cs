@@ -247,10 +247,12 @@ public sealed class NodeCoverageTests
 
         var result = new BlueprintCompiler().Compile(asset, options);
 
-        Assert.True(result.Succeeded,
-            $"{nodeType.Name}: expected the compile to 'succeed' (Stage5_Schedule only warns via BP4004).");
+        // ⭐ CE-475 (2026-10-01): BP4004 is an ERROR. A node Stage 5 cannot lower used to compile "successfully"
+        //   and do nothing; now the compile fails and names it.
+        Assert.False(result.Succeeded,
+            $"{nodeType.Name}: expected the compile to FAIL with BP4004 (no Stage5_Schedule lowering).");
         Assert.Contains(result.Diagnostics, d =>
-            d.Code == DiagnosticCodes.BP4004 && d.Severity == DiagnosticSeverity.Warning);
+            d.Code == DiagnosticCodes.BP4004 && d.Severity == DiagnosticSeverity.Error);
     }
 
     /// <summary>
@@ -390,10 +392,10 @@ public sealed class NodeCoverageTests
         // (a) Count hoisted to an OUTER-scope local: the accessor appears as an assignment RHS
         // (`= global::…Count(`), which the non-hoisted path never emits (there it is only ever a loop
         // bound `< global::…Count(`).
-        Assert.Contains("= global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(", src);
+        Assert.Contains("= global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(", src);
         // ...and the for-loop bound is that hoisted local, not a fresh Count() re-eval each pass.
         Assert.Matches(@"for \(int __fe\d+ = 0; __fe\d+ < __t\d+;", src);
-        Assert.DoesNotMatch(@"< global::Hrot\.AI\.Behaviors\.Brains\.UnitRosterOps\.Count\(", src);
+        Assert.DoesNotMatch(@"< global::Fdp\.Core\.CommandHierarchy\.UnitRosterSubordinateEntitiesOps\.Count\(", src);
 
         // (b) Loop counter copied into a body-scope local for CurrentIndex.
         Assert.Matches(@"var __t\d+ = __fe\d+;", src);
@@ -425,12 +427,19 @@ public sealed class NodeCoverageTests
                 "coverage fixtures author placeholder pin names (A/B/Result, Value) that do not match " +
                 "any real method signature, so Stage0's reflection/resolver legitimately produces " +
                 "different names. The real pin-less FunctionCall round-trip (real param names) is proven " +
-                "by FunctionCallSemanticResolveTests + the pin-less HillAssault2I_* proof blueprints.",
+                "by FunctionCallSemanticResolveTests. (CE-436 deleted the HillAssault2I_* proof " +
+                "blueprints this line also cited; FunctionCall survives in 20 other corpus assets, " +
+                "measured 2026-09-29, so the coverage is re-pointed, not lost.)",
             [typeof(GetParameterNode)] =
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
-                "being reconstructed. Proven by the stripped HillAssault2I_IsWaveCompleted blueprint " +
-                "(which reads a parameter) building green.",
+                "being reconstructed. Proven by HsmGuardDemo and PlatoonHillAttackBp, the two corpus assets " +
+                "carrying a GetParameter node (measured 2026-10-01, when the HillAssault2_RequestAreaQuery / " +
+                "_HasTarget twins that also carried one retired; OwnParamResolverDemo was deleted by CE-445). " +
+                "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
+                "was ALREADY WRONG before CE-436 deleted it: that asset had ZERO GetParameter nodes. " +
+                "The one integrated asset that did carry one was HillAssault2I_RequestAreaQuery, whose " +
+                "surviving twin is now cited first above.",
         };
 
     /// <summary>
@@ -514,7 +523,7 @@ public sealed class NodeCoverageTests
     /// one uses <see cref="CoverageMode.ValidateOnlyStage1To7"/> instead. Prefers reusing
     /// existing demo/recipe/test assets over inventing new ones; only the kinds with genuinely
     /// no existing coverage (CallPeerBlueprint, Cast, CallCustomEvent, WaitForEvent,
-    /// ScoreDecision, ReadRankedResult, GetShared, SetShared) get a purpose-built minimal
+    /// ScoreDecision, ReadRankedResult) get a purpose-built minimal
     /// fixture below.
     /// </summary>
     private static IEnumerable<(string Description, IReadOnlyList<BlueprintAsset> Assets, CompileOptions? Options, CoverageMode Mode)> CoverageAssets()
@@ -587,16 +596,22 @@ public sealed class NodeCoverageTests
         // value passes both Stage2 validation AND Roslyn compilation today.
         yield return ("Inline/ScoreDecision", new[] { BuildScoreDecisionMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
-        yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/SetComponent", new[] { BuildSetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetAllVariablesSetVariables", new[] { BuildGetAllVariablesSetVariablesMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Not", new[] { BuildNotMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        // CE-470: Get Delta Time in an Instance function graph (the widest-scope-demanding kind).
+        // CE-472: the JSON/intent nodes are proven through real Roslyn by CE472_IntentAndJsonNodeTests (their DTO lives in
+        // Hrot.Core, loaded here via Hrot.AI.Behaviors) — the round-trip library and the sender are the coverage fixtures.
+        yield return ("Inline/ToJsonFromJson", new[] { Hrot.Blueprints.Tests.Compiler.CE472_IntentAndJsonNodeTests.CoverageRoundTrip() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/SendIntent", new[] { Hrot.Blueprints.Tests.Compiler.CE472_IntentAndJsonNodeTests.CoverageSender() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetTime", new[] { Hrot.Blueprints.Tests.Compiler.CE470_GetTimeNodeTests.Build(TimeKind.DeltaTime) }, null, CoverageMode.FullRoslynPipeline);
         // BP-108: Print String / Format String -- both compile as pure C# (Fdp.Core.Logging.BlueprintLog +
         // Fdp.Core.FixedString32), no game-assembly deps, so this is FULL Roslyn coverage.
         yield return ("Inline/PrintAndFormatString", new[] { BuildPrintAndFormatStringMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -606,13 +621,15 @@ public sealed class NodeCoverageTests
         // compilation references (see BuildGetComponentMinimalAsset, which used System.Numerics.Vector3
         // precisely to avoid game-assembly deps). Stage1-7 fully exercises the PublishEventNode ->
         // IrOp_PublishBusEvent lowering (catalog lookup + self-default Target); the REAL Roslyn
-        // compile of a PublishEvent graph is proven separately by HillAssault2_ClearBehavior_ProofTests
-        // through the actual Hrot.AI.Behaviors build. Same evidence bar + reason as CallPeerBlueprint.
+        // compile of a PublishEvent graph is proven by CustomEventPublisherDemo and ChannelMoveAndWaitDemo,
+        // both built by the actual Hrot.AI.Behaviors generator (ChannelMoveAndWaitDemo_ProofTests runs it;
+        // HillAssault2_ClearBehavior_ProofTests, the earlier proof, retired 2026-10-01). Same evidence bar + reason as CallPeerBlueprint.
         yield return ("Inline/PublishEvent", new[] { BuildPublishEventMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         // FlowForEach (P1 -- GAP-1): ValidateOnlyStage1To7 -- the generated for-loop references
         // UnitRosterOps/UnitRoster (game assemblies the coverage-Roslyn compile does not reference);
         // the REAL Roslyn compile of a FlowForEach graph is proven by
-        // HillAssault2_ForEachSubordinate_ProofTests through the actual Hrot.AI.Behaviors build.
+        // PlatoonHillAttackBp (CE-464) through the actual Hrot.AI.Behaviors build, and run by
+        // HillAttackBlueprintTests (HillAssault2_ForEachSubordinate_ProofTests retired 2026-10-01).
         yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         // FlowForEach loop-introspection outs (CurrentIndex + Count): same game-assembly reason as
         // above -> ValidateOnlyStage1To7. The GENERATED C# (count-hoist local + body index-copy +
@@ -803,19 +820,36 @@ public sealed class NodeCoverageTests
         return (asset, options);
     }
 
-    /// <summary>EventEntry -&gt; Cast(TargetTypeId=System.Object) -&gt; Return, fed by a Literal.</summary>
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(IntOut) -&gt; Return, fed by Literal(2.5f) -&gt; Cast(System.Int32).
+    /// ⭐ <c>CE-475</c>: Cast is a PURE node. This fixture used to wire Cast's (since removed) exec pins into the
+    /// chain — Stage 5 dropped it with a BP4004 warning and the fixture still "compiled", so it counted coverage
+    /// for a node that emitted nothing. Now the cast's output is consumed, so the native C# cast is really emitted.
+    /// </summary>
     private static BlueprintAsset BuildCastMinimalAsset()
     {
-        var literal   = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Object", ValueJson = "null" };
-        var literalOut = DataPin("Value", "Out", "System.Object");
+        var literal    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Single", ValueJson = "2.5" };
+        var literalOut = DataPin("Value", "Out", "System.Single");
         literal.Pins.Add(literalOut);
 
-        var cast     = new CastNode { Id = Guid.NewGuid(), TargetTypeId = "System.Object" };
-        var castExecIn  = ExecPin("In",  "In");
-        var castExecOut = ExecPin("Out", "Out");
-        var castDataIn  = DataPin("In",  "In",  "System.Object");
-        var castDataOut = DataPin("Out", "Out", "System.Object");
-        cast.Pins.AddRange(new[] { castExecIn, castExecOut, castDataIn, castDataOut });
+        var cast        = new CastNode { Id = Guid.NewGuid(), TargetTypeId = "System.Int32" };
+        var castDataIn  = DataPin("In",  "In",  "System.Single");
+        var castDataOut = DataPin("Out", "Out", "System.Int32");
+        cast.Pins.AddRange(new[] { castDataIn, castDataOut });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl
+        {
+            Id   = intVarId,
+            Name = "IntOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
 
         var entry    = new EventEntryNode { Id = Guid.NewGuid() };
         var entryOut = ExecPin("ExecOut", "Out");
@@ -830,21 +864,23 @@ public sealed class NodeCoverageTests
             Id    = Guid.NewGuid(),
             Name  = "Main",
             Kind  = GraphKind.Function,
-            Nodes = { entry, literal, cast, ret },
+            Nodes = { entry, literal, cast, setNode, ret },
             Links =
             {
-                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id,  ToNodeId = cast.Id, ToPinId = castExecIn.Id },
-                new Link { FromNodeId = cast.Id,  FromPinId = castExecOut.Id, ToNodeId = ret.Id, ToPinId = retIn.Id },
-                new Link { FromNodeId = literal.Id, FromPinId = literalOut.Id, ToNodeId = cast.Id, ToPinId = castDataIn.Id },
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = literal.Id, FromPinId = literalOut.Id,  ToNodeId = cast.Id,    ToPinId = castDataIn.Id },
+                new Link { FromNodeId = cast.Id,    FromPinId = castDataOut.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
             },
         };
 
         return new BlueprintAsset
         {
-            AssetId  = Guid.NewGuid(),
-            Name     = "CastCoverage",
-            Dispatch = BlueprintDispatchKind.Instance,
-            Graphs   = { graph },
+            AssetId   = Guid.NewGuid(),
+            Name      = "CastCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
         };
     }
 
@@ -1072,60 +1108,8 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
-    /// EventEntry -&gt; SetShared("x", System.Int32) -&gt; Return, fed by GetShared("x",
-    /// System.Int32). Uses <c>System.Int32</c> as the shared-struct type (proven to resolve by
-    /// V_SharedStateValidatorTests.Validate_PrimitiveSharedTypeId_NoBP2041) rather than a real
-    /// Category-1 shared struct, so this fixture has zero dependency on Hrot.AI.Behaviors.
-    /// </summary>
-    private static BlueprintAsset BuildGetSetSharedMinimalAsset()
-    {
-        var getValuePin = DataPin("Value", "Out", "System.Int32");
-        var getFoundPin = DataPin("Found", "Out", "System.Boolean");
-        var getNode = new GetSharedNode { Id = Guid.NewGuid(), VariableId = "x", SharedTypeId = "System.Int32" };
-        getNode.Pins.AddRange(new[] { getValuePin, getFoundPin });
-
-        var setExecIn   = ExecPin("ExecIn",  "In");
-        var setExecOut  = ExecPin("ExecOut", "Out");
-        var setValuePin = DataPin("Value",   "In",  "System.Int32");
-        var setWritten  = DataPin("Written", "Out", "System.Boolean");
-        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "x", SharedTypeId = "System.Int32" };
-        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
-
-        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
-        var entryOut = ExecPin("ExecOut", "Out");
-        entry.Pins.Add(entryOut);
-
-        var ret   = new ReturnNode { Id = Guid.NewGuid() };
-        var retIn = ExecPin("ExecIn", "In");
-        ret.Pins.Add(retIn);
-
-        var graph = new Graph
-        {
-            Id    = Guid.NewGuid(),
-            Name  = "Main",
-            Kind  = GraphKind.Function,
-            Nodes = { entry, getNode, setNode, ret },
-            Links =
-            {
-                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
-                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
-                new Link { FromNodeId = getNode.Id, FromPinId = getValuePin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
-            },
-        };
-
-        return new BlueprintAsset
-        {
-            AssetId  = Guid.NewGuid(),
-            Name     = "GetSetSharedCoverage",
-            Dispatch = BlueprintDispatchKind.Instance,
-            Graphs   = { graph },
-        };
-    }
-
-    /// <summary>
     /// EventEntry -&gt; SetVariable(FloatOut) -&gt; Return, fed by a data-only GetComponent node
-    /// (P2 -- Hill-attack -&gt; Blueprints migration). Mirrors <see cref="BuildGetSetSharedMinimalAsset"/>'s
-    /// shape/evidence bar. Uses <c>System.Numerics.Vector3</c> (public field "X") as the "component"
+    /// (P2 -- Hill-attack -&gt; Blueprints migration). Uses <c>System.Numerics.Vector3</c> (public field "X") as the "component"
     /// type -- a real, already-resolvable, zero-Hrot.AI.Behaviors-dependency blittable struct --
     /// rather than a real ECS-registered component: <c>GetComponentRO&lt;T&gt;</c> only requires
     /// <c>T : unmanaged</c> at compile time (no registration check), so this exercises the SAME
@@ -1878,6 +1862,76 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-433</c> -- the blackboard twins, one fixture: EventEntry -&gt; SetVariables -&gt; Return,
+    /// where SetVariables' <c>FloatOut</c>/<c>IntOut</c> data-ins are fed by TWO out-pins of ONE
+    /// GetAllVariablesNode (<c>FloatA</c>, <c>IntB</c>), and SetVariables' own <c>FloatA</c>/<c>IntB</c>
+    /// pins stay UNWIRED (they must write nothing). Mirrors <see cref="BuildGetAllParametersMinimalAsset"/>,
+    /// retargeted from Parameters to the block's Variables, through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildGetAllVariablesSetVariablesMinimalAsset()
+    {
+        VariableDecl Var(string name, string type) => new()
+        {
+            Id = Guid.NewGuid(), Name = name, Type = new BlueprintTypeRef { TypeId = type },
+        };
+        var floatA = Var("FloatA", "System.Single");
+        var intB   = Var("IntB",   "System.Int32");
+        var fOut   = Var("FloatOut", "System.Single");
+        var iOut   = Var("IntOut",   "System.Int32");
+
+        var gavA = DataPin("FloatA", "Out", "System.Single");
+        var gavB = DataPin("IntB",   "Out", "System.Int32");
+        var gav  = new GetAllVariablesNode { Id = Guid.NewGuid() };
+        gav.Pins.AddRange(new[] { gavA, gavB });
+
+        var svIn   = ExecPin("In",  "In");
+        var svOut  = ExecPin("Out", "Out");
+        var svA    = DataPin("FloatA",   "In", "System.Single");
+        var svB    = DataPin("IntB",     "In", "System.Int32");
+        var svFOut = DataPin("FloatOut", "In", "System.Single");
+        var svIOut = DataPin("IntOut",   "In", "System.Int32");
+        var sv = new SetVariablesNode { Id = Guid.NewGuid() };
+        sv.Pins.AddRange(new[] { svIn, svOut, svA, svB, svFOut, svIOut });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, gav, sv, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = sv.Id,  ToPinId = svIn.Id },
+                new Link { FromNodeId = sv.Id,    FromPinId = svOut.Id,    ToNodeId = ret.Id, ToPinId = retIn.Id },
+                new Link { FromNodeId = gav.Id,   FromPinId = gavA.Id,     ToNodeId = sv.Id,  ToPinId = svFOut.Id },
+                new Link { FromNodeId = gav.Id,   FromPinId = gavB.Id,     ToNodeId = sv.Id,  ToPinId = svIOut.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId      = Guid.NewGuid(),
+            Name         = "GetAllVariablesSetVariablesCoverage",
+            Dispatch     = BlueprintDispatchKind.AiPrimitive,
+            Primitive    = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            WorkingState = { floatA, intB, fOut, iOut },
+            Graphs       = { graph },
+        };
+    }
+
+    /// <summary>
     /// EventEntry -&gt; PublishEvent("ClearBehaviorEvent") -&gt; Return (P4 -- GAP-3). Exercises the
     /// PublishEventNode Stage5 lowering (EngineEventCatalog lookup -&gt; IrOp_PublishBusEvent with the
     /// entry's TargetFieldName self-defaulted). AiPrimitive/Action dispatch (world.Bus is the AiPrimitive
@@ -1948,8 +2002,8 @@ public sealed class NodeCoverageTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem });
 
@@ -1993,7 +2047,7 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
-    /// EventEntry -&gt; FlowForEach(Body -&gt; SetShared(int "scratch" &lt;- BinaryOp(CurrentIndex -
+    /// EventEntry -&gt; FlowForEach(Body -&gt; SetVariable(int Scratch &lt;- BinaryOp(CurrentIndex -
     /// Count))) [Completed] -&gt; Return. Exercises the FlowForEach loop-introspection out-pins
     /// (<c>CurrentIndex</c>, <c>Count</c>): the Count out wires into the arithmetic BinaryOp's B
     /// operand (proving the loop-invariant count is available in the body scope) and CurrentIndex into
@@ -2018,8 +2072,8 @@ public sealed class NodeCoverageTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem, feIndex, feCount });
 
@@ -2030,13 +2084,14 @@ public sealed class NodeCoverageTests
         var binNode = new BinaryOpNode { Id = Guid.NewGuid(), Operator = ArithmeticOperator.Subtract };
         binNode.Pins.AddRange(new[] { binAPin, binBPin, binResultPin });
 
-        // SetShared(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        // SetVariable(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        // ⛔ HISTORY — this was a SetShared("scratch") until CE-440 removed the node pair (Q76 §12.24).
+        var scratch = new VariableDecl { Id = Guid.NewGuid(), Name = "Scratch", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
         var setExecIn   = ExecPin("ExecIn",  "In");
         var setExecOut  = ExecPin("ExecOut", "Out");
         var setValuePin = DataPin("Value",   "In",  "System.Int32");
-        var setWritten  = DataPin("Written", "Out", "System.Boolean");
-        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "scratch", SharedTypeId = "System.Int32" };
-        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = scratch.Id.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
 
         var ret   = new ReturnNode { Id = Guid.NewGuid() };
         var retIn = ExecPin("In", "In");
@@ -2069,6 +2124,7 @@ public sealed class NodeCoverageTests
                 Intent   = AiPrimitiveIntent.Action,
                 Hostings = { AiPrimitiveHosting.BTreeAction },
             },
+            WorkingState = { scratch },
             Graphs    = { graph },
         };
     }

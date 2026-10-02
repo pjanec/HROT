@@ -18,6 +18,20 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     private readonly HsmFacetMapper      _mapper;
     private readonly HsmFacetFqnContext? _fqnContext;
 
+    /// <summary>⭐ §11.1a — needed to turn a PICKED NAME into the stable Guid at the moment of the
+    /// pick. ⚠ Optional: a headless fixture may have no catalogue, and then only the name is
+    /// written. ⛔ A production host has one and must pass it.</summary>
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — what turns a picked BLUEPRINT NAME into its generated <c>Params</c>
+    /// type, so the pick can compose a struct-typed blackboard variable instead of leaving the author
+    /// to hand-mirror a byte layout.</b>
+    /// ⚠ Optional for the same reason <see cref="_catalog"/> is: a headless fixture may have none, and
+    /// then the pick behaves exactly as it did before. ⛔ A production host HAS one and must pass it.
+    /// </summary>
+    private readonly Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? _actionSchema;
+
     public HsmFacetDispatcher(HsmAsset asset)
         : this(asset, null)
     {
@@ -29,10 +43,43 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// current transition action FQN.
     /// </summary>
     public HsmFacetDispatcher(HsmAsset asset, HsmFacetFqnContext? fqnContext)
+        : this(asset, fqnContext, catalog: null)
     {
-        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
-        _fqnContext = fqnContext;
-        _mapper     = new HsmFacetMapper(asset, fqnContext);
+    }
+
+    /// <summary>
+    /// ⭐⭐ §11.1a — the production overload. <paramref name="catalog"/> is what turns a PICKED
+    /// SUBTREE NAME into the stable Guid at pick time.
+    /// ⛔ A host that has a catalogue must use THIS constructor; the two above exist for headless
+    /// fixtures, and a dispatcher without one writes the name only.
+    /// </summary>
+    public HsmFacetDispatcher(
+        HsmAsset asset,
+        HsmFacetFqnContext? fqnContext,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog)
+        : this(asset, fqnContext, catalog, actionSchema: null)
+    {
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — the production overload. <paramref name="actionSchema"/> is what lets a
+    /// blueprint pick COMPOSE its params variable.</b>
+    ///
+    /// <para>🔒 Without it the pick writes the blueprint's name and id and stops, which is what it did
+    /// before <c>CE-414</c> — and left the author to declare scalar variables whose packed layout had
+    /// to coincide, field for field, with the blueprint's generated <c>Params</c> struct.</para>
+    /// </summary>
+    public HsmFacetDispatcher(
+        HsmAsset asset,
+        HsmFacetFqnContext? fqnContext,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema)
+    {
+        _asset         = asset ?? throw new ArgumentNullException(nameof(asset));
+        _fqnContext    = fqnContext;
+        _catalog       = catalog;
+        _actionSchema  = actionSchema;
+        _mapper        = new HsmFacetMapper(asset, fqnContext);
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -100,13 +147,146 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         s.OnExitAction   = f.OnExitAction;
         s.ActivityAction = f.ActivityAction;
         s.TimerAction    = f.TimerAction;
+        s.ExpressionTargetField = f.ExpressionTargetField;   // CE-387
         s.Comment        = f.Comment;
         s.IsBreakpoint   = f.IsBreakpoint;
         s.DeferredEventIds.Clear();
         if (f.DeferredEventIds is not null)
             s.DeferredEventIds.AddRange(f.DeferredEventIds);
 
+        // ⭐⭐⭐ §11.1a — THE GUID IS CAPTURED AT PICK TIME, while the catalogue entry is in hand.
+        // ⛔ Deriving it only on load would mean a rename between the pick and the first reload
+        //    leaves NOTHING to heal from — and the whole point of storing both would be lost.
+        // ⚠ `_catalog` is optional so a headless fixture need not supply one; a production host
+        //   HAS one and passes it (the silent-default rule).
+        ApplySubtreePick(s, f.SubtreeName);
+
+        // ⭐⭐ CE-385 — the blueprint-hosted activity, captured by the SAME rule as the subtree pick.
+        // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2.
+        string? previousActivity = s.ActivityBlueprintName;
+        if (string.IsNullOrWhiteSpace(f.ActivityBlueprintName))
+        {
+            s.ActivityBlueprintName    = null;
+            s.ActivityBlueprintAssetId = Guid.Empty;
+        }
+        else
+        {
+            s.ActivityBlueprintName    = f.ActivityBlueprintName;
+            s.ActivityBlueprintAssetId = ResolvePickedAssetId(
+                f.ActivityBlueprintName,
+                Hrot.Editor.AiShared.AssetKind.Blueprint,
+                s.ActivityBlueprintAssetId).Id;
+        }
+
+        // ⭐⭐⭐ CE-414 — COMPOSE. The state's ExpressionTargetField becomes ONE variable whose TYPE is
+        //   the picked blueprint's generated Params struct.
+        ComposeBlueprintParams(
+            previousActivity, s.ActivityBlueprintName, "bpActivityParams",
+            () => s.ExpressionTargetField, v => s.ExpressionTargetField = v);
+
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — THE COMPOSE STEP: a picked blueprint brings its own params variable.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6c ·
+    /// <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2.
+    ///
+    /// <para>🔒 <b>This is the step the HSM authoring path was missing.</b> The BTree editor has had it
+    /// since <c>E2</c> — <c>BTreeCommandSink.ComposeAiPrimitiveAction</c> auto-creates ONE
+    /// <c>IsAutoManaged</c> variable typed from the blueprint's generated <c>Params</c> and points
+    /// <c>ExpressionTargetField</c> at it (see <c>T33_ComposedParamBlueprint.btree.json</c>). ⛔ Picking
+    /// a blueprint on an HSM state wrote the name and the id and stopped, so the author had to declare
+    /// SCALAR variables whose packed layout coincided, field for field and pad for pad, with the
+    /// struct — order load-bearing, and nothing checking it.</para>
+    ///
+    /// <para>⭐⭐ <b>With one struct-typed variable there is nothing left to check.</b> The seed's byte
+    /// offset is that variable's offset and every field offset inside it comes from the DTO, which is
+    /// what <c>DESIGN_Parameter_Model.md</c> §4 means by <i>"the compiler owns the layout"</i>.</para>
+    ///
+    /// <para>⚠ <b>Runs only on a CHANGE of pick.</b> A facet apply round-trips the current value on
+    /// every inspector edit, so composing unconditionally would churn a fresh variable per keystroke.
+    /// ⛔ And it never touches a variable the author owns — only one this step marked
+    /// <c>IsAutoManaged</c>.</para>
+    /// </summary>
+    private void ComposeBlueprintParams(
+        string? previousName,
+        string? pickedName,
+        string baseVariableName,
+        Func<string?> getTargetField,
+        Action<string?> setTargetField)
+    {
+        if (string.Equals(previousName, pickedName, StringComparison.Ordinal)) return;
+
+        // ⭐ Drop the OUTGOING pick's variable first — on a re-pick as well as on a clear, because the
+        //   new blueprint's Params is a different type and reusing the row would mis-type the seed.
+        //   ⭐⭐ SHARED rule: only a variable the EDITOR owns is removed.
+        if (Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+                .RemoveIfAutoManaged(_asset, getTargetField()))
+            setTargetField(null);
+
+        if (string.IsNullOrWhiteSpace(pickedName)) return;
+
+        // ⛔ No exporter (headless fixture) or no matching AiPrimitive ⇒ leave the site unbound. That
+        //   is the pre-CE-414 behaviour, not a corruption — and a parameterless blueprint legitimately
+        //   has nothing to bind.
+        if (!Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.TryFindAiPrimitiveByName(
+                _actionSchema, pickedName, out var entry))
+            return;
+
+        // ⭐⭐⭐ THE SAME COMPOSE THE BTree HOST CALLS — AutoManagedVariables.ComposeForAiPrimitive.
+        //   ⚠ workingStateBaseName: null is the ONE deliberate difference, and it is not an omission:
+        //     an HSM-hosted occurrence's working state lives in its occurrence slot, keyed
+        //     (machine, region, state, childAsset), so there is no variable to bind. The BTree host
+        //     binds one so its Scope can be widened to Behavior and two nodes can share a slot.
+        var composed = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForAiPrimitive(
+            _asset, entry, paramsBaseName: baseVariableName, workingStateBaseName: null);
+
+        setTargetField(composed.ParamsVariable);
+    }
+
+
+    /// <summary>
+    /// ⭐⭐ Writes a picked subtree name onto the state and captures the matching asset id.
+    /// 📄 <c>HSM_Editor_NodeEditor_Host_Design.md</c> §11.1a.
+    /// </summary>
+    private void ApplySubtreePick(Hrot.Hsm.Editor.Model.StateNode s, string? pickedName)
+    {
+        // ⭐ Clearing the field UNSETS the host entirely — both halves go, because an empty name
+        //   with a live Guid would be a reference the designer cannot see or edit.
+        if (string.IsNullOrWhiteSpace(pickedName))
+        {
+            s.SubtreeName       = null;
+            s.SubtreeAssetId    = Guid.Empty;
+            s.IsSubtreeResolved = false;
+            return;
+        }
+
+        s.SubtreeName = pickedName;
+        (s.SubtreeAssetId, s.IsSubtreeResolved) =
+            ResolvePickedAssetId(pickedName, Hrot.Editor.AiShared.AssetKind.BTree, s.SubtreeAssetId);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-385</c> — the ONE rule for "a picked catalogue NAME becomes a stable Guid, at
+    /// pick time".</b> Shared by the subtree pick (§11.1a) and both blueprint picks, because three
+    /// spellings of one rule is how the never-erase branch quietly stops being true in one of them.
+    ///
+    /// <para>⭐⭐ <b>The Guid is captured while the catalogue entry is in hand.</b> ⛔ Deriving it
+    /// only on load would mean a rename between the pick and the first reload leaves NOTHING to heal
+    /// from.</para>
+    ///
+    /// <para>⚠ <b>The never-erase branch (§7.1a ③):</b> a typed or stale name with no catalogue
+    /// match keeps <paramref name="currentId"/> — ⛔ a missing catalogue (headless fixture) must
+    /// never destroy a reference it simply cannot see.</para>
+    /// </summary>
+    private (Guid Id, bool Resolved) ResolvePickedAssetId(
+        string pickedName, Hrot.Editor.AiShared.AssetKind kind, Guid currentId)
+    {
+        var picked = _catalog?.FindByName(pickedName);
+        return picked != null && picked.Kind == kind
+            ? (picked.AssetId, true)
+            : (currentId, false);
     }
 
     private void ApplyTransitionFacet(Guid visualId, TransitionFacet f)
@@ -116,6 +296,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         t.EventId               = f.EventId;
         t.GuardFunction         = f.GuardFunction;
+        t.IsPolled              = f.IsPolled;             // CE-381
         t.ActionFunction        = f.ActionFunction;
         t.ExpressionTargetField = f.ExpressionTargetField;
         t.Priority              = f.Priority;
@@ -123,6 +304,31 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         t.SyncGroupId           = f.SyncGroupId;
         t.Comment               = f.Comment;
         t.IsBreakpoint          = f.IsBreakpoint;
+
+        // ⭐⭐ CE-385 — the blueprint-hosted guard, same pick rule as everything else.
+        string? previousGuard = t.GuardBlueprintName;
+        if (string.IsNullOrWhiteSpace(f.GuardBlueprintName))
+        {
+            t.GuardBlueprintName    = null;
+            t.GuardBlueprintAssetId = Guid.Empty;
+        }
+        else
+        {
+            t.GuardBlueprintName    = f.GuardBlueprintName;
+            t.GuardBlueprintAssetId = ResolvePickedAssetId(
+                f.GuardBlueprintName,
+                Hrot.Editor.AiShared.AssetKind.Blueprint,
+                t.GuardBlueprintAssetId).Id;
+        }
+
+        // ⭐⭐⭐ CE-414 / CE-413 — COMPOSE the guard's own params variable.
+        //
+        //   🔴 This is the case that made the SITE necessary at all: the kernel stamps a polled guard
+        //      with its SOURCE STATE, so before CE-414 this variable and the source state's activity
+        //      variable were the same bytes read through two different Params types.
+        ComposeBlueprintParams(
+            previousGuard, t.GuardBlueprintName, "bpGuardParams",
+            () => t.ExpressionTargetField, v => t.ExpressionTargetField = v);
 
         // TargetStateName: find the state by name and rewire.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))

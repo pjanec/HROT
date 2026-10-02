@@ -31,6 +31,30 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </remarks>
 public sealed class BlueprintKernelRunTests
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102c</c>) — the harness is IN STEPPING before a test pumps</b>
+    /// (<c>BP-379</c>).
+    ///
+    /// <para>⭐⭐ <b>Why this exists next to the count assertions.</b> They already fail when the first
+    /// frame is frozen — ⛔ but they fail as <i>"expected 1, actual 0"</i>, which reads as a blueprint
+    /// defect and cost Batch 101 a whole triage to trace back to the TIME CONTROLLER. ⚠ This one fails
+    /// as <i>"the harness is still BarrierPending"</i>, one hop from the cause.</para>
+    ///
+    /// <para>📌 <c>MasterSyncController:253</c>: <c>SwitchToDeterministic</c> arms a FUTURE BARRIER and
+    /// sets <c>BarrierPending</c> — ⛔ it does not enter <c>Stepping</c>. ⇒ the pump's first
+    /// <c>Step()</c> returned early and its first <c>Update()</c> returned an explicit
+    /// <c>dt = 0</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheHarnessIsStepping_BeforeAnythingPumps()
+    {
+        using var harness = new EditorHarness();
+
+        Assert.Equal(
+            Fdp.ModuleHost.Time.TimeMode.Deterministic,
+            harness.Kernel.GetTimeController().GetMode());
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
@@ -50,7 +74,9 @@ public sealed class BlueprintKernelRunTests
             harness.Repo, harness.BlueprintRegistry, asset, entity);
 
         Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
-        Assert.Equal(BlackboardTier.B1024, result.Tier);
+        // ⭐ B4 — §17.7: the result must NAME the tier the entity actually carries (and there is
+        //   exactly ONE). ⛔ Not the literal B1024 — the ladder chooses.
+        Assert.Equal(BlueprintTierTable.Of(harness.Repo, entity)!.Tier, result.Tier);
 
         // Before any tick the observable is at its InitDefault value (0).
         Assert.Equal(0, ReadCount(harness.Repo, entity));
@@ -111,11 +137,9 @@ public sealed class BlueprintKernelRunTests
     // Throws (rather than returning a misleading 0) if the slot is missing.
     private static unsafe int ReadCount(EntityRepository repo, Entity entity)
     {
-        Assert.True(repo.HasComponent<BlueprintBlackboard1024>(entity),
-            $"Entity {entity} has no BlueprintBlackboard1024 component.");
-
-        ref var bb    = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory  = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — design §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+        Assert.True(memory != null, $"Entity {entity} carries no blueprint blackboard store.");
 
         Assert.True(
             BlueprintBlackboardPartitions.TryGetSlotOffset(

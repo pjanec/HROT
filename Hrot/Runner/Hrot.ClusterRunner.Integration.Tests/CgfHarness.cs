@@ -98,14 +98,22 @@ public sealed class CgfHarness : IDisposable
     /// Returns <c>true</c> if the condition was met before timeout.
     /// </summary>
     public bool PumpUntil(Func<bool> condition, int timeoutMs = 5000)
+        => PumpUntil(condition, timeoutMs, PumpSleepMs);
+
+    /// <summary>
+    /// PumpUntil with a caller-chosen per-frame sleep. A LARGER sleep advances FEWER simulation frames per
+    /// wall-clock second — used by the external-host STUCK rail so that a cross-process phase-1 ack lands
+    /// inside the creator's short frame-counted phase-1 window (CE-294).
+    /// </summary>
+    public bool PumpUntil(Func<bool> condition, int timeoutMs, int sleepMs)
     {
         if (condition()) return true;
 
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            CgfSvc.Update(PumpSleepMs / 1000f);
-            Thread.Sleep(PumpSleepMs);
+            CgfSvc.Update(sleepMs / 1000f);
+            Thread.Sleep(sleepMs);
             if (condition()) return true;
         }
 

@@ -590,10 +590,10 @@ However, as established in our previous architectural decision, you **do not nee
 
 Here are the specific changes needed to implement this perfectly:
 
-**1\. Mark** **UnitRoster** **with** **NoSave** You must explicitly instruct the engine's serialization pipeline to ignore the `UnitRoster` component so the auto-serializer does not attempt to process its fixed arrays. Add the `DataPolicy.NoSave` attribute, which excludes the component from scenario JSON serialization.
+**1\. Mark** **UnitRoster** **with** **NoScenario** You must explicitly instruct the engine's serialization pipeline to ignore the `UnitRoster` component so the auto-serializer does not attempt to process its fixed arrays. Add the `DataPolicy.NoScenario` attribute, which excludes the component from scenario JSON serialization.
 
 ```
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [ComponentId(GlobalComponentIds.UnitRoster)]
 public unsafe struct UnitRoster
 {
@@ -1364,7 +1364,7 @@ My previous code snippet omitted the array size (`public fixed long SubordinateE
 Explicitly size the fixed buffers to the absolute maximum capacity (16).
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [ComponentId(GlobalComponentIds.UnitRoster)] 
 public unsafe struct UnitRoster
 {
@@ -1473,7 +1473,7 @@ To perfectly align with FDP's strict coding standards against magic numbers in p
 Here is the corrected `UnitRoster` component using the named constant for its absolute maximum capacity:
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [ComponentId(GlobalComponentIds.UnitRoster)] 
 public unsafe struct UnitRoster
 {

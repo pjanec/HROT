@@ -28,7 +28,7 @@ public static class T09_BlackboardManagedRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = T09_BlackboardManaged.Build();
@@ -36,16 +36,23 @@ public static class T09_BlackboardManagedRegistrar
         // 2. Register baked-offset action/condition thunks before Interpreter construction.
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
-            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
             {
-                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            }
+            __bakeDefaults = __BakeDefaults;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
 
                 // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
                 // variable's deserializer (DEBT-AIB-021 names this shape).
@@ -106,7 +113,10 @@ public static class T09_BlackboardManagedRegistrar
                 new("PatrolLoops", typeof(int), 20),
                 new("IsAlerted", typeof(bool), 24),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Block),
             ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
         });
     }
 }

@@ -39,6 +39,16 @@ namespace Hrot.ScenarioEditor.Gizmos
                     style.LineThickness,
                     SizeMode.WorldMeters);
             }
+
+            // ⭐⭐⭐ CE-259ae — make those edges CLICKABLE: left-click selects this entity, right-click
+            //   opens its context menu (the AREA/ROUTE menus already existed in
+            //   ContextMenuProjectorGizmo and were simply unreachable). 🔒 User, 2026-09-11: "polygon
+            //   areas and routes entities should be selectable by clicking on their lines, also context
+            //   menu by right clicking them."
+            //   ⭐ One shared implementation for both this gizmo and TacticalAreaGizmo — see its notes
+            //     for why SubElementId is 0 and why the z-order already favours an active tool's handles.
+            EntityPresentationGizmoShared.EmitPickSegments(
+                draw, view, entity, polyline.Points, origin, style.IsClosed);
         }
     }
 }

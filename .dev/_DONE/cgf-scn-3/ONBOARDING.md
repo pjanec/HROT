@@ -42,7 +42,7 @@ Additionally:
 | File | Phase | Change |
 |------|-------|--------|
 | `Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs` | 1 | SetManagedComponent fix + Span fix |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` | 1 | DataPolicy.NoSave on BrainBlackboard |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` | 1 | DataPolicy.NoScenario on BrainBlackboard |
 | `FDP/Toolkits/Fdp.Toolkits/Time/Controllers/SteppingTimeController.cs` | 1 | GetMode() fix |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/MissionControlModule.cs` | 2 | Two-group overload |
 | `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` | 2 | Two-group overload |

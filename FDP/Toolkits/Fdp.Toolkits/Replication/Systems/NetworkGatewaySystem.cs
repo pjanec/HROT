@@ -2,230 +2,269 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Interfaces;
-using INetworkTopology = Fdp.Toolkit.Replication.INetworkTopology;
 
 namespace Fdp.Toolkit.Replication.Systems
 {
     /// <summary>
-    /// Canonical, transport-agnostic <see cref="IEcsModuleSystem"/> that implements the
-    /// reliable-initialisation ACK handshake for networked entities.
+    /// The creator-side waiter of the reliable-initialisation barrier: holds a locally-owned
+    /// entity in <c>Constructing</c> until every peer node that must initialise a copy has
+    /// reported <see cref="EntityLifecycle.Active"/>.
     ///
-    /// <para>For each <see cref="ConstructionOrder"/> event received:</para>
-    /// <list type="bullet">
-    ///   <item>If the entity has no <see cref="PendingNetworkAck"/> component, the system
-    ///     immediately calls <see cref="EntityLifecycleModule.AcknowledgeConstruction"/>.
-    ///   </item>
-    ///   <item>If <see cref="PendingNetworkAck"/> is present, the system queries
-    ///     <see cref="INetworkTopology.GetExpectedPeers"/> and waits until all peer nodes
-    ///     report <see cref="EntityLifecycle.Active"/> via
-    ///     <see cref="ReceiveLifecycleStatus"/> before acknowledging.</item>
-    /// </list>
+    /// <para>A <b>reactive</b> <see cref="DeferredConstructionParticipant"/>: it defers an entity
+    /// that carries <see cref="PendingNetworkAck"/>, seeds the wait-set from the
+    /// <see cref="NetworkAckPeerSet"/> stamped at spawn, and completes when the transport delivers
+    /// each peer's Active status through <see cref="ReceiveLifecycleStatus"/> (or on the base
+    /// timeout). An entity with no <see cref="PendingNetworkAck"/> — fast mode
+    /// (<see cref="ReliableInitType.None"/>) — is acked immediately.</para>
     ///
-    /// <para>Entities stuck in the pending state longer than
-    /// <c>reliableInitTimeoutFrames</c> are force-acknowledged to prevent deadlocks.</para>
-    ///
-    /// <para>This class is the <b>canonical</b> home for gateway logic previously
-    /// duplicated across <c>Network.Cyclone/Systems</c> and
-    /// <c>ModuleHost/Network</c> (PACK3-N001).  All transport adapters
-    /// (Cyclone, future adapters) must reference this class.</para>
+    /// <para>The peer set is the roster membership (<c>NodeRoster.NodesWithRole</c> / the NED
+    /// cluster cache) resolved at spawn and stamped onto <see cref="NetworkAckPeerSet"/>; the
+    /// gateway no longer queries <c>INetworkTopology</c> (retired — no production implementation).
+    /// Barrier design <c>docs/DESIGN_Cross_Node_Construction_Barrier.md</c> §1.1/§3a.4.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    public class NetworkGatewaySystem : IEcsModuleSystem
+    public sealed class NetworkGatewaySystem : DeferredConstructionParticipant
     {
-        private readonly int _gatewayModuleId;
         private readonly int _localNodeId;
-        private readonly INetworkTopology _topology;
-        private readonly EntityLifecycleModule _elm;
-        private readonly int _reliableInitTimeoutFrames;
 
-        // Track pending network ACKs: Entity → set of node IDs we are still waiting for.
-        private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks;
+        // Entity → the peer node ids we are still waiting for an Active ack from.
+        private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks = new();
 
-        // Track when entities entered the pending state (for timeout).
-        private readonly Dictionary<Entity, uint> _pendingStartFrame;
+        // CE-288 (C2): per-entity phase-1 tracking — the peers that have sent a prompt Constructing status
+        // ("participating, in progress"), and the frame the entity was deferred (the phase-1 clock start).
+        private readonly Dictionary<Entity, HashSet<int>> _phase1Received = new();
+        private readonly Dictionary<Entity, uint> _deferFrame = new();
+        private readonly HashSet<Entity> _phase1Checked = new();   // the short-timeout prune runs once per entity.
+
+        // CE-289/290 (C3/C4): the persistent creator world, cached at defer time so the reactive completion
+        // path (ReceiveLifecycleStatus, called by the transport without a view) can reach the poll-store.
+        private EntityRepository? _world;
+
+        // CE-288 (C2): self-heal sink — invoked with a peer node id that missed the short phase-1 probe, so the
+        // caller (NED layer) can record !fdp.reliable-init on the cluster cache and skip it next time. Null in
+        // tests / when self-heal is not wired.
+        private readonly System.Action<int>? _onPeerUnsupported;
+
+        /// <summary>Sim tick rate used to convert the creator's <c>ReliableInitTimeout</c> (seconds) to frames.</summary>
+        private const double FramesPerSecond = 60.0;
+
+        /// <summary>CE-288 (C2): the SHORT phase-1 window — a wait-set peer that has not sent a Constructing
+        /// status within this many frames of the entity being deferred is treated as not supporting reliable
+        /// init, dropped from the wait-set, and remembered via <see cref="_onPeerUnsupported"/> (§3c ②). Much
+        /// shorter than the long abort timeout, which still governs a peer that DID send phase-1 but never Active.</summary>
+        public const int PHASE1_TIMEOUT_FRAMES = 60;   // ~1 s @ 60 Hz
 
         /// <summary>Reliable init ACK timeout in frames (5 sec @ 60Hz)</summary>
-        public const int RELIABLE_INIT_TIMEOUT_FRAMES = 300;
+        public const int RELIABLE_INIT_TIMEOUT_FRAMES = DEFAULT_TIMEOUT_FRAMES;
 
         /// <summary>
-        /// Constructs a new <see cref="NetworkGatewaySystem"/>.
+        /// Constructs the creator waiter.
         /// </summary>
-        /// <param name="gatewayModuleId">
-        /// Module ID registered with <paramref name="elm"/> so this system receives
-        /// <see cref="ConstructionOrder"/> events.
-        /// </param>
-        /// <param name="localNodeId">This node's identifier (used for topology lookups).</param>
-        /// <param name="topology">Network topology provider for peer discovery.</param>
-        /// <param name="elm">Entity lifecycle module that drives construction/destruction events.</param>
-        /// <param name="reliableInitTimeoutFrames">
-        /// Number of frames before a pending ACK is force-acknowledged.
-        /// Negative or zero uses <see cref="NetworkGatewaySystem.RELIABLE_INIT_TIMEOUT_FRAMES"/>.
-        /// </param>
+        /// <param name="gatewayModuleId">Module id registered with <paramref name="elm"/>.</param>
+        /// <param name="localNodeId">This node's ownership node id (excluded from any peer set).</param>
+        /// <param name="elm">The entity lifecycle module driving construction/destruction.</param>
+        /// <param name="reliableInitTimeoutFrames">Frames before a pending ack is force-acked; ≤0 uses the default.</param>
         public NetworkGatewaySystem(
             int gatewayModuleId,
             int localNodeId,
-            INetworkTopology topology,
             EntityLifecycleModule elm,
-            int reliableInitTimeoutFrames = -1)
+            int reliableInitTimeoutFrames = -1,
+            System.Action<int>? onPeerUnsupported = null)
+            : base(gatewayModuleId, elm, reliableInitTimeoutFrames)
         {
-            _gatewayModuleId  = gatewayModuleId;
-            _localNodeId      = localNodeId;
-            _topology         = topology ?? throw new ArgumentNullException(nameof(topology));
-            _elm              = elm      ?? throw new ArgumentNullException(nameof(elm));
-            _reliableInitTimeoutFrames = reliableInitTimeoutFrames > 0
-                ? reliableInitTimeoutFrames
-                : RELIABLE_INIT_TIMEOUT_FRAMES;
-
-            _pendingPeerAcks  = new Dictionary<Entity, HashSet<int>>();
-            _pendingStartFrame = new Dictionary<Entity, uint>();
-
-            // Register with ELM so we receive ConstructionOrder events.
-            _elm.RegisterModule(_gatewayModuleId);
+            _localNodeId = localNodeId;
+            _onPeerUnsupported = onPeerUnsupported;
         }
 
-        /// <inheritdoc/>
-        public void Execute(ISimulationView view, float deltaTime)
+        /// <summary>The gateway is a GLOBAL waiter — it inspects every constructed entity.</summary>
+        protected override bool Participates(ISimulationView view, Entity entity, long blueprintId) => true;
+
+        /// <summary>Ack immediately unless the entity is a reliable one with peers still to hear from.</summary>
+        protected override bool TryImmediateComplete(ISimulationView view, Entity entity)
         {
-            uint currentFrame = 0;
-            if (view is EntityRepository repo)
-                currentFrame = repo.GlobalVersion;
+            if (!view.HasComponent<PendingNetworkAck>(entity))
+                return true; // fast mode — no cross-node wait
 
-            var cmd = view.GetCommandBuffer();
-
-            ProcessConstructionOrders(view, cmd, currentFrame);
-            ProcessDestructionOrders(view, cmd);
-            CheckPendingAckTimeouts(cmd, currentFrame);
+            // Reliable: defer only if there is at least one peer to wait for.
+            return CollectPeers(view, entity).Count == 0;
         }
 
-        private void ProcessConstructionOrders(ISimulationView view, IEntityCommandBuffer cmd, uint currentFrame)
+        /// <summary>Seed the wait-set for a deferred (reliable, non-empty-peer) entity.</summary>
+        protected override void OnDeferred(ISimulationView view, Entity entity)
         {
-            var events = view.ReadEvents<ConstructionOrder>();
+            _world = view as EntityRepository;   // C4: cache the persistent world for the reactive path.
+            var peers = CollectPeers(view, entity);
+            _pendingPeerAcks[entity] = peers;
 
-            foreach (var evt in events)
+            // C2: start the phase-1 clock; no peer has reported Constructing yet.
+            _deferFrame[entity] = GetFrame(view);
+            _phase1Received[entity] = new HashSet<int>();
+
+            // C3: honour the creator's per-entity ReliableInitTimeout (stamped on NetworkAckPeerSet as seconds).
+            if (view.HasManagedComponent<NetworkAckPeerSet>(entity))
             {
-                // Fast path: no PendingNetworkAck → acknowledge immediately.
-                if (!view.HasComponent<PendingNetworkAck>(evt.Entity))
-                {
-                    if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug(
-                            "Entity {0} missing PendingNetworkAck. ACKing.",
-                            evt.Entity.Index);
-
-                    _elm.AcknowledgeConstruction(evt.Entity, _gatewayModuleId, currentFrame, cmd);
-                    continue;
-                }
-
-                // Reliable path: wait for all expected peers.
-                var pendingInfo  = view.GetComponentRO<PendingNetworkAck>(evt.Entity);
-                var expectedPeers = _topology.GetExpectedPeers((long)pendingInfo.ExpectedType);
-                var peerSet       = new HashSet<int>(expectedPeers);
-
-                if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                {
-                    var peerList = string.Join(",", peerSet);
-                    FdpLog<NetworkGatewaySystem>.Debug(
-                        "Entity {0}: Reliable mode. Peers: {1}",
-                        evt.Entity.Index,
-                        peerList);
-                }
-
-                if (peerSet.Count == 0)
-                {
-                    // No peers — acknowledge immediately and clean up.
-                    if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug(
-                            "Entity {0}: No peers. ACKing.",
-                            evt.Entity.Index);
-
-                    _elm.AcknowledgeConstruction(evt.Entity, _gatewayModuleId, currentFrame, cmd);
-                    cmd.RemoveComponent<PendingNetworkAck>(evt.Entity);
-                }
-                else
-                {
-                    if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug(
-                            "Entity {0}: Waiting for ACKs from {1} peer(s).",
-                            evt.Entity.Index,
-                            peerSet.Count);
-
-                    _pendingPeerAcks[evt.Entity]   = peerSet;
-                    _pendingStartFrame[evt.Entity] = currentFrame;
-                }
+                double secs = view.GetManagedComponentRO<NetworkAckPeerSet>(entity).TimeoutSeconds;
+                if (secs > 0)
+                    SetPendingTimeout(entity, (int)(secs * FramesPerSecond));
             }
+
+            // C4: publish the in-progress result so the local requestor's poll reads Pending, not "unknown".
+            long netId = TryGetNetworkId(view, entity);
+            if (netId != 0 && _world != null)
+                ConstructionResults.GetOrCreate(_world).SetPending(netId, GetFrame(view));
+
+            if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
+                FdpLog<NetworkGatewaySystem>.Debug(
+                    "[Node-{0}] Entity {1}: reliable, waiting for {2} peer ack(s).",
+                    _localNodeId, entity.Index, peers.Count);
+        }
+
+        /// <summary>Clear per-entity state and strip the transient ack tag once acked.</summary>
+        protected override void OnCompleted(ISimulationView? view, Entity entity, IEntityCommandBuffer cmd)
+        {
+            _pendingPeerAcks.Remove(entity);
+            ClearPhase1State(entity);
+            cmd.RemoveComponent<PendingNetworkAck>(entity);
+        }
+
+        /// <summary>Drop wait-state for an entity destroyed before it completed.</summary>
+        protected override void OnDestroyed(Entity entity)
+        {
+            _pendingPeerAcks.Remove(entity);
+            ClearPhase1State(entity);
+        }
+
+        private void ClearPhase1State(Entity entity)
+        {
+            _phase1Received.Remove(entity);
+            _deferFrame.Remove(entity);
+            _phase1Checked.Remove(entity);
         }
 
         /// <summary>
-        /// Called by the transport layer (e.g. Cyclone) when a remote node reports
-        /// a lifecycle status for an entity.  Removes the reporting node from the
-        /// waiting set and, if all peers have responded, acknowledges construction.
+        /// CE-288 (C2): the SHORT phase-1 probe. Polled each frame for a pending entity; once the phase-1 window
+        /// has elapsed it prunes — exactly ONCE — every wait-set peer that never sent a Constructing/Active
+        /// status (an older/external host that advertises <c>fdp.reliable-init</c> but does not deliver), records
+        /// the self-heal so later creates skip it, and completes the entity if the pruned wait-set is now empty.
+        /// A peer that DID report is left to the long abort timeout (§3b.3). Reactive Active acks still complete
+        /// via <see cref="ReceiveLifecycleStatus"/>; this only fires when the short window lapses with holdouts.
+        /// </summary>
+        protected override bool TryComplete(ISimulationView view, Entity entity)
+        {
+            if (_phase1Checked.Contains(entity)) return false;
+            if (!_pendingPeerAcks.TryGetValue(entity, out var pending)) return false;
+            if (!_deferFrame.TryGetValue(entity, out var start)) return false;
+
+            uint now = GetFrame(view);
+            if (now - start < (uint)PHASE1_TIMEOUT_FRAMES) return false;   // window not elapsed yet
+
+            _phase1Checked.Add(entity);   // prune once
+            _phase1Received.TryGetValue(entity, out var seen);
+            // Snapshot to avoid mutating the set under iteration.
+            foreach (var peer in new System.Collections.Generic.List<int>(pending))
+            {
+                if (seen != null && seen.Contains(peer)) continue;   // it did send phase-1 → keep (long timeout governs)
+                pending.Remove(peer);
+                _onPeerUnsupported?.Invoke(peer);   // self-heal: record !fdp.reliable-init on the cache
+                FdpLog<NetworkGatewaySystem>.Warn(
+                    "[Node-{0}] Entity {1}: peer {2} missed the phase-1 probe — dropped + marked !fdp.reliable-init.",
+                    _localNodeId, entity.Index, peer);
+            }
+
+            if (pending.Count != 0) return false;
+            // Pruned to empty ⇒ the entity is live and nothing supporting is left to wait for → Success.
+            var world = (view as EntityRepository) ?? _world;
+            long netId = TryGetNetworkId(view, entity);
+            if (netId != 0 && world != null)
+                ConstructionResults.GetOrCreate(world)
+                    .Resolve(netId, ConstructionOutcome.Success, ConstructionFailReason.None, GetFrame(view));
+            return true;   // base PollPending → Complete: ack + OnCompleted cleanup
+        }
+
+        /// <summary>
+        /// Called by the transport when a remote node reports a lifecycle status. Removes the
+        /// reporting node from the wait-set and, when it empties, acknowledges construction.
+        /// Only <see cref="EntityLifecycle.Active"/> completes the handshake.
         /// </summary>
         public void ReceiveLifecycleStatus(
             Entity entity, int nodeId, EntityLifecycle state,
             IEntityCommandBuffer cmd, uint currentFrame)
         {
             if (!_pendingPeerAcks.TryGetValue(entity, out var pendingPeers))
-                return; // Not waiting for this entity.
+                return; // not waiting for this entity
+
+            // C2: any status (Constructing phase-1 OR Active phase-2) proves the peer is participating, so it
+            // has passed the short phase-1 probe and must not be pruned as unsupported.
+            if (_phase1Received.TryGetValue(entity, out var seen))
+                seen.Add(nodeId);
 
             if (state != EntityLifecycle.Active)
-                return; // Only Active confirmations complete the handshake.
+                return; // only Active confirmations complete the handshake
 
             pendingPeers.Remove(nodeId);
 
             if (pendingPeers.Count == 0)
             {
-                _elm.AcknowledgeConstruction(entity, _gatewayModuleId, currentFrame, cmd);
-                cmd.RemoveComponent<PendingNetworkAck>(entity);
-
-                _pendingPeerAcks.Remove(entity);
-                _pendingStartFrame.Remove(entity);
+                // C4: record Success for the local requestor's poll-store BEFORE Complete strips state.
+                long netId = _world != null ? TryGetNetworkId(_world, entity) : 0;
+                Complete(entity, cmd, currentFrame); // base: ack + OnCompleted cleanup
+                if (netId != 0 && _world != null)
+                    ConstructionResults.GetOrCreate(_world)
+                        .Resolve(netId, ConstructionOutcome.Success, ConstructionFailReason.None, currentFrame);
             }
         }
 
-        private void CheckPendingAckTimeouts(IEntityCommandBuffer cmd, uint currentFrame)
+        /// <summary>
+        /// CE-289 (C3): the creator's authoritative timeout expired with peers still unheard-from. ABORT — do
+        /// NOT force-ack a reliable entity (§3b.3). Record <c>Failed(Timeout)</c> for the requestor, then tear the
+        /// entity down locally: <c>BeginDestruction</c> emits the <c>DestructionOrder</c> that
+        /// <c>CycloneNetworkCleanupSystem</c> turns into an <c>EntityMaster</c> dispose sample, so every peer's
+        /// ghost is removed. The base's <c>DestructionOrder</c> path then runs <c>OnDestroyed</c> to clear our
+        /// wait-state.
+        /// </summary>
+        protected override void OnTimeout(ISimulationView view, Entity entity, IEntityCommandBuffer cmd, uint currentFrame)
         {
-            var timedOut = new List<Entity>();
+            var world = (view as EntityRepository) ?? _world;
+            long netId = TryGetNetworkId(view, entity);
+            if (netId != 0 && world != null)
+                ConstructionResults.GetOrCreate(world)
+                    .Resolve(netId, ConstructionOutcome.Failed, ConstructionFailReason.Timeout, currentFrame);
 
-            foreach (var kvp in _pendingStartFrame)
-            {
-                if (currentFrame - kvp.Value > _reliableInitTimeoutFrames)
-                {
-                    Console.Error.WriteLine(
-                        $"[NetworkGatewaySystem] Entity {kvp.Key.Index}: " +
-                        $"Timeout waiting for peer ACKs after {_reliableInitTimeoutFrames} frames.");
-                    timedOut.Add(kvp.Key);
-                }
-            }
+            FdpLog<NetworkGatewaySystem>.Warn(
+                "[Node-{0}] Entity {1} (NetId {2}): reliable-init timeout — aborting via EntityMaster dispose.",
+                _localNodeId, entity.Index, netId);
 
-            foreach (var entity in timedOut)
-            {
-                _elm.AcknowledgeConstruction(entity, _gatewayModuleId, currentFrame, cmd);
-                cmd.RemoveComponent<PendingNetworkAck>(entity);
-
-                _pendingPeerAcks.Remove(entity);
-                _pendingStartFrame.Remove(entity);
-            }
+            _pendingPeerAcks.Remove(entity);
+            _elm.BeginDestruction(entity, currentFrame, "reliable-init-timeout", cmd);
+            // ⛔ no AcknowledgeConstruction — the entity is torn down, not force-activated.
         }
 
-        private void ProcessDestructionOrders(ISimulationView view, IEntityCommandBuffer cmd)
-        {
-            var events = view.ReadEvents<DestructionOrder>();
-            foreach (var evt in events)
-            {
-                _pendingPeerAcks.Remove(evt.Entity);
-                _pendingStartFrame.Remove(evt.Entity);
+        private static uint GetFrame(ISimulationView view) => view is EntityRepository r ? r.GlobalVersion : 0u;
 
-                cmd.PublishEvent(new DestructionAck
-                {
-                    Entity   = evt.Entity,
-                    ModuleId = _gatewayModuleId,
-                    Success  = true
-                });
-            }
+        // The entity's network id, or 0 if it has no NetworkIdentity yet.
+        private static long TryGetNetworkId(ISimulationView view, Entity entity)
+            => view.HasComponent<NetworkIdentity>(entity)
+                ? view.GetComponentRO<NetworkIdentity>(entity).Value
+                : 0L;
+
+        // Reads the stamped peer set, excluding the local node (a node never waits for itself).
+        private HashSet<int> CollectPeers(ISimulationView view, Entity entity)
+        {
+            var set = new HashSet<int>();
+            if (!view.HasManagedComponent<NetworkAckPeerSet>(entity))
+                return set;
+
+            var peers = view.GetManagedComponentRO<NetworkAckPeerSet>(entity).ExpectedAckPeers;
+            if (peers != null)
+                foreach (var id in peers)
+                    if (id != _localNodeId)
+                        set.Add(id);
+            return set;
         }
     }
 }

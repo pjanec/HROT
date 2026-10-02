@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Orchestration
     public enum ClusterOpType : int
     {
         TransitionState = 1,
-        SaveScenario = 2,
+        // 2 — RESERVED gap: the legacy SaveScenario op (CE-278) was retired; wire value 2 is not reused.
         LoadZone = 3,
         TakeCheckpoint = 4,
         CollectCheckpoint = 5,
@@ -23,5 +23,22 @@ namespace Fdp.Toolkit.Orchestration
         StepTime = 14,
         SetTimeScale = 15,
         DumpDiagnostics = 16,
+
+        // ⚠⚠ 17 IS NOT FREE, and it is deliberately absent HERE: the authoritative NED enum
+        //    (Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs) has
+        //    `SaveScenario = 17` — the live distributed JSON scenario save (CE-277(c0), renamed by
+        //    CE-278 with the wire value unchanged), routed at ClusterMaster and translated both ways.
+        //    ⛔ This mirror never gained it, so the two enums are ALREADY DIVERGED.
+        //    ⚠⚠ CORRECTION (2026-09-17, same day): an earlier version of this comment said the header's
+        //    "verified by unit tests" was empty talk because "no such test exists". That is FALSE and I
+        //    wrote it. FdpOrchestrationEnumSyncTests.ClusterOpTypeValuesMatchHrot DOES exist. What is
+        //    true is narrower and more useful: the test iterates the FDP enum ONLY, so it can never see
+        //    a member NED has and this mirror lacks — which is exactly the shape of the 17 divergence.
+        //    ⇒ Do NOT reuse 17 here to close the hole; adding SaveScenario to this mirror changes the
+        //    generated CycloneDDS IDL and is a wire-surface decision, not a tidy-up.
+
+        // ⛔ PERMANENT WIRE VALUE (R-42). Ruled 2026-09-17 after 17 was found occupied.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
+        BuildTerrainAsset = 18,
     }
 }

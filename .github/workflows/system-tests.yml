@@ -1,0 +1,71 @@
+# MCP system-test harness — the slow lane (DESIGN_MCP_System_Test_Harness.md, task H6).
+#
+# It boots the REAL editor headless under Xvfb and drives it over the AI-debug HTTP API, so it needs
+# a display server and a software GL driver that a bare runner image does not have.
+#
+# ⚠ TRIGGER: manual (workflow_dispatch) ON PURPOSE.
+#
+# This is the FIRST GitHub Actions workflow in this repository. Turning it on for every push would
+# start CI across a codebase that has never had any, and several suites carry known pre-existing
+# reds — the first thing everyone would see is a red badge that says nothing about their change.
+# So the lane ships switched off, and enabling it is a deliberate one-line decision:
+#
+#   on:
+#     workflow_dispatch:
+#     pull_request:
+#       paths: ['Hrot/**', 'FDP/**', '.github/workflows/system-tests.yml']
+#
+# Locally the same thing runs via scripts/run-system-tests.sh.
+
+name: system-tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  system-smoke:
+    name: SystemSmoke (headless editor under Xvfb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Xvfb and a software GL driver
+        # The editor is a real GLFW/X11 application. libgl1 + the Mesa llvmpipe driver let it
+        # render without a GPU; without them it dies at icon-atlas load.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libglu1-mesa
+
+      - name: Build the harness and the editor it launches
+        run: dotnet build Hrot/Runner/Hrot.SystemTests/Hrot.SystemTests.csproj -c Debug
+
+      - name: Run the SystemSmoke suite
+        # The fixture starts Xvfb itself per editor (xvfb-run -a), so no wrapper is needed here.
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          dotnet test Hrot/Runner/Hrot.SystemTests/Hrot.SystemTests.csproj \
+            --no-build --nologo \
+            --filter 'Category=SystemSmoke' \
+            --logger 'trx;LogFileName=system-tests.trx'
+
+      - name: Collect the editor logs
+        # A failure here is nearly always something the EDITOR did, and its console output is the
+        # only record of it — nobody can reproduce a CI run interactively.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editor-logs
+          path: |
+            /tmp/hrot-systemtests-editor-*.log
+            **/TestResults/*.trx
+          if-no-files-found: ignore
+          retention-days: 7

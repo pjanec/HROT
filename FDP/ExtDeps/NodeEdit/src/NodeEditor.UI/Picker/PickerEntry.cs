@@ -18,6 +18,11 @@ namespace NodeEditor.UI.Picker;
 /// <see cref="Core.Interfaces.IconHandle"/> (atlas cell) for inline row icons in flat/tree layouts.
 /// Distinct from <see cref="IconTextureId"/> (whole-texture Grid thumbnails).
 /// </param>
+/// <param name="IsEnabled">
+/// <see langword="false"/> shows the entry dimmed and never returns it from a confirm — for an option the
+/// host wants VISIBLE (so the list tells the truth about what exists) but not choosable right now; its
+/// <paramref name="Description"/> should say why.
+/// </param>
 public sealed record PickerEntry(
     string Id,
     string Name,
@@ -26,4 +31,5 @@ public sealed record PickerEntry(
     IReadOnlyList<string>? Keywords,
     IntPtr? IconTextureId,
     object? Tag,
-    string? IconKey = null);
+    string? IconKey = null,
+    bool IsEnabled = true);

@@ -6,6 +6,7 @@ using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Newtonsoft.Json;
@@ -130,10 +131,32 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     private Guid _lastCommandRequestId;
 
     // ── Time state ────────────────────────────────────────────────────────────
-    public double MasterSimTime   { get; private set; }
-    public long   MasterWallTicks { get; private set; }
-    public float  MasterTimeScale { get; private set; } = 1f;
-    public bool   IsPaused        { get; private set; }
+    //
+    // `T5`: these four were a fourth private copy of the cluster time fold, and three of them were
+    // NEVER WRITTEN — `MasterSimTime`/`MasterWallTicks`/`MasterTimeScale` had no assignment anywhere
+    // in the repo, so they reported 0 / 0 / 1 forever while both this interface and
+    // docs/projects/Hrot/Subsystems/Hrot.ExCon.md documented them as live readings. Only IsPaused was
+    // fed, by OnTimeMode below.
+    //
+    // The values were arriving all along: the same SwitchTimeModeWireDto that fed IsPaused carries
+    // SimTimeSnapshot, BarrierWallTicks and TimeScale. Folding the DTO through the shared
+    // ClusterTimeObservation feeds all four from the message that was already being handled.
+    private readonly ClusterTimeObservation _clusterTime = new();
+
+    /// <summary>
+    /// The most recent sim time the master reported. <see cref="ClusterTimeObservation.SnapshotSimTime"/>
+    /// rather than the resume anchor: ExCon has no clock of its own to advance between events, so
+    /// the last value it was told is the only honest answer.
+    /// </summary>
+    public double MasterSimTime   => _clusterTime.SnapshotSimTime;
+    public long   MasterWallTicks => _clusterTime.BarrierWallTicks;
+    public float  MasterTimeScale => _clusterTime.TimeScale;
+
+    /// <summary>
+    /// The cluster's last pause DECISION, not this node's clock — see
+    /// <see cref="ClusterTimeObservation.PauseRequested"/> and `DESIGN_Time_Architecture.md` §15.
+    /// </summary>
+    public bool   IsPaused        => _clusterTime.PauseRequested;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -271,6 +294,49 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
         FdpLog<ExConLogic>.Debug(
             "[Node-{0}] Area Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>E5</c> — the ZONE arm. ⛔ Not a second mechanism: it is the same
+    /// <c>CMD_START_AUTHORING</c> command as <see cref="StartAreaAuthoringMode"/>, carrying
+    /// <c>tkbType = TerrainZone</c> (<c>B1</c>) so the map host's shared <c>AreaAuthoringArm</c> births
+    /// a zone instead of a tactical area. 📄 design §2.1: <c>TkbType</c> is THE discriminator.
+    ///
+    /// <para>⚠ <b>The area arm sends no <c>tkbType</c> at all</b> — measured — and the map host
+    /// defaults an absent one to <c>TacGraphic_Area</c>. ⭐ That is why this method must state the
+    /// type explicitly rather than relying on the default.</para>
+    /// </remarks>
+    public void StartZoneAuthoringMode(string styleOverrideJson = "")
+    {
+        ThrowIfDisposed();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+
+        var requestId = Guid.NewGuid();
+        _lastCommandRequestId = requestId;
+        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            contextId = ActiveContextId.ToString("N"),
+            tkbType   = TkbEntityTypes.TerrainZone,
+            styleOverrideJson
+        });
+
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = requestId,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_START_AUTHORING",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+
+        FdpLog<ExConLogic>.Debug(
+            "[Node-{0}] Zone Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
     }
 
     /// <inheritdoc/>
@@ -801,11 +867,13 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
     // ── Time state ingress ────────────────────────────────────────────────────
 
-    /// <summary>Called by TimeModeIngressHandler to update IsPaused state.</summary>
-    public void OnTimeMode(SwitchTimeModeWireDto dto)
-    {
-        IsPaused = (TimeMode)dto.TargetModeInt == TimeMode.Deterministic;
-    }
+    /// <summary>
+    /// Called by <c>TimeModeIngressHandler</c> with a mode change off the wire. Folds the WHOLE
+    /// message, not just its mode: the DTO already carried the sim-time snapshot, the barrier anchor
+    /// and the time scale, and discarding them is what left three documented properties reporting
+    /// their initial values forever (`T5`).
+    /// </summary>
+    public void OnTimeMode(SwitchTimeModeWireDto dto) => _clusterTime.Apply(dto.ToEvent());
 
     // ── Time commands ─────────────────────────────────────────────────────────
 

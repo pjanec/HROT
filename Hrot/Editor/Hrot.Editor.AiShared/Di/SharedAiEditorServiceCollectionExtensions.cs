@@ -11,7 +11,6 @@ using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Validation;
 using Hrot.Editor.AiShared.Windows;
-using Fdp.Toolkit.Runner;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Editor.AiShared.Di;
@@ -32,7 +31,14 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<IDebugSessionRegistry, DebugSessionRegistry>();
         services.AddSingleton<LiveSessionRegistry>();
         services.AddSingleton<ILiveSessionProvider>(sp => sp.GetRequiredService<LiveSessionRegistry>());
-        services.AddSingleton<AiTracerCoordinator>();
+        // ⭐⭐ CE-349 — the coordinator's time control is RESOLVED, not defaulted away.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.24. ⚠ GetService, not GetRequiredService: a
+        //    container with no debugger time control is legitimate (this extension has only test
+        //    callers today), and demanding one would turn an absent optional into a startup crash.
+        //    ⛔ A host that HAS one registers it first — and the production hosts do not come through
+        //    here at all: they call AiDebugSessionComposer.Compose, which REFUSES null.
+        services.AddSingleton<AiTracerCoordinator>(sp =>
+            new AiTracerCoordinator(sp.GetService<Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController>()));
 
         // Comparison sanitization registry (populated at startup by each subsystem host)
         services.AddSingleton<SanitizerRegistry>();
@@ -70,10 +76,22 @@ public static class SharedAiEditorServiceCollectionExtensions
                 new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
                 onAssetActivated ?? (_ => { }));
         });
-        services.AddSingleton<InspectorWindow>();
-        services.AddSingleton<RuntimeInspectorWindow>();
+        // ⛔ S5 (2026-08-22): InspectorWindow is RETIRED — all six of its arms became Details views
+        //    or asset-row menu items (BP-399 §7.6 ⑤). Nothing to register.
+        // ⛔ CE-303 (2026-09-21): RuntimeInspectorWindow is DISSOLVED — §4's Q-iii, finally applied.
+        //    Its panes are reached as details.runtime.<kind> views; there is no window to resolve.
         services.AddSingleton<TraceTimelineWindow>();
-        services.AddSingleton<FindResultsWindow>();
+        // ⭐⭐⭐ A6 (2026-08-23) — THE PERSPECTIVE IS PASSED, and this registration is WHY the rule was
+        //    worth having. 📄 DESIGN_Perspective_Unification.md §1c "the LATENT generator".
+        // 🔴 `AddSingleton<FindResultsWindow>()` resolved the ctor with every argument defaulted, so it
+        //    was a SECOND site that silently invented a perspective — §1c said no production caller
+        //    omitted it, and this container is the one that did. ⚠ Only harmless because
+        //    AddSharedAiEditor has no production caller today (measured: tests only) — ⛔ i.e. luck.
+        // ⭐ "Authoring" is passed EXPLICITLY to preserve the exact prior behaviour and to match its
+        //    siblings above (TraceTimelineWindow defaults to the same name).
+        //    ⚠ Note "Authoring" is NOT a live perspective (§1): no production registration claims it.
+        //    ⇒ a host adopting this container must pass its own perspective, and now it CANNOT forget.
+        services.AddSingleton<FindResultsWindow>(_ => new FindResultsWindow("Authoring"));
         services.AddSingleton<ComparisonSummaryPanel>();
         services.AddSingleton<ComparisonSidebar>();
         services.AddSingleton<BlackboardAuthoringWindow>(sp =>
@@ -93,8 +111,18 @@ public static class SharedAiEditorServiceCollectionExtensions
                 sp.GetRequiredService<IAssetCatalog>(),
                 sp.GetServices<IAssetValidator>().ToList()));
 
-        // Window registrar
-        services.AddSingleton<IWindowRegistrar, SharedAiWindowRegistrar>();
+        // ⛔⛔⛔ NO WINDOW REGISTRAR HERE — `CE-070` DELETED `SharedAiWindowRegistrar`.
+        // 📄 `docs/DESIGN_Subsystem_Composition_Unification.md` §5b.5.
+        // ⭐⭐ The live registration path is `PerspectiveWorkspaceRegistrar`, which BOTH hosts construct
+        //    three times each (per perspective) — `CgfSubsystem:298-300`/`:1550`, `EditorSubsystem:366-367`.
+        // 📐 The deleted class was a FLAT, host-level `IWindowRegistrar` over 7 window INSTANCES, and it
+        //    had zero constructions in the repository: its entire in-degree was the DI rail that asserted
+        //    it resolved. ⚠⚠ That rail is what made it look adopted for months.
+        // ⛔ And it could never have worked as written: the windows it registered declare
+        //    `WindowScope.PerspectiveBound`, so a flat host-level registrar is the WRONG SHAPE for them —
+        //    `AI_Editor_Shared_Infrastructure.md:1865` designed a descriptor-based, perspective-aware
+        //    registrar, and the built class was a flat partial of it.
+        // ⭐ Absent and explained beats present and broken (ruling 49).
 
         return services;
     }

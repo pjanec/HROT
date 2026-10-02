@@ -88,7 +88,7 @@ public sealed class SurgicalFieldWriteTests
         manager.StageMutation(entity, typeof(SharedTwoFieldComp), edited, baseline: seenWhilePaused);
 
         var ecb = (EntityCommandBuffer)((ISimulationView)live).GetCommandBuffer();
-        manager.RequestStep();
+        manager.StepAndDrain(live);              // ⭐ W5: two steps, not one — see ResumeThenDrain
         ecb.Playback(live);
 
         var result = live.GetComponent<SharedTwoFieldComp>(entity);

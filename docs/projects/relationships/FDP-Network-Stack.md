@@ -1136,6 +1136,13 @@ owner (per NED SST rules). To avoid conflicts:
    Brain to pre-route a descriptor to a Muscle node before the entity is fully
    constructed, preventing the ownership gap during genesis.
 
+> ⛔⛔ **SUPERSEDED `2026-09-07` by [`docs/DESIGN_Dead_Reckoning.md`](../../DESIGN_Dead_Reckoning.md).**
+> ⛔ DR is **not** IG-scoped — 🔒 user, `2026-09-05`: *"in general DR/smoothing is nothing special to IG
+> role only"* ⇒ **every node runs it, on BOTH stacks**, with the drive flag derived from OWNERSHIP
+> *(`!roleHasMuscle && !roleHasBrain`, already BDC's predicate at `BdcReplicationModule:58`)*.
+> ⚠ **Also inaccurate below:** it says velocity **and acceleration** are used — 📐 `Acc` is on the NED wire
+> and **never read**. ⭐ Implementation: `CE-211`.
+
 ### 12.6 Dead Reckoning for IG Nodes
 
 IG nodes set `driveFromNetwork = true` in `NedReplicationModule`. This

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CarKinem.Core;
 using Fdp.Core;
 using Fbt;
@@ -28,8 +29,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<Health>();
-            _world.RegisterComponent<BrainBTreeState>();
-            _world.RegisterComponent<BrainBlackboard>();
 
             _sys = new MissionDirectorSystem();
 
@@ -474,13 +473,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             const int DocA = 1500;
 
             // Build world with BrainBlackboard so BehaviorIngressSystem can process.
-            _world.RegisterComponent<BrainBlackboard>();
 
             var registry   = new BehaviorRegistry();
             var ingressSys = new BehaviorIngressSystem(registry);
 
             var entity = CreateBehaviorFinishedEntity(DocA);
-            _world.AddComponent(entity, new BrainBlackboard());
 
             // Frame 1: MissionDirector consumes BehaviorFinishedEvent → publishes ClearBehaviorEvent.
             PublishBehaviorFinished(entity);
@@ -635,5 +632,88 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
+
+        // ── CE-483 — the mission tier records each phase's outcome, and halts on a FAULT ─────────────────────
+        //    📄 docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md §1 D3 (approved 2026-10-01, incl. 3a).
+
+        private Entity CreateTwoPhaseBehaviorFinishedEntity(int docA, int docB)
+        {
+            var entity = _world.CreateEntity();
+            var queue  = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0]  = new MissionPhase { BehaviorId = docA, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Phases[1]  = new MissionPhase { BehaviorId = docB, Trigger = MissionTrigger.BehaviorFinished };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = docA, InstanceId = 1 });
+            return entity;
+        }
+
+        private static MissionPhaseOutcome OutcomeOf(MissionPlanQueue q, int phase)
+        {
+            System.ReadOnlySpan<MissionPhaseOutcome> o = q.Outcomes;
+            return o[phase];
+        }
+
+        [Fact]
+        public void CE483_Succeeded_RecordsDone_AndAdvances()
+        {
+            SetDeltaTime(Dt60Hz);
+            var e = CreateTwoPhaseBehaviorFinishedEntity(1300, 1301);
+            PublishBehaviorFinished(e, NodeStatus.Success);
+            _sys.Execute(_world, Dt60Hz);
+            var q = _world.GetComponent<MissionPlanQueue>(e);
+            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(MissionPhaseOutcome.Done, OutcomeOf(q, 0));
+            Assert.Equal(0, q.Halted);
+        }
+
+        /// <summary>3a — an ordinary Failure records TASK_FAILED but the plan goes on, exactly as before CE-483.</summary>
+        [Fact]
+        public void CE483_Failed_RecordsFailed_AndStillAdvances()
+        {
+            SetDeltaTime(Dt60Hz);
+            var e = CreateTwoPhaseBehaviorFinishedEntity(1310, 1311);
+            PublishBehaviorFinished(e, NodeStatus.Failure);
+            _sys.Execute(_world, Dt60Hz);
+            var q = _world.GetComponent<MissionPlanQueue>(e);
+            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(MissionPhaseOutcome.Failed, OutcomeOf(q, 0));
+            Assert.Equal(0, q.Halted);
+        }
+
+        /// <summary>⭐ A FAULT records TASK_FAILED and HALTS: no advance, no next behaviour, no clear — and it stays halted.</summary>
+        [Fact]
+        public void CE483_Faulted_RecordsFailed_AndHalts()
+        {
+            SetDeltaTime(Dt60Hz);
+            var e = CreateTwoPhaseBehaviorFinishedEntity(1320, 1321);
+            _world.Bus.Publish(new BehaviorFinishedEvent
+                { Entity = e, Result = NodeStatus.Failure, FaultCode = BehaviorFaultCode.MissingInput });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, Dt60Hz);
+
+            var q = _world.GetComponent<MissionPlanQueue>(e);
+            Assert.Equal(0, q.CurrentPhase);                                  // not advanced
+            Assert.Equal(MissionPhaseOutcome.Failed, OutcomeOf(q, 0));
+            Assert.Equal(1, q.Halted);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.Read<AssignBehaviorHashEvent>().ToArray());   // nothing started
+            Assert.Empty(_world.Bus.Read<ClearBehaviorEvent>().ToArray());
+
+            // Halted means halted: a later ordinary end does not move it either.
+            PublishBehaviorFinished(e, NodeStatus.Success);
+            _sys.Execute(_world, Dt60Hz);
+            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(e).CurrentPhase);
+        }
+
+        /// <summary>The outcome is DERIVED from Result + FaultCode, so the two can never disagree.</summary>
+        [Fact]
+        public void CE482_Outcome_IsDerived()
+        {
+            Assert.Equal(BehaviorOutcome.Succeeded, new BehaviorFinishedEvent { Result = NodeStatus.Success }.Outcome);
+            Assert.Equal(BehaviorOutcome.Failed,    new BehaviorFinishedEvent { Result = NodeStatus.Failure }.Outcome);
+            Assert.Equal(BehaviorOutcome.Faulted,
+                new BehaviorFinishedEvent { Result = NodeStatus.Failure, FaultCode = BehaviorFaultCode.NoAnswerTimeout }.Outcome);
+        }
     }
 }

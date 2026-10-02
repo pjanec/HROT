@@ -320,7 +320,7 @@ User clicks Step or Continue after only observing (`IsDirty == false`):
 2. `timeController.RequestResume()` (or `RequestStepOneTick`) — engine advances normally.
 3. Done. Zero resimulation. Zero replay logic. Zero risk of determinism drift.
 
-**This is the key insight.** Resimulating tick N would have been risky because components flagged `DataPolicy.NoRecord` or `DataPolicy.NoSnapshot` can't be perfectly restored from snapshot — the replay could diverge from the original frame that triggered the breakpoint. By forward-snapshotting the post-tick state, we don't need to know how to replay; we just need to remember what the outcome was.
+**This is the key insight.** Resimulating tick N would have been risky because components flagged `DataPolicy.NoReplay` or `DataPolicy.NoPreview` can't be perfectly restored from snapshot — the replay could diverge from the original frame that triggered the breakpoint. By forward-snapshotting the post-tick state, we don't need to know how to replay; we just need to remember what the outcome was.
 
 #### The dirty step (mutation path — handled via deferred mutation, no resimulation)
 

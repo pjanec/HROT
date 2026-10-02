@@ -86,6 +86,9 @@ public sealed class BTreeWaitPayload
     public float Duration;
 }
 
+/// <summary>⭐ <c>CE-428</c>/<c>CE-434</c> — the behaviour's bound resolver asset and the block shape it was derived for.</summary>
+public sealed record BTreeResolverRef(Guid AssetId, string Name, uint ShapeHash);
+
 /// <summary>Payload for Subtree leaf nodes.</summary>
 public sealed class BTreeSubtreePayload
 {
@@ -94,6 +97,8 @@ public sealed class BTreeSubtreePayload
     public string SubtreeName = string.Empty;
     /// <summary>False if the referenced asset is absent from the catalog.</summary>
     public bool IsResolved;
+    /// <summary>⭐ <c>CE-431</c> — the host variable that seeds this site's child; <c>null</c> = unbound. Round-trips.</summary>
+    public string? ParamsVariable;
 }
 
 // ── BTreeEditorPill ───────────────────────────────────────────────────────────
@@ -231,8 +236,14 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
+    /// <summary>
+    /// ⭐ <c>CE-428</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20), or <c>null</c>. ⚠ Must round-trip
+    /// through <c>BehaviorTreeAssetMapper</c>: an editor save that dropped it would silently unbind the resolver.
+    /// </summary>
+    public BTreeResolverRef? Resolver { get; set; }
+
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
     private readonly List<BTreeEditorPill> _pills  = new();
@@ -372,7 +383,23 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     {
         int idx = _blackboardVariables.FindIndex(v => v.Name == name);
         if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role };
+
+        // ⭐⭐⭐ CE-435 — A `State` VARIABLE IS ALWAYS `Behavior`-SCOPED, AND THE MODEL ENFORCES IT.
+        //
+        // 🔴 Before this, flipping Role to State left Scope at its default `Node`, and a STANDALONE
+        //    Node-scoped State variable is SILENTLY SKIPPED by both bridge emitters — no slot, no
+        //    diagnostic (CE-423). ⇒ the defect was reachable through the Variables panel in two
+        //    clicks, and nothing told the author their variable had no storage.
+        // 📐 Measured 2026-09-29 across every .btree.json/.hsm.json: of the authored State
+        //    variables, ZERO were at Node and (after CE-436) two at Entity, both re-homed by this
+        //    slice. `Behavior` is the only scope an author ever chose deliberately.
+        // ⛔ This does NOT touch OccurrenceSlotKey.Compute's Node arm — that keys node-BOUND working
+        //    state for hosted AiPrimitives, which is the common case and is not authored here.
+        var scope = role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
+            ? Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+            : _blackboardVariables[idx].Scope;
+
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role, Scope = scope };
         MarkDirty();
     }
 
@@ -480,14 +507,37 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         foreach (var v in _blackboardVariables)
         {
             if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
-            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior) continue;
 
             (keys ??= new HashSet<int>()).Add(
                 Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
                     AssetId, v.Scope, Guid.Empty, v.Name));
         }
         return (IReadOnlyCollection<int>?)keys ?? Array.Empty<int>();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5</c> item 7 — the forward asset edge: every sub-tree asset any NODE hosts.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⭐⭐ <b>This is the arm that can actually fire today.</b> Unlike the HSM side — where no
+    /// authoring gesture writes <c>StateNode.SubtreeAssetId</c> yet — <c>BTreeSubtreePayload</c> is
+    /// authored and persisted, and shipped assets carry it.</para>
+    ///
+    /// <para>⚠ <b>An UNRESOLVED subtree node contributes no edge</b> (<c>SubtreeAssetId</c> is
+    /// <c>Guid.Empty</c>). ⛔ That is <c>UnresolvedSubtree</c>'s defect to report, not the cycle
+    /// walk's — one authoring mistake must not produce two unrelated diagnostics.</para>
+    /// </summary>
+    public IReadOnlyCollection<Guid> GetHostedSubtreeAssetIds()
+    {
+        HashSet<Guid>? ids = null;
+        foreach (var node in _nodes)
+        {
+            var id = node.Subtree?.SubtreeAssetId ?? Guid.Empty;
+            if (id == Guid.Empty) continue;
+            (ids ??= new HashSet<Guid>()).Add(id);
+        }
+        return (IReadOnlyCollection<Guid>?)ids ?? Array.Empty<Guid>();
     }
 
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
@@ -699,6 +749,58 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// <summary>Records sub-tree identity metadata for a Subtree node.</summary>
     public void RecordSubtreeNodeMeta(Guid nodeVisualId, string subTreeName, string subDtoTypeName, string? subDtoTypeNs)
         => _syncNodeMeta[nodeVisualId] = (subTreeName, subDtoTypeName, subDtoTypeNs);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q49</c> OPTION C — RECOMPUTE the sub-tree identity from the resolved callee.</b>
+    /// 📄 <c>Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md</c>, approved by the user
+    /// <c>2026-08-22</c>. Closes <c>BP-342</c> gap ① for the EDITOR arm.
+    ///
+    /// <para>⛔⛔ <b>The defect:</b> <see cref="_syncNodeMeta"/>'s only writer was a UI draw
+    /// *(<c>InspectorWindow:194</c>)* ⇒ after a reload <see cref="GetApproachBSyncGroups"/> skipped every
+    /// node and Approach-B emitted <b>nothing</b> until a designer re-opened the panel on each one.</para>
+    ///
+    /// <para>⭐⭐ <b>Why RECOMPUTE and not PERSIST</b> *(option A, rejected)*: <c>SubDtoTypeName</c>/<c>Ns</c>
+    /// describe the <b>CALLEE</b>. Persisting them in the CALLER duplicates the subtree's own DTO type and
+    /// can <b>drift</b> when the subtree changes — and it would redden
+    /// <c>BTreeDtoRuntimeFieldExclusionTests</c>, which was <b>right</b> to keep derived data out of the
+    /// DTO. ⇒ ⭐ nothing is persisted and the rail is untouched.</para>
+    ///
+    /// <para>⚠ <b>ORDERING — the one real constraint</b>, and it is why this is a METHOD rather than
+    /// something the deserialiser does: the callee must already be LOADED. ⇒ ⛔ this cannot run inside
+    /// this asset's own deserialisation; it runs once the catalog is populated, from the composition root
+    /// that already holds the resolver.</para>
+    ///
+    /// <para>⭐ <b>Idempotent and additive</b> — it overwrites only what it can resolve. ⚠ A node whose
+    /// subtree is MISSING is left ALONE rather than cleared: a designer's in-session identity must not be
+    /// destroyed by a catalog that has not finished loading.</para>
+    /// </summary>
+    /// <param name="resolve">
+    /// ⭐⭐ Answers <i>"what are this subtree asset's name and blackboard type?"</i> — in production
+    /// <c>catalog.FindByAssetId(id)</c> *(see <c>PerspectiveWorkspaceRegistrar</c>)*.
+    /// ⛔ <b>REQUIRED</b>: 📌 the silent-default rule — a caller that HAS the resolver must pass it, and a
+    /// <c>null</c> arm here would silently restore exactly the do-nothing behaviour this fixes.
+    /// </param>
+    /// <returns>How many nodes had their identity recomputed — ⭐ the value a rail asserts.</returns>
+    public int RecomputeSubtreeSyncIdentity(Func<Guid, (string Name, string BlackboardTypeName)?> resolve)
+    {
+        if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+
+        int recomputed = 0;
+        foreach (var nodeId in _syncBindings.Keys)
+        {
+            var info = GetSubtreeNodeInfo(nodeId);
+            if (info is null || info.SubtreeAssetId == Guid.Empty) continue;
+
+            var sub = resolve(info.SubtreeAssetId);
+            if (sub is null) continue;   // ⚠ missing callee: leave any in-session identity alone.
+
+            var (name, dtoType, dtoNs) = Hrot.AiEditor.Persistence.Emit.SubtreeSyncIdentity.Derive(
+                sub.Value.Name, sub.Value.BlackboardTypeName);
+            RecordSubtreeNodeMeta(nodeId, name, dtoType, dtoNs);
+            recomputed++;
+        }
+        return recomputed;
+    }
 
     /// <summary>
     /// Returns Approach B sync groups: subtree nodes with at least one active sync binding

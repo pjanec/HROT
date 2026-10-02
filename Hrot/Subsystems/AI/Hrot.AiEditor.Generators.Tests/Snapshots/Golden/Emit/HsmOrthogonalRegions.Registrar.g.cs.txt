@@ -28,6 +28,7 @@ public static class HsmOrthogonalRegionsRegistrar
             Name          = "HsmOrthogonalRegions",
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(298556338, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "SharedCursor", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),

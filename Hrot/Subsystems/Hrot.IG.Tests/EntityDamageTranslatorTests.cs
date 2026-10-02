@@ -1,5 +1,5 @@
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
+using Fdp.Toolkit.Combat.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -18,7 +18,7 @@ namespace Hrot.IG.Tests
         private const long UnknownId = 99L;
 
         [Fact]
-        public void Decode_KnownEntity_SetsIgHealthState()
+        public void Decode_KnownEntity_WritesTheAuthoritysHealth()
         {
             using var participant = new DdsParticipant(0);
             var repo      = new EntityRepository();
@@ -33,16 +33,20 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new EntityDamage
             {
                 EntityId = (int)KnownId,
-                Damage   = 75f
+                Current  = 12.5f,
+                Max      = 50f
             }, cmd, repo);
 
+            // ⭐ CE-196 — the pair arrives verbatim; nothing is converted to a percentage on the way in.
+            //   A receiver that kept its own TKB-seeded Max is exactly the divergence this removed.
             Assert.True(cmd.SetComponentCalled);
-            Assert.NotNull(cmd.LastHealthState);
-            Assert.Equal(75f, cmd.LastHealthState!.Value.Damage);
+            Assert.NotNull(cmd.LastHealth);
+            Assert.Equal(12.5f, cmd.LastHealth!.Value.Current);
+            Assert.Equal(50f,   cmd.LastHealth!.Value.Max);
         }
 
         [Fact]
-        public void Decode_UnknownEntity_CreatesGhostAndSetsHealthState()
+        public void Decode_UnknownEntity_CreatesGhostAndWritesHealth()
         {
             using var participant = new DdsParticipant(0);
             var repo      = new EntityRepository();
@@ -57,7 +61,8 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new EntityDamage
             {
                 EntityId = (int)UnknownId,
-                Damage   = 25f
+                Current  = 25f,
+                Max      = 100f
             }, cmd, repo);
 
             // Ghost must be created and registered
@@ -65,8 +70,9 @@ namespace Hrot.IG.Tests
                 "Ghost must be registered in entityMap after encountering unknown entity");
             // Health component must be applied to the new ghost
             Assert.True(cmd.SetComponentCalled,
-                "SetComponent must be called with IgHealthState after ghost creation");
-            Assert.Equal(25f, cmd.LastHealthState?.Damage);
+                "SetComponent must be called with Health after ghost creation");
+            Assert.Equal(25f,  cmd.LastHealth?.Current);
+            Assert.Equal(100f, cmd.LastHealth?.Max);
         }
 
         private sealed class TestEntityDamageIngressTranslator : EntityDamageIngressTranslator
@@ -88,7 +94,7 @@ namespace Hrot.IG.Tests
         private sealed class RecordingCommandBuffer : IEntityCommandBuffer
         {
             public bool SetComponentCalled { get; private set; }
-            public IgHealthState? LastHealthState { get; private set; }
+            public Health? LastHealth { get; private set; }
 
             public Entity CreateEntity() => new Entity();
             public void DestroyEntity(Entity entity) { }
@@ -97,8 +103,8 @@ namespace Hrot.IG.Tests
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
             {
                 SetComponentCalled = true;
-                if (component is IgHealthState health)
-                    LastHealthState = health;
+                if (component is Health health)
+                    LastHealth = health;
             }
             public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }

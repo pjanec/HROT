@@ -51,7 +51,7 @@ Verified pre-existing by git-stash reverting to BATCH-09 state.
 ### Fdp.Toolkits.Tests — RoundTrip_MissionPlanQueue_PreservesPhaseData
 
 Confirmed pre-existing: test fails in BATCH-09 state too.
-`MissionPlanQueue` has `[DataPolicy(DataPolicy.NoSave)]` so it cannot be round-tripped
+`MissionPlanQueue` has `[DataPolicy(DataPolicy.NoScenario)]` so it cannot be round-tripped
 through save/load. The test expectation is incorrect. Not caused by BATCH-10.
 
 ---

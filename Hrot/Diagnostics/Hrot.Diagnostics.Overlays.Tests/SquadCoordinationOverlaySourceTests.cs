@@ -63,8 +63,8 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<DebugState>();
             repo.RegisterComponent<UnitRoster>();
-            repo.RegisterComponent<Blackboard1024>();
-            repo.RegisterComponent<SquadStateMarker>();
+            repo.RegisterComponent<SquadCognitiveState>();
+            repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<DangerAreaCognitiveBuffer>();
             repo.RegisterComponent<BehaviorState>();
             repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
@@ -80,10 +80,9 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new DebugState { Ai = AiOverlayFlags.SquadAssignment });
             repo.AddComponent(commander, new UnitRoster());
-            repo.AddComponent(commander, new Blackboard1024());
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
-            ref var bb    = ref repo.GetComponentRW<Blackboard1024>(commander);
-            ref var state = ref SquadCognitiveState.Project(ref bb);
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             state = stateSnapshot;
 
             return commander;
@@ -119,7 +118,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             // AiOverlayFlags.Perception intentionally — NOT SquadAssignment
             repo.AddComponent(commander, new DebugState { Ai = AiOverlayFlags.Perception });
             repo.AddComponent(commander, new UnitRoster());
-            repo.AddComponent(commander, new Blackboard1024());
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
             var draw = new CountingDrawBuilder();
             arbiter.BeginFrame();
@@ -143,11 +142,10 @@ namespace Hrot.Diagnostics.Overlays.Tests
             // Add 1 member (real entity, no utility trace so no veto line)
             var member = repo.CreateEntity();
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             // Set member element index to 0
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             var memberElemSpan = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<MemberElementIndexArray, byte>(
                     ref state.Elements.MemberElements), 16);
@@ -276,7 +274,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var member = repo.CreateEntity();
             repo.AddComponent(member, new BehaviorState { ActiveBehaviorHash = 0 });
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             var draw = new LineCapturingDrawBuilder();
             arbiter.BeginFrame();
@@ -310,7 +308,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
                 winnerScore: 0.9f, runnerUpMargin: 0.1f);
 
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             var draw = new LineCapturingDrawBuilder();
             arbiter.BeginFrame();
@@ -343,7 +341,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             repo.AddComponent(member, new UtilityTraceWorkingMemory1024());
 
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             // Tick 1: option id = 3
             ref var mem = ref repo.GetComponentRW<UtilityTraceWorkingMemory1024>(member);
@@ -389,8 +387,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             Assert.Contains("1", phaseLabel1);
 
             // Transition to phase 2
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             state.PhaseId        = 2;
             state.PhaseEnteredTick = 200u;
 
@@ -423,8 +420,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             Assert.Contains("50", label1); // T0:50
 
             // Phase transition resets PhaseEnteredTick to 150
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             state.PhaseId          = 1;
             state.PhaseEnteredTick = 150u;
 
@@ -450,8 +446,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var commander = SetupSquadCommander(repo, snap);
 
             // Seed 2 contacts in the squad contact pool
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             state.Contacts.Count = 2;
             var contactSpan = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(

@@ -81,6 +81,12 @@ public sealed class HsmNewAssetService : INewAssetService
     }
 
     /// <inheritdoc />
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4) — every HSM recipe makes a <see cref="AuthoringProduct.Behavior"/>: a HSM
+    /// asset IS a behaviour, so all of them are listed under File / New Behavior….
+    /// </summary>
+    public AuthoringProduct? ProductOf(IEditableAsset recipe) => AuthoringProduct.Behavior;
+
     public IReadOnlyList<IEditableAsset> AvailableRecipes()
     {
         // Synthetic "Empty" and "Starter" entries.

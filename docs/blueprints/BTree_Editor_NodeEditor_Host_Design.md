@@ -1,3 +1,21 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-26 (subtree-reference section added at the end — §S1)
+current-answer: the body below; §S1 (at the end) owns the SUBTREE REFERENCE and supersedes any
+  earlier statement here that the subtree name is free text.
+known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_Plan.md` SUPERSEDES the
+  substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
+  persistence shape.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — ⭐⭐ §33 (`E6`) owns the BTree-hosts-BTree RUNTIME + EMIT
+    half that this document's §S1 does not: the thunk, the slot declaration and the tick. §32 owns
+    the HSM twin (`E5`).
+  - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a).
+  - HSM_Editor_NodeEditor_Host_Design.md — the twin; §11.1a owns the HSM state's hosted-subtree field.
+  - DESIGN_Cluster_Ai_Debug_Surface.md — owns the debug session on a headless host (CE-476); §4 records that the
+    session now symbolicates each entity from ITS OWN tree's NodeDebugMetadata (it held one last-wins table).
+-->
+
 # BTree Editor — NodeEditor Host Detailed Design
 
 > **Status:** Detailed design, derived from `AI_Editor_Shared_Infrastructure.md` + `NodeEditor_Extension_NodeAttachments.md` + `NodeEditor_Extension_ContainerNodes.md` + `NodeEditor_Extension_CustomCanvasRenderer.md` + `FastBTree.txt` source.
@@ -1459,3 +1477,78 @@ Manual checklist:
 6. **Multiple-entity debug-overlay slot.** When two entities run the same BTree and both are inspected (one focused via `SelectedEntity`, one pinned via `ChainToMap=off` on a duplicate inspector window), the canvas should distinguish the two. The runtime overlay renderer currently shows only the `SelectedEntity`'s state. Deferred; document as a v2 enhancement.
 
 ---
+
+---
+
+## §S1 ⭐⭐ THE SUBTREE REFERENCE — **picked, and never erased** *(`2026-09-26`)*
+
+📄 **The shared mechanism is `AI_Editor_Shared_Infrastructure.md` §7.1a** *(the `[AiAssetPicker]`
+attribute, its drawer, and the heal rule)*. ⛔ Not restated here — this section records only what
+changes on the BTree side, and **one of the two is a defect fix, not a feature.**
+
+### ① The field becomes PICKABLE
+
+📐 `BTreeSubtreeFacet.SubtreeName` is labelled **"Referenced asset"** and is a **plain string with no
+picker attribute** — a designer types an asset name by hand and finds out it was wrong from a
+validator. ⇒ it gains `[AiAssetPicker(AssetKind.BTree)]`, the same drawer the HSM state facet uses.
+⭐ `SubtreeAssetId` and `IsResolved` stay `[EditReadOnly]`; that part was always right.
+
+### ② 🔴 `BTreeSubtreeResolver` ERASES THE GUID — **the persisted fallback is destroyed on use**
+
+📐 Measured `2026-09-26`, the `else` branch:
+
+```csharp
+payload.SubtreeAssetId = Guid.Empty;   // 🔴 the persisted identity, gone
+payload.IsResolved     = false;
+```
+
+⛔⛔ **The asset DTO persists `SubtreeAssetId`, `SubtreeName` and `IsResolved`** *(`BTreeSubtreePayloadDto`,
+round-tripped both directions)* — ⇒ the Guid is on disk and available. **A failed name lookup is
+precisely the RENAME case, and this line throws away the one field that could still identify the
+asset.** 🔒 The reference is then dangling forever, even though the information to heal it was
+sitting in the file.
+
+⭐ **The fix is the shared heal rule:** name → else Guid → heal the name and mark dirty → else keep
+**both** fields and report dangling. ⛔ **Never clear.**
+
+⚠⚠ **A correction this section exists to carry:** `Architect_Question_36` finding ⑤ records that
+*"the shipped BTree subtree mechanism resolves by NAME"* and that `BehaviorTreeBlob.SubtreeAssetIds`
+is a `string[]` of names. 🔒 **That is true of the runtime BLOB, which is explicitly
+`"not persisted (runtime-only)"`** — ⛔ it is NOT true of the authored asset, whose DTO carries the
+full triple. ⇒ **the two hosts' persistence shapes already agree**; only the resolver behaviour and
+the missing picker differed.
+
+#### ⛔⛔ THE REFERENCE IS AUTHORABLE; THE RUNTIME IS NOT — **`E6` designs the rest** *(`2026-09-27`)*
+
+📐 **Measured `2026-09-27`:** everything in this section works — pick, heal, persist, validate, emit,
+compile — and then `Fbt.Kernel/Runtime/Interpreter.cs:249` returns **`Failure`**, because
+`CE-337` retired the orchestrator that used to bridge it and nothing replaced it. ⛔ **No diagnostic
+fires**: the one generator warning keys on `Aliases`/`SubtreeSyncBindings`, which a picked subtree
+does not set, and Rule 6 keys on *unresolved*. ⇒ ⭐⭐ **the better you author it, the quieter it is.**
+
+⭐ **The missing half is designed and READY-TO-BUILD:** 📄 `DESIGN_Occurrence_Scoped_Storage.md`
+**§33 (`E6`)** — the hosting node compiles to an Action thunk over the existing `HostedSubtree` /
+`HostedChildren` seams, zero kernel change. ⚠ **This section owns the AUTHORING half only.**
+
+#### ✅ AS-BUILT `2026-09-26` — **and the fix was only half of it: THE RESOLVER WAS NEVER CALLED** *(`CE-361`)*
+
+⛔⛔ **This section, as first written, prescribed fixing the erase. 📐 Measured after building it:
+`BTreeSubtreeResolver` had ZERO PRODUCTION CALLERS** — only its own declaration and six test call
+sites across `Hrot/` and `FDP/`. ⇒ ⭐⭐ **the heal rule was live in tests only**, and a rename left
+every referencing asset dangling for ever with Rule 6 reporting it and nothing able to repair it.
+
+⚠⚠ **`BehaviorTreeAssetProjector:179` writes `IsResolved = false`** on every projected Subtree node,
+so that path depended entirely on a resolve that never happened.
+
+⭐ **Step 0 in `BTreeDocumentFactory.Build`** now resolves against the catalogue before the graph
+model is built, and `MarkDirty()` when a name was healed. ⭐ **Opening a document is the right
+moment** — the one place holding BOTH the asset and the catalogue, and it re-runs after a hot reload
+for free. 📐 `AiDocumentViewStateBinder:119` already passed `assetCatalog: services.Catalog`
+⇒ **zero composition-root changes.** 🔒 The HSM twin does exactly the same
+(📄 `HSM_Editor_NodeEditor_Host_Design.md` §11.1a) — user: *"no differences, consistency."*
+
+🔒 **HOW IT WAS FOUND, because the mechanism generalises:** `HsmSubtreeResolver`'s header said
+*"call it after load and after a hot reload, **exactly like `BTreeSubtreeResolver`**"* — a
+**design principle written as if measured.** ⛔ It was load-bearing and false. ⇒ ⭐⭐ **`R-139`'s
+claim table applies to the prose written INTO the code being built, not only to the lean handed to
+the user.**

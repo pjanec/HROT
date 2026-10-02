@@ -57,16 +57,16 @@ for (int i = 0; i < plan.Tasks.Count && i < MaxPhases; i++)
 
 ---
 
-### TASK-S303 — Add DataPolicy.NoSave to BrainBlackboard
+### TASK-S303 — Add DataPolicy.NoScenario to BrainBlackboard
 
 **File:** `FDP\Toolkits\Fdp.Toolkits\Behavior\Components\BehaviorComponents.cs`
 
-Added `[DataPolicy(DataPolicy.NoSave)]` attribute between `[ComponentId]` and the struct
+Added `[DataPolicy(DataPolicy.NoScenario)]` attribute between `[ComponentId]` and the struct
 declaration for `BrainBlackboard`.
 
 **Test replaced** (`FDP\Toolkits\Fdp.Toolkits.Tests\Scenario\FdpAutoSerializerFixedBufferTests.cs`):
 - Replaced `RoundTrip_BrainBlackboard_ByteForByteIdentity` (which expected serialization to
-  succeed — now incorrect after NoSave) with:
+  succeed — now incorrect after NoScenario) with:
   `BrainBlackboard_DataPolicyNoSave_ExcludedFromDom` — asserts BrainBlackboard key absent from
   DOM and co-present FixedByteComp key present.
 

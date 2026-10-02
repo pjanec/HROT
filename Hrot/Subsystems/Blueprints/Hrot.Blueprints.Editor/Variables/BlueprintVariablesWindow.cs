@@ -5,6 +5,7 @@ using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind (U-3/U-4: one vocabulary for the three lists)
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Variables;   // 99a — VariablePropertyValues / DeclarationPropertySnapshot
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Editor.AiShared;
@@ -107,9 +108,26 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         => GetOrdered(_asset.Declarations.Of(DeclKind).ToList(), Order);
 
     /// <summary>The declaration list this source projects, in display order.</summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — <c>DefaultValueJson</c> WAS NOT PROJECTED, and the line that
+    /// consumes it says it is <i>"Row 58 — the INITIAL arm's source for blueprint declarations."</i>
+    ///
+    /// <para>📐 <b>Measured:</b> this projection built a three-argument
+    /// <c>BlackboardVariableEntry</c> ⇒ <c>DefaultValueJson</c> defaulted to <c>null</c> ⇒
+    /// <see cref="Variables"/><c>:174</c> read <c>e.DefaultValueJson</c> and always got <c>null</c>.
+    /// ⛔ So on Blueprint the Details Value column's INITIAL arm has <b>never shown the authored
+    /// default</b>, and <c>"Edit value…"</c> opened the dialog at the TYPE's default instead of the
+    /// variable's.</para>
+    ///
+    /// <para>⛔⛔ <b>Harmless until <c>98a</c>, DESTRUCTIVE after it.</b> ⚠ While OK refused, opening at
+    /// the wrong value cost nothing. ⭐ Now that the write lands, a designer who opens the dialog and
+    /// presses OK <b>without typing</b> would overwrite an authored <c>1</c> with <c>0</c>. ⇒ fixing
+    /// this is not scope creep; it is what makes <c>98a</c> safe.</para>
+    /// </remarks>
     private IEnumerable<BlackboardVariableEntry> Entries
         => Declared.Select(d => new BlackboardVariableEntry(
-               d.Name, Type.GetType(d.Type.TypeId) ?? typeof(int), d.Comment ?? ""));
+               d.Name, Type.GetType(d.Type.TypeId) ?? typeof(int), d.Comment ?? "",
+               DefaultValueJson: d.DefaultValueJson));
 
     /// <summary>The order list behind this source. ⚠ Assigned back, so it is a ref-returning property.</summary>
     private List<Guid>? Order
@@ -251,6 +269,98 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         _onChanged?.Invoke();
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — the write half of the vocabulary <c>95a</c> only fixed for
+    /// READING.</b>
+    ///
+    /// <para>🔴🔴 <b>Until this, OK refused on every Blueprint variable while PLANNING</b>: the commit
+    /// resolved its target by type-testing <c>store.ActiveAsset is IBlackboardManagedAsset</c>, and a
+    /// <c>BlueprintAsset</c> is not one. ⇒ <c>RefusedNoDeclarationOwner</c>, always — the exact
+    /// asymmetry <c>BP-355</c> named and nobody was given.</para>
+    ///
+    /// <para>⭐ <b>Same shape as <see cref="RenameVariable"/></b>: write THROUGH the facade to the
+    /// stored declaration *(the property <c>U-9</c> exists for)*, then fire <c>_onChanged</c> — which
+    /// is what marks the asset dirty. ⛔ No new persistence route is invented; the setter and the
+    /// dirty callback both already shipped.</para>
+    ///
+    /// <para>⚠ An unknown name is a <b>no-op</b>, and <c>_onChanged</c> is NOT fired for one — a
+    /// dialog left open over a deleted variable must not dirty the document.</para>
+    /// </summary>
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+    {
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return;
+
+        match.DefaultValueJson = defaultValueJson;
+        _onChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 99 (<c>99a</c>) — the PROPERTIES form's commit, through the same facade.</b>
+    ///
+    /// <para>⭐ <b>ASK the capability rather than testing the kind</b> — the rule
+    /// <c>BlueprintDocumentFactory</c>'s duplicate path already follows: writing <c>Category</c> on a
+    /// Parameter throws by design *(<c>RequireEditorPresentation</c>)*, so the three presentation
+    /// members are guarded by <c>CarriesEditorPresentation</c>, ⛔ not by <c>if (_kind == Parameter)</c>.</para>
+    ///
+    /// <para>⚠ <c>null</c> members are LEFT ALONE per the contract, and ⭐ <b>ONE <c>_onChanged</c> for
+    /// the whole commit</b> — one OK is one edit, ⛔ not six dirty marks.</para>
+    ///
+    /// <para>⛔ <b>No <c>Name</c>, no <c>Type</c></b> — 📌 <c>R-109</c>: those are operations.</para>
+    /// </summary>
+    public void UpdateVariableProperties(string name, VariablePropertyValues values)
+    {
+        if (values is null) return;
+
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return;
+
+        if (values.DefaultValueJson is not null) match.DefaultValueJson = values.DefaultValueJson;
+        if (values.Tooltip          is not null) match.Tooltip          = values.Tooltip;
+        if (values.Comment          is not null) match.Comment          = values.Comment;
+
+        if (match.CarriesEditorPresentation)
+        {
+            if (values.Category         is not null) match.Category         = values.Category;
+            if (values.IsEditable       is { } e)    match.IsEditable       = e;
+            if (values.IsExposedOnSpawn is { } x)    match.IsExposedOnSpawn = x;
+        }
+
+        _onChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 99 (<c>99a</c>) — the declaration's KIND and its non-value members.</b>
+    /// ⭐ The kind comes from <c>_kind</c>, which this source was CONSTRUCTED with — ⛔ nothing inferred.
+    /// ⚠ A <c>ParameterDecl</c> has no presentation members, so those stay <c>null</c> and the form
+    /// draws the five-property set rather than the eight-property one.
+    /// </summary>
+    public DeclarationPropertySnapshot? ReadVariableProperties(string name)
+    {
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return null;
+
+        var kind = _kind == VariableKind.Parameter
+            ? VariableDeclarationKind.BlueprintParameter
+            : VariableDeclarationKind.BlueprintVariable;
+
+        // ⭐ ASK the capability, as the write arm does — reading Category off a Parameter throws by design.
+        var values = match.CarriesEditorPresentation
+            ? new VariablePropertyValues(
+                  DefaultValueJson: match.DefaultValueJson ?? "",
+                  Tooltip:          match.Tooltip ?? "",
+                  Comment:          match.Comment ?? "",
+                  Category:         match.Category ?? "",
+                  IsEditable:       match.IsEditable,
+                  IsExposedOnSpawn: match.IsExposedOnSpawn)
+            : new VariablePropertyValues(
+                  DefaultValueJson: match.DefaultValueJson ?? "",
+                  Tooltip:          match.Tooltip ?? "",
+                  Comment:          match.Comment ?? "");
+
+        return new DeclarationPropertySnapshot(kind, values, match.Type?.TypeId ?? "");
+    }
+
     private IEnumerable<Guid> CurrentIds() => _asset.Declarations.Of(DeclKind).Select(d => d.Id);
 
     /// <summary>
@@ -363,85 +473,13 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     }
 }
 
-public sealed class BlueprintVariablesWindow : BlueprintEditorWindowBase
-{
-    private readonly EditorSelectionStore _selectionStore;
-    private readonly DirtyTracker _dirtyTracker;
-    private readonly IRefactorService _refactorService;
-    private VariablesPanelControl? _variablesControl;
-    private IEditableAsset? _lastAsset;
-
-    public BlueprintVariablesWindow(EditorSelectionStore selectionStore, DirtyTracker dirtyTracker, IRefactorService refactorService)
-    {
-        _selectionStore = selectionStore;
-        _dirtyTracker = dirtyTracker;
-        _refactorService = refactorService;
-    }
-
-    public override string Title => "Blueprint Variables";
-
-    public override void DrawUI()
-    {
-        if (_selectionStore.SelectedAsset == null)
-        {
-            ImGui.TextDisabled("No blueprint selected.");
-            return;
-        }
-
-        var asset = _selectionStore.SelectedAsset;
-        var adapter = new BlueprintEditableAssetAdapter(asset);
-
-        if (_variablesControl == null || _lastAsset?.AssetId != asset.AssetId)
-        {
-            // No IActionSchemaExporter is in scope here -- the Blueprint Variables window is
-            // constructed without one, so the choice list is primitives + [BlackboardDtoStruct]
-            // types only (no action-schema DTO types). See BlackboardTypeChoiceBuilder.
-            _variablesControl = new VariablesPanelControl(_refactorService, adapter, BlackboardTypeChoiceBuilder.BuildDefault());
-            _lastAsset = adapter;
-        }
-
-        var paramsSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Parameter, () => _dirtyTracker.MarkDirty(asset.AssetId));
-        var stateSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Variable, () => _dirtyTracker.MarkDirty(asset.AssetId));
-
-        var paramsVars = paramsSchema.Variables;
-        int paramsInline = paramsVars.Sum(v => v.ByteSize);
-        var paramsSection = new VariablesPanelSection(
-            "Parameters (Sync In)",
-            "##bp_params",
-            paramsSchema,
-            paramsInline,
-            100, // 100B per budget spec 1g-03
-            0,
-            128, // MaxHeavyBytes not used in BP, just give a number
-            false,
-            paramsInline > 100 ? (PackWarning)1 : (PackWarning)0,
-            false // aliasing-off
-        );
-
-        var stateVars = stateSchema.Variables;
-        int stateInline = stateVars.Sum(v => v.ByteSize);
-        int stateBudget = asset.TierHint switch
-        {
-            BlackboardTierHint.Auto => 1024,
-            BlackboardTierHint.Force1024 => 1024,
-            BlackboardTierHint.Force4096 => 4096,
-            BlackboardTierHint.Force16384 => 16384,
-            _ => 1024
-        };
-
-        var stateSection = new VariablesPanelSection(
-            "Working State",
-            "##bp_state",
-            stateSchema,
-            stateInline,
-            stateBudget,
-            0,
-            128, // arbitrary max heavy
-            false,
-            stateInline > stateBudget ? (PackWarning)2 : (PackWarning)0,
-            false // aliasing-off
-        );
-
-        _variablesControl.DrawDual(paramsSection, stateSection);
-    }
-}
+// ⛔⛔ L5 — `BlueprintVariablesWindow` (the WINDOW class) was RETIRED here.
+//    📄 Q38's retire list · §6 L5. ⭐ Its replacement is LIVE, which is §6 L5's precondition:
+//       BlueprintDetailsWindow hosts the SHARED VariableDetailsSection (U-6, Batch 82).
+//
+//    ⚠⚠ THE FILE IS NOT THE UNIT — THE CLASS IS. 📐 Measured before deleting: this file also holds
+//       `BlueprintEditableAssetAdapter` (used by BlueprintNewAssetService at 5 sites, and the smoke
+//       tests) and `BlueprintVariableSchemaSource` (used by BlueprintMyBlueprintWindow:533 in
+//       PRODUCTION). ⛔ Deleting the file would have taken both with it.
+//    📌 CLAUDE.md: "prefer ROUTING to DELETING" — and the routing here is simply to leave the two
+//       live types where their callers already find them.

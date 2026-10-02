@@ -43,7 +43,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         "FDP/Engine/Fdp.Presentation/ImGui/Editing/ComponentEditWindow.cs",
         "FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs",
         "FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplaySearchPanel.cs",
-        "Hrot/Editor/Hrot.Editor.AiShared/Windows/InspectorWindow.cs",
+        // ⭐ S2 (BP-399): was Windows/InspectorWindow.cs — the node arms were EXTRACTED to a
+        //   Details view (§7.6 ②). ⚠ Still TWO drawer calls in one file, both in tables.
+        "Hrot/Editor/Hrot.Editor.AiShared/Shell/NodePropertiesDetailsView.cs",
         "Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs",
     };
 
@@ -192,6 +194,14 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
             if (rel.EndsWith("ComponentEditDrawer.cs",     StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ImGuiPropertyTreeAdapter.cs", StringComparison.Ordinal)) continue;
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
+            // ⭐⭐ Batch 101 — `tools/` is EVIDENCE, not production. 📌 `R-124`'s probes render real
+            //    sessions to prove a diagnosis *(tools/ui-probe/…)*, so they legitimately call
+            //    DrawEditNode — ⛔ but a probe that ships a screenshot is not a call site this rail is
+            //    about, and counting it would make the enumeration answer a different question.
+            // ⚠ ARGUED, not silenced: the rail's subject is "every PRODUCTION call site opens its
+            //    table" *(see the class remark)*, and `tools/` is neither shipped nor referenced by any
+            //    assembly. ⭐ If a probe ever moves into a product, it leaves `tools/` and reappears here.
+            if (rel.StartsWith("tools/", StringComparison.Ordinal)) continue;
 
             if (System.IO.File.ReadLines(path).Any(IsCallSite)) yield return rel;
         }

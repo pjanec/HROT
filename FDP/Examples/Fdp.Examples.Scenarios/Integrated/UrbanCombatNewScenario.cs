@@ -159,11 +159,12 @@ namespace Fdp.Examples.Scenarios.Integrated
         public string ScenarioName => ScenarioNames.UrbanCombat;   // "urbancombat"
 
         // ── TKB type IDs (DEM1-D010 §9.2) ────────────────────────────────────
-        private const int TkbCivilianPedestrian = 1001;
-        private const int TkbCivilianCar        = 1002;
-        private const int TkbMilitaryApc        = 2001;
-        private const int TkbInfantrySoldier    = 2002;
-        private const int TkbInsurgent          = 2003;
+        // ⭐ DERIVED from the shared catalogue — one source of the type codes (2026-08-31).
+        private const int TkbCivilianPedestrian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian;
+        private const int TkbCivilianCar        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar;
+        private const int TkbMilitaryApc        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc;
+        private const int TkbInfantrySoldier    = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier;
+        private const int TkbInsurgent          = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent;
 
         // ── Behavior IDs (must match BehaviorIds in FDP.Toolkit.Behavior) ────
         private const int BehaviorWanderCivil   = 1001;
@@ -174,26 +175,10 @@ namespace Fdp.Examples.Scenarios.Integrated
         // ── Faction IDs ───────────────────────────────────────────────────────
         // FactionNeutral/Blue/Red constants removed; use ForceId.Neutral/Friend/Hostile directly.
 
-        // ── Sensor ranges (m) ─────────────────────────────────────────────────
-        private const float CivilianVisionRange  = 30f;
-        private const float CivilianHearingRange = 100f;
-        private const float SoldierVisionRange   = 150f;
-        private const float SoldierHearingRange  = 200f;
-
         // ── Collider radii (m) ────────────────────────────────────────────────
         private const float HumanoidRadius = 0.4f;
         private const float CarRadius      = 2.0f;
         private const float ApcRadius      = 3.5f;
-
-        // ── Health ────────────────────────────────────────────────────────────
-        private const float ApcMaxHealth     = 500f;
-        private const float SoldierMaxHealth = 100f;
-
-        // ── Weapon stats ──────────────────────────────────────────────────────
-        private const int   RifleAmmo           = 30;
-        private const float RifleMuzzleVelocity = 800f;
-        private const int   RpgAmmo             = 1;
-        private const float RpgMuzzleVelocity   = 300f;
 
         // ── Spawn positions ───────────────────────────────────────────────────
         private static readonly Vector3[] CivilianPositions =
@@ -380,12 +365,22 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // FDP.Toolkit.Behavior
             world.RegisterComponent<BehaviorState>();
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<SimTier>();
-            world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
+            // ⭐⭐ CE-323: the interrupt tail. Without it CognitiveInterruptSystem matches nothing,
+            //   so MobilityLost never fires, the APC's HSM never leaves Cruising, the soldiers are
+            //   never ejected and latches 3–5 cannot be reached — all silently. 📄 §31.21.
+            world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
@@ -424,67 +419,13 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── Private helpers — TKB templates ──────────────────────────────────
 
-        private void RegisterTkbTemplates()
-        {
-            RegisterCivilianPedestrian();
-            RegisterCivilianCar();
-            RegisterMilitaryApc();
-            RegisterInfantrySoldier();
-            RegisterInsurgent();
-        }
-
-        private void RegisterCivilianPedestrian()
-        {
-            var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-            _tkb.Register(t);
-        }
-
-        private void RegisterCivilianCar()
-        {
-            var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-            _tkb.Register(t);
-        }
-
-        private void RegisterMilitaryApc()
-        {
-            var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
-            _tkb.Register(t);
-        }
-
-        private void RegisterInfantrySoldier()
-        {
-            var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-            _tkb.Register(t);
-        }
-
-        private void RegisterInsurgent()
-        {
-            var t = new TkbTemplate("Insurgent", TkbInsurgent);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-            _tkb.Register(t);
-        }
+        // ⚠⚠ The five per-template methods that used to live here were DELETED on 2026-08-31.
+        //   They were a SECOND copy of the templates, identical to the public one EXCEPT that they
+        //   omitted StrideRenderModelDefDto from all five ⇒ entities spawned through the scenario's own
+        //   path had no render model and no collider. The Editor's (richer) copy is authoritative and now
+        //   lives in Hrot.Core.Tkb.UrbanCombatTkbCatalog.
+        //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
+        private void RegisterTkbTemplates() => Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(_tkb);
 
         // ── Private helpers — behaviors ───────────────────────────────────────
 
@@ -518,7 +459,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 });
 
             // ── InfantrySoldier: aggressive InfantryCombat BTree ─────────────
-            var infantryReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var infantryReg = new ActionRegistry<byte, BTreeContext>();
             infantryReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             infantryReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             infantryReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -528,11 +469,11 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(infantryBlob, infantryReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(infantryBlob, infantryReg),
                 });
 
             // ── Insurgent: Ambush BTree ───────────────────────────────────────
-            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var ambushReg = new ActionRegistry<byte, BTreeContext>();
             ambushReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -542,7 +483,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });
         }
 
@@ -555,67 +496,15 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// UrbanCombatNew scenario or editor.</para>
         /// </summary>
         public static void RegisterUrbanCombatTkbTemplates(ITkbDatabase tkb)
-        {
-            if (tkb == null) throw new ArgumentNullException(nameof(tkb));
+            => Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
 
-            // CivilianPedestrian (1001)
-            {
-                var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-                tkb.Register(t);
-            }
-
-            // CivilianCar (1002)
-            {
-                var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-                tkb.Register(t);
-            }
-
-            // MilitaryAPC (2001)
-            {
-                var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
-                tkb.Register(t);
-            }
-
-            // InfantrySoldier (2002)
-            {
-                var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                tkb.Register(t);
-            }
-
-            // Insurgent (2003)
-            {
-                var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                tkb.Register(t);
-            }
-        }
+        /// <summary>
+        /// Forwards to the shared catalogue. Kept because tests and the Stride app call it by this name.
+        /// ⚠ The implementation MOVED to <see cref="Hrot.Core.Tkb.UrbanCombatTkbCatalog"/> on
+        /// 2026-08-31 — 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
+        /// </summary>
+        public static CharacterAnimationDefDto BuildMannequinAnimationDef()
+            => Hrot.Core.Tkb.UrbanCombatTkbCatalog.BuildMannequinAnimationDef();
 
         private static unsafe HsmDefinitionBlob BuildApcHsm()
         {
@@ -701,8 +590,8 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new MissionDirectorSystem(),
                 new CognitiveInterruptSystem(), // detects CanMove→cleared from DamageSystem above
                 new ChannelArbitrationSystem(),
-                new BTreeTickSystem(_behaviorRegistry),
-                new HsmTickSystem<BrainHsm128>(_behaviorRegistry),
+                // ⭐ O7c-④b: ONE brain tick with a BTree arm and an HSM arm — these were two systems.
+                new BrainTickSystem(_behaviorRegistry),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),
@@ -731,14 +620,24 @@ namespace Fdp.Examples.Scenarios.Integrated
             _apc = SpawnEntity(world, TkbMilitaryApc, ApcSpawnPos, MathF.PI / 2f, BehaviorConvoyEscort);
 
             // Pre-initialise the APC HSM brain so HsmKernel.Update processes it correctly.
-            // Without this, BrainHsm128.Header.MachineId == 0 and ValidateInstance rejects it.
+            // Without this, InstanceHeader.MachineId == 0 and ValidateInstance rejects it.
+            //
+            // ⭐⭐ O7c-④ (2026-09-23): THE INSTANCE LIVES IN AN OCCURRENCE SLOT, NOT IN BrainHsm128.
+            //   EnsureRootInstance provisions the store, attaches a slot sized by
+            //   HsmInstanceManager.SelectTier(blob), and binds MachineId — which is the first two
+            //   lines below in one call. ⚠ The leaf seed stays explicit because it is what makes this
+            //   scenario start the APC ALREADY CRUISING rather than at the machine's entry state.
             if (_behaviorRegistry.TryGetDefinition(BehaviorConvoyEscort, out var convoyDef)
-                && convoyDef.HsmDefinition != null)
+                && convoyDef.HsmDefinition != null
+                && RootHsmAccess.EnsureRootInstance(world, _apc, BehaviorConvoyEscort, convoyDef.HsmDefinition)
+                && RootHsmAccess.TryGetInstance(world, _apc, out byte* apcInstance, out int apcSize))
             {
-                ref var brain = ref world.GetComponentRW<BrainHsm128>(_apc);
-                brain.State.Header.MachineId  = convoyDef.HsmDefinition.Header.StructureHash;
-                brain.State.Header.Phase      = InstancePhase.RTC;
-                brain.State.ActiveLeafIds[0]  = ApcHsmCruisingIndex;
+                ((InstanceHeader*)apcInstance)->Phase = InstancePhase.RTC;
+
+                // ⛔ The active-leaf array's offset AND its length are both functions of the instance
+                //   SIZE, so it is read through the kernel's own accessor rather than a struct field.
+                ushort* leaves = HsmKernel.GetActiveLeafIds(apcInstance, apcSize, out int leafCount);
+                if (leaves != null && leafCount > 0) leaves[0] = ApcHsmCruisingIndex;
             }
 
             // 4. Infantry soldiers — spawn co-located with APC, then embark
@@ -810,6 +709,14 @@ namespace Fdp.Examples.Scenarios.Integrated
             if (_behaviorRegistry.TryGetDefinition(behaviorId, out var def))
                 behavior.BrainTier = def.BrainTier;
 
+            // ⭐⭐⭐ O7c-② / O7c-④ — RE-PROVISION THE ROOT BRAIN STATE FOR *THIS* BEHAVIOUR.
+            //   🔴 Same reason as ScenarioDirector's copy: BehaviorTkbTranslator keyed a root slot by
+            //     the TEMPLATE'S DEFAULT behaviour, and the line above overwrites ActiveBehaviorHash
+            //     with a different one ⇒ the computed key stops resolving and the slot is orphaned.
+            //   ⛔ For a BTree brain, BrainTickSystem's RequireStateRef then THROWS.
+            if (def != null && def.BrainTier == BehaviorConstants.BrainTierBTree)
+                RootStateAccess.EnsureRootState(world, entity, behaviorId);
+
             _entityMap.Register(_nextNetId++, entity);
 
             return entity;
@@ -836,7 +743,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private static class BTreeNodes
         {
             public static NodeStatus Condition_HasTarget(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -849,7 +756,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static unsafe NodeStatus Action_AimAndFire(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -879,7 +786,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static NodeStatus Action_HoldPosition(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)

@@ -5,6 +5,7 @@ using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Runtime;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -61,7 +62,7 @@ public sealed class RunBlueprintOnEntityCommandTests
         Assert.Single(log);
 
         // The entity must carry a tier-1024 blackboard component with one allocated slot.
-        Assert.True(world.HasComponent<BlueprintBlackboard1024>(entity),
+        Assert.True(OccurrenceStoreAccess.HasStore(world, entity),
             "Entity must have BlueprintBlackboard1024 after attach.");
     }
 
@@ -177,17 +178,17 @@ public sealed class RunBlueprintOnEntityCommandTests
         Assert.Contains("Blueprint", log[0], StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── IWindowRegistrar.RegisterToolbarEntry: CaptureWindowRegistrar integration ──────────────
+    // ── IShellCommandRegistrar.RegisterToolbarEntry: CaptureShellCommandRegistrar integration ──────────────
 
     /// <summary>
-    /// Verifies that <see cref="MockWindowRegistrar.RegisterToolbarEntry"/> captures the label
+    /// Verifies that <see cref="MockShellCommandRegistrar.RegisterToolbarEntry"/> captures the label
     /// and callback, and that invoking the callback triggers the Execute path with the correct
     /// arguments (simulating the composition root).
     /// </summary>
     [Fact]
-    public void IWindowRegistrar_RegisterToolbarEntry_CapturesCallback()
+    public void IShellCommandRegistrar_RegisterToolbarEntry_CapturesCallback()
     {
-        var registrar = new MockWindowRegistrar();
+        var registrar = new MockShellCommandRegistrar();
         var log = new List<string>();
 
         registrar.RegisterToolbarEntry(

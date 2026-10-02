@@ -7,6 +7,7 @@ using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Nodes;
 using Xunit;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Integration.Tests;
 

@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Blueprints;
 ///     is already <i>"truncated from ulong to fit the 16-byte slot-entry budget"</i>. Growing it shrinks
 ///     usable payload in <b>every</b> tier and moves the tier-fit arithmetic, ⚠ for a counter no
 ///     simulation code reads. It would also enter the recorded snapshot
-///     (<c>[DataPolicy(NoSave)]</c> means snapshotted and recorded).</description>
+///     (<c>[DataPolicy(NoScenario)]</c> means snapshotted and recorded).</description>
 ///   </item>
 ///   <item>
 ///     <term>⛔ <c>BlueprintBlackboardHeader.Reserved</c></term>

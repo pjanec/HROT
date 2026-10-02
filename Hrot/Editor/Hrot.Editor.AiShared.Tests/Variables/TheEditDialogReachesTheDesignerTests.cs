@@ -155,7 +155,10 @@ public sealed class TheEditDialogReachesTheDesignerTests
         var outcome = VariableEditCommit.CommitInitialValue(
             session, asset, Row("Health", typeof(int)), typeof(int), runState);
 
-        Assert.Equal(VariableEditCommit.Outcome.RefusedRunning, outcome);
+        // ⭐ W3 renamed the member; the CLAIM is unchanged — the INITIAL-value arm is not the target
+        //   once the sim is up, whatever the live arm now does with it (R-126 changed the live arm,
+        //   not this one).
+        Assert.Equal(VariableEditCommit.Outcome.RefusedRunState, outcome);
         Assert.Empty(asset.WrittenJson);
     }
 

@@ -121,8 +121,8 @@ internal static class ClusterOpRequestAdapter
     }
 
     /// <summary>
-    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>
-    /// or <c>ImportArchive</c> or <c>SaveScenario</c> to an <see cref="ExecuteStorageOpIntent"/>.
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>,
+    /// <c>ImportArchive</c> or <c>SaveScenarioJson</c> to an <see cref="ExecuteStorageOpIntent"/>.
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
@@ -139,17 +139,34 @@ internal static class ClusterOpRequestAdapter
 
         var opType = req.OperationType switch
         {
-            ClusterOpType.ExportArchive  => StorageOpType.Export,
-            ClusterOpType.ImportArchive  => StorageOpType.Import,
-            ClusterOpType.SaveScenario   => StorageOpType.SaveScenario,
-            _ => StorageOpType.SaveScenario,
+            ClusterOpType.ExportArchive    => StorageOpType.Export,
+            ClusterOpType.ImportArchive    => StorageOpType.Import,
+            ClusterOpType.SaveScenario => StorageOpType.SaveScenario,
+            // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
+            // mapping it to the dead SaveScenario storage op (previous default).
+            _ => throw new ArgumentOutOfRangeException(
+                     nameof(req.OperationType), req.OperationType,
+                     "Unsupported cluster op for storage intent (SaveScenario=2 retired, CE-278)."),
         };
+
+        // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
+        string? scenarioName = null;
+        if (opType == StorageOpType.SaveScenario && !string.IsNullOrWhiteSpace(req.PayloadJson))
+        {
+            try
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(req.PayloadJson);
+                scenarioName = node?["ScenarioName"]?.GetValue<string>();
+            }
+            catch (JsonException) { }
+        }
 
         return new ExecuteStorageOpIntent
         {
-            RequestId  = req.RequestId,
-            Operation  = opType,
-            ExerciseId = exerciseId,
+            RequestId    = req.RequestId,
+            Operation    = opType,
+            ExerciseId   = exerciseId,
+            ScenarioName = scenarioName,
         };
     }
 
@@ -188,4 +205,67 @@ internal static class ClusterOpRequestAdapter
         return new CancelOperationIntent { TargetRequestId = targetId };
     }
 
+    /// <summary>
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == LoadZone</c> to a
+    /// <see cref="LoadZoneIntent"/>.
+    ///
+    /// <para>⭐ This path exists because the zone-load action is ALWAYS cluster-wide
+    /// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.6) — including on the editor, which is a
+    /// single-node cluster driving the orchestrator through THIS injection path rather than the DDS
+    /// translator. ⛔ Without it the editor's zone load would fall through the request switch and do
+    /// nothing, silently, on the one host most likely to issue it.</para>
+    ///
+    /// <para>⚠ A bare (non-JSON) payload is accepted as the zone id itself, mirroring
+    /// <see cref="ToCancelOperationIntent"/>: panels and headless action handlers inject raw strings.</para>
+    /// </summary>
+    public static LoadZoneIntent ToLoadZoneIntent(ClusterOpRequest req)
+    {
+        string? zoneId = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload))
+        {
+            var trimmed = payload.Trim();
+            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var dto = JsonSerializer.Deserialize<ZonePayloadDto>(trimmed, OrchestrationJsonOptions.Default);
+                    zoneId = dto?.ZoneId;
+                }
+                catch (JsonException) { }
+            }
+            else
+            {
+                zoneId = trimmed;
+            }
+        }
+
+        return new LoadZoneIntent { RequestId = req.RequestId, ZoneId = zoneId };
+    }
+
+    /// <summary>
+    /// ⭐ <c>E4</c> — converts a <see cref="ClusterOpRequest"/> with
+    /// <c>OperationType == BuildTerrainAsset</c> to a <see cref="BuildTerrainAssetIntent"/>.
+    ///
+    /// <para>⚠ A null/empty <c>Kinds</c> means <b>ALL kinds</b>, not none — an op that asked for nothing
+    /// would never be published, so treating absence as "nothing" would silently turn every
+    /// unparameterised build into a no-op.</para>
+    /// </summary>
+    public static BuildTerrainAssetIntent ToBuildTerrainAssetIntent(ClusterOpRequest req)
+    {
+        string[]? kinds = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload) && payload.TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            try
+            {
+                var dto = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+                    payload, OrchestrationJsonOptions.Default);
+                kinds = dto?.Kinds;
+            }
+            catch (JsonException) { }
+        }
+
+        return new BuildTerrainAssetIntent { RequestId = req.RequestId, Kinds = kinds };
+    }
 }

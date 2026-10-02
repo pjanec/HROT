@@ -234,4 +234,52 @@ public class AreaAuthoringTests : System.IDisposable
         Assert.True(anyNonZeroX,
             "Different-X canvas points produced identical East offsets.");
     }
+
+    // ── E5 — the MOVE onto the shared arm, and the TkbType it unlocked ───────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>E5</c> — a <c>CMD_START_AUTHORING</c> that asks for a TERRAIN ZONE must produce a
+    /// <c>TerrainZone</c> entity, not a tactical area.
+    ///
+    /// <para>🔴 <b>This is the defect the move exposed.</b> 📐 The prior
+    /// <c>ActivateAreaAuthoringTool</c> hard-coded <c>TkbEntityTypes.TacGraphic_Area</c>, and
+    /// <c>ParseCommandAndActivateAreaTool</c> read the incoming <c>tkbType</c> ONLY to compare it
+    /// against <c>TacGraphic_Route</c>. ⇒ a zone request silently authored a tactical area — the
+    /// shape appeared, so nothing looked broken, and none of stage <c>E</c>'s zone surfaces
+    /// (<c>E1</c> gizmo, <c>E2</c> menu, <c>E3</c> view) would ever have matched it.</para>
+    ///
+    /// <para>🔒 The <c>U6</c> ruling: *"nothing of it should be IG host only."* 📄 design §2.1 —
+    /// <c>TkbType</c> is THE discriminator; <c>B1</c> allocated <c>TerrainZone</c>.</para>
+    /// </summary>
+    [Fact]
+    public void ZoneRequest_BirthsTerrainZone_NotTacticalArea()
+    {
+        _captured.Clear();
+        _app.TestHook_ParseCommandAndActivateAreaTool(
+            Guid.NewGuid(),
+            $"{{\"contextId\":\"{Guid.NewGuid():N}\",\"tkbType\":{TkbEntityTypes.TerrainZone}}}");
+        _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
+
+        var cmd = Assert.Single(_captured);
+        Assert.Equal(TkbEntityTypes.TerrainZone, cmd.TkbType);
+        Assert.NotEqual(TkbEntityTypes.TacGraphic_Area, cmd.TkbType);
+    }
+
+    /// <summary>
+    /// ⭐ A <c>CMD_START_AUTHORING</c> with NO <c>tkbType</c> still authors a tactical area.
+    /// ⚠ Load-bearing: <c>ExConLogic.StartAreaAuthoringMode</c> sends no <c>tkbType</c> at all
+    /// (measured), so the absent-means-area default is the live ExCon → IG contract. ⛔ Turning the
+    /// hard-coded constant into a parameter must not have broken it.
+    /// </summary>
+    [Fact]
+    public void AreaRequest_WithNoTkbType_StillBirthsTacticalArea()
+    {
+        _captured.Clear();
+        _app.TestHook_ParseCommandAndActivateAreaTool(
+            Guid.NewGuid(),
+            $"{{\"contextId\":\"{Guid.NewGuid():N}\",\"styleOverrideJson\":\"\"}}");
+        _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
+
+        Assert.Equal(TkbEntityTypes.TacGraphic_Area, Assert.Single(_captured).TkbType);
+    }
 }

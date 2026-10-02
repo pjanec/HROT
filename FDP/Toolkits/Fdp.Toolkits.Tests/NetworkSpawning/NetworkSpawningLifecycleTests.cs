@@ -51,7 +51,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<NetworkIdentity>();
-            _repo.RegisterComponent<NetworkOwnership>();
             _repo.RegisterComponent<NetworkAuthority>();
             _repo.RegisterComponent<TkbIdentity>();
             _repo.RegisterComponent<GhostStateTracker>();

@@ -1,0 +1,1152 @@
+<!--STATUS
+state: LIVE
+build-state: ✅ **READY-TO-BUILD `2026-09-17`** — §8 (host heterogeneity) is RULED: no capability is
+  announced, because with static terrain the zone-load postcondition is genuinely met (§8.3). §9 (the UI)
+  is ruled through U1–U4 + §9.5–§9.8, and U1's last unmeasured assumption is closed — gizmos read any
+  component and `DrawLine` takes a `LineStyle`. ⚠ HISTORY: this was marked READY-TO-BUILD once before and
+  DOWNGRADED on `2026-09-17` when the user found the heterogeneity hole — the module diagram showed WHO
+  runs the loader and never asked whether they run the SAME ONE. ⛔ Tiles remain FAKED by ruling (§6/§7);
+  that is scope, not an open question.
+updated: 2026-09-17
+current-answer: §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
+  (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
+stale-below: §3.2's sequence diagram and §9.5's "zone name" column are corrected in place by the
+  AS-BUILT block in §10 — read §10 before quoting either.
+known-rot: FOUR things the BUILD measured false — three folded into §10 plus §6's test-surface list,
+  which named the wrong suites and the wrong count and is SUPERSEDED by §10.6. The three in §10 (obligation ⑤, batch terrain-2b,
+  2026-09-17): §3.2's sequence draws EnsureAllLoaded inside the load handler's commit, where the zone
+  entities do not exist yet; §9.5 sources a "zone name" from the Area entity, and no name component
+  exists; and §3.1's sequence leaves the node-side phase split implicit in a way that does not survive
+  ClusterSlave's actual dispatch.
+known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
+  (§2.B/§2.C/§2.E), which is already marked superseded there.
+related-designs:
+  - docs/blueprints/PLAN_Terrain_Zones_Build.md — the BUILD BREAKDOWN of this design (stages A-G,
+    success conditions, and the UNDER-SPECIFIED register). It references these chapters; it restates none.
+  - docs/designs/routes-1/ROUTES1-DESIGN.md — ⭐ OWNS THE ROUTE MODEL (§5 shared vs personal routes,
+    §5.1 directing a vehicle to follow one, §16 the as-built persistence gap). Routes are NOT terrain
+    assets and NOT the road network — §2.1a here defers to it rather than restating it.
+  - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the WHY and the
+    decision record (§5 ruling, §6 gaps). THIS doc is the WHAT; that one is why it is shaped so.
+  - docs/designs/mgmt-1/DESIGN.md — §11 owns the PrepareZone/CommitZone 2PC protocol and ZoneSpec;
+    this doc owns the AUTHORING model and the entity→asset build that §11 never covered.
+  - docs/designs/packs-3/DESIGN.md — SUPERSEDED zone half; still owns the ACL/network-DRY work.
+  - docs/DESIGN_Distributed_Scenario_Persistence.md — owns which file entities ride in and the
+    ownership save gate; zone/road/obstacle entities pass through that gate like any other.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns per-layer navmesh bake parameters and the
+    INavmeshProvider seam; §6 here must not contradict its bake model.
+  - docs/DESIGN_Node_Roles_And_Policies.md — owns which role consumes terrain data (MuscleGround,
+    Perception, NavigationSolver); §4 here role-filters on exactly that.
+  - docs/blueprints/Architect_Question_57_Cgf_Authoring_Packaging.md — owns the RECIPE/CREATE registry
+    (INewAssetService, RecipePickerSource, GET /assets/recipes). §2.1e ⑤ reuses it and adds nothing.
+  - docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md — owns the New-Asset PICKER SHELL composed on both
+    hosts (NewAssetLauncher, AssetCreateController). §2.1e ⑤ is content for that shell, not a new one.
+  - docs/designs/tkb-1/DESIGN.md — owns how a node RESOLVES and loads its TKB from the scenario header
+    (§7.3). §2.1e ⑤ owns how that header field is first ACQUIRED, which tkb-1 never covered.
+  - docs/DESIGN_Artifact_Staging.md — owns getting the NAMED TKB and terrain artifacts ONTO the nodes
+    (the prefetch extension + the two (length, mtime) skips). ⭐ It CLOSES BP-550, which §10 and the
+    plan's §3.3 record as the single thing standing between this design and a working zone load.
+  - docs/DESIGN_Cluster_Load_Phase.md — ⭐⭐⭐ owns WHEN terrain loads and WHO runs it during the
+    cluster's Loading* phase: the per-ROLE contract, the ordered load-phase chain, and the shared
+    content names riding the load MESSAGE. ⛔ It SUPERSEDES §2.1e ④ here (see §10.9) — this doc keeps
+    WHAT terrain and zones ARE and gives up the scheduling question entirely.
+-->
+
+# DESIGN — **Terrain, zones and the asset build**
+
+> **The one rule:** the **ENTITY IS THE DEFINITION**; an asset is **cached, reconstructable data**
+> derived from it. There is no artefact that can disagree with the world.
+
+## 1. INVENTORY — measured `2026-09-16`/`17` (graph + grep; `check_index_coverage` not run)
+
+| # | exists already | where |
+|---|---|---|
+| ① | `EditablePolyline` — points **+ a `Version` counter** documented *"so subscribers can detect stale cached copies"* | `Hrot.Core/Components/Map/EditablePolyline.cs` |
+| ② | ⭐⭐ **`RoadNetworkBuilder`** — *"Builder for constructing RoadNetworkBlob from components"*: `AddNode` / `AddSegment` / `Build`. ⭐ **It HAS a production caller** — `RoadNetworkLoader.cs:38` — so this is a proven path, not test-only scaffolding | `FDP/.../CarKinem/Road/RoadNetworkBuilder.cs` |
+| ③ | `RoadNetworkBlob` (NativeArrays + a broadphase grid), `ZoneEnvironmentData` singleton | `FDP/.../CarKinem/Road/`, `FDP/.../CarKinem/` |
+| ④ | the 2PC seam: `PrepareAsync` *(must not mutate ECS)* / `Commit` *(main thread)* / `Abort` | `FDP/.../Orchestration/IClusterStateHandler.cs` |
+| ⑤ | the barrier — waits for **all** nodes' `NodeOpCompletedEvent` | `ClusterMaster.cs:1242-1254` |
+| ⑥ | `NodeOpType.PrepareZone=7 / CommitZone=8` reserved on the wire in **two** enums | `NodeOpType.cs:15-16`, `OrchestrationMessages.cs:53-54` |
+| ⑦ | `ClusterOpType.LoadZone=3` + a real wire arm publishing `LoadZoneIntent` | `ClusterOpMasterTranslator.cs:238-241` |
+| ⑧ | shared cross-host registration precedent | `SerializeLocalRegistrar` (`CE-279`) |
+| # | **does NOT exist** | |
+| ⑨ | any entity→asset compile; any `CmdSwapZone`; any consumer of `LoadZoneIntent`; any zone control in the cluster panel | measured absences |
+| ⑩ | any load-state marker component — graph returned only unrelated editor test classes | ⇒ new component, not a missed seam |
+
+---
+
+## 2. THE MODEL
+
+```mermaid
+classDiagram
+  class TkbIdentity {
+    +long TkbType
+  }
+  class SimTransform {
+    +Vector3 Position
+  }
+  class EditablePolyline {
+    +List~Vector2~ Points
+  }
+  class TerrainAssetLoadState {
+    +LoadPhase Phase
+    +ulong SourceHash
+  }
+  class PhysicsCollider {
+    +float Radius
+  }
+  class TerrainLoadService {
+    +EnsureLoaded(view, entity) bool
+    +EnsureAllLoaded(view) int
+  }
+  class ZoneTileLoader {
+    +Build(bounds, version)
+  }
+  class StaticObstacleBaker {
+    +Bake(view) navmesh + physics
+  }
+  class TerrainLoader {
+    +LoadTerrain(sceneId)
+    +road nets, built-in buildings
+  }
+  class ZoneEnvironmentData {
+    +RoadNetworkBlob RoadNetwork
+  }
+  TkbIdentity --> TerrainAssetLoadState : zone + static obstacle<br/>marked when loaded
+  SimTransform --> EditablePolyline : ORIGIN - points are RELATIVE
+  TerrainLoadService --> ZoneTileLoader : ZONE LOAD - already-built assets
+  TerrainLoadService --> StaticObstacleBaker : ASSET BUILD - standalone
+  TerrainLoader --> ZoneEnvironmentData : road net from the TERRAIN asset
+  note for PhysicsCollider "MOVABLE obstacle = live by construction.<br/>No build, no marker. STATIC (buildings)<br/>DO get baked - 2.1c"
+  note for TerrainLoader "road nets + built-in buildings ride the<br/>TERRAIN asset, not any zone - 2.1d"
+  note for TkbIdentity "EXISTS - THE discriminator.<br/>8801 FireLine, 8802 Route, 8803 Area,<br/>+TerrainZone (ruled 2026-09-17)"
+  note for TerrainAssetLoadState "NEW. SourceHash = hash(SimTransform + Points)"
+  note for ZoneEnvironmentData "EXISTS - the swappable singleton (R2)"
+```
+
+*What the picture shows that the prose hid:* **the two paths never meet.** Zone load consumes
+already-built assets; the asset build is a standalone producer (§2.1b) — the only link is that a zone
+load *may* trigger a build, never the reverse. ⭐ And **exactly ONE new component** exists: the load
+marker. **Discrimination rides `TkbIdentity`**, which was already there.
+⛔ **No road box appears** — routes are `RoutePlan`, the road network is an external asset (§2.1a).
+
+| new type | why it is new |
+|---|---|
+| `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
+| ONE new **`TkbType`** *(not a component)* | 🔒 **`TerrainZone`** — ruled `2026-09-17`, deliberately **not** `TacGraphic_*` since a zone is a load directive that happens to be drawn. ⛔ **No road value** (§2.1a) and ⛔ **no static-obstacle value yet** (§2.1c) |
+
+### 2.1 ✅ RULED `2026-09-17` — **`TkbType` is the ONE discriminator; `AreaType` is SUPERSEDED**
+
+> 🔒 **User:** *"own TkbType for zones approved. prev ruling 'Areas carry an area type field' was wrong,
+> now superseded with the TkbType differentiation."*
+
+⛔⛔ **`Area { AreaType Type }` is DELETED from this design.** 📐 `TkbIdentity.TkbType` is *already* the
+"what kind of thing is this" axis — `8801 TacGraphic_FireLine`, `8802 TacGraphic_Route`, `8803
+TacGraphic_Area` — and it **already selects the gizmo** (`TacticalAreaGizmo` filters on it). ⇒ an
+`AreaType` field would have been a **second discriminator for one distinction**, forcing every consumer
+of `8803` that does not care about zones (symbology, ORBAT, templates) to branch on it.
+
+⭐ **Extended to the STATIC-vs-MOVABLE OBSTACLE split** (§2.1c) by the same logic. ⛔ **The road
+extension is RETRACTED** — see §2.1a. ⚠ All new values are placeholders: **naming and numbering are the
+user's**, and `R-42` applies — these ids reach replays and saved scenarios, so **deprecate, never
+recycle**.
+
+### 2.1a ⛔ RETRACTED `2026-09-17` — **there are no "road entities"; I invented them**
+
+> 🔒 **User:** *"I do not think we need to be able to actually edit the road network and store its parts
+> as entities. What we want to store as entity are those waypoint based routes (not equal to roads in
+> road net — these are an asset which is NOT authored in the editor, comes from outside (like sumo road
+> net), and is just rendered using some map gizmo)… And what we called 'road entities' were actually
+> just the 'routes'."*
+
+📐 **Measured, and the split already exists in production:**
+
+| concern | what it actually is | authored? |
+|---|---|---|
+| **ROUTE** | `TkbType 8802 TacGraphic_Route` + **`RoutePlan { Waypoints }`** — `RouteWaypoint { Vector3 Position (ABSOLUTE), float TargetSpeed, string? ExtensionJson }` | ⭐ **yes, at runtime** — `CmdAppendPersonalWaypoint` → `PersonalRouteAuthoringSystem` spawns a **vehicle-owned child** seeded with 2 waypoints and appends after |
+| route → drivable | `RouteTrajectorySyncSystem` → `_pool.RegisterTrajectory(positions, speeds, looped, **CatmullRom**)` | ⛔ **no road/lane geometry is involved at all** — positions + speeds only |
+| **ROAD NETWORK** | an **external asset file** (SUMO-like) → `RoadNetworkLoader` → `RoadNetworkBlob`; rendered by `SimHostRoadLayer`; consumed by `PathfindingSolverSystem`/`CarKinematicsSystem` | ⛔ **never authored in the editor** |
+| **AREA / overlay** | `EditablePolyline { Points }` (RELATIVE) + `MapOverlayStyle` | ⭐ yes — `ActivateAreaEditingTool`, `AreaQuerySolverSystem` |
+
+⇒ ⛔ **`RoadProperties`, `TkbType 8805 road` and `RoadNetworkCompiler` are DELETED.** Lane width and
+lane count belong to **road-network segments**, which arrive in the file; a route is a waypoint list and
+needs none of them. ⭐ Per-waypoint `TargetSpeed` already exists and is finer-grained than the per-entity
+`SpeedLimit` I had proposed.
+⭐ **And the Catmull-Rom ruling was already shipped one layer over** — `RegisterTrajectory` uses it for
+routes today, so the convention was consistent before it was proposed.
+
+📄 **The route model is OWNED BY [`ROUTES1-DESIGN.md`](designs/routes-1/ROUTES1-DESIGN.md) §5** — shared routes (a root entity multiple vehicles follow) and personal routes (a vehicle-owned child) are specified there, and are deliberately NOT restated here.
+
+⭐⭐ **`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them.** 🔒 *"they are
+semantically too different."* 📐 Production already honours this: IG authors routes via
+`CreateRouteEntityAsync(TacGraphic_Route, waypoints, …)`, never via `EditablePolyline`.
+⚠⚠ **And the RELATIVE ruling (§2.2) is scoped to `EditablePolyline` ONLY.** `RouteWaypoint.Position` is
+documented *"absolute Cartesian world-space (ENU)"* and **must stay absolute**: a route entity is a
+CHILD OF THE VEHICLE, so relative waypoints would drag the whole route when the vehicle moved.
+
+### 2.1b ✅ RULED — **ZONE PREPARATION and ASSET BUILD are different in nature, and stay separate ops**
+
+> 🔒 **User:** *"zone == loading assets that were already built. Zone load might trigger asset build if
+> zone is known to require certain asset which is just defined but not yet built, but **defining a new
+> asset which is not yet built should not invalidate the zone**; the asset build stays like standalone
+> step which does not depend on zones."*
+
+⛔ **This REJECTS the lean to collapse the two op pairs.** The dependency is **ONE-WAY**:
+
+```
+asset build  ── standalone, never depends on a zone
+     ▲
+     │ (zone load MAY trigger a build for an asset it needs that is defined-but-unbuilt)
+     │
+zone load   ── loads assets that are ALREADY BUILT
+```
+
+⭐⭐ **The asymmetry is the whole point:** a zone is invalidated by **its own footprint changing**
+(§9.7), ⛔ **never by a new asset being defined.** Collapsing the ops would have coupled those
+lifecycles and made every new building definition dirty every zone.
+
+### 2.1c ⚠ R1 NARROWED — **not all obstacles are live-by-construction**
+
+> 🔒 **User:** *"Imagine buildings. They are certainly not runtime dynamic. So some obstacle entities
+> are movable at runtime, some are not and building might need baking them into navmesh and physics
+> world etc. That leads to different types of obstacle entities — different TkbType preferably."*
+
+⛔ **`R1` said "obstacles are EXCLUDED from the load model." That is true only of the MOVABLE kind**, and
+is now narrowed:
+
+| obstacle kind | build? | marker? |
+|---|---|---|
+| ⭐ **movable / runtime** *(the measured case: `PhysicsCollider` read straight off broadphase candidates ⇒ occludes LOS the instant it exists)* | ⛔ none | ⛔ none |
+| ⭐⭐ **static / bakeable** *(buildings)* — baked into navmesh + physics world | ✅ **yes — a real asset build** | ✅ yes |
+
+⇒ ⭐ **distinguished by `TkbType`**, consistent with §2.1. ⚠⚠ **And this rescues the asset build from
+being vacuous:** the prior draft concluded *"the only remaining terrain asset is tiles, which are
+faked."* 🔒 The user's correction: *"the fact we do not have any buildable assets now does not mean they
+will not exist."* ⇒ **the op pair is designed for buildings even though slice 1 builds none.**
+
+### 2.1d ⭐ TERRAIN-ASSOCIATED ASSETS — the road-network manager and terrain loader
+
+> 🔒 **User:** *"Maybe even the road network should be an entity, keeping reference to the road network
+> asset file… Just road nets are usually a property of the terrain asset, so picking a concrete terrain
+> denotes loading of associated road networks. Same for buildings — some are user placeable, most are
+> part of existing terrain asset. There should be some kind of road network manager and terrain loader
+> dealing with these."*
+
+⭐⭐ **RULED `2026-09-17`: terrain is a SINGLETON CONCEPT, not an ordinary entity** — 🔒 *"it is by design a singleton concept and a special one already being handled in a special way (or should be — loading various assets etc). Scenario persistence for such special singleton is not a problem."* ⚠ This does **not** reopen the retired `Zones` section: that was a **content bundle duplicating entity data**, whereas terrain is a **global fact** in the same class as `$meta` and `Header.TkbName` (§6a keeps those as globals). ⭐ **Lean: terrain-association is the DEFAULT; the entity-reference is the EXTENSION POINT.** Selecting a
+terrain (`SceneId`, §1 ⑦) implies loading its associated road networks and its built-in buildings; an
+**entity holding a reference to a road-net asset file** is how a user-*selected* road network would be
+expressed, and is worth building **only when that selection requirement appears**. ⛔ Building the
+selection mechanism first would add a scenario-level declaration the user explicitly wants to avoid.
+
+⚠ **This answers a question the `Zones`-section retirement would otherwise strand:** today the road
+network is loaded by `ZoneManagerService.LoadZones` from the zone's `RoadNetworkPath` — a property being
+retired. ⇒ **the terrain loader takes that job**, keyed off the terrain, not off any zone.
+
+### 2.1e ⭐⭐⭐ TERRAIN HANDLING — where it lives, when it loads, who runs it, where the name comes from
+
+#### ① In the SCENARIO — **a NAME, and nothing else**
+
+> 🔒 **User, `2026-09-17`:** *"Terrain is an asset that is referenced **by name** (with optional subfolder
+> path) from a scenario, **nothing more needed in scenario**. Route network assets to load etc are
+> **internal data of the terrain** that might be useful in memory but **not in scenario**. So terrain
+> asset needs **its own definition file (json)** processed by the loader."*
+
+⛔⛔ **A prior draft put "identity + asset references" in the scenario. RETRACTED** — the scenario carries
+**only the terrain name** (+ an optional subfolder path). Road networks, terrain DB, buildings and
+everything else are **inside the terrain asset**, never in the scenario.
+
+⭐⭐⭐ **This is EXACTLY what `Header.TkbName` already is** — a *name* that resolves to an artifact, with
+the artifact's contents living in the artifact. ⇒ terrain sits beside it, same block, same shape.
+
+#### ①a The TERRAIN DEFINITION FILE — a new asset format
+
+A JSON asset, resolved from the name, listing what the terrain provides: its road network(s) first, and
+later its terrain DB / heightmap / navmesh / built-in buildings. ⛔ **It is authored and shipped as an
+asset, not edited in the scenario editor** (§2.1a's road-network rule applies to it).
+
+#### ② In HOST MEMORY — an ECS singleton holding the PARSED definition
+
+⭐ The singleton holds the parsed definition plus handles to whatever it loaded. ⛔ **None of that is
+persisted** — it is re-derived from the named asset on every load, so it cannot disagree with the asset.
+⭐ It joins `ZoneEnvironmentData` and the singleton-managed `INavmeshProvider`, which are already ECS
+singletons.
+
+#### ②a ⭐⭐⭐ THE WHOLE PATTERN ALREADY EXISTS — mirror `TkbLoadClusterStateHandler` FIELD FOR FIELD
+
+📐 Measured — it is not merely a similar shape, it is the same problem already solved:
+
+| `TkbLoadClusterStateHandler` (exists) | the terrain loader (to build) |
+|---|---|
+| reads **`TkbName` from the locally staged scenario header** | reads the **terrain name** from the same header |
+| intercepts **`PrepareLive` / `PrepareEdit`** | the same node ops |
+| loads the TKB artifact **from the node's local staging area** | loads the terrain definition JSON from the same staging area |
+| *"before the scenario is deserialized"* | the same ordering, for the same reason |
+| populates **`ITkbDatabase`** | populates the terrain singleton + whatever the definition declares |
+| ⭐ **differential cache keyed on `(TkbName, file timestamp)`** to skip re-ingestion | ⭐ the same key ⇒ **idempotency for free**, no new mechanism |
+| graceful fallback when the header carries no name | the same — a scenario with no terrain is legal |
+
+⇒ ⭐⭐ **the terrain loader is `TkbLoadClusterStateHandler` with a different artifact.** ⛔ Do not design
+resolution, caching or ordering from scratch — all three are already answered there.
+
+#### ③ WHEN — inside the cluster state machine's LOADING states
+
+📐 `ClusterState` = `LoadingEdit(10) → OperatingEdit(11)`, `LoadingPreview(20)`, `LoadingLive(30)`,
+`LoadingReplay(40)` (+ their `Unloading*`). ⇒ ⭐ **terrain loads in the `Loading*` states, BEFORE entities
+are materialised** — entities depend on it (ground clamping, physics, LOS).
+⭐ `mgmt-1` already states this intent: the cluster transitions into `LoadingEdit` *"to load static assets
+(base terrain, …)"*.
+
+⭐⭐ **The shape to copy is `TkbLoadClusterStateHandler`** — an existing handler registered **before** the
+scenario handler precisely so a prerequisite is populated first *(its own comment: "to populate
+ITkbDatabase **before** `HrotScenarioLoadHandler` deserializes entities")*. ⇒ **the terrain loader is the
+same pattern with a different prerequisite.** ⛔ Do not invent a new ordering mechanism.
+
+#### ④ WHO — ⛔⛔ **it must NOT ride the scenario-load handler**
+
+> ⛔⛔⛔ **SUPERSEDED `2026-09-18` — the PREMISE below is CONFIRMED, the CONCLUSION is REPLACED.**
+> 📄 **[`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §4.3.** The measured fact this
+> section rests on — a muscle node has no scenario-load handler — is true and was re-measured
+> (`SimHostNodeBootstrapper.cs:391-438`, *"Load handlers stay off (no authoring deps here)"*).
+> 🔴 **But its remedy — *"register it unconditionally on every ECS host"* — caused a production defect:**
+> `ClusterSlave` gives a step to the **FIRST** matching handler and returns, so registering
+> unconditionally means **competing** unconditionally. Measured `2026-09-18`: on CGF the terrain loader
+> shadowed `CgfScenarioLoadHandler` and `--mode all` loaded **zero entities**; on SimHost the TKB loader
+> shadows this one, so terrain has **never** loaded there. ⇒ terrain is now an **ordered step in one
+> composed chain** every ECS host runs, not a competitor. ⛔ Do not implement the paragraphs below.
+
+🔴 **MEASURED TRAP.** `NodeBootstrapper.cs:316-318` registers SimHost's scenario LOAD handlers **inside a
+conditional**, with the comment: *"Scenario/episode LOAD handlers need the full authoring deps
+(extractor/source/id-allocator). **A muscle node that only replicates (and passes none) gets SAVE without
+LOAD — no throw.**"*
+
+⇒ ⛔⛔ **a pure MuscleGround node may have NO scenario-load handler at all** — and the muscle is precisely
+the role that consumes terrain (road network → `CarKinematicsSystem`; obstacles → physics/LOS). Hanging
+the terrain loader off that handler would leave terrain **unloaded on the node that needs it most** —
+the *"unreachable on host X"* failure this codebase produces more than any other (`①a`).
+
+⭐ **The correct pattern is in the same file, four lines below:** the SAVE handler is *built* inside the
+conditional but **registered unconditionally** via `SerializeLocalRegistrar.Register(...)`. ⇒ **the
+terrain loader registers unconditionally on every ECS host**, exactly like the save handler and like
+`TkbLoadClusterStateHandler`. ⚠ A host with nothing to load still ACKs (§8.3).
+
+#### ⑤ ⭐⭐⭐ WHERE THE NAME COMES FROM AT AUTHORING TIME — **a SEED SCENARIO used as a RECIPE**
+
+> 🔒 **User, `2026-09-17`:** *"The new scenario path might need a **picker** and a **'recipe' asset** to
+> build new scenario content from; that recipe might contain **predefined terrain name and tkb name**."*
+
+⭐⭐⭐ **①–④ answer how the name is CONSUMED. This answers how it is ACQUIRED — and the mechanism already
+exists, under-adopted** *(the seam law: the 25th measured instance)*.
+
+##### ⑤a 📐 THE INVENTORY — what already ships *(measured `2026-09-17`, `search_graph` + grep agree)*
+
+| the piece | where | state |
+|---|---|---|
+| per-kind recipe seam — `CreateNew(recipe, name, relPath)` · `AvailableRecipes()` · `IsBlankTemplate(r)` | `Hrot.Editor.AiShared/Recipes/INewAssetService.cs` | ✅ **shared, shipped** |
+| recipe → picker projection | `AiShared/Browser/RecipePickerSource.cs` | ✅ shipped |
+| the picker launcher + the create dialog | `AiShared/Browser/NewAssetLauncher.cs` · `AiShared/Recipes/NewAssetDialog.cs` | ✅ shipped |
+| recipe-by-NAME resolve *(for `POST /assets`)* | `AiShared/Recipes/RecipeByName.cs` | ✅ shipped |
+| composed **on both hosts** | `EditorSubsystem.cs:3850-3863` · `CgfSubsystem.cs:2213-2219` | ✅ production |
+| ⭐ **a SCENARIO implementation, with a seed branch** | `Hrot.Editor/ScenarioNewAssetService.cs` | ✅ **`FromSeed` = `LoadScenarioByName(recipe.Name)` → `SaveScenarioAs(full)`** |
+| ⭐ **a declared `Recipes/Scenarios` root** | `AssetRoots.ScenariosRecipesRoot` | ✅ declared *(§16: "**Recipes/** — creation sources: Blueprints, HSMs, BTrees, **Scenarios**")* |
+| the disk-recipe precedent | `BlueprintNewAssetService.AvailableRecipes()` + `BlueprintEditorBootstrap.DiscoverRecipes()` | ✅ 21 recipes ship this way |
+
+⇒ ⭐⭐ **Nothing in the picker/recipe layer needs designing.** 📄 `Architect_Question_57` already ruled it:
+*"recipe DISCOVERY already exists … ⛔ do NOT build a new `NewAssetRegistry`."*
+
+##### ⑤b ⭐⭐⭐ THE RULING — **the recipe IS a scenario file; it is not a new asset kind**
+
+⭐⭐⭐ **A scenario recipe is an ordinary scenario stored under `Recipes/Scenarios/`.** Its header already
+carries `TkbName`, and by **①** it carries the terrain name too ⇒ *"predefined terrain + TKB"* needs **no
+new field, no new format and no new asset vocabulary** — the `FromSeed` branch loads the seed and saves it
+under the new name, **header and all**.
+
+⛔ **Rejected: a dedicated recipe asset declaring `{terrain, tkb}`.** `Q57` rules against new registries
+and vocabulary, and a seed scenario is a **strict superset** — it can also ship starting entities, zones
+and routes, which a declaration cannot. ⚠ The same argument retires *"add terrain/TKB combo boxes to the
+dialog"*: `NewAssetDialog` is deliberately kind-agnostic, and per-kind fields would restate what the
+seed's own header already says.
+
+##### ⑤c 🔴 THE THREE MEASURED GAPS — why it does not work today
+
+| # | measured | consequence |
+|---|---|---|
+| **G1** | `EditorSubsystem.cs:3862` constructs `ScenarioNewAssetService(adapter)` — the **1-arg** ctor. The seed-discovering **2-arg** ctor has **zero** production callers, and `AssetRoots.ScenariosRecipesRoot` is referenced **only by tests** | ⛔ the Scenario kind offers exactly **one** recipe, `"Empty"`. ⚠ This is the **silent-default** shape — the caller had the value *(the root is a static property)* and did not pass it |
+| **G2** | `FromSeed` calls `IScenarioCreationSession.LoadScenarioByName`, whose contract is *"loads a scenario by name **from the scenarios root**"* | ⛔ a seed living in `Recipes/Scenarios` would **not be found** even once G1 is fixed. The load must be recipe-root-aware |
+| **G3** | `Header.TkbName` is stamped at save from `ITkbDatabase.ActiveTkbName` *(`HrotScenarioSaveHandler.cs:103`, `ScenarioFileService.cs:108`)*, and `ActiveTkbName` has **exactly ONE writer** — `TkbLoadClusterStateHandler.cs:75/109`, **reading it back out of the staged scenario header** | 🔴 **the `"Empty"` path has no way to acquire a TKB at all.** A brand-new scenario inherits the last cluster load's TKB — or `null`, and `ScenarioSerializer.cs:199` then **omits the whole `Header`**. ⚠ With ① the identical hole opens for the terrain name |
+
+⛔⛔ **G3 is why `"Empty"` must go for this kind, not merely be deprioritised** — it is the only path that
+can mint a scenario with **no terrain and no TKB**, and the save pipeline records that silently.
+⭐⭐ **Making a recipe MANDATORY for Scenario is already a designed-for case**, in `RecipeByName`'s own
+words: *"⚠ A kind that offers no blank template is legitimate."* ⇒ override `IsBlankTemplate => false`.
+⛔ **Do NOT fix G3 by writing `ActiveTkbName` from the editor** — that adds a second writer to a field with
+exactly one, and the cluster re-derives it from the staged header at load regardless (②a).
+
+##### ⑤d SEQUENCE — **New Scenario from a recipe** *(the authoring counterpart to §3's two runtime paths)*
+
+```mermaid
+sequenceDiagram
+  participant U as Author
+  participant L as NewAssetLauncher
+  participant P as RecipePickerSource
+  participant S as ScenarioNewAssetService
+  participant E as IScenarioCreationSession
+  U->>L: New Asset...
+  L->>P: BuildEntries()
+  P->>S: AvailableRecipes()
+  Note over S: seeds scanned from<br/>AssetRoots.ScenariosRecipesRoot<br/>(G1) - no "Empty" row (G3)
+  S-->>P: seed recipes
+  P-->>U: picker (Tree, grouped by kind)
+  U->>L: pick seed + name + folder
+  L->>S: CreateNew(seed, name, relPath)
+  S->>E: LoadScenarioByName(seed) - from the RECIPES root (G2)
+  Note over E: header carries TkbName<br/>AND the terrain name (1)
+  S->>E: SaveScenarioAs(relPath/name)
+  Note over E: both globals ride along -<br/>nothing re-authors them
+```
+
+⭐ **What the picture shows that the prose hid:** the terrain and TKB names are never *chosen* anywhere in
+this path — **they are carried**, because load-then-save-as copies the header. ⇒ the whole feature is the
+three gap fixes; ⛔ there is no "terrain selection UI" to build.
+
+### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
+
+> 🔒 **User:** *"I would like to unify the absolute-vs-relative-vertex-coords convention. The more
+> unified the editing/storage/persistence/transport is, the better."*
+
+⭐⭐⭐ **`EditablePolyline.Points` are RELATIVE offsets from the entity's `SimTransform`. One convention,
+no exceptions, every entity family.**
+
+📐 **Measured — relative is already the convention on every surface but one:**
+
+| surface | today |
+|---|---|
+| storage *(shipped assets)* | ✅ relative — `hill-attack` entity `5525100c`: origin `[670, 473.5]`, points `(-53,-88.5)` |
+| transport | ✅ relative, explicitly — `MapVisualOverlayEgressTranslator.cs:90` |
+| editing | ✅ relative — `VertexEditGizmo` works absolute internally and converts back with `p - _originOffset` (`:223-227`) |
+| `MapOverlayGizmo` | ✅ relative — `origin + Points` |
+| ⛔ `TacticalAreaGizmo` | 🔴 **claims absolute — the ONE dissenter, and it is WRONG** |
+
+⇒ ⭐ **unifying on relative costs one gizmo fix and ZERO data migration.** Unifying on absolute would
+mean rewriting every stored asset *and* both translators, and would make `SimTransform` either a lie or
+redundant on these entities. ⭐ Relative also keeps **"move" as a single transform write** — the same
+gesture every other entity uses and the network already replicates.
+🔴 **Live consequence being fixed:** both gizmos match entity `5525100c` and `GizmoReflectionRegistrar`
+registers every projector, so that area currently **renders twice, ~820 m apart**, with picking off by
+the same amount. 📄 **`BP-517`.**
+⇒ ⭐⭐ **And this is why the staleness key must include the transform**: with relative points, a MOVE
+changes only `SimTransform` — `hash(SimTransform ⊕ Points)` (§9.7 ③c) is the only key that sees it.
+
+---
+
+## 3. THE TWO INVOCATION PATHS — one implementation
+
+### 3.1 Runtime — operator-driven, via the 2PC round
+
+```mermaid
+sequenceDiagram
+  participant OP as Operator (cluster panel)
+  participant M as ClusterMaster
+  participant H as TerrainAssetHandler (every host)
+  participant S as TerrainLoadService
+  OP->>M: BuildTerrainAsset (kinds) or Reload zones
+  M->>H: PrepareTerrainAsset (txId, kinds)
+  Note over H: role x kind filter<br/>nothing for me -> ACK at once
+  H->>S: build into STAGED buffer (no ECS mutation)
+  S-->>H: staged blob + versions
+  H-->>M: NodeOpCompleted Ready
+  Note over M: barrier - all nodes
+  M->>H: CommitTerrainAsset (txId)
+  H->>S: publish staged -> ZoneEnvironmentData singleton
+  H->>H: stamp TerrainAssetLoadState on each definition
+  H-->>M: NodeOpCompleted
+```
+
+### 3.2 Scenario load — the same service, called locally, **no NodeOp**
+
+```mermaid
+sequenceDiagram
+  participant LH as Scenario load handler
+  participant S as TerrainLoadService
+  participant W as Node world
+  LH->>W: deserialize entities (zones, roads, obstacles)
+  LH->>S: EnsureAllLoaded(view)
+  loop each Area(Zone) and RoadFeature
+    S->>W: read marker + EditablePolyline.Version
+    alt marker Loaded and version matches
+      S-->>S: skip - idempotent
+    else missing or stale
+      S->>S: build, then stamp marker
+    end
+  end
+  Note over LH,S: already inside the cluster's own<br/>load transaction - a nested 2PC would deadlock
+```
+
+*What these show that prose hid:* the **same `TerrainLoadService` is the only implementation**; the
+2PC round is an *invocation wrapper* the scenario path deliberately does not use. The idempotency
+check is the identical branch on both paths, so "reload" and "load on scenario open" cannot drift.
+
+---
+
+## 4. MODULE RELATIONSHIPS — who registers it, who runs it, what is DEAD
+
+```mermaid
+graph TD
+  subgraph Reg["Registration - shared, every ECS host"]
+    TR["TerrainAssetRegistrar<br/>mirrors SerializeLocalRegistrar"]
+    TR --> TAH["TerrainAssetHandler<br/>IClusterStateHandler"]
+  end
+  subgraph Hosts["Hosts - role filtered"]
+    CGF["CGF Brain<br/>ACKs, builds nothing"]
+    SIM["SimHost Muscle<br/>builds roads + tiles"]
+    IG["IG Map2D<br/>ACKs"]
+    ED["Editor all-in-one<br/>builds"]
+  end
+  TAH --> CGF
+  TAH --> SIM
+  TAH --> IG
+  TAH --> ED
+  SIM --> ZED["ZoneEnvironmentData singleton"]
+  ZED -->|re-read EVERY TICK| CK["CarKinematicsSystem"]
+  ZED -.->|MUST become a per-tick read| PF["PathfindingSolverSystem"]
+  LZI["LoadZoneIntent<br/>published by wire translator"]
+  LZI -.->|NO CONSUMER| NONE["nothing"]
+  PFOLD["PathfindingSolverSystem<br/>readonly ctor blob - FROZEN"]
+  style LZI fill:#fdd,stroke:#900
+  style NONE fill:#fdd,stroke:#900
+  style PFOLD fill:#fdd,stroke:#900
+```
+
+⛔ **The two red boxes are MEASURED DEAD/BROKEN EDGES, and they are why this diagram exists:**
+
+1. **`LoadZoneIntent` has no consumer** — the wire translator publishes it (`ClusterOpMasterTranslator.cs:238-241`)
+   and nothing reads it, while its own doc comment at `ClusterOpIntents.cs:133` claims *"Consumed by
+   `ClusterMaster`"*. The comment is false and must be corrected whichever way this builds.
+2. 🔴 **`PathfindingSolverSystem` holds `readonly RoadNetworkBlob _roadNetwork`, assigned once in its
+   constructor** (`:32`, `:63`). ⇒ **a commit-time pointer swap reaches `CarKinematicsSystem` and
+   silently does nothing for pathfinding.** `NavigationSolverModule` and `EngineBackedNavigationModule`
+   have the same shape. **R2 is therefore a precondition, not a cleanup.**
+   ✅ **FIXED `2026-09-17` (`BP-519`)** — the solver resolves the graph per tick; see §5.4 for what the
+   measurement did to the prescribed fix.
+   ⚠⚠ **CORRECTION to the sentence above:** *"`EngineBackedNavigationModule` has the same shape"* is
+   **measured FALSE, and harmlessly so.** It does hold a ctor blob — and **nothing in the class ever reads
+   it**: `Tick` is empty and the providers it registers are navmesh/volumetric/crowd, not road-graph. So
+   there was no stale read to fix there, because there is no read. ⛔ Do not "fix" that field; the
+   parameter is kept only so the constructor signature stays stable for existing composition roots.
+
+---
+
+## 5. WHY — the rationale the diagrams cannot carry
+
+### 5.1 Why there is no zone artefact
+An artefact is a second place the truth can live, and the moment it exists it can disagree with the
+world (`R-132`, two producers for one slot). Making the entity the definition and the asset a
+**cache** removes the failure mode by construction: a cache that disagrees is simply *stale*, and
+staleness is detectable (§5.3) where disagreement is not.
+
+### 5.2 Why only MOVABLE obstacles are excluded (R1, narrowed — §2.1c)
+Measured: `RaycastSolverSystem.cs:145-147` reads `PhysicsCollider` straight off broadphase candidates
+and `LosRequestBatchingSystem` queries by its component id ⇒ **an obstacle occludes LOS the instant
+the entity exists.** There is nothing to cache, so a marker on an obstacle would always read `Loaded`
+and mean nothing. ⛔ A vacuous state field is worse than none — it invites code to branch on it.
+⚠⚠ **NARROWED `2026-09-17` (§2.1c): this argument holds for MOVABLE obstacles only.** A STATIC one — a
+building — is not runtime-dynamic and does need baking into navmesh and physics, so it DOES earn a build
+and a marker. The two are split by `TkbType`. ⛔ Do not read this section as "obstacles never build".
+
+### 5.3 Why the marker carries a HASH, not just a flag (R4, superseded — §9.7 ③c)
+Idempotency without staleness is indistinguishable from *never reloading*: redraw a loaded zone's
+boundary and a bare flag still says `Loaded`, so the cache silently serves the old shape forever.
+⛔⛔ **A prior draft used `EditablePolyline.Version` as the key. That is RETRACTED (§9.7 ③c):** nothing
+increments it, the edit tool resets it, and — points being relative — it could not see a MOVE at all.
+⇒ ⭐ the key is **`hash(SimTransform ⊕ Points)`**, computed by the loader and the gizmo and maintained by
+nobody, so no writer has to cooperate.
+
+### 5.4 Why the swap seam is a precondition (R2)
+See §4's second red box. ⚠ **Re-anchored `2026-09-17`:** the blob is now published by the **TERRAIN loader** (§2.1d), not by any
+entity compile — but the swap problem is unchanged, because the consumer is what is frozen.
+⛔⛔ **SUPERSEDED `2026-09-17` by the `U1` measurement (batch ①, `BP-519`). The preferred fix below was
+NOT IMPLEMENTABLE, and the escape clause is what happened.**
+
+> ⛔ ~~**Preferred fix — reuse, not a new abstraction:** make the `ZoneEnvironmentData` **singleton the
+> single source** and have the navigation systems re-read it per tick exactly as `CarKinematicsSystem`
+> already does, rather than introducing a holder/provider object. One source, no new seam, and it matches
+> the "one source, read it every time" pattern (`R-126`).~~
+> ⚠ ~~**What would flip it:** if a navigation module runs on a background thread where singleton access is
+> constrained by `DataPolicy`, a holder becomes necessary. **Check that before building.**~~
+
+📐 **`U1`, measured — the flip condition is MET, and for a sharper reason than `DataPolicy`:**
+
+| # | fact | site |
+|---|---|---|
+| ① | `NavigationSolverModule.Policy => ExecutionPolicy.SlowBackground(10)` ⇒ **background thread** | `NavigationSolverModule.cs:26` |
+| ② | `SlowBackground` ⇒ `DataStrategy.SoD`; `Validate()` **forbids** `Direct` off the main thread *("background threads need snapshot")* | `ExecutionPolicy.cs:81-84`, `:148-157` |
+| ③ | 🔴 **`ISimulationView` exposes NO singleton API at all** — 9 members: component RO, `HasComponent`, queries, events, command buffer | `Fdp.Core/Abstractions/ISimulationView.cs` |
+| ④ | 🔴 `CarKinematicsSystem` — **the very pattern this section said to copy** — reaches singletons by **downcasting the view to `EntityRepository` and THROWING when it is not one** | `CarKinematicsSystem.cs:48-51` |
+| ⑤ | it gets away with ④ only because `GroundKinematicsModule` is `Synchronous` (`Direct` ⇒ the view IS the live repo) | ② |
+
+⇒ ⭐⭐⭐ **copying `CarKinematicsSystem` into the solver would make it THROW on its own production path**,
+not return a stale blob. The obstacle is not that `DataPolicy` filters the singleton out of the snapshot —
+it is that **there is no way to ask a view for a singleton at all.**
+
+⭐ **What was built instead — `RoadNetworkHolder`** (`FDP/.../CarKinem/Road/`): an immutable box behind a
+single volatile reference write, so a reader sees the whole previous graph or the whole new one and never
+a torn multi-field native struct. `PathfindingSolverSystem.Execute` resolves per tick in this order:
+**live singleton when the view IS the repo → holder → constructor blob.** ⇒ on every path that HAS a
+single source the singleton is still it, and the holder carries only the paths where it is unreachable.
+
+⚠ **Two things this did NOT solve, both deliberately deferred to batch ②:**
+① **lifetime** — publishing a new graph does not make the old blob safe to dispose while a 10 Hz
+background solver may be mid-traversal in its native arrays; the commit path must keep the previous blob
+alive. ② a host that composes `NavigationSolverModule` **without** a holder still will not observe a
+reload — the loader must pass one.
+
+⭐ **And `NavigationSolverModule` has ZERO production constructions today** (only `PathfindingSolverSystemTests`
+and a graph-only hit in `GroundKinematicsModuleTests`), so the background path is not yet live — which is
+precisely why this was worth fixing before role-based composition switches it on, as that module's own
+constructor remarks warn.
+
+### 5.5 ⛔ RETRACTED — *"why roads are real and tiles are faked"*
+⛔⛔ **This section argued for a road compile that §2.1a retracts** — there are no road entities to
+compile; the road network is an external asset and routes are `RoutePlan`. ⭐ **What survives is the
+second half:** terrain tiles
+(navmesh, heightmap, streaming, geographic cache keys) are none of those things, and the user ruled
+them postponed. ⇒ the slice is honest about which half is which rather than faking both.
+
+### 5.6 Why a fake must announce itself
+`R-133`: *a capability reported present that silently no-ops is worse than an absent one.* The tile
+loader therefore logs its stub-ness on every round **and** the capability manifest must not advertise
+a real terrain capability. This is a build constraint, not a caveat.
+
+---
+
+## 6. SLICE 1 — what is real, what is faked
+
+| piece | slice 1 |
+|---|---|
+| `Area`+`AreaType`, `RoadFeature`, `TerrainAssetLoadState` | ⭐ **REAL** |
+| authoring zones + obstacles as entities; saved by the ordinary gate | ⭐ **REAL** |
+| ⛔ ~~road compile from entities~~ | **RETRACTED (§2.1a)** — the road network is an external asset; routes are `RoutePlan` and already compile to trajectories |
+| R2 swap seam (navigation reads the singleton per tick) | ⭐ **REAL — precondition** |
+| idempotency + version staleness | ⭐ **REAL** |
+| both invocation paths, the 2PC round, shared registration, panel controls | ⭐ **REAL** |
+| **terrain tile generation / streaming / geographic cache** | ⛔ **FAKED** — stub that logs, marks loaded |
+| **movable** obstacles in the load model | ⛔ **EXCLUDED** (R1) |
+| **static/bakeable** obstacles (buildings) | ⛔ **FAKED in slice 1** — the op pair is designed for them (§2.1c), none are built yet |
+| road-net + built-in buildings load | ⭐ **REAL, via the TERRAIN loader** (§2.1d) — takes over from the retiring `LoadZones` |
+
+**Enum values — ✅ RULED by the user `2026-09-17`, and `R-42` makes them PERMANENT:**
+`TkbType.TerrainZone = 8804` · `NodeOpType.PrepareTerrainAsset = 29` · `NodeOpType.CommitTerrainAsset = 30` ·
+`ClusterOpType.BuildTerrainAsset = 18`.
+🔴🔴 **CORRECTION `2026-09-17` — the earlier ruling of `17` was WRONG and is SUPERSEDED.** 📐 Measured by
+batch ②, verified at the coordinator: **`ClusterOpType.SaveScenario = 17` already exists, live and routed**
+*(`OrchestrationMessages.cs:42` — `CE-277(c0)`, renamed by `CE-278` with the wire value unchanged)*.
+⚠ The original note read *"next free; 2 is a documented reserved gap"* — ⛔ **it read the gap at 2 and
+missed that the enum already ran to 17.** ⇒ **18 is the next free value** *(confirmed: no `ClusterOpType`
+member holds 18)*. ⭐⭐ **`R-42` makes this permanent, so the collision would have been unrecoverable** —
+the batch STOPPED the item and reported rather than guessing, which is exactly `R-106`.
+⛔ **Do not reuse the undocumented `NodeOpType` gaps at 6/17/18/19** — 📐 measured: they are absent from the
+**authoritative NED enum** (`OrchestrationMessages.cs`) too, so they are historical holes rather than
+reservations, and leaving them empty means no future reader has to wonder what they meant.
+⚠ **Both enums are wire contracts in two places** — the FDP copy is a mirror whose *"integer values must
+remain identical to the NED counterpart (verified by unit tests)"*, so an allocation lands in **both**.
+
+**Retirement, with its test surface** (`HN-037`: measure tests, not just production): `ZoneDefinitionDto`,
+the embedded `Zones` section, `ZoneMembership`, `ZoneManagerService`'s DTO half, the `ScenarioMergeCore`
+I4 guard, `ZoneEditorPanel` → repointed at entity authoring.
+
+⛔⛔ **SUPERSEDED `2026-09-17` — the test-surface list below was WRONG in BOTH count and composition.**
+⭐ **§10.6 carries the as-built; read that, not this.** 📐 The build dispositioned **14 claims across SIX
+suites and TWO doubles**, not five suites: this list named `ZoneEditorPanelTests` *(not in the real
+surface)* and missed `HrotScenarioDtoTests`, `SystemTests`, `EditorAuthoringIntegrationTests`,
+`ScenarioMergeCoreTests`, `NullZoneService` and — found only by doing the work —
+`UrbanCombatFileLifecycleTests`. ⚠⚠ **This is `HN-037` landing on the coordinator rather than the
+implementer:** the rule says *measure the test surface before calling a deletion simple*, and this list
+was written from a partial measurement while the rule was being quoted. ⭐ The estimate held anyway
+because the batch treated `F3` as re-homing rather than deletion.
+
+> ⛔ ~~and the five suites that assert the retiring behaviour — `ZoneManagerServiceTests`,
+> `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`, `ScenarioFileServiceZoneTests`, plus the two
+> `SpyZoneManagerService` doubles.~~
+
+## 7. POSTPONED — deliberately not designed here
+
+What a tile **is**, how it streams, its geographic cache key and eviction, and what a commit swap
+replaces once tiles are real. 🔒 Ruled postponed by the user (`AQ-71` §5). ⭐ The fake is shaped so
+that filling it in touches `ZoneTileLoader` and nothing else.
+## 8. ⛔ OPEN — **HOST HETEROGENEITY: there is more than one load model**
+
+> 🔒 **User, `2026-09-17`:** *"What all nodes implement navigation and perception and whatever affected
+> by reloading the tiled data. Some hosts might not support dynamic loading of these stuff — like maybe
+> stride simhost — they should say what they support in their capability flags… their zone load
+> implementation will be different (all preloaded with terrain load and unchangeable and not tile
+> streamed, tied to the terrain id...), what the ui should look like and do etc."*
+
+### 8.1 Measured `2026-09-17`
+
+| # | fact | site |
+|---|---|---|
+| ⑪ | **4 production navmesh providers**: `DotRecastNavmeshProvider` (Stride), `EngineBackedNavmeshProvider`, `FakeNavmeshProvider`, `StubNavmeshProvider` (EQS) | `search_graph(".*NavmeshProvider.*", Class)` = 12 incl. tests |
+| ⑫ | ⭐ **Stride's navmesh is baked from STRIDE SCENE GEOMETRY at scene load**, at two call sites (node shell `:1116`, editor `:1271`) | `StrideHrotGame.cs:1834` `BakeNavmesh` |
+| ⑬ | ⇒ **its source is the scene, not our entities or tiles** — tile streaming has nothing to give it. This is the user's *"one navmesh, preloaded, tied to the terrain id"* host, measured | ⑫ |
+| ⑭ | 🔴 **NO host consumes terrain tiles today.** The only terrain-derived data with live consumers is the **road blob** | ⑪+⑬ |
+| ⑮ | ✅ **CORRECTION TO §4/R2 — the navmesh IS swappable.** It is a *singleton-managed* provider (`SetSingletonManaged<INavmeshProvider>`) read per use (`VehicleNavigationIntentSystem.cs:190-191`) ⇒ **R2's frozen-ctor problem is ROAD-SPECIFIC, not general** | `StrideHrotGame.cs:1870` |
+| ⑯ | perception is **already role-gated by composition** — `.Capability(NodeRole.Perception, new SimHostCapabilities.PerceptionSpatial(...))` | `SimHostNodeBootstrapper.cs:307` |
+| ⑰ | ⭐⭐ **the cross-node capability mechanism already exists** — namespaced tokens (`CapabilityTokens.ReliableInit`, `fdp.role.*`) on the durable `NodeCapabilities` descriptor, ingested by `ClusterMaster` into `NodeHealthProfile`, with the role mask **DERIVED** from the token subset | `AQ-70 §Q70-B/C`; `IgNodeBootstrapper.cs:340`, `ClusterMaster.cs:491` |
+
+### 8.2 The questions this opens
+
+| # | question | ⭐ lean |
+|---|---|---|
+### 8.3 ✅ RULED `2026-09-17` — **no capability is announced at all**
+
+> 🔒 **User:** *"no host should be fully static, in a sense that it can never load another terrain. The
+> ability to load terrain which is defined in the scenario is **mandatory**. Maybe right now some hosts
+> like stride do not support it but this is more a **bug and unimplemented feature** than something we
+> can live with… So just the dynamic zone loading/tile streaming is what is not supported there…
+> With static terrain the zone load is **always satisfied immediately**. So the user does not need to
+> know the zone load was made in static mode, it was simply satisfied immediately (OK)."*
+
+⭐⭐⭐ **Why this is stronger than a simplification:** with static terrain the zone-load POSTCONDITION —
+*"the terrain data covering this zone is resident"* — **is genuinely TRUE**, because all of it already
+is. Static is not a degraded mode, it is a **trivially complete** one. ⇒ there is nothing to advertise
+because nothing is missing.
+
+| was | now |
+|---|---|
+| **N1** role-or-capability | ⛔ **COLLAPSED** — no capability exists to classify |
+| **N2** advertise a token pair | ⛔ **COLLAPSED.** ⭐ The cleanest way to satisfy `R-133` *(never declare a capability that no-ops)* is to declare none |
+| **N3** three outcomes | ⭐ **TWO: satisfied / failed.** A host that cannot load the scenario's terrain at all is **BROKEN, not static** — it FAILS loudly |
+| **N5** show the mode | ⭐ per-node **OK / Failed** only; no mode to display |
+| **N6** capability filter to avoid stalling | ⛔ **COLLAPSED — there is no matrix.** 🔒 *"Host not taking active part should always ack to avoid blocking, why a matrix is needed?"* ⇒ **the ACK is UNCONDITIONAL**; the only input to whether WORK happens is the request's `kinds` × **the loaders this host actually composed**. ⭐ Role filtering **already happened at composition** (`SimHostNodeBootstrapper.cs:307` `.Capability(NodeRole.Perception, …)`) — re-applying it at op time would be a second mechanism for one decision (ruling 9) |
+| **N4** terrain-identity binding | ⭐⭐ **SURVIVES AND STRENGTHENS.** Since loading the scenario's terrain is MANDATORY, a host must verify it holds the scenario's `SceneId` and **fail loudly** if not — that is how Stride's present gap should surface instead of silently passing |
+
+⭐ **Free consequence — `IgZoneDummyHandler` RETIRES.** It exists only to dummy-ACK `PrepareZone`/
+`CommitZone` so IG does not stall the round; the shared handler now does that by construction on every
+host, with no bespoke class.
+⭐ **Kept, but DEMOTED to a node DIAGNOSTIC (not a wire capability):** whether a host built tiles or had
+nothing to do. Not for the operator, not in the protocol — for the day tiles are real and someone asks
+*"why did node X do nothing?"*
+
+### 8.4 ⛔ STILL OPEN — the zone-loading UI
+
+See §9. That is the only thing now standing between this document and `READY-TO-BUILD`.
+
+## 9. ⛔ OPEN — the zone-loading UI *(leans for approval, `2026-09-17`)*
+
+### 9.1 ✅ **THE LOCAL MARKER IS SUFFICIENT — and the component is NEVER replicated** *(user, `2026-09-17`)*
+
+> 🔒 **User:** *"isnt showing the local one a simple and sufficient option? Would we need to publish
+> share the loading state component, isnt it always local? Can these disagree across nodes?"*
+
+⛔⛔ **A PRIOR DRAFT OF THIS SECTION WAS WRONG AND IS RETRACTED.** It argued that an operator station
+must render a cluster rollup because *"ExCon/IG never build tiles, so their local marker would read
+'not loaded' forever and the map would lie."* 🔴 **That premise contradicts §8.3.** Under
+satisfied-immediately, a host with nothing to do **STAMPS THE MARKER `Loaded`** — it does not leave it
+unset. ⇒ the local marker is **correct on every node, including operator stations**, and rendering it
+is simple, honest and sufficient.
+
+| the question | ⭐ the answer |
+|---|---|
+| publish/share the component? | ⛔ **No.** It is **node state keyed by entity**, not entity state — *"has THIS node got the data resident"*. Replicating it would assert one value for a fact that is legitimately per-node |
+| is it always local? | ⭐ **Yes, by nature.** And `R-136` is satisfied without argument: it is **not durable state** *(re-derivable by re-running the load, and deliberately `NoScenario \| NoReplay`)*, so it needs neither a TKB home nor a published descriptor |
+| can nodes disagree? | ⭐ **Yes, and they SHOULD.** Transiently while one is still building; persistently when one **FAILED**. ⛔ Disagreement is not corruption here — it is the truth |
+| then how is another node's FAILURE seen? | ⭐ through the **op result** (§8.3's satisfied/failed), aggregated by the tracker and surfaced in the panel — ⛔ **not** by replicating a component |
+
+⇒ ⭐⭐ **The division of labour:** the **map** renders the local marker *(what this node has)*; the
+**panel** renders op outcomes *(what every node reported)*. Two surfaces, two honest questions, no
+replication and no rollup plumbing.
+
+### 9.2 Per question
+
+| # | question | ⭐ lean |
+|---|---|---|
+| **U1** | seeing a zone is stale after an edit | ✅ **RESOLVED `2026-09-17` — fully supported, and the question was mis-framed.** 🔒 *"the shape of an entity is rendered by a gizmo and gizmo can use whatever data source it needs (including loading status ECS component if present)"* — 📐 correct: a `[GizmoProjector]` receives `(ISimulationView view, Entity entity, IDebugDrawBuilder draw)` and already reads several components, so it simply reads `TerrainAssetLoadState` too. ⭐ And style is **per-call**: `DrawLine(a, b, color, thickness, sizeMode, …, LineStyle style)` with `LineStyle { Solid, Dashed, Dotted }` ⇒ **`Solid` = loaded, `Dashed` = stale, colour free for failed** — no renderer capability needed, no manual segment-chopping. ⛔ There was never an "overlay renderer" to ask |
+| **U2** | invoking a load | ⭐ **`SharedContextMenuPopulator.PopulateEntityMenu`** — the exact existing seam: it already adds *"Edit Shape"* for `EditablePolyline` and *"Edit Route"* for `RoutePlan`. Add *"Load zone"* when the entity carries `Area{Type=Zone}`. Shared ⇒ every host using the shared menu gets it |
+| **U3** | forcing all changed zones | 🔒 **RULED (user, `2026-09-17`): the zone editor becomes a VIEW on the existing DETAILS SHELL**, offered when empty map space is selected. ⭐⭐ **PURE REUSE — see §9.5.** ⛔⛔ **A PRIOR DRAFT OF THIS ROW CLAIMED THIS WAS "NEW INFRASTRUCTURE… the largest single item in this design." THAT WAS FALSE** — it came from a grep scoped to one folder and two name patterns. `DetailsWindow` already is *"THE DETAILS SHELL: one window, N views, chosen by a predicate"*, `WindowScope.PerspectiveBound`, with a view registry and contributed `*DetailsView` classes |
+| **U4** | multi-zone at once | ⭐⭐ **the user's lean, and it is already supported: ONE OP PER ZONE.** 📐 Measured: `FanOutSerializeLocal` registers `_pendingTransactions[requestId]` (a **keyed dictionary**, `Expected = nodeIds.Count`) and never touches `_activeTransaction` ⇒ **concurrent rounds already work on this path in production.** ⛔ Do NOT widen the op to carry N zones |
+
+### 9.3 Why one-op-per-zone beats a multi-zone payload
+
+⭐ **Independent failure** — a single bad zone fails its own round, not the batch. ⭐ **Independent
+progress** — U3's per-row state falls out of the tracker instead of needing a sub-protocol inside one
+transaction. ⭐ **Natural retry granularity.** ⭐ And the node side stays free to **serialise the builds
+at will** *(tile building is heavy I/O+CPU; N parallel builds would thrash)* — which is a LOCAL policy,
+invisible to the protocol.
+⚠ **The one question it raises:** *"load all stale"* on a 50-zone scenario opens 50 trackers at once.
+Cheap (dictionary entries) but unbounded — ⭐ lean: cap in-flight at the **requester**, not in the
+master, and leave the protocol alone.
+
+### 9.4 🔴 FINDING — **`HasInFlightTransaction` is very nearly always FALSE** *(measured `2026-09-17`)*
+
+> 🔒 **User:** *"The `_activeTransaction` concept feels weird, shouldnt it be 'any transaction is in
+> progress?'"* — ⭐ **it should, and today it is not.**
+
+📐 `_activeTransaction` is assigned at `ClusterMaster.cs:791` and **cleared at `:869 in the same
+method**, commented *"ClusterMaster uses sync fan-out; clear immediately"*. `ClusterScenarioPanel.cs:288`
+already concedes it: *"HasInFlightTransaction is reset to false immediately after the fan-out."*
+⇒ ⛔ **the public `HasInFlightTransaction` — whose documented job is to disable command buttons while a
+2PC round is pending — answers `false` while rounds are genuinely pending.** The real in-flight set is
+**`_pendingTransactions`**, which stays populated until the ACKs complete.
+
+| ⭐ consequence for this design | |
+|---|---|
+| ⛔ **do NOT source any zone-loading progress indicator from `HasInFlightTransaction`** | it would read "idle" throughout every load |
+| ⭐ the honest signal is **`_pendingTransactions`** *(keyed, one tracker per zone under U4)* — which is also exactly what U3's per-row progress wants | |
+| ⚠ **the pre-existing defect is OUT OF SCOPE here but should be filed** | the buttons this was meant to gate are not being gated; that is a cluster-panel bug, not a terrain one |
+
+⚠ And `_activeTransaction` remains a **different, single-slot path** used by the cluster **state
+machine**. ⛔ Zone ops must not be routed through it.
+
+### 9.5 ⭐⭐ THE ZONES VIEW — a contribution to the EXISTING details shell
+
+📐 **Measured `2026-09-17` — the shell already exists and is actively used:**
+`Hrot.Editor.AiShared/Windows/DetailsWindow.cs` — *"`L2.1` — THE DETAILS SHELL: one window, N views,
+chosen by a predicate"*, `WindowScope.PerspectiveBound` with an `owningPerspective`, a
+`DetailsViewRegistry`, an `IDetailsContextSource` and `IDetailsViewInstance` contributions
+*(`BlackboardDetailsView`, `HsmEventsDetailsView`, `BlueprintNodeDetailsView`, …)*. Its own header notes
+it **was** `AiDetailsWindow` and that the old name is false: *"this is the shell for EVERY perspective."*
+📄 Owning design: **[`docs/blueprints/DESIGN_Details_Panel_View_Switching.md`](blueprints/DESIGN_Details_Panel_View_Switching.md)**.
+
+⇒ ⭐ **The zones view is a registered `DetailsView`, not a panel.** The only genuinely new seam is a
+**details CONTEXT for "the map background is selected"** — `IDetailsContextSource` must be able to
+report it, so the registry's predicate can offer the zones view. That is a small addition to an
+existing interface, not new infrastructure.
+
+| what the view SHOWS — one row per `Area{Type=Zone}` entity | source |
+|---|---|
+| zone name | the Area entity |
+| **state**: `Loaded` · `Loading` · `Failed` · **`Stale`** | ⭐ the **LOCAL** `TerrainAssetLoadState` (§9.1) — `Stale` is `marker.SourceVersion != EditablePolyline.Version` (R4) |
+| last cluster outcome, incl. **which node failed** | the op result (§8.3), ⛔ never a replicated component |
+| header: counts (`n zones · m stale · k failed`) | derived |
+
+| what it SUPPORTS | |
+|---|---|
+| per-row **Load** | publishes the cluster op for that ONE zone (§9.2 U4: one op per zone) |
+| per-row **select / zoom-to** | selects the zone entity; the map focuses it |
+| header **Load all stale** | fans out one op per stale zone, capped at the requester |
+| ⛔ **NOT** road-path or obstacle-radius editing | that was the retiring `ZoneEditorPanel`'s job; those are now ordinary entity authoring on the map |
+
+### 9.6 🔒 RULED — **the zone-load action is ALWAYS cluster-wide**
+
+> 🔒 **User, `2026-09-17`:** *"the zone load menu should always trigger cluster wide load."*
+
+⇒ the context-menu item (U2), the per-row action and *"Load all stale"* **all publish the cluster op**;
+⛔ **there is no local-only zone load, on any host.** ⭐ On the editor this still goes through the
+orchestrator, because the editor **is** a single-node cluster — exactly the principle `CE-275` already
+established for saving *("no direct write in the editor… same code everywhere")*. ⭐ One path, so the
+editor cannot drift from the cluster.
+
+### 9.7 ⭐⭐⭐ INVALIDATION — the model, and why the key is a HASH not a counter
+
+> 🔒 **User, `2026-09-17`:** *"1. zone loader loads zone related data (tiles etc.) on every capable node
+> and updates the loading state marker component with the hash of what was loaded (center & vertex
+> coords). 2. gizmo calculates checksum from real entity data on the fly and compares with marker
+> component and shows differences. 3. invalidation affects just visualization of the zone status… and
+> makes the 'Load zone' context menu present/enabled."*
+
+✅ **The mechanism is right and is adopted.** Three corrections:
+
+| # | as stated | ⭐ corrected |
+|---|---|---|
+| **①** | *"on every capable node"* | ⭐ **on EVERY node.** §8.3 removed the capability: a node with nothing to do is **satisfied immediately and still STAMPS the marker.** ⛔ If a non-building node left the marker unset, its map would read *"not loaded"* forever — the exact error §9.1 retracts |
+| **②** | gizmo hashes live entity data and compares | ✅ correct, and it reads the **LOCAL** marker (§9.1). ⚠ Hash per frame per zone is cheap but needless — cache per `(entity, frame)` if it ever shows up |
+| **③** | *"affects just visualization… and makes 'Load zone' present/enabled"* | ⚠ **two corrections — see below** |
+
+#### ③a — the consequence is DEGRADED FIDELITY, not merely a badge
+A stale zone means the resident tiles describe the **old** footprint. Nothing is corrupt — the base
+terrain is always present, and zones only add resolution — but an area the zone newly covers is
+running at base fidelity. ⇒ ⭐ **stale is non-blocking and must never gate an exercise start or a save**,
+and equally ⛔ **must not be documented as purely cosmetic**, or someone will later conclude it can be
+ignored. ⭐ It also drives a real ACTION, not just a badge: the panel's *"Load all stale"* selects on it.
+
+#### ③b — ⛔ **do NOT disable "Load zone" when the local state is fresh**
+📌 The reason comes straight from §9.1: nodes can legitimately disagree, and **another node may have
+FAILED while the local marker reads `Loaded`.** ⇒ gating the action on local freshness would remove the
+only recovery path for a remote failure the local host cannot see. ⭐ The load is **idempotent**, so
+offering it always costs nothing. ⇒ **always present, always enabled; the badge says whether it is
+NEEDED, never whether it is ALLOWED.**
+
+#### ③c — 🔴 why the key is a HASH, and R4's counter is RETRACTED
+⛔⛔ **`R4`'s original key — `EditablePolyline.Version` — is MEASURED BROKEN and is replaced.**
+
+| 📐 measured `2026-09-17` | |
+|---|---|
+| **nothing increments it** | its header claims *"incremented by the IG edit tool each time a committed edit is applied, so subscribers can detect stale cached copies"* — ⛔ **no incrementer exists anywhere** *(the working `Version` increments all belong to `RoutePlan`)* |
+| **the edit tool RESETS it** | `VertexEditGizmo.cs:227` commits a drag as `new EditablePolyline { Points = relPoints }` — `Version` is never carried over, so a committed edit drops it to default |
+| 🔴 **and it could not see a MOVE anyway** | `VertexEditGizmo.cs:52` — *"Working copy in ABSOLUTE world space (= **relative** Points + origin)"*, converted back at `:223-227` via `p - _originOffset` ⇒ **Points are RELATIVE to `SimTransform`.** Moving a zone changes the transform and leaves `Points` byte-identical |
+
+⇒ ⭐⭐⭐ **the key is `hash(SimTransform ⊕ Points)` — the resolved world footprint — computed BY THE
+LOADER and BY THE GIZMO, never maintained by a writer.** A counter requires every mutation path to
+cooperate and **has already failed that test in production**; a hash requires cooperation from nobody,
+catches move *and* reshape in one check, and is computed by the consumer that actually cares.
+📌 Filed separately as live defects: the never-incremented `Version`, and the component header claiming
+*"world-space XY vertices"* while `MapOverlayGizmo.cs:33` adds an origin and `TacticalAreaGizmo.cs:40`
+does not.
+
+### 9.8 ⭐⭐ TWO LIFETIMES — zone invalidation is NOT tile eviction
+
+| | keyed by | invalidated when |
+|---|---|---|
+| **zone → loaded** | the zone ENTITY | its footprint hash differs from the marker ⇒ `Stale` |
+| **tile residency** | GEOGRAPHY | a tile is live while **ANY** loaded zone covers it |
+
+⛔⛔ **Invalidating a zone must NEVER free tiles.** 🔒 Tiles are shared by design *("these cached tiles
+can be reused by different zones")*, so eviction is a **reachability** question: after a reload, tiles
+covered by no loaded zone become evictable. ⚠ **If a zone owned its tiles, shrinking zone A would evict
+tiles zone B is still using.**
+⭐⭐ **This rule is stated NOW even though tiles are FAKED (§6/§7)** — otherwise the stub bakes in
+zone-owns-its-tiles and the real implementation inherits it.
+
+---
+
+## 10. ⭐⭐⭐ AS-BUILT — **what the build measured, and where this design was wrong** *(batch terrain-2b, `2026-09-17`)*
+
+> Obligation ⑤: a deviation goes back into the DESIGN, not only into the batch report. The report is
+> ephemeral; this section is the durable record, and the prior state is marked SUPERSEDED rather than
+> silently overwritten.
+
+### 10.1 ⛔ SUPERSEDED — §3.2's sequence: `EnsureAllLoaded` cannot run at commit
+
+📐 **Measured.** §3.2 draws `deserialize entities` → `EnsureAllLoaded(view)` inside the scenario load
+handler, as if the entities existed when the handler commits. **They do not.** `HrotScenarioLoadHandler.Commit`
+only ENQUEUES `EntityCreationRequest`s into the genesis pipeline (`_source.Enqueue`), which
+`CreateEntityRequestSystem` drains on LATER ticks. A call at commit sweeps an EMPTY world and marks
+nothing — silently, with a `0` return that is indistinguishable from *"nothing was stale"*.
+
+⭐ **AS-BUILT:** the call sits at the END of `DrainDeferredAcks()`, the first point at which genesis is
+provably complete — every one of its conditions (`_source.IsEmpty`, no `EntityLifecycle.Constructing`,
+and none of the six `Initial*Intent` managed components) has passed. ⚠ The design's *claim* is unchanged
+and correct — the local path calls the same service with no NodeOp; only the moment moved.
+
+### 10.2 ⛔ SUPERSEDED — §9.5's "zone name": there is no name component
+
+📐 **Measured.** §9.5's zones-view table sources a *"zone name"* from *"the Area entity"*. `TkbIdentity`
+carries **`TkbType` and nothing else**, and no other component on a zone entity holds a name.
+
+⭐ **AS-BUILT:** a zone's cluster-wide id is its **`NetworkIdentity.Value`, rendered invariantly as a
+string** (`TerrainLoadService.ZoneIdOf`). It is the only cluster-wide stable identifier a zone entity
+carries, it is already replicated, and `CE-277(e)` keeps it across the scenario round-trip — so every node
+resolves one id to the same zone. ⛔ A human-readable name is still what the UI (§9, OPEN) wants; inventing
+one here would have been a second identity for one thing. The wire carries a **string**, so adding a name
+component later does not change the protocol.
+
+### 10.3 ⭐ REFINED — §3.1's sequence, against `ClusterSlave`'s real dispatch
+
+📐 **Measured.** `ClusterSlave` calls `PrepareAsync` and then `Commit` **for the same intent**, and it
+passes **`repo: null`** at both dispatch sites (`ClusterSlave.cs:271`, `:432`). Two consequences the
+sequence diagram could not show:
+
+| what the build had to do | why |
+|---|---|
+| ⭐ the handler holds its own `EntityRepository` and uses `repo ?? _world` | ⛔ a handler that publishes only through the `repo` parameter publishes NOTHING on every host. 🔴 This design's own C5 loader shipped with that defect and was fixed in this batch |
+| ⭐ only the **Commit** half of each op pair consumes the staging | ⛔ the slave commits the PREPARE intent too, so stamping there would record residency before the cluster barrier — a node committing while another node's prepare was still failing |
+| ⭐ the master uses **ONE transaction id for both phases** | ⛔ with two ids a node's `CommitZone` could never find what its own `PrepareZone` staged |
+
+### 10.4 🔴 FINDING — **the abort arm reached no handler at all**
+
+📐 **Measured `2026-09-17`:** `IClusterStateHandler.Abort` has **ZERO production callers** — `ClusterSlave`
+never invokes it — and **no handler in the tree claimed `NodeOpType.AbortTransaction`**. So a master's
+abort fan-out reached every node, found no handler, and **auto-ACKed `Success` while nothing rolled back.**
+⭐ `TerrainAssetHandler` now claims `AbortTransaction`, which is what makes this design's own abort arm
+(mgmt-1 §11.1) real rather than ceremonial. ⚠ **Every other handler family still has no rollback path** —
+that is a pre-existing gap this batch only narrowed for terrain.
+
+### 10.5 ⚠ CONSEQUENCE OF §8.3 N4 THE DESIGN DID NOT STATE
+
+📐 **Measured: only SimHost registers a terrain loader** (one call site, `NodeBootstrapper.cs`). §8.3 N4
+says a node must hold the scenario's terrain and **fail loudly** if not, and the build implements exactly
+that. ⇒ **once anything issues a zone op against a terrain-named scenario, IG and CGF will FAIL it** until
+they compose a loader. That is the ruling working as designed *("how Stride's present gap should surface
+instead of silently passing")*, and the blast radius today is nil because no UI issues the op yet (§8.4/§9
+are OPEN). ⛔ It is recorded here because it is a deliberate, user-visible break, not an accident.
+
+### 10.6 ✅ RETIREMENT — what `F1`–`F4` actually removed
+
+⭐ `ZoneDefinitionDto` · `ZoneObstacleDto` · the envelope's `Zones` section · `IZoneManagerService` +
+`ZoneManagerService` · `ZoneMembership` (component id **171 burned, not reused**) · the `ScenarioMergeCore`
+I4 one-`Zones`-source guard · `IgZoneDummyHandler` · `EditorZoneAuthoringSystem`'s DTO-mirroring and
+road-network arms.
+
+| ⭐ kept, and why it is NOT a leftover | |
+|---|---|
+| `SpawnZoneObstacleCommand` + its consumer | obstacle placement is a live authoring SURFACE whose replacement (§9) is still OPEN. Deleting the consumer would leave `EditorZoneAdapter` publishing a command nothing reads — a click that silently does nothing. **Route, do not delete** |
+| `UpdateZoneConfigCommand`, registered but UNCONSUMED | its publisher still exists; a publish to an unregistered event type is worse than a publish nobody reads. ⚠ Its behaviour is superseded by §2.1d and its old implementation was a live hazard — it wrote `ZoneEnvironmentData` DIRECTLY, bypassing `RoadNetworkHolder` |
+| `ZoneEnvironmentData` itself | unchanged; it is now published by the TERRAIN loader through the holder (§2.1d) |
+
+⭐ **`CE-277(a)` / `OQ1` closed as WILL-NOT-BUILD**, for two independent and sufficient reasons: the brain
+has no zone consumer, and the class it would have instantiated no longer exists.
+
+### 10.7 ✅ `E5` / `U6` AS-BUILT — **ONE area-authoring mechanism, and the hard-coded `TkbType` it hid** *(batch terrain-3, `2026-09-18`)*
+
+> 🔒 **The ruling this closes, verbatim:** *"area authoring should be part of unified **Map2d role**
+> features, as well as authoring the tactical drawings, **nothing of it should be IG host only**."*
+
+⛔⛔ **The design said "move it into the Map2D role feature set". 📐 Measured, that phrasing does not
+survive contact with the code, and the correction matters:**
+
+| what the plan assumed | 📐 what is measured | consequence |
+|---|---|---|
+| the Map2D **role** is where authoring features live | `NodeRole.Map2D` is a **component-OWNERSHIP policy** (`HrotRoleComponentSets.cs:193` — `EditablePolyline` + `RoutePlan` owned bits). ⛔ It selects no systems and registers no tools | ⇒ ⭐ **"reachable wherever the Map2D role runs" cannot be implemented as a role gate at all** |
+| *"editor included"* | 🔒 **the editor deliberately does NOT carry `NodeRole.Map2D`** — asserted as a user ruling: *"CGF ∪ SimHost, and NOT ImageGenerator (the editor's 2-D map is not the IG presentation tier)"* (`EditorCapabilitiesTests.cs:232`) | ⇒ ⛔ a role gate would have EXCLUDED the one host the ruling names |
+| the authoring path is IG-private | 📐 it exists **TWICE**: `ScenarioSpawnAdapter.ArmAreaAuthoring` (~35 lines, editor/CGF) and `IgApplication.ActivateAreaAuthoringTool` (~135 lines, IG) | ⇒ ⭐ **`U6` is a DUPLICATE-MECHANISM finding (ruling 9), not a missing-feature one** |
+
+⇒ ⭐⭐⭐ **As built, `E5` is a MOVE into a shared CLASS any presentation host composes, not a role gate:**
+**`Hrot.Presentation/ScenarioEditor/Tools/AreaAuthoringArm.cs`** owns the gizmo lifecycle, the
+minimum-point rule, the centroid anchor, the entity-relative point loop and the `SpawnEntityCommand`
+shape. Both hosts call it.
+
+```mermaid
+classDiagram
+  class AreaAuthoringArm {
+    +ActiveGizmoId : long?
+    +ActiveGizmo : PointSequenceGizmo?
+    +Arm(AreaAuthoringRequest) ToolActivationOutcome
+    +Disarm()
+    -ComputeAnchor(points, out relative) Vector3
+  }
+  class AreaAuthoringRequest {
+    +long TkbType
+    +string StyleJson
+    +Action~SpawnEntityCommand~ OnCommit
+    +Action? OnCancelled
+    +int MinPoints
+  }
+  class ScenarioSpawnAdapter {
+    EXISTS - editor/CGF
+    +ArmAreaAuthoring(long) ToolActivationOutcome
+    +ArmZoneAuthoring() ToolActivationOutcome
+  }
+  class IgApplication {
+    EXISTS - IG
+    -ActivateAreaAuthoringTool(requestId, styleJson, tkbType)
+  }
+  class MapCommandController {
+    EXISTS - IG only
+    +BeginAreaAuthoringSession()
+    +OnAreaEntityCreated()
+    +OnAreaToolCancelled()
+  }
+  class IGeographicTransform {
+    EXISTS - IG only
+  }
+  ScenarioSpawnAdapter --> AreaAuthoringArm : one, lazily
+  IgApplication --> AreaAuthoringArm : one, lazily
+  AreaAuthoringArm ..> AreaAuthoringRequest : per Arm call
+  AreaAuthoringArm --> IGeographicTransform : OPTIONAL - null on the editor
+  IgApplication --> MapCommandController : OnCommit / OnCancelled route here
+  note for AreaAuthoringArm "THE mechanism. Geometry, gizmo, command shape.\nNo host knowledge."
+  note for IGeographicTransform "null reduces the geodetic mean to the\neditor's exact prior canvas centroid."
+  note for MapCommandController "IG's request/ACK session. NOT in the arm:\nthe editor has no DDS session."
+```
+
+*What the picture shows that the prose hid:* **the arm has NO host knowledge** — everything that differs
+between the editor and IG enters as a constructor argument (`IGeographicTransform`) or a request field
+(`OnCommit`/`OnCancelled`). ⭐ That is what makes it one implementation rather than a base class with two
+overrides, and it is why the keep-last context de-duplication, the `_networkEnabled` gate and the
+`BeginAreaAuthoringSession` call **stay at IG's call site**: they decide *whether to arm*, not *how*.
+
+#### 🔴 THE DEFECT THE MOVE EXPOSED — **a zone request silently authored a tactical area**
+
+📐 **Measured.** `ParseCommandAndActivateAreaTool` read the incoming `tkbType` **only** to compare it
+against `TacGraphic_Route`, and `ActivateAreaAuthoringTool` then hard-coded
+`TkbEntityTypes.TacGraphic_Area`. ⇒ ⛔ **a `CMD_START_AUTHORING` asking for `TerrainZone` (`B1`) produced
+an `8803` tactical area** — a shape appeared, so nothing looked broken, and **none of stage `E`'s zone
+surfaces would ever have matched it**: `E1`'s state-stroke gizmo filters on the zone type, `E2`'s
+"Load zone" menu item keys on it, `E3`'s zones view enumerates it.
+
+⭐ **Fixed by making the type a PARAMETER of the one mechanism** (§2.1: `TkbType` is THE discriminator, so
+one authoring path serves every drawn kind), and the entry points now exist end to end:
+
+| surface | as built |
+|---|---|
+| tool id | `ScenarioToolIds.PlaceZone` = `scenario.place.zone` — its OWN modal, so cancelling "draw area" does not kill "draw zone" |
+| seam | `ISpawnController.StartZoneAuthoringMode(styleJson)` — ⛔ **declared with NO default body** (`R-133`: a defaulted no-op would let every host ship the surface and draw nothing) |
+| editor / CGF | `ScenarioSpawnAdapter.ArmZoneAuthoring()` → the arm with `TerrainZone` |
+| ExCon → IG | `ExConLogic.StartZoneAuthoringMode` sends `CMD_START_AUTHORING` carrying `tkbType = 8804`; IG passes it through to the arm |
+| operator | `SpawnerPanel`'s **DRAW ZONE** button, beside DRAW AREA / DRAW ROUTE — the panel is shared by the editor and ExCon |
+
+⚠ **The absent-`tkbType` default is load-bearing and is railed:** `ExConLogic.StartAreaAuthoringMode`
+sends **no** `tkbType` at all, so *"absent means `TacGraphic_Area`"* is the live ExCon → IG contract.
+
+#### ⭐ Where `E5` was already DONE, and nobody had noticed
+
+📐 The **EDIT** half was unified a programme earlier: `UXI-07` step `3b` deleted
+`ActivateAreaEditingTool`'s verbatim copies of the `VertexEditGizmo`/`RouteWaypointGizmo` arms and routed
+it through `ToolController.Activate(ScenarioToolIds.Edit/Route)`. ⇒ ⭐⭐ **`E5`'s success condition was
+half-satisfied before this batch, and the reason the CREATE half was left behind is precise:
+`PlaceArea`/`PlaceRoute` are registered by `ScenarioSpawnAdapter`'s CONSTRUCTOR** — measured as the only
+registrations of either id — **so a host that does not compose that adapter had nowhere to route the arm.**
+IG references `Hrot.Presentation` and composes no `ScenarioSpawnAdapter`; it grew its own copy instead.
+⛔ **That is the seam law in its usual form: the shared thing existed and was unreachable.**
+
+#### ⚠ What `E5` did NOT do
+
+⛔ **The "Map2D role feature set" was not created**, because (per the table above) the role is an
+ownership policy and the editor is deliberately outside it. ⭐ A host gets area/zone authoring by
+composing `ScenarioSpawnAdapter` **or** by calling `AreaAuthoringArm` directly, exactly as IG does.
+⚠ **`ScenarioSpawnAdapter` is still the only registrar of the three `Place*` tool ids** — folding them
+into `MapInteractionPack` would make them role-composable, and that is a separate seam left OPEN.
+⛔ **Route authoring was NOT moved.** `ArmRouteAuthoring` emits a `RoutePlan` with **absolute**
+waypoints (§2.1a: *"`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them"*), so
+folding it into this arm would collapse two deliberately different geometry contracts. ⭐ `MinPoints` is a
+parameter so a future route arm can share the gizmo lifecycle if that is ever wanted.
+
+### 10.8 ✅ STAGE `H` / `U9` AS-BUILT — **seeds must live where the CLUSTER looks, and `"Empty"` is gone** *(batch terrain-3, `2026-09-18`)*
+
+⛔⛔ **`U9` asked which of two shapes to use for `H2`. 📐 Measured, BOTH are impossible, and the third
+costs nothing:**
+
+| `U9`'s option | 📐 what is measured | verdict |
+|---|---|---|
+| *"have `AvailableRecipes()` hand back seeds carrying a FULL PATH that the existing load already accepts"* | ⛔ **nothing anywhere accepts a path.** `IScenarioCreationSession.LoadScenarioByName` → `EditorApplication.cs:138` → `EditorScenarioSession.OpenForEdit` *(`:147`)* takes a NAME, stashes it and publishes a `TransitionStateIntent`; the name crosses the cluster as `ScenarioId` | 🔴 **impossible** |
+| *"widen `IScenarioCreationSession` with a root-aware load"* | ⛔ the resolution happens **per node**, against that node's own NAS scenarios root — `{NasBasePath}/scenarios/{name}/scenario.json` *(`EditorBootstrap.cs:23`; `OrchestrationConstants.GetSharedScenariosRoot()`, which CGF uses too — and a rail already asserts the hosts agree, `TheHostsAgreeOnTheScenarioRootTests`)*. ⇒ a root would have to cross the wire to every node, where `Recipes/Scenarios` — a LOCAL authoring/output path *(`AssetRoots.cs:294`: `{ConfiguredRoot ?? AppContext.BaseDirectory}/Recipes/Scenarios`)* — **does not exist at all** | 🔴 **wrong layer** — a cluster-contract change for an authoring convenience |
+| ⭐⭐⭐ **stage the seeds into a RESERVED SUBFOLDER of the scenarios root and load them by name** | ✅ `OpenForEdit`'s own contract already says *"the name may be a relative path (e.g. `Combat/Patrol`)"* ⇒ the seed loads as **`Recipes/<seed>`**. ⭐ The copy reuses **`CuratedScenarios.SeedFrom`** — the shipped overlay-by-name mechanism that already copies committed scenarios into the working root *(`EditorSubsystem.cs:2154`)*, ⛔ not a second copier | ✅ **BUILT** — **no seam changed** |
+
+⇒ ⭐⭐ **`AssetRoots`' own header already flagged why scenarios are the exception and the design did not
+follow it through:** *"Scenario has **no** Assets root — Scenarios are orchestrator/NAS-backed."* ⭐ Every
+other kind resolves a recipe as a FILE; a scenario resolves as a NAME through the cluster. ⛔ That one
+difference is the whole of `U9`.
+
+```mermaid
+graph TD
+  SRC["Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/<br/>scenario.json  (COMMITTED)"]
+  OUT["{output}/Recipes/Scenarios/basic-desert/<br/>= AssetRoots.ScenariosRecipesRoot"]
+  NAS["{NasBasePath}/scenarios/Recipes/basic-desert/<br/>= the RESERVED subfolder"]
+  PICK["picker: AvailableRecipes<br/>re-read LIVE per open"]
+  LOAD["LoadScenarioByName('Recipes/basic-desert')<br/>-> TransitionStateIntent -> EVERY node"]
+  SAVE["SaveScenarioAs('Combat/MyNew')"]
+  SRC -->|csproj Content, PreserveNewest| OUT
+  OUT -->|CuratedScenarios.SeedFrom at startup| NAS
+  OUT -->|CuratedScenarios.CuratedRelPaths| PICK
+  PICK --> LOAD
+  NAS -->|resolved per node| LOAD
+  LOAD --> SAVE
+```
+
+*What the picture shows that the prose hid:* **the seed exists in THREE places and only one of them is
+reachable by a cluster load.** ⛔ The output tree feeds the PICKER; the NAS subfolder feeds the LOAD. A
+design that names one root cannot say which job it is doing.
+
+| task | as built |
+|---|---|
+| **`H1`** | `EditorSubsystem` now uses the **2-arg** ctor over `AssetRoots.ScenariosRecipesRoot`, discovering with **`CuratedScenarios.CuratedRelPaths`** — *"every folder holding a `scenario.json`, nested, forward-slashed, sorted"* is already exactly this question *(ruling 9: no second enumerator)*. ⭐⭐ **Passed as a `Func<>`, not a list** — `H1`'s success condition demands `AvailableRecipes()` **re-read LIVE**, and 🔴 the first draft materialised the list in the constructor: right on the first open, stale forever after. A rail pins it |
+| **`H2`** | `ScenarioNewAssetService.SeedSubfolder = "Recipes"`; `FromSeed` loads `SeedNameToScenarioName(recipe.Name)`. ⭐ The staging copy is one call beside the existing curated seed |
+| **`H3`** | `IsBlankTemplate` ⇒ **always false**, `"Empty"` is gone from `AvailableRecipes()`, and `CreateNew(null, …)` **refuses**, naming the seeds that would have worked. ⚠ The refusal lives in `CreateNew`, ⛔ not in `RecipeByName.Resolve` — whose header already documents *"a kind that offers no blank template is legitimate"*, so the design's *"no change needed there"* is correct and was followed |
+| **`H4`** | `Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/scenario.json`, deployed by a csproj `Content` item mirroring the blueprint recipes, carrying **`tkbName: "HrotDefault"` and `terrainName: "basic-desert"`** |
+
+#### 🔴 THE MEASUREMENT `H4` EXPOSED — **nothing in this repository has ever named a TKB**
+
+📐 **All four committed scenarios carry `{subsystemType, schemaVersion}` and nothing else.** ⇒ ⛔ the
+`Header.TkbName` path had **never been exercised from a file**, and `B5`'s `TerrainName` beside it had no
+producer either. ⭐ `basic-desert` is the **first shipped artifact that fills either field.**
+
+⚠⚠ **And it fails loudly on a real cluster today, by design.** 📐 A named TKB resolves to
+`{node staging}/{TkbName}.zip` *(`TkbLoadClusterStateHandler.cs:78`)* and a named terrain to
+`{node staging}/Terrain/{TerrainName}.json` *(`TerrainLoadClusterStateHandler.cs:138`)*; **each throws
+`FileNotFoundException` when its artifact is absent, and nothing here stages either** — `{staging}/Terrain`
+is a directory `B6`'s loader names and no mechanism populates. ⇒ **creating from this seed throws until
+those artifacts are staged.**
+
+⭐⭐ **That is the ruled behaviour, not an accident** — §8.3 `N4`: a host missing the named terrain must
+*"fail loudly … instead of silently passing"*. ⛔ **But it means stage `H`'s rails assert the CARRYING —
+`H4`'s actual claim — and deliberately not an end-to-end load.** ⚠ Filed as a defect; the missing piece is
+an artifact-staging mechanism, which no stage of this plan owns.

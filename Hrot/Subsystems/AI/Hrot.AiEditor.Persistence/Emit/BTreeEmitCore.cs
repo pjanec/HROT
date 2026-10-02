@@ -38,6 +38,47 @@ public static class BTreeEmitCore
     // ---- Blackboard struct emit (S1-2) ----
 
     /// <summary>
+    /// The namespace the managed blackboard struct is emitted into.
+    /// </summary>
+    internal static string BlackboardStructNamespace(BehaviorTreeAssetDto dto)
+        => string.IsNullOrEmpty(dto.TargetNamespace) ? "Hrot.AI.Behaviors.Trees" : dto.TargetNamespace;
+
+    /// <summary>
+    /// The simple name of the managed blackboard struct for <paramref name="dto"/>.
+    ///
+    /// <para>
+    /// Always prefixed with the asset name to ensure uniqueness across multiple managed assets in the
+    /// same namespace — several assets share one <c>BlackboardTypeName</c> (e.g.
+    /// <c>Fdp.Toolkit.Behavior.Components.BrainBlackboard</c>), which would produce identical struct
+    /// names (CS0101) if the suffix were used alone. Pattern <c>{AssetName}_{TypeNameSuffix}</c>, e.g.
+    /// <c>T10_MultiAction_BrainBlackboard</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>CE-235</c>: extracted from <see cref="EmitBlackboardStructSource(BehaviorTreeAssetDto, IStructSizeResolver?, out IReadOnlyList{BTreeBlackboardPackHelper.PackedField})"/>
+    /// so the REGISTRAR emitter can name the same type when it sets
+    /// <c>BehaviorDefinition.JsonParamsDtoType</c>. ⛔ Two independent copies of this rule would be a
+    /// silent CS0246 waiting for the first asset with an unusual name — one producer, per <c>R-132</c>.
+    /// </para>
+    /// </summary>
+    internal static string BlackboardStructName(BehaviorTreeAssetDto dto)
+    {
+        string assetPrefix = SanitizeIdentifier(dto.Name);
+        string typeSuffix  = string.IsNullOrWhiteSpace(dto.Blackboard?.TypeName)
+            ? "Blackboard"
+            : SanitizeIdentifier(dto.Blackboard!.TypeName);
+        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
+        return assetPrefix + "_" + typeSuffix;
+    }
+
+    /// <summary>
+    /// The <c>global::</c>-qualified name of the managed blackboard struct, for emission into
+    /// generated code.
+    /// </summary>
+    internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto);
+
+    /// <summary>
     /// Emits a <c>[StructLayout(LayoutKind.Sequential)]</c> struct for a managed blackboard block.
     /// Returns the C# source string and fills <paramref name="packedFields"/> with the
     /// packing result (name → byte offset, packed order = declaration order for master vars).
@@ -65,9 +106,10 @@ public static class BTreeEmitCore
             return null;
 
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> fields;
+        int packedBytes;
         try
         {
-            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
+            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out packedBytes);
         }
         catch (NotSupportedException)
         {
@@ -77,21 +119,8 @@ public static class BTreeEmitCore
 
         packedFields = fields;
 
-        var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
-            ? "Hrot.AI.Behaviors.Trees"
-            : dto.TargetNamespace;
-
-        // Always prefix with the asset name to ensure uniqueness across multiple managed assets
-        // in the same namespace — multiple assets share the same BlackboardTypeName (e.g.
-        // "Fdp.Toolkit.Behavior.Components.BrainBlackboard") which would produce identical
-        // struct names (CS0101) if we used the TypeName alone.
-        // Pattern: {AssetName}_{TypeNameSuffix} — e.g. "T10_MultiAction_BrainBlackboard".
-        string assetPrefix   = SanitizeIdentifier(dto.Name);
-        string typeSuffix    = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
-            ? "Blackboard"
-            : SanitizeIdentifier(dto.Blackboard.TypeName);
-        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
-        string structName = assetPrefix + "_" + typeSuffix;
+        var targetNs    = BlackboardStructNamespace(dto);
+        string structName = BlackboardStructName(dto);
 
         var sb = new StringBuilder();
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -99,7 +128,38 @@ public static class BTreeEmitCore
         sb.AppendLine();
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
-        sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+        // ⭐⭐⭐ CE-418 — ONE LAYOUT AUTHORITY. The struct BECOMES the manifest.
+        //
+        // 🔴 What this fixes, measured 2026-09-28 by a runtime probe over the built
+        //    Hrot.AI.Behaviors.dll: a generated behaviour stated its params layout TWICE — this
+        //    struct (laid out by the CLR from LayoutKind.Sequential) and
+        //    ManagedBlackboardVariables[i].ByteOffset (computed by Pack). They DISAGREED on
+        //    3 of 15 behaviours and 9 of 31 fields, because Pack derives alignment from SIZE
+        //    (Math.Min(size, AlignmentCap)) while the CLR aligns by TYPE: Vector3 is 12 bytes
+        //    aligned 4, so Pack puts it on 8 and the CLR on 4.
+        //
+        // ⛔⛔ It was LIVE, not latent: StructEdit's "Active Parameters" READS AND WRITES at the
+        //    struct's offsets (BlackboardReflection → RootParamsViewProvider) and the ReplayBrowser
+        //    predicate compiler binds property paths against it, while RootParamsProjection takes
+        //    the manifest arm ⇒ two panels disagreed about one entity and an edit in one landed on
+        //    the wrong byte. Sizing was unaffected (RootParamsBytes prefers the manifest), which is
+        //    why nothing crashed — it silently showed and wrote wrong numbers.
+        //
+        // ⭐ The fix emits Pack's offsets EXPLICITLY, so there is nothing left for the CLR to
+        //    decide and NO RUNTIME BYTE MOVES — the manifest was always the authority the runtime
+        //    used. Every Pack offset is legally aligned for Explicit layout: Pack's alignment is
+        //    min(size, 8) and a type's true alignment is <= min(size, 8) for every type in
+        //    KnownSizes and every blittable struct DTO, so Pack is never LESS aligned than the CLR
+        //    requires.
+        //
+        // ⚠ The zero-field case keeps Sequential. Variables that are all Role=State pack to
+        //    nothing, and `Size = 0` on an Explicit struct is not the same statement as "this
+        //    struct is empty" — leaving it Sequential keeps today's behaviour byte-identical and
+        //    there are no offsets to be authoritative about.
+        if (fields.Count > 0)
+            sb.AppendLine($"[StructLayout(LayoutKind.Explicit, Size = {packedBytes})]");
+        else
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
         sb.AppendLine($"public struct {structName}");
         sb.AppendLine("{");
 
@@ -111,12 +171,112 @@ public static class BTreeEmitCore
             {
                 sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
             }
+            // CE-418: the offset is Pack's, not the CLR's.
+            sb.AppendLine($"{Indent}[FieldOffset({f.ByteOffset})]");
             string csTypeName = ToCsTypeName(f.TypeId);
             sb.AppendLine($"{Indent}public {csTypeName} {f.Name};");
         }
 
         sb.AppendLine("}");
+
+        EmitBlockStructs(sb, dto, structName, fields.Count > 0, packedBytes);
         return sb.ToString();
+    }
+
+    /// <summary>⭐ <c>CE-425</c> — the block's type name: <c>{Asset}_Block</c>.</summary>
+    internal static string BlockStructName(BehaviorTreeAssetDto dto) => SanitizeIdentifier(dto.Name) + "_Block";
+
+    /// <summary>The <c>global::</c>-qualified block type, for emission into generated code.</summary>
+    internal static string BlockStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlockStructName(dto);
+
+    /// <summary>
+    /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half:
+    /// <c>Role=State</c> at <c>Scope=Behavior</c>, in declaration order.
+    /// ⛔ HISTORY — <c>Scope=Entity</c> stayed on its own slot (<c>BlueprintSharedState.TryGetShared</c> computed
+    /// the ENTITY key at runtime, so it cannot move until decision <c>A</c> (<c>Q76</c> §12.15).
+    /// ⛔ <c>Scope=Node</c> is not authorable (<c>CE-435</c>) and both bridge emitters skip it.
+    /// </summary>
+    internal static List<BlackboardVariableDto> BlockStateVariables(BehaviorTreeAssetDto dto)
+    {
+        var result = new List<BlackboardVariableDto>();
+        if (dto.Blackboard?.Variables == null) return result;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Role == BlackboardVariableRole.State && v.Scope == WorkingStateScope.Behavior
+                && !string.IsNullOrEmpty(v.Type?.TypeId))
+                result.Add(v);
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-425</c> / <c>CE-437</c> — the behaviour's ONE BLOCK <i>(<c>R-151</c>, <c>Q76</c> §12.2)</i>:
+    /// <c>{Asset}_Block { In; St; }</c>, where <c>In</c> is the Inputs struct emitted above —
+    /// ⭐⭐⭐ <b>the SAME type, at offset 0</b>, so the Input region is byte-identical by
+    /// construction and every manifest offset stays valid (§12.2a). Since <c>CE-437</c> it IS the
+    /// behaviour's <c>BlackboardLayoutType</c> and the root slot is sized from it (<c>CE-429</c>).
+    ///
+    /// <para>⭐⭐ <b>The State half is <c>Sequential</c> — the CLR lays it out, and that is correct
+    /// here where it was wrong for the Inputs.</b> <c>CE-418</c> needed <c>Pack</c>'s offsets because a
+    /// MANIFEST states the Input offsets and something reads by it. Nothing states the State offsets:
+    /// they are reached only by typed field access (<c>ref block.St.name</c>). ⇒ no generate-time size
+    /// is needed, which is what lets a state type with <c>fixed</c> buffers (<c>HillAttackMutableState</c>,
+    /// unsizable by <c>StructSizeResolver</c>) have a block at all.</para>
+    ///
+    /// <para>⭐ <c>St</c> sits at the Input bytes rounded up to 8 — the largest alignment any field can
+    /// need — so it never overlaps <c>In</c> whatever the CLR rounds <c>In</c>'s size to.</para>
+    ///
+    /// <para>⚠ A half with no fields is OMITTED rather than emitted empty: an empty C# struct is one
+    /// byte, so an empty <c>St</c> would change the block's size for nothing.</para>
+    /// </summary>
+    private static void EmitBlockStructs(
+        StringBuilder sb,
+        BehaviorTreeAssetDto dto,
+        string inputsStructName,
+        bool hasInputs,
+        int inputBytes)
+    {
+        var stateVars = BlockStateVariables(dto);
+        string blockName = BlockStructName(dto);
+        string stateName = SanitizeIdentifier(dto.Name) + "_BlockState";
+        bool   hasState  = stateVars.Count > 0;
+
+        if (hasState)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref=\"{blockName}\"/>.</summary>");
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+            sb.AppendLine($"public struct {stateName}");
+            sb.AppendLine("{");
+            foreach (var v in stateVars)
+            {
+                string typeId = v.Type!.TypeId;
+                if (typeId == "System.Boolean" || typeId == "bool")
+                    sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
+                sb.AppendLine($"{Indent}public {ToCsTypeName(typeId)} {v.Name};");
+            }
+            sb.AppendLine("}");
+        }
+
+        int stateOffset = hasInputs ? (inputBytes + 7) & ~7 : 0;
+
+        sb.AppendLine();
+        sb.AppendLine("/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>");
+        sb.AppendLine(hasInputs || hasState
+            ? "[StructLayout(LayoutKind.Explicit)]"
+            : "[StructLayout(LayoutKind.Sequential)]");
+        sb.AppendLine($"public struct {blockName}");
+        sb.AppendLine("{");
+        if (hasInputs)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset(0)]");
+            sb.AppendLine($"{Indent}public {inputsStructName} In;");
+        }
+        if (hasState)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset({stateOffset})]");
+            sb.AppendLine($"{Indent}public {stateName} St;");
+        }
+        sb.AppendLine("}");
     }
 
     /// <summary>
@@ -374,7 +534,28 @@ public static class BTreeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         IReadOnlyDictionary<string, int> variableOffsets)
     {
-        var bbShort  = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        // ⭐⭐⭐ P4-③ (CE-313): the builder's TBlackboard is `byte` — the root params slot base.
+        //
+        // 📐 MEASURED, not assumed: all 26 generated trees bind EVERY node by explicit string key
+        //   (`seq.Action("…@0@1299152117", visualId: …)`) and use ZERO selector-form lambdas. The
+        //   selector form is the ONLY builder API that reads TBlackboard (it computes the @offset via
+        //   Marshal.OffsetOf and registers a curried thunk), and `Compile()` DISCARDS the typed
+        //   registry it builds ⇒ on the generated path the type argument is never read.
+        //
+        // ⛔⛔ It was `EffectiveBlackboardTypeName(dto.BlackboardTypeName)`, which resolves to
+        //   BrainBlackboard for 26 of 30 assets — while the Interpreter that RUNS the resulting blob
+        //   is Interpreter<byte, BTreeContext> (P4-②). ⇒ the two disagreed, and the generated file
+        //   misstated what the tree dispatches against. `byte` makes builder and interpreter agree.
+        //
+        // ⚠ This does NOT touch dto.BlackboardTypeName itself — that string still mangles into the
+        //   params-layout struct names and into SubtreeSyncIdentity.Derive, which MATCHES SUBTREES.
+        //   📄 §30.19: retargeting the asset field renames 11 structs across 44 files and breaks
+        //   subtree matching silently. Only the builder's generic argument moves here.
+        //
+        // ⛔ HAND-WRITTEN C# trees are untouched and still need a real struct: CgfNodes and
+        //   HideInCover use `.Action(bb => bb.MoveConfig, …)`, which is exactly the selector form.
+        //   They name their type in source, not through an asset.
+        var bbShort  = "byte";
         var ctxShort = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{Indent}public static BTreeBuilder<{bbShort}, {ctxShort}> CreateBuilder() =>");

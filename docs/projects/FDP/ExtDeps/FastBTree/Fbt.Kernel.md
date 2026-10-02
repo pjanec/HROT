@@ -248,7 +248,7 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 |---|---|---|
 | `BTreeActionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable action; consumed by `Fbt.SourceGen` |
 | `BTreeConditionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable condition; consumed by `Fbt.SourceGen` |
-| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged` and `HeavyDtoType` arguments (see Attributes section). |
+| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged`, plus a vestigial `HeavyDtoType` that no longer wires anything (see Attributes section). |
 | `BTreeDeactivatorAttribute.cs` | `[AttributeUsage(Method)]` | Pairs a static deactivator method with a `[BTreeAction]` or `[BTreeCondition]`; consumed by `Fbt.SourceGen` |
 | `FbtRegistrarAttribute.cs` | `[AttributeUsage(Class)]` | Applied by `Fbt.SourceGen` to the emitted registrar class; used by `FbtAutoDiscovery` for reflection scanning |
 | `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Three editor-only annotation attributes: `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, `[BlackboardReadWrite]`. Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
@@ -636,8 +636,12 @@ public sealed class BTreeDefinitionAttribute : Attribute
     public bool BlackboardManaged { get; set; }
 
     /// <summary>
-    /// When set, the source generator wires BehaviorIngressSystem to provision a
-    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// Vestigial. Previously signaled the source generator to provision a heavy
+    /// working-state component for this behavior; that overflow path no longer exists --
+    /// large working state is now an ordinary occurrence slot in a bigger tier of the
+    /// Blueprint tier ladder, sized automatically to the payload
+    /// (DESIGN_Occurrence_Scoped_Storage.md §30.15). Never adopted in production;
+    /// always null on every shipped asset.
     /// </summary>
     public Type? HeavyDtoType { get; set; }
 

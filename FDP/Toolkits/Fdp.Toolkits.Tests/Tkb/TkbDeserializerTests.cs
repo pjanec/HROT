@@ -240,5 +240,83 @@ namespace Fdp.Toolkit.Tkb.Tests
                 _db.Clear();
             }
         }
+        // ── CE-113: the two-producer hazard ──────────────────────────────────────
+        // VehicleParametersDto is filled by TWO independent producers: NedTkbBuilder
+        // .WithPhysics in code, and this deserializer reading a staged TKB zip.  Widening
+        // the record fixes only the first.  These rails pin what happens to JSON that
+        // predates a field, because that is how the defect would come back.
+
+        /// <summary>
+        /// AbramsJson above is a real six-field block, authored before TurnRate and
+        /// VehicleClass existed.  It must still load -- System.Text.Json skips unmapped
+        /// members and defaults missing ones -- and, critically, the absent class must
+        /// read back as null rather than as PersonalCar (which is 0).
+        /// </summary>
+        [Fact]
+        public void A_legacy_six_field_block_still_loads_and_its_absent_class_is_null()
+        {
+            _deserializer.ParseAndRegister(MakeFile("M1 Abrams", AbramsJson), _db);
+
+            var dto = _db.GetByType(100)!.GetDescriptor<VehicleParametersDto>()!;
+
+            Assert.Equal(61000f, dto.Mass);
+            Assert.Equal(2.5f, dto.MaxAccel);
+
+            // Absent, not zero-as-a-value: this is why the field is nullable.
+            Assert.Null(dto.VehicleClass);
+            Assert.Equal(0f, dto.TurnRate);
+        }
+
+        /// <summary>
+        /// The widened fields round-trip when authored.  The enum must be written as a
+        /// STRING: FdpJsonOptionsRegistry.DefaultRelaxed registers StrictStringEnumConverter,
+        /// so an integer enum value is rejected rather than silently accepted -- see the
+        /// companion test below.
+        /// </summary>
+        [Fact]
+        public void An_authored_class_and_turn_rate_round_trip_from_json()
+        {
+            const string json = """
+                {
+                  "$guid": 100,
+                  "Gen.VehicleParameters": {
+                    "Mass": 61000.0,
+                    "Length": 7.93,
+                    "Width": 3.66,
+                    "MaxSpeedFwd": 20.0,
+                    "MaxSpeedRev": 12.0,
+                    "MaxAccel": 2.5,
+                    "TurnRate": 15.0,
+                    "VehicleClass": "Tank"
+                  }
+                }
+                """;
+
+            _deserializer.ParseAndRegister(MakeFile("M1 Abrams", json), _db);
+
+            var dto = _db.GetByType(100)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal(global::CarKinem.Core.VehicleClass.Tank, dto.VehicleClass);
+            Assert.Equal(15f, dto.TurnRate);
+        }
+
+        /// <summary>
+        /// Documents the authoring requirement the platform JSON options impose: an enum
+        /// given as a number fails loudly.  A silent integer-as-enum parse is exactly the
+        /// class of bug this batch was fixing, so the strictness is wanted -- but anyone
+        /// hand-authoring a TKB zip needs to know the value is a string.
+        /// </summary>
+        [Fact]
+        public void An_enum_authored_as_an_integer_is_rejected_rather_than_guessed()
+        {
+            const string json = """
+                {
+                  "$guid": 100,
+                  "Gen.VehicleParameters": { "Length": 7.0, "VehicleClass": 3 }
+                }
+                """;
+
+            Assert.ThrowsAny<System.Exception>(
+                () => _deserializer.ParseAndRegister(MakeFile("M1 Abrams", json), _db));
+        }
     }
 }

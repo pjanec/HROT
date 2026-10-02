@@ -13,9 +13,26 @@ namespace Hrot.IG.Tests.Gizmos
     {
         public readonly List<(Vector3 From, Vector3 To, Rgba32 Color)> ArrowCalls   = new();
         public readonly List<(float X, float Y, FixedString32 Text, Rgba32 Color)> TextCalls = new();
-        public readonly List<(Vector3 Start, Vector3 End, Rgba32 Color)> LineCalls  = new();
+        /// <summary>
+        /// ⭐⭐ <c>Style</c> and <c>Thickness</c> APPENDED 2026-09-18 (<c>E1</c>), and for the same reason
+        /// <c>RawCalls</c> was added: this double ACCEPTED a <c>LineStyle</c> and then DROPPED it, so any
+        /// rail here was blind to stroke style — and stroke style is the whole of what <c>E1</c> renders
+        /// (loaded = solid, stale = dashed, loading = dotted). ⚠ Fixed in place rather than by adding a
+        /// second, sighted double (<c>R-142</c> ③); appended at the END so every existing
+        /// <c>.Start/.End/.Color</c> read still compiles.
+        /// </summary>
+        public readonly List<(Vector3 Start, Vector3 End, Rgba32 Color, LineStyle Style, float Thickness)> LineCalls = new();
         public readonly List<(Vector3 Center, float Radius, Rgba32 Color)> SphereCalls = new();
         public readonly List<(Entity Target, FixedString32 Text)> BadgeCalls        = new();
+
+        /// <summary>
+        /// ⭐⭐ Added 2026-09-11. <c>EmitRaw</c> is a DEFAULT interface method on
+        /// <c>IDebugDrawBuilder</c>, so this double used to inherit a no-op and SILENTLY DROP every raw
+        /// primitive — pick boxes, pick segments, bindings. ⇒ any rail here was blind to them (R-142 ③).
+        /// </summary>
+        public readonly List<DebugPrimitive> RawCalls = new();
+
+        public void EmitRaw(in DebugPrimitive prim) => RawCalls.Add(prim);
 
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f, byte layer = 0)
@@ -28,7 +45,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void DrawLine(Vector3 start, Vector3 end, Rgba32 color,
             float thickness = 1f, SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All, byte layer = 0, LineStyle style = LineStyle.Solid)
-            => LineCalls.Add((start, end, color));
+            => LineCalls.Add((start, end, color, style, thickness));
 
         public void DrawSphere(Vector3 center, float radius, Rgba32 color,
             float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
@@ -48,10 +65,10 @@ namespace Hrot.IG.Tests.Gizmos
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
 
-        public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocal(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
 
-        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocalInteractive(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 }

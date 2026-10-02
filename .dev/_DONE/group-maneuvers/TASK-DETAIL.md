@@ -108,7 +108,7 @@ SC-P0-01-5: No production call site references the removed `ThreatMatrixAssignme
 - Total `sizeof(SquadCognitiveState)` MUST be `<= Blackboard1024.ByteSize` (1024) — assertion at registration.
 - All fields are unmanaged value types; no `fixed` members other than via `[InlineArray]`.
 - Apply the `[InlineArray]` defensive-copy rule (Utility §8.2): every write path casts to `Span<T>` first.
-- `[DataPolicy.NoSave]` — squad cognitive state is transient.
+- `[DataPolicy.NoScenario]` — squad cognitive state is transient.
 
 **Success Conditions:**
 

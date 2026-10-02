@@ -1,4 +1,5 @@
 using CarKinem.Formation;
+using Fdp.Toolkit.Squad;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
@@ -20,6 +21,15 @@ namespace Hrot.Common.Systems
     /// so that <c>EntityInfoEgressTranslator</c> broadcasts updated subordination state
     /// to remote nodes.</para>
     /// </summary>
+    // ⭐⭐⭐ CE-165 — SINGLETON BY DESIGN, and this is the system the guard was measured on.
+    // It is carried by BOTH CgfLogicPack (Brain) and SimHostCoreLogicPack (MuscleGround), so any node
+    // running both roles registers it twice unless the root deduplicates. ProcessAssignSubordinates reads
+    // CmdAssignSubordinate NON-DESTRUCTIVELY, so a second instance sees the same events in the same frame;
+    // for a subordinate already assigned to the SAME commander the guard below takes no branch and does not
+    // `continue`, so execution falls through to an unguarded roster append. The subordinate is added twice,
+    // UnitRoster.Count is inflated, and at Capacity the system starts publishing
+    // CmdAssignSubordinateRejected for LEGITIMATE assignments. Corrupted state, not a wasted tick.
+    [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
     public class UnitHierarchySystem : IEcsModuleSystem
     {
@@ -55,7 +65,7 @@ namespace Hrot.Common.Systems
                     {
                         for (int i = 0; i < roster.Count; i++)
                         {
-                            var sub = new Entity((ulong)roster.SubordinateEntities[i]);
+                            var sub = roster.SubordinateEntities[i];
                             if (!repo.IsAlive(sub)) continue;
                             if (!repo.HasComponent<UnitSubordinate>(sub)) continue;
                             repo.RemoveComponent<UnitSubordinate>(sub);
@@ -134,7 +144,7 @@ namespace Hrot.Common.Systems
                 // b. Add entry to roster
                 unsafe
                 {
-                    roster.SubordinateEntities[roster.Count]  = (long)sub.PackedValue;
+                    roster.SubordinateEntities[roster.Count]  = sub;
                     roster.TacticalDesignations[roster.Count] = (ushort)evt.Designation;
                     roster.Count++;
                 }
@@ -142,6 +152,12 @@ namespace Hrot.Common.Systems
                     repo.SetComponent(cmd, roster);
                 else
                     repo.AddComponent(cmd, roster);
+
+                // ⭐⭐⭐ O1 — a commander has squad state. ⛔ Hook the FACT (the roster written just
+                //   above), not this path: GenesisMaterializationSystem builds a roster independently
+                //   for scenario-loaded hierarchies, and provisioning only here left the commander with
+                //   NO squad state in a live --mode all run. See SquadStateProvisioning's header.
+                SquadStateProvisioning.EnsureForCommander(repo, cmd);
 
                 // c. FormationFollower when HasFormationSlot is set
                 if (evt.HasFormationSlot == 1)
@@ -202,7 +218,7 @@ namespace Hrot.Common.Systems
             {
                 for (int i = 0; i < roster.Count; i++)
                 {
-                    if (roster.SubordinateEntities[i] == (long)subordinate.PackedValue)
+                    if (roster.SubordinateEntities[i] == subordinate)
                     {
                         foundIdx = i;
                         break;
@@ -218,7 +234,7 @@ namespace Hrot.Common.Systems
                     roster.TacticalDesignations[i] = roster.TacticalDesignations[i + 1];
                 }
                 // Zero the vacated last slot
-                roster.SubordinateEntities[roster.Count - 1]  = 0;
+                roster.SubordinateEntities[roster.Count - 1]  = default;
                 roster.TacticalDesignations[roster.Count - 1] = 0;
                 roster.Count--;
             }

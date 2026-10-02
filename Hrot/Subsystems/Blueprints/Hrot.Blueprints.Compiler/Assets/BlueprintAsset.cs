@@ -13,6 +13,18 @@ public sealed class BlueprintAsset
     public AiPrimitiveDecl? Primitive { get; set; }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-428</c> — present only on a <b>behaviour resolver asset</b> (<c>Q76</c> §12.10b, "shape ③"):
+    /// a <see cref="BlueprintDispatchKind.Library"/> asset whose single <c>Construction</c> graph refines
+    /// ONE behaviour's blackboard block. ⭐ Its Variables mirror the block's fields; the emitter injects
+    /// <c>(in TAuthored authored, ref TBlock block, world, self, host)</c>. ⚠ Derived by the editor from
+    /// the behaviour it names (<c>CE-434</c>) — never hand-maintained against the behaviour.
+    /// <para>⚠ Written only when present: an optional, rare field — emitting <c>null</c> would rewrite all 61 shipped
+    /// <c>.bp.json</c> files at their next canonicalisation for no information (measured).</para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ResolverSubjectDecl? ResolverSubject { get; set; }
+
+    /// <summary>
     /// ⭐⭐ <b>U-12 / D4 — THE STORE.</b> One list of tagged declarations. <c>Parameters</c>,
     /// <c>WorkingState</c> and <c>Variables</c> below are <b>windows onto it</b>, not storage.
     ///
@@ -133,9 +145,35 @@ public sealed class BlueprintAsset
 /// <summary>
 /// Mirror of <c>Fdp.Toolkit.Blueprints.BlueprintDispatchKind</c>.
 /// </summary>
-public enum BlueprintDispatchKind { Library, AiPrimitive, Instance }
+/// ⭐ <c>Behavior</c> (<c>CE-446</c>, <c>Q77</c> §5.6): a behaviour implemented by a blueprint — the Instance body (full node
+/// set, latent cursor) plus a status: its Tick returns <c>Success</c>/<c>Failure</c> to finish, <c>Running</c> otherwise.
+public enum BlueprintDispatchKind { Library, AiPrimitive, Instance, Behavior }
 
-public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384 }
+/// <summary>
+/// Authoring hint for which blackboard tier an Instance blueprint should use.
+/// ⛔⛔ <b>APPEND new members, never insert</b> — this is serialised into <c>.bp.json</c> as
+/// <c>TierHint</c>, so the ordinals reach assets on disk. ⭐ <c>Force256</c> is therefore LAST even
+/// though 256 is the smallest tier (<c>O3b</c> / task <c>B4</c>, 2026-09-20).
+/// </summary>
+public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384, Force256 }
+
+/// <summary>
+/// ⭐⭐ <c>CE-428</c> — what a behaviour resolver asset refines: the behaviour (by registry NAME, <c>R-154</c>)
+/// and the block type the injected <c>ref block</c> takes. 📄 <c>Q76</c> §12.20. ⭐ <c>CE-443</c>: the AUTHORED type is no
+/// longer named here — it is the asset's own <c>Params</c>, from its declared Parameters (<c>DESIGN_Parameter_Model</c> §P.7).
+/// </summary>
+public sealed class ResolverSubjectDecl
+{
+    /// <summary>The behaviour this resolver serves — its registry name.</summary>
+    public string BehaviorName { get; set; } = "";
+    /// <summary>FQN of the behaviour's block (<c>{Asset}_Block</c>).</summary>
+    public string BlockTypeId { get; set; } = "";
+    /// <summary>
+    /// Names of the declared Variables that live in the block's <c>St</c> half; every other Variable is a
+    /// field of <c>In</c>. ⭐ The block's two halves, stated rather than inferred.
+    /// </summary>
+    public List<string> StateVariables { get; set; } = new();
+}
 
 public sealed class AiPrimitiveDecl
 {

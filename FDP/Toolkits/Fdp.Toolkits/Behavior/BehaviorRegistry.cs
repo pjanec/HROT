@@ -14,24 +14,46 @@ namespace Fdp.Toolkit.Behavior
     /// a behaviour blackboard's inline memory — zero allocation, no boxing.
     /// </summary>
     /// <param name="json">Serialised parameter payload (cold path only).</param>
-    /// <param name="memory">Pointer to the first byte of <see cref="BrainBlackboard.BehaviorParameters"/>.</param>
+    /// <param name="memory">Pointer to the first byte of <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).</param>
+    /// <param name="capacity">
+    /// ⭐⭐⭐ <b><c>CE-331</c> — HOW MANY BYTES <paramref name="memory"/> ACTUALLY HOLDS.</b>
+    /// 🔒 <b>A parser MUST NOT write past it.</b>
+    /// <para>🔴 Until <c>CE-331</c> this delegate took a bare <c>byte*</c> with no length, so no
+    /// implementation — generated or hand-written — could bounds-check even in principle. <c>CE-328</c>
+    /// stopped an UNDECLARED width reaching here; it could not stop a parse overrunning a width that
+    /// IS declared. ⇒ this is the other half, and it is the half that makes the guarantee checkable.</para>
+    /// <para>⚠ It is the extent of the WRITABLE REGION, not the behaviour's declared params size:
+    /// the ingress parses into a shadow buffer first, and hands that buffer's length.</para>
+    /// </param>
     /// <summary>
     /// Cold-path resolver: parses the authored JSON parameter payload into the behavior's
     /// runtime params region, and may post-process it using world context — geographic transform,
     /// entity map, etc. — reached via <paramref name="world"/> singletons (rather than a
     /// registration-time closure). Runs once at behavior activation (<see cref="Systems.BehaviorIngressSystem"/>).
     /// </summary>
-    /// <param name="host">
-    /// ⭐⭐ <c>G1</c>/<c>E7</c> — the HOSTING occurrence's variables, or <c>null</c> for a root
-    /// behaviour. 📄 <c>DESIGN_Parameter_Model.md</c> §3.4.
-    /// ⛔ <b>Always <c>null</c> today</b>: <see cref="IHostVariableAccess"/> is declared and
-    /// unimplemented on purpose. ⭐ The parameter is here NOW because adding one is a breaking change
-    /// to every resolver, and <c>E7a</c> should populate it without a second such change.
-    /// </param>
     public unsafe delegate void ParseParamsDelegate(
-        string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
+        string json, byte* memory, int capacity, EntityRepository world, Entity self);
 
-    /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-427</c> — <b>STAGE 1 alone: bake every authored default into the block.</b>
+    /// 📄 <c>Q76</c> §12.3. A generated behaviour's <c>ParseParams</c> is bake + overlay; this is the bake
+    /// half by itself, so a CURATED resolver that replaces the overlay does not also drop the bake.
+    /// </summary>
+    public unsafe delegate void BakeDefaultsDelegate(byte* memory, int capacity);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-443</c> — a behaviour's RESOLVER, handed the SOURCE: it REPLACES the default copy of
+    /// stage 2 (<c>DESIGN_Parameter_Model.md</c> §P.2, <c>R-155</c>). <paramref name="source"/> is the
+    /// authored DTO's bytes — a hosted child's bound host variable — or <c>null</c> when there is none,
+    /// in which case the resolver starts from its authored defaults. <paramref name="block"/> arrives
+    /// cleared and baked. ⚠ Takes no JSON: the root path parses its JSON into the authored DTO before
+    /// calling the resolver, inside the generated <c>ParseParams</c>.
+    /// </summary>
+    public unsafe delegate void ResolveStageDelegate(
+        byte* source, int sourceBytes, byte* block, int capacity,
+        EntityRepository world, Entity self);
+
+    /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
     /// <summary>
@@ -68,6 +90,57 @@ namespace Fdp.Toolkit.Behavior
         byte Scope = 0);
 
     /// <summary>
+    /// ⭐⭐⭐ <b>How much store a behaviour's HOSTED occurrences will need — the half <c>E-cap</c>
+    /// deliberately did not deliver.</b> <c>O7b-3</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+    ///
+    /// <para>⛔⛔ <b>Why this is a DEMAND and not a manifest.</b> A hosted occurrence attaches
+    /// <b>lazily</b>, on first dispatch (§24.8), and its KEY needs the region slot the kernel picks at
+    /// runtime — which is not knowable at registration. ⭐ But its SIZE is: the tier must be chosen
+    /// before the first tick, and choosing it needs only <i>how many</i> and <i>how big</i>. ⇒ this
+    /// carries exactly that, and nothing it cannot honestly know.</para>
+    ///
+    /// <para>⚠ <b>It is an UPPER BOUND, on purpose.</b> Counting every hosted <c>(state, blueprint)</c>
+    /// pair over-counts a machine whose regions never all activate at once. ⛔ The opposite error —
+    /// under-sizing — is a throw from inside a kernel dispatch, so the bound leans the safe way, and
+    /// over-sizing costs one tier step.</para>
+    ///
+    /// <para>⭐ <c>null</c> means <i>"nobody computed one"</i> — a behaviour registered by hand, or one
+    /// whose blueprints live in another assembly than the scan that found it. ⚠ That is the
+    /// pre-<c>O7b-3</c> behaviour exactly: the smallest tier, and the loud throw if it does not fit.
+    /// ⛔ It is NOT <i>"this behaviour hosts nothing"</i> — that is <c>SlotCount: 0</c>.</para>
+    /// </summary>
+    /// <param name="PayloadBytes">
+    /// Sum of the hosted working-state sizes, each ALREADY ROUNDED UP to the store's alignment.
+    /// ⛔ Slot-entry overhead is NOT included — <see cref="Systems.BehaviorIngressSystem"/> adds
+    /// <c>SlotCount × SlotEntrySize</c> itself, because it owns the identical arithmetic for the
+    /// manifest and the two must not drift. ⭐ Use <see cref="Of"/> rather than summing by hand.
+    /// </param>
+    /// <param name="SlotCount">How many distinct occurrences the host can have live at once.</param>
+    public sealed record HostedOccurrenceDemand(int PayloadBytes, int SlotCount)
+    {
+        /// <summary>
+        /// ⭐ The only correct way to build one: aligns each occurrence's payload the way the store
+        /// does, so a caller cannot under-count by summing raw <c>sizeof</c>s. ⛔ Returns a
+        /// <c>SlotCount: 0</c> demand for an empty set — which means <i>"hosts nothing"</i>, and is
+        /// deliberately different from a <c>null</c> demand.
+        /// </summary>
+        public static HostedOccurrenceDemand Of(IEnumerable<int> payloadSizes)
+        {
+            if (payloadSizes is null) throw new ArgumentNullException(nameof(payloadSizes));
+
+            int bytes = 0, count = 0;
+            foreach (int size in payloadSizes)
+            {
+                const int alignment = Fdp.Toolkit.Blueprints.Partitioning
+                                         .BlueprintBlackboardPartitions.Alignment;
+                bytes += (size + alignment - 1) & ~(alignment - 1);
+                count++;
+            }
+            return new HostedOccurrenceDemand(bytes, count);
+        }
+    }
+
+    /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).
     /// Created once at startup; read-only thereafter.
     /// </summary>
@@ -78,8 +151,8 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Brain tier for entities assigned this behavior.
-        /// Use <see cref="BehaviorConstants.BrainTierBTree"/> or
-        /// <see cref="BehaviorConstants.BrainTierHsm"/>.
+        /// Use <see cref="BehaviorConstants.BrainTierBTree"/>, <see cref="BehaviorConstants.BrainTierHsm"/> or
+        /// <see cref="BehaviorConstants.BrainTierBlueprint"/> (<c>CE-446</c>).
         /// </summary>
         public byte BrainTier { get; init; }
 
@@ -87,13 +160,27 @@ namespace Fdp.Toolkit.Behavior
         /// Pre-built FastBTree interpreter for this behavior.
         /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierBTree"/>.
         /// </summary>
-        public Interpreter<BrainBlackboard, BTreeContext>? BTreeInterpreter { get; init; }
+        public Interpreter<byte, BTreeContext>? BTreeInterpreter { get; init; }
 
         /// <summary>
         /// FastHSM definition blob for this behavior.
         /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierHsm"/>.
         /// </summary>
         public HsmDefinitionBlob? HsmDefinition { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-446</c> — the tick of a behaviour implemented by a blueprint.
+        /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierBlueprint"/>.
+        /// </summary>
+        public BlueprintBehaviorTickDelegate? BlueprintTick { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-446</c> step 3 — the generated class's <c>StructureHash</c> (its block LAYOUT). <c>BrainTickSystem</c>
+        /// compares it against the hash a running instance started with: a change means a hot reload re-laid-out the block
+        /// under it, and the instance is HARD-RESET — the behaviour-tier twin of <c>R-24</c>'s Instance reset
+        /// (<c>BlueprintTickSystem</c>). 0 for every other tier.
+        /// </summary>
+        public ulong BlueprintStructureHash { get; init; }
 
         /// <summary>
         /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>
@@ -105,7 +192,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
-        /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).  May be <c>null</c> if the behavior
         /// carries no configurable parameters.
         /// <para>
         /// Settable (not <c>init</c>-only) so the registry can bind a <b>named resolver</b> to a
@@ -118,31 +205,96 @@ namespace Fdp.Toolkit.Behavior
         public ParseParamsDelegate? ParseParams { get; set; }
 
         /// <summary>
-        /// Optional type of the params DTO struct stored at the start of
-        /// <see cref="BrainBlackboard.BehaviorParameters"/> for this behavior.
-        /// When non-null, enables typed rendering in <c>BrainBlackboardRenderer</c>.
-        /// The type must be unmanaged (enforced by convention, not the compiler).
+        /// ⭐⭐ <c>CE-427</c> — the behaviour's <b>stage 1</b> on its own: every authored default,
+        /// Input AND State, baked into the block. Emitted by the generated registrar beside
+        /// <see cref="ParseParams"/> (which calls it first). ⭐ It exists so that when a curated
+        /// resolver takes over the SUPPLY stage (<c>R-132</c>), <c>ApplyResolverOverlay</c> still runs the
+        /// bake before it — the order <c>DESIGN_Parameter_Model.md</c> §3.2 rules: <i>"defaults are baked,
+        /// scenario JSON overlays them, runtime wins"</i>. <c>null</c> for a hand-written behaviour, which
+        /// has no authored defaults to bake.
+        /// </summary>
+        public BakeDefaultsDelegate? BakeDefaults { get; init; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-428</c>/<c>CE-443</c> — the behaviour's bound resolver (a blueprint resolver asset, shape ③),
+        /// handed the SOURCE: the root's generated <see cref="ParseParams"/> calls its own copy with the
+        /// parsed authored DTO; <c>HostedSubtree.StartChild</c> calls this with the bound host variable
+        /// INSTEAD of the default copy (<c>DESIGN_Parameter_Model.md</c> §P.2).
+        /// <para>⛔ A behaviour that carries one may NOT also get a curated <c>[BehaviorResolver]</c>: two
+        /// explicit bindings for one region THROW (<c>R-149</c>). <see cref="ResolverName"/> names it for the message.</para>
+        /// </summary>
+        public ResolveStageDelegate? ResolveStage { get; init; }
+
+        /// <summary>⭐ <c>CE-428</c> — the bound resolver asset's name, for diagnostics; <c>null</c> when none.</summary>
+        public string? ResolverName { get; init; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE PUBLIC CONTRACT.</b> The <b>authored JSON DTO</b> — the shape a scenario, the
+        /// editor's mission panel, or an agent over the debug API writes when it assigns this behavior.
+        /// This is what <c>GET /behaviors</c> publishes as <c>paramSchema</c>.
+        ///
         /// <para>
-        /// Settable (not <c>init</c>-only) for the same reason as <see cref="ParseParams"/>: a curated
-        /// registrar can bind the params DTO type by name (via <see cref="BehaviorRegistry.RegisterResolver"/>)
-        /// to a behavior whose topology was self-registered by a generated registrar that expresses the
-        /// DTO only through <see cref="ManagedBlackboardVariables"/>.
+        /// ⛔⛔ <b>This is NEVER a blackboard layout type.</b> Blackboard layout is engine-internal and
+        /// belongs in <see cref="BlackboardLayoutType"/>; only the behavior implementation and the
+        /// inspector may see it. 📄 <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> §3.2 — the
+        /// authored DTO is <i>"editor fields + JSON schema"</i>; the usable params are <i>"hot-path
+        /// input"</i> and are <b>not authored</b>. <see cref="ParseParams"/> is the translator between
+        /// the two.
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ <b>The two often coincide, and that is the design's default case</b>, not an accident:
+        /// §3.2 <i>"one shape by default — the authored DTO is an auto-generated mirror; two shapes only
+        /// on divergence"</i>. A JSON-authored (generated) asset's emitted <c>*_Blackboard</c> struct
+        /// serves as both. The curated behaviors that DIVERGE — a geo point vs a Cartesian pair, a
+        /// network id vs a resolved <c>Entity</c> — are exactly the ones §3.2 names, and there the two
+        /// members hold different types.
+        /// </para>
+        ///
+        /// <para>
+        /// Populated by <c>BehaviorSchemaDiscovery</c> from <c>[BehaviorContract]</c> for curated
+        /// behaviors, and by the JSON generators for authored assets. Settable (not <c>init</c>-only)
+        /// for the same reason as <see cref="ParseParams"/> — a curated registrar can bind it by name
+        /// through <see cref="BehaviorRegistry.RegisterResolver"/> after a generated registrar has
+        /// registered the topology.
         /// </para>
         /// </summary>
-        public Type? ParamsDtoType { get; set; }
+        public Type? JsonParamsDtoType { get; set; }
+
+        /// <summary>
+        /// 🔒 <b>ENGINE-INTERNAL.</b> The blittable struct laid out at the start of
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>). Consumers project it <b>over raw
+        /// blackboard bytes</b> (<c>Marshal.PtrToStructure</c> / <c>Unsafe.As</c>), so its field order
+        /// and packing are load-bearing and the type must be unmanaged.
+        ///
+        /// <para>
+        /// ⛔⛔ <b>Never publish this outside the engine.</b> It is not a wire contract: it may carry
+        /// runtime outputs (<c>FireAtTargetParams.RoundsFired</c>) and resolved handles
+        /// (<c>TargetPacked</c>) that no caller may set, and it may omit authored keys the resolver
+        /// accepts (<c>TargetLat</c>/<c>TargetLon</c>). Publishing it was <c>CE-224</c>'s defect;
+        /// <c>CE-235</c> split the two members so the mistake cannot be made silently again.
+        /// </para>
+        ///
+        /// <para>Readers: <c>BrainDiagnosticsTranslator</c> (⚠ a historical NAME — it reads the root
+        /// params slot, §30.28), <c>RootParamsProjection</c>/<c>RootParamsViewProvider</c> (StructEdit,
+        /// <c>CE-312</c>) and the
+        /// ReplayBrowser predicate compiler + its two field drawers.</para>
+        /// </summary>
+        public Type? BlackboardLayoutType { get; set; }
 
         /// <summary>
         /// Optional DTO type stored in a generic heavy blackboard component (e.g., <c>Blackboard1024</c>)
         /// for this behavior.  When non-null, enables typed rendering in <c>Blackboard1024Renderer</c>
         /// for unmanaged DTOs projected via <c>Unsafe.As</c> over the component's raw byte array.
-        /// For managed components assigned via <c>[SharedAiHeavyAction]</c>, leave this null
+        /// ⛔ <c>CE-327</c>: <c>[SharedAiHeavyAction]</c> is DELETED (§30.29), so the managed-component
+        /// case it described no longer exists. Leave this null
         /// (the managed class reference is fetched directly and does not need Inspector projection).
         /// </summary>
         public Type? HeavyDtoType { get; init; }
 
         /// <summary>
         /// For managed-blackboard BTree assets: ordered list of packed variables,
-        /// each at its bin-packed ByteOffset. Used by BrainBlackboardRenderer to
+        /// each at its bin-packed ByteOffset. Used by RootParamsProjection (CE-312) to
         /// project each DTO at its own offset instead of only reading offset 0.
         /// Null for non-managed or HSM behaviors.
         /// </summary>
@@ -179,7 +331,29 @@ namespace Fdp.Toolkit.Behavior
         // for a behavior whose topology was self-registered (by a generated [BlueprintRegistrar])
         // without them. Binding is order-independent: whichever of {topology, overlay} arrives second
         // reconciles against the first.
-        private readonly Dictionary<string, (ParseParamsDelegate Resolver, Type? ParamsDtoType)> _resolversByName
+        private readonly Dictionary<string, (ParseParamsDelegate Resolver, Type? BlackboardLayoutType)> _resolversByName
+            = new(StringComparer.Ordinal);
+
+        // ⭐ CE-443/CE-438: the FROM-BYTES arm of a curated TYPED resolver (unmanaged TAuthored), keyed by
+        //   behaviour name — what a HOSTED child runs, its source being the host variable's bytes.
+        private readonly Dictionary<string, ResolveStageDelegate> _sourceResolversByName = new(StringComparer.Ordinal);
+
+        // CE-235: authored JSON contracts keyed by behavior name, supplied by BehaviorSchemaDiscovery
+        // from [BehaviorContract]. Same order-independent reconciliation as _resolversByName, and for
+        // the same reason: discovery scans the Hrot.Core assembly at editor/CGF setup time, which may
+        // run before or after the [BlueprintRegistrar] scan that registers the topologies.
+        private readonly Dictionary<string, Type> _jsonParamsDtoByName = new(StringComparer.Ordinal);
+
+        // ⭐⭐⭐ O7b-3: how much occurrence store each behaviour's HOSTED blueprints will need, so
+        // BehaviorIngressSystem can size the tier before the first dispatch instead of defaulting to
+        // the smallest. 📄 DESIGN_Occurrence_Scoped_Storage.md §27.7.
+        //
+        // ⛔⛔ AN OVERLAY, NOT A FIELD ON BehaviorDefinition, and for the same reason the two
+        //   dictionaries above are overlays: the definition's TOPOLOGY is registered by a generated
+        //   [BlueprintRegistrar] that must NOT know about blueprints (user ruling, 2026-09-21), while
+        //   the demand can only be computed once the BLUEPRINT registry is populated. ⇒ whichever
+        //   arrives second reconciles against the first, exactly as _resolversByName does.
+        private readonly Dictionary<string, HostedOccurrenceDemand> _hostedDemandByName
             = new(StringComparer.Ordinal);
 
         /// <summary>
@@ -198,18 +372,72 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {
-            // Startup-time firewall: ensure the params DTO won't overrun the 60-byte
-            // BehaviorParameters region and corrupt the SoftAdvice or Interrupt registers.
-            // Source generators enforce this at compile time via BHU_004; this check is
-            // the runtime backstop for behaviors whose DTO is bound without [SharedAiAction].
-            if (definition.ParamsDtoType != null)
+            // Startup-time firewall: ensure the params DTO can actually be STORED.
+            // ⭐ CE-235: this guard is about the params REGION, so it reads the layout type, never the
+            //   authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing here.
+            //
+            // ⭐⭐⭐ CE-307 (2026-09-22) — THIS WAS A 100-BYTE CAP, AND THE REASON IT GAVE WAS ALREADY
+            //   FALSE. It read "would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard":
+            //   O2 moved those registers to BrainInterrupts, and P3-C moved params out of the blackboard
+            //   entirely. ⇒ there are no neighbours to corrupt — params occupy their own occurrence slot,
+            //   sized RootParamsBytes(def) and promoted up the tier ladder.
+            // ⛔ So this is no longer a CAP. It is a CAPACITY check, and the honest number is the largest
+            //   tier's whole payload: above it, no tier can hold the region at all.
+            // ⚠ Below it is NOT a guarantee of fit — the region shares its tier with the behaviour's
+            //   stateful slots and hosted occurrences, and ingress throws (naming CE-302) when the store
+            //   has no room. This catches the case that is impossible to satisfy, at registration.
+            if (definition.BlackboardLayoutType != null)
             {
-                int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.ParamsDtoType);
-                if (dtoSize > BehaviorConstants.MaxBehaviorParamByteSize)
+                int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.BlackboardLayoutType);
+                if (dtoSize > BehaviorConstants.MaxRootParamsByteSize)
                     throw new InvalidOperationException(
-                        $"Behavior '{name}' params DTO '{definition.ParamsDtoType.Name}' requires {dtoSize} bytes, " +
-                        $"which exceeds the maximum allowed parameter size of {BehaviorConstants.MaxBehaviorParamByteSize} bytes. " +
-                        "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
+                        $"Behavior '{name}' params DTO '{definition.BlackboardLayoutType.Name}' requires {dtoSize} bytes, " +
+                        $"which exceeds {BehaviorConstants.MaxRootParamsByteSize} — the payload of the largest occurrence " +
+                        "storage tier. No tier can hold a root params region this wide, so the behaviour could never be " +
+                        "assigned. Split the parameters, or add a larger tier to BlueprintTierLadder.");
+            }
+
+            // ⭐⭐⭐ CE-328 (2026-09-23) — AN UNDER-DECLARED BEHAVIOUR IS REFUSED HERE, LOUDLY, RATHER
+            //   THAN SILENTLY RESERVING AN ARBITRARY 100 BYTES.
+            //
+            // 🔒 User: "why such concrete fallback? why fallback at all and not hard error if no
+            //   reasonable fallback exists?" — and the answer is that there is no reasonable fallback.
+            //
+            // 📐 A behaviour that declares a ParseParams but NEITHER a manifest NOR a layout type has
+            //   params and never said how wide they are. RootParamsAccess.RootParamsBytes used to hand
+            //   back BehaviorConstants.MaxBehaviorParamByteSize (100) for exactly this shape, to
+            //   reproduce the pre-P3-C world where the whole 100-byte BrainBlackboard region existed
+            //   whether anyone declared it or not.
+            //
+            // ⛔⛔ TWO THINGS MADE THAT INDEFENSIBLE:
+            //   ① The 100 stopped measuring anything — `P4` deleted BrainBlackboard, so the number
+            //      reproduced the geometry of storage that no longer exists.
+            //   ② THE SAFETY DIRECTION INVERTED. ParseParams is (string, byte* mem, …) — a raw pointer
+            //      with NO LENGTH — so the parse cannot bounds-check. The 100 used to be the GUARD
+            //      against overrunning the region; as a fallback WIDTH it became the thing that gets
+            //      overrun, silently, by any parse that writes more.
+            //
+            // ⭐ Refusing at registration is loud, early, and a one-line fix for the author: declare a
+            //   BlackboardLayoutType or a manifest. ⚠ Blast radius measured: production behaviours come
+            //   from the generators (BTreeBridgeEmitCore, HsmBridgeEmitCore, CSharpEmitter), which
+            //   always emit one of the two ⇒ only hand-registered and TEST behaviours reach this, and
+            //   making them state a width makes them better tests.
+            // ⚠ NOT fixed here, and named in CE-328: ParseParams still takes no capacity, so a parse
+            //   can overrun a width that IS declared. That is a signature change across every generator.
+            if (definition.ParseParams != null
+                && definition.BlackboardLayoutType == null
+                && (definition.ManagedBlackboardVariables == null
+                    || definition.ManagedBlackboardVariables.Count == 0))
+            {
+                throw new InvalidOperationException(
+                    $"Behavior '{name}' declares a ParseParams but neither a BlackboardLayoutType nor a "
+                    + "ManagedBlackboardVariables manifest, so nothing says how wide its params region "
+                    + "is. Its params live in an occurrence slot that must be sized at attach, and "
+                    + "ParseParams writes through a pointer with no length — so an undeclared width "
+                    + "cannot be bounds-checked. Declare BlackboardLayoutType (the params struct) or a "
+                    + "manifest. Before CE-328 this silently reserved "
+                    + $"{BehaviorConstants.MaxBehaviorParamByteSize} bytes, the width of a component "
+                    + "that no longer exists.");
             }
 
             // Duplicate-name hard error (Phase 1e, unblocked by Phase 2c factory retirement).
@@ -257,26 +485,131 @@ namespace Fdp.Toolkit.Behavior
             // with RegisterResolver: whichever arrives second applies the overlay.
             if (_resolversByName.TryGetValue(name, out var overlay))
                 ApplyResolverOverlay(definition, overlay);
+
+            // CE-235: same, for an authored JSON contract discovered before the topology registered.
+            // ⭐ The definition WINS if it already carries one — a generated asset emits its own
+            //   JsonParamsDtoType and that is the asset's own authored shape, not something discovery
+            //   should overwrite.
+            if (definition.JsonParamsDtoType == null
+                && _jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
+                definition.JsonParamsDtoType = jsonDto;
+        }
+
+        /// <summary>
+        /// <c>CE-235</c> — binds a behavior's <b>authored JSON contract</b> by name, the shape a
+        /// scenario or an agent writes when assigning it. Called by <c>BehaviorSchemaDiscovery</c> for
+        /// every <c>[BehaviorContract]</c>-tagged DTO.
+        ///
+        /// <para>
+        /// Order-independent, exactly like <see cref="RegisterResolver"/>: applied immediately when the
+        /// topology is already registered, stored and applied on registration otherwise.
+        /// </para>
+        /// <para>
+        /// ⛔ A definition that already carries a <see cref="BehaviorDefinition.JsonParamsDtoType"/>
+        /// keeps it — a JSON-authored asset emits its own and outranks a curated overlay for the same
+        /// name, because there the emitted struct <i>is</i> the authored shape.
+        /// </para>
+        /// </summary>
+        public void RegisterJsonParamsDtoType(string name, Type jsonParamsDtoType)
+        {
+            if (name              == null) throw new ArgumentNullException(nameof(name));
+            if (jsonParamsDtoType == null) throw new ArgumentNullException(nameof(jsonParamsDtoType));
+
+            _jsonParamsDtoByName[name] = jsonParamsDtoType;
+
+            if (_nameToId.TryGetValue(name, out var id)
+                && _definitions.TryGetValue(id, out var def)
+                && def.JsonParamsDtoType == null)
+            {
+                def.JsonParamsDtoType = jsonParamsDtoType;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>O7b-3</c> — records how much occurrence store a behaviour's HOSTED blueprints will
+        /// need, so <see cref="Systems.BehaviorIngressSystem"/> can size the tier before the first
+        /// dispatch. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+        ///
+        /// <para>⭐ Order-independent, like the other two overlays: the demand can only be computed
+        /// once the BLUEPRINT registry is populated, which may be before or after the behaviour's
+        /// topology registers. ⛔ There is nothing to reconcile INTO the definition — the demand is read
+        /// through <see cref="TryGetHostedOccurrenceDemand"/>, so a late arrival is simply available
+        /// from then on.</para>
+        ///
+        /// <para>⚠ <b>Absent is not zero.</b> No entry means <i>"nobody computed one"</i> and the
+        /// smallest tier is used — the pre-<c>O7b-3</c> behaviour. A behaviour that genuinely hosts
+        /// nothing is recorded with <c>SlotCount: 0</c>.</para>
+        /// </summary>
+        public void RegisterHostedOccurrenceDemand(string name, HostedOccurrenceDemand demand)
+        {
+            if (name   == null) throw new ArgumentNullException(nameof(name));
+            if (demand == null) throw new ArgumentNullException(nameof(demand));
+
+            _hostedDemandByName[name] = demand;
+        }
+
+        /// <summary>
+        /// The hosted-occurrence demand recorded for <paramref name="name"/>, if any.
+        /// ⚠ <see langword="false"/> means <i>"nobody computed one"</i>, never <i>"hosts nothing"</i>.
+        /// </summary>
+        public bool TryGetHostedOccurrenceDemand(string name, out HostedOccurrenceDemand? demand)
+        {
+            if (name == null) { demand = null; return false; }
+            return _hostedDemandByName.TryGetValue(name, out demand);
         }
 
         /// <summary>
         /// Registers a named resolver overlay for a behavior, keyed by its <paramref name="name"/>.
         /// Used by curated <c>[BlueprintRegistrar]</c> classes to supply the geo/entity-aware parameter
-        /// resolver (and, optionally, the params DTO type for diagnostics/inspector rendering) for
-        /// behaviors whose topology (interpreter, slots) is self-registered by a generated registrar
-        /// that cannot express the resolver.
+        /// resolver (and, optionally, the engine-internal blackboard layout type for
+        /// diagnostics/inspector rendering) for behaviors whose topology (interpreter, slots) is
+        /// self-registered by a generated registrar that cannot express the resolver.
+        /// <para>
+        /// ⛔ <c>CE-235</c>: the optional type is <see cref="BehaviorDefinition.BlackboardLayoutType"/>,
+        /// <b>never</b> <see cref="BehaviorDefinition.JsonParamsDtoType"/>. The authored JSON contract
+        /// comes from <c>[BehaviorContract]</c> via <c>BehaviorSchemaDiscovery</c>, not from here — a
+        /// resolver overlay describes how bytes are laid out, not what a caller may write.
+        /// </para>
         /// <para>
         /// Binding is order-independent: if the behavior's <see cref="BehaviorDefinition"/> is already
         /// registered, the overlay is applied immediately; otherwise it is stored and applied when the
-        /// topology registers. A property already set on the definition is never overwritten.
+        /// topology registers.
+        /// </para>
+        /// <para>
+        /// ⭐ <b>The overlay WINS over anything the topology registered</b> — a hand-authored resolver
+        /// outranks a generated one (user ruling, 2026-08-23). See
+        /// <see cref="ApplyResolverOverlay"/> for why the previous "never overwrite" rule silently
+        /// broke <c>PlatoonHillAttack</c>.
         /// </para>
         /// </summary>
-        public void RegisterResolver(string name, ParseParamsDelegate resolver, Type? paramsDtoType = null)
+        public void RegisterResolver(string name, ParseParamsDelegate resolver, Type? blackboardLayoutType = null)
         {
             if (name     == null) throw new ArgumentNullException(nameof(name));
             if (resolver == null) throw new ArgumentNullException(nameof(resolver));
 
-            var overlay = (resolver, paramsDtoType);
+            // ⭐⭐⭐ R-149 — TWO EXPLICIT BINDINGS FOR ONE PARAMS REGION MUST THROW, NEVER RACE.
+            //
+            // 🔒 The ruling is R-132's own sentence applied to its successor: "where a curated and a
+            //    generated artefact can both fill a slot, curated wins BY DECLARATION, not by arriving
+            //    first." ⇒ two CURATED bindings have no such tie-break, and the silent
+            //    last-writer-wins this line used to be would pick one by source order — the exact
+            //    "not a precedence rule, a race" shape R-132 names.
+            //
+            // ⛔⛔ THE SCOPE IS ONE REGISTRY INSTANCE, and that is load-bearing, not caution.
+            //    📐 Measured: every scan builds a FRESH staging registry
+            //    (AiHotReloadCoordinator.cs:315, QuickReloadService.cs:142) and the live registry is
+            //    written by MergeFrom, which is a separate overwrite path. ⇒ a duplicate seen HERE
+            //    can only be two registrations in ONE scan — a genuine authoring error — while
+            //    re-registration across a hot reload never reaches this check. A throw without that
+            //    distinction would have broken reload.
+
+            if (_resolversByName.ContainsKey(name))
+                throw new InvalidOperationException(
+                    $"Two resolvers are registered for behaviour '{name}' in one scan. A parameters "
+                    + "region names exactly one resolver (R-149), so this is an authoring error: "
+                    + "picking one by registration order would be a race, not a precedence rule.");
+
+            var overlay = (resolver, blackboardLayoutType);
             _resolversByName[name] = overlay;
 
             if (_nameToId.TryGetValue(name, out var id)
@@ -287,16 +620,92 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
-        /// Applies a named resolver overlay to a definition without clobbering properties the
-        /// definition already carries (a topology def that set its own ParseParams wins).
+        /// Applies a named resolver overlay to a definition. ⭐ <b>The overlay WINS</b> — a
+        /// hand-authored resolver outranks whatever the topology registered.
+        ///
+        /// <para>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        /// <see cref="RegisterResolver"/> is reached ONLY from the generated
+        /// <c>CuratedBehaviorRegistrar</c>, whose every call site is a method a human marked
+        /// <c>[BehaviorResolver]</c>; per-asset JSON registrars never call it. So the presence of an
+        /// overlay is itself the signal that a human wrote a resolver for this behavior.
+        /// ⚠ CE-374 moved the PROBE from "someone typed a call into CgfCuratedBehaviorRegistrar" to
+        /// "someone applied [BehaviorResolver]". The RULING above is unchanged.
+        /// </para>
+        ///
+        /// <para>
+        /// 🔴 <b>This used to read <c>if (def.ParseParams == null)</c></b>, i.e. the generated
+        /// <c>ParseParams</c> won. That silently discarded the curated resolver, and only the curated
+        /// one understands the geo-authored parameter shape — <c>PlatoonHillAttack</c>'s
+        /// <c>firingLineStart</c>/<c>baselineStart</c> arrive as <c>[lat, lon]</c> and must go through
+        /// <c>geoTransform.ToCartesian</c>. The generated lambda knows nothing of them, so the
+        /// commander's <c>PlatoonHillAttackParams</c> stayed all-zero, the baseline collapsed to the
+        /// origin, and the platoon drove to (0,0). Observed in the running editor; the tell was
+        /// <c>TankSpacing == 0</c>, a value the curated parser cannot produce (it clamps to 30).
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ <b>Why it appeared only recently:</b> <c>DEBT-AIB-021</c> (Batch 70) widened the
+        /// generated emit guard from "≥1 variable with a default" to "≥1 packed managed variable", so
+        /// generated registrars began emitting <c>ParseParams</c> for assets that previously had none
+        /// — quietly shadowing every curated resolver whose behavior also has a generated registrar.
+        /// </para>
         /// </summary>
-        private static void ApplyResolverOverlay(
-            BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? ParamsDtoType) overlay)
+        private static unsafe void ApplyResolverOverlay(
+            BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? BlackboardLayoutType) overlay)
         {
-            if (def.ParseParams == null)
-                def.ParseParams = overlay.Resolver;
-            if (def.ParamsDtoType == null && overlay.ParamsDtoType != null)
-                def.ParamsDtoType = overlay.ParamsDtoType;
+            // ⭐⭐⭐ CE-427 — BAKE → the curated resolver, never the curated resolver alone. A curated
+            //   resolver REPLACES the generated SUPPLY (its authored JSON shape differs — §10, R-132),
+            //   but it must not replace STAGE 1: without the bake, a State default the editor saved is
+            //   dropped for exactly the behaviours that have a curated resolver (CE-420 by another door).
+            //   ⭐ Idempotent: composed from def.BakeDefaults and the RAW overlay each time, so a second
+            //   application (hot reload) rebuilds the same pair rather than nesting.
+            // ⛔⛔ CE-428 / R-149 — the behaviour already NAMES a resolver asset; a curated one on top would be
+            //   two explicit bindings for one region, and whichever ran would be a race, not a precedence.
+            if (def.ResolveStage != null)
+                throw new InvalidOperationException(
+                    $"Behaviour '{def.Name}' names resolver asset '{def.ResolverName}' AND has a curated " +
+                    "[BehaviorResolver]. A region names exactly one resolver (R-149) — remove one of them.");
+
+            var bake = def.BakeDefaults;
+            var curated = overlay.Resolver;
+            def.ParseParams = bake == null
+                ? curated
+                : (string json, byte* memory, int capacity, EntityRepository world, Entity self) =>
+                {
+                    bake(memory, capacity);
+                    curated(json, memory, capacity, world, self);
+                };
+            if (overlay.BlackboardLayoutType == null) return;
+
+            // ⭐⭐⭐ CE-437 (2026-09-29) — A RESOLVER'S TYPE DESCRIBES WHAT IT WRITES, NOT THE WHOLE BLOCK.
+            //   A generated behaviour's layout is its BLOCK — [Inputs][State] — and a curated resolver
+            //   writes its params type at offset 0, i.e. into the Input region. 🔴 Replacing the layout
+            //   with the resolver's type DEMOTED the block: PlatoonHillAttack's root slot shrank to its
+            //   56-byte params and its State half — HillAttackMutableState — had nowhere to live
+            //   (caught by the SimHost HillAttackIntegrationTests, "no block for behaviour").
+            // ⇒ when the resolver's type FITS the Input region, the block stays the layout.
+            // ⛔ When it does not fit AND the layout carries bytes beyond the Inputs (a State half),
+            //   the two would overlap — refuse loudly rather than let a parse overwrite the State.
+            //   Without a State half the old rule stands: the wider curated type becomes the layout.
+            if (def.BlackboardLayoutType != null
+                && def.BlackboardLayoutType != overlay.BlackboardLayoutType
+                && def.ManagedBlackboardVariables != null)
+            {
+                int inputRegion = RootParamsAccess.InputBytes(def);
+                int resolverWrites = System.Runtime.InteropServices.Marshal.SizeOf(overlay.BlackboardLayoutType);
+                if (resolverWrites <= inputRegion) return;
+
+                int layoutBytes = System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
+                if (layoutBytes > inputRegion)
+                    throw new InvalidOperationException(
+                        $"Behavior '{def.Name}': its curated resolver writes '{overlay.BlackboardLayoutType.Name}' "
+                        + $"({resolverWrites} bytes) but the generated block '{def.BlackboardLayoutType.Name}' holds only "
+                        + $"{inputRegion} Input bytes before its State half. The resolver would overwrite the State. "
+                        + "Make the authored Role=Input variables match the resolver's params type (CE-437).");
+            }
+            def.BlackboardLayoutType = overlay.BlackboardLayoutType;
         }
 
         /// <summary>
@@ -305,6 +714,34 @@ namespace Fdp.Toolkit.Behavior
         /// Used by <see cref="Systems.BehaviorIngressSystem"/> to map event names
         /// to IDs without calling <c>string.GetHashCode()</c>.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-431</c> — does a CURATED resolver own this behaviour's supply? A hosted child is supplied
+        /// BYTES, and a curated resolver is a JSON parse, so the child pipeline refuses it loudly
+        /// (<c>Q76</c> §11.7c) rather than running a parse that would ignore the bytes.
+        /// </summary>
+        public bool HasCuratedResolver(string name) => name != null && _resolversByName.ContainsKey(name);
+
+        /// <summary>
+        /// ⭐ <c>CE-443</c>/<c>CE-438</c> — registers the FROM-BYTES arm of a curated typed resolver, so a HOSTED
+        /// child can run it with its host variable as the source (<c>DESIGN_Parameter_Model.md</c> §P.2). Built by
+        /// <see cref="BehaviorParams.FromBlockResolverSource{TAuthored, TBlock}"/>; emitted by the curated
+        /// generator beside <see cref="RegisterResolver"/>.
+        /// </summary>
+        public void RegisterSourceResolver(string name, ResolveStageDelegate resolve)
+        {
+            if (name    == null) throw new ArgumentNullException(nameof(name));
+            if (resolve == null) throw new ArgumentNullException(nameof(resolve));
+            _sourceResolversByName[name] = resolve;
+        }
+
+        /// <summary>⭐ <c>CE-443</c> — the curated from-bytes resolver for <paramref name="name"/>, if one is registered.</summary>
+        public bool TryGetSourceResolver(string name, out ResolveStageDelegate resolve)
+        {
+            if (name != null && _sourceResolversByName.TryGetValue(name, out var r)) { resolve = r; return true; }
+            resolve = null!;
+            return false;
+        }
+
         public bool TryGetId(string name, out int id)
             => _nameToId.TryGetValue(name, out id);
 
@@ -317,6 +754,18 @@ namespace Fdp.Toolkit.Behavior
             int behaviorId,
             [MaybeNullWhen(false)] out BehaviorDefinition definition)
             => _definitions.TryGetValue(behaviorId, out definition);
+
+        /// <summary>
+        /// ⭐ <c>CE-476</c> — <b>the tree a BTree behaviour actually RUNS</b>: the blob its interpreter executes, whose
+        /// node indices are the ones <c>BehaviorTreeState</c> holds. The ONE lookup for "name this entity's nodes",
+        /// shared by the inspector's tree view (<c>BTreeVisualizerRenderer</c>) and the BTree debug session.
+        /// </summary>
+        /// <returns><c>false</c> when the behaviour is unregistered or is not a BTree.</returns>
+        public bool TryGetTreeBlob(int behaviorId, [MaybeNullWhen(false)] out Fbt.BehaviorTreeBlob blob)
+        {
+            blob = _definitions.TryGetValue(behaviorId, out var def) ? def.BTreeInterpreter?.Blob : null;
+            return blob is not null;
+        }
 
         /// <summary>
         /// Returns a snapshot of all behavior names currently registered.
@@ -335,6 +784,10 @@ namespace Fdp.Toolkit.Behavior
             _definitions.Clear();
             _nameToId.Clear();
             _resolversByName.Clear();
+            _sourceResolversByName.Clear();
+            _jsonParamsDtoByName.Clear();
+            // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
+            _hostedDemandByName.Clear();
         }
 
         /// <summary>
@@ -349,6 +802,18 @@ namespace Fdp.Toolkit.Behavior
             // copied below that still lacks a resolver/DTO gets it bound during the copy.
             foreach (var (name, overlay) in source._resolversByName)
                 _resolversByName[name] = overlay;
+            foreach (var (name, resolve) in source._sourceResolversByName)
+                _sourceResolversByName[name] = resolve;
+
+            // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
+            foreach (var (name, jsonDto) in source._jsonParamsDtoByName)
+                _jsonParamsDtoByName[name] = jsonDto;
+
+            // O7b-3: and the hosted-occurrence demands. ⛔ Dropping them here would silently return
+            //   every merged behaviour to the smallest tier — the exact regression this overlay fixes,
+            //   reintroduced at the staging→live boundary where nothing would look for it.
+            foreach (var (name, demand) in source._hostedDemandByName)
+                _hostedDemandByName[name] = demand;
 
             foreach (var (name, id) in source._nameToId)
             {
@@ -357,6 +822,9 @@ namespace Fdp.Toolkit.Behavior
                 {
                     if (_resolversByName.TryGetValue(name, out var overlay))
                         ApplyResolverOverlay(def, overlay);
+                    if (def.JsonParamsDtoType == null
+                        && _jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
+                        def.JsonParamsDtoType = jsonDto;
                     _definitions[id] = def;
                 }
             }

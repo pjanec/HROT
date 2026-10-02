@@ -16,8 +16,6 @@ namespace Hrot.Editor.AiShared.Tests.Blackboard;
 public struct TestBTreeDto  { public int Value; }
 public struct TestHsmDto    { public float X; }
 public struct TestSharedDto { public bool Flag; }
-public struct TestHeavyDto  { public double D; }
-public struct TestHeavyContainer { public byte[] Data; }
 
 /// <summary>A DTO with two known public fields, used for S1-1 DtoFields tests.</summary>
 public struct FooDto { public int Health; public float Speed; }
@@ -50,12 +48,6 @@ public static class ActionFixtures
 
     [SharedAiCondition(typeof(TestSharedDto), "Flag")]
     public static void SharedConditionMethod(ref TestSharedDto dto) { }
-
-    [SharedAiHeavyAction(
-        typeof(TestSharedDto), "Flag",
-        typeof(TestHeavyContainer), "Data",
-        typeof(TestHeavyDto))]
-    public static void SharedHeavyActionMethod(ref TestSharedDto dto) { }
 
     // Access annotation fixtures
     [BTreeAction]
@@ -203,6 +195,57 @@ public sealed class ActionSchemaExporterTests
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Hsm));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-386</c> — the HSM ROLE survives into the schema.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3.
+    ///
+    /// <para>🔴 <b>What was lost.</b> <c>[HsmAction]</c> and <c>[HsmGuard]</c> both set
+    /// <c>ActionHosting.Hsm</c> and nothing else ⇒ the two rails directly above this one were the
+    /// WHOLE story the schema could tell, and the HSM action and guard pickers could not be filtered
+    /// apart. The attributes always carried the distinction; the exporter discarded it.</para>
+    ///
+    /// <para>⛔ <c>IsCondition</c> was NOT reused for this: <c>BTreeNodeCatalog:104</c> turns it into
+    /// the persisted BTree node kind, so a method hosted as both a BTree action and an HSM guard
+    /// would have silently become a condition leaf.</para>
+    /// </summary>
+    [Fact]
+    public void Rebuild_HsmActionAndHsmGuard_CarryDistinctRoleFlags()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.HsmActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var guard = exporter.All[Fqn(nameof(ActionFixtures.HsmGuardMethod))];
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.False(guard.Hosting.HasFlag(ActionHosting.HsmActivity));
+
+        // ⚠ Both still carry the broad Hsm bit — the change is ADDITIVE, so the one production
+        //   reader (BehaviorActionCatalog.MapHosting) is untouched.
+        Assert.True(action.Hosting.HasFlag(ActionHosting.Hsm));
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.Hsm));
+    }
+
+    /// <summary>⭐ A shared ACTION is an HSM activity; a shared CONDITION is an HSM guard. ⚠ The
+    /// condition keeps <c>IsCondition</c> as well — that flag means "a BTree condition leaf" and is
+    /// a different question.</summary>
+    [Fact]
+    public void Rebuild_SharedActionAndCondition_MapToTheMatchingHsmRole()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var cond = exporter.All[Fqn(nameof(ActionFixtures.SharedConditionMethod))];
+        Assert.True(cond.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.True(cond.IsCondition, "IsCondition is the BTree node-kind signal and must survive");
+    }
+
     [Fact]
     public void Rebuild_SharedAction_HasBTreeHsmSharedHosting()
     {
@@ -227,26 +270,13 @@ public sealed class ActionSchemaExporterTests
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Shared));
     }
 
-    [Fact]
-    public void Rebuild_HeavyAction_HasHeavyFlag()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.Heavy));
-    }
-
-    [Fact]
-    public void Rebuild_HeavyAction_HeavyDtoTypeNonNull()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.NotNull(entry.HeavyDtoType);
-        Assert.Equal(typeof(TestHeavyDto), entry.HeavyDtoType);
-    }
+    // ⛔ CE-327 (2026-09-23) — `Rebuild_HeavyAction_HasHeavyFlag` and
+    //   `Rebuild_HeavyAction_HeavyDtoTypeNonNull` are DELETED with the feature they pinned:
+    //   [SharedAiHeavyAction]/[SharedAiHeavyCondition] no longer exist.
+    //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
+    // ⭐ The rail goes with the feature — it asserted the exporter's heavy branch and nothing else.
+    // ⭐ CE-330 (2026-09-23) finished the job: `ActionSchemaEntry.HeavyDtoType` and
+    //   `ActionHosting.Heavy` are now DELETED too, across 62 call sites in 19 files.
 
     [Fact]
     public void Rebuild_ReadOnlyParam_AccessIsReadOnly()

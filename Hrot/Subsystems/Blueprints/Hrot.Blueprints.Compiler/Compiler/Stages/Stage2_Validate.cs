@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Transform;
+using Ladder = Fdp.Toolkit.Blueprints.Shared.BlueprintTierLadder;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -25,6 +26,13 @@ internal static class Stage2_Validate
     {
         new V_AssetStructure(),
         new V_DispatchKindCompatibility(),
+        // ⭐⭐ Q43-C1 places this "beside V_DispatchKindCompatibility", and the ORDER is load-bearing,
+        // not cosmetic: Stage2_Validate.Run RETURNS on the first fatal error, and a resolver that
+        // contains a side-effecting node usually trips that node's OWN rule first (a SetVariable with
+        // no declaration is BP1670, a Delay is a latency error). ⛔ Reported late, BP1675 would be
+        // unreachable for exactly the assets it exists to refuse — and the designer would be told
+        // "that variable does not exist" instead of "a resolver may not write".
+        new V_ResolverPurity(),             // Q43-C1: BP1675/BP1676/BP1677
         new V_NodeStructure(),
         new V_LinkStructure(),
         new V_GraphStructure(),
@@ -44,7 +52,6 @@ internal static class Stage2_Validate
         new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
-        new V_SharedStateRules(),
         new V_ComponentAccessRules(),
         new V_ListVariableRules(),
         new V_FunctionGraphCallRules(),
@@ -92,10 +99,8 @@ internal sealed class V_AssetStructure : IValidator
 
 internal sealed class V_DispatchKindCompatibility : IValidator
 {
-    private static readonly AiPrimitiveHosting[] ActionHostings =
-        { AiPrimitiveHosting.BTreeAction, AiPrimitiveHosting.HsmAction };
-    private static readonly AiPrimitiveHosting[] ConditionHostings =
-        { AiPrimitiveHosting.BTreeCondition, AiPrimitiveHosting.HsmGuard };
+    // ⭐ CE-461 — the intent → hosting table lives in AiPrimitiveHostingRules (public), so the editor's
+    //   New Action / New Condition templates read the SAME rule this validator enforces.
 
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
@@ -113,7 +118,15 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 // Parameters or WorkingState was quietly legal for no stated reason.
                 // ⚠ Measured over all 58 shipped assets: the 3 Library assets declare NOTHING, so this
                 // widening refuses nothing that ships.
-                if (asset.Declarations.Count > 0)
+                // ⭐ CE-428: a BEHAVIOUR RESOLVER asset (ResolverSubject set) declares the behaviour block's
+                //   fields as its Variables — that is its subject, not asset-scope state (Q76 §12.20).
+                //   ⭐ CE-443: and its Parameters declare the AUTHORED shape it converts from (§P.7) — both
+                //   allowed; nothing else is asset-scope on a resolver.
+                if (asset.ResolverSubject is not null)
+                {
+                    // allowed: Parameters (authored input) + Variables (the behaviour's block)
+                }
+                else if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
                         "Library asset must not declare asset-scope variables "
                         + "(parameters, working state or variables).", asset.AssetId));
@@ -139,12 +152,12 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 foreach (var hosting in asset.Primitive.Hostings)
                 {
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Action
-                        && ConditionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Action, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1022,
                             $"Action intent incompatible with condition-shaped hosting '{hosting}'.",
                             asset.AssetId));
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Condition
-                        && ActionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Condition, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1023,
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));
@@ -161,6 +174,7 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 // V_AiPrimitiveIntent below. See that validator for what Batch 67 widened.
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
@@ -479,38 +493,69 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
+                // ⭐⭐⭐ CE-326 (2026-09-23) — THESE TWO BOUNDS WERE THE GEOMETRY OF DELETED COMPONENTS.
+                //   📐 They read `> 100` and `> 1024 - 8` as LITERALS. 100 was the width of
+                //      BrainBlackboard.BehaviorParameters (a `fixed byte[100]`) and 1016 the payload of
+                //      Blackboard1024 — ⛔ `P4` deleted BOTH components, so the compiler was refusing
+                //      assets on the capacity of storage that no longer exists.
+                //   ⭐ CE-307 repointed the FOUR other sites that enforced 100 (FDP_001, both packers,
+                //      BehaviorRegistry's throw) at the ladder; this stage is the one it missed, and
+                //      the Instance arm below has read the ladder since O3a. ⇒ one set of numbers now.
+                //   ⚠⚠ THIS IS A CEILING, NOT A BUDGET — the same distinction BehaviorConstants
+                //      .MaxRootParamsByteSize carries. Passing it does NOT mean the asset fits: the
+                //      region shares its tier with the behaviour's other slots, and ingress throws
+                //      (naming CE-302) when the store has no room. What this catches is the case that
+                //      is impossible to satisfy at ANY tier, which is worth refusing at build time.
+                //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.15.
                 int paramsSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Parameter).Select(d => d.Type), ctx);
-                if (paramsSize > 100)
+                if (paramsSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
-                        $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
+                        $"AiPrimitive Parameters total {paramsSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold them. Split the parameters, or add a "
+                        + "larger tier to BlueprintTierLadder.",
                         asset.AssetId));
 
                 // ⭐ Batch 86 — the AiPrimitive working-state struct is the one state run (R-01).
                 int workingSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
-                if (workingSize > 1024 - 8)
+                if (workingSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
-                        $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
+                        $"AiPrimitive WorkingState total {workingSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold it. Split the state, or add a larger "
+                        + "tier to BlueprintTierLadder.",
                         asset.AssetId));
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
                 int stateSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
+                // ⭐⭐⭐ O3a / B3② — THE BUDGETS COME FROM THE LADDER, NOT FROM LITERALS.
+                //   📐 These were `928 / 3936 / 16096` spelled as integers — a FOURTH copy of the
+                //      tier ladder, here, behind the netstandard2.0 wall that stops this project
+                //      referencing Fdp.Toolkits. ⇒ re-picking MaxSlots silently desynced
+                //      compile-time validation from runtime capacity: this stage would keep
+                //      accepting an asset the runtime can no longer seat, or reject one it could.
+                //   ⭐ BlueprintTierLadder is LINKED in (see the .csproj), so both sides now read
+                //      one set of numbers. 📄 design §17.1 N1, §17.5.
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
-                    (BlackboardTierHint.Force1024,  _)               => 928,
-                    (BlackboardTierHint.Force4096,  _)               => 3936,
-                    (BlackboardTierHint.Force16384, _)               => 16096,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 928  => 928,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 3936 => 3936,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 16096 => 16096,
+                    (BlackboardTierHint.Force256,   _) => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Force1024,  _) => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Force4096,  _) => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Force16384, _) => Ladder.Tier16384PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier256PayloadSize   => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier1024PayloadSize  => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier4096PayloadSize  => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier16384PayloadSize => Ladder.Tier16384PayloadSize,
                     _ => 0
                 };
                 if (tierBudget == 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1210,
-                        $"Instance state {stateSize} bytes exceeds largest tier (16384). "
+                        $"Instance state {stateSize} bytes exceeds largest tier ({Ladder.Tier16384TotalSize}). "
                         + "Reduce variable count or split asset.",
                         asset.AssetId));
                 else if (asset.TierHint != BlackboardTierHint.Auto && stateSize > tierBudget)
@@ -1141,7 +1186,7 @@ internal sealed class V_WhenNodeRules : IValidator
             // A Function graph in an Instance blueprint is "pure" if it contains no
             // EventEntryNode (i.e., it is a user-defined pure helper function).
             // WhenNode is forbidden in pure helper functions.
-            bool graphIsPureFunction = asset.Dispatch == BlueprintDispatchKind.Instance
+            bool graphIsPureFunction = asset.Dispatch is BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior
                 && graph.Kind == GraphKind.Function
                 && !graph.Nodes.OfType<EventEntryNode>().Any();
 
@@ -1448,7 +1493,7 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
     {
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 
@@ -1485,7 +1530,7 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
         // BP2030 / BP2031 -- per-node checks (per graph)
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 
@@ -1543,80 +1588,6 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
-// V_SharedStateRules (BP2040-BP2042 -- Slice 2a-2 GetShared/SetShared)
-// ---------------------------------------------------------------------------
-
-/// <summary>
-/// Validates <see cref="GetSharedNode"/>/<see cref="SetSharedNode"/> nodes.
-/// <list type="bullet">
-///   <item>BP2040 -- <c>SharedTypeId</c> is empty.</item>
-///   <item>BP2041 -- <c>SharedTypeId</c> does not look like a well-formed dotted CLR type FQN
-///     (e.g. contains whitespace, is a bare/malformed identifier, or has an empty segment).
-///     <para>
-///     NOTE: this is a syntactic check, not full type resolution. The compiler's
-///     <see cref="ITypeRegistry"/> accepts ANY "global::"-prefixed TypeId unconditionally (the AN2
-///     "trust the FQN, let the downstream C# compiler catch a bad reference" strategy -- see
-///     <see cref="StaticTypeRegistry.TryResolve"/>), and reflection-based resolution is unreliable in
-///     the analyzer/generator host (the shared struct commonly lives in the very assembly being
-///     compiled, per the same reasoning documented on <c>FunctionCallNode</c>'s CLR-reflection
-///     fallback in <c>Stage0_Rehydrate</c>). A deterministic, host-independent syntax check is the
-///     only meaningful signal available at this stage; genuine "type does not exist" errors surface
-///     later as ordinary C# compiler errors on the emitted <c>global::{SharedTypeFqn}</c> reference.
-///     </para>
-///   </item>
-///   <item>BP2042 -- node appears in a Library-dispatch asset, which has no <c>self</c> Entity in
-///     scope (the generated call is <c>BlueprintSharedState.TryGetShared/TrySetShared(world, self,
-///     ...)</c> -- <c>self</c> does not exist in a stateless Library function).</item>
-/// </list>
-/// Cross-entity checks are moot for 2a-2 -- there is no target-Entity pin (Slice 2b).
-/// </summary>
-internal sealed class V_SharedStateRules : IValidator
-{
-    // One-or-more dot/plus-separated C# identifier segments, optional "global::" prefix.
-    // Rejects whitespace, empty segments, punctuation other than '.'/'+', etc.
-    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
-        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
-        System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    public void Validate(BlueprintAsset asset, ValidationContext ctx)
-    {
-        foreach (var graph in asset.Graphs)
-        {
-            foreach (var node in graph.Nodes)
-            {
-                string? sharedTypeId = node switch
-                {
-                    GetSharedNode gsn => gsn.SharedTypeId,
-                    SetSharedNode ssn => ssn.SharedTypeId,
-                    _                 => null,
-                };
-                if (sharedTypeId is null) continue;
-
-                if (asset.Dispatch == BlueprintDispatchKind.Library)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2042,
-                        $"{node.GetType().Name} is not permitted in a Library-dispatch asset -- " +
-                        "there is no `self` Entity in scope for the shared-state accessor call.",
-                        asset.AssetId, graph.Id, node.Id));
-
-                if (string.IsNullOrEmpty(sharedTypeId))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2040,
-                        $"{node.GetType().Name}: SharedTypeId must not be empty.",
-                        asset.AssetId, graph.Id, node.Id));
-                    continue;
-                }
-
-                if (!FqnPattern.IsMatch(sharedTypeId))
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2041,
-                        $"{node.GetType().Name}: SharedTypeId '{sharedTypeId}' does not resolve to a " +
-                        "known unmanaged/blittable struct type (not a well-formed type name).",
-                        asset.AssetId, graph.Id, node.Id));
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // V_ComponentAccessRules (BP2060-BP2065 -- CA-03/CA-05/CA-06: SetComponent/GetComponent access)
 // ---------------------------------------------------------------------------
 
@@ -1625,16 +1596,15 @@ internal sealed class V_SharedStateRules : IValidator
 /// <list type="bullet">
 ///   <item>BP2060 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> is empty.</item>
 ///   <item>BP2061 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> does not look like a
-///     well-formed dotted CLR type FQN (same syntactic-only check as <see cref="V_SharedStateRules"/>'s
-///     BP2041 -- see that validator's doc comment for why a full-resolution check is not meaningful
-///     here).</item>
+///     well-formed dotted CLR type FQN (syntactic only: the compiler runs as a netstandard2.0 analyzer and cannot load the game
+///     assemblies to resolve the type).</item>
 ///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
 ///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
 ///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
 ///     regardless of whether the pin is actually linked.</item>
 ///   <item>BP2063 (CA-05, Slice 1b) -- a <see cref="GetComponentNode"/> with <c>IsManaged == true</c>
 ///     has one of its FIELD out-pins wired directly into a persisting sink (<see cref="SetVariableNode"/>
-///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
+///     or SetSharedNode (removed, CE-440)). Rule G1 (Q#15): a managed component-read value is
 ///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
 ///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
 ///   <item>BP2064 (CA-06, Slice W2, Q#16-C) -- a <see cref="SetComponentNode"/> with
@@ -1661,7 +1631,7 @@ internal sealed class V_SharedStateRules : IValidator
 /// </summary>
 internal sealed class V_ComponentAccessRules : IValidator
 {
-    // Same syntactic FQN check as V_SharedStateRules -- one-or-more dot/plus-separated C#
+    // Syntactic FQN check (the retired V_SharedStateRules used the same) -- one-or-more dot/plus-separated C#
     // identifier segments, optional "global::" prefix.
     private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
         @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
@@ -1972,7 +1942,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     <c>asset.Variables</c>/<c>asset.WorkingState</c> entry whose OWN declared type resolves to
     ///     managed -- independent of wiring. So "managed value -&gt; a Variable declared with that same
     ///     managed type" is already impossible: the Variable itself cannot exist. This does NOT cover
-    ///     <c>SetSharedNode</c> at all (<see cref="V_SharedStateRules"/> only checks <c>SharedTypeId</c>
+    ///     <c>SetSharedNode</c> at all (the retired V_SharedStateRules only checked <c>SharedTypeId</c>
     ///     syntactically, never its managed-ness), and does not stop wiring in general -- only the
     ///     specific case of a type-matched, explicitly-declared managed Variable/WorkingState field.
     ///   </item>
@@ -1983,9 +1953,9 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     regardless of whether that shared type is managed.
     ///   </item>
     /// </list>
-    /// <b>The gap this closes:</b> <see cref="SetSharedNode"/> has NO managed-ness check anywhere
+    /// <b>The gap this closes:</b> SetSharedNode (removed, CE-440) has NO managed-ness check anywhere
     /// (BP1503 never looks at it), so wiring a managed <see cref="GetComponentNode"/> field straight
-    /// into a <see cref="SetSharedNode"/> field pin of the SAME type name was previously accepted by
+    /// into a SetSharedNode (removed, CE-440) field pin of the SAME type name was previously accepted by
     /// both BP1503 (out of scope) and BP1501 (name matches). This rule closes that gap directly at the
     /// LINK level, and -- for defense in depth / a clearer diagnostic message pointing at the actual
     /// managed-read node -- also flags the <see cref="SetVariableNode"/> case even though BP1503
@@ -1994,7 +1964,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     /// <para>
     /// Deliberately narrow: only flags a link whose SOURCE is one of <paramref name="gcn"/>'s named
     /// FIELD out-pins (excludes "Found", a plain <c>System.Boolean</c> that is never itself a managed
-    /// value) landing on <see cref="SetVariableNode"/>/<see cref="SetSharedNode"/> specifically -- a
+    /// value) landing on <see cref="SetVariableNode"/>/SetSharedNode (removed, CE-440) specifically -- a
     /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
     /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
     /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
@@ -2019,7 +1989,7 @@ internal sealed class V_ComponentAccessRules : IValidator
             if (link.FromNodeId != gcn.Id || !fieldPinIds.Contains(link.FromPinId)) continue;
 
             var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
-            if (sink is not (SetVariableNode or SetSharedNode)) continue;
+            if (sink is not SetVariableNode) continue;
 
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2063,
                 $"{nameof(GetComponentNode)}: a managed component-read field value may only feed a " +

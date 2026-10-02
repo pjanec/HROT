@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Core.Network;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -101,7 +102,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             // Register component types that SpawnEntityCommand will carry through the bus
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             // Register events used by NetworkSpawningSystem if it were running
@@ -131,6 +132,155 @@ namespace Hrot.SimHost.Tests
         }
 
         // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-143</c> — <b>the default is <c>AllPeers</c>, so adoption changes NOTHING.</b>
+        /// 📌 Both publish sites hardcoded <c>ReliableInitType.AllPeers</c>; the request now carries the
+        /// axis. ⛔ If the default ever drifts, every existing caller silently changes its wire
+        /// behaviour — this rail is what makes acceptance ⑥'s "byte-identical default" checkable here.
+        /// </summary>
+        [Fact]
+        public void InitType_DefaultsToAllPeers_SoExistingCallersAreUnchanged()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());          // ⭐ does NOT set InitType
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.AllPeers, commands[0].InitType);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-143</c> — <b>an explicit <c>None</c> REACHES the published command.</b>
+        /// 📌 This is the capability the row exists for: an IG map drawing is a single-owner presentation
+        /// entity, and waiting for every peer to ACK it is pointless latency and a stall risk when a peer
+        /// is absent. ⛔ Without this rail the field could be added and silently ignored — the
+        /// silent-default shape.
+        /// </summary>
+        [Fact]
+        public void InitType_WhenTheRequestSaysNone_ThePublishedCommandSaysNone()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                InitType           = Fdp.Toolkit.Replication.ReliableInitType.None,
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.None, commands[0].InitType);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-143</c> — <b>NEITHER publish site may hardcode the value again.</b>
+        ///
+        /// <para>📌 There are TWO sites: the root entity and each auto-spawned TKB child. The child site
+        /// is not reachable from this fixture's single-template TKB, so a behavioural rail would cover
+        /// only half the change. ⭐ This scan covers both, and it is the guard against the specific
+        /// regression of someone re-introducing a literal during a merge.</para>
+        ///
+        /// <para>⚠ Comments are stripped first (<c>CE-156</c>): the doc comments above the two sites
+        /// legitimately mention <c>AllPeers</c>, and a raw scan would redden on the prose explaining the
+        /// fix.</para>
+        /// </summary>
+        [Fact]
+        public void InitType_IsNotHardcodedAtEitherPublishSite()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"InitType\s*=\s*pending\.Request\.InitType").Count);
+            Assert.DoesNotContain("InitType          = ReliableInitType.AllPeers", code);
+        }
+
+        // ── D2 — the throwaway flag (R-140) ─────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>the default is <c>false</c>, so nothing existing becomes transient.</b>
+        /// ⛔ If this default ever drifts, every scenario-load request silently starts producing entities
+        /// the serializer skips — i.e. <b>saving a scenario would quietly lose entities</b>. That failure
+        /// is invisible until someone reloads, which is exactly why it gets a rail.
+        /// </summary>
+        [Fact]
+        public void IsTransient_DefaultsToFalse_SoExistingCallersAreUnchanged()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());          // ⭐ does NOT set IsTransient
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.False(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>D2</c> — <b>an explicit <c>true</c> REACHES the published command.</b>
+        /// 📌 The capability the flag exists for: a passive node's sketch must not reach a saved scenario
+        /// (<c>R-140</c>). ⛔ Without this rail the field could be added and silently ignored — the
+        /// silent-default shape, and the ninth instance of it in this programme.
+        /// </summary>
+        [Fact]
+        public void IsTransient_WhenTheRequestSaysTrue_ThePublishedCommandSaysTrue()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                IsTransient        = true,
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.True(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>NEITHER publish site may drop the flag.</b>
+        ///
+        /// <para>📌 Same two-site problem <c>CE-143</c> has: the root entity and each auto-spawned TKB
+        /// child. ⭐ The child site is unreachable from this fixture's single-template TKB, so a
+        /// behavioural rail covers only half. ⚠ And the child half MATTERS — a sketch's children are part
+        /// of the same sketch, so a template with <c>N</c> children would otherwise save <c>N</c>
+        /// orphans.</para>
+        /// </summary>
+        [Fact]
+        public void IsTransient_IsForwardedAtBothPublishSites()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"IsTransient\s*=\s*pending\.Request\.IsTransient").Count);
+        }
 
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()
@@ -417,6 +567,59 @@ namespace Hrot.SimHost.Tests
                 jsonAttributeCompiler: null,
                 finalizationSystem: null,
                 isDefaultProcessor: true,
+                ownershipStrategy: ownershipStrategy);
+
+            system.Execute(repo, 0f);
+
+            repo.Bus.SwapBuffers();
+            var dtoCommands = ((ISimulationView)repo).ReadManagedEvents<DeferredTakeOwnershipCommand>();
+
+            Assert.Single(dtoCommands);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.WorldPos && g.NodeId == 11);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.NavigationStatus && g.NodeId == 11);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-271</c> — <b>a NON-ARBITER local owner distributes its non-role components via
+        /// the auto-takeover grant, exactly as the arbiter does.</b>
+        ///
+        /// <para>🔒 <c>R-138</c> (canon): <i>"THE SYSTEM IS FULLY DISTRIBUTED: EVERY ECS NODE CAN CREATE
+        /// ENTITIES … a node that originates its own entity … authority moves at runtime over the
+        /// <c>OwnershipUpdate</c> topic, with the previous owner symmetrically yielding."</i> A request
+        /// TARGETED AT THIS NODE (<c>OwnerAppInstanceId == LocalNodeId</c>) is serviced locally and this
+        /// node OWNS the entity — so it must hand off the components its role does not cover, the same
+        /// birth-critical handoff the design names (<c>DESIGN_Role_Affinity_Ownership.md</c> §3.1).</para>
+        ///
+        /// <para>⛔ <b>The defect this rail reproduces:</b> grant publication was gated on
+        /// <c>isDefaultProcessor</c> — the broadcast TIEBREAKER for <c>Owner == 0</c> requests, NOT an
+        /// authority gate (<c>Q65</c> §4). That is the pre-auto-takeover <i>"the arbiter is the sole
+        /// owner"</i> assumption, valid only before <c>DeferredTakeOwnership</c> existed. A non-arbiter
+        /// creator (e.g. IG under <c>R-138</c>) therefore kept every component and handed off nothing, so
+        /// a Muscle could never take <c>dtWorldPos</c> and the entity was frozen from the cluster's view.</para>
+        ///
+        /// <para>⚠ It is impossible for two nodes to publish grants for one entity: exactly one node
+        /// services a given creation (the level-1 routing guard, <c>IsHandledLocally</c>), and that node
+        /// is the one publishing here. So un-gating cannot double-grant.</para>
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership()
+        {
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());   // OwnerAppInstanceId == LocalNodeId ⇒ handled locally, this node owns it
+
+            var ackSink = new StubAckSink();
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ownershipStrategy = new StubOwnershipStrategy();
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.WorldPos, 11);
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.NavigationStatus, 11);
+
+            var system = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null,
+                finalizationSystem: null,
+                isDefaultProcessor: false,          // ⛔ NOT the arbiter — a plain local creating owner
                 ownershipStrategy: ownershipStrategy);
 
             system.Execute(repo, 0f);

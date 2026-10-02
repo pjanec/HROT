@@ -148,9 +148,22 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         // ⚠ 23 → 25 (Batch 88b: the AI Details panel, again BTree and HSM only — +2, not +3, because
         //    Blueprint keeps BlueprintDetailsWindow. ⭐ A second Details there would be two panels for
         //    one concept AND an id collision, which RegisterCore now refuses at startup).
+        // ⛔⛔ 25 → 26 (S1 / BP-399, 2026-08-22: DESIGN_Details_Panel_View_Switching.md §7.3 ① — the
+        //    shell is built for EVERY perspective, so Blueprint gets the third AI Details panel and the
+        //    88b note above is SUPERSEDED. ⭐ It is still ONE panel per perspective: BlueprintDetailsWindow
+        //    is retired in the same commit — it HAD to be, because it claims the same
+        //    `ai_details_blueprint` id and RegisterCore throws on a duplicate).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(25, allIds.Count);
-        Assert.Equal(25, allIds.Distinct().Count());
+        // ⛔⛔ 26 → 23 (S5 / BP-399, 2026-08-22: §7.6 ⑤ — InspectorWindow is RETIRED, so each of the
+        //    three perspectives loses one window. ⭐ MINUS 3, and that is the whole shape of the change:
+        //    all six of its arms are Details VIEWS or asset-row menu items now, and after S4 removed the
+        //    last one the window drew nothing at all.
+        //    📌 B101c: the DIRECTION was established before this number moved — the design commissions
+        //    the retirement, so this is a designed loss, ⛔ not an expectation relaxed to hide a red.)
+        // ⚠ CE-303 (2026-09-21): THREE fewer — one dissolved RuntimeInspectorWindow per AI
+        //    registrar (§4's Q-iii). ⭐ Exact, not relaxed: the DISTINCT half is the real claim.
+        Assert.Equal(20, allIds.Count);
+        Assert.Equal(20, allIds.Distinct().Count());
     }
 
     /// <summary>
@@ -162,8 +175,15 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         var reg = MakeRegistrar("BTree");
 
         Assert.NotNull(reg.FindResults);
-        Assert.NotNull(reg.Inspector);
-        Assert.NotNull(reg.RuntimeInspector);
+        // ⛔ S5: reg.Inspector is GONE — the window is retired (§7.6 ⑤). Its replacement services are
+        //    per-perspective sources on this same registrar, asserted just below.
+        Assert.NotNull(reg.ParameterSync);
+        Assert.NotNull(reg.NodeProperties);
+        // ⛔ CE-303: reg.RuntimeInspector is GONE — §4's Q-iii, the window DISSOLVES into three
+        //    predicated views. ⭐ The capability that replaced it is asserted instead: a pane
+        //    registered here reaches the catalogue (TheViewsCameFromTheirOwnWindowsTests covers
+        //    the content; this only says the seam exists on every registrar).
+        Assert.NotNull(reg.DetailsViews);
         Assert.NotNull(reg.TraceTimeline);
         Assert.NotNull(reg.BlackboardAuthoring);
         Assert.NotNull(reg.Diagnostics);
@@ -189,19 +209,22 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
             debugRegistry:    new DebugSessionRegistry(),
             facetEditService: editSvc);
 
-        Assert.True(reg.Inspector.HasFacetEditService,
-            "the facetEditService passed to the registrar ctor must reach the Inspector");
+        // ⭐ <c>S2</c>: the forwarding target moved from <c>Inspector</c> to <c>NodeProperties</c> — the node
+    /// arms are a Details view now *(§7.6 ②)*. ⚠ The FORWARDING claim is unchanged, and this is still
+    /// the <c>2026-08-16</c> control: asserted on the CONSTRUCTED object, ⛔ never on the ctor's source.
+        Assert.True(reg.NodeProperties.HasFacetEditService,
+            "the facetEditService passed to the registrar ctor must reach the node-properties source");
     }
 
     /// <summary>
-    /// SE1 negative control: without a facetEditService the Inspector falls back to the stub
+    /// SE1 negative control: without a facetEditService the node view falls back to the honest stub
     /// (HasFacetEditService == false), confirming the wiring is what enables live rendering.
     /// </summary>
     [Fact]
-    public void PerspectiveRegistrar_WithoutFacetEditService_InspectorHasNone()
+    public void PerspectiveRegistrar_WithoutFacetEditService_NodePropertiesHasNone()
     {
         var reg = MakeRegistrar("BTree");
-        Assert.False(reg.Inspector.HasFacetEditService);
+        Assert.False(reg.NodeProperties.HasFacetEditService);
     }
 
     /// <summary>

@@ -79,8 +79,16 @@ public sealed class TheDialogHasSomethingToDrawTests
             + "name and two separators with nothing between them, which is what the user reported.");
     }
 
-    /// <summary>⭐⭐ …and the value it shows is the DECLARED DEFAULT, not a zero — ⛔ a document that
-    /// merely has nodes could still be seeded from nothing.</summary>
+    /// <summary>
+    /// ⭐⭐ …and the value it shows is the DECLARED DEFAULT, not a zero — ⛔ a document that merely has
+    /// nodes could still be seeded from nothing.
+    ///
+    /// <para>⚠ <b>Batch 97 (<c>97a</c>) — read through the PRODUCTION COMMIT PATH.</b> A scalar session
+    /// is now opened over <c>ScalarEditBox&lt;int&gt;</c>, so the raw <c>session.Commit()</c> returns
+    /// the <b>box</b> — ⭐ that is by design, and <c>DefaultValueAuthoring.CommitAndSerialize</c> is
+    /// the one place that unwraps. ⛔ Asserting on the raw commit would pin the wrapper as an output,
+    /// which is exactly what must never escape.</para>
+    /// </summary>
     [Fact]
     public void TheScalarDocumentIsSeededFromTheDeclaredDefault()
     {
@@ -89,7 +97,8 @@ public sealed class TheDialogHasSomethingToDrawTests
         using var session = Launcher().Open(
             Row("Count", typeof(int)), VariableEditAction.EditValue, VariableRunState.Planning, entry);
 
-        Assert.Equal(7, session!.Commit());
+        Assert.Equal("7", Hrot.Editor.AiShared.Inspector.DefaultValueAuthoring
+                              .CommitAndSerialize(session!, typeof(int)));
     }
 
     // ══ the DTO shape every earlier test used ════════════════════════════════

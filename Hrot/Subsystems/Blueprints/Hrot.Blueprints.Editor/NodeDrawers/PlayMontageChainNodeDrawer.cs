@@ -1,7 +1,7 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Catalog;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Nodes;
 

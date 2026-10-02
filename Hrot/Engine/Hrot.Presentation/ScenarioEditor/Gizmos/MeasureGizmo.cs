@@ -38,6 +38,26 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public bool RequiresExclusiveFocus => true;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>TRUE, and it is not optional for an exclusive-focus gizmo.</b> 📄
+    /// <c>docs/designs/gizmos-1/gizmo-input-focus-design.md</c> §5.1 · <c>§6.2c</c> · <c>CE-259k</c>.
+    ///
+    /// <para>🔴 <b>The defect this closes, measured <c>2026-09-09</c> by running the editor:</b> this gizmo
+    /// implements its ENTIRE behaviour in <see cref="OnMouseEvent"/> / <see cref="OnKeyEvent"/> — the RAW
+    /// handlers — while <c>OnInteractionStarted</c> / <c>OnCommit</c> are empty stubs. With
+    /// <c>WantsRawInput</c> left at its <see langword="false"/> default the terminal is told the opposite,
+    /// and the gizmo is DEAF ON BOTH PATHS: <c>DebugGizmoLayer.cs:126</c> withholds raw events, and
+    /// <c>:428</c> suppresses spatial hit-testing for everything not anchored to the capture token because
+    /// <c>RequiresExclusiveFocus</c> is set. ⇒ it DRAWS and ignores every click, and Escape too.</para>
+    ///
+    /// <para>🔒 <b>Design basis:</b> §5.1 defines <c>InputCaptureBinding</c> as <i>"a meta-primitive
+    /// declaring that the bound token wants raw hardware events streamed to it"</i>, with ONE flag —
+    /// <c>ConditionMask: 1 = Exclusive, 0 = Shared</c>. ⛔ There is no <c>wantsRawInput</c> bit in the
+    /// design at all; emitting the binding WAS the request. The second bit is an as-built divergence, and
+    /// reconciling it is <c>CE-259l</c> — until then every exclusive gizmo must say this explicitly.</para>
+    /// </summary>
+    public bool WantsRawInput => true;
+
     /// <inheritdoc/>
     public bool IsFocused { get; private set; }
 
@@ -63,10 +83,30 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
     /// Callback invoked when the gizmo wants to exit (measurement complete or cancelled).
     /// Typically calls <c>GlobalGizmoManager.Unregister</c>.
     /// </param>
-    public MeasureGizmo(Action? onRemove = null)
+    /// <param name="onRemove">Invoked when the gizmo removes itself (Escape, or a completed measurement).</param>
+    /// <param name="unitsProvider">
+    /// ⭐⭐ <b>Optional PULL source for <see cref="DisplayUnits"/>.</b> 🔒 <c>UXI-07</c> step 4a: IG's
+    /// units live in a <c>GizmoSettingsRegistry</c> the gizmo must not know about, and the OWNER of the
+    /// gizmo is now the shared tool registration rather than IG's adapter — so the adapter can no longer
+    /// PUSH units onto an instance it does not hold.
+    ///
+    /// <para>⇒ ⭐ a pull source removes the per-frame sync entirely: whoever creates the gizmo hands it a
+    /// way to ask. ⛔ <see langword="null"/> keeps the settable <see cref="DisplayUnits"/> behaviour, which
+    /// is what every host without a settings registry uses.</para>
+    /// </param>
+    public MeasureGizmo(Action? onRemove = null, Func<MeasureDisplayUnits>? unitsProvider = null)
     {
-        _onRemove = onRemove ?? (() => { });
+        _onRemove      = onRemove ?? (() => { });
+        _unitsProvider = unitsProvider;
     }
+
+    private readonly Func<MeasureDisplayUnits>? _unitsProvider;
+
+    /// <summary>
+    /// The units actually used when drawing. ⭐ The provider WINS when one was supplied — it is the live
+    /// setting; <see cref="DisplayUnits"/> is the fallback for hosts that push instead of pull.
+    /// </summary>
+    private MeasureDisplayUnits EffectiveUnits => _unitsProvider?.Invoke() ?? DisplayUnits;
 
     // -- IEntityStatefulGizmo --
 
@@ -98,7 +138,7 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
             MeasureToolConstants.LineThickness);
 
         float  distance = Vector2.Distance(new Vector2(start.X, start.Y), new Vector2(end.X, end.Y));
-        string label    = DisplayUnits == MeasureDisplayUnits.Kilometers
+        string label    = EffectiveUnits == MeasureDisplayUnits.Kilometers
             ? $"{distance / 1000f:F3} km"
             : $"{distance:F1} m";
         float  midX = (start.X + end.X) * 0.5f;

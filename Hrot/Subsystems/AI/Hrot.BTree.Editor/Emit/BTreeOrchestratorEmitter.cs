@@ -17,10 +17,14 @@ namespace Hrot.BTree.Editor.Emit;
 /// <see cref="BTreeOrchestratorEmitCore"/>, in the netstandard2.0 persistence assembly, so the
 /// generator (<c>92b</c>) and this sidecar path emit from <b>one body</b> — 📌 ruling 9.</para>
 ///
-/// <para>⭐⭐ <b>The Approach-B groups are supplied HERE and nowhere else</b>, because they are
-/// session-local: <c>_syncNodeMeta</c> is written only by <c>InspectorWindow:590</c> and is
-/// deliberately not persisted. 📄 The measurement, and why widening the DTO would not be enough, is
-/// on <see cref="BTreeOrchestratorEmitCore"/>.</para>
+/// <para>⭐⭐⭐ <b><c>Q49</c> (<c>2026-08-22</c>) — THE IDENTITY IS NO LONGER SESSION-LOCAL HERE.</b>
+/// ⛔ <i>(was: "<c>_syncNodeMeta</c> is written only by a UI draw and is deliberately not persisted"
+/// — true of the WRITE, and it meant this emitter produced nothing after a reload.)</i>
+/// ⭐ <see cref="Emit"/> now takes a <b>required</b> sub-asset resolver and <b>recomputes</b> the
+/// identity before reading the groups — 📌 <c>R-126</c>'s pull. Nothing is persisted; the DTO exclusion
+/// rail stays correct. 📄 <c>Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md</c>.
+/// ⚠ <b>This closes <c>BP-342</c> gap ① for the EDITOR arm only</b> — the generator arm is option D,
+/// and <b>gap ②</b> *(the master blackboard does not declare the auto-allocated slice)* still stands.</para>
 ///
 /// <para>⭐⭐ <b><c>WriteOrchestratorFile</c> STAYS</b> — the Category-1 hand-authored path
 /// (<c>EditorSubsystem:3136</c>), and ⛔ deliberately unwired to anything new.</para>
@@ -34,19 +38,51 @@ public static class BTreeOrchestratorEmitter
     /// <remarks>
     /// ⭐ Projects through the SAME <c>ToDto</c> the save path uses — ⛔ not a second projection.
     /// </remarks>
-    public static string? Emit(BehaviorTreeAsset asset)
-        => BTreeOrchestratorEmitCore.Emit(
-            BehaviorTreeAssetMapper.ToDto(asset), ApproachBGroupsOf(asset));
+    /// <param name="resolveSubAsset">
+    /// ⭐⭐⭐ <b><c>Q49</c> option C, as a PULL.</b> Answers <i>"what are this subtree asset's name and
+    /// blackboard type?"</i> — the identity is <b>recomputed from it before the groups are read</b>.
+    ///
+    /// <para>⛔⛔ <b>REQUIRED, and that is the whole point</b> — 📌 <c>R-126</c>: <i>"no path can forget
+    /// to raise what is never raised."</i> ⚠ The defect being fixed is precisely that the identity was
+    /// written by <b>one optional caller</b> *(a UI draw)*; an optional parameter here would rebuild
+    /// that failure mode one level up. ⇒ ⭐ a caller with no catalog passes <c>_ =&gt; null</c> and says
+    /// so — an explicit *"I cannot resolve"*, not a silent default.</para>
+    /// </param>
+    public static string? Emit(
+        BehaviorTreeAsset asset,
+        System.Func<System.Guid, (string Name, string BlackboardTypeName)?> resolveSubAsset)
+    {
+        if (resolveSubAsset is null) throw new System.ArgumentNullException(nameof(resolveSubAsset));
+
+        // ⭐⭐ RECOMPUTE FIRST, then read. ⛔ Reading first would emit the pre-reload (empty) identity,
+        //    which is the bug. See BehaviorTreeAsset.RecomputeSubtreeSyncIdentity.
+        asset.RecomputeSubtreeSyncIdentity(resolveSubAsset);
+
+        var dto = BehaviorTreeAssetMapper.ToDto(asset);
+        return BTreeOrchestratorEmitCore.Emit(dto, ApproachBGroupsOf(asset, dto));
+    }
 
     /// <summary>
     /// Maps the editor's <c>ApproachBSyncGroup</c>s onto the core's assembly-neutral shape.
     /// ⛔ The core cannot reference <c>Hrot.Editor.AiShared</c> (net8 + ImGui), so the shapes are
     /// mirrored rather than shared.
     /// </summary>
-    private static IReadOnlyList<OrchestratorSyncGroup> ApproachBGroupsOf(BehaviorTreeAsset asset)
+    private static IReadOnlyList<OrchestratorSyncGroup> ApproachBGroupsOf(
+        BehaviorTreeAsset asset, Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto dto)
     {
         var groups = asset.GetApproachBSyncGroups();
         var result = new List<OrchestratorSyncGroup>(groups.Count);
+
+        // ⭐⭐⭐ O4 / C1 — the hosted child's tree-state slot key is derived from (host, SITE, child),
+        //   so this path must carry the same two ids SubtreeSyncProjection does.
+        // ⛔⛔ Passing Guid.Empty would NOT fail loudly here: it yields a well-formed but WRONG key,
+        //   which the generator's registrar never declares ⇒ HostedSubtree.Tick throws at runtime on a
+        //   sidecar that compiled cleanly. 📌 That is the silent-key-drift failure A1 exists to kill,
+        //   so the ids are resolved from the DTO's subtree nodes exactly as the generator does.
+        var subtreeAssetIdByNode = new Dictionary<System.Guid, System.Guid>();
+        foreach (var node in dto.Nodes)
+            if (node is Hrot.AiEditor.Persistence.BTree.BTreeSubtreeNodeDto sub && sub.Subtree is { } payload)
+                subtreeAssetIdByNode[node.VisualId] = payload.SubtreeAssetId;
 
         foreach (var g in groups)
         {
@@ -55,8 +91,11 @@ public static class BTreeOrchestratorEmitter
                 bindings.Add(new OrchestratorSyncBinding(
                     b.FieldName, b.MasterVariableName, b.SyncIn, b.SyncOut));
 
+            subtreeAssetIdByNode.TryGetValue(g.NodeVisualId, out var childAssetId);
+
             result.Add(new OrchestratorSyncGroup(
-                g.SubtreeName, g.SubtreeDtoTypeName, g.SubtreeDtoTypeNs, bindings));
+                g.SubtreeName, g.SubtreeDtoTypeName, g.SubtreeDtoTypeNs, bindings,
+                g.NodeVisualId, childAssetId));
         }
 
         return result;

@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T32_ComposedGeneratedBlueprint
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Action("Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.TickCore@0@378783867",
                 visualId: new Guid("bb320000-0000-0000-0000-000000000002"));
 

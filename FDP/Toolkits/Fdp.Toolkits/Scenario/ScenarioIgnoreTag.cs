@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Scenario
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Marked <c>[DataPolicy(DataPolicy.NoSave)]</c> so that
+    /// Marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> so that
     /// <see cref="EntityRepository.GetSaveableMask()"/> never sets the bit for this
     /// component; the serializer therefore never tries to serialize <em>the tag
     /// itself</em> — it is used only as an entity-level filter.
@@ -22,6 +22,6 @@ namespace Fdp.Toolkit.Scenario
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1)]
     [ComponentId(ScenarioComponentIds.ScenarioIgnoreTag)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct ScenarioIgnoreTag { }
 }

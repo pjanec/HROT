@@ -44,6 +44,76 @@ public interface IVariablesSchemaSource
     /// </summary>
     bool SupportsRoleScopeEditing { get; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — WHERE AN INITIAL-VALUE EDIT LANDS, in the vocabulary all three
+    /// hosts already share.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect.</b> 📐 Measured: <c>VariableEditCommit.CommitInitialValue</c> resolved
+    /// its write target through <c>PerspectiveWorkspaceRegistrar.DeclarationOwnerOf</c>, which
+    /// type-tests <c>store.ActiveAsset is IBlackboardManagedAsset</c> — ⛔ <b>and
+    /// <c>BlueprintAsset</c> is not one.</b> ⇒ in <b>PLANNING</b>, the ordinary authoring state, the
+    /// target is the initial value, the owner was <b>always <c>null</c> on Blueprint</b>, and
+    /// <b>OK refused on every Blueprint variable, every time.</b></para>
+    ///
+    /// <para>⭐⭐ <b>Why HERE and not on <c>IBlackboardManagedAsset</c>.</b> 📌 <c>95a</c> and
+    /// <c>R-108</c> both keep the two vocabularies apart on purpose: <c>IBlackboardManagedAsset</c> is
+    /// the <b>AI blackboard's</b> interface, and a <c>BlueprintAsset</c> speaks
+    /// <c>VariableDecl</c>/<c>ParameterDecl</c> with a persisted <c>Guid Id</c>. ⛔ Widening it to
+    /// swallow blueprints is explicitly forbidden by this batch's handoff. ⭐ <b>This interface is
+    /// already the one thing all three hosts implement</b> — it carries <c>RenameVariable</c>,
+    /// <c>RemoveVariable</c> and <c>MoveVariable</c> for exactly the same reason.</para>
+    ///
+    /// <para>⛔⛔ <b>NO DEFAULT BODY, deliberately.</b> 📌 <c>U-5</c>/<c>BP-230</c>, stated in this very
+    /// file: <i>"a default body is the interface volunteering to lie on an implementer's behalf."</i>
+    /// ⚠ That is precisely how <c>UpdateVariableRole</c> shipped as <c>{ }</c> and how a blueprint's
+    /// Role combo landed in an empty body for two batches. ⭐ Every implementer answers, and a new one
+    /// <b>cannot compile</b> without deciding.</para>
+    ///
+    /// <para>⭐ <c>null</c> clears the authored default — byte-stable, exactly as
+    /// <c>IBlackboardManagedAsset.UpdateVariableDefaultValueJson</c> defines it. ⚠ An unknown name is
+    /// a <b>no-op</b>, not a throw: the row may have been deleted under an open dialog.</para>
+    /// </summary>
+    void UpdateVariableDefaultValueJson(string name, string? defaultValueJson);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — where the PROPERTIES form's OK lands.</b>
+    ///
+    /// <para>📌 <c>R-108</c>/<c>R-109</c>: <i>"'Properties…' must open the DECLARATION, not the
+    /// value"</i>, and it is a <b>CUSTOM</b> form. ⇒ it needs somewhere to put the declaration's
+    /// members, and <see cref="UpdateVariableDefaultValueJson"/> reaches exactly one of them.</para>
+    ///
+    /// <para>⭐ <b>ONE method, not five setters.</b> The properties are committed together by one OK,
+    /// so five calls would be five chances to fire the dirty callback five times — ⛔ and a host that
+    /// implemented four of them would look finished.</para>
+    ///
+    /// <para>⚠ <c>Variables.VariablePropertyValues</c> carries <c>null</c> for <i>"this kind does not
+    /// have it"</i>, and an implementer <b>must leave those members alone</b> — ⛔ coercing <c>null</c>
+    /// to <c>""</c> erases a comment the form never showed.</para>
+    ///
+    /// <para>⛔⛔ <b><c>Name</c> and <c>Type</c> are NOT part of this, and that is <c>R-109</c>.</b>
+    /// A rename is an OPERATION and goes through <c>VariableRenameCommit</c> *(the refactor service —
+    /// 📌 <c>M-15</c>)*; a retype is a MIGRATION *(<c>StructureHash</c> moves — <c>R-24</c>)*.</para>
+    ///
+    /// <para>⛔ <b>NO DEFAULT BODY</b> — 📌 <c>U-5</c>/<c>BP-230</c>, stated above.</para>
+    /// </summary>
+    void UpdateVariableProperties(string name, Variables.VariablePropertyValues values);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — reads the declaration's KIND and its non-value members.</b>
+    ///
+    /// <para>⚠ <b>Why <see cref="Variables"/>' view model is not enough.</b> 📐 <c>VariableViewModel</c>
+    /// carries <c>DefaultValueJson</c> and <b>not</b> Tooltip, Category, IsEditable or IsExposedOnSpawn
+    /// — and those are exactly the members <c>VariablePropertySchema.For(BlueprintVariable)</c> says the
+    /// form must show. ⛔ Widening the view model would put four members on the projection <b>every
+    /// table row builds</b>, for a form that opens on one row at a time.</para>
+    ///
+    /// <para>⭐ <b>The KIND rides along</b> because this source is the only thing that knows which
+    /// carrier it read — 📌 <c>95a</c>: the asset is exactly what cannot be type-tested.</para>
+    ///
+    /// <para>⛔ <b>NO DEFAULT BODY.</b> ⚠ <c>null</c> for an unknown name is correct and expected.</para>
+    /// </summary>
+    Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name);
+
     // S3-1: Role / Scope authoring.
     // ⚠ U-5: these keep default bodies so implementers that legitimately cannot edit need not write
     // them — but the bodies now THROW rather than doing nothing. Combined with
@@ -95,6 +165,43 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
     public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
 
+    /// <summary>
+    /// ⭐ 99a — an AI blackboard entry carries only DefaultValue and Comment of the properties set
+    /// *(📌 <c>VariablePropertySchema.For(BlackboardEntry)</c>: four properties, not eight)*, and the
+    /// asset already owns both writes. ⚠ <c>null</c> members are LEFT ALONE, per the contract.
+    /// </summary>
+    public void UpdateVariableProperties(
+        string name, Hrot.Editor.AiShared.Variables.VariablePropertyValues values)
+    {
+        if (values is null) return;
+        if (values.DefaultValueJson is not null)
+            _asset.UpdateVariableDefaultValueJson(name, values.DefaultValueJson);
+        if (values.Comment is not null) _asset.UpdateVariableComment(name, values.Comment);
+    }
+
+    /// <summary>
+    /// ⭐ 99a — the entry IS the carrier here, so this reads it directly.
+    /// ⚠ Tooltip/Category/IsEditable/IsExposedOnSpawn stay <c>null</c>: the entry has <b>no member for
+    /// any of them</b>, and the schema agrees. ⛔ Inventing them would draw controls with nowhere to save.
+    /// </summary>
+    public Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name)
+    {
+        foreach (var v in _asset.BlackboardVariables)
+            if (string.Equals(v.Name, name, StringComparison.Ordinal))
+                return new Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot(
+                    Hrot.Editor.AiShared.Variables.VariableDeclarationKind.BlackboardEntry,
+                    new Hrot.Editor.AiShared.Variables.VariablePropertyValues(
+                        DefaultValueJson: v.DefaultValueJson ?? "",
+                        Comment:          v.Comment ?? ""),
+                    TypeId: v.FieldType?.FullName ?? "");
+        return null;
+    }
+
+    // ⭐ 98a — the asset already owns this exact call (and its dirty marking); this source forwards.
+    //   ⛔ Nothing is re-implemented here: BTree/HSM's initial-value write was never the broken half.
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+        => _asset.UpdateVariableDefaultValueJson(name, defaultValueJson);
+
     public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements => _vm.UnboundRequirements;
     public void AddAlias(string name, BlackboardAliasBinding binding) => _asset.AddAlias(name, binding);
     public void RemoveAlias(string name, Guid reqAssetId, Guid reqElemId) => _asset.RemoveAlias(name, reqAssetId, reqElemId);
@@ -107,9 +214,6 @@ public sealed record VariablesPanelSection(
     IVariablesSchemaSource Schema,
     int TotalInlineBytes,
     int InlineBudget,
-    int TotalHeavyBytes,
-    int HeavyBudget,
-    bool RequiresHeavyComponent,
     PackWarning Warning,
     bool AliasingEnabled
 );
@@ -173,22 +277,13 @@ public sealed class VariablesPanelControl
     {
         var schema = section.Schema;
 
-        // Memory budget header
-        if (section.RequiresHeavyComponent)
-        {
-            ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Inline: {section.TotalInlineBytes} / {section.InlineBudget} B");
-            ImGui.SameLine();
-            ImGui.TextColored(BudgetColor(section.TotalHeavyBytes, section.HeavyBudget), $"  Heavy: {section.TotalHeavyBytes} / {section.HeavyBudget} B");
-        }
-        else
-        {
-            ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
-        }
+        // Memory budget header.
+        // ⭐ CE-314: ONE line, always. The two-line Inline/Heavy form reported a Blackboard1024 budget
+        //   that P4-① deleted — an authoring surface for storage that cannot exist.
+        ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
 
         if (section.Warning == PackWarning.InlineMemoryExceeded)
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Inline memory exceeded!");
-        else if (section.Warning == PackWarning.HeavyMemoryExceeded)
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Heavy memory exceeded!");
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Memory budget exceeded!");
 
         ImGui.Separator();
 
@@ -457,20 +552,20 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
-                    {
-                        ImGui.SetNextItemWidth(-1f);
-                        int scopeIdx = (int)row.Scope;
-                        if (ImGui.Combo($"##scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
-                        {
-                            var newScope = (WorkingStateScope)scopeIdx;
-                            schema.UpdateVariableScope(row.Name, newScope);
-                        }
-                    }
-                    else
-                    {
-                        ImGui.TextUnformatted(row.Scope.ToString());
-                    }
+                    // ⭐⭐⭐ CE-435 — THE SCOPE DROPDOWN IS GONE; `Behavior` IS THE ONLY SCOPE.
+                    //
+                    // 🔒 User, 2026-09-29: "I want to remove the entity scope and node scope on the
+                    //    blackboard variables because they have issues and there is no real need for
+                    //    them. I want to avoid the need to support these two as it might unnecessarily
+                    //    complicate the refactor."
+                    // 📐 Measured over the whole corpus: of the authored `State` variables, ZERO were
+                    //    at `Node` and two at `Entity` (both re-homed by this slice). A three-valued
+                    //    dropdown decided SIX variables, and its DEFAULT — `Node` — was the value that
+                    //    silently provisions nothing (CE-423).
+                    // ⭐ The model now forces `Behavior` whenever Role becomes `State`
+                    //    (BehaviorTreeAsset/HsmAsset.UpdateVariableRole), so this cell has nothing
+                    //    left to choose and says so instead of offering a one-item combo.
+                    ImGui.TextUnformatted(row.Scope.ToString());
                 }
                 else
                 {
@@ -553,20 +648,7 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
-                    {
-                        ImGui.SetNextItemWidth(-1f);
-                        int scopeIdx = (int)row.Scope;
-                        if (ImGui.Combo($"##no_scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
-                        {
-                            var newScope = (WorkingStateScope)scopeIdx;
-                            schema.UpdateVariableScope(row.Name, newScope);
-                        }
-                    }
-                    else
-                    {
-                        ImGui.TextUnformatted(row.Scope.ToString());
-                    }
+                    ImGui.TextUnformatted(row.Scope.ToString());   // CE-435 — see above
                 }
                 else
                 {

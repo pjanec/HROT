@@ -31,6 +31,24 @@ public class SetSelectionCommandTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> slice <c>S-2</c> — the selection now lands ONE FRAME LATER, so the rail
+    /// runs a frame.</b>
+    ///
+    /// <para>📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.3 rule 1 / §2.7.7: <c>SelectEntityOnMap</c>
+    /// used to hand-roll the clear-loop and write the <c>SelectionState</c> component itself. It now
+    /// publishes a <c>SelectionChangeRequest</c> and <c>SelectionRequestSystem</c> applies it — one
+    /// writer, host-wide. ⚠ §2.5 rules the one-frame latency structural, not a defect.</para>
+    ///
+    /// <para>⭐⭐ <b>This makes the rail STRONGER, not weaker.</b> ⛔ Before, it proved only that a
+    /// private method wrote two booleans. Now it proves the whole chain — request published, bus
+    /// swapped, the system registered ON THIS HOST, the view applied. 📐 That registration is new:
+    /// measured <c>2026-09-20</c>, IG ran no request system at all, so <c>SelectEntityCommand</c> had
+    /// no consumer here. ⚠ If the registration is ever dropped, these two go red — which is exactly
+    /// the silent no-op that would otherwise ship.</para>
+    /// </summary>
+    private void PumpOneFrame() => _app.Kernel.Update();
+
+    /// <summary>
     /// OC1-G001 Scenario 1 — known entity becomes selected.
     /// </summary>
     [Fact]
@@ -39,6 +57,7 @@ public class SetSelectionCommandTests : IDisposable
         RegisterEntity(42L);
 
         _app.TestHook_ParseCommandAndSetSelection("{\"entityId\":42}");
+        PumpOneFrame();
 
         // Verify the entity's SelectionState.
         Assert.True(_app.TestHook_EntityMap.TryGetEntity(42L, out var entity));
@@ -59,7 +78,7 @@ public class SetSelectionCommandTests : IDisposable
     }
 
     /// <summary>
-    /// OC1-G001 Scenario 3 — empty JSON: silently ignored.
+    /// OC1-G001 Scenario 3 — empty JSON: no exception. ⚠ Since Q73 §8 it means "no id" ⇒ a clear.
     /// </summary>
     [Fact]
     public void EmptyJson_SilentlyIgnored()
@@ -67,6 +86,32 @@ public class SetSelectionCommandTests : IDisposable
         var ex = Record.Exception(() =>
             _app.TestHook_ParseCommandAndSetSelection(""));
         Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Q73 §8 — a command with NO id CLEARS the selection.</b> 🔒 User, <c>2026-09-30</c>: <i>"set
+    /// selection without id means clear."</i> ⇒ ExCon can clear the IG map it remote-controls, which no
+    /// command could express before. Three spellings of "no id": absent, 0, no arguments.
+    /// 🔴 Red-proof: restore the early <c>return</c> on a missing id ⇒ the entity stays selected.
+    /// </summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"entityId\":0}")]
+    [InlineData("")]
+    public void Q73_A_command_without_an_id_clears_the_selection(string argsJson)
+    {
+        RegisterEntity(42L);
+        _app.TestHook_ParseCommandAndSetSelection("{\"entityId\":42}");
+        PumpOneFrame();
+        Assert.True(_app.TestHook_EntityMap.TryGetEntity(42L, out var entity));
+        Assert.True(_app.World.GetComponent<SelectionState>(entity).IsSelected
+                    || _app.World.GetComponent<SelectionState>(entity).IsPrimarySelection);
+
+        _app.TestHook_ParseCommandAndSetSelection(argsJson);
+        PumpOneFrame();
+
+        var state = _app.World.GetComponent<SelectionState>(entity);
+        Assert.False(state.IsSelected || state.IsPrimarySelection);
     }
 
     /// <summary>
@@ -80,9 +125,11 @@ public class SetSelectionCommandTests : IDisposable
 
         // Select A first.
         _app.TestHook_ParseCommandAndSetSelection("{\"entityId\":10}");
+        PumpOneFrame();
 
         // Now select B.
         _app.TestHook_ParseCommandAndSetSelection("{\"entityId\":55}");
+        PumpOneFrame();
 
         Assert.True(_app.TestHook_EntityMap.TryGetEntity(10L, out var entityA));
         Assert.True(_app.TestHook_EntityMap.TryGetEntity(55L, out var entityB));

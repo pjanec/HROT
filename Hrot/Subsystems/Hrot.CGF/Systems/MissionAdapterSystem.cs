@@ -13,7 +13,7 @@ namespace Hrot.CGF.Systems
     /// <remarks>
     /// <para>
     /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="BehaviorState"/> 
-    /// or <see cref="BrainBlackboard"/> directly. Instead, it acts purely as a change-detector and dispatcher. 
+    /// or <c>BrainBlackboard</c> directly. Instead, it acts purely as a change-detector and dispatcher. 
     /// When a phase change is detected, it extracts the <c>BehaviorId</c> and <c>BehaviorParams</c> JSON and
     /// publishes an <see cref="AssignTacticalIntentEvent"/>. This delegates resolution to
     /// <see cref="TacticalIntentResolutionSystem"/>, which translates the intent into a concrete
@@ -65,6 +65,15 @@ namespace Hrot.CGF.Systems
                         adapterState.LastPhase = queue.CurrentPhase;
                         adapterState.LastPlanVersion = 0;
                     }
+                    continue;
+                }
+
+                // ⭐ CE-483 — a HALTED plan (its phase's behaviour faulted) re-issues nothing. Forgetting the phase here is what
+                //   makes an operator's jump — even back to the SAME phase, a retry — start the behaviour again once the halt is
+                //   cleared. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
+                if (queue.Halted != 0)
+                {
+                    adapterState.LastPhase = byte.MaxValue;
                     continue;
                 }
 

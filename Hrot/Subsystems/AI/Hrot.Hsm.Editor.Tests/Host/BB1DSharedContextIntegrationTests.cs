@@ -24,7 +24,7 @@ file sealed class StubExporterForHsmBB1D : IActionSchemaExporter
     public event Action? Changed { add { } remove { } }
 
     public void Register(string fqn, Type dtoType)
-        => _map[fqn] = new ActionSchemaEntry(fqn, dtoType, ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        => _map[fqn] = new ActionSchemaEntry(fqn, dtoType, ActionHosting.Hsm, BlackboardAccess.ReadWrite);
 
     public ActionSchemaEntry? Lookup(string fqn) => _map.GetValueOrDefault(fqn);
     public void Rebuild() { }

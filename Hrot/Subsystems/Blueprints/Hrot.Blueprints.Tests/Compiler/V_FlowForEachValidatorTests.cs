@@ -58,8 +58,8 @@ public sealed class V_FlowForEachValidatorTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         feNode.Pins.AddRange(new[] { feIn, feBodyOut, feCompletedOut, feCurrentItem });
 

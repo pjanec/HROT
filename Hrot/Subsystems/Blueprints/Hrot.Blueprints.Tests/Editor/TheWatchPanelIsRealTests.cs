@@ -227,7 +227,7 @@ public sealed class TheWatchPanelIsRealTests
             entryResolver: row => new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
                                       row.ShortName, typeof(int), null),
             runState:      () => VariableRunState.Paused,
-            writeLive:     (_, bytes) => { live.Add(bytes.ToArray()); return true; });
+            writeLive:     (_, bytes) => { live.Add(bytes.ToArray()); return LiveWriteOutcome.Landed; });
         window.BindEditGestures(binder);
 
         window.Table.RaiseEditValueRequested(window.LastView.AllRows[0]);

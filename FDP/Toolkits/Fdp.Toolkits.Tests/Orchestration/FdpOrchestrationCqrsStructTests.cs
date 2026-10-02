@@ -13,14 +13,14 @@ namespace Fdp.Toolkit.Orchestration.Tests;
 /// </summary>
 public sealed class FdpOrchestrationCqrsStructTests
 {
-    // ── CMC-S002: DataPolicy.NoRecord on core event structs ────────────────
+    // ── CMC-S002: DataPolicy.NoReplay on core event structs ────────────────
 
     [Fact]
     public void ClusterOpCompletedEvent_HasDataPolicyNoRecord()
     {
         var attr = typeof(ClusterOpCompletedEvent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class FdpOrchestrationCqrsStructTests
     {
         var attr = typeof(ExecuteNodeOpIntent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class FdpOrchestrationCqrsStructTests
     {
         var attr = typeof(NodeOpCompletedEvent).GetCustomAttribute<DataPolicyAttribute>();
         Assert.NotNull(attr);
-        Assert.Equal(DataPolicy.NoRecord, attr.Policy);
+        Assert.Equal(DataPolicy.NoReplay, attr.Policy);
     }
 
     // ── CMC-S002: Unique EventId attributes on core event structs ──────────
@@ -135,7 +135,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         Assert.Equal(intent.TransactionId, consumed[0].TransactionId);
     }
 
-    // ── CMC-S003: DataPolicy.NoRecord on all intent structs ───────────────
+    // ── CMC-S003: DataPolicy.NoReplay on all intent structs ───────────────
 
     [Fact]
     public void AllIntentAndEventStructs_HaveDataPolicyNoRecord()
@@ -159,7 +159,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         {
             var attr = t.GetCustomAttribute<DataPolicyAttribute>();
             Assert.True(attr != null, $"{t.Name} is missing [DataPolicy] attribute");
-            Assert.Equal(DataPolicy.NoRecord, attr!.Policy);
+            Assert.Equal(DataPolicy.NoReplay, attr!.Policy);
         }
     }
 

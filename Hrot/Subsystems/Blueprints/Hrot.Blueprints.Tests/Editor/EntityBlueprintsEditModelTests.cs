@@ -65,27 +65,19 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
     private EntityBlueprintsEditModel CreateModel(Entity entity)
         => new(_repo, _registry, entity);
 
+    // ⭐ B4 — design §17.7. These were three-arm ladders that did not know about the 256 tier.
+    //   ⛔ An entity carries AT MOST ONE store, so "sum over every tier" was always one probe
+    //   dressed up as three — the seam says so, and resolves whichever tier is actually there.
     private static unsafe int GetSlotCount(EntityRepository repo, Entity entity)
     {
-        int total = 0;
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb)); total += BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb)); total += BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb)); total += BlueprintBlackboardPartitions.GetSlotCount(m); }
-        return total;
+        byte* m = OccurrenceStoreAccess.TryGetStoreReadOnly(repo, entity, out _);
+        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
     }
 
     private static unsafe bool HasBlueprintSlot(EntityRepository repo, Entity entity, int blueprintId)
     {
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb)); if (BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _)) return true; }
-        if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb)); if (BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _)) return true; }
-        if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb)); if (BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _)) return true; }
-        return false;
+        byte* m = OccurrenceStoreAccess.TryGetStoreReadOnly(repo, entity, out _);
+        return m != null && BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _);
     }
 
     // ═══ Test 1: Reality ═══════════════════════════════════════════════════════
@@ -342,6 +334,9 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
         }
         _repo.RemoveComponent<BlueprintBlackboard1024>(entity);
 
+        // ⚠ Here the tier IS the subject — this hand-rolls a promotion and asserts the entity
+        //   moved OFF the small tier and ONTO the large one. ⛔ HasStore cannot express that; it
+        //   answers "any tier at all", which is true on both sides of a promotion.
         Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
         Assert.True(_repo.HasComponent<BlueprintBlackboard4096>(entity));
         Assert.Equal(2, GetSlotCount(_repo, entity));
@@ -416,7 +411,18 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
         var ids = assignments.Select(a => a.AssetId).ToHashSet();
         Assert.Contains(_assetIdA, ids);
         Assert.Contains(_assetIdB, ids);
+        // ⭐⭐ `Params`, not `Overrides` — this test had been UNCOMPILABLE and the project with it.
+        // 📐 `BlueprintAssignmentDto.Overrides` was DELETED deliberately: its own doc-comment records the
+        //    ruling — *"a name→value Overrides dict and the resolver's byte region are two implementations
+        //    of one concept — ruling 9. The resolver shape wins"* — and `Params` (resolved param BYTES)
+        //    replaced it. ⛔ The assertion was never updated, so `Hrot.Blueprints.Tests` FAILED TO BUILD.
+        // ⭐ The CLAIM is unchanged and is what matters: these are DEFAULT assignments, so they carry no
+        //   per-entity payload at all. ⚠ Both members are asserted — `ParamsStructureHash` is documented
+        //   as null exactly when `Params` is, and checking one alone would let half a payload through.
         foreach (var a in assignments)
-            Assert.Null(a.Overrides);
+        {
+            Assert.Null(a.Params);
+            Assert.Null(a.ParamsStructureHash);
+        }
     }
 }

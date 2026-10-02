@@ -140,6 +140,37 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(string.Empty, statuses[0].ResultJson);
     }
 
+    // ── CE-279 Layer B: SerializeLocal wire carries scenario-save AND archive payloads ──────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ REGRESSION: <c>SerializeLocal</c> is shared by the scenario-JSON save and the <c>.fdp</c> archive.
+    /// The slave translator used to rebuild EVERY <c>SerializeLocal</c> payload as an
+    /// <see cref="ArchiveHandlerPayload"/>, so on a remote node the distributed scenario save's payload — and its
+    /// name — was silently dropped and no slice was ever written (measured live 2026-09-14/15). The wire now
+    /// discriminates: <c>ScenarioId</c> present ⇒ <see cref="ScenarioSaveHandlerPayload"/> (carrying the name);
+    /// otherwise ⇒ <see cref="ArchiveHandlerPayload"/> (carrying the exercise id).
+    /// </summary>
+    [Fact]
+    public void DeserializeNodePayload_SerializeLocal_ScenarioId_RebuildsScenarioSavePayload()
+    {
+        var payload = NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"my-scn\"}");
+
+        var scn = Assert.IsType<ScenarioSaveHandlerPayload>(payload);
+        Assert.Equal("my-scn", scn.ScenarioName);
+    }
+
+    [Fact]
+    public void DeserializeNodePayload_SerializeLocal_ExerciseId_RebuildsArchivePayload()
+    {
+        var id = Guid.NewGuid();
+        var payload = NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.SerializeLocal, $"{{\"ExerciseId\":\"{id}\"}}");
+
+        var arch = Assert.IsType<ArchiveHandlerPayload>(payload);
+        Assert.Equal(id, arch.ExerciseId);
+    }
+
     // ── Test 4: NodeHeartbeatEvent → NodeHeartbeat written to DDS ────────────
 
     [Fact(Timeout = 10_000)]

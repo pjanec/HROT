@@ -113,7 +113,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
-        Assert.Equal(0, result);
+        ScriptRunAssert.Passed(executor, result);
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
-        Assert.Equal(0, result);
+        ScriptRunAssert.Passed(executor, result);
     }
 
     // â”€â”€ Custom action handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -216,7 +216,12 @@ public sealed class AllSubsystemsClusterTransitionTests
             // Build and issue the transition request.
             var payload = new Dictionary<string, object>
             {
-                ["TargetState"] = (int)targetState,
+                // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+                //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions
+                //    documents itself as rejecting integer enum values "to avoid silent
+                //    integer-as-enum bugs". An int here deserialised to null ⇒ the adapter threw ⇒
+                //    ClusterMaster caught it into a Warn log ⇒ the cluster silently stayed at state 0.
+                ["TargetState"] = targetState.ToString(),
             };
             if (!string.IsNullOrEmpty(exerciseId))
                 payload["ExerciseId"] = exerciseId!;
@@ -246,10 +251,15 @@ public sealed class AllSubsystemsClusterTransitionTests
                 await Task.Delay(50).ConfigureAwait(false);
             }
 
+            // ⭐ QA-029 — report the MASTER's state alongside the slave's. Without it the red cannot
+            //    distinguish "the master never transitioned" from "the master transitioned and the
+            //    slave did not follow", which are different defects in different components.
             throw new InvalidOperationException(
                 $"assert_slave_transition: ExCon ClusterSlave.LocalStateIdForTest is " +
                 $"{_exConSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
                 $"after {timeoutSeconds}s. " +
+                $"ClusterMaster.CurrentClusterState is {(int)_master.CurrentClusterState} " +
+                $"({_master.CurrentClusterState}). " +
                 $"Active roster nodes at timeout: {_master.NodeRoster.ActiveNodes.Count}. " +
                 "Likely cause: compound-key deduplication in ClusterSlave not working, " +
                 "or CommitState commands not being dispatched.");

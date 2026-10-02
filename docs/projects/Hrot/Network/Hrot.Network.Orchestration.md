@@ -748,11 +748,11 @@ public HrotHandlerAdapter(IClusterOpHandler inner, EntityRepository? repo = null
 #### `ClusterStateChangedEvent` (struct)
 
 Bus event published when the cluster state machine transitions.
-Event ID: 7001.  Data policy: `NoRecord`.
+Event ID: 7001.  Data policy: `NoReplay`.
 
 ```csharp
 [EventId(7001)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct ClusterStateChangedEvent
 {
     public ClusterState Previous;

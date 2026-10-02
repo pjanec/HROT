@@ -60,6 +60,14 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
             bpJsonFiles.Collect();
 
+        // ⛔ CE-337 (2026-09-26) — the SIBLING-TREE collection is GONE, with GeneratedBTreeSchemaCatalog.
+        //    It existed for Q49 option D: a generator cannot load assets, so a master tree could not ask
+        //    "what blackboard type does the subtree I call declare?" the way the editor does. 📐 P4-②
+        //    made every interpreter Interpreter<byte, BTreeContext> ⇒ that question CEASED TO EXIST, and
+        //    its only asker (the Approach-B orchestrator) is retired. ⭐ Re-adding it is ONE line —
+        //    `rawFiles.Collect()` — which is why keeping it "because the plumbing is awkward" did not
+        //    survive contact with the code. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12c.
+
         // Combine with the full compilation so the method-compatibility validator can
         // resolve type/method symbols, plus the collected *.bp.json schemas (Option A fallback).
         //
@@ -107,6 +115,41 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                 "Deserialization returned null (empty or invalid JSON)."));
             return;
         }
+
+        // ⛔⛔⛔ CE-337 (2026-09-23) — THE SLICE DECLARATION IS GONE, AND WHAT REPLACES IT IS A WARNING.
+        //
+        // 🔴 What stood here: SubtreeSyncProjection.Project declared one blackboard variable per
+        //    bound sub-tree ("Auto-allocated sub-tree parameter slice (Approach B)"), so the
+        //    Approach-B orchestrator could write `ref master.{slice}`. ⭐ The ORDER was load-bearing
+        //    and the comment said so — it ran before the blackboard was sized, packed or emitted.
+        //
+        // ⛔ THAT ORCHESTRATOR NO LONGER EXISTS. CE-337 retired both arms
+        //    (BTreeOrchestratorEmitCore.Emit → null): the emission never compiled, and its
+        //    `ref master` projection needs a blackboard STRUCT that P4 deleted. ⇒ declaring the
+        //    field now would add a variable that NOTHING READS AND NOTHING WRITES — it would grow
+        //    the packed blackboard of every asset that carries a binding, silently.
+        //
+        // ⭐⭐ SO THE NO-OP IS MADE LOUD INSTEAD. 📐 Measured 2026-09-23: 0 of 26 shipped
+        //    *.btree.json carries a non-empty SubtreeSyncBindings, and 0 carries an alias ⇒ no
+        //    warning fires today and no golden moves. ⚠ But an author CAN still create either in the
+        //    editor, and before this they would have got silence. 🔒 The rule this serves is the
+        //    silent-default one: a capability that looks built and does nothing is the failure this
+        //    programme keeps paying for.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12 / §32.13.
+        if ((dto.SubtreeSyncBindings is { Count: > 0 }) || (dto.Aliases is { Count: > 0 }))
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "This asset declares sub-tree hosting data (aliases and/or SubtreeSyncBindings) that " +
+                "NOTHING CONSUMES: CE-337 retired both BTree orchestrator arms, so no orchestrator is " +
+                "emitted and no parameter slice is declared. The data round-trips and is not lost. " +
+                "Sub-tree hosting is per-SITE now (DESIGN_Occurrence_Scoped_Storage.md §32) and the " +
+                "BTree-hosts-BTree case is not built yet."));
+        }
+
+        // ⭐ Approach-B groups are still computed as EMPTY and passed on: Emit's signature keeps the
+        //   parameter (two production callers supply it) and its null-argument contract is the one
+        //   thing about that method that never became untrue.
+        var approachBGroups = System.Array.Empty<OrchestratorSyncGroup>();
 
         // Validate bound method signatures before emitting.
         // An asset with any incompatible/unresolved bound leaf is skipped + BTREE0002 Warning.
@@ -282,18 +325,18 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus
         // (none carries an alias or a sync binding) ⇒ the generated output stays byte-identical.
         //
-        // ⭐⭐ The empty Approach-B group list is MEASURED, not a shortcut. The groups need
-        // BehaviorTreeAsset._syncNodeMeta, whose only writer is InspectorWindow:590 (a UI draw); it
-        // has no load path and BehaviorTreeAssetDto.cs:10 names it deliberately excluded, enforced by
-        // BTreeDtoRuntimeFieldExclusionTests:29. ⛔ And the field the Approach-B body writes into
-        // (master.{Subtree}_{DtoType}) comes from GetAutoAllocatedVariables(), which is display-only
-        // (BlackboardAuthoringWindow:529) and reaches no blackboard emitter. ⇒ a generator provably
-        // has no groups to pass. See BTreeOrchestratorEmitCore for the full measurement.
+        // ⭐⭐⭐ Q49 D + Q50 A (2026-08-22): THE GROUPS ARE REAL NOW.
+        // ⛔ (was: "a generator provably has no groups to pass" — true then, for two reasons that are
+        //    both now closed. ① the identity needed BehaviorTreeAsset._syncNodeMeta, a UI-draw-only
+        //    field: option D reads the sibling *.btree.json instead, so no editor state is involved.
+        //    ② the field the body writes into was declared by nothing: option A declares it above,
+        //    BEFORE the blackboard is packed.)
+        // ⚠ Still omitted entirely when the core returns null — no alias and no sync binding — which is
+        //    every asset in today's corpus, so the generated output stays byte-identical.
         string? orchestrators;
         try
         {
-            orchestrators = BTreeOrchestratorEmitCore.Emit(
-                dto, System.Array.Empty<OrchestratorSyncGroup>());
+            orchestrators = BTreeOrchestratorEmitCore.Emit(dto, approachBGroups);
         }
         catch (Exception ex)
         {

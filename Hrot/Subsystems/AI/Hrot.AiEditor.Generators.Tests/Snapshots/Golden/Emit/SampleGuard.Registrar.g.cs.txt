@@ -28,6 +28,7 @@ public static class SampleGuardRegistrar
             Name          = "SampleGuard",
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
         });
     }
 }

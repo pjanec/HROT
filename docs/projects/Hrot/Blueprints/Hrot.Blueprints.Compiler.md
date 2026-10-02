@@ -234,7 +234,7 @@ during normalization).
 | `BlueprintAsset.cs` | Root asset object. Holds header, identity, dispatch kind, declarations, and graphs. |
 | `Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef`. |
 | `GraphTypes.cs` | `Graph`, `Pin`, `Link`, `GraphKind`, `NodeMetadata`, `AssetMetadata`, `Header`, `NodeStatus`. |
-| `Nodes.cs` | `Node` hierarchy (42 concrete node kinds, one `[JsonDerivedType]` entry per kind -- confirmed by direct count). Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetShared`, `SetShared`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). `FunctionCallNode` additionally carries a `TargetGraphId` + `TrailingContext` pair: when `TargetGraphId` is non-empty the node is an in-blueprint call to a local `Function` graph (lowers to `IrOp_GraphCall`, validated by `V_FunctionGraphCallRules`) rather than a CLR method call. |
+| `Nodes.cs` | `Node` hierarchy (42 concrete node kinds, one `[JsonDerivedType]` entry per kind -- confirmed by direct count). Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetAllVariables`, `SetVariables`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). `FunctionCallNode` additionally carries a `TargetGraphId` + `TrailingContext` pair: when `TargetGraphId` is non-empty the node is an in-blueprint call to a local `Function` graph (lowers to `IrOp_GraphCall`, validated by `V_FunctionGraphCallRules`) rather than a CLR method call. |
 
 ### `Compiler/` -- Pipeline root
 
@@ -287,7 +287,7 @@ during normalization).
 | `V_FlowForEachRules` | BP2050 | `FlowForEachNode`'s "Body" exec-subgraph must be latent-free (Branch nodes are allowed -- they lower to a nested inline `if`/`else`). |
 | `V_ReadEqsResultNodeRules` | BP2020, BP2021 | `ReadEqsResultNode` is only valid in Instance Blueprints (`BP2020`); `SensorVariableName` must reference a declared `EqsSensorHandle`-typed variable (`BP2021`). |
 | `V_SpawnEqsSensorNodeRules` | BP2030, BP2031, BP2032 | `SpawnEqsSensorNode` is only valid in Instance Blueprints (`BP2030`); `TemplateAssetId` must be non-empty and present in `IEqsTemplateCatalog` when provided (`BP2031`); `InstanceId` derived from `node.Id.GetHashCode()` must not collide with another sensor in the same graph (`BP2032`). |
-| `V_SharedStateRules` | BP2040, BP2041, BP2042 | `GetSharedNode`/`SetSharedNode.SharedTypeId` must be non-empty (`BP2040`) and a well-formed dotted CLR type name (`BP2041`); forbidden in Library dispatch, which has no `self` in scope (`BP2042`). |
+| `V_SharedStateRules` | ⛔ **REMOVED by `CE-440`** — BP2040, BP2041, BP2042 | `GetSharedNode`/`SetSharedNode.SharedTypeId` must be non-empty (`BP2040`) and a well-formed dotted CLR type name (`BP2041`); forbidden in Library dispatch, which has no `self` in scope (`BP2042`). |
 | `V_FunctionGraphCallRules` | BP1650-BP1654 | Validates `FunctionCallNode.TargetGraphId` in-blueprint function calls: no latent nodes in the called graph (`BP1650`); target resolves to a `Function` graph (`BP1651`); caller arg count matches target `Inputs.Count` (`BP1652`); positional argument `TypeId` compatibility (`BP1653`); no call cycles (`BP1654`). |
 | `V_ExecOutFanOut` | BP1411 | Each exec-output pin may drive at most one successor (fan-out is silently dropped by the scheduler); use a `SequenceNode` to fan out. |
 
@@ -898,7 +898,7 @@ assembly, in-place memory patch is safe; if not, a full re-registration is requi
 | BP2001-BP2017 | Validate | Error/Warning | `WhenNode` payload/mode/edge consistency (`V_WhenNodeRules`); BP2016 (BestEffort QoS) and BP2017 (non-propagating event to a Brain node) are warnings/errors surfaced by the animation subsystem's DDS integration. |
 | BP2020-2021 | Validate | Error | `ReadEqsResultNode` dispatch/sensor-variable rules. |
 | BP2030-2032 | Validate | Error | `SpawnEqsSensorNode` dispatch/template/instance-id-collision rules. |
-| BP2040-2042 | Validate | Error | `GetSharedNode`/`SetSharedNode.SharedTypeId` empty, malformed, or used in unsupported (Library) dispatch. |
+| BP2040-2042 | ⛔ **REMOVED by `CE-440`** — Validate | Error | `GetSharedNode`/`SetSharedNode.SharedTypeId` empty, malformed, or used in unsupported (Library) dispatch. |
 | BP2050 | Validate | Error | `FlowForEachNode` body contains a latent node. |
 | BP3010 | Normalize | Warning | Orphan node eliminated. |
 | BP3011 | Normalize | Warning | Implicit cast inserted. |

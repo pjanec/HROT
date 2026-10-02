@@ -63,6 +63,21 @@ public sealed class SpawnEqsSensorValidatorTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2030);
     }
 
+    /// <summary>⭐ CE-446 — a blueprint BEHAVIOUR is an Instance body: SpawnEqsSensor is allowed (no BP2030).</summary>
+    [Fact]
+    public void CE446_Validate_BehaviorDispatch_AllowsSpawn()
+    {
+        var asset = BlueprintAssetBuilder
+            .Behavior("BehEqs")
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        var spawn = new SpawnEqsSensorNode { Id = Guid.NewGuid(), TemplateAssetId = Guid.NewGuid() };
+        asset.Graphs[0].Nodes.Add(spawn);
+
+        var diags = Validate(asset, new StubEqsTemplateCatalog(spawn.TemplateAssetId));
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2030);
+    }
+
     // ---- BP2031: template not found ------------------------------------
 
     [Fact]

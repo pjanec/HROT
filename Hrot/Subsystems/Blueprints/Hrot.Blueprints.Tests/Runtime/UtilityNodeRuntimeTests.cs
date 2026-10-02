@@ -49,13 +49,13 @@ public sealed class UtilityNodeRuntimeTests
         fixture.World.RegisterComponent<WeaponState>();
         fixture.World.RegisterComponent<WeaponMountInfo>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         fixture.World.RegisterComponent<TargetMemory>();
         fixture.World.RegisterComponent<SensorContactList>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<UnitRoster>();
         fixture.World.RegisterComponent<UnitSubordinate>();
-        fixture.World.RegisterComponent<Blackboard1024>();
         fixture.World.RegisterComponent<Position>();
         fixture.World.RegisterComponent<UtilityDebugFlags>();
         fixture.World.RegisterComponent<UtilityTraceWorkingMemory1024>();

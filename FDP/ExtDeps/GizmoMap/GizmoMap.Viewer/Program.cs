@@ -97,7 +97,11 @@ namespace GizmoMap.Viewer
                         Kind = kind,
                         PickAnchorId = token.AnchorId,
                         PickSubElementId = token.SubElementId,
-                        PickStreamId = token.StreamId,
+                        // ⭐⭐⭐ Q73 (DESIGN_Gizmo_Anchor_Identity.md §6.3a) — a CANVAS pick names the node
+                        //   this viewer mirrors, so an empty-space click / rubber band reaches THAT node
+                        //   and no other; an entity pick carries 0 and scopes itself by its anchor.
+                        //   ⛔ Still never token.StreamId (the in-process ECS payload — defect D2).
+                        PickStreamId = GizmoPickScope.StreamIdFor(token.AnchorId, targetNodeId),
                         PickGizmoTypeId = token.GizmoTypeId,
                         WorldX = pos.X,
                         WorldY = pos.Y,
@@ -116,7 +120,7 @@ namespace GizmoMap.Viewer
                         Kind = GizmoInteractionEventKind.MenuAction,
                         PickAnchorId = token.AnchorId,
                         PickSubElementId = token.SubElementId,
-                        PickStreamId = token.StreamId,
+                        PickStreamId = GizmoPickScope.StreamIdFor(token.AnchorId, targetNodeId),   // ⭐ Q73 — see above
                         PickGizmoTypeId = token.GizmoTypeId,
                         WorldX = 0f,
                         WorldY = 0f,

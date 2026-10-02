@@ -128,19 +128,12 @@ public static class BlueprintNodePaletteEntries
         yield return Make<GetAllParametersNode>(
             "GetAllParameters", "Get All Parameters", Categories.Variables,
             "Read all of this blueprint's declared Parameters at once (pure) -- one output pin per Parameter.");
-
-        // ── Shared State (Slice 2a-3) ──────────────────────────────────────
-        // GetSharedNode/SetSharedNode default-construct with empty VariableId/SharedTypeId;
-        // both are editable post-placement via GetSharedNodeDrawer/SetSharedNodeDrawer
-        // (Hrot.Blueprints.Editor.NodeDrawers.SharedNodeDrawers), the same
-        // IBlueprintNodeDrawer/INodeEditSession Details-panel mechanism used by
-        // FunctionCallNode/LiteralNode — see BlueprintEditorBootstrap.CreateNodeDrawerRegistry.
-        yield return Make<GetSharedNode>(
-            "GetShared", "Get Shared", Categories.SharedState,
-            "Read an entity-scoped shared struct slot (pure).");
-        yield return Make<SetSharedNode>(
-            "SetShared", "Set Shared", Categories.SharedState,
-            "Write an entity-scoped shared struct slot.");
+        yield return Make<GetAllVariablesNode>(
+            "GetAllVariables", "Get All Variables", Categories.Variables,
+            "Read every blackboard variable at once (pure) -- one output pin per variable.");
+        yield return Make<SetVariablesNode>(
+            "SetVariables", "Set Variables", Categories.Variables,
+            "Write blackboard variables from one node -- one input pin per variable; an unwired pin leaves its variable unchanged.");
 
         // ── Function / data ────────────────────────────────────────────────
         yield return Make<FunctionCallNode>(
@@ -261,6 +254,23 @@ public static class BlueprintNodePaletteEntries
             MathCategories.Math, "Remainder of A divided by B; the result has the operand type.",
             n => n.Operator = ArithmeticOperator.Modulo);
 
+        // ⭐ CE-471 — bit/shift operators: integer operands only (BP1678); & | ^ also take a [Flags] enum.
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.BitAnd", "A & B",
+            MathCategories.Math, "Bitwise AND of two integers (or [Flags] enum values).",
+            n => n.Operator = ArithmeticOperator.BitAnd);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.BitOr", "A | B",
+            MathCategories.Math, "Bitwise OR of two integers (or [Flags] enum values).",
+            n => n.Operator = ArithmeticOperator.BitOr);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.BitXor", "A ^ B",
+            MathCategories.Math, "Bitwise XOR of two integers (or [Flags] enum values); XOR with all-ones inverts.",
+            n => n.Operator = ArithmeticOperator.BitXor);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.ShiftLeft", "A << B",
+            MathCategories.Math, "Shift integer A left by B bits.",
+            n => n.Operator = ArithmeticOperator.ShiftLeft);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.ShiftRight", "A >> B",
+            MathCategories.Math, "Shift integer A right by B bits (arithmetic for signed types).",
+            n => n.Operator = ArithmeticOperator.ShiftRight);
+
         // BooleanOp / Not -- boolean result. Data-flow, so NOT short-circuiting: both operands are
         // resolved before combining. Use nested Branch when short-circuit matters.
         yield return MakeBaked<BooleanOpNode>("BooleanOp.And", "A && B",
@@ -271,6 +281,14 @@ public static class BlueprintNodePaletteEntries
             n => n.Operator = BooleanOperator.Or);
         yield return Make<NotNode>("Not", "!A",
             MathCategories.MathBool, "Logical negation of a boolean operand.");
+
+        // ⭐ CE-470 — the clocks, one row per TimeKind (BP1679 where the clock is not in scope).
+        yield return MakeBaked<GetTimeNode>("GetTime.SimTime", "Get Sim Time",
+            "World", "Simulation time in seconds. Not available in a Library function or resolver.",
+            n => n.Kind = TimeKind.SimTime);
+        yield return MakeBaked<GetTimeNode>("GetTime.DeltaTime", "Get Delta Time",
+            "World", "This frame's time step in seconds. Instance/Behavior Tick and function graphs only.",
+            n => n.Kind = TimeKind.DeltaTime);
 
         // ── Array ──────────────────────────────────────────────────────────
         // BP-09/BP-16: ArrayMake / ArrayGet palette entries REMOVED. Since BP-16 they are rejected
@@ -318,7 +336,7 @@ public static class BlueprintNodePaletteEntries
         // REMOVED. Each one's doc comment claims it "wraps" a real FDP primitive, but that wiring
         // was never implemented: none has a Stage5_Schedule case, so all four fall to the generic
         // `default:` branch (BP4004 warning, no IR) and are silent no-ops at runtime. The quartet is
-        // superseded by MemberSlotList / SlotRotation. Inviting descriptions on nodes that do
+        // superseded by MemberSlotList / SlotRotation (both since retired). Inviting descriptions on nodes that do
         // nothing are worse than no entry at all.
         // The node classes remain (assets may still deserialize them); only the front door is gone.
     }

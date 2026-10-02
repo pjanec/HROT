@@ -114,6 +114,48 @@ namespace Fhsm.Kernel
                     {
                         header->Phase = InstancePhase.Entry;
                     }
+                    else
+                    {
+                        // ⭐⭐⭐ CE-334 (2026-09-26) — AN ACTIVE STATE'S ACTIVITY RUNS EVERY TICK.
+                        //
+                        // 🔴 What this used to be: nothing. `Idle` with an empty queue was a FIXED
+                        //    POINT, so after the one `Entry → Activity → Idle` round that follows
+                        //    initialisation, a quiescent machine NEVER dispatched an activity again.
+                        //    ⇒ `ActivityActionId` was a ONE-SHOT with a per-frame name.
+                        //
+                        // ⛔⛔ WHY NOT `header->Phase = InstancePhase.Activity` INSTEAD. The phase
+                        //    machine advances ONE PHASE PER TICK — `UpdateBatchCore` is a `for` over
+                        //    instances with no inner loop. Parking in `Activity` would give
+                        //    Idle→Activity→Idle→Activity…, i.e. an activity every OTHER tick, which
+                        //    is not a frame hook either. ⭐ Running it HERE and staying `Idle` is
+                        //    what makes "every tick" true.
+                        //
+                        // ⭐ `ProcessActivityPhase` sets `Phase = Idle` on exit, so the phase is
+                        //    unchanged and every existing phase rail keeps its meaning. An un-entered
+                        //    machine (all leaves 0xFFFF) skips every region, so §31.18's
+                        //    "Idle + un-entered is a fixed point" also still holds.
+                        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.2.1; rail
+                        //    Fhsm.Tests.Kernel.ActivitySteadyStateTests.CE334_R1.
+
+                        // ⭐⭐⭐ CE-382 — POLLED TRANSITIONS, EVALUATED HERE AND BEFORE THE ACTIVITIES.
+                        //
+                        // ⭐ ORDER IS LOAD-BEARING: a polled transition taken this tick is followed by
+                        //   the NEWLY ENTERED state's activity IN THE SAME TICK. Running activities
+                        //   first would tick the state the machine is about to leave.
+                        //
+                        // ⛔⛔ WHY NOT A TICK EVENT. Measured: the phase machine advances ONE PHASE PER
+                        //   TICK, so an event round is Idle→Entry→RTC→Activity→Idle = FOUR ticks, and
+                        //   the CE-334 activity above runs ONLY on an empty queue ⇒ a permanent tick
+                        //   event would cut activities to ~1 tick in 4 and add ~3 ticks of transition
+                        //   latency. 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.1, §10 ①.
+                        TryTakePolledTransition(
+                            definition, instancePtr, instanceSize, contextPtr,
+                            ref cmdWriter, traceCtx);
+
+                        ProcessActivityPhase(
+                            definition, instancePtr, instanceSize, contextPtr, deltaTime,
+                            ref cmdWriter, traceCtx);
+                    }
                     break;
 
                 case InstancePhase.Entry:
@@ -303,7 +345,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, slotIndex, stateId);
                 }
             }
             
@@ -418,6 +460,81 @@ namespace Fhsm.Kernel
             header->Phase = InstancePhase.Idle;
         }
 
+        // --- CE-382: Polled transitions ---
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-382</c> — take a POLLED transition if one's guard passes, on a quiescent tick.</b>
+        /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.1, §5.
+        ///
+        /// <para>⭐⭐ <b>It adds no selection logic, and that is the point.</b> <c>CE-381</c> normalises
+        /// every polled transition onto <see cref="ReservedEventIds.Polled"/>, so
+        /// <see cref="SelectTransition"/> with that id already matches <b>exactly</b> the polled set —
+        /// guards, priority and region handling all come from the one existing implementation. ⛔ A
+        /// second selection walk would be a duplicate of the thing it copied.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>And delegating to <see cref="ProcessRTCPhase"/> is what gives polling FULL
+        /// run-to-completion semantics.</b> That loop executes the winner, then sets
+        /// <c>currentEventId = 0</c> and keeps going, so the COMPLETION transitions of the newly
+        /// entered state fire in the same tick — exactly as they do after an event-driven transition.
+        /// ⚠ Hand-rolling "execute one transition" here would have given polled transitions
+        /// second-class semantics that differ from every other transition in the machine.</para>
+        ///
+        /// <para>⭐ <b>THE GATE IS WHAT MAKES THIS FREE.</b> The <c>HasPolledTransition</c> bit
+        /// (<c>CE-381</c>, DERIVED by the flattener) is tested on the leaf→root walk the activity
+        /// phase performs anyway ⇒ a machine with no polled transition pays <b>one bit test per
+        /// active state</b> and never reaches <c>ProcessRTCPhase</c>.</para>
+        ///
+        /// <para>⚠ <b>Phase bookkeeping:</b> <c>ProcessRTCPhase</c> exits by setting
+        /// <c>Phase = Activity</c> (or <c>Idle</c> on the RTC-loop guard). Either way the caller runs
+        /// <see cref="ProcessActivityPhase"/> next, which sets <c>Phase = Idle</c> ⇒ the instance is
+        /// left exactly as <c>CE-334</c> leaves it and every existing phase rail keeps its meaning.</para>
+        /// </summary>
+        private static void TryTakePolledTransition(
+            HsmDefinitionBlob definition,
+            byte* instancePtr,
+            int instanceSize,
+            void* contextPtr,
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
+        {
+            if (!AnyActiveStateHasAPolledTransition(definition, instancePtr, instanceSize))
+                return;
+
+            ProcessRTCPhase(
+                definition, instancePtr, instanceSize, contextPtr,
+                ReservedEventIds.Polled, ref cmdWriter, traceCtx);
+        }
+
+        /// <summary>
+        /// ⭐ The cheap gate: does any state in the active configuration own a polled transition?
+        /// ⛔ Deliberately a BIT TEST over the same leaf→root walk the activity phase does — no
+        /// transition array is touched unless some state says there is something to find.
+        /// </summary>
+        private static bool AnyActiveStateHasAPolledTransition(
+            HsmDefinitionBlob definition, byte* instancePtr, int instanceSize)
+        {
+            ushort* activeLeafIds = GetActiveLeafIds(instancePtr, instanceSize, out int regionCount);
+            if (activeLeafIds == null) return false;
+
+            for (int r = 0; r < regionCount; r++)
+            {
+                ushort current = activeLeafIds[r];
+                while (current != 0xFFFF)
+                {
+                    // ⚠ Same bounds guard as ProcessActivityPhase, and for the same reason (CE-334):
+                    //   this runs from Idle, which reaches instances nothing has entered yet.
+                    if (current >= definition.Header.StateCount) break;
+
+                    ref readonly var state = ref definition.GetState(current);
+                    if ((state.Flags & StateFlags.HasPolledTransition) != 0) return true;
+
+                    current = state.ParentIndex;
+                }
+            }
+
+            return false;
+        }
+
         // --- Task 4: Activity Phase ---
 
         private static void ProcessActivityPhase(
@@ -442,12 +559,25 @@ namespace Fhsm.Kernel
                 ushort current = leafId;
                 while (current != 0xFFFF)
                 {
+                    // ⭐⭐ CE-334 (2026-09-26) — BOUNDS-CHECK THE LEAF ID, and this is a REAL HOLE the
+                    //    same change EXPOSED rather than created. Before, activities ran only after
+                    //    Entry/RTC, by which point the instance had been initialised; running them
+                    //    from Idle reaches instances nothing has entered yet. 🔴 A default instance
+                    //    has ActiveLeafIds all-ZERO, so an empty or small blob was indexed at state 0
+                    //    and GetState THREW — `Fhsm.Tests.Kernel.EventPipelineTests
+                    //    .Timer_Fires_And_Trigger_Workflow` caught it immediately.
+                    // ⛔ Skip rather than throw: this runs inside a per-frame loop over every
+                    //    instance, and a malformed one must not take the frame down. ⚠ Deliberately
+                    //    only a BOUNDS check — a cyclic ParentIndex would still spin, but that was
+                    //    reachable before this change too and is not in scope here.
+                    if (current >= definition.Header.StateCount) break;
+
                     ref readonly var state = ref definition.GetState(current);
 
                     // Execute activity if present
                     if (state.ActivityActionId != 0 && state.ActivityActionId != 0xFFFF)
                     {
-                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, r, current);
                     }
 
                     current = state.ParentIndex;
@@ -503,6 +633,7 @@ namespace Fhsm.Kernel
                     currentEventId,
                     contextPtr,
                     traceCtx,
+                    ref cmdWriter,
                     out int selectedRegion);
 
                 if (selectedTransition == null)
@@ -521,6 +652,8 @@ namespace Fhsm.Kernel
             header->Phase = InstancePhase.Activity;
         }
 
+        // ⭐ O6 — `cmdWriter` is threaded in ONLY so a guard can be stamped with its occurrence
+        //   before it is evaluated. Selection itself does not write commands.
         private static TransitionDef? SelectTransition(
             HsmDefinitionBlob definition,
             byte* instancePtr,
@@ -530,6 +663,7 @@ namespace Fhsm.Kernel
             ushort eventId,
             void* contextPtr,
             HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
             out int regionIndex)
         {
             // The region the winning transition was selected in. ExecuteTransition needs it to write
@@ -544,7 +678,7 @@ namespace Fhsm.Kernel
                 ref readonly var gt = ref globalSpan[i];
                 if (gt.EventId == eventId)
                 {
-                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, 0, activeLeafIds[0]))
                     {
                         return new TransitionDef
                         {
@@ -587,7 +721,7 @@ namespace Fhsm.Kernel
                                 // Priority is top 4 bits (12-15) of Flags
                                 byte priority = (byte)((ushort)(trans.Flags) >> 12);
 
-                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, r, current))
                                 {
                                     if (bestTransition == null || priority > highestPriority)
                                     {
@@ -610,9 +744,34 @@ namespace Fhsm.Kernel
             return bestTransition;
         }
         
-        private static bool EvaluateGuard(ushort guardId, byte* instancePtr, void* contextPtr, ushort eventId, HsmTraceContext* traceCtx)
+        /// <summary>
+        /// O6 / <c>D2</c> — THE ONE STAMPING SITE FOR GUARDS, and the reason
+        /// <c>HsmActionDispatcher.EvaluateGuard</c> now carries the writer.
+        /// <para>
+        /// ⛔ <c>Q35</c> accepted "guards are unserved" on the strength of a census that counted
+        /// HAND-AUTHORED guards and missed the EMITTER: <c>AiPrimitiveHosting.HsmGuard</c> is a
+        /// first-class hosting mode, so "blueprint as an HSM condition" is exactly the composition
+        /// an unserved guard cannot deliver. One mechanism for actions and guards alike — the
+        /// occurrence arrives the same way in both, so there is no second route to keep in step.
+        /// </para>
+        /// </summary>
+        private static bool EvaluateGuard(
+            ushort guardId,
+            byte* instancePtr,
+            void* contextPtr,
+            ushort eventId,
+            HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
+            int regionSlotIndex,
+            ushort stateId)
         {
-            bool result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId);
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
+
+            bool result;
+            fixed (HsmCommandWriter* writerPtr = &cmdWriter)
+            {
+                result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId, writerPtr);
+            }
 
             if (traceCtx != null)
             {
@@ -680,7 +839,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnExitActionId != 0 && state.OnExitActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, stateId);
                 }
 
                 // Save history if this state has history
@@ -695,7 +854,7 @@ namespace Fhsm.Kernel
             // 2. Execute transition action
             if (transition.ActionId != 0 && transition.ActionId != 0xFFFF)
             {
-                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, sourceStateId);
             }
 
             // 3. Execute entry actions (LCA -> leaf)
@@ -727,7 +886,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, stateId);
                 }
                 
                 // If composite, resolve to initial child
@@ -759,12 +918,22 @@ namespace Fhsm.Kernel
             HsmEventQueue.RecallDeferredEvents(instancePtr, instanceSize);
         }
 
+        /// <summary>
+        /// O6 — THE ONE STAMPING SITE FOR ACTIONS. Every action dispatch funnels through here, so
+        /// the occurrence pair is written in exactly one place and cannot go out of step with the
+        /// dispatch it describes. Callers supply <paramref name="regionSlotIndex"/> and
+        /// <paramref name="stateId"/> because only they know which region and which state this
+        /// action belongs to; the kernel supplies IDENTITY, the thunk does the LOOKUP.
+        /// DESIGN_Occurrence_Scoped_Storage.md §4.2.
+        /// </summary>
         private static void ExecuteAction(
             ushort actionId,
             byte* instancePtr,
             void* contextPtr,
             ref HsmCommandWriter cmdWriter,
-            HsmTraceContext* traceCtx)
+            HsmTraceContext* traceCtx,
+            int regionSlotIndex,
+            ushort stateId)
         {
             if (traceCtx != null)
             {
@@ -774,6 +943,8 @@ namespace Fhsm.Kernel
                     traceCtx->WriteActionExecuted(header->MachineId, actionId);
                 }
             }
+
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
 
             fixed(HsmCommandWriter* writerPtr = &cmdWriter)
             {
@@ -1088,7 +1259,9 @@ namespace Fhsm.Kernel
             }
         }
 
-        private static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
+        // ⭐ O7c-④ (2026-09-23): internal rather than private so HsmKernel can expose the ONE public
+        //   facade over it. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.1. The body is unchanged.
+        internal static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
         {
             switch (instanceSize)
             {

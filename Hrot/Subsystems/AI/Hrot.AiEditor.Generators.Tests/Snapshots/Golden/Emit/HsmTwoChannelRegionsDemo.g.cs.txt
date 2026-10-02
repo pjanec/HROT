@@ -1,0 +1,41 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000152-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmTwoChannelRegionsDemo
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmTwoChannelRegionsDemo");
+
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel");
+        builder.RegisterAction("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+
+        var concurrent = builder.State("Concurrent", stableId: new Guid("60000002-1000-0000-0000-000000000002"))
+            .Initial()
+            .Parallel();
+        concurrent.Child("Driving", sb2 =>
+        {
+            sb2.Initial().OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel");
+        }, stableId: new Guid("60000002-1000-0000-0000-000000000003"));
+        concurrent.Child("Shooting", sb2 =>
+        {
+            sb2.OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel");
+        }, stableId: new Guid("60000002-1000-0000-0000-000000000004"));
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmTwoChannelRegionsDemo", AssetId = "00000152-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

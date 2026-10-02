@@ -25,8 +25,8 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 ///
 /// <para>
 /// ⛔⛔ <b>Scoped to Get/SetVariableNode, and the scope is load-bearing.</b>
-/// <c>GetSharedNode</c>/<c>SetSharedNode</c> also carry a <c>VariableId</c>, but it is a name-keyed
-/// shared-state slot resolved at RUNTIME (<c>BlueprintSharedState.TryGetShared</c>) and never passed to
+/// The (since removed, <c>CE-440</c>) <c>GetSharedNode</c>/<c>SetSharedNode</c> also carried a <c>VariableId</c>,
+/// but a name-keyed shared-state slot resolved at RUNTIME and never passed to
 /// <c>FindVariableIndex</c> at all. The shipped corpus holds <b>61</b> such references — the literals
 /// <c>"state"</c> and <c>"rally"</c> — and a rail generalised to "any node with a VariableId" would
 /// reject six shipped assets on a mechanism that works correctly.
@@ -53,6 +53,26 @@ internal sealed class V_VariableReferenceRules : IValidator
 
             foreach (var node in graph.Nodes)
             {
+                // ⭐ CE-433 — the blackboard twins reference variables by PIN NAME, not by VariableId.
+                //   A stored pin that names no pinned variable is the same dangling reference.
+                if (node is GetAllVariablesNode or SetVariablesNode)
+                {
+                    var dir = node is GetAllVariablesNode ? "Out" : "In";
+                    var names = new HashSet<string>(
+                        GetAllVariablesNode.PinnedVariablesOf(asset).Select(v => v.Name), StringComparer.Ordinal);
+                    foreach (var pin in node.Pins.Where(p => !p.IsExec && p.Direction == dir))
+                    {
+                        if (names.Contains(pin.Name)) continue;
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1670,
+                            $"Graph '{graph.Name}' has a '{node.GetType().Name}' pin '{pin.Name}' that names no "
+                            + "variable of this asset (fixed-capacity lists get no pin) — most often because "
+                            + "the variable was deleted or renamed away. Delete the node and re-add it so its "
+                            + "pins are re-derived from the current variables.",
+                            asset.AssetId, graph.Id, node.Id, pin.Id));
+                    }
+                    continue;
+                }
+
                 var rawId = node switch
                 {
                     GetVariableNode gv => gv.VariableId,

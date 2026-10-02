@@ -123,17 +123,92 @@ public sealed class HsmProductionResolverWiringTests
         Assert.Equal(NodeEditor.Primitives.NodeState.Error, node!.State);
     }
 
+    // ── §32.17: ONE ARGUMENT IS ENOUGH ─────────────────────────────────────────
+
+    private sealed class WiringFakeCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly Dictionary<Guid, IEditableAsset> _byId = new();
+        public WiringFakeCatalog(params IEditableAsset[] assets)
+        {
+            foreach (var a in assets) _byId[a.AssetId] = a;
+        }
+        public IReadOnlyList<IEditableAsset> All => _byId.Values.ToList();
+        public IEditableAsset? FindByAssetId(Guid id) => _byId.GetValueOrDefault(id);
+        public IEditableAsset? FindByName(string n) => _byId.Values.FirstOrDefault(a => a.Name == n);
+        public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id) => Array.Empty<IEditableAsset>();
+#pragma warning disable 67
+        public event Action<AssetKind>? Changed;
+#pragma warning restore 67
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A host that passes ONLY the catalogue gets rule 8 — which is what makes the two
+    /// per-host resolver copies unnecessary.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.17.
+    ///
+    /// <para>🔴 <b>The defect this pins, and it was mine.</b> `CE-338` gave CGF rules 8/8b by COPYING
+    /// <c>EditorSubsystem</c>'s two private resolvers <b>byte-identically</b> into
+    /// <c>CgfSubsystem</c> — two hosts running two copies of one policy, which is the same mechanism
+    /// that had left CGF silently without these rules in the first place. ⚠ The user caught it by
+    /// reading the report, not a rail. ⭐ This is that rail.</para>
+    ///
+    /// <para>⛔ <b>If this ever reddens, a host will be tempted to hand-roll the predicate again.</b></para>
+    /// </summary>
+    [Fact]
+    public void TheValidator_DerivesRule8_FromTheCatalogAlone_WithNoResolverDelegates()
+    {
+        var (asset, _, c0, c1) = MakeParallelAsset();
+
+        // ⭐ A REAL stateful child: an HsmAsset carrying a Behavior-scoped State variable. It answers
+        //    IStatefulScopeAsset.HasAnyStatefulNode() itself — no stub predicate anywhere.
+        var (child, _, _, _) = MakeParallelAsset();
+        child.SetBlackboardVariables(new[]
+        {
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
+                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+        });
+        c0.SubtreeAssetId = child.AssetId;
+        c1.SubtreeAssetId = child.AssetId;
+
+        // ⛔ NO isStatefulSubtree, NO sharedScopeKeys — one argument.
+        var d = new HsmValidator(catalog: new WiringFakeCatalog(asset, child)).Validate(asset);
+
+        Assert.Contains(d, x => x.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The shared helper is the SAME definition the validator derives from — so a host that ever
+    /// needs to ask directly cannot answer differently.
+    /// </summary>
+    [Fact]
+    public void TheSharedQueries_AnswerTheSameAsTheAssetItself()
+    {
+        var (child, _, _, _) = MakeParallelAsset();
+        child.SetBlackboardVariables(new[]
+        {
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
+                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+        });
+        var catalog = new WiringFakeCatalog(child);
+
+        Assert.True(catalog.IsStatefulSubtree(child.AssetId));
+        Assert.Equal(child.GetSharedScopeKeys(), catalog.SharedScopeKeysOf(child.AssetId));
+
+        // ⚠ A null catalogue reproduces the historical defaults rather than throwing.
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? none = null;
+        Assert.False(none.IsStatefulSubtree(child.AssetId));
+        Assert.Empty(none.SharedScopeKeysOf(child.AssetId));
+    }
+
     // ── the two HasAnyStatefulNode predicates ───────────────────────────────────
 
     /// <summary>
     /// ⭐ <b>The HSM predicate is the SAME definition <c>E1</c>'s emitter uses:</b> a
-    /// <c>Role = State</c> variable scoped <c>Behavior</c> or <c>Entity</c> — exactly the set
+    /// <c>Role = State</c> variable scoped <c>Behavior</c> (<c>Entity</c> was removed by <c>CE-441</c>) — exactly the set
     /// <c>HsmBridgeEmitCore</c> emits a <c>StatefulSlotInfo</c> for. ⛔ A different notion of "stateful"
     /// here would let the validator and the emitter disagree about which assets own a partition slot.
     /// </summary>
     [Theory]
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Behavior, true)]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Entity,   true)]
     // ⚠ Node scope is excluded for the same reason emission skips it: its key needs a node id.
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Node,     false)]
     // ⛔ Input is the PARAMETER role, not working state.

@@ -8,6 +8,11 @@ namespace Fdp.Toolkit.Replication.Components
     /// Used to map local entities to their global representation.
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkIdentity)]
+    // CE-277(e): NOT [DataPolicy(NoScenario)]. Measured (StagingEntityExtractor.cs:239/280/305):
+    // the LOAD path READS the network id back out of the scenario DOM to pre-allocate/remap ids,
+    // so this component MUST be written to the scenario file. It is stripped from a loaded entity's
+    // InitialComponents by StagingEntityExtractor.BuildStaticMask AFTER its id is consumed — a
+    // different concern from save-exclusion. Marking it NoScenario broke 8 extractor rails.
     public struct NetworkIdentity
     {
         /// <summary>

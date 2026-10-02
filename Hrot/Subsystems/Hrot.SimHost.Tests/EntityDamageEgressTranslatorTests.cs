@@ -47,7 +47,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// BS1-T015 SC-1: When <see cref="Health.Current"/> changes, the translator must
-        /// publish one <see cref="EntityDamage"/> DDS sample with the derived damage level.
+        /// publish one <see cref="EntityDamage"/> DDS sample carrying Current and Max verbatim.
+        /// ⭐ CE-196 — this used to assert a derived 30% damage level; the descriptor now ships the
+        /// PAIR and each consumer derives its own fraction.
         /// </summary>
         [Fact]
         public void ScanAndPublish_PublishesEntityDamage_WhenHealthChanges()
@@ -72,15 +74,73 @@ namespace Hrot.SimHost.Tests
                 if (!sample.IsValid) continue;
                 if (sample.Data.EntityId == 42)
                 {
-                    // 70/100 health → 30% damage level
-                    Assert.True(Math.Abs(sample.Data.Damage - 30f) < 0.01f,
-                        $"Expected Damage ≈ 30 but got {sample.Data.Damage}");
+                    // The authority's own numbers travel unmodified — no percentage in between.
+                    Assert.True(Math.Abs(sample.Data.Current - 70f) < 0.01f,
+                        $"Expected Current ≈ 70 but got {sample.Data.Current}");
+                    Assert.True(Math.Abs(sample.Data.Max - 100f) < 0.01f,
+                        $"Expected Max ≈ 100 but got {sample.Data.Max}");
                     found = true;
                     break;
                 }
             }
 
             Assert.True(found, "Expected EntityDamage DDS sample for entity 42.");
+        }
+
+        // ── CE-196: a Max-ONLY change must still reach the receivers ─────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-196 — the change-gate covers BOTH fields, not just <c>Current</c>.</b>
+        ///
+        /// <para>The translator republishes only when health changed. Before this rail the gate
+        /// compared <c>Current</c> alone — which was correct while the wire carried a precomputed
+        /// percentage, because <c>Max</c> never left this node. Now that <c>Max</c> travels, it is
+        /// authored data: a scenario sets it, and an editor write can change it. A <c>Max</c>-only
+        /// change that never publishes would pin every receiver to a stale maximum and silently
+        /// mis-scale every health bar in the cluster.</para>
+        ///
+        /// <para>⚠ This is the ONLY rail that fails if the gate regresses to comparing <c>Current</c>:
+        /// SC-1 changes both fields at once, and SC-2 changes neither.</para>
+        /// </summary>
+        [Fact]
+        public void ScanAndPublish_Republishes_WhenOnlyMaxChanges()
+        {
+            const uint domainId = 213u;
+            using var participant = new DdsParticipant(domainId);
+            using var reader = new DdsReader<EntityDamage>(participant, "EntityDamage");
+
+            var entityMap  = new NetworkEntityMap();
+            var translator = new EntityDamageEgressTranslator(participant, entityMap);
+
+            var entity = SpawnEntity(netId: 77L, currentHealth: 50f, maxHealth: 50f);
+
+            Thread.Sleep(200);
+            translator.ScanAndPublish(_world);   // baseline publish
+            Thread.Sleep(200);
+            using (var drain = reader.Take()) { foreach (var _ in drain) { } }
+
+            // Current is untouched; only the maximum moves.
+            ref var health = ref _world.GetComponentRW<Health>(entity);
+            health.Max = 200f;
+
+            translator.ScanAndPublish(_world);
+            Thread.Sleep(200);
+
+            using var loan = reader.Take();
+            bool found = false;
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Data.EntityId != 77) continue;
+                Assert.True(Math.Abs(sample.Data.Current - 50f) < 0.01f,
+                    $"Current must be unchanged, got {sample.Data.Current}");
+                Assert.True(Math.Abs(sample.Data.Max - 200f) < 0.01f,
+                    $"Expected the NEW Max of 200 but got {sample.Data.Max}");
+                found = true;
+                break;
+            }
+
+            Assert.True(found,
+                "A Max-only change must republish — otherwise receivers keep a stale maximum forever.");
         }
 
         // ── SC-2: No change → no re-publish ──────────────────────────────────

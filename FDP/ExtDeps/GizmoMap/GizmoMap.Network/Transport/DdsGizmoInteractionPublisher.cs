@@ -30,7 +30,11 @@ namespace GizmoMap.Network
                 Kind            = kind,
                 PickAnchorId    = token.AnchorId,
                 PickSubElementId = token.SubElementId,
-                PickStreamId    = token.StreamId,
+                // ⭐⭐⭐ S2 (DESIGN_Gizmo_Anchor_Identity.md §6) — 0, NOT token.StreamId. That field is
+                //   the in-process ECS-generation PAYLOAD (GizmoPickToken.cs) and a process-local handle
+                //   on the wire is defect D2; the receiver resolves from PickAnchorId. This slot's
+                //   DECLARED meaning is a "publisher stream discriminator", which nothing sets yet.
+                PickStreamId    = 0u,
                 PickGizmoTypeId = token.GizmoTypeId,
                 WorldX          = worldPos.X,
                 WorldY          = worldPos.Y,

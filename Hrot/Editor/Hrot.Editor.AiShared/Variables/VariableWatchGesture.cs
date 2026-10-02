@@ -44,6 +44,49 @@ public static class VariableWatchGesture
     public const string UnwatchLabel = "Stop watching";
 
     /// <summary>
+    /// ⭐⭐ <b><c>AQ55</c> — watch this variable on an entity the designer POINTS AT</b>, rather than on
+    /// the one that happens to be selected. ⛔ The ellipsis is load-bearing: it opens a map-pick mode.
+    /// </summary>
+    public const string PinOnEntityLabel = "Watch this variable on entity…";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AQ55</c>'s gesture rule — separate from <see cref="Decide"/>, and that is the point.</b>
+    ///
+    /// <para>⛔ It is <b>not a toggle</b>: pinning on a picked entity always creates a NEW concrete pin,
+    /// so "already pinned" is not a refusal — a designer may watch the same variable on two entities,
+    /// which is most of why the gesture exists. ⚠ It is also not offered when the row is already pinned
+    /// TO THAT ENTITY, but that is only knowable after the pick, so the store decides it, not this.</para>
+    ///
+    /// <para>⭐ The run-state rule is <see cref="Decide"/>'s, unchanged and deliberately shared in
+    /// SUBSTANCE: a baseline sampled while the world moves was stale when it was read. ⛔ Re-deciding it
+    /// here in different words is how two menu entries on one row come to disagree.</para>
+    /// </summary>
+    /// <param name="hasPicker">
+    /// ⚠ <c>false</c> in a host with no map. ⛔ Then the entry is <b>ABSENT</b>, not greyed — 📌 the same
+    /// distinction Batch 100 drew for "Properties…": greying says <i>"not right now"</i>, and a host that
+    /// will never have a map teaches nothing by showing a permanently dead item.
+    /// </param>
+    public static WatchGestureState DecidePinOnEntity(VariableRow row, VariableRunState runState, bool hasPicker)
+    {
+        if (!hasPicker)
+            return new WatchGestureState(false, PinOnEntityLabel, "this host has no map to pick on");
+
+        if (row.IsStale)
+            return new WatchGestureState(false, PinOnEntityLabel, "this variable's asset or entity is gone");
+
+        return runState switch
+        {
+            VariableRunState.Running =>
+                new WatchGestureState(false, PinOnEntityLabel,
+                    "pause the simulation first — a value read while it is running is already stale"),
+            VariableRunState.Replay =>
+                new WatchGestureState(false, PinOnEntityLabel,
+                    "replay is a recording — there is no live value to watch"),
+            _ => new WatchGestureState(true, PinOnEntityLabel, null),
+        };
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>When the gesture may be used</b> *(spec §7)*: <b>Planning</b> ✅ · <b>Paused/stepping</b>
     /// ✅ · ⛔ <b>free-running FORBIDDEN</b> · ⛔ <b>replay FORBIDDEN</b>.
     ///

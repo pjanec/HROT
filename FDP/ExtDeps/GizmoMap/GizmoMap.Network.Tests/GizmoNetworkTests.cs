@@ -153,4 +153,69 @@ namespace GizmoMap.Network.Tests
             Assert.Equal(0xDEADBEEFu, copy.PickGizmoTypeId);
         }
     }
+
+    // =========================================================================
+    // S2 — NO IN-PROCESS PAYLOAD MAY REACH THE WIRE
+    // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S2) · §2 rows ⑧/⑪ · defect D2.
+    // =========================================================================
+
+    public class GizmoInteractionPublisherWireContractTests
+    {
+        private sealed class CapturingInteractionWriter : IDdsWriter<GizmoInteractionBatch>
+        {
+            public GizmoInteractionBatch? Last;
+            public void Write(GizmoInteractionBatch sample) => Last = sample;
+        }
+
+        // SC-GZ-WIRE-1: the publisher puts the token's IDENTITY on the wire and NOTHING ELSE.
+        // ⛔ RED-PROOF SHAPE: restore `PickStreamId = token.StreamId` in DdsGizmoInteractionPublisher
+        //    and PickStreamId comes back as 7 — a process-local ECS generation, on the wire, which is
+        //    exactly defect D2 one publisher along.
+        [Fact]
+        public void SC_GZ_WIRE_1_Publish_SendsTheNetworkId_AndNotTheEcsPayload()
+        {
+            var writer    = new CapturingInteractionWriter();
+            var publisher = new DdsGizmoInteractionPublisher(writer);
+
+            var token = new GizmoPickToken
+            {
+                AnchorId     = 90210L,   // identity: the network id
+                SubElementId = 3u,
+                GizmoTypeId  = 77u,
+                // ⚠ §6.7 — there is no ECS payload left to keep off the wire: the fields are deleted.
+                //   StreamId stays the reserved publisher discriminator, and production writes 0.
+                StreamId     = 7u,
+            };
+
+            publisher.Publish(token, CoordinateSpace.World, new System.Numerics.Vector3(1f, 2f, 3f),
+                GizmoInteractionEventKind.Started);
+
+            Assert.NotNull(writer.Last);
+            var batch = writer.Last!.Value;
+
+            Assert.Equal(90210L, batch.PickAnchorId);
+            Assert.Equal(3u,     batch.PickSubElementId);
+            Assert.Equal(77u,    batch.PickGizmoTypeId);
+
+            // ⭐⭐ The whole point: the ECS generation stays behind.
+            Assert.Equal(0u, batch.PickStreamId);
+        }
+
+        // SC-GZ-WIRE-2: GizmoInteractionBatch has NO field that could carry the ECS index, so the
+        // payload cannot leak by any route other than PickStreamId. ⛔ If someone adds one, this
+        // reddens and they must read §6.2 before deciding it is fine.
+        [Fact]
+        public void SC_GZ_WIRE_2_TheWireRecord_HasNoSlotForAnEcsHandle()
+        {
+            var names = typeof(GizmoInteractionBatch)
+                .GetFields(BindingFlags.Public | BindingFlags.Instance)
+                .Select(f => f.Name)
+                .ToArray();
+
+            Assert.DoesNotContain("PickAnchorIndex", names);
+            Assert.DoesNotContain("AnchorIndex",     names);
+            Assert.DoesNotContain("PickGeneration",  names);
+            Assert.DoesNotContain("AnchorGeneration", names);
+        }
+    }
 }

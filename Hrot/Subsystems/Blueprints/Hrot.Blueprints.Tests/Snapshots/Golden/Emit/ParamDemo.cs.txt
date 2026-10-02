@@ -18,6 +18,7 @@ public static class ParamDemo_CEFE162F_Bp
 {
     public const int BlueprintId = unchecked((int)0xCEFE162F);
     public const ulong StructureHash = 3134857757608831376UL;
+    public static readonly global::System.Guid AssetId = new global::System.Guid("00000000-aaaa-0002-0000-0000000000d0");
     
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct Params
@@ -35,6 +36,7 @@ public static class ParamDemo_CEFE162F_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -52,40 +54,39 @@ public static class ParamDemo_CEFE162F_Bp
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            bool __chNew_0 = __ch_0.ActiveAction != (ushort)99 /* DemoEnumAction */
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)99 /* DemoEnumAction */;
-            __ch_0.ActionInstanceId++;
+            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+            {
+                __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            }
+            if (__chNew_0)
+            {
+                unchecked { __ch_0.ActionInstanceId++; }
+            }
         }
         return global::Fbt.NodeStatus.Success;
         
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
-        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
-        //      Standalone hosting is the single-method case, so the baked offset is 0.
+        // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
+        //          store — NOT Blackboard1024, and no longer the SHARED param region.
+        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                ref bb.BehaviorParameters[0], (nint)0));
-        ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
-        unsafe
-        {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
-            }
-        }
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+        return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
     }
     
 }
@@ -93,7 +94,7 @@ public static class ParamDemo_CEFE162F_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_ParamDemo_CEFE162F_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(ParamDemo_CEFE162F_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {
@@ -101,6 +102,8 @@ public static class BlueprintRegistrar_ParamDemo_CEFE162F_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = ParamDemo_CEFE162F_Bp.StructureHash,
             StateSize = ParamDemo_CEFE162F_Bp.StateSize,
+            ParamsSize = ParamDemo_CEFE162F_Bp.ParamsSize,
+            WritesChannels = new global::System.Type[] { typeof(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel) },
             AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d0"),
             StateClrType = typeof(ParamDemo_CEFE162F_Bp.WorkingState),
         });

@@ -13,8 +13,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T09_BlackboardManaged
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Sequence(seq =>
             {
                 seq.Wait(1f,

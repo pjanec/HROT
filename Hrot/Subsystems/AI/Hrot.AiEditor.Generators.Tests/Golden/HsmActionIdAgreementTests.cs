@@ -224,6 +224,32 @@ public sealed class HsmActionIdAgreementTests
         registrar.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static)!
                  .Invoke(null, null);
 
+        // ⭐⭐⭐ CE-414 — AND THE BLUEPRINT REGISTRARS, because a blueprint-hosted state is a SECOND
+        //   producer of dispatcher ids and this rail only knew about the first.
+        //
+        //   🔴 Measured at 1a387381b: HsmChannelE2E reddened this rail on id 44204 — the exit-cleanup
+        //      thunk CE-388 auto-binds — because that id is registered by
+        //      BlueprintRegistrar_HsmDriveActivity_…_Bp.Register, which nothing here ran. ⛔ The rail's
+        //      premise ("every blob id is registered by a real [HsmAction]/[HsmGuard] METHOD") went out
+        //      of date the moment a blueprint became a legal activity/guard/exit body, and it failed as
+        //      a FALSE POSITIVE against correct output.
+        //   ⚠ It stays an ARTEFACT read, which is the property the rail's own doc-comment defends:
+        //      the ids still come from executing the emitted registrars, never from recomputing a key.
+        var behaviorsAssembly = typeof(Hrot.AI.Behaviors.Machines.HsmShowcase).Assembly;
+        foreach (var type in behaviorsAssembly.GetTypes())
+        {
+            if (type.GetCustomAttributes(inherit: false)
+                    .All(a => a.GetType().Name != "BlueprintRegistrarAttribute")) continue;
+
+            var register = type.GetMethod("Register", BindingFlags.Public | BindingFlags.Static);
+            var args     = register?.GetParameters();
+            if (register is null || args!.Length != 1 ||
+                args[0].ParameterType != typeof(Fdp.Toolkit.Blueprints.BlueprintRegistryStaging))
+                continue;   // the HSM asset registrars take (BehaviorRegistry, staging) — not this shape
+
+            register.Invoke(null, new object?[] { new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging() });
+        }
+
         var ids = new HashSet<ushort>();
         foreach (var name in new[] { "ActionTable", "GuardTable" })
         {

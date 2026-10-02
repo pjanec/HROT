@@ -1,20 +1,192 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-19
-current-answer: the RULED 2026-08-18 section - INCLUDING its 2026-08-19 EXTENSION on
-  pinning (one window instance per pin, titled by its context) - and the INTEGRATION
-  TABLE at the very bottom. They supersede the RECOMMENDED ANSWERS above where they differ - notably
-  Q38-A, whose recommendation was OVERRULED. Plus the REVISION 2026-08-18. The revision supersedes the 2026-08-17 inventory
-  (8 surfaces; the graph finds 25) and corrects section 4's claim that the shell
-  is missing. A-F now carry recommendations awaiting the user's approval.
-stale-below: nothing, but section 1's inventory table and section 4's last line
-  are SUPERSEDED by R1 and R2. Do not quote them.
-known-rot: my Q38-A recommendation ("contextual is the ONLY switch, the toolbar is
-  a pin") was OVERRULED 2026-08-18 - the toolbar IS a panel switch. Do not quote it.
-  Also: section 4 says "what is missing is the SHELL" - measured false,
-  RuntimeInspectorWindow is that shell with three panes registered.
+updated: 2026-08-20
+current-answer: THE LIVE ANSWER, the block immediately below the title. Everything under
+  "WORKING HISTORY" is the record of how it was reached and must NOT be quoted as the answer.
+  The CONTEXT -> VIEWS TABLE below it is also LIVE and supersedes the bottom table's A/B/C
+  lists; the bottom table's D/E/F sections (what stays out, what retires, the count) remain LIVE.
+stale-below: every RECOMMENDED ANSWER that carries a struck-through line, the 2026-08-17
+  inventory in section 1 (8 surfaces; the graph finds 25), and section 4's claim that the
+  shell is missing. All superseded and marked in place.
+known-rot: none as of 2026-08-20 - the six sub-questions are all ruled and each carries
+  its ruling id.
+known-conflict: none. R-112 corrects my own Q38-C test; R-113/R-114 settle the two
+  surfaces that were left to decide.
 -->
 # Architect Question #38 — **should the inspect/detail windows merge into ONE mode-switching Details panel?**
+
+# ✅✅✅ THE LIVE ANSWER — **all six sub-questions RULED** *(`2026-08-20`)*
+
+> ⭐⭐ **Read only this block and the INTEGRATION TABLE at the bottom.** ⛔ Everything between them is
+> **WORKING HISTORY** — how the answer was reached, including recommendations that were overruled.
+
+## ⭐ The six
+
+| | question | ⭐ the ruling | id |
+|---|---|---|---|
+| **A** | contextual, or a mode toolbar? | ⭐⭐ **The toolbar is a PANEL SWITCH, two stages.** The **context** decides which views are OFFERED and which is DEFAULT; the **user** picks among them with radio-style toggles. ⛔ It never changes what the panel is ABOUT, only which VIEW of one context is drawn. ⭐ **First goal is FEWER WINDOWS, not merged content** | **`R-98`** |
+| **B** | one panel across perspectives, or one per? | ⭐ **In ALL perspectives, content PLUGGABLE.** The offer set is a function of **`(selection, perspective)`**. ⛔ **One shared instance is NOT required** — read-only views may be instanced freely; ⭐ **sharing is preferred for EDITING views**. Feeds registered at the composition root | **`R-110`** |
+| **C** | what about views that are not "properties"? | ⭐⭐⭐ **The test is: IS IT ABOUT THE CURRENT SELECTION?** ⭐ **YES ⇒ a VIEW inside Details** on a toolbar toggle — ⛔ a different question earns its own **view**, not its own **window**. ⭐ **NO — a curated list kept open ACROSS selections ⇒ STANDALONE** *(Watch · Breakpoints)*. ⛔ A different **asset type** is a FEED difference and never justifies a surface | **`R-112`** |
+| **D** | runtime vs authoring: one panel or two? | ⭐⭐ **The MODE is part of the CONTEXT** — it joins `(selection, perspective)` in deciding the offer set. ⭐⭐⭐ **A view is implemented ONCE, supporting multiple modes** — ⛔ never an authoring view plus a runtime twin | **`R-111`** |
+| **E** | sequencing | ⭐ **ANSWER NOW, BUILD AFTER the visual check passes** — 📌 `R-27`, and *"merging surfaces before anyone has SEEN them is how the wiring gap happened"* | ✅ approved |
+| **F** | the pin | ⭐⭐ **ONE WINDOW INSTANCE PER PIN, titled by its context.** Id keyed on `(view, asset, selection)`; an exact duplicate **focuses** rather than spawning; ⭐ **pins are VOLATILE.** Mechanically: the same class with a **frozen context source** | **`R-100`** |
+
+## ⭐⭐ The shell — **it already exists**
+
+📐 **`RuntimeInspectorWindow`** renders entity-lifecycle status, mode controls and a scrub bar, then
+**delegates to the registered `IRuntimeInspectorPane` for the active asset kind.**
+⇒ ⭐⭐⭐ **It IS the shell, and the pane registry the toolbar needs is already there.** ⛔ **Do not write
+a third shell, and do not keep it as a second window beside Details.**
+⚠ Its runtime chrome becomes **mode-conditional content** *(`R-111`)*.
+
+## ⭐ Per surface — **the disposition**
+
+| verdict | surfaces |
+|---|---|
+| ⭐⭐ **BECOME VIEWS** *(toolbar toggles in the right context)* | `InspectorWindow` *(AiShared — facets · default value · param sync · utility)* · the three **`RuntimeInspectorPane`s** *(one view, three feeds)* · `BlueprintDetailsWindow` · `AiVariablesWindow` *(the default view)* · **`BlackboardAuthoringWindow`'s byte-budget / bin-pack** *(`R-112` — ⛔ no longer standalone)* · `GraphSignatureWindow` *(`BP-128`)* |
+| ⭐ **STAY STANDALONE** | ⭐⭐ **Watch** — `AiWatchWindow` survives *(`R-113`)*, variables-only, **persistable** · ⭐⭐ **Breakpoints** *(`Q44`)* · `DetailsPanel` *(NodeEditor.UI — the **primitive**, not a surface)* |
+| ⛔ **RETIRE** | `InspectorWindow` *(Blueprints — the second class of that name)* · `BlueprintVariablesWindow` · `BlueprintVariablesManagedWindow` · **`WatchPanelWindow`** *(`R-113`)* · **`LiveBlackboardPanel`** *(`R-114` — ⭐ no feature the variable table lacks)* |
+
+⚠⚠ **ONE CONSEQUENCE OF `R-98` + `R-113` MEETING:** `AiWatchWindow` draws **two** lists today —
+breakpoint watches **and** pinned variables. ⭐ `R-98` says the Watch stays **variables-only** ⇒
+⛔ **the breakpoint-watch list moves to the BREAKPOINTS window.**
+
+## ⛔ What is NOT settled
+
+| | |
+|---|---|
+| ⚠ **`R-27` still gates the BUILD** | the visual check must pass first — ⭐ **this is the only thing standing between here and a batch** |
+| ⚠ **the `PARAMETER SYNCHRONIZATION` toggle** | ⭐ ruled a Details toggle in the NODE context *(`R-98`/`R-99`)*, ⛔ **sequenced AFTER the orchestrator wiring** — *"promoting an inert panel is worse than leaving it buried"* |
+
+---
+
+# ⭐⭐⭐ THE CONTEXT → VIEWS TABLE — **what each selection offers** *(`2026-08-20`)*
+
+> ⭐⭐ **This supersedes the A/B/C lists in the INTEGRATION TABLE at the bottom** — same content,
+> completed against the **measured** selection kinds and with the perspective/mode axes `R-110`/`R-111`
+> add. ⛔ **The bottom table's D/E/F sections (what stays out · what retires · the count) are still live.**
+
+## 📐 The selection kinds — **measured, not invented** *(`R-74`)*
+
+`Selection/SubSelectionRecords.cs` — `BlueprintNodeSelection(GraphId, NodeId)` ·
+`BTreeNodeSelection(VisualId)` · `BTreePillSelection(PillVisualId)` · `HsmStateSelection(StableId)` ·
+`HsmTransitionSelection(VisualId)` · `HsmRegionSelection(StableId, RegionIndex)` ·
+`UtilityConsiderationSelection(OptionIndex, ConsiderationIndex)`
+`Hsm.Editor/Inspector/HsmSubSelections.cs` — `HsmEventSelection(EventId)` ·
+`HsmGlobalTransitionSelection(VisualId)`
+⭐ plus **`VariableOutlineSelection`** *(the My Blueprint outline's variable/section pick — a
+different axis from the canvas sub-selection)* and ⭐ **`ActiveAsset`** with **no** sub-selection.
+
+## ⭐⭐⭐ The table
+
+⭐ **DEFAULT** = the view shown when the context becomes active. ⭐ **Availability may be narrowed by
+MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand columns say how.
+
+| # | context *(what you clicked)* | views offered | ⭐ perspective | ⚠ mode |
+|---|---|---|---|---|
+| **1** | ⭐⭐ **FOCUS on a surface with NO sub-selection** *(a fresh document, or after an empty-canvas click — ✅ which CLEARS, `R-115`)* — 📌 **`R-115`: focus and selection are TWO axes** | ⭐ **the FOCUSED SURFACE'S DEFAULT view** — for the canvas/asset that is **Asset views** *(row 7)* | all | — |
+| **1b** | ⚠ **a MULTI-selection** *(marquee, two or more nodes)* — ⭐ **a REAL selection** *(`R-115`)*, ⛔ **not "nothing"** | ⚠ **no multi-node view exists** ⇒ ⭐ the interim is *"N nodes selected"* + the focus default — ⛔ **never a silent empty** | all | — |
+| **2** | ⭐⭐ **a VARIABLE or a variable SECTION** *(`VariableOutlineSelection`)* | ⭐ **Variables `(DEFAULT)`** · **Layout / byte budget** *(the bin-pack view — `R-112`)* | all three | ⭐ the table itself switches **initial ⇄ live** arm by mode *(`Q32` ruling 3)* — ⛔ not a different view |
+| **3** | ⭐⭐ **a NODE** — `BlueprintNodeSelection` · `BTreeNodeSelection` · `HsmStateSelection` | ⭐ **Properties `(DEFAULT)`** *(the facet editor, and it CARRIES the node's two bindings — `ExpressionTargetField` / `WorkingStateTargetField`)* · **Default value** *(`DEFAULT VALUE — {var}`, the node-scoped default of the variable this node WRITES)* · **Runtime** | all three *(different feed per host)* | **Runtime** view offered **only** when a debug session is attached |
+| **3a** | ⚠ **a SUBTREE node** *(a `BTreeNodeSelection` whose node is a subtree)* | row 3 **plus** ⭐ **Parameter sync** *(`PARAMETER SYNCHRONIZATION` — Approach B's copy-in/copy-out table)* | ⭐ **BTree** only — 📌 `M-24`: HSM cannot produce a subtree sync binding at all | ⛔ **sequenced AFTER the orchestrator wiring** *(`R-99`)* — *"promoting an inert panel is worse than leaving it buried"* |
+| **3b** | ⚠ **a UTILITY node** *(or `UtilityConsiderationSelection`)* | row 3 **plus** ⭐ **Utility** *(`UTILITY CONSIDERATION`)* | BTree · HSM | — |
+| **4** | **an HSM TRANSITION** *(`HsmTransitionSelection`, `HsmGlobalTransitionSelection`)* | ⭐ **Properties `(DEFAULT)`** — trigger/guard/priority | HSM only | — |
+| **5** | **an HSM REGION** *(`HsmRegionSelection`)* · **an HSM EVENT** *(`HsmEventSelection`)* | ⭐ **Properties `(DEFAULT)`** | HSM only | — |
+| **6** | **a BTREE PILL** *(`BTreePillSelection`)* | ⭐ **Properties `(DEFAULT)`** | BTree only | — |
+| **7** | ⭐⭐ **the ASSET** — 📐 **`EditorSelectionStore.ActiveAsset`, whose own doc says *"the asset whose editor canvas has FOCUS"*, set by window-focus handlers.** ⛔ **Not** something picked in a browser; ⭐ **it is the open document you are looking at** | ⭐ **Asset settings `(DEFAULT)`** · **Layout / byte budget** · **Diagnostics** — ⭐ defined below | all three | — |
+| **8** | **a GRAPH** *(a function / macro graph in the outline)* | ⭐ **Graph signature `(DEFAULT)`** *(`GraphSignatureWindow` — 📌 `BP-128`)* · **Variables** *(that graph's Local Variables)* | Blueprint only | — |
+
+## ⭐⭐ WHAT THE "ASSET VIEWS" ARE — **concretely** *(row 7)*
+
+| view | ⭐ what it shows | where it lives today |
+|---|---|---|
+| ⭐ **Asset settings** *(default)* | the asset-scoped switches — today the only measured one is **`Use editor-managed blackboard`** | `BlackboardAuthoringWindow` — ⛔ **genuinely mis-homed**: an asset-scoped switch inside a variables window |
+| ⭐⭐ **Layout / byte budget** | ⭐ **does this blackboard FIT its tier, and how are its fields packed?** — the bin-pack picture, field offsets/sizes, and **DTO warnings** | `BlackboardAuthoringWindow`'s bin-pack view |
+| ⭐ **Diagnostics** | **sub-tree allocations** *(`GetAutoAllocatedVariables` — ⚠ display-only today, `M-23`)* + **unbound requirements** *(`UnboundRequirementViewModel`)* | `VariablesPanelControl`'s host |
+
+⇒ ⭐ **All three are about the ASSET AS A WHOLE**, ⛔ not about anything you clicked inside it — which is
+exactly why they belong to the asset context and not to a node or variable context.
+
+## ✅✅✅ CONTEXT = **FOCUS + SELECTION**, and they change INDEPENDENTLY *(user, `2026-08-20` — `R-115`)*
+
+> ⭐⭐ **User, verbatim:** *"of course graph pan clicks should not change node selection or detail panels
+> view. but it can change focus to the graph so context changes. marquee changes selection (if not
+> cancelled). clicking empty space might change focus (i.e. context) so it is legitimate if it switches
+> the detail to default view for the clicked UI. just switching perspective or switching document never
+> changes sub-selection, just it changes the focus part of the context. same with perspective switch."*
+
+⭐⭐⭐ **This resolves the fork — and it does it by splitting the thing I had conflated.** ⛔ *"Nothing
+selected"* was never one state: **FOCUS** and **SELECTION** are two axes, and each has its own triggers.
+
+| axis | ⭐ what it decides | ⭐ what CHANGES it | ⛔ what does NOT |
+|---|---|---|---|
+| ⭐⭐ **FOCUS** *(which UI surface you are in)* | **the OFFER SET and the DEFAULT view** | a click **into** a surface — **including empty canvas** · switching **document** · switching **perspective** | — |
+| ⭐⭐ **SELECTION** *(the per-asset sub-selection)* | **which THING the views are about** | a real selection gesture — **click a node** · **marquee** *(unless cancelled)* | ⛔⛔ **PAN** · ⛔⛔ **switching DOCUMENT** · ⛔⛔ **switching PERSPECTIVE** — ⭐ those move **only the focus part** |
+
+⇒ ⭐⭐ **A pan must leave both the selection AND the drawn view alone.**
+⇒ ⭐ **A click on empty canvas legitimately moves FOCUS** ⇒ the panel may switch to **that surface's
+default view** — ⛔ that is not "losing" the node, it is the focus part of the context moving.
+⇒ ⭐⭐⭐ **Switching document or perspective NEVER touches the sub-selection** — ⭐ and the store already
+supports this: `_subSelectionsByAsset` is keyed **by `AssetId`**, so each asset keeps its own pick.
+
+### ⛔⛔ TWO MEASURED CONFLICTS — **today's code does not implement this**
+
+📐 `BuildAfterDrawAction` assigns `MapSelection(ctx.View.Selection, asset)` to `ActiveSubSelection`
+**every frame**, and `MapSelection` returns `null` when `selection.Count != 1`.
+
+| ⛔ conflict | |
+|---|---|
+| **① a PAN can clear the selection** | ⭐ if a pan ends with the canvas reporting no single node, the sub-selection is **overwritten with `null` that frame** ⇒ ⛔ **the panel loses the node on a gesture the user says must not touch it** |
+| **② a MULTI-selection is DISCARDED, not represented** | ⭐ marquee two nodes ⇒ `Count != 1` ⇒ `null` ⇒ **the same as nothing.** ⛔ But the ruling says *"marquee changes selection"* ⇒ a multi-pick is a **real selection with no view yet**, ⛔ not an empty one |
+
+⚠ **`②` leaves a genuine gap: there is no multi-node view.** ⭐ **Filed, not invented here** — the honest
+interim is *"N nodes selected"* with the **asset/focus default** views offered, ⛔ never a silent
+"nothing".
+
+### ✅ The residual — **RULED `2026-08-20`**
+
+⭐⭐ **User: *"yes, empty canvas click clears the selection."*** ⇒ ⛔ **an empty-canvas click BOTH clears
+the sub-selection AND moves focus to that surface** — ⭐ the panel then shows that surface's default
+view. ⚠ **A PAN still does neither** *(`R-115`)*; the distinction is **click vs drag**, ⛔ not
+empty-vs-node.
+
+## ⭐⭐ THE ENTITY CONTEXT — **`Q47`, a deliberate SCOPE EXTENSION**
+
+⚠ **This table covers the three AI perspectives.** ⭐⭐ **The user has extended the panel to the
+SCENARIO perspective, where clicking an ENTITY is a context** — 📄
+**[`Architect_Question_47_The_Entity_Context.md`](Architect_Question_47_The_Entity_Context.md)**.
+⛔ **`Q38`'s fence on the engine/sim inspectors is NOT deleted** — ⭐ it still holds for the three AI
+perspectives, where an entity is a **value source**; ⭐⭐ in the scenario perspective the entity is **the
+authored thing**.
+⚠⚠ **One item from `Q47` belongs in THIS design from the start:** ⭐⭐⭐ **the view registry should take a
+PREDICATE, not an asset kind** — an entity has no single kind, it has components. ⛔ Retrofitting that
+later means touching every context.
+
+## ⛔ NOT in this table — **and why**
+
+| | |
+|---|---|
+| **Watch** · **Breakpoints** | ⭐ **curated lists kept open ACROSS selections** ⇒ standalone *(`R-112`/`R-113`)* |
+| **a PINNED instance** | ⭐ it is **this same panel with a FROZEN context** *(`R-100`)* — ⛔ not a context of its own |
+| **engine / sim inspectors** | ⛔ different lifecycle, not the AI editor |
+
+## ✅ THE TERM I COULD NOT MAP — **resolved, and it is TWO DIFFERENT ROWS**
+
+📌 The user's *"param-to-working state mapper"* mapped to two measured candidates and I refused to
+guess. ⭐ **Both now have a home, and they are not the same row:**
+
+| the thing | ⭐ where it shows |
+|---|---|
+| ⭐ **`PARAMETER SYNCHRONIZATION`** — subtree param ⇄ sub-asset field, copy-in/copy-out *(Approach B)* | ⭐⭐ **its OWN toggle, row `3a`** — subtree nodes, BTree only, ⛔ after the orchestrator wiring |
+| ⭐ **the node's two BINDINGS** — `ExpressionTargetField` *(params)* + `WorkingStateTargetField` *(working state)* | ⭐⭐ **FIELDS INSIDE the Properties view, row 3** — ⛔ **not a toggle of their own.** 📐 They are node facet members and `InspectorWindow` already draws them there |
+
+⇒ ⭐ **That is what "closed" means:** ⛔ not *"the question went away"* — **each candidate was given a
+row in this table.**
+
+---
+
+# ⛔ WORKING HISTORY — **how the answer was reached. Do NOT quote as the answer**
+
 
 > ⛔ **OPEN POINT — recorded `2026-08-17`, NOT scheduled.** ⭐ **A separate design task by user
 > instruction**, banked so the idea is not lost and the next session does not re-derive the inventory.
@@ -203,6 +375,39 @@ now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PA
 
 ---
 
+# ⭐⭐ WHAT EACH SURFACE ACTUALLY IS — *(written `2026-08-20` at the user's request, to decide keep/retire)*
+
+> ⭐⭐ **User:** *"i forgot what each is about, which helps me to decide what to retire or keep."*
+
+| # | surface | ⭐ what it is, in one line | verdict |
+|---|---|---|---|
+| **1** | **`InspectorWindow`** *(AiShared, 678)* | the **NODE** inspector: node facets · **`DEFAULT VALUE — {var}`** · the subtree **param-sync** table · utility considerations | ⭐ **FOLD** — it is a view of *"the selected node"* |
+| **2** | **`InspectorWindow`** *(Blueprints.Editor, 70)* | ⛔⛔ **a SECOND class with the same name** *(`BP-317`)*, a thin Blueprint-side one | ⛔ **RETIRE** — ruling 9 |
+| **3** | **`RuntimeInspectorWindow`** *(57)* | ⭐⭐ **a SHELL** — it holds no content; it hosts whichever per-host pane matches | ⭐⭐⭐ **IT *IS* THE SHELL — reuse it, ⛔ do NOT keep a second window beside Details.** 📐 It renders entity-lifecycle status, mode controls and a scrub bar, then **delegates to the registered `IRuntimeInspectorPane` for the active asset kind** ⇒ ⭐ **the pane registry the toolbar needs already exists here.** ⚠ Its runtime chrome becomes **mode-conditional content** *(`R-111`)*, ⛔ not a separate window |
+| **4–6** | **`BTree`/`Hsm`/`BlueprintRuntimeInspectorPane`** | ⭐ the three **FEEDS** behind that shell — *"what is this asset's runtime state right now?"*, read from three different stores | ⭐ **FOLD to ONE VIEW, three feeds** — same question |
+| **7** | **`BlueprintDetailsWindow`** *(304)* | the current chameleon — ⛔ **Blueprint only, and `sealed`** so nothing can extend it | ⭐ **FOLD** *(its Blueprint content becomes a feed)* |
+| **8** | **`BlackboardAuthoringWindow`** *(462)* | ⭐⭐ **the BYTE BUDGET / BIN-PACK view** — *"does this whole blackboard FIT its tier, and how is it packed?"* plus DTO warnings | ⭐⭐ **BECOMES A VIEW in the ASSET context** *(`R-112`)* — ⛔ not standalone |
+| **9** | **`BlueprintVariablesManagedWindow`** *(33)* | hosts `VariablesPanelControl` **again** — a second host of the same control | ⛔ **RETIRE** — duplicate host |
+| **10** | **`BlueprintVariablesWindow`** *(82)* | ⚠ **a THIRD variables surface** — the editor's projection of ONE of the asset's three declaration lists | ⛔ **RETIRE** *(`U-16`/row 60)* |
+| **11** | **`AiVariablesWindow`** *(120)* | the standalone **variables TABLE**, one per perspective, fed by an `IVariableRowSource` | ⭐ **FOLD as a VIEW** — it becomes the default view in the variable context |
+| **12–13** | **`AiWatchWindow`** · **`WatchPanelWindow`** | ⛔ **two watch windows** *(`R-72`)* — a curated list of pinned variables | ⭐⭐ **`AiWatchWindow` SURVIVES · `WatchPanelWindow` RETIRES** *(`R-113`)* — ⛔ **standalone, never a Details view.** ⚠ **And its BREAKPOINT-WATCH list moves to the Breakpoints window** — `R-98`: *the Watch stays variables-only* |
+| **14** | 🔴 **`LiveBlackboardPanel`** *(BTree.Editor, 120)* | 📐 its own doc: *"renders a **read-only** blackboard panel inside an existing ImGui window … in Slice 2 field values are **live-read** from the ECS blackboard component."* ⛔⛔ **in-degree 0 — NOTHING HOSTS IT** | ⛔ **RETIRE** — ✅ ruled `2026-08-20` *(`R-114`)*: no feature the variable table lacks |
+| **15** | **`DetailsPanel`** *(NodeEditor.UI, 151)* | the generic **panel primitive** — not a surface, the thing surfaces are built from | ⭐ **KEEP — infrastructure** |
+| **16** | **`GraphSignatureWindow`** | the graph's **signature** — its inputs/outputs as a callable | ⭐ **FOLD** *(`BP-128`)* — a view of *"the selected graph"* |
+
+### ⚠ `LiveBlackboardPanel` — **the one that needs a decision, stated out loud**
+
+⭐ **What it does:** a read-only live blackboard dump for **BTree**, live-read from the ECS component.
+⭐ **Why it exists:** built deliberately — `.dev/_DONE/blueprints-2` `TASK-BT-S2-03/05`, *"decode them to
+display actual runtime values."*
+⛔ **Why it is a problem:** **nothing hosts it** — it lost its host rather than never having one.
+⭐⭐ **What supersedes it:** the **Details variable table's live Value column** *(Batch 90/94/95)* now does
+the same job on **all three** hosts, with change highlighting and editing.
+⇒ ⭐ **Recommended: RETIRE** — ⛔ but 📌 `R-13` requires saying which of the three it is: this is
+**duplicate CODE superseded by a working surface**, not a dormant capability. ⚠ **The user decides.**
+
+---
+
 # ⭐⭐⭐ RECOMMENDED ANSWERS `A`–`F` — *(`2026-08-18`; I analyse and SUGGEST, the user APPROVES)*
 
 > ⛔ **Nothing here is scheduled.** 📌 **`R-27` still gates the BUILD** — see `R5`.
@@ -210,7 +415,11 @@ now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PA
 
 ### ⭐⭐⭐ `Q38-A` — contextual, or a mode toolbar?
 
-| ⭐⭐⭐ **RECOMMENDED: CONTEXTUAL is the ONLY switch. The toolbar button is a PIN, not a mode.** |
+| ✅✅ **RULED `2026-08-18` BY THE USER — `R-98`, and it OVERRULES the recommendation below.** |
+|---|
+| ⭐⭐⭐ **THE DETAILS TOOLBAR IS A PANEL SWITCH — TWO STAGES.** ⭐ **The CONTEXT decides which panels are OFFERED and which is DEFAULT; the USER picks among them with radio-style toggles.** 📌 *"for variables the default is the variable table, but using toolbar (radio-button like toggles) it should be possible to switch it into another already existing panels"*. ⛔ **Not the `B8` two-authorities bug** — the toolbar never changes what the panel is ABOUT, only which VIEW of one context is drawn. ⭐⭐ **First goal is FEWER WINDOWS, not merged content.** ⭐ **Pinning captures the context AND the active view.** ⭐ **The Watch stays variables-only and MUST remain persistable/reloadable** |
+
+| ⛔ ~~RECOMMENDED *(SUPERSEDED — do NOT quote)*: CONTEXTUAL is the ONLY switch. The toolbar button is a PIN, not a mode.~~ |
 |---|
 
 📌 **`R-95` already made FOCUS the authority** *(`FocusedSurface`, a latch, cross-host)*.
@@ -222,7 +431,11 @@ context instead of overriding it. ⇒ ⭐ **one authority, plus an explicit esca
 
 ### ⭐⭐ `Q38-B` — one panel across perspectives, or one per perspective?
 
-| ⭐⭐⭐ **RECOMMENDED: ONE window CLASS · ONE INSTANCE PER PERSPECTIVE · FEEDS REGISTERED PER HOST.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-110`.** |
+|---|
+| ⭐ **The Details panel is in ALL perspectives and its content is PLUGGABLE.** ⭐⭐ **Which sub-panels (views) are available depends on the CLICKED THING and the CURRENT PERSPECTIVE** ⇒ the offer set is a function of `(selection, perspective)` — 📌 `R-98`, now with perspective named. ⛔⛔ **One shared instance is NOT required:** *"some views do not change with perspective but that does not necessarily mean we have to share the single instance … if multiple ones showing same data are possible"* ⇒ ⭐ **read-only views may be instanced freely; SHARING is preferred for EDITING views.** ⭐ **Feeds registered by whoever needs to show contextual info, at the composition root** *("host" = the initial composition of all the sw components)* |
+
+| ⭐ ~~RECOMMENDED *(kept as the mechanism, ⛔ but "one instance" is NOT a requirement — see the ruling)*: ONE window CLASS · ONE INSTANCE PER PERSPECTIVE · FEEDS REGISTERED PER HOST.~~ |
 |---|
 
 📐 **That is already how this editor works** — every window is built by `PerspectiveWorkspaceRegistrar`
@@ -233,7 +446,11 @@ invisible. ⭐ **And the FEED registry already exists** — `RuntimeInspectorWin
 
 ### ⭐⭐ `Q38-C` — what about views that are not "properties"?
 
-| ⭐⭐⭐ **RECOMMENDED: a surface stays STANDALONE only if it answers a DIFFERENT QUESTION — never merely a different ASSET TYPE.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-112`, and it CORRECTS the recommendation below.** |
+|---|
+| ⭐⭐⭐ **THE TEST IS: IS IT ABOUT THE CURRENT SELECTION?** ⭐ **YES ⇒ a VIEW inside Details**, reachable by a toolbar toggle — ⛔ **a different question earns its own VIEW, not its own WINDOW**, once `R-98` exists. ⇒ **`BlackboardAuthoringWindow`'s byte-budget / bin-pack becomes a view in the ASSET context.** ⭐ **NO — a CURATED LIST kept open ACROSS selections ⇒ STANDALONE**: the **Watch** and the **Breakpoints** windows *(`R-113`)* |
+
+| ⭐ **The old half that SURVIVES**: ⛔ a surface never stays separate **merely because it is a different ASSET TYPE** — that is a FEED difference. ⛔ ~~*"…stays STANDALONE only if it answers a DIFFERENT QUESTION"* — too coarse; see the ruling.~~ |
 |---|
 
 ⭐ **The test, in one line:** *does it answer **"tell me about the thing I selected"**?*
@@ -245,7 +462,11 @@ being authored, not about a selection ⇒ **`BlackboardAuthoringWindow`'s layout
 
 ### ⭐⭐⭐ `Q38-D` — runtime vs authoring: one panel or two?
 
-| ⭐⭐⭐ **RECOMMENDED: ONE. And the SHELL that survives is `RuntimeInspectorWindow`'s, not `BlueprintDetailsWindow`.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-111`.** |
+|---|
+| ⭐⭐ **Runtime vs authoring is part of the CONTEXT definition, not a second panel** — *"authoring mode can provide different set of available views than runtime"* ⇒ **the MODE joins `(selection, perspective)` in deciding the offer set.** ⭐⭐⭐ **And a view is implemented ONCE, supporting multiple modes** — ⛔ not an authoring view plus a runtime twin *(ruling 9)*. 📌 The variable table already does this: the INITIAL arm while planning, the LIVE arm while running *(`Q32` ruling 3)* |
+
+| ⭐ **The recommendation's SHELL half still holds**: ~~ONE.~~ ⭐ the shell that survives is `RuntimeInspectorWindow`'s, ⛔ not `BlueprintDetailsWindow`'s |
 |---|
 
 📐 **Measured (`R2`):** the runtime family is **already** shell + per-host feeds. 📌 And Track C ruled
@@ -259,7 +480,7 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 
 ### ⭐⭐ `Q38-E` — sequencing
 
-| ⭐⭐⭐ **RECOMMENDED: ANSWER NOW, BUILD AFTER the post-Batch-88 visual check passes** *(`R-27`)*. |
+| ✅ **APPROVED `2026-08-20` by the user — *"Q-E yes"*.** ⭐ **ANSWER NOW, BUILD AFTER the visual check passes** *(`R-27`)*. |
 |---|
 
 ⭐ **Then in this order, each step independently revertible:**
@@ -273,7 +494,11 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 
 ### ⭐⭐ `Q38-F` — the pin *(NEW)*
 
-| ⭐⭐⭐ **RECOMMENDED: a pinned inspector is the SAME CLASS with a FROZEN context source. Not a new window type.** |
+| ✅ **RULED `2026-08-19` BY THE USER — `R-100`, which EXTENDS this.** |
+|---|
+| ⭐⭐ **ONE WINDOW INSTANCE PER PIN, TITLED BY ITS CONTEXT** — ⛔ **not a toggle that re-points one reusable pinned window.** ⭐ Id keyed on `(view, asset, selection)`, an exact duplicate FOCUSES rather than spawning; ⭐ **pins are VOLATILE — they do not survive a restart** *(⛔ unlike the Watch, which is persistable)* |
+
+| ⭐ **The recommendation below still holds as the MECHANISM**: a pinned inspector is the SAME CLASS with a FROZEN context source. Not a new window type. |
 |---|
 
 | ⭐ | |
@@ -294,7 +519,7 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 | feature | `LiveBlackboardPanel` | the variable table |
 |---|---|---|
 | **three columns, Field/Type/Value** | ✅ | ✅ *(`Type` is the one toggle — Details on, Watch off)* |
-| **live read from `BrainBlackboard`** | ✅ direct pointer at `FieldOffset` | ✅ via `ILiveBlackboardValueProvider` |
+| **live read of the root params slot** | ✅ direct pointer at `FieldOffset` | ✅ via `ILiveBlackboardValueProvider` |
 | **14 primitives + `Vector2/3/4`** | ✅ **a hand-rolled `typeof` switch** | ✅ **GENERIC `Marshal.PtrToStructure`** — ⭐ strictly wider |
 | 🔴 **enums** | ⛔⛔ **falls through to `"?"`** | ✅ decoded **and printed by NAME** *(`RawValueDecoder:58`)* |
 | 🔴 **any other blittable struct** | ⛔ `"?"` | ✅ generic |
@@ -549,7 +774,10 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 > implementations and become TOGGLES inside one window.** 📌 *"whether to merge these toggleable panels
 > into something more generic is a question for later."*
 
-## ⭐ A. Toggles offered when the context is a **VARIABLE / a variable SECTION**
+> ⛔⛔ **A/B/C BELOW ARE SUPERSEDED** by the **CONTEXT → VIEWS TABLE** above — same content, completed
+> against the measured selection kinds. ⭐ **D/E/F remain LIVE.** ⛔ Do not quote A/B/C as the answer.
+
+## ⛔ A. ~~Toggles offered when the context is a **VARIABLE / a variable SECTION**~~ *(superseded)*
 
 | toggle | today's surface | notes |
 |---|---|---|
@@ -557,7 +785,7 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | **Layout / byte budget** | `BlackboardAuthoringWindow`'s bin-pack view | ⚠ **answers *"will it fit?"*** — ⭐ as a TOGGLE it is reachable without being a window |
 | **Live values** | ⛔ **none — retire `LiveBlackboardPanel`** | 📌 superseded once the formatter gains the fixed-list arm |
 
-## ⭐ B. Toggles offered when the context is a **NODE**
+## ⛔ B. ~~Toggles offered when the context is a **NODE**~~ *(superseded)*
 
 | toggle | today's surface |
 |---|---|
@@ -567,7 +795,12 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | **Utility** | `InspectorWindow`'s **`UTILITY CONSIDERATION`** — utility nodes only |
 | ⭐ **Runtime** | the per-host **`RuntimeInspectorPane`** *(BTree · HSM · Blueprint)* |
 
-> ⚠⚠ **ONE TERM I COULD NOT MAP — please confirm.** ⭐ You said *"param-to-working state mapper"*.
+> ✅ **RESOLVED `2026-08-19`** — the user asked for BOTH to be explained and then ruled *"approved,
+> should be wired, add both to the plan"* *(`R-99`)*. ⭐ **Approach A (whole-DTO aliasing) and Approach B
+> (field-level sync) are two mechanisms, and the toggle shows Approach B's table.** ⚠ The original
+> ambiguity is kept below for the record.
+>
+> ⚠⚠ ~~ONE TERM I COULD NOT MAP — please confirm.~~ ⭐ You said *"param-to-working state mapper"*.
 > 📐 **The two measured candidates are DIFFERENT things:**
 > ⭐ **`PARAMETER SYNCHRONIZATION`** — subtree param ⇄ sub-asset field copy-in/copy-out *(Approach B)*
 > ⭐ **the node's two BINDINGS** — `ExpressionTargetField` *(params)* and `WorkingStateTargetField`
@@ -575,7 +808,7 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 > ⛔ **I am not guessing which you meant** — the second is closer to the words, the first is closer to
 > the word *"mapper"*.
 
-## ⭐ C. Toggles offered when the context is the **ASSET** or a **GRAPH**
+## ⛔ C. ~~Toggles offered when the context is the **ASSET** or a **GRAPH**~~ *(superseded)*
 
 | toggle | today's surface |
 |---|---|
@@ -601,8 +834,8 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | `BlueprintVariablesWindow` · `BlueprintVariablesManagedWindow` | the Variables toggle *(`U-16`, row 60)* |
 | **one of the two `InspectorWindow`s** | the Properties toggle |
 | `AiVariablesWindow` | the Variables toggle ⚠ *(unless it is wanted as a PINNED instance)* |
-| `LiveBlackboardPanel` | the Variables toggle's Value column *(after the formatter arm)* |
-| `WatchPanelWindow` | the one Watch window |
+| `LiveBlackboardPanel` | ⭐ the Variables toggle's Value column — ✅ **RETIRE ruled `2026-08-20` (`R-114`)**, ⛔ no longer conditional on the formatter arm |
+| `WatchPanelWindow` | ⭐ **`AiWatchWindow`**, the survivor *(`R-113`)* |
 | `AiBreakpointsWindow`'s banner | `Q44-A` |
 
 ## ⭐ F. The count

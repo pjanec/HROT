@@ -22,11 +22,11 @@ public sealed class SubTickRestoreRegistrationTests
 
     /// <summary>
     /// A recordable-but-NOT-snapshotable component (mirrors the real-world type 162 crash).
-    /// DataPolicy.NoSnapshot excludes it from the snapshotable mask used by SyncFrom's
+    /// DataPolicy.NoPreview excludes it from the snapshotable mask used by SyncFrom's
     /// default seeding, but FlightRecorder keyframes still capture it because it is recordable.
     /// </summary>
     [ComponentId(504)]
-    [DataPolicy(DataPolicy.NoSnapshot)]
+    [DataPolicy(DataPolicy.NoPreview)]
     private struct NoSnapshotProbe { public int V; }
 
     /// <summary>Normal int component — both recordable and snapshotable (default policy).</summary>
@@ -50,7 +50,7 @@ public sealed class SubTickRestoreRegistrationTests
 
     /// <summary>
     /// BF-01: scratch repo seeded WITHOUT includeTransient fails to register
-    /// a [DataPolicy(DataPolicy.NoSnapshot)] component, causing RestoreTo to throw
+    /// a [DataPolicy(DataPolicy.NoPreview)] component, causing RestoreTo to throw
     /// when the keyframe contains that component.
     ///
     /// <para>Steps:
@@ -83,7 +83,7 @@ public sealed class SubTickRestoreRegistrationTests
         // ── Step 4: Reproduce the bug — mask-level proof ──────────────────────
 
         // The snapshotable mask (includeTransient: false) must NOT contain NoSnapshotProbe
-        // because [DataPolicy(DataPolicy.NoSnapshot)] marks it non-snapshotable.
+        // because [DataPolicy(DataPolicy.NoPreview)] marks it non-snapshotable.
         // This is the root cause: SyncFrom(repo) uses this mask and skips the type.
         int noSnapshotId = ComponentType<NoSnapshotProbe>.ID;
         var maskExcludingTransient = repo.GetSnapshotableMask(includeTransient: false);

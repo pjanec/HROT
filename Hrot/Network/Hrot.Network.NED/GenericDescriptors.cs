@@ -5,6 +5,20 @@ using Hrot.NED.Common;
 
 namespace Hrot.NED.Descriptors
 {
+    /// <summary>
+    /// Reserved bits on <see cref="EntityMaster"/>.<c>Flags</c> (the "entity type specific flags"
+    /// field). Generic, host-ignorable: a host that does not implement a bit behaves as if it were
+    /// unset. <c>WaitForAcks</c> marks an entity created in reliable-init mode — a receiving peer
+    /// must report its <c>Active</c> status so the creator can release the cross-node construction
+    /// barrier (docs/DESIGN_Cross_Node_Construction_Barrier.md §2c/§3a.2).
+    /// </summary>
+    [Flags]
+    public enum EntityMasterFlags : ulong
+    {
+        None = 0,
+        WaitForAcks = 1UL << 0,
+    }
+
     // ===================================================================================
     // GENERAL PRINCIPLES: NED SST ENTITY DESCRIPTORS
     // ===================================================================================

@@ -123,6 +123,49 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             //    sources, never one: the Blueprint failure is what forced this, but leaving the AI
             //    hosts on the store lookup would keep two rules for one question (ruling 9).
             // ⭐ Here it is the authored entry ITSELF — no projection at all.
-            ReadDeclaration: () => v);
+            ReadDeclaration: () => v,
+            // ⭐⭐⭐ Batch 98 (98a) — the write-back, and BOTH sources for the same reason as above:
+            //    the Blueprint failure forced it, but leaving the AI hosts on the store lookup would
+            //    keep two rules for one question (ruling 9).
+            // ⚠ The asset is resolved PER CALL, not captured — the active asset changes as the
+            //   designer switches documents, and this source has always been a delegate for that.
+            WriteDefault: json =>
+            {
+                var target = _asset();
+                // ⛔⛔ THE ASSET MUST STILL BE THIS ROW'S OWN. 📌 Batch 96 put this guard in
+                //    PerspectiveWorkspaceRegistrar.DeclarationOwnerOf and it is load-bearing: this
+                //    source resolves its asset PER CALL *(the active document changes under it)*, which
+                //    is right for BUILDING rows and ⛔ wrong for writing one back.
+                // ⚠ The Watch mixes rows from arbitrary assets — 📌 VariableRow's own doc: "in Watch
+                //   there is no single one". ⇒ a row pinned from asset A, edited after the designer
+                //   switched to document B, would otherwise write A's variable name INTO B, silently,
+                //   with an Ok saying it worked.
+                // 📐 Measured: without this line, TheEditActuallyLandsTests'
+                //   ARowFromAnotherAssetDoesNotWriteIntoTheOpenOne goes red — the rail caught it.
+                if (target is null || (target as IEditableAsset)?.AssetId != _assetId) return false;
+                target.UpdateVariableDefaultValueJson(v.Name, json);
+                return true;
+            },
+            // ⭐⭐⭐ Batch 99 (99a) — the PROPERTIES arms. ⚠ The SAME asset-identity guard as above:
+            //    📌 BP-368 — this source follows the active document, and a pinned row must not write
+            //    its properties into whatever is open now either.
+            WriteProperties: values =>
+            {
+                var target = _asset();
+                if (target is null || values is null
+                    || (target as IEditableAsset)?.AssetId != _assetId) return false;
+                if (values.DefaultValueJson is not null)
+                    target.UpdateVariableDefaultValueJson(v.Name, values.DefaultValueJson);
+                if (values.Comment is not null) target.UpdateVariableComment(v.Name, values.Comment);
+                return true;
+            },
+            // ⭐ The entry IS the carrier here — no projection, and nothing invented for the four
+            //   members it has no place to store.
+            ReadProperties: () => new DeclarationPropertySnapshot(
+                VariableDeclarationKind.BlackboardEntry,
+                new VariablePropertyValues(
+                    DefaultValueJson: v.DefaultValueJson ?? "",
+                    Comment:          v.Comment ?? ""),
+                TypeId: v.FieldType?.FullName ?? ""));
     }
 }

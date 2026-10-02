@@ -169,24 +169,30 @@ public sealed class DetailsHostsTheVariablesTests
     /// already hands it — ⛔ <b>not another line <c>EditorSubsystem</c> must remember.</b> Batches
     /// 79, 80 and 81 each lost a surface to a seam of exactly this shape.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b>RE-EXPRESSED BY <c>S1</c>, and the claim got STRONGER.</b> 📐 The Details panel used to
+    /// be an EXTRA window, so <i>"in either order"</i> was a real hazard — this rail registered the two
+    /// both ways round. ⭐ 📄 §7.3 ① makes the registrar CONSTRUCT the panel, so half the pair is
+    /// present before anything is registered ⇒ the order question is gone and what remains is the
+    /// stronger claim: <b>registering the outline ALONE is enough.</b>
+    /// <para>⚠ <b>Still not vacuous:</b> it asserts the connection is <b>not</b> made before the outline
+    /// arrives — ⛔ a registrar that reported <c>true</c> from construction would be claiming a routing
+    /// with nothing on the other end.</para>
+    /// </remarks>
     [Fact]
-    public void TheRegistrar_ConnectsTheOutlineToDetails_InEitherOrder()
+    public void TheRegistrar_ConnectsTheOutlineToItsOwnDetailsPanel()
     {
-        foreach (var detailsFirst in new[] { false, true })
-        {
-            var wm  = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
-            var reg = MakeRegistrar();
-            var outline = new BlueprintMyBlueprintWindow();
-            var details = MakeDetails();
+        var wm  = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+        var reg = MakeRegistrar();
 
-            Assert.False(reg.OutlineIsRoutedToDetails);
+        // ⭐ The panel exists from construction (§7.3 ①) — ⛔ but nothing routes into it yet.
+        Assert.NotNull(reg.Details);
+        Assert.False(reg.OutlineIsRoutedToDetails);
 
-            if (detailsFirst) { reg.RegisterExtraWindow(wm, details); reg.RegisterExtraWindow(wm, outline); }
-            else              { reg.RegisterExtraWindow(wm, outline); reg.RegisterExtraWindow(wm, details); }
+        reg.RegisterExtraWindow(wm, new BlueprintMyBlueprintWindow());
 
-            Assert.True(reg.OutlineIsRoutedToDetails,
-                $"the registrar did not connect the pair (detailsFirst={detailsFirst}).");
-        }
+        Assert.True(reg.OutlineIsRoutedToDetails,
+            "the registrar did not connect the outline it was just handed to the panel it owns.");
     }
 
     /// <summary>
@@ -200,11 +206,10 @@ public sealed class DetailsHostsTheVariablesTests
         var wm  = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
         var reg = MakeRegistrar();
         var (outline, asset) = MakeOutline();
-        var details = MakeDetails();
+        var details = MakeDetails(reg);
         BlueprintDocumentFactory.CreateVariable(asset, "Health", "System.Int32");
 
         reg.RegisterExtraWindow(wm, outline);
-        reg.RegisterExtraWindow(wm, details);
 
         outline.PublishSelection(Item(BlueprintMyBlueprintModel.SectionVariables));
 
@@ -221,11 +226,10 @@ public sealed class DetailsHostsTheVariablesTests
         var wm  = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
         var reg = MakeRegistrar();
         var (outline, asset) = MakeOutline();
-        var details = MakeDetails();
+        var details = MakeDetails(reg);
         BlueprintDocumentFactory.CreateVariable(asset, "Health", "System.Int32");
 
         reg.RegisterExtraWindow(wm, outline);
-        reg.RegisterExtraWindow(wm, details);
 
         outline.PublishSelection(Item(BlueprintMyBlueprintModel.SectionVariables));
         Assert.True(details.Variables.HasContent);
@@ -237,43 +241,60 @@ public sealed class DetailsHostsTheVariablesTests
     // ══ the arms do not fight ════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐ <b>Last selection wins, in BOTH directions.</b> A variable click takes the panel from the
-    /// node arm; ⛔ a LATER node click takes it back. ⚠ Merely asking <i>"is a node selected?"</i>
-    /// would let a stale node selection outrank a fresh variable click.
+    /// ⭐⭐⭐ <b>RE-EXPRESSED BY <c>S1</c> — the same claim, at the layer that now decides it.</b>
+    ///
+    /// <para>📌 <b>What these two rails used to assert:</b> <c>BlueprintDetailsWindow.ShowingVariables</c>
+    /// arbitrated between a variables list and the node arm by comparing the sub-selection against the
+    /// one the node arm last saw, plus the focus latch. ⛔ 📄 §7.3 ① <b>dissolves that window</b>, and
+    /// §7.4 says the arbitration <i>"the registry does generically"</i> ⇒ the rule now lives in two
+    /// PREDICATES and a <c>Rank</c> *(<c>R-98</c>)*, and asserting it on the window would be asserting
+    /// it where it no longer is.</para>
+    ///
+    /// <para>⭐⭐ <b>The claim is unchanged and is still checkable:</b> working in the OUTLINE gives the
+    /// panel to Variables even with a node selected; working on the CANVAS gives it to the node view.
+    /// ⚠ This is why <c>BlueprintNodeDetailsViewDescriptor</c>'s predicate carries the
+    /// <i>"not in the outline"</i> clause that §7.3's one-line table entry does not — without it Rank 20
+    /// would beat Rank 10 while the designer clicks variable rows.</para>
     /// </summary>
     [Fact]
-    public void ANodeSelectedAfterAVariable_TakesThePanelBack()
+    public void WorkingOnTheCanvasWithANodeSelected_GivesThePanelToTheNodeView()
     {
-        // ⚠ EditorSelectionStore.ActiveSubSelection is a NO-OP without an active asset — measured
-        //   while writing this. ⛔ Without the asset the test would pass vacuously against a store
-        //   that never changed.
-        var store   = StoreWithAnAsset();
-        var details = MakeDetails(store);
+        var context = ContextWith(SelectionOrigin.GraphCanvas, NodeSelection());
 
-        details.ShowVariables(new VariableOutlineSelection(
-            "Variables", new FixedVariableRowSource(Array.Empty<VariableRow>())));
-        Assert.True(details.ShowingVariables);
-
-        store.ActiveSubSelection = new BlueprintNodeSelection(Guid.NewGuid(), Guid.NewGuid());
-
-        Assert.False(details.ShowingVariables);
-        Assert.True(details.Variables.HasContent);   // ⭐ kept, so re-selecting is cheap
+        Assert.True (Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsViewDescriptor.Applies(context));
+        Assert.False(Hrot.Editor.AiShared.Shell.VariablesDetailsViewDescriptor.Applies(context));
     }
 
-    /// <summary>⭐ A variable click while a node is selected wins — it is the newer choice.</summary>
+    /// <summary>⭐ …and the other direction: an outline click wins even while a node is selected.</summary>
     [Fact]
-    public void AVariableSelectedAfterANode_TakesThePanel()
+    public void WorkingInTheOutlineWithANodeSelected_GivesThePanelToTheVariablesList()
     {
-        var store   = StoreWithAnAsset();
-        var details = MakeDetails(store);
-        store.ActiveSubSelection = new BlueprintNodeSelection(Guid.NewGuid(), Guid.NewGuid());
-        Assert.NotNull(store.ActiveSubSelection);   // ⛔ guard: no active asset ⇒ silent no-op
+        var context = ContextWith(SelectionOrigin.VariableOutline, NodeSelection());
 
-        details.ShowVariables(new VariableOutlineSelection(
-            "Variables", new FixedVariableRowSource(Array.Empty<VariableRow>())));
-
-        Assert.True(details.ShowingVariables);
+        Assert.False(Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsViewDescriptor.Applies(context));
+        Assert.True (Hrot.Editor.AiShared.Shell.VariablesDetailsViewDescriptor.Applies(context));
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>And the RANK is what makes the node view the DEFAULT on the canvas.</b> 📄 §7.3:
+    /// <i>"node properties OUTRANKS Blackboard (5) and Variables (10) ⇒ it becomes the DEFAULT"</i> —
+    /// the user's ask, verbatim. ⛔ Asserted as an ORDER, not a number, so renumbering the scale does
+    /// not silently invert the meaning.
+    /// </summary>
+    [Fact]
+    public void TheNodeView_OutranksTheVariablesList()
+        => Assert.True(
+            Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsViewDescriptor.Rank
+            > Hrot.Editor.AiShared.Shell.VariablesDetailsViewDescriptor.Rank);
+
+    private static Hrot.Editor.AiShared.Selection.IAssetSubSelection NodeSelection()
+        => new BlueprintNodeSelection(Guid.NewGuid(), Guid.NewGuid());
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextWith(
+        SelectionOrigin focus,
+        params Hrot.Editor.AiShared.Selection.IAssetSubSelection[] selection)
+        => new(focus, selection, Array.Empty<Fdp.Core.Entity>(),
+               new FakeEditableAsset(), "Blueprint", VariableRunState.Planning);
 
     // ══ authoring-time honesty ═══════════════════════════════════════════════
 
@@ -329,8 +350,17 @@ public sealed class DetailsHostsTheVariablesTests
         public event Action? Changed { add { } remove { } }
     }
 
-    private static BlueprintDetailsWindow MakeDetails(AiSelectionStore? store = null)
-        => new(store ?? new AiSelectionStore(), new BlueprintNodeDrawerRegistry());
+    /// <summary>
+    /// ⭐⭐ <b>The Details panel the REGISTRAR built</b> — 📌 <c>R-67</c>: a rail that builds its own
+    /// panel cannot see a wiring defect.
+    /// <para>⚠ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>):</b> this used to be
+    /// <c>new BlueprintDetailsWindow(store, drawers)</c>. 📄 §7.3 ① retired that class and gives every
+    /// perspective the shared <c>DetailsWindow</c>, which the registrar CONSTRUCTS — ⛔ so a rail can no
+    /// longer make one of its own, and should not want to.</para>
+    /// </summary>
+    private static Hrot.Editor.AiShared.Windows.DetailsWindow MakeDetails(
+        Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar? registrar = null)
+        => (registrar ?? MakeRegistrar()).Details!;
 
     private static (BlueprintMyBlueprintWindow Window, BlueprintAsset Asset) MakeOutline(
         Action<BlueprintAsset>? configure = null, Func<Guid>? currentGraphId = null)

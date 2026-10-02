@@ -182,6 +182,24 @@ public static class DiagnosticCodes
     // against the declaration.
     public const string BP1674 = "BP1674";  // default value is not a literal of the declared type
 
+    // ⭐⭐⭐ Q43 — the blueprint-authored parameter resolver (a Construction graph on a Library asset).
+    // See V_ResolverPurity for the reasoning behind each; in one line apiece:
+    public const string BP1675 = "BP1675";  // a resolver graph contains a side-effecting node
+    public const string BP1676 = "BP1676";  // a Construction graph on a non-Library asset (no consumer)
+    public const string BP1677 = "BP1677";  // a resolver graph is not (one DTO in -> the same DTO out)
+
+    // ⭐ CE-471 — BinaryOp bit/shift operators need integer operands (a [Flags] enum is fine for & | ^).
+    // Without it a float `&` surfaces as a CS0019 in a generated file the designer never saw.
+    public const string BP1678 = "BP1678";  // bitwise/shift BinaryOp on a non-integer operand
+
+    // ⭐ CE-470 — Get Sim Time / Get Delta Time where the emitted method has no `time` / `deltaTime`
+    // (Library functions and resolvers have neither; AiPrimitive and Instance Event_* have no deltaTime).
+    public const string BP1679 = "BP1679";  // Get Time node where that clock is not in scope
+
+    // ⭐ CE-472 — a Send Intent / To JSON / From JSON node with no DTO type or (Send Intent) no intent id: there is
+    // no type to construct or id to publish, and saying so beats a CS0246 in a generated file.
+    public const string BP1680 = "BP1680";  // JSON / intent node missing its DTO type or intent id
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload
@@ -210,10 +228,8 @@ public static class DiagnosticCodes
     public const string BP2031 = "BP2031";  // SpawnEqsSensorNode template not found
     public const string BP2032 = "BP2032";  // SpawnEqsSensorNode InstanceId collision
 
-    // Stage 2 -- Validate (GetShared/SetShared rules -- Slice 2a-2)
-    public const string BP2040 = "BP2040";  // SharedTypeId empty
-    public const string BP2041 = "BP2041";  // SharedTypeId does not resolve to a known unmanaged/blittable struct type
-    public const string BP2042 = "BP2042";  // GetShared/SetShared in unsupported (Library) dispatch -- no `self` in scope
+    // ⛔ BP2040–BP2042 RETIRED by CE-440 (decision A, Q76 §12.24) with the GetShared/SetShared nodes they
+    //   validated. Never reuse the numbers — they are cited from docs and old logs.
 
     public const string BP2050 = "BP2050";  // FlowForEach body contains a latent or (P1a) Branch node -- body must be a synchronous, latent-free (and branch-free) sub-DAG
 
@@ -257,6 +273,9 @@ public static class DiagnosticCodes
     public const string BP4001 = "BP4001";
     public const string BP4002 = "BP4002";
     public const string BP4003 = "BP4003";
+    // ⭐ CE-475 (2026-10-01): an ERROR, no longer a warning. A node Stage 5 cannot lower emits no IR, so the exec
+    // chain walked on without it — the graph compiled and silently did less than it says. The macro and Cast cases
+    // that hid behind the warning are documented at BP1668 above and on BuiltInNodeRegistry.CastPins.
     public const string BP4004 = "BP4004";
 
     /// <summary>

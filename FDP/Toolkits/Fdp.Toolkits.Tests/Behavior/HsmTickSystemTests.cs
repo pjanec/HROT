@@ -20,15 +20,16 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// </summary>
         private const int EventXId = 10;
 
-        /// <summary>
-        /// Ties this test to the FastHSM version where HsmInstance128.Reserved1 (offset 58)
-        /// doubles as the CurrentEventId scratch field used by HsmKernelCore.
-        /// Specifically: HsmKernelCore.CurrentEventId_Offset_128 == 58 == FieldOffset of Reserved1.
-        /// If HsmInstance128 layout changes (e.g. Reserved1 is moved or repurposed),
-        /// update this constant and the injection line below.
-        /// Verified against Fhsm.Kernel v(current) — field is ushort at [FieldOffset(58)].
-        /// </summary>
-        private const string HsmCurrentEventFieldName = nameof(HsmInstance128.Reserved1);
+        // ⛔⛔ O7c-④b (2026-09-23): THE `Reserved1` SCRATCH POKE IS GONE, AND ITS REMOVAL IS A FIX.
+        //   📐 The old constant tied this test to `HsmInstance128.Reserved1` at offset 58, which is
+        //     `HsmKernelCore.CurrentEventId_Offset_128`. ⇒ it was only ever correct for a 128-byte
+        //     instance, and the two-state machine below actually selects tier **64**
+        //     (HsmInstanceManager.SelectTier: 2 states, 0 regions) — so once the instance is sized
+        //     from the machine rather than from a component TYPE, that offset points at the wrong
+        //     field entirely.
+        //   ⭐ The event is now injected through `HsmEventQueue.TryEnqueue(instance, size, evt)`, the
+        //     PUBLIC size-driven API the kernel offers for exactly this. It is not a workaround for
+        //     the move: it is what the production interrupt path already used.
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 HsmDefinition = blob,
             });
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState
@@ -89,27 +90,34 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
 
-            // Initialise instance: in StateA (index 0), RTC phase, EventX (id=10) ready.
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.RTC;
-            // ActiveLeafIds[0] = 0 means currently in State 0 (StateA).
-            brain.State.ActiveLeafIds[0] = 0;
-            // Inject EventX into the CurrentEventId scratch field (see HsmCurrentEventFieldName above).
-            // Reserved1 at offset 58 is the scratch slot HsmKernelCore reads as the pending event id.
-#pragma warning disable CS0219 // variable assigned but never read — used as documentation anchor
-            _ = HsmCurrentEventFieldName; // documents which field we are writing below
-#pragma warning restore CS0219
-            brain.State.Reserved1 = EventXId;
+            // ⭐ O7c-④: the instance lives in an occurrence slot, sized by SelectTier(blob).
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, TestHsmId, blob));
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size));
 
-            world.AddComponent(e, brain);
+            // Initialise instance: in StateA (index 0), Idle, with EventX (id=10) QUEUED.
+            // EnsureRootInstance already stamped MachineId from the blob.
+            //
+            // ⚠ O7c-④b: the old fixture set Phase = RTC and poked the CurrentEventId scratch, because
+            //   the RTC arm reads THAT FIELD and never the queue. Going through HsmEventQueue instead
+            //   means going through the kernel's real cycle — Idle sees a non-empty queue and advances
+            //   to Entry, Entry runs ProcessEventPhase, which dequeues into RTC. ⇒ several ticks, and
+            //   that is what production does too.
+            ((InstanceHeader*)inst)->Phase = InstancePhase.Idle;
 
-            // Act.
-            sys.Execute(world, 0.016f);
+            ushort* leaves = HsmKernel.GetActiveLeafIds(inst, size, out int leafCount);
+            Assert.True(leaves != null && leafCount > 0);
+            leaves[0] = 0;   // currently in State 0 (StateA)
+
+            Assert.True(HsmEventQueue.TryEnqueue(inst, size, new HsmEvent { EventId = EventXId }));
+
+            // Act — enough ticks for the full Idle -> Entry -> RTC cycle.
+            for (int t = 0; t < 5; t++)
+                sys.Execute(world, 0.016f);
 
             // Assert — HSM transitioned from State 0 to State 1.
-            var result = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(1, result.State.ActiveLeafIds[0]); // StateB.Id == 1
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* after, out int afterSize));
+            ushort* leavesAfter = HsmKernel.GetActiveLeafIds(after, afterSize, out _);
+            Assert.Equal(1, leavesAfter[0]);   // StateB.Id == 1
 
             world.Dispose();
         }
@@ -127,7 +135,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
 
-            // Act — simulate what HsmTickSystem<T> does each frame:
+            // Act — simulate what BrainTickSystem does each frame:
             var bridge = new HsmKernelBridge
             {
                 Self        = Entity.Null,
@@ -143,51 +151,19 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Test 2 ────────────────────────────────────────────────────────────
-        [Fact]
-        public void HsmTick64_And_HsmTick128_AreIndependent()
-        {
-            // Arrange — entity A has BrainHsm64 only; entity B has BrainHsm128 only.
-            var world = TestWorldFactory.Create();
+        // ── Test 2 — REMOVED by O7c-① (2026-09-22) ──────────────────────────────
+        //
+        // `HsmTick64_And_HsmTick128_AreIndependent` asserted that two GENERIC INSTANTIATIONS of
+        // HsmTickSystem each query only the component they own and never touch the other's.
+        // ⛔ With BrainHsm64 deleted there is ONE instantiation, so the claim cannot be false.
+        // ⚠ This is a claim that EXPIRED, not one that was dropped — stated explicitly because a
+        //   silently deleted test and a silently weakened one look identical in a diff.
+        //
+        // ⭐⭐ THE SUCCESSOR CLAIM IS REAL AND IT BELONGS TO THE HSM SLICE: once the instance lives
+        //   in an occurrence slot, the tier walk must filter on OccurrenceKind.Hsm and must not
+        //   touch a BTree or Blueprint slot sharing the same store. That is the same "each walker
+        //   sees only its own" property, at the level where it can still be violated.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.5 step ④ / §31.7.
 
-            // Empty registries — neither entity has a registered behavior, so both
-            // systems will skip them. What we're testing is that each system only
-            // queries the component it owns and never touches the other type.
-            var sys128 = new HsmTickSystem<BrainHsm128>(new BehaviorRegistry());
-            var sys64  = new HsmTickSystem<BrainHsm64>(new BehaviorRegistry());
-
-            // Entity A — only BrainHsm64.
-            var entityA = world.CreateEntity();
-            world.AddComponent(entityA, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-            var brainA = new BrainHsm64();
-            brainA.State.Header.Phase = InstancePhase.Idle;
-            world.AddComponent(entityA, brainA);
-            // NO BrainHsm128 on entityA.
-
-            // Entity B — only BrainHsm128.
-            var entityB = world.CreateEntity();
-            world.AddComponent(entityB, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-            var brainB = new BrainHsm128();
-            brainB.State.Header.Phase = InstancePhase.Idle;
-            world.AddComponent(entityB, brainB);
-            // NO BrainHsm64 on entityB.
-
-            // Act — run the 128 system first, then the 64 system.
-            sys128.Execute(world, 0.016f);
-
-            // sys128 processed only entityB (has BrainHsm128).
-            // entityA's BrainHsm64 must be unchanged.
-            var aAfter128 = world.GetComponent<BrainHsm64>(entityA);
-            Assert.Equal(InstancePhase.Idle, aAfter128.State.Header.Phase);
-
-            sys64.Execute(world, 0.016f);
-
-            // sys64 processed only entityA (has BrainHsm64).
-            // entityB's BrainHsm128 must be unchanged.
-            var bAfter64 = world.GetComponent<BrainHsm128>(entityB);
-            Assert.Equal(InstancePhase.Idle, bAfter64.State.Header.Phase);
-
-            world.Dispose();
-        }
     }
 }

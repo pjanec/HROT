@@ -191,7 +191,7 @@ public sealed class BehaviorActionCatalog : IBehaviorActionCatalog, IDisposable
     /// <c>ActionHosting.Hsm</c>   → <c>BehaviorActionHosts.Hsm</c>;
     /// <c>ActionHosting.Shared</c> → additionally <c>BehaviorActionHosts.Blueprint</c>
     ///   (AN7: <c>[SharedAiAction]</c> / AiPrimitive entries valid in Blueprint graphs).
-    /// <c>ActionHosting.Heavy</c> is a modifier, not a host; it does not add a new host.
+    /// ⛔ <c>CE-330</c>: <c>ActionHosting.Heavy</c> was a modifier rather than a host, and is DELETED.
     /// </summary>
     private static BehaviorActionHosts MapHosting(ActionHosting hosting)
     {

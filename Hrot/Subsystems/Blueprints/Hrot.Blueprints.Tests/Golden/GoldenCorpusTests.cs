@@ -38,7 +38,7 @@ public sealed class GoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐ <b>The whole corpus compiles.</b> ⚠ Three <c>HillAssault2I_*</c> assets fail <c>BP1602</c>
+    /// ⭐ <b>The whole corpus compiles.</b> ⚠ ⛔ CE-436 deleted the three <c>HillAssault2I_*</c> assets fail <c>BP1602</c>
     /// without the assembly preload — a null resolver makes Stage 0 reflect over <b>loaded</b>
     /// assemblies — so this is also the test that the preload is doing its job.
     /// </summary>
@@ -60,7 +60,39 @@ public sealed class GoldenCorpusTests
         //    the constructed witness for the runtime layout gate — no shipped asset declares a type
         //    whose CLR alignment `FieldLayout.TypeAlignment` mispredicts, so the corpus could not
         //    witness `W2` at all. See EmittedStateLayoutTests.
-        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo` is the first asset in the corpus whose only
+        //    graph is a `Construction` graph — a parameter resolver authored AS A BLUEPRINT. Before it,
+        //    `GraphKind.Construction` had no emitter consumer anywhere and no golden coverage at all.
+        // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo` — a resolver that REACHES THE WORLD
+        //    (acceptance A3+A4), which no asset could express before.
+        // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo` — an AiPrimitive carrying its OWN resolver, the case
+        //    that needs no binding at all (R-149).
+        // ⭐ 47 → 48 in CE-397: `HsmGuardDemo` — the FIRST AiPrimitive in the corpus hosted as an
+        //    `HsmGuard`. Measured before it: 34 BTreeAction, 9 BTreeCondition, 2 HsmAction and ZERO
+        //    HsmGuard, so the HSM GUARD path had no asset and acceptance rail 4 of
+        //    DESIGN_Hsm_Blueprint_Behaviour_Authoring.md could not be closed by existing content.
+        // ⭐ 48 → 50 for the Q74 §8.4 end-to-end subject: `HsmDriveActivity` and `HsmFireActivity`,
+        //    the first AiPrimitives in the corpus hosted as `HsmAction` AND commanding a channel.
+        //    Before them no HSM asset named a blueprint activity at all, so D-B1's auto-bind had
+        //    no subject outside a test fixture — and the live run against them found CE-407.
+        // ⛔ 50 → 44 (CE-436, 2026-09-29): the six HillAssault2I_* integrated blueprints were
+        //    DELETED with PlatoonHillAttack2 (user: "not needed"). ⚠ The sixty HillAssault2_*
+        //    TWINS are KEPT — the two families differ by ONE LETTER, so a sweep that matches
+        //    `HillAssault2` matches both.
+        // ⭐ 44 → 45 (CE-428, 2026-09-29): `T40Resolver` — the FIRST behaviour RESOLVER asset (shape ③, a Library
+        //    with a ResolverSubject). Before it no .bp.json could be bound to a behaviour at all (Q76 §12.20).
+        // ⛔ 45 → 43 (CE-440, 2026-09-30): `SharedStateRallyDemo` and `SharedStateCrossEntityDemo` were DELETED
+        //    with the GetShared/SetShared node pair they demonstrated (decision A, Q76 §12.24).
+        // ⛔ 43 → 42 (CE-445, 2026-09-30): `OwnParamResolverDemo` DELETED — an AiPrimitive's own resolver is
+        //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
+        // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
+        //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
+        // ⭐ 40 → 41 (CE-446, 2026-09-30): `BlueprintBehaviourDemo` — the FIRST blueprint BEHAVIOUR (Dispatch = Behavior).
+        // ⭐ 41 → 42 (CE-464, 2026-09-30): `PlatoonHillAttackBp` — the hill-attack commander as ONE blueprint behaviour.
+        // ⛔ 42 → 28 (2026-10-01): the 15 `HillAssault2_*` twins retired (user: "retire the old superseded non elegant
+        //    blueprint version"); 14 deleted, `_ReverseToBaseline` RENAMED `ChannelMoveAndWaitDemo` — the only production
+        //    WaitForChannel asset left (R-137).
+        Assert.Equal(28, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

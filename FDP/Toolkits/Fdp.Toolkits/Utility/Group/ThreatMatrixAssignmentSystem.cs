@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Utility
     /// <summary>
     /// Scores each (member, target) pair using a registered decision definition and
     /// greedily assigns members to targets while respecting the focus-fire cap.
-    /// Writes results into the leader's <see cref="Blackboard1024"/> via
+    /// Writes results into the leader's <see cref="SquadCognitiveState"/> via
     /// <see cref="ThreatMatrixAssignmentState"/>.
     /// <para>
     /// Algorithm: for each squad member in roster order, iterate all targets from
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Utility
         public unsafe void Run(EntityRepository repo, Entity leader)
         {
             if (!repo.HasComponent<UnitRoster>(leader))     return;
-            if (!repo.HasComponent<Blackboard1024>(leader)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(leader)) return;
             if (!repo.HasComponent<TargetMemory>(leader))   return;
 
             if (!UtilityDecisionCatalog.Shared.TryGet(_decisionId, out var def, out _) || def == null)
@@ -54,8 +54,7 @@ namespace Fdp.Toolkit.Utility
 
             ref readonly var roster    = ref repo.GetComponentRO<UnitRoster>(leader);
             ref readonly var leaderMem = ref repo.GetComponentRO<TargetMemory>(leader);
-            ref var bb                 = ref repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state              = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state              = ref repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
 
             int memberCount = roster.Count;
             if (memberCount <= 0) return;
@@ -79,7 +78,7 @@ namespace Fdp.Toolkit.Utility
             var tmpBuffer = new UtilityResultBuffer();
             for (int memberIdx = 0; memberIdx < maxMembers; memberIdx++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[memberIdx]);
+                var member = roster.SubordinateEntities[memberIdx];
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
                     var target = new Entity((ulong)leaderMem.EntityIds[tIdx]);

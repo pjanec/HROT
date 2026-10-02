@@ -242,19 +242,10 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
         var entry = _exporter.Lookup(fqn);
         if (entry is null) return null;
 
-        if (!Guid.TryParse(facetVisualId, out var visualGuid)) return null;
-        var varName = $"_auto_{visualGuid:N}";
-
-        // Guard: don't create a duplicate.
-        if (_asset.BlackboardVariables.Any(v => v.Name == varName)) return varName;
-
-        _asset.AddVariable(new BlackboardVariableEntry(
-            Name:          varName,
-            FieldType:     entry.DtoType,
-            Comment:       null,
-            IsAutoManaged: true));
-
-        return varName;
+        // ⭐ ONE implementation of "promote to a per-site auto variable", shared with the HSM picker
+        //   (ruling 9). ⛔ This body and HsmPickerDrawers' were character-for-character identical.
+        return Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+                   .PromoteForSite(_asset, facetVisualId, entry.DtoType);
     }
 
     /// <inheritdoc/>

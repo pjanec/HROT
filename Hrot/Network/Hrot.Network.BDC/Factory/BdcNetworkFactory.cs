@@ -102,7 +102,7 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public Hrot.Core.Network.INetworkFactory ConfigureForNode(
             Hrot.Common.Infrastructure.HrotNodeContext context,
-            Hrot.Common.NodeRole                       role,
+            Fdp.Core.NodeRole                       role,
             Fdp.Toolkit.Behavior.BehaviorRegistry?     behaviorRegistry = null)
         {
             return new BdcNetworkFactory(
@@ -118,7 +118,7 @@ namespace Hrot.BDC.Factory
         public Hrot.Core.Network.INetworkFactory ConfigureForNode(
             CycloneDDS.Runtime.DdsParticipant? participant,
             int                                nodeId,
-            Hrot.Common.NodeRole               role)
+            Fdp.Core.NodeRole               role)
         {
             return new BdcNetworkFactory(participant, _entityMap, _geoTransform, _eventBus, nodeId, role);
         }

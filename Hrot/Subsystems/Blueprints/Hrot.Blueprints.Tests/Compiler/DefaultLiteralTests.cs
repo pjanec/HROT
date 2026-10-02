@@ -1,5 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Ir;
+using Hrot.Blueprints.Core.Compiler.Lowering;
 using Hrot.Blueprints.Tests.Builders;
 using Hrot.Blueprints.Tests.Golden;
 
@@ -179,4 +181,172 @@ public sealed class DefaultLiteralTests
 
     private static string Diags(CompileResult r)
         => string.Join(", ", r.Diagnostics.Select(d => $"{d.Code}: {d.Message}"));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ⭐⭐⭐ CE-300 — the LITERAL NODE path, the other half BP-247 never typed
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠⚠ THE FILED FIX SHAPE WAS WRONG, AND THE CORPUS IS WHAT SAYS SO. CE-300 prescribed routing
+    //   LiteralNode through TryToCSharp and REFUSING what it cannot type. 📐 Measured across the 104
+    //   shipped assets: ValueJson does NOT hold JSON, it holds C# SOURCE TEXT — `0f`, `-1L`,
+    //   `(ushort)0`, `"HullDownAttack"`, `global::…NavigationResult.Arrived`. TryToCSharp parses JSON,
+    //   so it refuses 42 of the 86 literal nodes that ship. ⇒ convert-or-PASS-THROUGH, never
+    //   convert-or-refuse. 📄 DefaultLiteral.ForLiteralNode.
+
+    /// <summary>
+    /// 🔴🔴 <b>The defect itself, through REAL Roslyn.</b> A hand-authored <c>System.Single</c> literal
+    /// spelled <c>0.2777778</c> — no <c>f</c> — emitted <c>var __t2 = 0.2777778;</c> and Roslyn refused
+    /// the GENERATED file with <c>CS0266: cannot implicitly convert 'double' to 'float'</c>.
+    /// ⚠ The editor's drawer appends the suffix, so the guard was <b>a drawer, not a compiler rule</b>:
+    /// any hand-authored asset, recipe or future tool reproduces it.
+    /// </summary>
+    [Fact]
+    public void CE300_AnUntypedFloatLiteralNode_SurvivesTheRealCSharpCompiler()
+    {
+        var asset = BuildLiteralIntoVariable("System.Single", "0.2777778", typeof(float));
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        // 🔴 RED before: CS0266 naming `Bp_<guid>.g.cs`, a file the designer has never seen.
+        fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The emitted TEXT, so a green above cannot be luck.</b> ⛔ Roslyn would also accept
+    /// <c>(float)0.2777778</c> or a rewritten constant; this pins that the fix is the SUFFIX.
+    /// </summary>
+    [Fact]
+    public void CE300_AnUntypedFloatLiteralNode_EmitsAFloatSuffixedLiteral()
+    {
+        var result = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler()
+            .Compile(BuildLiteralIntoVariable("System.Single", "0.2777778", typeof(float)),
+                     GoldenCorpus.Options());
+
+        Assert.True(result.Succeeded, Diags(result));
+        Assert.Contains("0.2777778F", result.GeneratedSource);
+        Assert.DoesNotContain("= 0.2777778;", result.GeneratedSource);
+    }
+
+    /// <summary>
+    /// ⛔⛔⛔ <b>THE RAIL THAT GUARDS THE CORPUS, and it is the one the filed fix would have broken.</b>
+    ///
+    /// <para>📐 Every value below is a REAL spelling taken from the 104 shipped assets. None of them is
+    /// JSON, and <see cref="DefaultLiteral.TryToCSharp"/> refuses every one — so a convert-or-refuse
+    /// fix would have turned a latent authoring trap into a corpus-wide build break.
+    /// ⭐ <c>ForLiteralNode</c> must hand each one back UNCHANGED.</para>
+    ///
+    /// <para>⚠ <c>"0"</c> is the subtle one and it is deliberately included: <c>TryToCSharp</c> answers
+    /// <c>true</c> with an EMPTY literal for a zero — its <i>"leave it zero-initialised"</i> contract
+    /// for DECLARATION defaults. A literal NODE has no such contract; emitting nothing produces
+    /// <c>var __t5 = ;</c>. ⇒ the empty-conversion guard is load-bearing, not defensive.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("System.Single", "0f")]                     // 15 assets spell it this way
+    [InlineData("System.Single", "5f")]
+    [InlineData("System.Single", "0.2777778f")]             // already suffixed — must not be re-suffixed
+    [InlineData("System.Int64",  "-1L")]
+    [InlineData("System.Int64",  "777L")]
+    [InlineData("System.UInt16", "(ushort)0")]              // a C# CAST, not a number
+    [InlineData("System.Byte",   "(byte)0")]
+    [InlineData("System.String", "\"HullDownAttack\"")]     // quoted, and String is not in the switch
+    [InlineData("global::Fdp.Toolkit.Navigation.NavigationResult",
+                "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived")]
+    [InlineData("System.Int32",  "0")]                      // ⚠ the zero-shortcut trap
+    [InlineData("System.Int32",  "7")]                      // converts to itself — still unchanged
+    [InlineData("System.Boolean","true")]
+    public void CE300_EveryCorpusLiteralSpelling_PassesThroughUnchanged(string typeId, string value)
+    {
+        var type = new IrTypeRef { FullName = typeId };
+
+        Assert.Equal(value, DefaultLiteral.ForLiteralNode(type, value));
+    }
+
+    /// <summary>
+    /// ⭐ The conversion half, stated as its own claim: a bare decimal on a float pin GAINS the suffix.
+    /// ⛔ Paired with the theory above so neither half can be satisfied by doing nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("System.Single", "0.2777778", "0.2777778F")]
+    [InlineData("System.Single", "1.5",       "1.5F")]
+    [InlineData("System.Double", "1.5",       "1.5D")]
+    [InlineData("System.Int64",  "777",       "777L")]
+    [InlineData("System.UInt32", "7",         "7U")]
+    public void CE300_AnUntypedNumericLiteral_GainsItsTypeSuffix(string typeId, string value, string expected)
+    {
+        var type = new IrTypeRef { FullName = typeId };
+
+        Assert.Equal(expected, DefaultLiteral.ForLiteralNode(type, value));
+    }
+
+    /// <summary>
+    /// An Instance asset whose Tick graph is <c>Entry → SetVariable(Value) ← Literal → Return</c>.
+    /// ⭐ The builder has no literal-node affordance, so the graph is hand-built — the shape
+    /// <c>Stage5VarPrefixResolutionTests</c> already uses.
+    /// </summary>
+    private static BlueprintAsset BuildLiteralIntoVariable(string literalTypeId, string valueText, Type clrType)
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("Ce300LiteralFixture")
+            .WithVariable("Value", clrType)
+            .Build();
+
+        var decl = Assert.Single(asset.Variables);
+
+        Guid entryId = Guid.NewGuid(), setId = Guid.NewGuid(), litId = Guid.NewGuid(), retId = Guid.NewGuid();
+        Guid entryOut = Guid.NewGuid(), setIn = Guid.NewGuid(), setOut = Guid.NewGuid(),
+             setValue = Guid.NewGuid(), litOut = Guid.NewGuid(), retIn = Guid.NewGuid();
+
+        asset.Graphs.Add(new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Tick",
+            Kind  = GraphKind.Event,
+            Nodes =
+            {
+                new EventEntryNode
+                {
+                    Id = entryId,
+                    Pins = { new Pin { Id = entryOut, Name = "Out", Direction = "Out", IsExec = true, TypeRef = new() } },
+                },
+                new SetVariableNode
+                {
+                    Id         = setId,
+                    VariableId = decl.Id.ToString(),
+                    Pins =
+                    {
+                        new Pin { Id = setIn,  Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = setOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                        new Pin { Id = setValue, Name = "Value", Direction = "In",  IsExec = false,
+                                  TypeRef = new BlueprintTypeRef { TypeId = literalTypeId } },
+                    },
+                },
+                new LiteralNode
+                {
+                    Id        = litId,
+                    TypeId    = literalTypeId,
+                    ValueJson = valueText,
+                    Pins =
+                    {
+                        new Pin { Id = litOut, Name = "Value", Direction = "Out", IsExec = false,
+                                  TypeRef = new BlueprintTypeRef { TypeId = literalTypeId } },
+                    },
+                },
+                new ReturnNode
+                {
+                    Id     = retId,
+                    Status = NodeStatus.Success,
+                    Pins   = { new Pin { Id = retIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } },
+                },
+            },
+            Links =
+            {
+                new Link { FromNodeId = entryId, FromPinId = entryOut, ToNodeId = setId, ToPinId = setIn },
+                new Link { FromNodeId = setId,   FromPinId = setOut,   ToNodeId = retId, ToPinId = retIn },
+                new Link { FromNodeId = litId,   FromPinId = litOut,   ToNodeId = setId, ToPinId = setValue },
+            },
+        });
+
+        return asset;
+    }
 }

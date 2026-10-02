@@ -179,24 +179,59 @@ namespace GizmoMap.Presentation.Tests
         }
 
         // SC-GZ055-6: MilStd2525 affiliation color mapping.
-        [Fact]
-        public void SC_GZ055_6_MilStd2525AffiliationColors()
+        // Corrected 2026-08-30: the previous expectations encoded the renderer's own bug --
+        // neutral and unknown were swapped against the standard, and Joker sat with the friends.
+        [Theory]
+        // Friend: F friend, A assumed friend, D exercise friend, M exercise assumed friend.
+        [InlineData("SF...", "friend")]
+        [InlineData("SA...", "friend")]
+        [InlineData("SD...", "friend")]
+        [InlineData("SM...", "friend")]
+        // Hostile: H hostile, S suspect, J joker, K faker.
+        [InlineData("SH...", "hostile")]
+        [InlineData("SS...", "hostile")]
+        [InlineData("SJ...", "hostile")]
+        [InlineData("SK...", "hostile")]
+        // Neutral: N neutral, L exercise neutral.
+        [InlineData("SN...", "neutral")]
+        [InlineData("SL...", "neutral")]
+        // Unknown: U unknown, P pending, G exercise pending, W exercise unknown, O none specified.
+        [InlineData("SU...", "unknown")]
+        [InlineData("SP...", "unknown")]
+        [InlineData("SG...", "unknown")]
+        [InlineData("SW...", "unknown")]
+        [InlineData("SO...", "unknown")]
+        // Unrecognised and degenerate codes fall to unknown, never to a coloured affiliation.
+        [InlineData("SZ...", "unknown")]
+        [InlineData("S",     "unknown")]
+        [InlineData("",      "unknown")]
+        public void SC_GZ055_6_MilStd2525AffiliationColors(string sidc, string expected)
         {
-            // Friendly: SIDC[1] = 'F'
-            var friendly = MilStd2525Renderer.GetAffiliationColor("SF...");
-            Assert.Equal(Color.Blue, friendly);
+            var want = expected switch
+            {
+                "friend"  => MilStd2525Renderer.FriendColor,
+                "hostile" => MilStd2525Renderer.HostileColor,
+                "neutral" => MilStd2525Renderer.NeutralColor,
+                _         => MilStd2525Renderer.UnknownColor,
+            };
 
-            // Hostile: SIDC[1] = 'H'
-            var hostile = MilStd2525Renderer.GetAffiliationColor("SH...");
-            Assert.Equal(Color.Red, hostile);
+            Assert.Equal(want, MilStd2525Renderer.GetAffiliationColor(sidc));
+        }
 
-            // Neutral: SIDC[1] = 'N'
-            var neutral = MilStd2525Renderer.GetAffiliationColor("SN...");
-            Assert.Equal(Color.Yellow, neutral);
+        // The four affiliation colours must be mutually distinct, or the mapping above could pass
+        // while every affiliation rendered identically.
+        [Fact]
+        public void SC_GZ055_6_AffiliationColorsAreDistinct()
+        {
+            var all = new[]
+            {
+                MilStd2525Renderer.FriendColor,
+                MilStd2525Renderer.HostileColor,
+                MilStd2525Renderer.NeutralColor,
+                MilStd2525Renderer.UnknownColor,
+            };
 
-            // Unknown: other
-            var unknown = MilStd2525Renderer.GetAffiliationColor("SU...");
-            Assert.Equal(Color.Green, unknown);
+            Assert.Equal(all.Length, all.Distinct().Count());
         }
     }
 
@@ -461,6 +496,91 @@ namespace GizmoMap.Presentation.Tests
             // The method must be callable at compile time; no exception is required here.
             var method = typeof(ImGuiPropertyTreeAdapter).GetMethod(nameof(ImGuiPropertyTreeAdapter.ReceiveUiState));
             Assert.NotNull(method);
+        }
+    }
+
+    // ==========================================================================
+    // SC-GZ067: pick-token construction — DebugGizmoLayer.MakePickToken
+    // 🔴 MOVED here 2026-09-10 from GizmoMap.Contracts.Tests, where it could only
+    //    RE-IMPLEMENT the logic (that project references ONLY GizmoMap.Contracts) and so
+    //    stayed green while S5 changed the real construction. R-142 ③.
+    // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §5.1/§6 (S5).
+    // ==========================================================================
+
+    public class GizmoPickTokenConstructionTests
+    {
+        private static DebugPrimitive EntityPickBox(long networkId, int ecsIndex, ushort ecsGen, uint gizmoTypeId = 0u)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Box2D;
+            p.Space            = CoordinateSpace.World;
+            p.BoxAnchorId      = networkId;
+            p.AnchorIndex      = ecsIndex;
+            p.AnchorGeneration = ecsGen;
+            p.GizmoTypeId      = gizmoTypeId;
+            return p;
+        }
+
+        // SC-GZ067-1: the token's IDENTITY is the network id, never the ECS index.
+        // ⛔ RED-PROOF SHAPE: restore `AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId` in
+        //    MakePickToken and this asserts 5L instead of 90210L.
+        [Fact]
+        public void SC_GZ067_1_MakePickToken_AnchorIdIsTheNetworkId()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 1, gizmoTypeId: 77u);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(90210L, token.AnchorId);
+            Assert.Equal(77u,    token.GizmoTypeId);
+        }
+
+        // SC-GZ067-1b: ⭐⭐⭐ §6.7 — the ECS handle DOES NOT TRAVEL. Offsets 8/12 of the hit primitive
+        //   are IGNORED: whatever they hold (a stale handle from an older peer, a StringHash, a
+        //   SpatialAnchor key) cannot leak into the token.
+        // ⚠ INVERTED 2026-09-11. It used to assert `token.AnchorIndex == 5 && token.StreamId == 7` —
+        //   i.e. that the payload was faithfully forwarded. That payload is deleted, so the rail now
+        //   pins the opposite property, which is the one that matters.
+        // ⛔ RED-PROOF SHAPE: make MakePickToken write `StreamId = hit.AnchorGeneration` again and this
+        //   reddens on the 0u.
+        [Fact]
+        public void SC_GZ067_1b_MakePickToken_IgnoresOffsets8And12_NoEcsHandleTravels()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 7);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(90210L, token.AnchorId);   // the identity, and the only thing carried
+            Assert.Equal(0u,     token.StreamId);   // ⛔ NOT the primitive's AnchorGeneration (7)
+        }
+
+        // SC-GZ067-1c: a TOOL handle's identity is the tool's own id, from the disjoint high range —
+        // so a consumer resolving it against its world finds no entity, which is correct for a tool. §6.1.
+        [Fact]
+        public void SC_GZ067_1c_MakePickToken_ToolHandleCarriesTheToolId()
+        {
+            var prim = EntityPickBox(networkId: DebugGizmoLayer.ToolCaptureIdForTests(3), ecsIndex: 0, ecsGen: 0);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(DebugGizmoLayer.ToolCaptureIdForTests(3), token.AnchorId);
+            // ⭐ Above int.MaxValue by construction ⇒ it can never collide with an entity network id
+            //   (SequentialIdAllocator counts from 1), which is the whole point of the disjoint range.
+            Assert.True(token.AnchorId > int.MaxValue);
+        }
+
+        // SC-GZ067-1d: an entity whose NETWORK id collides with ANOTHER entity's ECS index is not
+        // confusable — the two live in different fields. This is defect D1's root cause, pinned.
+        [Fact]
+        public void SC_GZ067_1d_MakePickToken_NetworkIdAndEcsIndexDoNotAlias()
+        {
+            // Entity A: network id 3, ECS index 41.  Entity B: network id 41, ECS index 3.
+            var a = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 3L,  ecsIndex: 41, ecsGen: 1));
+            var b = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 41L, ecsIndex: 3,  ecsGen: 1));
+
+            Assert.NotEqual(a.AnchorId, b.AnchorId);
+            Assert.Equal(3L,  a.AnchorId);
+            Assert.Equal(41L, b.AnchorId);
         }
     }
 }

@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// <summary>
     /// 1024-byte unmanaged ring buffer of <see cref="BTreeTraceRecord"/>s. Per-entity
     /// trace memory for FastBTree execution; opt-in via <c>DebugState.EnableTraceBuffer</c>.
-    /// Recorded by the Flight Recorder (NoSave keeps it out of scenario JSON only).
+    /// Recorded by the Flight Recorder (NoScenario keeps it out of scenario JSON only).
     /// </summary>
     /// <remarks>
     /// Layout: 8-byte header + 1016-byte buffer. Only the first 1008 bytes of the
@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
     [ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct BTreeTraceWorkingMemory1024
     {
         public const int RecordStride    = 16;

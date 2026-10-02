@@ -155,7 +155,12 @@ public struct BTreeRootFacet
 /// <summary>Inspector facet for Subtree leaf nodes.</summary>
 public struct BTreeSubtreeFacet
 {
+    // ⭐⭐ §S1 ① — PICKED, not typed. 🔒 User, 2026-09-26: "the tree asset must be pickable."
+    // 🔴 This field was labelled "Referenced asset" and was plain free text: a designer typed an
+    //    asset name by hand and learned it was wrong from a validator. The same picker now serves
+    //    the HSM state facet, so the two editors cannot drift.
     [EditDisplayName("Referenced asset")]
+    [Hrot.Editor.AiShared.Inspector.AiAssetPicker(Hrot.Editor.AiShared.AssetKind.BTree)]
     public string SubtreeName;
 
     [EditReadOnly]

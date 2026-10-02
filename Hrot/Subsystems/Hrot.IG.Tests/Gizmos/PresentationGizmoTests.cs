@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
 using System.Reflection;
@@ -8,6 +9,7 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 using Hrot.IG.Gizmos;
 using Hrot.ScenarioEditor.Gizmos;
+using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Xunit;
 
@@ -27,7 +29,7 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.RegisterComponent<SimTransform>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<CullingState>();
-            _repo.RegisterComponent<IgHealthState>();
+            _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<VehicleParams>();
             _repo.RegisterComponent<VisualEffectState>();
             _repo.RegisterComponent<TracerTarget>();
@@ -36,61 +38,21 @@ namespace Hrot.IG.Tests.Gizmos
 
         public void Dispose() => _repo.Dispose();
 
-        // SC_GZ057_5: IgEntityPresentationGizmo [GizmoProjector] declares CullingState.
-        [Fact]
-        public void SC_GZ057_5_IgGizmoProjectorAttribute_ContainsCullingState()
-        {
-            var attr = typeof(IgEntityPresentationGizmo)
-                .GetCustomAttribute<GizmoProjectorAttribute>();
-
-            Assert.NotNull(attr);
-            Assert.Contains(typeof(CullingState),    attr!.RequiredComponents);
-            Assert.Contains(typeof(SimTransform),    attr!.RequiredComponents);
-            Assert.Contains(typeof(NetworkIdentity), attr!.RequiredComponents);
-        }
-
-        // SC_GZ057_7: IgEntityPresentationGizmo sets Damaged condition mask when health damage >= 50.
-        [Fact]
-        public void SC_GZ057_7_IgGizmo_WithHighDamage_SetsDamagedConditionMask()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-            _repo.AddComponent(entity, new NetworkIdentity(5L));
-            _repo.AddComponent(entity, new CullingState { IsVisible = true });
-            _repo.AddComponent(entity, new IgHealthState { Damage = 75f });
-
-            var buffer = new DebugPrimitiveBuffer();
-            var gizmo  = new IgEntityPresentationGizmo();
-            gizmo.Draw(_repo, entity, buffer);
-
-            var frame = buffer.GetFrame();
-            // Phase 5: IgEntityPresentationGizmo now emits a pick sphere (DrawEntitySphere) between
-            // the SpatialAnchor and the SemanticShape, so frame[0]=SpatialAnchor,
-            // frame[1]=Sphere (pick sphere), frame[2]=SemanticShape.
-            Assert.True(frame.Length >= 3);
-
-            var semantic = frame[2];
-            Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
-            // Damage 75f >= 50 → Damaged bit set; < 90 → Immobile bit NOT set.
-            Assert.NotEqual(0u, semantic.ConditionMask & ConditionDamaged);
-            Assert.Equal(0u, semantic.ConditionMask & ConditionImmobile);
-        }
-
-        // SC_GZ057_6: Draw skips entity when CullingState.IsVisible == false.
-        [Fact]
-        public void SC_GZ057_6_IgGizmo_Draw_SkipsEntityWhenNotVisible()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-            _repo.AddComponent(entity, new NetworkIdentity(1L));
-            _repo.AddComponent(entity, new CullingState { IsVisible = false });
-
-            var buffer = new DebugPrimitiveBuffer();
-            var gizmo  = new IgEntityPresentationGizmo();
-            gizmo.Draw(_repo, entity, buffer);
-
-            Assert.Equal(0, buffer.GetFrame().Length);
-        }
+        // ── UXI-23 S2: three tests RE-HOMED, not deleted ──────────────────────────────────────
+        //
+        // SC_GZ057_5 / _6 / _7 asserted claims about IgEntityPresentationGizmo, which S2 merged into the
+        // shared Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo. All three claims still hold and are
+        // now asserted ONCE, over the shared projector, in:
+        //
+        //     Hrot/Engine/Hrot.Presentation.Tests/Gizmos/EntityPresentationGizmoTests.cs
+        //
+        // ⚠ SC_GZ057_5 is deliberately INVERTED there. It asserted that the query CONTAINS CullingState;
+        // the merged query must NOT, because a [GizmoProjector] requirement is a hard mask filter and
+        // keeping it would make the rule match nothing on SimHost and CGF — neither produces
+        // CullingState — silently emptying their maps. Culling did not go away: it is presence-decided
+        // inside Draw, so IG keeps it and the other hosts gain it (R-137).
+        //
+        // 📄 docs/UX/UX_Feature_Map_Parity.md §3.9j.
 
         // SC_GZ058_1: EffectPresentationGizmo emits a Sphere for Explosion effects.
         [Fact]
@@ -235,6 +197,405 @@ namespace Hrot.IG.Tests.Gizmos
 
             // 3 points, not closed → 2 segments.
             Assert.Equal(2, draw.LineCalls.Count);
+        }
+
+        // =====================================================================
+        // CE-259ae — polygon areas and routes are selectable / right-clickable BY THEIR LINES
+        // 🔒 User, 2026-09-11: "polygon areas and routes entities should be selectable by clicking on
+        //    their lines, also context menu by right clicking them."
+        // 📄 EntityPresentationGizmoShared.EmitPickSegments · DESIGN_Gizmo_Anchor_Identity.md §6.4
+        // =====================================================================
+
+        private (Entity entity, EditablePolyline poly) MakeOverlay(bool isClosed, long networkId = 90210L)
+        {
+            _repo.RegisterComponent<MapOverlayStyle>();
+            _repo.RegisterManagedComponent<EditablePolyline>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
+            _repo.AddComponent(entity, new MapOverlayStyle
+            {
+                BorderR = 255, BorderG = 255, BorderB = 255, BorderA = 255,
+                LineThickness = 2f, IsClosed = isClosed,
+            });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+
+            var poly = new EditablePolyline();
+            poly.Points.Add(new Vector2(0f, 0f));
+            poly.Points.Add(new Vector2(100f, 0f));
+            poly.Points.Add(new Vector2(100f, 100f));
+
+            var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
+            ecb.AddManagedComponent(entity, poly);
+            ecb.Playback(_repo);
+            return (entity, poly);
+        }
+
+        // SC-GZ058-6: a CLOSED overlay (an area) emits one pick box per edge, including the closing one.
+        [Fact]
+        public void SC_GZ058_6_ClosedArea_EmitsAPickSegmentPerEdge()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true);
+            var buffer = new DebugPrimitiveBuffer(64);
+
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            var picks = CollectPickBoxes(buffer);
+            Assert.Equal(3, picks.Count);   // 3 points, closed → 3 edges
+        }
+
+        // SC-GZ058-6b: an OPEN overlay (a route) emits n-1 — it must not close the loop.
+        [Fact]
+        public void SC_GZ058_6b_OpenRoute_EmitsOneFewerPickSegment()
+        {
+            var (entity, _) = MakeOverlay(isClosed: false);
+            var buffer = new DebugPrimitiveBuffer(64);
+
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            Assert.Equal(2, CollectPickBoxes(buffer).Count);
+        }
+
+        // SC-GZ058-7: ⭐⭐ THE REQUIREMENT — clicking ON a line yields this entity, so
+        // SelectionInteractionSystem selects it and the terminal finds its context menu.
+        // ⛔ RED-PROOF SHAPE: remove the EmitPickSegments call from MapOverlayGizmo and this misses.
+        [Fact]
+        public void SC_GZ058_7_ClickingOnALine_PicksTheEntity()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true);
+            var buffer = new DebugPrimitiveBuffer(64);
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            // Mid-way along the first edge, which runs from (10,20) to (110,20) in world space
+            // (points are RELATIVE to the SimTransform origin).
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(60f, 20f), zoom: 1f);
+
+            // ⭐ §6.7 — the hit-test answers with the anchor's NETWORK id; the consumer resolves it to
+            //   an Entity in its own world. ⛔ It used to return the primitive's (Index, Generation).
+            Assert.NotNull(hit);
+            Assert.Equal(
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_repo, entity),
+                hit!.Value);
+        }
+
+        // SC-GZ058-7b: ...and the token carries the NETWORK id, which is what the right-click path
+        // looks the CONTEXT MENU up by (menuBindings keyed on ContextMenuBinding.StructNetworkId).
+        [Fact]
+        public void SC_GZ058_7b_ClickingOnALine_CarriesTheNetworkIdForTheContextMenu()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true, networkId: 4242L);
+            var buffer = new DebugPrimitiveBuffer(64);
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            var picks = CollectPickBoxes(buffer);
+
+            // ⭐ EVERY edge carries the SAME entity id — that is the point: whichever edge you click,
+            //   the terminal resolves the same entity and therefore the same context menu.
+            Assert.Equal(3, picks.Count);
+            Assert.All(picks, p => Assert.Equal(4242L, p.BoxAnchorId));
+
+            var pick  = picks[0];
+            var token = GizmoMap.Presentation.DebugGizmoLayer.MakePickToken(in pick);
+
+            Assert.Equal(4242L, token.AnchorId);
+            // ⛔ 0, NOT the edge index: an injected VertexEditGizmo has strict routing priority and
+            //   would read a non-zero SubElementId as "drag vertex i". See EmitPickSegments' note.
+            Assert.Equal(0u, token.SubElementId);
+        }
+
+        // SC-GZ058-7c: a click well AWAY from every edge misses — the interior of an area is not
+        // clickable, only its boundary. ⭐ Paired with 7 so neither always-hit nor always-miss passes.
+        [Fact]
+        public void SC_GZ058_7c_ClickingInsideTheAreaButOffTheLines_IsMiss()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true);
+            var buffer = new DebugPrimitiveBuffer(64);
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            // Well inside the triangle's bounding box but far from all three edges.
+            Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(40f, 80f), zoom: 1f));
+        }
+
+        // SC-GZ058-7d: an overlay with NO NetworkIdentity gets no pick target — identity is the network
+        // id (constraint C2), the same rule EmitPickBox follows.
+        [Fact]
+        public void SC_GZ058_7d_UnreplicatedOverlay_EmitsNoPickSegments()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true, networkId: 0L);
+            var buffer = new DebugPrimitiveBuffer(64);
+
+            new MapOverlayGizmo().Draw(_repo, entity, buffer);
+
+            Assert.Empty(CollectPickBoxes(buffer));
+        }
+
+        // =====================================================================
+        // BP-517 / A1 — ONE ENTITY, TWO GIZMOS, AND THEY MUST AGREE
+        //
+        // 📐 The live case, measured on scenarios/hill-attack/scenario.json entity 5525100c: it carries
+        //    TkbIdentity.TkbType = 8803 (TacGraphic_Area) AND MapOverlayStyle AND a non-zero SimTransform,
+        //    with Points that are small offsets. GizmoReflectionRegistrar discovers EVERY [GizmoProjector]
+        //    in the loaded assemblies, and both of these live in Hrot.Presentation ⇒ BOTH match this one
+        //    entity and BOTH run. The area was therefore drawn TWICE, ~820 m apart, with picking off by
+        //    the same amount, because TacticalAreaGizmo treated relative Points as absolute.
+        //
+        // ⭐ RED-PROOF SHAPE: revert TacticalAreaGizmo to drawing raw Points (origin Vector2.Zero) and
+        //    SC_GZ058_8 fails on the very first vertex — 617 vs -53.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.2 (RELATIVE COORDINATES EVERYWHERE).
+        // =====================================================================
+
+        /// <summary>
+        /// The hill-attack shape: an entity that is BOTH a tactical area (TkbType 8803) and a map
+        /// overlay, with a non-zero origin and relative points — so both projectors match it.
+        /// </summary>
+        private Entity MakeDualProjectedArea(long networkId = 5525100L)
+        {
+            _repo.RegisterComponent<MapOverlayStyle>();
+            _repo.RegisterManagedComponent<EditablePolyline>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+
+            var entity = _repo.CreateEntity();
+            // The real origin from the shipped scenario.
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Area });
+            _repo.AddComponent(entity, new MapOverlayStyle
+            {
+                BorderR = 200, BorderG = 180, BorderB = 0, BorderA = 230,
+                LineThickness = 1.5f, IsClosed = true,
+            });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+
+            var poly = new EditablePolyline();
+            poly.Points.Add(new Vector2(-53f, -88.5f));   // the real relative offsets
+            poly.Points.Add(new Vector2(47f, -88.5f));
+            poly.Points.Add(new Vector2(47f, 11.5f));
+
+            var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
+            ecb.AddManagedComponent(entity, poly);
+            ecb.Playback(_repo);
+            return entity;
+        }
+
+        // SC-GZ058-8: ⭐⭐ THE DEFECT — the two projectors that both match this entity must emit the
+        // SAME vertices. Before the fix they differed by exactly the SimTransform origin (~820 m).
+        [Fact]
+        public void SC_GZ058_8_BothGizmosDrawingOneEntity_EmitTheSameVertices()
+        {
+            var entity = MakeDualProjectedArea();
+
+            var overlayDraw = new FullCapturingDrawBuilder();
+            new MapOverlayGizmo().Draw(_repo, entity, overlayDraw);
+
+            var areaDraw = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, entity, areaDraw);
+
+            // Both close the loop over 3 points ⇒ 3 segments each.
+            Assert.Equal(3, overlayDraw.LineCalls.Count);
+            Assert.Equal(3, areaDraw.LineCalls.Count);
+
+            for (int i = 0; i < overlayDraw.LineCalls.Count; i++)
+            {
+                Assert.Equal(overlayDraw.LineCalls[i].Start.X, areaDraw.LineCalls[i].Start.X, 3);
+                Assert.Equal(overlayDraw.LineCalls[i].Start.Y, areaDraw.LineCalls[i].Start.Y, 3);
+                Assert.Equal(overlayDraw.LineCalls[i].End.X,   areaDraw.LineCalls[i].End.X,   3);
+                Assert.Equal(overlayDraw.LineCalls[i].End.Y,   areaDraw.LineCalls[i].End.Y,   3);
+            }
+        }
+
+        // SC-GZ058-8b: and they are at ORIGIN + POINTS, not at raw Points — pins the absolute answer so
+        // "both agree" cannot be satisfied by making both of them wrong in the same way.
+        [Fact]
+        public void SC_GZ058_8b_TacticalAreaGizmo_DrawsAtOriginPlusPoints()
+        {
+            var entity = MakeDualProjectedArea();
+
+            var draw = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, entity, draw);
+
+            // 670 + (-53) = 617 ; 473.5 + (-88.5) = 385
+            Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
+            Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+        }
+
+        // SC-GZ058-8c: picking follows the drawing — EmitPickSegments must use the same origin, or a
+        // click on the drawn outline misses by the same ~820 m.
+        [Fact]
+        public void SC_GZ058_8c_ClickingTheDrawnOutline_PicksTheEntity()
+        {
+            var entity = MakeDualProjectedArea(networkId: 777L);
+            var buffer = new DebugPrimitiveBuffer(64);
+            new TacticalAreaGizmo().Draw(_repo, entity, buffer);
+
+            // Midpoint of the first edge in WORLD space: (617,385) → (717,385).
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
+
+            Assert.NotNull(hit);
+            Assert.Equal(777L, hit!.Value);
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════════════════
+        // E1 — the ZONE gizmo renders LOAD STATE in the stroke
+        // ══════════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// A terrain ZONE at the same real origin/points as the area fixture, so the geometry assertions
+        /// carry over and only the STATE differs between these rails.
+        /// </summary>
+        private Entity MakeZone(long networkId = 8880L)
+        {
+            _repo.RegisterManagedComponent<EditablePolyline>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _repo.RegisterComponent<Fdp.Toolkit.Terrain.TerrainAssetLoadState>();
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+
+            var poly = new EditablePolyline();
+            poly.Points.Add(new Vector2(-53f, -88.5f));
+            poly.Points.Add(new Vector2(47f, -88.5f));
+            poly.Points.Add(new Vector2(47f, 11.5f));
+
+            var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
+            ecb.AddManagedComponent(entity, poly);
+            ecb.Playback(_repo);
+            return entity;
+        }
+
+
+        /// <summary>Marks the zone loaded FOR ITS CURRENT SHAPE — the only combination that reads solid.</summary>
+        private void MarkLoadedForCurrentShape(Entity zone)
+        {
+            var poly   = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
+                .GetManagedComponentRO<EditablePolyline>(zone)!;
+            var origin = _repo.GetComponent<SimTransform>(zone).Position;
+
+            _repo.AddComponent(zone, new Fdp.Toolkit.Terrain.TerrainAssetLoadState
+            {
+                Phase      = Fdp.Toolkit.Terrain.LoadPhase.Loaded,
+                SourceHash = Fdp.Toolkit.Terrain.ZoneFootprint.Compute(origin, poly.Points),
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>E1</c>'s success condition, verbatim from the plan: <i>"a zone drawn, then reshaped,
+        /// visibly changes stroke without a reload"</i>. ⛔ This is the rail that matters, because it is
+        /// the one that proves staleness is COMPUTED from the footprint rather than stored — reshaping
+        /// writes no marker, and the stroke still changes.
+        /// </summary>
+        [Fact]
+        public void E1_AZoneReshapedAfterLoading_ChangesStroke_WithNoReload()
+        {
+            var zone = MakeZone();
+            MarkLoadedForCurrentShape(zone);
+
+            var loaded = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, loaded);
+            Assert.Equal(3, loaded.LineCalls.Count);
+            Assert.All(loaded.LineCalls, l => Assert.Equal(LineStyle.Solid, l.Style));
+
+            // ⭐ RESHAPE ONLY — no marker write, no reload, nothing told the gizmo anything changed.
+            var poly = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
+                .GetManagedComponentRO<EditablePolyline>(zone)!;
+            poly.Points[2] = new Vector2(99f, 60f);
+
+            var stale = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, stale);
+            Assert.All(stale.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+        }
+
+        /// <summary>
+        /// ⚠ A zone with NO marker reads STALE, never loaded. A freshly loaded scenario carries no
+        /// marker (the component is <c>NoScenario</c>), so "absent" honestly means "not resident here" —
+        /// showing it as loaded is the error design §9.1 retracts.
+        /// </summary>
+        [Fact]
+        public void E1_AZoneWithNoMarker_ReadsStale_NotLoaded()
+        {
+            var zone = MakeZone(networkId: 8881L);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+
+            Assert.Equal(3, draw.LineCalls.Count);
+            Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+        }
+
+        /// <summary>⛔ A FAILED load must be loud, not a subtle dash — §8.3 N3, two outcomes only.</summary>
+        [Fact]
+        public void E1_AFailedZone_IsDrawnLoud()
+        {
+            var zone = MakeZone(networkId: 8882L);
+            _repo.AddComponent(zone, new Fdp.Toolkit.Terrain.TerrainAssetLoadState
+            {
+                Phase = Fdp.Toolkit.Terrain.LoadPhase.Failed,
+            });
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+
+            Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Solid, l.Style));
+            // Red-dominant: the failure colour, not the calm loaded green.
+            Assert.All(draw.LineCalls, l => Assert.True(l.Color.R > l.Color.G && l.Color.R > l.Color.B,
+                "a failed zone must be drawn in a loud colour an operator cannot skim past"));
+        }
+
+        /// <summary>
+        /// ⭐ The zone gizmo draws at ORIGIN + POINTS and its picking follows, exactly as the area gizmo
+        /// does — the BP-517 pair, re-asserted on the new projector because it is a NEW caller of the
+        /// same shared outline helper.
+        /// </summary>
+        [Fact]
+        public void E1_TheZoneGizmo_DrawsAtOriginPlusPoints_AndPickingFollows()
+        {
+            var zone = MakeZone(networkId: 8883L);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+            Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
+            Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+
+            var buffer = new DebugPrimitiveBuffer(64);
+            new TerrainZoneGizmo().Draw(_repo, zone, buffer);
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
+
+            Assert.NotNull(hit);
+            Assert.Equal(8883L, hit!.Value);
+        }
+
+        /// <summary>
+        /// ⛔ The zone projector must NOT draw a tactical area, and the area projector must not draw a
+        /// zone — <c>TkbType</c> is the ONE discriminator (§2.1), and both carry <c>TkbIdentity</c> so
+        /// <c>GizmoReflectionRegistrar</c> runs both against both.
+        /// </summary>
+        [Fact]
+        public void E1_TheTwoPolylineProjectors_DoNotDrawEachOthersKind()
+        {
+            var area = MakeDualProjectedArea(networkId: 8884L);
+            var zoneDrawOnArea = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, area, zoneDrawOnArea);
+            Assert.Empty(zoneDrawOnArea.LineCalls);
+
+            var zone = MakeZone(networkId: 8885L);
+            var areaDrawOnZone = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, zone, areaDrawOnZone);
+            Assert.Empty(areaDrawOnZone.LineCalls);
+        }
+
+        /// <summary>The Box2D pick targets in a frame — the visual edges are Line primitives.</summary>
+        private static System.Collections.Generic.List<DebugPrimitive> CollectPickBoxes(
+            DebugPrimitiveBuffer buffer)
+        {
+            var list = new System.Collections.Generic.List<DebugPrimitive>();
+            foreach (ref readonly var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.Box2D) list.Add(p);
+            return list;
         }
     }
 }

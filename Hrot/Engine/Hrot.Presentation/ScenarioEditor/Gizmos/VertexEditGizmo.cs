@@ -19,14 +19,20 @@ namespace Hrot.ScenarioEditor.Gizmos
     // - RequiresExclusiveFocus = true: terminal hit-testing is filtered to this entity while active.
     // - WantsRawInput = true: right-click release and Escape are delivered to this gizmo.
     // - SubElementId = vertexIndex + 1 (0 is reserved as "no handle").
-    // - AnchorIndex / AnchorGeneration encode the ECS Entity.
+    // - BoxAnchorId carries the entity's NETWORK id (§6.7); no ECS handle is emitted.
     // - OnCommit: writes back relative points to EditablePolyline, publishes UpdateEntityCommand.
     // - OnCancel: reverts the dragged vertex.
     // - OnMenuAction(1): insert a new vertex after the active one.
     // - OnMenuAction(2): delete the active vertex.
-    // - The gizmo does NOT call _onRemove() on its own (marker stays for multiple drags).
-    //   _onRemove() is provided by the definition and removes ActiveVertexEditRequest
-    //   when called from outside (e.g. tool switch, entity lifecycle).
+    // - OnCommit does NOT call _onRemove() — the marker stays for multiple drags (:139-144).
+    // - ⭐ IT DOES self-remove to END the tool: right-RELEASE (:174-179) and Escape (:182-189) both
+    //   write back and then call _onRemove().
+    //   🔴 CORRECTED 2026-09-10. This line used to read "The gizmo does NOT call _onRemove() on its own",
+    //   which was false from the moment the right-release arm existed — and that wrong comment is why the
+    //   lifetime desync below went unnoticed. ⇒ _onRemove() must update BOTH the arbiter and the
+    //   ToolController, which is what ScenarioToolRegistrations now composes (IToolController
+    //   .NotifyToolEnded, docs/UX/UX_Feature_Tool_Model.md §4.7h). ⛔ A gizmo that self-removes and tells
+    //   only the arbiter leaves the controller believing this tool is still armed.
     public sealed class VertexEditGizmo : IEntityStatefulGizmo
     {
         // Context menu JSON: array format required by ContextMenuAdapter.
@@ -89,8 +95,25 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (!_active || _points.Count == 0) return;
 
+            // 🔒🔒 §4.7i (user ruling 2026-09-10) — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES.
+            //   "handles gone entirely while suspended, and re-appear once focus returns. Inactive handle
+            //    is best expressed by not being shown at all... The partial route or shape edited should
+            //    stay drawn."
+            //   ⇒ the edge preview below ALWAYS draws (it is the work in progress); the handles and the
+            //     handle-anchored context menu are affordances and vanish entirely while focus is elsewhere.
+            //     ⛔ Not dimmed — ABSENT, so "cannot be manipulated" is unambiguous.
+            //   ⭐⭐ ALSO LOAD-BEARING FOR CE-259r: once the gizmo group is reordered so the entity
+            //     emitters run first, a layer-0 z-order tie is broken by emission order in favour of
+            //     HANDLES (DebugGizmoLayer.cs:510). Correct for an ACTIVE tool (user ruling) — but a
+            //     SUSPENDED tool's handles would then steal the entity picker's hover, and the picker
+            //     hit-tests UNFILTERED by design so it has no capture filter to shield it. Hiding these
+            //     deletes the competitor. 📄 docs/UX/UX_Feature_Tool_Model.md §4.7i.
+            //   📐 IsFocused is granted at ARM time (DataDrivenGizmoSystem.ActivateGizmo:94 → TryGrant →
+            //     SetFocus(true):63), so a freshly armed tool shows its handles on frame one.
+
             // ContextMenuBinding so right-clicking a vertex handle shows the insert/delete menu.
-            draw.DrawContextMenuBinding(_networkId, MenuJson);
+            if (IsFocused)
+                draw.DrawContextMenuBinding(_networkId, MenuJson);
 
             // Draw live preview edges so the edited shape is visible during drag.
             int n = _points.Count;
@@ -101,7 +124,9 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.DrawLine(a, b, EdgeColor, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
             }
 
-            // Box2D handle for each vertex.
+            // Box2D handle for each vertex. ⛔ §4.7i — handles only while this gizmo holds focus.
+            if (!IsFocused) return;
+
             for (int i = 0; i < _points.Count; i++)
             {
                 bool isActive = (i == _activeVertex);
@@ -115,8 +140,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.BoxExtentY       = 8f;
                 prim.Color            = isActive ? ActiveColor : IdleColor;
                 prim.SubElementId     = (ushort)(i + 1);
-                prim.AnchorIndex      = _entity.Index;
-                prim.AnchorGeneration = (ushort)_entity.Generation;
+                // 🔴 §6.7 — the `AnchorIndex`/`AnchorGeneration` writes are DELETED: identity is
+                //   BoxAnchorId, and the ECS handle they carried is read by nothing.
                 prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }

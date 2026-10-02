@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Time.Messages
 {
     [DdsTopic("FrameOrder")]
     [EventId(101)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public partial struct FrameOrderDescriptor
     {
         [DdsId(0)]
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Time.Messages
     [DdsTopic("FrameAck")]
     [DdsQos(HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 16)]
     [EventId(102)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public partial struct FrameAckDescriptor
     {
         [DdsId(0)]
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// </para>
     /// </summary>
     [EventId(103)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct SwitchTimeModeEvent
     {
         /// <summary>Target time mode: <see cref="TimeMode.Continuous"/> or <see cref="TimeMode.Deterministic"/>.</summary>
@@ -186,7 +186,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// <c>_masterWallClockOffset</c>.  Never sent over DDS.
     /// </summary>
     [EventId(110)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct TimeSyncOffsetCalculatedEvent
     {
         /// <summary>Round-trip time in 100-ns UTC ticks. Controller checks against MaxRttTicks.</summary>
@@ -201,7 +201,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// </summary>
     [DdsTopic("TimeSyncRequest")]
     [EventId(108)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public partial struct TimeSyncRequest
     {
         /// <summary>Node ID of the slave initiating the handshake.</summary>
@@ -219,7 +219,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// </summary>
     [DdsTopic("TimeSyncResponse")]
     [EventId(109)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public partial struct TimeSyncResponse
     {
         /// <summary>Echoed back from the request — identifies the slave this reply is addressed to.</summary>

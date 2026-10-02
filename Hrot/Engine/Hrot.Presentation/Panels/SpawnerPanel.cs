@@ -1,7 +1,9 @@
 using Hrot.Core.Mission;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -13,6 +15,16 @@ namespace Hrot.UI.Common.Panels;
 /// <param name="TkbId">TKB type identifier (matches <c>TkbTemplate.TkbType</c>).</param>
 /// <param name="Name">Display name shown in the spawner list.</param>
 public sealed record TkbCatalogEntry(long TkbId, string Name);
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="SpawnerPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>
+public sealed record SpawnerPanelViewModel(
+    string PanelId, string PanelKind, string SearchFilter, long SelectedType,
+    string SelectedAffiliation, IReadOnlyList<TkbCatalogEntry> FilteredEntries) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that lets the operator browse the TKB entity type catalog,
@@ -98,6 +110,11 @@ public sealed class SpawnerPanel
     /// </summary>
     public IReadOnlyList<TkbCatalogEntry> FilteredEntries => _filteredEntries;
 
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public SpawnerPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _searchFilter, _selectedType, _affiliation.ToString(), FilteredEntries);
+
     // ── Button / control handlers (public for testability) ────────────────────
 
     /// <summary>
@@ -151,6 +168,27 @@ public sealed class SpawnerPanel
     {
         ArgumentNullException.ThrowIfNull(spawn);
         spawn.StartRouteAuthoringMode();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>E5</c> — handles the "DRAW ZONE" button press. Calls
+    /// <see cref="ISpawnController.StartZoneAuthoringMode"/>, which authors a
+    /// <c>TkbEntityTypes.TerrainZone</c> (<c>B1</c>) through the same mechanism as "DRAW AREA".
+    ///
+    /// <para>⭐ This is the operator's entry point into stage <c>E</c>: without it <c>E1</c>'s zone
+    /// gizmo, <c>E2</c>'s "Load zone" menu item and <c>E3</c>'s zones view would all be surfaces on
+    /// entities nothing could create. 🔒 The <c>U6</c> ruling is *"nothing of it should be IG host
+    /// only"*, and this panel is shared by the editor and ExCon.</para>
+    /// </summary>
+    public void HandleStartZoneAuthoring(ISpawnController spawn)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        string styleJson = JsonSerializer.Serialize(new
+        {
+            FillColor     = _fillColorHex,
+            LineThickness = _lineThickness
+        });
+        spawn.StartZoneAuthoringMode(styleJson);
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
@@ -217,6 +255,12 @@ public sealed class SpawnerPanel
 
         if (ImGui.Button("DRAW ROUTE"))
             HandleStartRouteAuthoring(spawn);
+
+        ImGui.SameLine();
+
+        // ⭐⭐ E5 — the operator's way into stage E. Same style controls: a zone IS drawn geometry.
+        if (ImGui.Button("DRAW ZONE"))
+            HandleStartZoneAuthoring(spawn);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Variables;   // 99a
 using Hrot.Editor.AiShared.Windows;
 
 namespace Hrot.Blueprints.Editor.Variables;
@@ -330,6 +331,82 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
             _onChanged();
             return true;
         });
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 98 (<c>98a</c>) — a local's initial value, through the SAME undo recorder every
+    /// other local mutation uses.</b>
+    ///
+    /// <para>⭐ <c>_record</c> is not decoration here: 📌 <c>B41 §4</c> made local rename/delete
+    /// undoable through it, and an initial-value edit that skipped it would be the one local mutation
+    /// <b>Ctrl+Z could not take back</b> — a worse outcome than refusing.</para>
+    ///
+    /// <para>⚠ <b>Refuses on a read-only graph</b> *(<c>BP1664</c> — a macro's locals belong to the
+    /// host after splicing)*, via <see cref="EditableGraph"/>, exactly as the rename does. ⛔ Not a
+    /// second rule.</para>
+    /// </summary>
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+    {
+        var g = EditableGraph;
+        if (g is null) return;
+
+        var match = g.LocalVariables.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.Ordinal));
+        if (match is null) return;
+
+        _record($"Set Local Variable '{name}' default", () =>
+        {
+            match.DefaultValueJson = defaultValueJson;
+            _onChanged();
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 99 (<c>99a</c>) — a local's properties, through the same undo recorder.</b>
+    /// ⭐ <c>_record</c> is not decoration: 📌 <c>B41 §4</c> made local rename/delete undoable through
+    /// it, and a properties edit that skipped it would be the one local mutation Ctrl+Z could not take
+    /// back. ⚠ Refuses on a read-only graph *(<c>BP1664</c>)* via <see cref="EditableGraph"/>.
+    /// </summary>
+    public void UpdateVariableProperties(string name, VariablePropertyValues values)
+    {
+        if (values is null) return;
+
+        var g = EditableGraph;
+        if (g is null) return;
+
+        var match = g.LocalVariables.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.Ordinal));
+        if (match is null) return;
+
+        _record($"Edit Local Variable '{name}' properties", () =>
+        {
+            if (values.DefaultValueJson is not null) match.DefaultValueJson = values.DefaultValueJson;
+            if (values.Tooltip          is not null) match.Tooltip          = values.Tooltip;
+            if (values.Comment          is not null) match.Comment          = values.Comment;
+            if (values.Category         is not null) match.Category         = values.Category;
+            if (values.IsEditable       is { } e)    match.IsEditable       = e;
+            if (values.IsExposedOnSpawn is { } x)    match.IsExposedOnSpawn = x;
+            _onChanged();
+            return true;
+        });
+    }
+
+    /// <summary>⭐⭐ <b>Batch 99 (<c>99a</c>)</b> — a local IS a <c>VariableDecl</c>, so it carries the
+    /// full set. ⚠ Read from the CURRENT graph, never a captured one.</summary>
+    public DeclarationPropertySnapshot? ReadVariableProperties(string name)
+    {
+        var match = Locals.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.Ordinal));
+        if (match is null) return null;
+
+        return new DeclarationPropertySnapshot(
+            VariableDeclarationKind.BlueprintVariable,
+            new VariablePropertyValues(
+                DefaultValueJson: match.DefaultValueJson ?? "",
+                Tooltip:          match.Tooltip ?? "",
+                Comment:          match.Comment ?? "",
+                Category:         match.Category ?? "",
+                IsEditable:       match.IsEditable,
+                IsExposedOnSpawn: match.IsExposedOnSpawn),
+            match.Type?.TypeId ?? "");
     }
 
     /// <summary>

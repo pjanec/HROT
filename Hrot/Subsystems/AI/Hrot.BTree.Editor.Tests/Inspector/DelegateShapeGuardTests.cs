@@ -91,7 +91,7 @@ public sealed class DelegateShapeGuardTests
     public void HasNoCompatibleVariables_True_WhenThreeParamReusable_AndNoMatchingVars()
     {
         var asset    = MakeAsset(Var("intVar", typeof(int)));  // int var, but action needs float
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext
         {
@@ -108,7 +108,7 @@ public sealed class DelegateShapeGuardTests
     public void HasNoCompatibleVariables_False_WhenThreeParamReusable_AndMatchingVarExists()
     {
         var asset    = MakeAsset(Var("floatVar", typeof(float)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext
         {
@@ -127,7 +127,7 @@ public sealed class DelegateShapeGuardTests
     public void HasNoCompatibleVariables_False_WhenFourParamFull_EvenWithNoMatchingVars()
     {
         var asset    = MakeAsset(Var("intVar", typeof(int)));  // no float match
-        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext
         {
@@ -144,7 +144,7 @@ public sealed class DelegateShapeGuardTests
     public void HasNoCompatibleVariables_False_WhenFourParamFull_EvenWithZeroVarsInAsset()
     {
         var asset    = MakeAsset();   // no vars at all
-        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext
         {

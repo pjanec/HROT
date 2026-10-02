@@ -108,22 +108,22 @@ SC4 — Existing tests that indirectly exercise `TryBuildQueue` continue to pass
 
 ---
 
-### TASK-S303 — Add DataPolicy.NoSave to BrainBlackboard
+### TASK-S303 — Add DataPolicy.NoScenario to BrainBlackboard
 
 **Design Reference:** [DESIGN.md § 1.3](./DESIGN.md#13-brainblackboard-data-policy)
 
 **Scope**
 
-Add `[DataPolicy(DataPolicy.NoSave)]` to the `BrainBlackboard` struct. Verify that the attribute
+Add `[DataPolicy(DataPolicy.NoScenario)]` to the `BrainBlackboard` struct. Verify that the attribute
 is the correct one (same as already applied to `LocomotionChannel`, `WeaponChannel`, and
 `InteractionChannel` in `ChannelComponents.cs`).
 
-NOT included: any change to `CheckpointIOWorker` — `DataPolicy.NoSave` does not affect binary
+NOT included: any change to `CheckpointIOWorker` — `DataPolicy.NoScenario` does not affect binary
 checkpoint recording.
 
 **Constraints**
 
-- Use `DataPolicy.NoSave` (not `DataPolicy.Transient`, not `DataPolicy.NoRecord`). The blackboard
+- Use `DataPolicy.NoScenario` (not `DataPolicy.Transient`, not `DataPolicy.NoReplay`). The blackboard
   must still appear in LZ4 checkpoint payloads for binary rollback.
 - The attribute must be on the struct declaration, not on a field.
 - Do not change `BrainBlackboardByteSize` or the `fixed byte Memory[]` field.
@@ -143,7 +143,7 @@ public unsafe struct BrainBlackboard
 // AFTER:
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BrainBlackboard)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BrainBlackboard
 ```
 

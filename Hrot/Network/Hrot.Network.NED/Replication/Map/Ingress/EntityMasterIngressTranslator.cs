@@ -151,6 +151,16 @@ namespace Hrot.Map.Common.Replication.Ingress
                     PrimaryOwnerId = -1,
                     LocalNodeId = (int)_localNodeId
                 });
+
+                // Reliable-init barrier (CE-283, §3a.2): the creator marked this entity WaitForAcks,
+                // so this peer must report its Active status once the ghost finishes local
+                // construction. Tag only genuine remote ghosts (the branch that stamps the
+                // unknown-owner sentinel), never a locally-owned entity seen via DDS loopback.
+                if ((master.Flags & (ulong)EntityMasterFlags.WaitForAcks) != 0
+                    && !view.HasComponent<ReportLifecycleOnActive>(entity))
+                {
+                    cmd.AddComponent(entity, new ReportLifecycleOnActive());
+                }
             }
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.

@@ -642,12 +642,12 @@ file sealed class StubActionSchemaExporter : IActionSchemaExporter
     public ActionSchemaEntry? Lookup(string fqn)
     {
         if (!_entries.TryGetValue(fqn, out var access)) return null;
-        return new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, access, null);
+        return new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, access);
     }
 
     public IReadOnlyDictionary<string, ActionSchemaEntry> All => 
         _entries.ToDictionary(kv => kv.Key, kv => 
-            new ActionSchemaEntry(kv.Key, typeof(float), ActionHosting.Hsm, kv.Value, null));
+            new ActionSchemaEntry(kv.Key, typeof(float), ActionHosting.Hsm, kv.Value));
 
     public void Rebuild() { }
     public event Action? Changed { add { } remove { } }

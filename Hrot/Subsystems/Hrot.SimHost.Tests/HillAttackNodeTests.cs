@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Fbt;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
@@ -40,16 +41,6 @@ namespace Hrot.SimHost.Tests
 
         private static void DisposeEqsSingletons(EntityRepository world)
         {
-            if (world.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var batch = ref world.GetSingleton<AreaQueryBatchData>();
-                if (batch.Results.IsCreated) batch.Results.Dispose();
-            }
-            if (world.HasSingleton<EqsTargetPool>())
-            {
-                var pool = world.GetSingleton<EqsTargetPool>();
-                if (pool.Targets.IsCreated) pool.Targets.Dispose();
-            }
             if (world.HasSingleton<EqsResultPool>())
             {
                 var rp = world.GetSingleton<EqsResultPool>();
@@ -63,12 +54,21 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(repo);
+            // ⭐⭐⭐ CE-259bf slice 3b (2026-09-12): this fixture exercises BRAIN-TIER nodes — AimAndFire
+            //   writes a WeaponChannel, the wave dispatcher reads cognitive state — and it used to obtain
+            //   that tier IMPLICITLY, because SimHostComponentRegistry registered the whole brain.
+            //   🔒 User ruling: "Simhost has no ai(brain). So it does not need [them]" ⇒ SimHost no longer
+            //   does, and this fixture must declare the dependency its SUBJECT actually has.
+            // ⚠ This is the debt becoming visible, not a workaround: a test of brain behaviour needs a
+            //   world with a brain in it, and it was only ever green because a Muscle node carried one.
+            CognitiveComponentRegistry.RegisterAll(repo);
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>();
+            // ⭐⭐ B4: register from the LADDER, never a hand-list. 🔴 This WAS three explicit calls and
+            //   did not know about the 256 tier, so the smallest tier — which is what a params-only
+            //   behaviour selects — was silently unregistered and provisioning skipped it.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(repo);
             return repo;
         }
 
@@ -79,22 +79,33 @@ namespace Hrot.SimHost.Tests
         {
             var roster = new UnitRoster { Count = subs.Length };
             for (int i = 0; i < subs.Length; i++)
-                roster.SubordinateEntities[i] = (long)subs[i].PackedValue;
+                roster.SubordinateEntities[i] = subs[i];
             repo.AddComponent(commander, roster);
         }
 
         // ── Helper: get mutable hill attack state ─────────────────────────────────
 
         // These are direct node-logic UNIT tests: they invoke the node methods with an explicit
-        // `ref HillAttackMutableState`, so a Blackboard1024 component is used purely as a convenient
-        // per-entity scratch buffer for that ref. This is NOT the production working-state path — in
-        // production (and in T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped
-        // BlueprintBlackboard* partition slot; the Blackboard1024 + Unsafe.As hack was removed from the
-        // node bodies in S3-G.
-        private static ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
+        // `ref HillAttackMutableState`, so this is purely a convenient per-entity scratch buffer for
+        // that ref. This is NOT the production working-state path — in production (and in
+        // T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped BlueprintBlackboard*
+        // partition slot; the Blackboard1024 + Unsafe.As hack was removed from the node bodies in S3-G.
+        //
+        // ⭐⭐ P4-① (2026-09-22): the scratch buffer no longer BORROWS AN ECS COMPONENT for the job.
+        //    It used to `Unsafe.As` a Blackboard1024 into HillAttackMutableState — harmless in intent
+        //    (the comment above always said so) but it made these unit tests depend on a component
+        //    production had already stopped provisioning, which is the exact shape CE-310 and CE-311
+        //    turned out to be. ⛔ A plain per-instance cell cannot be mistaken for a storage path.
+        // ⚠ Per-INSTANCE, not static: xUnit gives each test its own class instance, so this cannot
+        //   leak state between tests the way a static dictionary keyed on a reused entity id would.
+        private readonly Dictionary<ulong, HillAttackMutableState[]> _scratchState = new();
+
+        private ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
         {
-            ref var heavy = ref repo.GetComponentRW<Blackboard1024>(entity);
-            return ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavy);
+            _ = repo;   // kept in the signature so every call site reads the same as before
+            if (!_scratchState.TryGetValue(entity.PackedValue, out var cell))
+                _scratchState[entity.PackedValue] = cell = new HillAttackMutableState[1];
+            return ref cell[0];
         }
 
         // ── Corrective-1: SC-HA007 — Condition_HasTarget ─────────────────────────
@@ -395,6 +406,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐ CE-466: a KNOCKED-OUT target (<c>Health.Current == 0</c>, body still in the world) ends the engagement —
+        /// the sibling of SC-HA008-3b, which covers a destroyed one. ⛔ Before CE-466 the tank kept firing at a wreck.
+        /// </summary>
+        [Fact]
+        public void CE466_AimAndFireSpecific_ReturnsSuccess_WhenTargetKnockedOut()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var tank   = repo.CreateEntity();
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+
+            var netMap = new NetworkEntityMap();
+            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
+            netMap.Register(11L, target);
+            repo.AddComponent(tank, new WeaponChannel());
+
+            var p     = new HullDownAttackParams { TargetNetworkId = 11L };
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = tank, World = repo };
+
+            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
+        }
+
         // ── Corrective-1: SC-HA008 — Action_ReverseToBaseline ────────────────────
 
         /// <summary>SC-HA008-4: Action_ReverseToBaseline writes destination matching
@@ -419,6 +459,79 @@ namespace Hrot.SimHost.Tests
                 written = *(MoveToParams*)p2;
             Assert.Equal(10f, written.Destination.X, 0.001f);
             Assert.Equal(20f, written.Destination.Y, 0.001f);
+        }
+
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>CE-304</c> — the ADDRESSING twin of <c>SC-HA008-4</c> above, and the rail whose
+        /// absence let <c>P3-C</c> ship a live regression through four green suites.</b>
+        ///
+        /// <para>⛔⛔ <b>What every other tank rail does NOT test.</b> They call
+        /// <c>Action_ReverseToBaseline(ref p, …)</c> with a HAND-BUILT <c>p</c>, so they exercise the
+        /// node BODY and say nothing about where the runtime FINDS those bytes. ⇒ when <c>P3-C</c>
+        /// moved the params home out of <c>BrainBlackboard</c> and left
+        /// <c>BTreeActionGenerator</c>'s 3-param bridge arm reading the (now never-written) component,
+        /// 2303 + 4017 + 420 + 299 tests stayed green while the product wrote a ZERO destination into
+        /// <c>LocomotionChannel</c> and no tank ever returned to its baseline.</para>
+        ///
+        /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
+        /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
+        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref byte</c> the
+        /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
+        /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
+        ///
+        /// <para>📐 Red-proof: restore <c>BTreeActionGenerator.cs:655</c> to
+        /// <c>Unsafe.As&lt;TBlackboard, TValue&gt;(ref bb)</c> ⇒ <c>Destination</c> is <c>(0, 0)</c>.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot()
+        {
+            using var repo = CreateWorld();
+            repo.SetSingletonManaged<NetworkEntityMap>(new NetworkEntityMap());
+
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new BehaviorIngressSystem(registry);
+
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new BehaviorState());
+            RootStateAccess.EnsureRootState(repo, tank);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            repo.AddComponent(tank, new LocomotionChannel());
+
+            // The exact shape Action_DispatchWaveWithTargets publishes.
+            string json = JsonSerializer.Serialize(
+                new HullDownAttackParams { BaselineX = 523f, BaselineY = 401f },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = tank,
+                BehaviorName = BehaviorNames.HullDownAttackRun,
+                JsonParams   = json,
+            });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+
+            // The thunk exactly as the Interpreter resolves it — key, delegate and all.
+            var actions = new ActionRegistry<byte, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actions);
+            Assert.True(actions.TryGetAction(
+                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
+                out var thunk));
+
+            // BTreeTickSystem:123 — the kernel is handed the entity's live BrainBlackboard component.
+            ref byte bb    = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(repo, tank);
+            var     state = new BehaviorTreeState();
+            var     ctx   = new BTreeContext { Self = tank, World = repo };
+
+            thunk(ref bb, ref state, ref ctx, 0);
+
+            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
+            MoveToParams written;
+            fixed (byte* raw = loco.Params)
+                written = *(MoveToParams*)raw;
+
+            Assert.Equal(523f, written.Destination.X, 0.001f);
+            Assert.Equal(401f, written.Destination.Y, 0.001f);
         }
 
         /// <summary>SC-HA008-5: Action_ReverseToBaseline returns Success when
@@ -496,7 +609,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -524,7 +636,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -548,7 +659,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -573,7 +683,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[4];
             for (int i = 0; i < 4; i++)
@@ -615,7 +724,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -640,7 +748,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -664,7 +771,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var aliveSub = repo.CreateEntity();
             var deadSub  = repo.CreateEntity();
@@ -685,208 +791,159 @@ namespace Hrot.SimHost.Tests
         }
 
         // ── TASK-HA011: SC-HA011-1 through SC-HA011-5 ────────────────────────────
+        // ⭐ EQS 1.3 (DESIGN_Hill_Attack_Eqs_Migration.md §3.2): the area query is the commander's EQS child sensor.
+        //    These rails drive the nodes against a REAL sensor entity and its EqsCognitiveBuffer — the component
+        //    EqsResultUpdateSystem writes — instead of the retired AreaQueryBatchHelper ring.
 
-        /// <summary>SC-HA011-1: Action_RequestAreaQuery sets CachedEqsRequestId to a valid
-        /// (>= 0) value on first call when batch is not full.</summary>
+        /// <summary>A live area sensor under <paramref name="commander"/>; <paramref name="targets"/> == null ⇒ not answered yet.</summary>
+        private static Entity AreaSensor(EntityRepository repo, Entity commander, Entity area, params Entity[]? targets)
+        {
+            var sensor = repo.CreateEntity();
+            repo.AddComponent(sensor, new PartMetadata { ParentEntity = commander, InstanceId = 1 });
+            // CE-485: the commander finds its sensor by the owner stamp (site), not by the part id.
+            repo.AddComponent(sensor, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { SiteId = HillAttackCommanderNodes.AreaSensorInstanceId });
+            repo.AddComponent(sensor, HillAttackCommanderNodes.AreaSensor(area));
+            var buffer = new EqsCognitiveBuffer();
+            if (targets != null)
+            {
+                buffer.Count = targets.Length;
+                buffer.LastUpdateTick = 1u;
+                var span = buffer.GetSpanRW();
+                for (int i = 0; i < targets.Length; i++) span[i] = new EqsResult { EntityId = (long)targets[i].PackedValue };
+            }
+            repo.AddComponent(sensor, buffer);
+            return sensor;
+        }
+
+        private static void Playback(EntityRepository repo)
+            => ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetCommandBuffer()).Playback(repo);
+
+        /// <summary>SC-HA011-1: the first ask CREATES the sensor — the creation is the question (Success; ⭐ CE-485: on the live
+        /// world it exists at once, so it is cached immediately, epoch counter 1); then it is awaited (Running). The NEXT wave's
+        /// ask refreshes it: a new epoch, the old answer cleared.</summary>
         [Fact]
-        public void SC_HA011_1_RequestAreaQuery_SetsCachedRequestId_OnFirstCall()
+        public void SC_HA011_1_RequestAreaQuery_CreatesTheSensor_ThenRefreshesItPerWave()
         {
             using var repo = CreateWorld();
-
-            var commander = repo.CreateEntity();
+            var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.CachedEqsRequestId = -1;
-
             var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                var result = HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            var sensor = EqsChildSensor.Find(repo, commander, HillAttackCommanderNodes.AreaSensorInstanceId);
+            Assert.False(sensor.IsNull);
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);   // created at once — no placeholder
+            ref readonly var cfg = ref repo.GetComponentRO<EqsSensor>(sensor);
+            Assert.Equal(1u, cfg.Epoch & 0xFFFFu);                           // asked once; no run owns a bare commander
+            Assert.Equal(areaEntity, cfg.ContextSlot1);
+            Assert.Equal(1u << (int)ForceId.Hostile, cfg.FactionFilter);
 
-                Assert.Equal(NodeStatus.Success, result);
-                Assert.True(s.CachedEqsRequestId >= 0,
-                    $"Expected CachedEqsRequestId >= 0, got {s.CachedEqsRequestId}");
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            // in flight: found, cached, not yet answered
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+
+            // answered, consumed by the dispatch (-1) ⇒ the next ask refreshes the same sensor
+            repo.GetComponentRW<EqsCognitiveBuffer>(sensor).LastUpdateTick = 7u;
+            s.CachedEqsRequestId = -1;
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+            Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(sensor).Epoch & 0xFFFFu);
+            Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no older answer counts
         }
 
-        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running when a request is
-        /// already in-flight (CachedEqsRequestId set and result is not yet ready).</summary>
+        /// <summary>The commander asks the template the Muscle registers: its AssetId is the backend's
+        /// <c>EntitiesOfForceInArea.AssetId</c> (a cross-host identity, like a wire id), and its BlueprintId the registry's.</summary>
+        [Fact]
+        public void EQS_AreaSensor_AsksTheEntitiesOfForceInAreaTemplate()
+        {
+            Assert.Equal(Hrot.SimHost.Systems.EntitiesOfForceInArea.AssetId, HillAttackCommanderNodes.AreaTemplateAssetId);
+            var cfg = HillAttackCommanderNodes.AreaSensor(Entity.Null);
+            Assert.Equal(EqsTemplateRegistry.BlueprintIdOf(new Guid(Hrot.SimHost.Systems.EntitiesOfForceInArea.AssetId)), cfg.BlueprintId);
+            Assert.True(EqsTemplateRegistry.Discover(new[] { typeof(Hrot.SimHost.Systems.EntitiesOfForceInArea).Assembly })
+                .TryGetTemplate(cfg.BlueprintId, out _), "the Muscle's registry must resolve the commander's BlueprintId");
+        }
+
+        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running while the question in flight is unanswered.</summary>
         [Fact]
         public void SC_HA011_2_RequestAreaQuery_ReturnsRunning_WhenRequestInFlight()
         {
             using var repo = CreateWorld();
-
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
+            var sensor = AreaSensor(repo, commander, areaEntity, null);
 
             ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                // Submit an initial request to place a valid ID in-flight.
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-                s.CachedEqsRequestId = requestId;
-
-                // The result ring-buffer slot is primed with IsReady == false by RequestAreaQuery.
-                var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Running, result);
-                Assert.Equal(requestId, s.CachedEqsRequestId);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
         }
 
-        /// <summary>SC-HA011-3: Condition_IsAreaQueryResolved returns Running while
-        /// result IsReady == false.</summary>
-        // STABILITY(Broken): Component type ID 117 not registered — missing AreaQuery component registration; investigate
-        [Trait("Stability", "Broken")]
+        /// <summary>SC-HA011-3: Condition_IsAreaQueryResolved returns Running while the sensor is not ready. (Was quarantined
+        /// as Broken on an unregistered AreaQuery component; the EQS path has no such component.)</summary>
         [Fact]
         public void SC_HA011_3_IsAreaQueryResolved_ReturnsRunning_WhenResultNotReady()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), null);
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                // Submit a request.
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                // Result is not yet marked as ready — should return Running.
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Running, result);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
         }
 
-        /// <summary>SC-HA011-4: Condition_IsAreaQueryResolved returns Failure and resets
-        /// CachedEqsRequestId = -1 when IsReady == true and TargetCount == 0.</summary>
+        /// <summary>SC-HA011-4: ready with 0 targets ⇒ Failure (area clear), CachedEqsRequestId = -1, the sensor destroyed.</summary>
         [Fact]
         public void SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity());
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                // Write the result to the correct ring-buffer slot (same XOR hash used by
-                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
-                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId   = requestId,
-                    IsReady     = true,
-                    TargetCount = 0,
-                    TargetGroupHandle = -1,
-                };
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Failure, result);
-                Assert.Equal(-1L, s.CachedEqsRequestId);
-                Assert.Equal(-1, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Failure, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(-1L, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.False(repo.IsAlive(sensor));
         }
 
-        /// <summary>SC-HA011-5: Condition_IsAreaQueryResolved returns Success when
-        /// IsReady == true and TargetCount > 0. CachedEqsRequestId is NOT cleared.</summary>
+        /// <summary>SC-HA011-5: ready with targets ⇒ Success; CachedEqsRequestId is NOT cleared (the dispatch reads the answer
+        /// from the same sensor), and the sensor lives on.</summary>
         [Fact]
         public void SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), repo.CreateEntity(), repo.CreateEntity());
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                // Write the result to the correct ring-buffer slot (same XOR hash used by
-                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
-                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId         = requestId,
-                    IsReady           = true,
-                    TargetCount       = 2,
-                    TargetGroupHandle = 0,
-                };
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Success, result);
-                // SC-HA011-5: CachedEqsRequestId must NOT be cleared on Success path.
-                Assert.Equal(requestId, s.CachedEqsRequestId);
-                Assert.Equal(0, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.True(repo.IsAlive(sensor));
         }
 
         // ── TASK-HA012: SC-HA012-1 through SC-HA012-8 ────────────────────────────
@@ -899,7 +956,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates. Their indices are assigned sequentially after commander.
             var subs = new Entity[4];
@@ -912,12 +968,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0;
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            // Set up a single target in pool.
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -953,7 +1004,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -965,11 +1015,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0;
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -1000,7 +1046,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1017,13 +1062,8 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots              = 4;
             s.CurrentWave             = 0;
             s.BurnedSlotsMask         = 0;
-            s.CachedTargetGroupHandle = 0;
-            s.CachedEqsRequestId      = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = (long)target1.PackedValue;
-            pool.Targets[1] = (long)target2.PackedValue;
-            // Targets[2] stays 0 => probe stops after 2.
+            // The area sensor answered two targets, in this order.
+            s.CachedEqsRequestId      = (long)AreaSensor(repo, commander, repo.CreateEntity(), target1, target2).PackedValue;
 
             var p = new PlatoonHillAttackParams
             {
@@ -1066,7 +1106,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.ActiveAttackerCount = 0;
@@ -1088,7 +1127,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Destroy the attacker so IsAlive == false.
@@ -1120,6 +1158,76 @@ namespace Hrot.SimHost.Tests
                 "Baseline slot 2 should be released");
         }
 
+        /// <summary>
+        /// ⭐ CE-466: an attacker KNOCKED OUT mid-wave (<c>Health.Current == 0</c>, body still in the world — the
+        /// engine's combat-death state since the CE-267 revert) burns its slot exactly like a destroyed one.
+        /// ⛔ Before CE-466 this was unreachable: the doctrine tested ECS existence, and a knocked-out tank exists.
+        /// </summary>
+        [Fact]
+        public void CE466_IsWaveCompleted_KnockedOutAttacker_BurnsSlotAndReturnsSuccess()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var commander = repo.CreateEntity();
+            var attacker = repo.CreateEntity();
+            repo.AddComponent(attacker, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            Assert.True(repo.IsAlive(attacker));   // the body still exists — this is the point
+
+            ref var s = ref GetHeavyState(repo, commander);
+            s.ActiveAttackerCount  = 1;
+            s.BurnedSlotsMask      = 0;
+            s.BaselineReservedMask = (ushort)(1 << 2);
+            unsafe
+            {
+                s.ActiveEntityPacked[0]      = (long)attacker.PackedValue;
+                s.ActiveSlotIndex[0]         = 1;
+                s.ReturnBaselineSlotIndex[0] = 2;
+                s.HasStartedRun[0]           = 1;
+            }
+
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
+
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
+            Assert.Equal(0, s.ActiveAttackerCount);
+            Assert.True((s.BurnedSlotsMask & (1 << 1)) != 0, "the knocked-out attacker's firing slot must be burned");
+            Assert.True((s.BaselineReservedMask & (1 << 2)) == 0, "its baseline slot must be released");
+        }
+
+        /// <summary>
+        /// ⭐ CE-466: a KNOCKED-OUT subordinate (<c>Health.Current == 0</c>, still in the world, never arriving) does
+        /// not block <c>Condition_AreAllAtBaseline</c> — the sibling of SC-HA010-7, which covers a destroyed one.
+        /// </summary>
+        [Fact]
+        public void CE466_AreAllAtBaseline_KnockedOutSubordinateCountsAsArrived()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var commander  = repo.CreateEntity();
+            var aliveSub   = repo.CreateEntity();
+            var knockedOut = repo.CreateEntity();
+            repo.AddComponent(aliveSub, new NavigationStatus { Result = NavigationResult.Arrived });
+            repo.AddComponent(aliveSub, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            repo.AddComponent(knockedOut, new NavigationStatus { Result = NavigationResult.InProgress });
+            repo.AddComponent(knockedOut, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            AddRoster(repo, commander, new[] { aliveSub, knockedOut });
+
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
+
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
+        }
+
         /// <summary>SC-HA012-6: Condition_IsWaveCompleted does NOT remove an entry when
         /// HasStartedRun == 0, even if ActiveBehaviorHash differs from HullDownAttackRun.</summary>
         // STABILITY(Broken): IsWaveCompleted incorrectly removes entry when HasStartedRun==0; investigate
@@ -1130,7 +1238,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Attacker is alive but has a different behavior hash (intent still propagating).
@@ -1164,7 +1271,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // HullDownAttackRunBehaviorId == 3013.
@@ -1208,7 +1314,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates.
             var subs = new Entity[4];
@@ -1258,7 +1363,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1269,11 +1373,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0b0001;  // slot 0 burned
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -1300,29 +1400,27 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        /// <summary>SC-HA012-8: CachedTargetGroupHandle == -1 after DispatchWaveWithTargets.</summary>
+        /// <summary>SC-HA012-8: after DispatchWaveWithTargets the answer is consumed (CachedEqsRequestId == -1) and the area
+        /// sensor STAYS for the next wave's question (DESIGN_Hill_Attack_Eqs_Migration.md §4 D6). Was: the retired pool
+        /// handle CachedTargetGroupHandle cleared to -1.</summary>
         [Fact]
-        public void SC_HA012_8_DispatchWave_ClearsTargetGroupHandle_AfterDispatch()
+        public void SC_HA012_8_DispatchWave_ConsumesTheAnswer_AndKeepsTheSensor()
         {
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[2];
             for (int i = 0; i < 2; i++)
                 subs[i] = repo.CreateEntity();
             AddRoster(repo, commander, subs);
 
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), repo.CreateEntity());
             ref var s = ref GetHeavyState(repo, commander);
             s.TotalSlots              = 4;
             s.CurrentWave             = 0;
             s.BurnedSlotsMask         = 0;
-            s.CachedTargetGroupHandle = 0;
-            s.CachedEqsRequestId      = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId      = (long)sensor.PackedValue;
 
             var p = new PlatoonHillAttackParams
             {
@@ -1333,16 +1431,11 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
 
-                Assert.Equal(-1, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(-1L, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.True(repo.IsAlive(sensor));
         }
 
         // ── TASK-HA013: SC-HA013-1 through SC-HA013-3 ────────────────────────────
@@ -1371,11 +1464,16 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorConstants.BrainTierBTree, def.BrainTier);
             Assert.NotNull(def.BTreeInterpreter);
 
-            // S3-G: the Blackboard1024 HeavyDtoType hack is gone; working state is a partition slot.
+            // S3-G: the Blackboard1024 HeavyDtoType hack is gone.
             Assert.Null(def.HeavyDtoType);
-            Assert.NotNull(def.StatefulWorkingSlots);
-            Assert.Single(def.StatefulWorkingSlots);
-            Assert.Equal(typeof(HillAttackMutableState), def.StatefulWorkingSlots[0].WorkingStateType);
+            // ⭐⭐ CE-437: the working state lives in the behaviour's BLOCK (St.State), not in a
+            //   Behavior-scoped partition slot — one home. ⛔ This asserted a single side-slot entry.
+            //   ⚠ And the curated resolver overlay must NOT demote the block to its params type.
+            Assert.Equal("PlatoonHillAttack_Block", def.BlackboardLayoutType!.Name);
+            Assert.Equal(typeof(HillAttackMutableState),
+                def.BlackboardLayoutType.GetField("St")!.FieldType.GetField("State")!.FieldType);
+            Assert.DoesNotContain(def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>(),
+                s => s.WorkingStateType == typeof(HillAttackMutableState));
         }
 
         /// <summary>SC-HA013-3: Assigning PlatoonHillAttack via AssignBehaviorEvent updates
@@ -1392,7 +1490,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -1469,7 +1566,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1497,13 +1594,87 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
             // Approach vector (baseline -> firing line) is (0,-1); assert X==0 and |Y|==1.
             Assert.Equal(0f, result.AttackDirX, 0.001f);
             Assert.Equal(1f, Math.Abs(result.AttackDirY), 0.001f);
+        }
+
+        /// <summary>
+        /// <b>SC-HA016-2b: the case SC-HA016-2 cannot see — a baseline NOT centred opposite the
+        /// firing line.</b>
+        ///
+        /// <para>SC-HA016-2 uses a baseline parallel to the firing line and centred directly
+        /// behind it, and its own summary admits that there "this equals the firing-line
+        /// perpendicular". Both candidate definitions agree on that geometry, so it stayed green
+        /// while the code computed the wrong one for years.</para>
+        ///
+        /// <para>Here the baseline centre is offset ALONG the firing line, which separates them:
+        /// <list type="bullet">
+        ///   <item>firing line (0,0)→(100,0); its normal is (0,±1)</item>
+        ///   <item>baseline (-50,50)→(50,50); centre (0,50), i.e. behind and to the left</item>
+        ///   <item>perpendicular away from the baseline ⇒ <b>(0,-1)</b> ✅ what the tanks need</item>
+        ///   <item>normalize(firingCentre − baselineCentre) = normalize((50,-50)) ⇒
+        ///         <b>(0.707,-0.707)</b> ⛔ the old behaviour — a 45° skew</item>
+        /// </list>
+        /// The tanks creep along this vector and the overshoot guard projects onto it, so a
+        /// skewed direction walks them diagonally off the firing line instead of straight out
+        /// from it.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void SC_HA016_2b_AttackDir_IsTheFiringLineNormal_NotTheApproachVector()
+        {
+            // PickableGeoPoint is [latitude, longitude]; the Cartesian fallback maps X=lon, Y=lat.
+            const string json =
+                @"{""firingLineStart"":[0,0]," +      // (x=0,   y=0)
+                @"""firingLineEnd"":[0,100]," +       // (x=100, y=0)
+                @"""baselineStart"":[50,-50]," +      // (x=-50, y=50)
+                @"""baselineEnd"":[50,50]," +         // (x=50,  y=50)
+                @"""tankSpacing"":30}";
+
+            var result = new PlatoonHillAttackParams();
+            fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
+            {
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
+                result = *(PlatoonHillAttackParams*)ptr;
+            }
+
+            Assert.Equal(0f, result.AttackDirX, 0.001f);
+            Assert.Equal(-1f, result.AttackDirY, 0.001f);
+        }
+
+        /// <summary>
+        /// SC-HA016-2c: a degenerate firing line (start == end) has no tangent and therefore no
+        /// normal. Rather than emit a zero or NaN direction — which would make the creep
+        /// destination <c>currentPos + NaN * 10000</c> and the overshoot projection meaningless —
+        /// fall back to the baseline→firing approach vector, which at least points downrange.
+        /// </summary>
+        [Fact]
+        public unsafe void SC_HA016_2c_AttackDir_FallsBackToTheApproachVector_WhenTheFiringLineIsAPoint()
+        {
+            const string json =
+                @"{""firingLineStart"":[0,0]," +
+                @"""firingLineEnd"":[0,0]," +          // degenerate: same point
+                @"""baselineStart"":[50,0]," +
+                @"""baselineEnd"":[50,100]," +
+                @"""tankSpacing"":30}";
+
+            var result = new PlatoonHillAttackParams();
+            fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
+            {
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
+                result = *(PlatoonHillAttackParams*)ptr;
+            }
+
+            // firingCentre (0,0) − baselineCentre (50,50) = (-50,-50) ⇒ normalized (-0.707,-0.707).
+            float len = MathF.Sqrt(result.AttackDirX * result.AttackDirX
+                                 + result.AttackDirY * result.AttackDirY);
+            Assert.Equal(1f, len, 0.001f);
+            Assert.Equal(-0.7071f, result.AttackDirX, 0.001f);
+            Assert.Equal(-0.7071f, result.AttackDirY, 0.001f);
         }
 
         /// <summary>SC-HA016-3: Valid TargetAreaNetworkId that maps to a live entity =>
@@ -1530,7 +1701,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, entityMap);
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, entityMap);
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1557,7 +1728,7 @@ namespace Hrot.SimHost.Tests
             {
                 fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
                 {
-                    HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                    HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                     result = *(PlatoonHillAttackParams*)ptr;
                 }
             });
@@ -1614,7 +1785,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             // PickableGeoPoint uses [latitude, longitude]. FiringLineStart = lat 2, lon 7.
             const string json =
@@ -1633,10 +1803,11 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             ingress.Execute(repo, 0.016f);
 
-            ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(commander);
-            PlatoonHillAttackParams parms;
-            fixed (BrainBlackboard* bp = &bb)
-                parms = *(PlatoonHillAttackParams*)bp;
+            // 🔴 P3-C: ingress commits the parsed params into the ROOT PARAMS OCCURRENCE SLOT now,
+            //   not into BrainBlackboard. Same bytes at the same offset — only the anchor moved.
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRoot<PlatoonHillAttackParams>(
+                repo, commander, out PlatoonHillAttackParams* parmsPtr));
+            PlatoonHillAttackParams parms = *parmsPtr;
 
             // FiringLineStart lon=7 -> X = 7*1000 = 7000 (geo used), NOT 7 (null fallback).
             Assert.Equal(7000f, parms.StartX, 0.5f);

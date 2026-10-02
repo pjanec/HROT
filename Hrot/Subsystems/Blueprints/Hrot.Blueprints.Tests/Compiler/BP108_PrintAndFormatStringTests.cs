@@ -386,6 +386,8 @@ public sealed class BP108_PrintAndFormatStringTests
         // Is<Level>Enabled probe so a disabled level never constructs the interpolated string.
         Assert.Contains("IsInfoEnabled", src);
         Assert.Contains("BlueprintLog.Info(", src);
+        // ⭐ CE-468: culture-neutral — the message is built with the invariant culture.
+        Assert.Contains("String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"", src);
     }
 
     [Fact]
@@ -401,5 +403,7 @@ public sealed class BP108_PrintAndFormatStringTests
         Assert.Contains("stackalloc char[", src);
         Assert.Contains(".TryWrite(", src);
         Assert.Contains("Fdp.Core.FixedString32(", src);
+        // ⭐ CE-468: culture-neutral — the provider overload of TryWrite, invariant culture.
+        Assert.Contains(".TryWrite(global::System.Globalization.CultureInfo.InvariantCulture, $\"", src);
     }
 }

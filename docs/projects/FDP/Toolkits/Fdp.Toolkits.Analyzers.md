@@ -23,7 +23,7 @@ The project contains **two pure diagnostic analyzers** and **six source generato
 
 | Component                    | Kind                   | Primary concern                                          |
 |------------------------------|------------------------|----------------------------------------------------------|
-| `BehaviorParameterSizeAnalyzer` | DiagnosticAnalyzer  | Memory-safety: DTO size <= 100 bytes in BrainBlackboard  |
+| `BehaviorParameterSizeAnalyzer` | DiagnosticAnalyzer  | `FDP_001` — a root params DTO must fit the largest occurrence tier's payload |
 | `BTreeActionGenerator`       | IIncrementalGenerator  | Emit `FbtActionRegistrar.g.cs` for BTree action dispatch |
 | `BTreeDefinitionGenerator`   | IIncrementalGenerator  | Emit `FbtTreeCatalog.g.cs` for named tree catalog        |
 | `HsmActionGenerator`         | IIncrementalGenerator  | Emit `HsmActionDispatcher/Registrar.g.cs` for HSM        |
@@ -34,11 +34,20 @@ The project contains **two pure diagnostic analyzers** and **six source generato
 
 ### Why these rules matter
 
-**BrainBlackboard layout** is a fixed 128-byte unmanaged struct partitioned into three
-adjacent regions: `BehaviorParameters` (100 bytes), `SoftAdvice`, and `Interrupt`.  Any DTO
-written into the `BehaviorParameters` region that is larger than 100 bytes silently overwrites
-the `SoftAdvice` and `Interrupt` registers, causing non-obvious runtime bugs that would be
-extremely difficult to diagnose without the compile-time enforcement provided by `FDP_001`.
+**Behaviour params and working state live in occurrence slots**, inside whichever tier
+component (`BlueprintBlackboard256/1024/4096/16384`) the entity's partition allocator chose
+for it. A DTO too large for its tier's remaining payload fails **at attach time**, loudly, in
+`BehaviorIngressSystem` — there is no fixed-size adjacent region for it to silently overflow
+into, and the real ceiling is the largest tier's payload, **16 096 bytes**.
+
+⭐ **`BehaviorParameterSizeAnalyzer` enforces exactly that ceiling** (`FDP_001`), mirroring
+`BehaviorConstants.MaxRootParamsByteSize` — itself `BlueprintTierLadder.Tier16384PayloadSize` — in
+its own `private const MaxRootParamsByteSize = 16096`. `CE-307` (`2026-09-22`) converted it from a
+100-byte **corruption guard** into a **capacity bound**: params used to sit inline in a fixed-layout
+struct with neighbours after them, so an overrun silently overwrote unrelated state. They now land in
+an occurrence slot sized to fit, promoted up the ladder, with `TryAttach` failing structurally — no
+neighbours, nothing to corrupt. What remains is worth refusing at build time only because no tier
+could store such a region at all.
 
 The source generators eliminate a class of maintenance problems:
 
@@ -126,31 +135,34 @@ SyntaxProvider.CreateSyntaxProvider
 |  [HsmAction]   methods    +---->+  HsmActionGenerator        +---->+  HsmActionRegistrar.g.cs      |
 |  [BTreeDefinition] methods+---->+  BTreeDefinitionGenerator  +---->+  FbtTreeCatalog.g.cs          |
 |  [GizmoProjector] classes +---->+  GizmoRegistrarGenerator   +---->+  *_GizmoRegistrar.g.cs        |
-|  [SharedAiAction] methods +---->+  BehaviorParameterSize     +---->+  FDP_001 error if DTO         |
-|                           |     |    Analyzer                |     |  exceeds 100 bytes            |
 |  [UtilityInput]   methods +---->+  UtilityInputGenerator     +---->+  UtilityInputRegistrar.g.cs   |
 |  [UtilityDecision] classes+---->+  UtilityDecisionGenerator  +---->+  UtilityDecisionCatalog.g.cs  |
 |  Consider(...) call sites +---->+  UtilityAuthoringAnalyzer  +---->+  UT#### errors/warnings       |
 +---------------------------+     +----------------------------+     +-------------------------------+
 ```
 
-### Diagram 2: BrainBlackboard memory layout enforced by FDP_001
+### Diagram 2: occurrence-slot layout, enforced structurally by the partition allocator
 
 ```
-+----------------------------------------------+  offset 0
-|  BehaviorParameters  (100 bytes)             |
++----------------------------------------------+  slot table walk
+|  BlueprintBlackboard{256,1024,4096,16384}    |
+|                                              |
+|  root-params slot (OccurrenceSlotKey.        |
+|    ComputeRootParamsKey(ActiveBehaviorHash)) |
 |                                              |
 |  [SharedAiAction(typeof(MyDto), "Field")]    |
-|  MyDto must fit entirely inside this region  |
-+----------------------------------------------+  offset 100
-|  SoftAdvice  (N bytes)                       |
+|  MyDto must fit the tier's remaining payload |
+|  (176 / 800 / 3 808 / 16 096 bytes)          |
 +----------------------------------------------+
-|  Interrupt   (N bytes)                       |
-+----------------------------------------------+  offset 128
+|  node working-state slots                    |
+|  ({fqn}@{offset}@{slotKey}, one per stateful  |
+|  node)                                       |
++----------------------------------------------+
 ```
 
-If `sizeof(MyDto) > 100` the `BehaviorParameterSizeAnalyzer` emits `FDP_001` (error) and the
-build fails, preventing the struct from overflowing into the adjacent regions.
+If `sizeof(MyDto)` will not fit the entity's tier, `TryAttach` fails at attach time in
+`BehaviorIngressSystem`, loudly — there is no fixed byte budget or adjacent region for it
+to silently overflow into.
 
 ### Diagram 3: BTreeActionGenerator -- from attribute to generated registrar
 
@@ -255,11 +267,14 @@ Fires on every method symbol.  For each `[SharedAiActionAttribute]` or
 1. Extracts the DTO type from the first constructor argument.
 2. Computes the unmanaged struct size by walking all instance fields, respecting both
    sequential layout (default) and `LayoutKind.Explicit` with `[FieldOffset]`.
-3. If the computed size exceeds `MaxBehaviorParamByteSize` (100), it reports `FDP_001`.
+3. If the computed size exceeds `MaxRootParamsByteSize` (16 096), it reports `FDP_001`.
 
 Size computation is intentionally duplicated from `BTreeActionGenerator` and `HsmActionGenerator`
 because the analyzer targets `netstandard2.0` and cannot reference the runtime assembly that
-defines `BehaviorConstants.MaxBehaviorParamByteSize`.
+defines `BehaviorConstants.MaxRootParamsByteSize` — so the two numbers are kept in agreement by
+`InlineBudgetConstantAgreementTests` rather than by a project reference. ⭐ Both resolve to
+`BlueprintTierLadder.Tier16384PayloadSize`, so re-picking the ladder moves the analyzer with it
+(see `docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.25).
 
 **Struct layout rules implemented**:
 - Sequential: fields are packed with natural alignment; total size rounded up to struct alignment.
@@ -325,12 +340,13 @@ Recognized attributes (all from `Fbt.Kernel` namespace):
 
 - **SharedAi**: attribute carries `(dtoType, fieldName)`.  Generator resolves the byte offset
   of `fieldName` inside `dtoType` at compile time, emits a lambda that projects
-  `bb.BehaviorParameters[offset]` as `ref fieldType` and calls the user method.
+  `ref bb` at `+offset` as `ref fieldType`, where `bb` is byte 0 of the root params occurrence
+  slot the tick system resolved, and calls the user method.
   Key: `"{FQN}@{offset}"`.
 
 - **SharedAiHeavy**: additionally fetches a second ECS component (`heavyCompType`).
-  Managed heavy components: fetched with `GetComponent<T>` (class reference).
-  Unmanaged heavy components: fetched with `GetComponentRW<T>` then reinterpreted with
+  Managed extra components: fetched with `GetComponent<T>` (class reference).
+  Unmanaged extra components: fetched with `GetComponentRW<T>` then reinterpreted with
   `Unsafe.As` to `heavyDtoType`.
 
 Filtering:
@@ -457,7 +473,6 @@ Per-entity gizmos are registered via `statelessRegistry.Register(..., new Type[]
 
 | ID        | Severity | Category          | Title                                                                 |
 |-----------|----------|-------------------|-----------------------------------------------------------------------|
-| FDP_001   | Error    | Fdp.Memory        | Behavior parameter DTO exceeds BrainBlackboard capacity               |
 | FDP_002   | Warning  | Fdp.Gizmos        | GizmoProjector class must implement IStatelessGizmo or IGlobalStatelessGizmo |
 | BHU_001   | Error    | BTreeActionGenerator | SharedAi parameter type mismatch                                   |
 | BHU_002   | Warning  | BTreeActionGenerator | SharedAi method must be static                                     |
@@ -465,14 +480,6 @@ Per-entity gizmos are registered via `statelessRegistry.Register(..., new Type[]
 | BHU_016   | Error    | BTreeActionGenerator | BTreeDeactivator missing or empty TargetAction argument            |
 | BHU_017   | Warning  | BTreeActionGenerator | BTreeDeactivator TargetAction does not match any action in this compilation |
 | BTree002  | Warning  | BTreeSourceGen    | Invalid BTreeDefinition method                                        |
-
-### FDP_001 -- message format
-
-```
-Method '{methodName}': DTO type '{dtoTypeName}' requires {actualBytes} bytes,
-exceeding the {maxBytes}-byte BehaviorParameters region. This would corrupt the
-SoftAdvice and Interrupt registers in BrainBlackboard.
-```
 
 ### BHU_001 -- message format
 
@@ -553,7 +560,7 @@ None.  The project is intentionally self-contained.  It must not reference any F
 assembly (which targets `net8.0`) because the analyzer runs inside the Roslyn compiler host,
 which may use a different runtime.
 
-This is why `MaxBehaviorParamByteSize` (100) and the struct-layout math are duplicated inside
+This is why `MaxRootParamsByteSize` (16 096) and the struct-layout math are duplicated inside
 the analyzer rather than pulled from `Fdp.Toolkits`.
 
 ### Target framework
@@ -580,27 +587,27 @@ source while the output assembly remains `netstandard2.0`-compatible.
 **Before (compile error)**:
 
 ```csharp
-// MyDto is 104 bytes - exceeds the 100-byte BehaviorParameters limit
+// MyDto is 16 200 bytes - wider than any occurrence tier's payload (16 096 B)
 [StructLayout(LayoutKind.Sequential)]
 public struct MyDto
 {
     public float X;     // 4 bytes
     public float Y;     // 4 bytes
-    public float Z;     // 4 bytes
-    // ...24 more floats... (96 bytes total)
-    public float Extra; // 4 bytes -> total 104 bytes
+    // ...a fixed buffer of 4 048 floats... (16 192 bytes total)
 }
 
 public static class MyActions
 {
-    // FDP_001 error: MyDto requires 104 bytes, exceeds 100-byte region
+    // FDP_001 error: MyDto requires 16200 bytes, exceeding 16096 - the payload of the
+    //            largest occurrence storage tier. No tier can hold a root params region this wide.
     [SharedAiAction(typeof(MyDto), "X")]
     public static NodeStatus SetX(ref float x, Entity self, EntityRepository repo)
         => NodeStatus.Success;
 }
 ```
 
-**Fix -- reduce DTO size to <= 100 bytes**:
+**Fix -- keep the region within a tier's payload (<= 16 096 bytes)**, or move the bulk into its own
+ECS component with its own lifecycle:
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
@@ -609,7 +616,7 @@ public struct MyDto
     public float X;
     public float Y;
     public float Z;
-    // ... keep total <= 100 bytes
+    // ... keep total <= 16 096 bytes
 }
 ```
 
@@ -777,9 +784,10 @@ BehaviorTreeBlob patrolBlob = MyAssembly.Generated.FbtTreeCatalog.GetPatrol();
 
 ## Best Practices
 
-1. **Keep DTOs small**.  The 100-byte hard limit is derived from the physical memory layout of
-   `BrainBlackboard`.  If you need more state, add a separate ECS component and use a
-   `[SharedAiHeavyAction]` or `[SharedAiHeavyCondition]` attribute instead.
+1. **Keep DTOs reasonably small, but do not hand-split them.**  There is no separate "heavy"
+   path: a params or working-state DTO that needs more room simply lands on a larger tier in
+   the occurrence-slot ladder (up to 16 096 bytes on `BlueprintBlackboard16384`) — the
+   partition allocator promotes it automatically.
 
 2. **Always mark SharedAi methods as static**.  The generator will issue BHU_002 and skip
    non-static methods.  Non-static shared AI methods cannot be wired into the generated
@@ -814,8 +822,10 @@ BehaviorTreeBlob patrolBlob = MyAssembly.Generated.FbtTreeCatalog.GetPatrol();
    by multiple generators.  Duplicating a `DiagnosticDescriptor` with the same ID across
    classes triggers RS1019.
 
-10. **Do not suppress FDP_001 without a code review**.  This diagnostic exists to prevent
-    silent memory corruption.  Any suppression must be reviewed and justified in a comment.
+10. **Do not suppress FDP_001 without a code review**.  It is the only compile-time guard that a
+    root params DTO can be stored at all (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md`
+    §30.25); suppressing it moves the failure to attach time.  Any suppression must be reviewed
+    and justified in a comment.
 
 ---
 
@@ -823,7 +833,7 @@ BehaviorTreeBlob patrolBlob = MyAssembly.Generated.FbtTreeCatalog.GetPatrol();
 
 | Project                          | Relationship                                                             |
 |----------------------------------|--------------------------------------------------------------------------|
-| `Fdp.Toolkits`                   | Runtime counterpart.  Defines `BehaviorConstants.MaxBehaviorParamByteSize`, `BrainBlackboard`, `SharedAiActionAttribute`, `SharedAiConditionAttribute`, and the channel component types the generators reference. |
+| `Fdp.Toolkits`                   | Runtime counterpart.  Defines `RootParamsAccess`, `SharedAiActionAttribute`, `SharedAiConditionAttribute`, and the channel component types the generators reference. |
 | `Fdp.Toolkit.Tkb.SourceGen`      | Sibling source generator project targeting TKB (Toolkit Blackboard) layer; different domain but similar pattern. |
 | `FDP.Toolkit.DER`                | Uses the generated registrars from this project's output for DER entity AI behavior. |
 | `FastBTree` (ExtDeps)            | Defines `IIncrementalGenerator` entry points consumed by `BTreeActionGenerator`; provides `BehaviorTreeBlob`, `BTreeBuilder<TBB,TCtx>`, and the action attribute types. |

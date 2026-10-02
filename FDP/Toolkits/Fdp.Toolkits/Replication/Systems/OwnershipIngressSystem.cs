@@ -82,6 +82,32 @@ namespace Fdp.Toolkit.Replication.Systems
                 // No fallback try/catch — the map is the source of truth.
                 // If the map has no entry, the AuthorityMask is not touched (safe default).
 
+                // ── 2b. Primary-owner mirror (BDC compliance, OQ12 / CE-275 ④) ──────
+                // When the transferred descriptor is the one that DEFINES entity / primary
+                // (save) ownership — the NED EntityMaster, injected network-agnostically as an
+                // ordinal via DescriptorOwnershipMap so this toolkit never names it — mirror the
+                // new owner into NetworkAuthority.PrimaryOwnerId. The save gate and every
+                // entity-level HasAuthority check read that field, so an externally-originated
+                // EntityMaster OwnershipUpdate lands the entity's save-ownership on the new owner
+                // with no code above the NED boundary needing to know a transfer happened.
+                // Written UNCONDITIONALLY (no isAuth guard): both the gaining and the losing node
+                // record the same PrimaryOwnerId, each deriving HasAuthority locally from
+                // PrimaryOwnerId == LocalNodeId (gaining ⇒ true, losing ⇒ false).
+                // 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
+                if (_descriptorMap?.PrimaryOwnerDescriptorOrdinal is long masterOrdinal &&
+                    masterOrdinal == typeId)
+                {
+                    if (repo.HasComponent<NetworkAuthority>(entity))
+                    {
+                        int existingLocal = repo.GetComponentRO<NetworkAuthority>(entity).LocalNodeId;
+                        repo.SetComponent(entity, new NetworkAuthority(update.NewOwnerNodeId, existingLocal));
+                    }
+                    else
+                    {
+                        repo.AddComponent(entity, new NetworkAuthority(update.NewOwnerNodeId, localNodeId));
+                    }
+                }
+
                 if (isAuth)
                 {
                     repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged

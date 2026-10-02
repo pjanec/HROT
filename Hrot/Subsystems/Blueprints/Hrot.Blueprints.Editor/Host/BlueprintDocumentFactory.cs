@@ -101,6 +101,10 @@ public static class BlueprintDocumentFactory
     ///   pausing pulse automatically. When null, all debug features are inactive with
     ///   zero per-frame cost.
     /// </param>
+    /// <param name="attachmentProviders">
+    ///   The canvas pill providers (<see cref="BlueprintEditorBootstrap.CreateAttachmentProviders"/>),
+    ///   handed to <see cref="BlueprintGraphModel"/>. When null, no pills render.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -117,7 +121,8 @@ public static class BlueprintDocumentFactory
         IChannelCommandCatalog? channelCommands = null,
         BlueprintPeerSource?    peerAssetCatalog = null,
         ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
-        IBlueprintDebugSession? debugSession    = null)
+        IBlueprintDebugSession? debugSession    = null,
+        IReadOnlyList<IAttachmentProvider>? attachmentProviders = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -173,7 +178,7 @@ public static class BlueprintDocumentFactory
         IPinDefaultValueEditorRegistry editorRegistry =
             new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
-            editorRegistry, enumProvider, behaviorActions);
+            editorRegistry, enumProvider, behaviorActions, attachmentProviders);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(editorRegistry);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
@@ -1663,6 +1668,47 @@ public static class BlueprintDocumentFactory
     /// <c>System.Boolean</c> type (the user can retype it in the Variables panel).
     /// <para>Exposed <c>internal</c> so tests can verify the create path without ImGui.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — <c>editor.toggle-variable-watch</c>, which nothing registered.</b>
+    ///
+    /// <para>🔴 <c>BP-360</c>: <c>MyBlueprintContextMenu</c> has drawn <i>"Watch this variable"</i> since
+    /// Batch 94 and enabled it on <c>commands.Get(id) is not null</c> — 📐 and the only other mention of
+    /// that id in the repo was a test asserting the constant. ⇒ the entry was permanently greyed, so
+    /// Batch 94's <i>"ONE command, TWO entry points"</i> shipped with one.</para>
+    ///
+    /// <para>⭐ <b>The id is <c>VariableWatchGesture.CommandId</c>'s value, restated as a literal</b> —
+    /// exactly as <c>MyBlueprintContextMenu</c> does and for the same reason: 📌 <i>"kept as a literal so
+    /// this panel gains no dependency on the editor's variable assembly."</i> ⚠ A rail asserts the three
+    /// spellings agree, so a drift is caught rather than silently disabling the entry again.</para>
+    ///
+    /// <para>⛔ <b>The handler OWNS its refusal.</b> 📌 <c>Q26-B2</c>: a gesture that cannot proceed must
+    /// SAY so. ⚠ <c>CommandRegistration.Add</c> takes an <c>Action</c>, so there is no result channel
+    /// here — ⭐ the caller reports through its own indicator rather than returning a boolean this
+    /// method would have to discard.</para>
+    /// </summary>
+    public static void RegisterToggleVariableWatchCommand(
+        EditorCommandsImpl commands,
+        Action<string>     toggle)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(toggle);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            "editor.toggle-variable-watch",
+            "Watch this variable", "Debug",
+            ctx =>
+            {
+                // ⚠ EditorCommandContext is a non-nullable struct here, so Args is read directly.
+                var itemId = ctx.Args is { } args && args.TryGetValue("itemId", out var v)
+                    ? v as string
+                    : null;
+                // ⛔ A missing itemId is not this method's to explain — the handler reports.
+                if (itemId is not null) toggle(itemId);
+            },
+            description: "Pin or unpin this variable in the Watch panel.");
+    }
+
     internal static void RegisterCreateVariableCommand(
         EditorCommandsImpl commands,
         BlueprintAsset     asset,

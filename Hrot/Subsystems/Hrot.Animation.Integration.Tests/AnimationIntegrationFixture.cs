@@ -11,6 +11,7 @@ using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Events;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Systems;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Integration.Tests;
 

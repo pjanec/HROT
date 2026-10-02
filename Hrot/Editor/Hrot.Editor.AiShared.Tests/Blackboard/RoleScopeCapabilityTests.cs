@@ -42,6 +42,23 @@ public sealed class RoleScopeCapabilityTests
         public void RemoveVariable(string name) { }
         public void RemoveVariables(IReadOnlyList<string> names) { }
         public void RenameVariable(string oldName, string newName) { }
+        // ⭐ 98a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double must
+        //   answer. ⚠ These doubles do not exercise the write, so they RECORD rather than no-op —
+        //   a silent { } here would be the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, string? Json)> DefaultWrites { get; } = new();
+        public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+            => DefaultWrites.Add((name, defaultValueJson));
+        // ⭐ 99a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double answers.
+        //   ⚠ These doubles do not exercise the Properties form, so they RECORD rather than no-op —
+        //   a silent { } here is the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, Hrot.Editor.AiShared.Variables.VariablePropertyValues Values)> PropertyWrites { get; } = new();
+        public void UpdateVariableProperties(
+            string name, Hrot.Editor.AiShared.Variables.VariablePropertyValues values)
+            => PropertyWrites.Add((name, values));
+        public Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name)
+            => null;
         public void MoveVariable(int sourceIndex, int destIndex) { }
         public int CountNodesReferencingVariable(string name) => 0;
         public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements
@@ -71,6 +88,23 @@ public sealed class RoleScopeCapabilityTests
         public void RemoveVariable(string name) { }
         public void RemoveVariables(IReadOnlyList<string> names) { }
         public void RenameVariable(string oldName, string newName) { }
+        // ⭐ 98a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double must
+        //   answer. ⚠ These doubles do not exercise the write, so they RECORD rather than no-op —
+        //   a silent { } here would be the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, string? Json)> DefaultWrites { get; } = new();
+        public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+            => DefaultWrites.Add((name, defaultValueJson));
+        // ⭐ 99a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double answers.
+        //   ⚠ These doubles do not exercise the Properties form, so they RECORD rather than no-op —
+        //   a silent { } here is the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, Hrot.Editor.AiShared.Variables.VariablePropertyValues Values)> PropertyWrites { get; } = new();
+        public void UpdateVariableProperties(
+            string name, Hrot.Editor.AiShared.Variables.VariablePropertyValues values)
+            => PropertyWrites.Add((name, values));
+        public Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name)
+            => null;
         public void MoveVariable(int sourceIndex, int destIndex) { }
         public int CountNodesReferencingVariable(string name) => 0;
         // ⚠ Declaring these implicitly means the interface's default body is NOT used for this type,
@@ -99,7 +133,7 @@ public sealed class RoleScopeCapabilityTests
         src.SupportsRoleScopeEditing.Should().BeFalse();
         src.Invoking(s => s.UpdateVariableRole("x", BlackboardVariableRole.State))
            .Should().Throw<NotSupportedException>();
-        src.Invoking(s => s.UpdateVariableScope("x", WorkingStateScope.Entity))
+        src.Invoking(s => s.UpdateVariableScope("x", WorkingStateScope.Behavior))
            .Should().Throw<NotSupportedException>();
     }
 
@@ -111,10 +145,10 @@ public sealed class RoleScopeCapabilityTests
 
         ((IVariablesSchemaSource)src).SupportsRoleScopeEditing.Should().BeTrue();
         src.UpdateVariableRole("x", BlackboardVariableRole.State);
-        src.UpdateVariableScope("x", WorkingStateScope.Entity);
+        src.UpdateVariableScope("x", WorkingStateScope.Behavior);
 
         src.LastRole.Should().Be(BlackboardVariableRole.State);
-        src.LastScope.Should().Be(WorkingStateScope.Entity);
+        src.LastScope.Should().Be(WorkingStateScope.Behavior);
     }
 
     /// <summary>

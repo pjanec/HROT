@@ -207,7 +207,7 @@ replays the staged mutations correctly. This is the design relied on by the drai
 ### 4. Managed components and snapshot policy
 
 `EntityLabel` is a mutable class with no `[DataPolicy]` attribute, so it defaults to
-`DataPolicy.NoSnapshot`. `SyncFrom` does not copy it between snapshots. This means drain tests for
+`DataPolicy.NoPreview`. `SyncFrom` does not copy it between snapshots. This means drain tests for
 managed components must rely on the explicit component table registration on `liveRepo` surviving
 the `SyncFrom` calls (tables are not removed by SyncFrom — only data for snapshotable types is
 overwritten). `SetManagedComponentRaw` on ECB playback sets the value and the component-mask bit

@@ -15,8 +15,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T39_TwoDistinctPrimitives
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Parallel(0, par =>
             {
                 par.Action("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@268943748",

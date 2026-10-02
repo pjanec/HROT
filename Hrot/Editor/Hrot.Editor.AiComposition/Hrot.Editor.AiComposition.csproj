@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ⭐⭐⭐ THE ONE PLACE THAT COMPOSES AN AI DOCUMENT'S VIEW STATE — CE-340.
+    📄 DESIGN_Occurrence_Scoped_Storage.md §32.18.
+
+    🔴 Why a NEW assembly rather than Hrot.Editor.AiShared: the binder must CALL all three
+       per-kind document factories, and the dependency runs the other way — the three editors
+       reference AiShared, so AiShared cannot see them. 📐 Measured 2026-09-26: the ONLY
+       production assemblies referencing all three editors were Hrot.Editor and Hrot.CGF
+       themselves, which is exactly why the wiring had to be duplicated in both.
+    ⇒ this project sits ABOVE the three editors and BELOW the two subsystems, and is the first
+       shared home either host has had for per-kind composition.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <ProjectReference Include="..\..\Subsystems\AI\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
+    <ProjectReference Include="..\..\Subsystems\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
+  </ItemGroup>
+
+</Project>

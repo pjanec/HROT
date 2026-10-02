@@ -1,4 +1,7 @@
 using System.Text;
+// ⭐ CE-388 / Q74 D-F — the LINKED HsmActionKey; the one formula both this emitter and
+//   HsmEmitCore hash the generated class name with. See the csproj note.
+using Fdp.Toolkit.Behavior.Shared;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Ir;
 using AssetDispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
@@ -116,6 +119,7 @@ internal sealed class CSharpEmitter
                 AiPrimitiveEmitter.EmitClass(this, asset);
                 break;
             case AssetDispatch.Instance:
+            case AssetDispatch.Behavior:     // CE-446: a behaviour IS an Instance body (+ a status)
                 InstanceEmitter.EmitClass(this, asset);
                 break;
             default:
@@ -185,7 +189,7 @@ internal sealed class CSharpEmitter
         bool needsActionRegistry = asset.Hostings.Any(h =>
             h == AiPrimitiveHosting.BTreeAction || h == AiPrimitiveHosting.BTreeCondition);
 
-        bool hasConditionMet = asset.Dispatch == AssetDispatch.Instance &&
+        bool hasConditionMet = asset.Dispatch is AssetDispatch.Instance or AssetDispatch.Behavior &&
             asset.Graphs
                 .SelectMany(g => g.Blocks)
                 .SelectMany(b => b.Statements)
@@ -201,8 +205,11 @@ internal sealed class CSharpEmitter
         if (needsActionRegistry)
             paramParts.Add(
                 "global::Fbt.Runtime.ActionRegistry<" +
-                "global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, " +
+                "byte, " +   // P4-②
                 "global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry");
+        // ⭐ CE-446: a blueprint behaviour registers into the BEHAVIOUR registry (the scanner injects it by type).
+        if (asset.Dispatch == AssetDispatch.Behavior)
+            paramParts.Add("global::Fdp.Toolkit.Behavior.BehaviorRegistry beh");
         if (hasConditionMet)
         {
             paramParts.Add("global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler predicateCompiler");
@@ -226,6 +233,11 @@ internal sealed class CSharpEmitter
                 if (hasConditionMet)
                     WriteLine($"{className}.InitializePredicates(predicateCompiler, dtoRegistry);");
                 EmitInstanceRegistration(className, asset);
+                break;
+            case AssetDispatch.Behavior:
+                if (hasConditionMet)
+                    WriteLine($"{className}.InitializePredicates(predicateCompiler, dtoRegistry);");
+                EmitBehaviorRegistration(className, asset);
                 break;
         }
 
@@ -261,6 +273,10 @@ internal sealed class CSharpEmitter
             Outdent();
             WriteLine("},");
         }
+
+        // ⛔ CE-448 — no `Resolvers` index. A Library's only Construction graph belongs to a behaviour
+        //   resolver asset, which the BEHAVIOUR's registrar calls through `ResolveBehavior` (LibraryEmitter);
+        //   the reusable DTO→DTO resolvers this index published are retired (R-155).
 
         Outdent();
         WriteLine("});");
@@ -348,6 +364,14 @@ internal sealed class CSharpEmitter
         // an AiPrimitive's working state is real bytes in Blackboard1024. Same expression the Instance
         // path uses, over this dispatch kind's own struct.
         WriteLine($"StateSize = {className}.StateSize,");
+        // ⭐⭐⭐ CE-399 — and the PARAMS size, which the hosted-occurrence tier sizing needs and this
+        //   registration never carried. The runtime attaches Align8(StateSize) + ParamsSize; without
+        //   this the demand calculator saw only the first term. 📄 §13.8.
+        WriteLine($"ParamsSize = {className}.ParamsSize,");
+        // ⭐⭐ CE-388 / Q74 D-A2 — the DERIVED channel set, so a consumer can ask what this
+        //   blueprint drives without re-deriving it. ⛔ Informational: the exit binding itself
+        //   goes through the cleanup thunk's id, not through this list.
+        EmitWritesChannelsBlock(asset);
         WriteLine($"AssetId = new Guid(\"{asset.AssetId}\"),");
         WriteLine($"StateClrType = typeof({className}.WorkingState),");
         // 🔴🔴 Batch 57 (S1) — the block that was missing ENTIRELY. Without it
@@ -372,17 +396,35 @@ internal sealed class CSharpEmitter
         if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
             WriteLine(
                 $"actionRegistry.RegisterCondition(\"{fqnNs}.{className}.BTreeEvaluate@0\", " +
-                "static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, " +
+                "static (ref byte bb, " +   // P4-②
                 "ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => " +
                 $"{className}.BTreeEvaluate(ref bb, ref st, ref ctx, pi) " +
                 "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);");
 
+        // ⛔ CE-445 (R-155): an AiPrimitive no longer carries its own resolver — actions and conditions read
+        //    their host live and have none (DESIGN_Parameter_Model §P.4). HostedParamResolvers is retired.
+
         // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,
         // not injectable; Patch C1). The unmanaged function pointers are cast to IntPtr.
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction))
+        {
             WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{className}.HsmActivity);");
+
+            // ⭐⭐⭐ CE-388 / Q74 D-B1 — register the RELEASE half under the SHARED id.
+            //
+            // 🔒 The id comes from Fdp.Toolkit.Behavior.Shared.HsmActionKey, which is a LINKED file
+            //    (Q74 D-F, user ruling: "no duplicating the HsmActionKey formula, must be shared").
+            //    HsmEmitCore computes the SAME expression to bake `.OnExitId(n)` into the blob.
+            //
+            // ⛔⛔ THIS IS THE COUPLING CE-403 MEASURED THE COST OF. If the two sides ever compute
+            //    the id differently the state binds an action nothing is registered under, and the
+            //    only symptom is that the channel is never released — no error anywhere. That is
+            //    exactly break ③: the sibling C# table is keyed on the SHORT method name while an
+            //    asset names its activity by FQN, so the lookup misses silently.
+            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction({HsmActionKey.ForExitCleanup(className)}, (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{className}.HsmExitCleanup);");
+        }
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
-            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, bool>)&{className}.HsmGuard);");
+            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, global::Fhsm.Kernel.Data.HsmCommandWriter*, bool>)&{className}.HsmGuard);");
     }
 
     /// <summary>
@@ -417,6 +459,30 @@ internal sealed class CSharpEmitter
     /// <c>AiPrimitiveEmitter</c>), so the emitter is parameterised by the name rather than the names
     /// being unified.
     /// </param>
+    /// <summary>
+    /// ⭐⭐ <c>CE-388</c> / <c>Q74 D-A2</c> — emits the DERIVED channel set onto the definition.
+    ///
+    /// <para>⛔ <b>Gated on the feature that needs it</b>, like every other emitter addition here:
+    /// a blueprint that commands no channel emits NOTHING, so every asset authored before
+    /// <c>CE-388</c> stays byte-identical. 📌 <c>E3b-0</c> learned this the hard way — emitting a
+    /// const unconditionally once moved 11 baselines for assets that could not use it.</para>
+    ///
+    /// <para>⚠ An INCOMPLETE derivation emits nothing either, and that is NOT the same as "no
+    /// channels": <c>BlueprintChannelDerivation</c> reports the opaque callees and the caller
+    /// raises a diagnostic. ⛔ Never let an unknown reach a consumer dressed as an empty set.</para>
+    /// </summary>
+    private void EmitWritesChannelsBlock(IrAsset asset)
+    {
+        if (asset.Dispatch != AssetDispatch.AiPrimitive) return;
+
+        var derived = BlueprintChannelDerivation.Derive(asset);
+        if (!derived.IsComplete || derived.ChannelComponentFqns.Count == 0) return;
+
+        var literals = string.Join(", ",
+            System.Linq.Enumerable.Select(derived.ChannelComponentFqns, f => $"typeof(global::{f})"));
+        WriteLine($"WritesChannels = new global::System.Type[] {{ {literals} }},");
+    }
+
     private void EmitStateFieldsBlock(string className, IrAsset asset, string stateStructName)
     {
         // Batch 56 — the descriptors describe the state STRUCT, and since ruling 8 that struct holds the
@@ -542,6 +608,27 @@ internal sealed class CSharpEmitter
     /// </summary>
     private static int StructRelativeOffset(IrAsset asset, IrField f)
         => f.Offset - (asset.Dispatch == AssetDispatch.AiPrimitive ? 8 : 0);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6) — a blueprint BEHAVIOUR registers a <c>BehaviorDefinition</c> by NAME on the third
+    /// brain tier, exactly as a BTree/HSM registrar does (<c>BehaviorHash.FromName</c>). ⛔ It is NOT staged as an Instance:
+    /// it is never attached, and its block is the root params slot the ingress allocates from <c>BlackboardLayoutType</c>.
+    /// </summary>
+    private void EmitBehaviorRegistration(string className, IrAsset asset)
+    {
+        WriteLine($"beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{asset.Name}\"), \"{asset.Name}\", "
+                + "new global::Fdp.Toolkit.Behavior.BehaviorDefinition");
+        WriteLine("{");
+        Indent();
+        WriteLine($"Name = \"{asset.Name}\",");
+        WriteLine("BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,");
+        WriteLine($"BlackboardLayoutType = typeof({className}.State),");
+        WriteLine($"ParseParams = {className}.BehaviorParseParams,");
+        WriteLine($"BlueprintTick = {className}.BehaviorTick,");
+        WriteLine($"BlueprintStructureHash = {className}.StructureHash,");
+        Outdent();
+        WriteLine("});");
+    }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)
     {

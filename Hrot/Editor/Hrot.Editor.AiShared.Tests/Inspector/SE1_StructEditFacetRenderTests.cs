@@ -207,20 +207,30 @@ public sealed class SE1_StructEditFacetRenderTests
             Guid.NewGuid(), blob.TreeName, "/test.cs", false,
             string.Empty, string.Empty);
 
-    private static InspectorWindow MakeWindow(
-        EditorSelectionStore store,
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet arm is a Details VIEW now, so these rails drive the
+    /// SOURCE and the VIEW instead of <c>InspectorWindow</c>.</b> 📄 §7.6 ② · §7.4.
+    /// ⚠ Every claim below is unchanged; ⭐ and the context is built by <c>DetailsContextBuilder</c>,
+    /// which is what the shell calls every frame.
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeSource(
         IFacetDispatcher? dispatcher = null,
         IComponentEditService? editSvc = null)
     {
-        var refactor    = new StubRefactorSE1();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher:  dispatcher,
-            facetEditService: editSvc);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        source.SetFacetEditService(editSvc);
+        return source;
     }
 
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "BTree", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
+
+    /// <remarks>⭐ <c>S2</c>: was <c>CommitCurrentFacet_AppliesEditedFacetToAsset</c> — the commit path
+    /// moved from <c>InspectorWindow</c> to <c>NodePropertiesSource</c>, unchanged in substance.</remarks>
     [Fact]
-    public void CommitCurrentFacet_AppliesEditedFacetToAsset()
+    public void CommitFacet_AppliesEditedFacetToAsset()
     {
         var blob   = MakeMinimalBlob();
         var asset  = MakeAsset(blob);
@@ -232,11 +242,12 @@ public sealed class SE1_StructEditFacetRenderTests
         var sel = new BTreeNodeSelection(actionNode.VisualId);
         store.ActiveSubSelection = sel;
 
-        var svc    = BuildEditService();
-        var window = MakeWindow(store, mapper, svc);
+        var svc     = BuildEditService();
+        var source  = MakeSource(mapper, svc);
+        var context = ContextOf(store);
 
         // Get the initial facet.
-        var original = (BTreeActionFacet)window.GetCurrentFacet()!;
+        var original = (BTreeActionFacet)source.FacetFor(context)!;
         original.MethodFqn.Should().Be("Ns.C.Original");
 
         // Open a session, mutate, commit through the window.
@@ -246,18 +257,21 @@ public sealed class SE1_StructEditFacetRenderTests
         mfqNode.Binding!.SetBoxed("Ns.C.Updated");
         var committed = session.Commit();
 
-        window.CommitCurrentFacet(committed);
+        source.CommitFacet(context, committed);
 
         // The asset must reflect the updated method FQN.
-        asset.IsDirty.Should().BeTrue("CommitCurrentFacet must mark the asset dirty");
+        asset.IsDirty.Should().BeTrue("CommitFacet must mark the asset dirty");
         actionNode.Action!.MethodFqn.Should().Be("Ns.C.Updated",
             "the committed facet's MethodFqn must be written back to the asset");
     }
 
+    /// <remarks>⭐ <c>S2</c>: was <c>InspectorWindow_GetFacetSession_IsNullWhenNoEditService</c>.
+    /// ⚠ The session belongs to the VIEW INSTANCE now *(§1: an uncommitted edit buffer is legitimately
+    /// per-instance)*, while the facet itself comes from the shared source.</remarks>
     [Fact]
-    public void InspectorWindow_GetFacetSession_IsNullWhenNoEditService()
+    public void NodePropertiesView_FacetSession_IsNullWhenNoEditService()
     {
-        // When no edit service is wired, GetFacetSession must return null (no crash).
+        // When no edit service is wired, the view holds no session (and nothing crashes).
         var blob   = MakeMinimalBlob();
         var asset  = MakeAsset(blob);
         var mapper = new BTreeFacetMapper(asset);
@@ -267,12 +281,13 @@ public sealed class SE1_StructEditFacetRenderTests
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
         store.ActiveSubSelection = new BTreeNodeSelection(actionNode.VisualId);
 
-        var window = MakeWindow(store, mapper, editSvc: null);
+        var source = MakeSource(mapper, editSvc: null);
+        using var view = new Hrot.Editor.AiShared.Shell.NodePropertiesDetailsView(source);
 
-        // GetCurrentFacet still works headlessly.
-        window.GetCurrentFacet().Should().NotBeNull("dispatcher is wired");
-        // No edit service → no session.
-        window.GetFacetSession().Should().BeNull("no edit service wired");
+        // The facet still resolves headlessly.
+        source.FacetFor(ContextOf(store)).Should().NotBeNull("dispatcher is wired");
+        // No edit service → no session. ⛔ And no ImGui was needed to say so.
+        view.FacetSession.Should().BeNull("no edit service wired");
     }
 }
 

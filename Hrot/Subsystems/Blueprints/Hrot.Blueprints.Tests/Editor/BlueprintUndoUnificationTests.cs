@@ -96,14 +96,6 @@ public sealed class BlueprintUndoUnificationTests
             var drawer = new GetComponentNodeDrawer(EditService, new FixedTypeProvider(HealthFqn));
             return (GetComponentNodeSession)drawer.CreateSession(node, Asset);
         }
-
-        public GetSharedNodeSession NewSharedSession(out GetSharedNode node)
-        {
-            node = new GetSharedNode { Id = Guid.NewGuid() };
-            Graph.Nodes.Add(node);
-            var drawer = new GetSharedNodeDrawer(EditService, new FixedTypeProvider(HealthFqn));
-            return (GetSharedNodeSession)drawer.CreateSession(node, Asset);
-        }
     }
 
     private sealed class FixedTypeProvider : IComponentTypeProvider, ISharedStructTypeProvider
@@ -305,20 +297,6 @@ public sealed class BlueprintUndoUnificationTests
     }
 
     // ── 4. Every converted drawer reaches the stack ──────────────────────────
-
-    [Fact]
-    public void SharedNodeDrawer_SlotNameEdit_IsUndoable()
-    {
-        var h       = new Harness();
-        var session = h.NewSharedSession(out var node);
-
-        session.SetVariableIdForTest("rallyPoint");
-        Assert.Equal("rallyPoint", node.VariableId);
-
-        h.Undo.Undo();
-
-        Assert.NotEqual("rallyPoint", node.VariableId);
-    }
 
     /// <summary>A drawer edit still marks the asset dirty — recording performs the edit.</summary>
     [Fact]

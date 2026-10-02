@@ -26,10 +26,20 @@ public static class BlueprintEventDispatch
     public static void DispatchForSlot(
         BlueprintDefinition def, Span<byte> stateBytes, FdpEventBus bus,
         ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
-    {
-        if (bus is null || def?.EventHandlers is null || def.EventHandlers.Count == 0) return;
+        => Dispatch(def?.EventHandlers, stateBytes, bus, view, ecb, self, time, deltaTime);
 
-        foreach (var kv in def.EventHandlers)
+    /// <summary>
+    /// ⭐ <c>CE-446</c> — the same dispatch over a bare handler table: a blueprint BEHAVIOUR has no
+    /// <see cref="BlueprintDefinition"/> (it is registered as a behaviour, not an Instance), so its generated tick passes
+    /// its handlers directly. One loop, two callers.
+    /// </summary>
+    public static void Dispatch(
+        System.Collections.Generic.IReadOnlyDictionary<string, EventHandlerDelegate>? handlers, Span<byte> stateBytes,
+        FdpEventBus bus, ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)
+    {
+        if (bus is null || handlers is null || handlers.Count == 0) return;
+
+        foreach (var kv in handlers)
         {
             int typeId = ResolveTypeId(kv.Key);
             if (!bus.HasEvent(typeId)) continue;

@@ -69,10 +69,19 @@ public sealed class BTreeGoldenCorpusTests
         Assert.Contains($@"<AdditionalFiles Include=""{AiAssetCorpus.GlobInProject(Kind)}"" />", csproj);
     }
 
-    /// <summary>⭐ It really is 26 — the number the plan and the handoff both quote.</summary>
+    /// <summary>
+    /// ⭐ It really is 24. ⛔ <b>25 → 24 in <c>CE-440</c>:</b> <c>T37_SharedStateManifestProvisioning.btree.json</c>, the
+    /// proof tree for Entity-scoped shared state, went with the GetShared/SetShared node pair (decision <c>A</c>,
+    /// <c>Q76</c> §12.24). ⭐ <b>24 → 25 in <c>CE-428</c>:</b> <c>T40_BehaviorResolverAsset.btree.json</c>, the first
+    /// behaviour that names a blueprint RESOLVER asset (<c>Q76</c> §12.20). ⚠ <b>Was 26 until <c>CE-436</c>,</b> which deleted
+    /// <c>PlatoonHillAttack2.btree.json</c> and <c>HillAssault2I_Smoke.btree.json</c> — the
+    /// blueprint-based hill attack and its smoke tree *(user, <c>2026-09-29</c>: "not needed")*.
+    /// ⭐ The count is deliberately hard-coded rather than derived: it is the tripwire that makes an
+    /// asset appearing or vanishing a DECISION someone states, not a diff someone skims.
+    /// </summary>
     [Fact]
-    public void TheCorpusIsTheTwentySixShippedAssets()
-        => Assert.Equal(26, AiAssetCorpus.EnumerateFiles(Kind).Count);
+    public void TheCorpusIsTheTwentyFourShippedAssets()
+        => Assert.Equal(24, AiAssetCorpus.EnumerateFiles(Kind).Count);
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.

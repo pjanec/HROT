@@ -31,5 +31,14 @@ namespace Fdp.Toolkit.Orchestration
         PrepareEdit = 26,
         FinalizeEdit = 27,
         CollectDiagnostics = 28,
+
+        // ── Terrain asset build (29–30) ───────────────────────────────────────────────────────
+        // ⛔ PERMANENT WIRE VALUES (R-42): they reach replays and saved scenarios. Deprecate, never
+        //    recycle, never renumber. Ruled 2026-09-17.
+        // ⛔ The gaps at 6 / 17 / 18 / 19 are HISTORICAL HOLES, not reservations — measured absent from
+        //    the authoritative NED enum too. Leave them empty so no future reader wonders what they meant.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
+        PrepareTerrainAsset = 29,
+        CommitTerrainAsset = 30,
     }
 }

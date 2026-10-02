@@ -445,35 +445,48 @@ public sealed unsafe class PartitionAllocatorTests
             BlueprintBlackboardPartitions.Initialize(
                 memory, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
 
-            // Fill all 4 slots to exhaust bump region
-            // bp1=112, bp2=112, bp3=112, bp4=496 -> 432 payload bytes used, PayloadHighWater=96+832=928? 
-            // Wait: 96 + 112 + 112 + 112 + 496 = 96 + 832 = 928 = PayloadStart + PayloadSize (TotalSize)
-            // But we need to check PayloadEnd = PayloadStart + PayloadSize = 96 + 928 = 1024
-            // So PayloadHighWater after all 4 attaches = 96 + 112 + 112 + 112 + 496 = 928. Not TotalSize.
-            // Correction: PayloadHighWater starts at PayloadStart=96.
-            // After bp1(112): PayloadHighWater = 96+112 = 208
-            // After bp2(112): PayloadHighWater = 208+112 = 320
-            // After bp3(112): PayloadHighWater = 320+112 = 432
-            // After bp4(496): PayloadHighWater = 432+496 = 928
-            // PayloadEnd = 96 + 928 = 1024.
-            // Available in bump for next = 1024 - 928 = 96. So bump IS exhausted for large allocations.
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 1, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 2, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 3, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 4, 496, 0, out _));
+            // ⛔⛔ DERIVED, NOT HARD-CODED — B3② is why. This read `112 / 112 / 112 / 496`, four
+            //   literals chosen to fill the 1024 tier's payload EXACTLY (3×112 + 496 = 928). When
+            //   the MaxSlots ladder was re-picked 4 → 12 the payload became 800, the fourth attach
+            //   no longer fit, and the test failed while BUILDING its scenario — before reaching
+            //   the fragmentation it exists to assert.
+            //
+            // ⭐ What SC11 actually owns is allocator behaviour, not a tier's size:
+            //      "total free >= request, but no CONTIGUOUS block that big ⇒ TryAttach fails".
+            //   Deriving the filler from PayloadSize reproduces that scenario at any payload.
+            //
+            // 📐 The construction, in terms of P = PayloadSize:
+            //      three `HoleSize` slots + one `filler` slot, where filler = P − 3×HoleSize, so the
+            //      bump region is exhausted EXACTLY. Detaching the 1st and 3rd leaves two
+            //      non-adjacent holes of HoleSize each. A request strictly between HoleSize and
+            //      2×HoleSize then has enough TOTAL free space and no block to put it in.
+            // ⚠ HoleSize and the request are alignment-safe (8 | 112, 8 | 200) and P is 8-aligned.
+            const int HoleSize    = 112;
+            const int RequestSize = 200;   // > one hole (112), < two holes (224)
+            int filler = BlueprintBlackboard1024.PayloadSize - 3 * HoleSize;
+
+            Assert.True(filler > 0,
+                $"the tier payload ({BlueprintBlackboard1024.PayloadSize}) must hold three "
+                + $"{HoleSize}-byte slots plus a filler; adjust HoleSize if the ladder shrinks further");
+            Assert.Equal(0, filler % BlueprintBlackboardPartitions.Alignment);
+            Assert.InRange(RequestSize, HoleSize + 1, 2 * HoleSize - 1);
+
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 1, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 2, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 3, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 4, filler,   0, out _));
 
             // Detach bp1 and bp3 to create non-adjacent free blocks (each 112 bytes)
             BlueprintBlackboardPartitions.TryDetach(memory, 1);
             BlueprintBlackboardPartitions.TryDetach(memory, 3);
 
-            // PayloadFree = 224, but two 112-byte holes separated by bp2.
-            // Try to attach 200 bytes -- larger than either hole but < total free.
-            bool ok = BlueprintBlackboardPartitions.TryAttach(memory, 5, 200, 0, out int offset);
+            // PayloadFree = 2 × HoleSize, but as two holes separated by bp2.
+            bool ok = BlueprintBlackboardPartitions.TryAttach(memory, 5, RequestSize, 0, out int offset);
 
             Assert.False(ok);
             Assert.Equal(0, offset);
-            // Total free (224) > 200 but no contiguous block available
-            Assert.True((int)Header(memory).PayloadFree >= 200);
+            // Total free (2 × HoleSize) > RequestSize, but no contiguous block that big.
+            Assert.True((int)Header(memory).PayloadFree >= RequestSize);
         }
     }
 
@@ -671,6 +684,234 @@ public sealed unsafe class PartitionAllocatorTests
 
                 AssertInvariants(memory, TotalSize, MaxSlots);
             }
+        }
+    }
+
+    // ══ A3 / D1′ — the per-slot OccurrenceKind nibble array ═══════════════════════════════════════
+    //
+    // DESIGN_Occurrence_Scoped_Storage §13 puts `Kind` in BlueprintBlackboardHeader.Reserved as a
+    // 4-bit nibble per slot (8 B = 16 slots × 4 bits, an exact fit) rather than in
+    // BlueprintSlotEntry (Size = 16, fully packed) or in the payload (whose head is the shipped
+    // 16-byte BlueprintLatentCursor).
+    //
+    // ⛔⛔ ALL THREE RAILS BELOW WERE WRITTEN RED FIRST, and that is not ceremony: a zeroed nibble
+    //     array is INDISTINGUISHABLE from "every occurrence is kind 0". Without seeing each one
+    //     fail, none of them is known to assert anything.
+
+    /// <summary>
+    /// 🔴 <b>A3-R1 — the nibble array must COMPACT IN LOCKSTEP with the slot table.</b>
+    ///
+    /// <para><c>TryDetach:188-199</c> dense-compacts: it moves the LAST entry into the freed slot.
+    /// ⇒ the kind nibbles must move with it, or every occurrence at or after the hole is
+    /// mislabelled — silently, because a wrong kind reads exactly like a right one.</para>
+    ///
+    /// <para>⚠ <b>And the vacated TAIL must be CLEARED.</b> <c>:197-198</c> zeroes the now-duplicated
+    /// last <i>entry</i>, but that write cannot reach the header — so without an explicit clear a
+    /// stale nibble survives at <c>lastIndex</c> for the next attach to inherit.</para>
+    /// </summary>
+    [Fact]
+    public void A3_R1_Detach_CompactsTheKindNibbles_AndClearsTheVacatedTail()
+    {
+        const int TotalSize = BlueprintBlackboard1024.TotalSize;
+        const int MaxSlots  = BlueprintBlackboard1024.MaxSlots;
+
+        var buf = MakeBuffer(TotalSize);
+        fixed (byte* memory = buf)
+        {
+            BlueprintBlackboardPartitions.Initialize(memory, TotalSize, MaxSlots);
+
+            // Three DIFFERENT kinds, so a stale nibble cannot pass by coincidence.
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                memory, 101, 32, 0xAAAAu, OccurrenceKind.Blueprint, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                memory, 102, 32, 0xBBBBu, OccurrenceKind.BTree, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                memory, 103, 32, 0xCCCCu, OccurrenceKind.Hsm, out _));
+
+            Assert.Equal(OccurrenceKind.Blueprint, BlueprintBlackboardPartitions.GetKindOf(memory, 101));
+            Assert.Equal(OccurrenceKind.BTree,     BlueprintBlackboardPartitions.GetKindOf(memory, 102));
+            Assert.Equal(OccurrenceKind.Hsm,       BlueprintBlackboardPartitions.GetKindOf(memory, 103));
+
+            // Detach the MIDDLE one: the compaction moves 103 (index 2) into index 1.
+            Assert.True(BlueprintBlackboardPartitions.TryDetach(memory, 102));
+
+            // ① the survivors keep their OWN kinds, at their NEW indices
+            Assert.Equal(OccurrenceKind.Blueprint, BlueprintBlackboardPartitions.GetKindOf(memory, 101));
+            Assert.Equal(OccurrenceKind.Hsm,       BlueprintBlackboardPartitions.GetKindOf(memory, 103));
+
+            // anti-vacuity: 103 really did move, so this is the compaction and not an unchanged table
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotIndex(memory, 103, out int movedIndex));
+            Assert.Equal(1, movedIndex);
+
+            // ② the vacated tail nibble is CLEARED, not left holding Hsm for the next attach
+            Assert.Equal(2, BlueprintBlackboardPartitions.GetSlotCount(memory));
+            Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetSlotKind(memory, 2));
+
+            AssertInvariants(memory, TotalSize, MaxSlots);
+        }
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>A3-R2 — a TIER PROMOTION must preserve the whole nibble array.</b>
+    ///
+    /// <para>📐 <c>CopyToLargerTier</c> never copied <c>Reserved</c>: <c>:249</c> calls
+    /// <c>Initialize</c>, which <c>InitBlock</c>s the component (<c>:38</c>) and then sets EIGHT
+    /// header fields explicitly (<c>:44-51</c>) — <c>Reserved</c> is not among them — and
+    /// <c>:272-290</c> copy <c>SlotCount</c>, <c>PayloadFree</c>, <c>PayloadHighWater</c> and the free
+    /// list, and nothing else.</para>
+    ///
+    /// <para>⇒ every tier upgrade silently zeroed the whole array while entries and payloads copied
+    /// correctly (<c>:263</c>). ⛔ <b>Strictly worse than the detach case</b> — it fires on the
+    /// ordinary growth path and makes ALL occurrences read kind 0 at once.</para>
+    ///
+    /// <para>⭐ Slot ORDER is preserved (<c>i → i</c>), so the fix is one assignment — and it covers
+    /// all THREE production promotion sites at once (<c>BehaviorIngressSystem.UpgradeTier</c>,
+    /// <c>BlueprintMaintenanceSystem</c>, <c>EntityBlueprintsPanel</c>), because every one of them
+    /// funnels through this method.</para>
+    /// </summary>
+    [Fact]
+    public void A3_R2_CopyToLargerTier_PreservesEveryDeclaredKind()
+    {
+        var src = MakeBuffer(BlueprintBlackboard1024.TotalSize);
+        var dst = MakeBuffer(BlueprintBlackboard4096.TotalSize);
+
+        fixed (byte* s = src)
+        fixed (byte* d = dst)
+        {
+            BlueprintBlackboardPartitions.Initialize(
+                s, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
+
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                s, 201, 32, 0x1111u, OccurrenceKind.Blueprint, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                s, 202, 48, 0x2222u, OccurrenceKind.BTree, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                s, 203, 16, 0x3333u, OccurrenceKind.Hsm, out _));
+
+            BlueprintBlackboardPartitions.CopyToLargerTier(
+                s, BlueprintBlackboard1024.TotalSize,
+                d, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
+
+            Assert.Equal(OccurrenceKind.Blueprint, BlueprintBlackboardPartitions.GetKindOf(d, 201));
+            Assert.Equal(OccurrenceKind.BTree,     BlueprintBlackboardPartitions.GetKindOf(d, 202));
+            Assert.Equal(OccurrenceKind.Hsm,       BlueprintBlackboardPartitions.GetKindOf(d, 203));
+
+            // anti-vacuity: a whole-Reserved copy must not drag the SOURCE tier's spare nibbles in as
+            // declarations — slots the destination does not have are still Invalid.
+            Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetSlotKind(d, 3));
+
+            AssertInvariants(d, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <b>A3-R3 — <see cref="OccurrenceKind.Invalid"/> is 0, and 0 is never a real kind.</b>
+    ///
+    /// <para><c>Initialize:38</c> zeroes the component, so 0 is what an un-migrated, un-promoted or
+    /// never-declared slot reads. ⛔ If 0 meant <c>Blueprint</c>, <c>O0</c>'s walker would resume
+    /// filtering <b>by accident</b> — which is precisely the registry-miss filter that <c>F7</c> and
+    /// <c>D1′</c> exist to retire.</para>
+    ///
+    /// <para>⚠ This rail cannot go red on its own the way R1 and R2 do — the hazard it guards is a
+    /// FUTURE edit to the enum, not a live defect. ⭐ <b>Red-proved by the inverse edit
+    /// <c>Invalid = 4</c></b>, which is the sharpest form that still compiles.</para>
+    ///
+    /// <para>⭐⭐ <b>And the OTHER half is guarded by the BUILD, which was a surprise worth recording.</b>
+    /// 📐 Measured <c>2026-09-20</c>: renumbering <c>Blueprint</c> onto <c>0</c> does not redden this
+    /// rail — it <b>fails compilation</b>. The CycloneDDS codegen sweeps every public enum in
+    /// <c>Fdp.Toolkits</c> into generated IDL (⚠ indiscriminately — <c>BlackboardTier</c>, which is on
+    /// no topic, gets one too, so an <c>.idl</c> is NOT a wire contract), and <c>idlc</c> refuses two
+    /// enumerators sharing a value: <i>"Value of enumerator 'Blueprint' clashes with the value of
+    /// enumerator 'Invalid'"</i>. ⇒ ⭐ <b>"no two kinds share a value" is enforced by the toolchain for
+    /// free</b>; what this rail adds is the half the toolchain cannot know — that the value reserved
+    /// is specifically <c>0</c>, because <c>0</c> is what zeroed memory reads.</para>
+    /// </summary>
+    [Fact]
+    public void A3_R3_KindZeroIsInvalid_AndAnUndeclaredSlotReadsIt()
+    {
+        Assert.Equal((byte)0, (byte)OccurrenceKind.Invalid);
+
+        // ⚠ Iterate NAMES, not values: if a real kind were renumbered onto 0 it would compare EQUAL
+        //    to Invalid, and a value-keyed `continue` would skip the very case being checked.
+        foreach (string name in Enum.GetNames<OccurrenceKind>())
+        {
+            if (name == nameof(OccurrenceKind.Invalid)) continue;
+
+            var kind = Enum.Parse<OccurrenceKind>(name);
+            Assert.NotEqual((byte)0, (byte)kind);
+            Assert.True((uint)kind <= BlueprintBlackboardPartitions.MaxKind,
+                $"{name} = {(byte)kind} does not fit in the 4-bit nibble D1' allocates.");
+        }
+
+        const int TotalSize = BlueprintBlackboard1024.TotalSize;
+        const int MaxSlots  = BlueprintBlackboard1024.MaxSlots;
+
+        var buf = MakeBuffer(TotalSize);
+        fixed (byte* memory = buf)
+        {
+            BlueprintBlackboardPartitions.Initialize(memory, TotalSize, MaxSlots);
+
+            // a freshly-initialized store declares nothing
+            for (int i = 0; i < BlueprintBlackboardPartitions.MaxKindSlots; i++)
+                Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetSlotKind(memory, i));
+
+            // the kind-less overload attaches a slot that nothing declared
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 301, 32, 0xDDDDu, out _));
+            Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetKindOf(memory, 301));
+
+            // ...and a declared one is never Invalid
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                memory, 302, 32, 0xEEEEu, OccurrenceKind.Blueprint, out _));
+            Assert.Equal(OccurrenceKind.Blueprint, BlueprintBlackboardPartitions.GetKindOf(memory, 302));
+
+            // an absent slot answers Invalid rather than throwing
+            Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetKindOf(memory, 999));
+        }
+    }
+
+    /// <summary>
+    /// ⚠ <b>A3-R4 — the nibble array must address every tier's <c>MaxSlots</c>.</b>
+    ///
+    /// <para><c>D1′</c> spends the header's ONLY spare field: 4 bits × 16 slots is an exact fit in the
+    /// 8 reserved bytes, with nothing left over. ⇒ this is a one-shot, and it binds every present and
+    /// future tier to <c>MaxSlots &lt;= 16</c>.</para>
+    ///
+    /// <para>⭐ The point of the rail is that <c>O3b</c>'s coming 256 tier, or any re-pick of the
+    /// <c>MaxSlots</c> ladder in <c>O3a</c>, crossing 16 is caught HERE and has to widen the scheme
+    /// deliberately — rather than discovering it as silently-dropped declarations at runtime.</para>
+    /// </summary>
+    [Fact]
+    public void A3_R4_KindNibbleArray_CoversEveryTiersMaxSlots()
+    {
+        Assert.Equal(sizeof(ulong) * 2, BlueprintBlackboardPartitions.MaxKindSlots);
+
+        Assert.True(BlueprintBlackboard1024.MaxSlots  <= BlueprintBlackboardPartitions.MaxKindSlots);
+        Assert.True(BlueprintBlackboard4096.MaxSlots  <= BlueprintBlackboardPartitions.MaxKindSlots);
+        Assert.True(BlueprintBlackboard16384.MaxSlots <= BlueprintBlackboardPartitions.MaxKindSlots);
+
+        // ⛔ A write outside the array LOSES the declaration, so it throws rather than truncating —
+        //    the asymmetry with the read (which answers Invalid) is deliberate.
+        var buf = MakeBuffer(BlueprintBlackboard1024.TotalSize);
+        fixed (byte* memory = buf)
+        {
+            BlueprintBlackboardPartitions.Initialize(
+                memory, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
+
+            // ⚠ a `byte*` cannot be captured by a lambda, so the throw is checked by hand
+            bool threw = false;
+            try
+            {
+                BlueprintBlackboardPartitions.SetSlotKind(
+                    memory, BlueprintBlackboardPartitions.MaxKindSlots, OccurrenceKind.Blueprint);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                threw = true;
+            }
+            Assert.True(threw, "SetSlotKind must REFUSE an index outside the nibble array, not truncate it.");
+
+            Assert.Equal(OccurrenceKind.Invalid, BlueprintBlackboardPartitions.GetSlotKind(
+                memory, BlueprintBlackboardPartitions.MaxKindSlots));
         }
     }
 }

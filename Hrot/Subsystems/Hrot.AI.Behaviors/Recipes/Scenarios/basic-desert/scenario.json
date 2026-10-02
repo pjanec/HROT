@@ -1,0 +1,13 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "tkbName": "HrotDefault",
+    "terrainName": "basic-desert"
+  },
+  "entities": []
+}

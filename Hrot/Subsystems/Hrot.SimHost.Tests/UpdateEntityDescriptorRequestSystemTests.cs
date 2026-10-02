@@ -30,7 +30,6 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<SimTransform>();
             return repo;

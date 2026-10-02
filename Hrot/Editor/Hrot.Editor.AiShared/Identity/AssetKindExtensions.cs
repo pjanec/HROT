@@ -32,4 +32,24 @@ public static class AssetKindExtensions
         AssetKind.Blueprint => "Blueprint",
         _                   => kind.ToString(),
     };
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The DOCUMENT-DRIVEN perspectives — the ones a restart must NEVER restore.</b>
+    /// 📄 <c>docs/UX/UX_Feature_Perspective_Restore.md</c> §2, whose ruling is verbatim:
+    /// <i>"They are a function of the open document … and no document survives a restart."</i>
+    ///
+    /// <para>⛔⛔ <b>Restoring one lands the user in an EMPTY graph workspace.</b> 📌 That design calls
+    /// falling back to the scenario perspective <i>"the desired behaviour, not the bug"</i>.</para>
+    ///
+    /// <para>⭐⭐ <b>Derived from <see cref="ToPerspectiveName"/>, never re-spelled</b> — ⛔ a second
+    /// literal list is a second thing to keep in step. ⚠ <b>Deliberately NOT "every
+    /// <see cref="AssetKind"/>"</b>: 📐 <c>Blackboard</c> and <c>Utility</c> register no perspective at
+    /// all, and <c>Scenario</c> is the DURABLE one this set exists to protect.</para>
+    /// </summary>
+    public static IReadOnlyList<string> DocumentDrivenPerspectiveNames { get; } = new[]
+    {
+        AssetKind.BTree.ToPerspectiveName(),
+        AssetKind.Hsm.ToPerspectiveName(),
+        AssetKind.Blueprint.ToPerspectiveName(),
+    };
 }

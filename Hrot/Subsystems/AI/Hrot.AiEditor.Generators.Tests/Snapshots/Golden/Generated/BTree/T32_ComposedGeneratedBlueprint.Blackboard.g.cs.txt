@@ -5,8 +5,17 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 0)]
 public struct T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params bpParams;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct T32_ComposedGeneratedBlueprint_Block
+{
+    [FieldOffset(0)]
+    public T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard In;
 }

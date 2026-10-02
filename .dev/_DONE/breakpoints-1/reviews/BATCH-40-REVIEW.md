@@ -58,4 +58,4 @@ This is a textbook verification of DESIGN §8.4 constraint: mutations apply at N
 No correctness issues. The ECB thread-local identity pattern is correctly exploited in tests (same thread =
 same ECB instance = capture before step, playback after). The managed component drain relies on the ECB
 `SetManagedComponentRaw` applying directly to the live repo's managed table, which works regardless of
-SyncFrom's NoSnapshot policy for managed types.
+SyncFrom's NoPreview policy for managed types.

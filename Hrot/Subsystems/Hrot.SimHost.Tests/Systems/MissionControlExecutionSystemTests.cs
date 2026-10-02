@@ -26,7 +26,6 @@ public class MissionControlExecutionSystemTests
         var repo = new EntityRepository();
         repo.RegisterComponent<MissionPlanQueue>();
         repo.RegisterComponent<BehaviorState>();
-        repo.RegisterComponent<BrainBTreeState>();
         repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
         repo.RegisterEvent<MissionControlAckEvent>();

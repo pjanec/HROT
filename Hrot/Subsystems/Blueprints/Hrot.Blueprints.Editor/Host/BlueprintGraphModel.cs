@@ -2,6 +2,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Visuals;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -46,6 +47,12 @@ public sealed class BlueprintGraphModel : IGraphModel
     // AN7: unified behavior-action catalog so non-channel ChannelCommandNodes (ActionFqn set)
     // project their parameter data-IN pins. Mirrors how _channelCommands is threaded.
     private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
+    // The canvas pills (When summary, EQS template, ReadEqsResult, cross-asset badge) — see
+    // GetAttachmentsForNode. Empty ⇒ no pills, which is what every test that passes none gets.
+    private readonly IReadOnlyList<IAttachmentProvider> _attachmentProviders;
+    // One slot per (host node, provider index): a provider refreshes its own pill in place.
+    private readonly Dictionary<(Guid Node, int Provider), IAttachmentModel> _attachments = new();
+    private Dictionary<Guid, Hrot.Blueprints.Core.Assets.Node> _assetNodes = new();
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId,    INodeModel>    _nodes    = new();
@@ -93,6 +100,10 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// (one whose <c>ActionFqn</c> is set) projects its parameter data-IN pins from the matching
     /// catalog entry's params type. When <see langword="null"/> such nodes fall back to exec-only.
     /// </param>
+    /// <param name="attachmentProviders">
+    /// The canvas pill providers (<c>BlueprintEditorBootstrap.CreateAttachmentProviders</c>). When
+    /// null, the graph exposes no attachments — the pre-wiring behaviour.
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
@@ -101,7 +112,8 @@ public sealed class BlueprintGraphModel : IGraphModel
         Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
         IPinDefaultValueEditorRegistry? editorRegistry = null,
         IEnumValueProvider? enumProvider = null,
-        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null)
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
+        IReadOnlyList<IAttachmentProvider>? attachmentProviders = null)
     {
         _asset                = asset ?? throw new ArgumentNullException(nameof(asset));
         _graph                = graph ?? throw new ArgumentNullException(nameof(graph));
@@ -111,6 +123,7 @@ public sealed class BlueprintGraphModel : IGraphModel
         _editorRegistry       = editorRegistry;
         _enumProvider         = enumProvider;
         _behaviorActions      = behaviorActions;
+        _attachmentProviders  = attachmentProviders ?? Array.Empty<IAttachmentProvider>();
         Rebuild();
     }
 
@@ -152,6 +165,77 @@ public sealed class BlueprintGraphModel : IGraphModel
     public IPinModel?     FindPin(PinId id)         => _pins.TryGetValue(id,     out var v) ? v : null;
     public ILinkModel?    FindLink(LinkId id)       => _links.TryGetValue(id,    out var v) ? v : null;
     public ICommentModel? FindComment(CommentId id) => _comments.TryGetValue(id, out var v) ? v : null;
+
+    // ── attachments (the canvas pills) ───────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ Every pill currently shown. 📄 <c>When_Reactivity_Iteration_Design_v2_2.md</c> §9 and
+    /// <c>docs/designs/eqs-2/EQS_Design_v1.3_final.md</c> §17.8.
+    /// </summary>
+    public IReadOnlyCollection<IAttachmentModel> Attachments
+    {
+        get
+        {
+            foreach (var node in _assetNodes.Values) RefreshAttachments(node);
+            return _attachments.Values;
+        }
+    }
+
+    public IAttachmentModel? FindAttachment(AttachmentId id)
+    {
+        foreach (var a in _attachments.Values)
+            if (a.Id == id) return a;
+        return null;
+    }
+
+    /// <summary>
+    /// The pills of one node, refreshed from the node's CURRENT properties on every call.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ <b>Pulled, not pushed.</b> The Details drawers mutate the asset node directly (the EQS
+    /// template picker sets <c>TemplateAssetId</c>) and nothing rebuilds this model for a property
+    /// edit, so a pill cached at <see cref="Rebuild"/> would show the old template until the next
+    /// structural change. The canvas asks per node per frame; a provider mutates its existing pill in
+    /// place, and a node no provider handles costs one type test per provider and no allocation.
+    /// </remarks>
+    public IReadOnlyList<IAttachmentModel> GetAttachmentsForNode(NodeId hostId)
+    {
+        if (_attachmentProviders.Count == 0 || !_assetNodes.TryGetValue(hostId.Value, out var node))
+            return Array.Empty<IAttachmentModel>();
+
+        var result = RefreshAttachments(node);
+        if (result is null) return Array.Empty<IAttachmentModel>();
+        result.Sort((x, y) => x.StackIndex.CompareTo(y.StackIndex));
+        return result;
+    }
+
+    /// <summary>Refreshes <paramref name="node"/>'s pill slots; returns its pills, or null when it has none.</summary>
+    private List<IAttachmentModel>? RefreshAttachments(Hrot.Blueprints.Core.Assets.Node node)
+    {
+        List<IAttachmentModel>? result = null;
+        for (int i = 0; i < _attachmentProviders.Count; i++)
+        {
+            var provider = _attachmentProviders[i];
+            var key = (node.Id, i);
+            if (!provider.Handles(node))
+            {
+                _attachments.Remove(key);
+                continue;
+            }
+
+            _attachments.TryGetValue(key, out var existing);
+            var pill = provider.CreateOrRefresh(node, existing);
+            if (pill is null)
+            {
+                _attachments.Remove(key);
+                continue;
+            }
+
+            _attachments[key] = pill;
+            (result ??= new List<IAttachmentModel>(2)).Add(pill);
+        }
+        return result;
+    }
 
     // ── mutation notification ────────────────────────────────────────────────
 
@@ -327,6 +411,15 @@ public sealed class BlueprintGraphModel : IGraphModel
         _pins     = pins;
         _links    = links;
         _comments = comments;
+
+        // Pills follow the nodes: drop the slots of nodes that left the graph (a delete, or a
+        // Retarget onto another graph). Survivors keep their pill instance, so its id is stable.
+        var assetNodes = new Dictionary<Guid, Hrot.Blueprints.Core.Assets.Node>(_graph.Nodes.Count);
+        foreach (var assetNode in _graph.Nodes) assetNodes[assetNode.Id] = assetNode;
+        _assetNodes = assetNodes;
+        if (_attachments.Count > 0)
+            foreach (var key in _attachments.Keys.Where(k => !assetNodes.ContainsKey(k.Node)).ToList())
+                _attachments.Remove(key);
     }
 
     /// <summary>
@@ -345,9 +438,6 @@ public sealed class BlueprintGraphModel : IGraphModel
         return node switch
         {
             Hrot.Blueprints.Core.Assets.GetParameterNode gp => ResolveParameterLabel(gp.ParameterId),
-            // Get/SetShared: VariableId is already the shared field's slot name — show it on the pin.
-            Hrot.Blueprints.Core.Assets.GetSharedNode gsn => string.IsNullOrEmpty(gsn.VariableId) ? null : gsn.VariableId,
-            Hrot.Blueprints.Core.Assets.SetSharedNode ssn => string.IsNullOrEmpty(ssn.VariableId) ? null : ssn.VariableId,
             _ => null,
         };
     }

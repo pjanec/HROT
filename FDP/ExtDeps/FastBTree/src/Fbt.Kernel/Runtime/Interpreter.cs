@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Fbt.Runtime
 {
@@ -15,15 +16,44 @@ namespace Fbt.Runtime
         // Used for diagnostics/debugging -- not currently used in tick but available for hot reload introspection.
         private readonly int _blobStructureHash;
 
+        private readonly string[] _unboundMethodNames;
+
         /// <summary>Exposes the compiled blob for diagnostic/visualizer tools.</summary>
         public BehaviorTreeBlob Blob => _blob;
+
+        /// <summary>
+        /// The blob method names the registry could NOT resolve at construction, so
+        /// <c>BindActions</c> substituted the <see cref="NodeStatus.Failure"/> fallback.
+        /// Empty when every node is bound.
+        ///
+        /// <para>
+        /// This exists because the fallback is otherwise INVISIBLE: it is a silent behavioural
+        /// change announced only by a <c>Console.WriteLine</c>. A registrar that is skipped —
+        /// e.g. because a reflection <c>typeof(ActionRegistry&lt;,&gt;)</c> filter disagrees with
+        /// the generator about <c>TBlackboard</c>, or because a registrar body threw and was
+        /// swallowed — produces a tree that ticks, returns <c>Failure</c> forever, and compiles
+        /// cleanly. Exposing the miss list lets a rail assert ZERO fallbacks instead of scraping
+        /// console output, which is the symptom rather than the definition.
+        /// </para>
+        /// </summary>
+        public IReadOnlyList<string> UnboundMethodNames => _unboundMethodNames;
+
+        /// <summary>
+        /// CE-365 -- what runs a <c>NodeType.Subtree</c> node. Null (the default) keeps the historical
+        /// behaviour: a Subtree node returns Failure.
+        /// <para>
+        /// Settable rather than a constructor argument because the host resolves its per-site keys
+        /// from the BLOB, which does not exist until this interpreter has been built around it.
+        /// </para>
+        /// </summary>
+        public ISubtreeHost<TBlackboard, TContext>? SubtreeHost { get; set; }
 
         public Interpreter(BehaviorTreeBlob blob, ActionRegistry<TBlackboard, TContext> registry)
         {
             _blob = blob ?? throw new ArgumentNullException(nameof(blob));
             if (registry == null) throw new ArgumentNullException(nameof(registry));
-            
-            _actionDelegates = BindActions(blob, registry);
+
+            _actionDelegates = BindActions(blob, registry, out _unboundMethodNames);
             _registry = registry;
             _blobStructureHash = blob.StructureHash;
 
@@ -135,6 +165,17 @@ namespace Fbt.Runtime
         {
             if ((uint)nodeIndex >= (uint)_blob.Nodes.Length) return;
             ref var node = ref _blob.Nodes[nodeIndex];
+
+            // CE-365 / F14 -- a Subtree node's deactivation CANNOT go through the lookup below:
+            // its PayloadIndex indexes SubtreeAssetIds, not MethodNames, so that read would hit the
+            // wrong array. The host owns the reset. Without this the abandoned child keeps its
+            // cursor and the next entry resumes mid-tree.
+            if (node.Type == NodeType.Subtree)
+            {
+                SubtreeHost?.Reset(ref context, _blob, nodeIndex);
+                return;
+            }
+
             if (node.IsResourceOwning)
             {
                 int pi = node.PayloadIndex;
@@ -227,8 +268,7 @@ namespace Fbt.Runtime
                     // ObserverSelector uses standard selector semantics in the interpreter.
                     return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.Subtree:
-                    // Subtree execution requires external orchestration; return Failure as a safe stub.
-                    return NodeStatus.Failure;
+                    return ExecuteSubtree(nodeIndex, ref bb, ref state, ref ctx);
                 default:
                     return NodeStatus.Failure; // Unknown/Unimplemented node type
             }
@@ -538,7 +578,21 @@ namespace Fbt.Runtime
                     
                     // Child succeeded, increment counter
                     currentIteration++;
-                    
+
+                    // CE-450: a FOREVER repeater YIELDS after each completed iteration — one iteration per tick.
+                    //   Looping in the same tick never returned when the child succeeds immediately (a hang, not a
+                    //   slow frame). RunningNodeIndex = this node makes the next tick resume here (ancestors skip
+                    //   finished siblings by index), and the child starts fresh because it no longer matches
+                    //   RunningNodeIndex. At the root (index 0) that is simply "not running" ⇒ the next tick re-enters
+                    //   the root, which is the same thing for a forever loop (its count is never read).
+                    //   ⚠ A BOUNDED repeater keeps its in-tick semantics (Repeater_ExecutesCorrectly: Repeat(3) runs
+                    //   three times in one tick) — it always terminates.
+                    if (repeatCount < 0)
+                    {
+                        state.RunningNodeIndex = (ushort)nodeIndex;
+                        return NodeStatus.Running;
+                    }
+
                     // If more iterations remain, continue
                     if (repeatCount < 0 || currentIteration < repeatCount)
                     {
@@ -670,6 +724,43 @@ namespace Fbt.Runtime
             return status;
         }
 
+        /// <summary>
+        /// CE-365 -- a hosting node. Dispatches to <see cref="SubtreeHost"/>, or keeps the historical
+        /// Failure stub when none is set.
+        ///
+        /// <para>
+        /// THE RUNNING BOOKKEEPING BELOW IS NOT OPTIONAL and mirrors ExecuteAction's. The post-tick
+        /// sweep diffs NodeIndexStack + RunningNodeIndex to find nodes that LEFT the active path, so
+        /// a hosting node that never records itself as running is never swept -- and F14 (the host
+        /// abandons a still-Running child) silently does nothing. Measured: E6_R3 read a non-zero
+        /// child cursor after an abandonment until this was added.
+        /// </para>
+        /// </summary>
+        private NodeStatus ExecuteSubtree(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            if (SubtreeHost is not { } host)
+                return NodeStatus.Failure;
+
+            var status = host.Tick(ref bb, ref ctx, _blob, nodeIndex);
+
+            ctx.TraceNodeEvaluated(nodeIndex, status);
+
+            if (status == NodeStatus.Running)
+            {
+                state.RunningNodeIndex = (ushort)nodeIndex;
+            }
+            else if (state.RunningNodeIndex == nodeIndex)
+            {
+                state.RunningNodeIndex = 0;
+            }
+
+            return status;
+        }
+
         private NodeStatus ExecuteInverter(
             int nodeIndex,
             ref NodeDefinition node,
@@ -689,13 +780,19 @@ namespace Fbt.Runtime
         }
 
         private NodeLogicDelegate<TBlackboard, TContext>[] BindActions(
-            BehaviorTreeBlob blob, 
-            ActionRegistry<TBlackboard, TContext> registry)
+            BehaviorTreeBlob blob,
+            ActionRegistry<TBlackboard, TContext> registry,
+            out string[] unbound)
         {
-            if (blob.MethodNames == null) return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            if (blob.MethodNames == null)
+            {
+                unbound = Array.Empty<string>();
+                return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            }
 
             var delegates = new NodeLogicDelegate<TBlackboard, TContext>[blob.MethodNames.Length];
             var fallback = new NodeLogicDelegate<TBlackboard, TContext>((ref TBlackboard bb, ref BehaviorTreeState st, ref TContext ctx, int p) => NodeStatus.Failure);
+            List<string>? misses = null;
 
             for (int i = 0; i < blob.MethodNames.Length; i++)
             {
@@ -707,10 +804,12 @@ namespace Fbt.Runtime
                 else
                 {
                     Console.WriteLine($"[FastBTree] Warning: Action '{name}' not found in registry. Using fallback Failure.");
+                    (misses ??= new List<string>()).Add(name);
                     delegates[i] = fallback;
                 }
             }
 
+            unbound = misses?.ToArray() ?? Array.Empty<string>();
             return delegates;
         }
     }

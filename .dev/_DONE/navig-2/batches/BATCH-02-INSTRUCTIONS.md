@@ -536,7 +536,7 @@ Per §4.3:
 /// NOT replicated to DDS.
 /// </summary>
 [ComponentId(NavigationContractsComponentIds.NavigationCorridorMuscle)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [StructLayout(LayoutKind.Sequential)]
 public struct NavigationCorridorMuscle
 {

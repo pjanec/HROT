@@ -64,6 +64,7 @@ public sealed class ExConMock : IDisposable
     public InteractionPanel  GetInteractionPanel() => _interactionPanel;
     public SpawnerPanel      GetSpawnerPanel()     => _spawnerPanel;
     public DiagnosticsPanel  GetDiagnosticsPanel() => _diagnosticsPanel;
+    public DerEntityInspectorPanel GetDerEntityInspectorPanel() => _derEntityInspectorPanel;
 
     // ── Adapter accessors (Phase 6 — used by RegisterWindows) ─────────────────────────
 

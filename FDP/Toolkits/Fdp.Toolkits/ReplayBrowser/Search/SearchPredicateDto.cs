@@ -207,7 +207,29 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class BehaviorParamPredicateDto : SearchPredicateDto
     {
-        public BlackboardTarget TargetBlackboard { get; set; } = BlackboardTarget.BrainBlackboard;
+        /// <summary>
+        /// ⭐⭐⭐ <b>WHICH occurrence slot this predicate reads.</b> <c>0</c> means the behaviour's
+        /// ROOT PARAMS slot; any other value is the <c>SlotKey</c> of one of the behaviour's
+        /// <c>StatefulWorkingSlots</c>.
+        ///
+        /// <para>🔴 <b><c>CE-308</c> — this REPLACES the <c>BlackboardTarget</c> enum</b>, which named
+        /// two COMPONENTS: <c>BrainBlackboard</c> and <c>Blackboard1024</c>. Both are retired, and the
+        /// <c>Blackboard1024</c> arm never worked — it resolved through <c>HeavyDtoType</c>, which is
+        /// <c>null</c> at every production site, so the compiler short-circuited to
+        /// <c>(_, _) =&gt; false</c> before it could run.</para>
+        ///
+        /// <para>⭐⭐ <b>Why a slot KEY and not a renamed enum.</b> Occurrence storage keys everything —
+        /// root params and every working state — in ONE key space. ⇒ the question *"which region does
+        /// this predicate read?"* has exactly one honest answer shape, and it is a key. ⛔ A two-member
+        /// enum could not name WHICH working state on a behaviour that has several, which is precisely
+        /// the case worth searching.</para>
+        ///
+        /// <para>⚠ <c>0</c> is safe as the root sentinel: a real slot key is an FNV hash and the
+        /// allocator never issues <c>0</c>, and the root key is computed from the behaviour hash
+        /// rather than stored.</para>
+        /// </summary>
+        [WorkingSlotPicker]
+        public int WorkingSlotKey { get; set; }
 
         [BehaviorHashPicker]
         public int BehaviorId { get; set; }
@@ -218,12 +240,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
 
         public SearchPredicateDto Predicate { get; set; } = null!;
-    }
-
-    public enum BlackboardTarget
-    {
-        BrainBlackboard,
-        Blackboard1024
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -354,6 +370,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public sealed class BehaviorHashPickerAttribute : Attribute { }
+
+    /// <summary>
+    /// Marks an <c>int</c> field as an occurrence-SLOT selector: the drawer offers the sibling
+    /// behaviour's root params plus each of its stateful working-state slots, by label and scope.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
+    public sealed class WorkingSlotPickerAttribute : Attribute { }
 
     // ──────────────────────────────────────────────────────────────────────────
     // External-hit tag predicate

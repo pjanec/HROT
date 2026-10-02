@@ -1,7 +1,22 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Hrot.IG.UI;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="EntityInspectorPanel"/> shows, this
+/// frame. ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
+/// (<c>IgEntityPropertiesWindow</c>) supplies both. 📄 <c>QUEUE_Panel_Observability_Sweep.md</c>
+/// group 6.</summary>
+public sealed record EntityInspectorPanelViewModel(
+    string PanelId, string PanelKind, bool HasSelection, int EntityId, long TkbType,
+    float PositionX, float PositionY, float PositionZ,
+    string Affiliation, float DamageLevel) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ImGui panel displaying detailed ECS component data for the currently-selected
@@ -46,6 +61,13 @@ public class EntityInspectorPanel
         DrawContent();
         ImGui.End();
     }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="EntityInspectorState"/>. No ImGui, no
+    /// Raylib — safe to call headless. 📄 §Example's BUILD step.</summary>
+    public EntityInspectorPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _state.HasSelection, _state.EntityId, _state.TkbType,
+        _state.PositionX, _state.PositionY, _state.PositionZ,
+        _state.Affiliation.ToString(), _state.DamageLevel);
 
     /// <summary>
     /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.

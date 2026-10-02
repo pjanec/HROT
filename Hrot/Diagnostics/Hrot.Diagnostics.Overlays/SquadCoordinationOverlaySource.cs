@@ -19,7 +19,7 @@ namespace Hrot.Diagnostics.Overlays
     /// Surfaces maneuver state: per-member element coloring + role labels (P7-01),
     /// assignment-vs-actual divergence lines + veto labels (P7-02),
     /// and phase label + dwell-entry tick + merged contact-pool markers (P7-03).
-    /// Requires both <see cref="UnitRoster"/> and <see cref="Blackboard1024"/> on the commander.
+    /// Requires both <see cref="UnitRoster"/> and <see cref="SquadCognitiveState"/> on the commander.
     /// </summary>
     internal sealed unsafe class SquadCoordinationOverlaySource : IGizmoSource
     {
@@ -65,10 +65,9 @@ namespace Hrot.Diagnostics.Overlays
         private void EmitForCommander(Entity commander, IGizmoDrawBuilder draw)
         {
             if (!_repo.HasComponent<UnitRoster>(commander)) return;
-            if (!_repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!_repo.HasComponent<SquadCognitiveState>(commander)) return;
 
-            ref var state  = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state  = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
 
             EmitMemberOverlays(draw, ref state, ref roster);
@@ -101,10 +100,8 @@ namespace Hrot.Diagnostics.Overlays
                 // P7-02: solid assignment line (always)
                 draw.DrawLine(Vector3.Zero, Vector3.Zero, s_assignColor, style: LineStyle.Solid);
 
-                // Resolve the member entity from the roster fixed array
-                Entity member;
-                long packedHandle = roster.SubordinateEntities[i];
-                member = new Entity((ulong)packedHandle);
+                // Resolve the member entity from the roster
+                Entity member = roster.SubordinateEntities[i];
 
                 // P7-02: dashed veto line + label when member's utility trace has records
                 if (_repo.HasComponent<UtilityTraceWorkingMemory1024>(member))

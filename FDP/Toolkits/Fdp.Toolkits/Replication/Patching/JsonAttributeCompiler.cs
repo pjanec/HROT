@@ -83,14 +83,22 @@ internal readonly struct RoutingEntry
     /// <summary>Descriptor ordinal used by <see cref="EcsPatchContext.FlushDirtyMarks"/>.</summary>
     public readonly long DescriptorOrdinal;
 
+    /// <summary>⭐ <c>Q59-N3</c> — the declared value kind, so <see cref="JsonAttributeCompiler.ExportSchema"/>
+    /// can publish a TRUTHFUL type instead of calling every path a string.</summary>
+    public readonly AttributeValueKind Kind;
+
     /// <summary>The type-erased invoker that calls the concrete setter delegate.</summary>
     internal readonly IRoutingEntryInvoker Invoker;
 
-    internal RoutingEntry(IRoutingEntryInvoker invoker, long descriptorOrdinal = 0)
+    internal RoutingEntry(
+        IRoutingEntryInvoker invoker,
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString)
     {
         Invoker = invoker;
         ComponentType = invoker.ComponentType;
         DescriptorOrdinal = descriptorOrdinal;
+        Kind = kind;
     }
 
     internal void Dispatch(IEntityPatchContext context, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader)
@@ -212,6 +220,12 @@ public sealed class JsonAttributeCompiler
         // Per-depth flag: was a numeric index stored when entering this depth?
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1]; // 0 = false, 1 = true
 
+        // ⭐⭐ Q59-N4 — the last property name, kept so an UNROUTED value can name the key it ignored.
+        //    ⚠ Bytes, not a string: materialising one on every property would break the zero-allocation
+        //    mandate. A string is built ONLY when a key turns out to be unknown AND unseen.
+        Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        int lastKeyLen = 0;
+
         contextStack[0] = FnvOffset;
         int depth = 0;
         int wildcardTotal = 0;          // number of compact entries in indexStack
@@ -247,6 +261,10 @@ public sealed class JsonAttributeCompiler
                 {
                     ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
 
+                    // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
+                    lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);
+                    nameBytes[..lastKeyLen].CopyTo(lastKeyBytes);
+
                     if (IsAllDigits(nameBytes))
                     {
                         // Numeric index: store compactly, hash wildcard.
@@ -280,10 +298,81 @@ public sealed class JsonAttributeCompiler
                         ReadOnlySpan<int> indices = indexStack[..wildcardTotal];
                         entry.Dispatch(context, indices, ref reader);
                     }
+                    else
+                    {
+                        WarnUnknownKeyOnce(lastKeyBytes[..lastKeyLen]);
+                    }
                     break;
                 }
             }
         }
+
+        // ⭐⭐⭐ AX-017 — the JSON path flushes ITSELF, exactly as BinaryInterpreter.Apply does.
+        //
+        // 🔴 Before this, the two apply paths announced their dirty descriptors the same way and
+        //    DELIVERED them differently: BinaryInterpreter.Apply ends with
+        //    ctx.PatchContext.FlushDirtyMarks(), so a binary caller CANNOT forget — while every JSON
+        //    caller had to remember `context.FlushDirtyMarks()` on its own line. 📐 Measured
+        //    2026-08-26: three production callers, three separate remembered calls
+        //    (UpdateEntityAttributeRequestSystem, DebugApiService.PatchEntityAttributes,
+        //    EditorSpawnAdapter). ⛔ A fourth that forgets is the AX-015 defect again — the change
+        //    lands in local ECS and is never republished, with no exception anywhere.
+        //
+        // ⭐ Same fix shape as UXI-30/AX-001: move the obligation to the place it cannot be skipped,
+        //    rather than documenting it for the next author. The existing explicit calls stay correct
+        //    and become redundant — SmartEgressUtil.MarkDirty adds to a HashSet, so flushing twice
+        //    marks once.
+        //
+        // ⚠ ListPatchContext.FlushDirtyMarks is an intentional no-op, so the no-ECS spawning path is
+        //    unaffected.
+        context.FlushDirtyMarks();
+    }
+
+    /// <summary>⭐ A diagnostic cap: a key longer than this is truncated in the warning, never in the routing.</summary>
+    private const int MaxKeyBytesForDiagnostics = 128;
+
+    /// <summary>
+    /// ⭐⭐ Keys already warned about, so a mixed-version sender cannot flood the log.
+    /// ⚠ Concurrent because compilers are shared per world and test classes run in parallel — the same reason
+    /// <c>JsonToRecordCompiler</c> holds a concurrent string pool.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _warnedUnknownKeys = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q59-N4</c> — an unsupported attribute key is LOGGED AS A WARNING AND IGNORED. Never a throw.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-26</c>:</b> *"if about unsupported attribute name (key), this should
+    /// be logged as warning and ignored, no throw."*</para>
+    ///
+    /// <para>🔴 <b>What it replaces:</b> total silence. 📐 Measured <c>2026-08-26</c>:
+    /// <c>{"GeoPosition":{"Heading":90.0}}</c> — the path a reader of <c>AttributeIds.GeoHeading</c> would
+    /// naturally guess — applied <b>nothing, with no exception and no log</b>. ⇒ an operator or script had no
+    /// way to discover the key was wrong.</para>
+    ///
+    /// <para>⭐⭐ <b>Why ignore rather than throw, in the ruling's own spirit:</b> tolerating unknown keys is
+    /// what lets a NEWER sender talk to an OLDER node across a mixed-version cluster. ⛔ Throwing would turn a
+    /// forward-compatible patch into a failed request.</para>
+    ///
+    /// <para>⭐ <b>ONCE per key, per compiler.</b> ⚠ A sender repeating a bad key at 60 Hz would otherwise
+    /// bury the log — and a buried warning is the same as no warning.</para>
+    ///
+    /// <para>⚠ <b>The key reported is the LEAF property name, not the full dotted path</b> — stated plainly.
+    /// The compiler carries hashes, not strings, so a full path would cost an allocation per property. ⭐ For
+    /// the FLAT form *(<c>{"GeoPosition.Latitude": …}</c>, which is what ExCon and the debug API send)* the
+    /// leaf name IS the whole path, so the common case is exact; for a NESTED unknown key the warning names
+    /// the leaf only.</para>
+    /// </summary>
+    private void WarnUnknownKeyOnce(ReadOnlySpan<byte> keyUtf8)
+    {
+        if (keyUtf8.IsEmpty) return;
+
+        string key = Encoding.UTF8.GetString(keyUtf8);
+        if (!_warnedUnknownKeys.TryAdd(key, true)) return;   // ⭐ already reported
+
+        Fdp.Core.Logging.FdpLog<JsonAttributeCompiler>.Warn(
+            $"[attributes] Ignoring unsupported attribute key '{key}'. It is not registered in " +
+            "AttributeVocabulary, so the value was skipped. This is a warning, not an error: unknown keys " +
+            "are tolerated so a newer sender can talk to an older node.");
     }
 
     // ── Internal hashing helpers (used by AttributeCompilerBuilder) ──────
@@ -354,18 +443,27 @@ public sealed class JsonAttributeCompiler
     }
 
     /// <summary>
-    /// Returns a JSON Schema document describing all attribute paths registered with this compiler.
-    /// The document is compatible with JSON Schema Draft-07 and can be parsed by
-    /// <see cref="System.Text.Json.JsonDocument.Parse"/>.
-    /// Cold path: called once at startup; not performance-sensitive.
+    /// Returns a JSON Schema (Draft-07) document describing every attribute path registered with this
+    /// compiler, for the <c>EntityAttributeSchema</c> DDS topic and the debug API.
+    ///
+    /// <para>🔴🔴 <b><c>Q59-N3</c>/<c>F4</c> — this used to publish a MALFORMED, mistyped schema.</b>
+    /// 📐 Measured <c>2026-08-26</c>, actual output: it keyed each property on the path's <b>root segment</b>,
+    /// so the three <c>GeoPosition.*</c> paths all collapsed to <c>"GeoPosition"</c> and the key appeared
+    /// <b>THREE TIMES</b> in one object; and every <c>"type"</c> was <c>"string"</c>, including four
+    /// <c>Float64</c> paths. ⇒ a consumer saw <b>4 properties instead of 6</b>, all mistyped.</para>
+    ///
+    /// <para>⭐⭐ <b>Now:</b> one property per FULL path, typed from the route's declared
+    /// <see cref="AttributeValueKind"/>. ⭐ The flat dotted key is the right choice — the compiler accepts
+    /// <c>{"GeoPosition.Latitude": …}</c> and the nested form alike, and a flat key is what makes the
+    /// available paths <b>discoverable</b>, which is the need behind <c>Q59</c> §8.2's naming question.</para>
+    ///
+    /// <para>📌 Also removes a leaked, never-used <c>Utf8JsonWriter</c> over a throwaway
+    /// <c>MemoryStream</c> — dead code that allocated on every call.</para>
+    ///
+    /// <para>⚠ Cold path: called once at startup; not performance-sensitive.</para>
     /// </summary>
     public string ExportSchema()
     {
-        var writer = new System.Text.Json.Utf8JsonWriter(
-            new System.IO.MemoryStream(),
-            new System.Text.Json.JsonWriterOptions { Indented = false });
-
-        // We write to a MemoryStream then read it back as a string.
         using var ms = new System.IO.MemoryStream();
         using (var w = new System.Text.Json.Utf8JsonWriter(ms))
         {
@@ -373,16 +471,11 @@ public sealed class JsonAttributeCompiler
             w.WriteString("$schema", "http://json-schema.org/draft-07/schema#");
             w.WriteStartObject("properties");
 
-            foreach (string path in _registeredPaths)
+            // ⭐ Keyed by the FULL path, so no two entries can collide.
+            foreach (var (path, kind) in DescribeRoutes())
             {
-                // Each top-level segment becomes a property key.
-                // For nested paths (e.g. "GeoPosition.Latitude") use the root segment as the key.
-                int dotIndex = path.IndexOf('.');
-                string key = dotIndex >= 0 ? path[..dotIndex] : path;
-
-                // Write the property entry. Use the full path as the description.
-                w.WriteStartObject(key);
-                w.WriteString("type", "string");
+                w.WriteStartObject(path);
+                w.WriteString("type", JsonSchemaTypeFor(kind));
                 w.WriteString("description", path);
                 w.WriteEndObject();
             }
@@ -393,4 +486,32 @@ public sealed class JsonAttributeCompiler
 
         return Encoding.UTF8.GetString(ms.ToArray());
     }
+
+    /// <summary>
+    /// ⭐ Pairs each registered path with its declared kind.
+    /// ⚠ <see cref="_registeredPaths"/> is the ordered source of truth for WHICH paths exist; the routing
+    /// table supplies the kind. A path with no route (which should not happen) falls back to a string.
+    /// </summary>
+    private IEnumerable<(string Path, AttributeValueKind Kind)> DescribeRoutes()
+    {
+        foreach (string path in _registeredPaths)
+        {
+            var kind = _routes.TryGetValue(HashPath(path), out var entry)
+                ? entry.Kind
+                : AttributeValueKind.CsString;
+            yield return (path, kind);
+        }
+    }
+
+    /// <summary>⭐ The JSON Schema primitive for an FDP value kind.</summary>
+    private static string JsonSchemaTypeFor(AttributeValueKind kind) => kind switch
+    {
+        AttributeValueKind.CsInt32   => "integer",
+        AttributeValueKind.CsInt64   => "integer",
+        AttributeValueKind.CsFloat32 => "number",
+        AttributeValueKind.CsFloat64 => "number",
+        AttributeValueKind.Bool      => "boolean",
+        _                            => "string",
+    };
+
 }

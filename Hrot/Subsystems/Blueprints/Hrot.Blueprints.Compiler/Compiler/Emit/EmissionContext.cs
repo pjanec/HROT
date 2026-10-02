@@ -16,6 +16,15 @@ internal sealed class EmissionContext
     public IrGraph? CurrentGraph { get; set; }
 
     /// <summary>
+    /// ⭐ <c>CE-446</c> — the graph being emitted is a blueprint BEHAVIOUR's Tick, so every non-status exit is
+    /// <c>Running</c> (<see cref="BehaviorDispatch"/>).
+    /// </summary>
+    public bool IsBehaviorTick => BehaviorDispatch.IsTickGraph(Asset, CurrentGraph);
+
+    /// <summary>⭐ <c>CE-446</c> — the "not finished yet" exit of a behaviour Tick.</summary>
+    public const string ReturnRunning = "return global::Fbt.NodeStatus.Running;";
+
+    /// <summary>
     /// CallPeerBlueprint/AiPrimitiveCall alias fix -- the cross-asset function signatures the
     /// caller was compiled WITH (<c>CompileOptions.SiblingSignatures</c>), threaded through so
     /// <c>CSharpEmitter.EmitUsings</c> can resolve a peer's REAL generated class name
@@ -48,8 +57,21 @@ internal sealed class EmissionContext
     }
 
     /// <summary>Block label by IrBlockId, for goto emission.</summary>
+    /// <remarks>
+    /// ⭐ <c>CE-464</c> — block ids are numbered PER GRAPH (Stage5 restarts at 0 for every graph), so a label is looked up
+    /// in <see cref="CurrentGraph"/> first. ⛔ It used to read one asset-wide map built graph after graph, so in an asset
+    /// with branches in two or more graphs the LAST graph's labels won: a <c>goto</c> named a label that lives in
+    /// another method (<c>CS0159</c>). Found by the first large blueprint behaviour (<c>PlatoonHillAttackBp</c>).
+    /// </remarks>
     public string LabelForBlock(IrBlockId id)
-        => _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
+    {
+        if (CurrentGraph is { } g)
+        {
+            foreach (var b in g.Blocks)
+                if (b.Id.Value == id.Value) return b.Label;
+        }
+        return _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
+    }
 
     /// <summary>
     /// U-3 / <c>BP-226</c> — the C# field name for a resolved variable reference.
@@ -115,6 +137,20 @@ internal sealed class EmissionContext
         => kind == VariableKind.Parameter ? ParamsVar : StateVar;
 
     /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — the container of ONE reference. For a behaviour resolver asset a Variable is a
+    /// field of the injected block, in its <c>In</c> or <c>St</c> half (<c>ResolverSubject.StateVariables</c>);
+    /// every other asset answers <see cref="ContainerVarFor"/> exactly as before.
+    /// </summary>
+    public string ContainerFor(VariableRef target)
+    {
+        var subject = Asset.ResolverSubject;
+        if (subject is null || target.Kind == VariableKind.Parameter)
+            return ContainerVarFor(target.Kind);
+        string name = VarFieldName(target);
+        return subject.StateVariables.Contains(name) ? "block.St" : "block.In";
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ Batch 70 / <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>the expression that names the params
     /// region, per dispatch kind.</b>
     ///
@@ -131,7 +167,8 @@ internal sealed class EmissionContext
     /// </para>
     /// </summary>
     public string ParamsVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
+        Asset.ResolverSubject is not null ? "authored"          // ⭐ CE-443: a resolver's Parameters are its authored source
+        : Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
 
 
     /// <summary>
@@ -184,9 +221,37 @@ internal sealed class EmissionContext
     public string ResolveLibraryClass(int libraryBlueprintId)
         => $"__LibBp_{libraryBlueprintId:X8}_Bp";
 
-    /// <summary>World access expression based on dispatch kind.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — this graph is a blueprint-authored PARAMETER RESOLVER.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4.1.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Keyed on the GRAPH, not the asset's dispatch</b> — that is the whole point. A Library
+    /// asset's <c>Function</c> graphs stay stateless static methods with no world in scope; its
+    /// <c>Construction</c> graphs are emitted with <c>(world, self, host)</c> appended, because a
+    /// resolver must reach the world to be worth authoring at all (the motivating case is geo-authored
+    /// params needing <c>IGeographicTransform.ToCartesian</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>CurrentGraph</c> is set by <c>LibraryEmitter.EmitGraphBody</c>, the ONE body emitter every
+    /// graph passes through, so this is correct for every statement inside a resolver and false
+    /// everywhere else — including between graphs, when it is null.
+    /// </para>
+    /// </summary>
+    public bool IsResolverGraph => CurrentGraph?.Kind == IrGraphKind.Construction;
+
+    /// <summary>
+    /// World access expression based on dispatch kind.
+    ///
+    /// <para>
+    /// ⭐ <c>R4</c>: a resolver graph takes the SAME arm as AiPrimitive dispatch, and deliberately
+    /// reuses it rather than adding a third — its emitted method has a <c>world</c> parameter for the
+    /// same reason an AiPrimitive thunk does.
+    /// </para>
+    /// </summary>
     public string WorldVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive
+        Asset.Dispatch == AssetDispatch.AiPrimitive || IsResolverGraph
             ? "world"
             : "((global::Fdp.Core.EntityRepository)view)";
 
@@ -212,7 +277,7 @@ internal sealed class EmissionContext
     /// Stage5_Schedule.ResolveFunctionCallTrailingContext), so this value is unused in that case.
     /// </summary>
     public string ViewVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "world" : "view";
+        Asset.Dispatch == AssetDispatch.AiPrimitive || IsResolverGraph ? "world" : "view";
 
     /// <summary>
     /// CA-05 (Slice 1b) -- an expression whose STATIC type is <c>Fdp.ModuleHost.Abstractions.
@@ -276,5 +341,11 @@ internal sealed class EmissionContext
     /// so entity-scoped debug probes (NodeEnter / PinValueChanged) must not reference <c>self</c>
     /// there — doing so emits uncompilable C# (CS0103). See StatementEmitter debug-probe cases.
     /// </summary>
-    public bool HasSelfInScope => Asset.Dispatch != AssetDispatch.Library;
+    /// <para>
+    /// ⭐⭐ <b><c>R4</c> amendment:</b> a <c>Construction</c> graph on a Library asset DOES have
+    /// <c>self</c> — its emitted method takes it (📄 <c>DESIGN_Resolver_World_Reach.md</c> §4) — so
+    /// debug probes are correctly ON inside a resolver. ⛔ The Library asset's <c>Function</c> graphs
+    /// are unchanged and still have none.
+    /// </para>
+    public bool HasSelfInScope => Asset.Dispatch != AssetDispatch.Library || IsResolverGraph;
 }

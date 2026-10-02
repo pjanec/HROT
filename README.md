@@ -923,7 +923,7 @@ Hrot/
     Hrot.Editor/            -- Offline scenario authoring
     Hrot.AI.Behaviors/      -- 8 behavior implementations (MoveToLocation, FireAtTarget, ...)
     Hrot.ReplayBrowser/     -- Recording inspection, search, JSON export
-    Hrot.StrideMock/        -- Stride engine mock node (CI / GPU-free)
+    Hrot.NodeComposition/   -- StrideNodeBootstrapper: node composition root for the Stride app
     Blueprints/
       Hrot.Blueprints.Core/     -- Blueprint runtime, blackboard, in-memory Roslyn compiler
       Hrot.Blueprints.Compiler/ -- 8-stage Blueprint compiler pipeline

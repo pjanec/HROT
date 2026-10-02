@@ -49,7 +49,7 @@ for ever, while Details shows its value.
 |---|---|
 | **1** | ⭐ **One row = one accessor.** Rows are **independent instances of one row class**, filled from the same or different sources. ⛔ **A Watch row and a Details row know nothing about each other** — they are not shared objects |
 | **2** | ⭐⭐ **The accessor is called once per brain frame** — *"only when not in planning mode and only when the frame's `dt > 0`"*. ⭐ All rows are evaluated **at the same time**, on that one pulse. ⛔ **Not while the simulation is paused** — only when time actually stepped |
-| **2b** | ⭐⭐⭐ **ONE tick source for every host** — *"the brain (cgf) does not tick ANY behavior when `dt=0`, so the tick source is not dependent on behavior type."* 📐 **Measured true**: `BlueprintTickSystem:51`, `BTreeTickSystem:55` and `HsmTickSystem:103` all open `if (deltaTime <= 0f) return;` ⇒ ⛔ **no per-host and no per-`(asset, entity)` clock** |
+| **2b** | ⭐⭐⭐ **ONE tick source for every host** — *"the brain (cgf) does not tick ANY behavior when `dt=0`, so the tick source is not dependent on behavior type."* 📐 **Measured true**: `BlueprintTickSystem:51`, `BrainTickSystem:111` and the same gate, one system for both arms all open `if (deltaTime <= 0f) return;` ⇒ ⛔ **no per-host and no per-`(asset, entity)` clock** |
 | **3** | ⭐⭐ **The value is CACHED on the row** and rendered **every UI frame from the cache, without calling the accessor** |
 | **4a** | ⭐ **Pin while RUNNING-but-PAUSED ⇒ call the accessor immediately**, so the value is known from the very start |
 | **4b** | ⭐ **Pin while PLANNING ⇒ do not call it.** The cell shows `(pending)` because the cache has not been filled yet — ⛔ **not because "nobody writes this variable"** |
@@ -145,7 +145,7 @@ advances, render from cache otherwise.
 
 | | |
 |---|---|
-| `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` | ⭐ **`if (deltaTime <= 0f) return;`** |
+| `BlueprintTickSystem:51` · `BrainTickSystem:111` | ⭐ **`if (deltaTime <= 0f) return;`** |
 
 ⇒ ⭐⭐ **"a non-frozen CGF behaviour frame" is ONE event, not three.** ⛔ The per-`(asset, entity)`
 counter is finer than anything the monitor can use: an entity the tick loop skips *(BTree line 80/90/98

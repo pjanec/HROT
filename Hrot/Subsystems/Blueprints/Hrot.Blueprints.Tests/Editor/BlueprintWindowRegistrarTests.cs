@@ -44,9 +44,11 @@ public sealed class BlueprintWindowRegistrarTests
 
         registrar.RegisterWindows(registry);
 
+        // ⛔ L5 — "Inspector" REMOVED: the 70-line Blueprints stub is retired (Q38's list).
+        //    ⭐ The four below are unchanged, so this rail still says the registry registers what it
+        //      registers — ⛔ it did not become "whatever the registrar happens to do".
         var expected = new[]
         {
-            "Inspector",
             "Debug Panel",
             "Watch Panel",
             "Callstack",
@@ -55,9 +57,16 @@ public sealed class BlueprintWindowRegistrarTests
 
         foreach (var name in expected)
             Assert.Contains(name, registry.RegisteredNames);
+
+        // ⭐⭐ THE OTHER HALF, and it is what keeps this rail honest: a retired entry must be ABSENT.
+        //    ⚠ Deleting a row from an expected-list rail proves nothing on its own — the rail would
+        //      pass just as well if the registrar registered it anyway.
+        Assert.DoesNotContain("Inspector", registry.RegisteredNames);
     }
 
-    // FIX2-005: engine IWindowRegistrar path must register all 5 windows in WindowManager
+    // FIX2-005: the engine Fdp.Toolkit.Runner.IWindowRegistrar path must register all 5 windows in
+    //    WindowManager. ⚠ FULLY QUALIFIED since the rename: the FEATURE-level seam this class also
+    //    implements is now IShellCommandRegistrar, and a bare name here would read as the wrong one.
     // (AssetBrowserWindow removed — MTB-P7-T5 retirement; GraphEditorWindow removed — BF-UX1 FIX D).
     [Fact]
     public void BlueprintWindowRegistrar_RegistersAllWindows_ViaEngineInterface()
@@ -69,9 +78,10 @@ public sealed class BlueprintWindowRegistrarTests
 
         engineRegistrar.RegisterWindows(wm);
 
+        // ⛔ L5 — "Inspector" removed here too; see the sibling rail above for why, and for the
+        //    DoesNotContain half that stops the removal being a silent weakening.
         var expected = new[]
         {
-            "Inspector",
             "Debug Panel",
             "Watch Panel",
             "Callstack",

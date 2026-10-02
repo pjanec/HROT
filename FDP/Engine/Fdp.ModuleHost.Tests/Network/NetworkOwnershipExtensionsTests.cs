@@ -15,7 +15,7 @@ namespace Fdp.ModuleHost.Tests.Network
         public NetworkOwnershipExtensionsTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<NetworkOwnership>();
+            _repo.RegisterComponent<NetworkAuthority>();
         }
         
         public void Dispose()
@@ -27,11 +27,9 @@ namespace Fdp.ModuleHost.Tests.Network
         public void OwnsDescriptor_NoMap_FallsToPrimaryOwner()
         {
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new NetworkOwnership
-            {
-                LocalNodeId = 1,
-                PrimaryOwnerId = 1
-            });
+            _repo.AddComponent(entity, new NetworkAuthority(
+                primaryOwnerId: 1,
+                localNodeId: 1));
             // No DescriptorOwnership component
             
             // Should fall back to PrimaryOwnerId
@@ -44,12 +42,10 @@ namespace Fdp.ModuleHost.Tests.Network
         public void GetDescriptorOwner_NoMap_ReturnsPrimary()
         {
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new NetworkOwnership
-            {
-                LocalNodeId = 1,
-                PrimaryOwnerId = 1
-            });
-            
+            _repo.AddComponent(entity, new NetworkAuthority(
+                primaryOwnerId: 1,
+                localNodeId: 1));
+
             var owner = ((ISimulationView)_repo).GetDescriptorOwner(entity, 999);
             
             Assert.Equal(1, owner);

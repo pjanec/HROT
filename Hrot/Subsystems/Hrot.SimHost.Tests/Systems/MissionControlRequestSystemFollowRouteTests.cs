@@ -31,7 +31,6 @@ public class MissionControlRequestSystemFollowRouteTests
         var repo = new EntityRepository();
         repo.RegisterComponent<MissionPlanQueue>();
         repo.RegisterComponent<BehaviorState>();
-        repo.RegisterComponent<BrainBTreeState>();
         repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<RouteTrajectoryCache>();

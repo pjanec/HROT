@@ -234,9 +234,16 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             foreach (var t in incoming)
                 RemoveTransitionInternal(t);
 
-            // 3. Unregister every state in the subtree.
+            // 3. Unregister every state in the subtree, dropping the auto-managed params variable
+            //    each one's blueprint pick composed (CE-414) — the same rule
+            //    RemoveTransitionInternal already applies to a guard's variable. ⛔ Without this a
+            //    deleted state leaves an orphan row the author cannot delete (auto-managed rows are
+            //    not user-deletable) and cannot see the owner of.
             foreach (var s in subtree)
+            {
+                RemoveAutoManagedTargetVariable(s.ExpressionTargetField);
                 _asset.UnregisterState(s);
+            }
         }
     }
 
@@ -246,15 +253,21 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     /// </summary>
     private void RemoveTransitionInternal(TransitionNode transition)
     {
-        if (!string.IsNullOrEmpty(transition.ExpressionTargetField))
-        {
-            var varEntry = _asset.BlackboardVariables
-                .FirstOrDefault(v => v.Name == transition.ExpressionTargetField);
-            if (varEntry is { IsAutoManaged: true })
-                _asset.RemoveVariable(transition.ExpressionTargetField);
-        }
+        RemoveAutoManagedTargetVariable(transition.ExpressionTargetField);
         _asset.UnregisterTransition(transition.VisualId);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>BB1 / <c>CE-414</c> — drops the variable a hosting site's pick composed, and ONLY if the
+    /// editor owns it.</b>
+    ///
+    /// <para>⛔ <c>IsAutoManaged</c> is the whole test: an author who pointed the site at a variable
+    /// they declared themselves keeps it, because deleting one node must never delete authored data.
+    /// ⭐ One body, because states (activity) and transitions (guard) now both compose one.</para>
+    /// </summary>
+    private void RemoveAutoManagedTargetVariable(string? targetField)
+        => Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+               .RemoveIfAutoManaged(_asset, targetField);
 
     private void ApplyAddLink(GraphCommand.AddLink cmd)
     {

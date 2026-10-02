@@ -100,12 +100,23 @@ public sealed class TheEditActuallyLandsTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>A row from a DIFFERENT asset does NOT write into the open document.</b>
+    /// ⭐⭐ <b>A row from a DIFFERENT asset never touches the OPEN document.</b>
     ///
     /// <para>⚠ The Watch mixes rows from arbitrary assets — 📌 <c>VariableRow</c>'s own doc: <i>"in
     /// Watch there is no single one"</i>. ⛔ Resolving the owner as <i>"whatever is open"</i> would land
-    /// a designer's edit in the wrong asset, silently, with an <c>Ok</c> saying it worked. ⭐ That is
-    /// why the owner is keyed on the ROW's asset id.</para>
+    /// a designer's edit in the wrong asset, silently, with an <c>Ok</c> saying it worked.</para>
+    ///
+    /// <para>⚠⚠ <b>CHANGED by Batch 98 (<c>98a</c>), and the change is a WIDENING of what is asserted —
+    /// stated because rewriting another batch's rail needs justifying.</b> This used to assert
+    /// <c>RefusedNoDeclarationOwner</c> and <i>"neither asset was written"</i>. 📐 The refusal was a
+    /// LIMITATION, not the safety property: the owner could only ever be <c>store.ActiveAsset</c>, so a
+    /// stray row had nowhere to go. ⭐ <c>98a</c> gave the row its OWN write-back, so a stray row can now
+    /// resolve its own declaration — ⛔ and writing there is CORRECT, not a leak.</para>
+    ///
+    /// <para>⭐⭐ <b>The property is unchanged and is what this now asserts:</b> the OPEN document is
+    /// untouched. ⭐ <see cref="APinnedRowWhoseAssetIsNoLongerOpen_Refuses"/> covers the hazard the old
+    /// wording was really guarding, and covers it BETTER — it exercises the production shape, where the
+    /// source's asset delegate follows the active document.</para>
     /// </summary>
     [Fact]
     public void ARowFromAnotherAssetDoesNotWriteIntoTheOpenOne()
@@ -124,10 +135,54 @@ public sealed class TheEditActuallyLandsTests
         reg.Variables.Control.RaiseEditValueRequested(strayRow);
         FieldNode(reg.EditGestures!.ActiveSession!, "Count").Binding!.SetBoxed(99);
 
+        Assert.Equal(VariableEditCommit.Outcome.Ok, reg.EditGestures.Accept());
+
+        // ⭐⭐ THE property: the open document is untouched.
+        Assert.DoesNotContain("99", Assert.Single(openAsset.BlackboardVariables).DefaultValueJson!);
+        // ⭐ And the edit landed where it belongs — the row's OWN asset.
+        Assert.Contains("99", Assert.Single(otherAsset.BlackboardVariables).DefaultValueJson!);
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>THE PRODUCTION HAZARD, and it is the one the old wording was really guarding.</b>
+    ///
+    /// <para>📐 <c>BlackboardSectionRowSource</c> resolves its asset <b>PER CALL</b> — right for
+    /// BUILDING rows *(the active document changes under it)* and ⛔ wrong for writing one back. ⇒ a row
+    /// pinned from asset <c>A</c>, edited after the designer switched to document <c>B</c>, would write
+    /// <c>A</c>'s variable name INTO <c>B</c>. ⚠ Silently, and with an <c>Ok</c>.</para>
+    ///
+    /// <para>⭐ The guard is the SAME one Batch 96 put in <c>DeclarationOwnerOf</c>: the resolved asset
+    /// must still be the row's own. 📐 Removing it turns this red.</para>
+    /// </summary>
+    [Fact]
+    public void APinnedRowWhoseAssetIsNoLongerOpen_Refuses()
+    {
+        var (reg, openAsset, _) = Scene("btree");
+
+        var pinnedEntry = new BlackboardVariableEntry(
+            "Health", typeof(Settings), Comment: null, DefaultValueJson: "{\u0022Count\u0022:1}");
+        var pinnedAsset = new TestManagedAsset(AssetKind.BTree, pinnedEntry);
+
+        // ⭐ The production shape: the source follows the ACTIVE document, and the designer has since
+        //   switched away from the asset this row was pinned from.
+        var active = pinnedAsset;
+        var row = new BlackboardSectionRowSource(
+                asset:   () => active,
+                assetId: pinnedAsset.AssetId,
+                section: BlackboardMyBlueprintModel.SectionOf(pinnedEntry))
+            .GetRows().Single();
+
+        var switchedTo = new TestManagedAsset(AssetKind.BTree, pinnedEntry);
+        active = switchedTo;   // ⚠ the switch, after the row was built
+
+        reg.Variables.Control.RaiseEditValueRequested(row);
+        FieldNode(reg.EditGestures!.ActiveSession!, "Count").Binding!.SetBoxed(99);
+
         Assert.Equal(VariableEditCommit.Outcome.RefusedNoDeclarationOwner,
                      reg.EditGestures.Accept());
+        Assert.DoesNotContain("99", Assert.Single(switchedTo.BlackboardVariables).DefaultValueJson!);
+        Assert.DoesNotContain("99", Assert.Single(pinnedAsset.BlackboardVariables).DefaultValueJson!);
         Assert.DoesNotContain("99", Assert.Single(openAsset.BlackboardVariables).DefaultValueJson!);
-        Assert.DoesNotContain("99", Assert.Single(otherAsset.BlackboardVariables).DefaultValueJson!);
     }
 
     /// <summary>
@@ -156,37 +211,55 @@ public sealed class TheEditActuallyLandsTests
     }
 
     /// <summary>
-    /// ⛔⛔⛔ <b>ASSERTED ON PURPOSE — a SCALAR variable's edit goes NOWHERE, and this batch does not
-    /// fix it.</b>
+    /// ⭐⭐⭐ <b>FLIPPED, Batch 97 (<c>97a</c>) — A SCALAR VARIABLE'S EDIT NOW LANDS.</b>
     ///
-    /// <para>📐 <b>Measured:</b> <c>ReflectionEditDocumentBuilder.CreateLeafBinding</c> opens with
-    /// <c>if (fi == null &amp;&amp; pi == null) return null;</c> — a binding needs a MEMBER — and the
-    /// ROOT of a document has none. ⇒ for a DTO variable the root is a <c>Struct</c> whose CHILDREN are
-    /// bound *(so editing works)*, ⛔ but for a scalar the root <b>IS</b> the leaf, its
-    /// <c>Binding</c> is <c>null</c>, and <c>ComponentEditDrawer.DrawLeafNode</c> ends
-    /// <c>if (changed) node.Binding?.SetBoxed(value);</c> — <b>a null-conditional that silently
-    /// discards the designer's typing.</b></para>
+    /// <para>🔴🔴 <b>What this rail asserted before</b> *(Batch 96, on purpose)*: a scalar's document
+    /// root had <c>Binding == null</c> — 📐 <c>ReflectionEditDocumentBuilder.CreateLeafBinding</c>
+    /// opens <c>if (fi == null &amp;&amp; pi == null) return null;</c>, a binding needs a MEMBER, and a
+    /// ROOT has none — so <c>DrawLeafNode</c>'s <c>node.Binding?.SetBoxed(value)</c> silently discarded
+    /// the typing and <c>Commit()</c> could only return the seed. ⚠ <b>That was the user's exact
+    /// case</b> — <c>Count</c>, a plain <c>int</c>.</para>
     ///
-    /// <para>⚠⚠ <b>This is the user's exact case</b> — <c>Count</c>, a plain <c>int</c>. ⇒ after
-    /// <c>96a</c> and <c>96b</c> the dialog now DRAWS an input for it, and committing still returns the
-    /// seeded value. ⛔ <b>Not fixed here:</b> the fix is a ROOT binding in <c>StructEdit</c>
-    /// *(<c>FDP/ExtDeps</c>, with its own suite)*, and its blast radius is every scalar-rooted edit
-    /// session in the editor — 📌 a capability question, not a wire.</para>
+    /// <para>⭐⭐ <b>Now:</b> <c>DefaultValueAuthoring.OpenSession</c> opens a leaf-kind variable over
+    /// <c>ScalarEditBox&lt;T&gt;</c>, whose public FIELD gives the root a BOUND CHILD. ⛔ <c>StructEdit</c>
+    /// is untouched. ⭐ The assertion is now <b>the designer's sentence</b>: open, type, OK, and the
+    /// declaration changes.</para>
     ///
-    /// <para>⭐ <b>Inverted when it is fixed</b> — this rail goes RED, which is the correct signal.</para>
+    /// <para>⛔ <b>Whose object:</b> the registrar, binder, launcher and selection store are the real
+    /// <see cref="EditorSubsystem"/>'s; the row comes from the production
+    /// <see cref="BlackboardSectionRowSource"/>; ⚠ the asset is <see cref="TestManagedAsset"/>.</para>
     /// </summary>
-    [Fact]
-    public void AScalarVariablesEditGoesNowhere()
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    public void AScalarVariablesEditLands(string perspective)
     {
-        var svc = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-        using var session = svc.Open(7, typeof(int), StructEdit.Core.EditScope.WholeComponent);
+        var entry = new BlackboardVariableEntry("Health", typeof(int), Comment: null, DefaultValueJson: "1");
+        var asset = new TestManagedAsset(
+            perspective == "btree" ? AssetKind.BTree : AssetKind.Hsm, entry);
 
-        var root = session.Document.Root;
+        var reg = RegistrarOf(perspective);
+        reg.SelectionStore.ActiveAsset = asset;
 
-        Assert.Equal(StructEdit.Core.EditNodeKind.Scalar, root.Kind);
-        Assert.Empty(root.Children);
-        Assert.Null(root.Binding);          // 🔴 nothing for DrawLeafNode to write through
-        Assert.Equal(7, session.Commit());  // 🔴 …so a commit can only ever return the seed
+        var source = new BlackboardSectionRowSource(
+            asset:   () => asset,
+            assetId: asset.AssetId,
+            section: BlackboardMyBlueprintModel.SectionOf(entry));
+        reg.Variables.ShowSection("s", source);
+
+        reg.Variables.Control.RaiseEditValueRequested(source.GetRows().Single());
+        Assert.NotNull(reg.EditGestures!.ActiveSession);
+
+        // ⭐ The designer types — through the node's binding, which is what DrawLeafNode writes to.
+        //   🔴 Before 97a this node did not exist: the root WAS the leaf and carried no binding.
+        FieldNode(reg.EditGestures.ActiveSession!, nameof(Hrot.Editor.AiShared.Inspector.ScalarEditBox<int>.Value))
+            .Binding!.SetBoxed(99);
+
+        Assert.Equal(VariableEditCommit.Outcome.Ok, reg.EditGestures.Accept());
+
+        // ⭐⭐⭐ THE SCALAR, not the wrapper. ⛔ `{"Value":99}` here would mean the box escaped into the
+        //    asset, and every later reader of that declaration would fail to hydrate it.
+        Assert.Equal("99", Assert.Single(asset.BlackboardVariables).DefaultValueJson);
     }
 
     /// <summary>⭐ The one field node the DTO rails drive — the same node <c>DrawLeafNode</c> would

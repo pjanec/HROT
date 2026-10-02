@@ -23,7 +23,9 @@
 				"1a000000-0000-0000-0000-0000000000a1",
 				"1a000000-0000-0000-0000-0000000000a2",
 				"1a000000-0000-0000-0000-0000000000a3",
-				"1a000000-0000-0000-0000-000000000003"
+				"1a000000-0000-0000-0000-000000000003",
+				"1a000000-0000-0000-0000-0000000000a4",
+				"1a000000-0000-0000-0000-0000000000a5"
 			],
 			"DisplayLabel": "Sequence",
 			"EditorMetadata": { "X": 400, "Y": 100, "Comment": "Setup (calc slots → move to baseline → wait for arrival) then the repeating wave loop.", "Collapsed": false, "Color": null }
@@ -95,6 +97,22 @@
 			"DisplayLabel": "IsWaveCompleted",
 			"EditorMetadata": { "X": 850, "Y": 370, "Comment": "Running until all attackers return/die; burns the firing slot of any tank that dies.", "Collapsed": false, "Color": null },
 			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000a4",
+			"ChildVisualIds": [],
+			"DisplayLabel": "ReturnToBaseline",
+			"EditorMetadata": { "X": 1000, "Y": 230, "Comment": "CE-459: area clear — send every subordinate back to its baseline staging slot (the platoon ends on the baseline, abreast).", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000a5",
+			"ChildVisualIds": [],
+			"DisplayLabel": "AreAllBackAtBaseline",
+			"EditorMetadata": { "X": 1150, "Y": 230, "Comment": "CE-459: Running until every alive subordinate is back on the baseline; then the behaviour finishes (Success).", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
 		}
 	],
 	"Pills": [
@@ -106,6 +124,15 @@
 			"FloatParam": null,
 			"Comment": "Repeat waves forever; the loop exits when IsAreaQueryResolved returns Failure (area clear).",
 			"StackIndex": 0
+		},
+		{
+			"VisualId": "1a000000-0000-0000-0000-0000000000f2",
+			"HostNodeVisualId": "1a000000-0000-0000-0000-000000000003",
+			"DecoratorType": "ForceSuccess",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "CE-459: area clear is the loop's normal exit (Failure) — turn it into Success so the sequence goes on to return the platoon to the baseline.",
+			"StackIndex": 1
 		}
 	],
 	"Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },

@@ -160,7 +160,7 @@ public sealed class InstanceParamsLayoutTests
         var src = CompileSource(InstanceWithParams());
 
         Assert.Contains("public static unsafe void ParseParams(", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)", src);
+        Assert.Contains("global::Fdp.Core.Entity self)", src);   // CE-445: no host argument
         Assert.Contains("ParseParams = ParamCarrier_", src);
         Assert.Contains("ParamsOffset = ParamCarrier_", src);
         Assert.Contains("ParamsSize = ParamCarrier_", src);
@@ -176,8 +176,10 @@ public sealed class InstanceParamsLayoutTests
     {
         var src = CompileSource(InstanceWithParams());
 
-        Assert.Contains("case \"Speed\":", src);
-        Assert.Contains("case \"Count\":", src);
+        // ⭐ CE-464: keys match case-insensitively (the platform JSON options' rule) — "speed", "Speed", "SPEED".
+        Assert.Contains("switch (__prop.Name.ToLowerInvariant())", src);
+        Assert.Contains("case \"speed\":", src);
+        Assert.Contains("case \"count\":", src);
         Assert.Contains("default: break;", src);
         // ⭐ Bake first, overlay second -- the ORDER is the ruling.
         Assert.True(src.IndexOf("p = default;", StringComparison.Ordinal)

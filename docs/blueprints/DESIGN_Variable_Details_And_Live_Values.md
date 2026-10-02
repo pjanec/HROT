@@ -73,8 +73,9 @@ matter which way `SyncFrom` runs. ⚠ **Still assert it: edit while paused → r
 
 ### 3.3 How — ⭐ **surgical, never whole-component**
 
-⛔ **`Blackboard1024` is ONE component shared by BTree, HSM and Blueprint** — *"each subsystem projects
-at a disjoint byte offset."* ⇒ **a whole-component write clobbers other subsystems' state.**
+⛔ **`BlueprintBlackboard1024` is ONE component shared by BTree, HSM and Blueprint** — *"each subsystem
+projects at a disjoint byte offset (its own occurrence slot)."* ⇒ **a whole-component write clobbers
+other subsystems' state.**
 
 📌 *(It is not a size problem: `ByteSize == 1024` and the ECB check is `> 1024`, so it would fit. The
 sharing is the reason.)*
@@ -270,6 +271,8 @@ applies *inside* the read path; promotion would leave the duplication untouched.
 rendering.** ⛔ **The two `InspectorWindow` classes are NOT duplicates** — the blueprint one is a
 76-line metadata stub with no variables at all.
 ⭐⭐⭐ **And a live-value provider ALREADY EXISTS and already marshals structs generically:**
-`LiveBlackboardValueProvider` reads `BrainBlackboard` at `BehaviorParameters + byteOffset` via
-`Marshal.PtrToStructure` ⇒ **blueprints need their own, modelled on it — not a new concept.**
+`LiveBlackboardValueProvider` reads the entity's tier component (`BlueprintBlackboard{tier}`), walks the
+slot table to the variable's occurrence slot (root-params slot for behaviour params, node slot for
+working state), and projects at that slot's `PayloadOffset` via `Marshal.PtrToStructure` ⇒ **blueprints
+need their own, modelled on it — not a new concept.**
 📌 **`LiveBlackboardPanel` has no `new` call site anywhere** ⇒ **possibly dead; confirm, then retire.**

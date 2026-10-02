@@ -34,13 +34,50 @@ public sealed class HsmValidator
     /// </summary>
     private readonly Func<Guid, IReadOnlyCollection<int>> _sharedScopeKeys;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> item 7 — the asset catalogue, for the <c>A</c> hosts <c>B</c> hosts <c>A</c>
+    /// walk.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔⛔ <b>A CATALOGUE rather than a third <c>Func&lt;Guid, …&gt;</c> resolver, deliberately.</b>
+    /// 📐 <c>BTreeValidator.Validate</c> already takes an <c>IAssetCatalog?</c>, so the BTree arm of the
+    /// same rule needs no new plumbing at all; and the catalogue→hosted-ids adapter then lives ONCE,
+    /// inside <c>SubtreeCycleDetector</c>, instead of being rewritten at every composition root. ⭐ The
+    /// edge is read through <c>ISubtreeHostingAsset</c>, so this assembly still never sees
+    /// <c>BehaviorTreeAsset</c> — the constraint that shaped <c>CE-338</c>.</para>
+    ///
+    /// <para>⚠ <b>Null skips the rule</b>, exactly as <c>BTreeValidator</c> skips its dangling-reference
+    /// check without one. ⛔ That IS a silent default, so the control is a forwarding rail asserted on
+    /// the CONSTRUCTED object — not a promise in this comment.</para>
+    /// </summary>
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
+
     public HsmValidator(IActionSchemaExporter? schema = null,
         Func<Guid, bool>? isStatefulSubtree = null,
-        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _schema = schema;
-        _isStatefulSubtree = isStatefulSubtree ?? (_ => false);
-        _sharedScopeKeys = sharedScopeKeys ?? (_ => System.Array.Empty<int>());
+        _catalog = catalog;
+
+        // ⭐⭐⭐ ONE DEFINITION OF THE TWO PREDICATES, DERIVED FROM THE CATALOGUE.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.17.
+        // 🔴 Until 2026-09-26 the production hosts each carried their own BYTE-IDENTICAL copy of these
+        //    two expressions (EditorSubsystem and CgfSubsystem) and passed them in. ⛔ Two copies of one
+        //    policy is the thing ruling 9 forbids, and it is the same mechanism that had left CGF
+        //    silently without rules 8/8b before CE-338.
+        // ⭐ IStatefulScopeAsset (CE-338) is what makes deriving them here possible at all: the
+        //    predicate no longer needs to see BehaviorTreeAsset, so it no longer has to be computed
+        //    in the one assembly that does.
+        // ⚠ The delegates SURVIVE as an override seam — the E4 rails drive rules 8/8b with precise
+        //    stub resolvers, and a test must be able to say "pretend this id is stateful" without
+        //    building a catalogue. ⛔ Production passes the catalogue and nothing else.
+        // ⭐ A null catalogue answers false/empty, reproducing the historical defaults exactly.
+        // ⚠ Called STATICALLY rather than as an extension: the receiver is deliberately nullable
+        //    (a host without a catalogue must behave as before), and the static form says so.
+        _isStatefulSubtree = isStatefulSubtree ?? new Func<Guid, bool>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.IsStatefulSubtree(catalog, id));
+        _sharedScopeKeys = sharedScopeKeys ?? new Func<Guid, IReadOnlyCollection<int>>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.SharedScopeKeysOf(catalog, id));
     }
 
     public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,
@@ -57,6 +94,9 @@ public sealed class HsmValidator
         CheckOutputLaneConflicts(asset, diagnostics);
         CheckConcurrentStatefulSubtrees(asset, diagnostics);
         CheckConcurrentSharedScopeKeys(asset, diagnostics);
+        CheckSubtreeAssetCycles(asset, diagnostics);
+        CheckSubtreeReferenceDangling(asset, diagnostics);
+        CheckMethodAndBlueprintBothBound(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -194,6 +234,106 @@ public sealed class HsmValidator
         }
     }
 
+
+    /// <summary>
+    /// ⭐⭐ <b>§11.1a — a hosted-subtree reference that resolves to nothing.</b> The HSM twin of
+    /// BTree's Rule 6 (<c>Subtree with IsResolved == false</c>).
+    ///
+    /// <para>⛔⛔ <b>NULL CATALOGUE SKIPS THE RULE</b>, exactly as rule 10 above does. 🔴 An earlier
+    /// draft read the derived <c>IsSubtreeResolved</c> flag instead, on the premise that
+    /// <c>HsmSubtreeResolver</c> had already run. 📐 <b>Measured, and the premise was false:</b> the
+    /// flag defaults to <c>false</c>, so a validator handed no catalogue reported EVERY hosted
+    /// subtree as dangling — <c>CE-338</c>/<c>CE-339</c>'s control arms caught it. ⚠ Without a
+    /// catalogue you cannot know whether a reference resolves; reporting it as broken is a guess.</para>
+    ///
+    /// <para>⭐ <b>It asks <see cref="SubtreeReferenceResolver"/>, not the stored flag.</b> That is
+    /// the SAME function the walker uses, so this is one rule with two callers, not two rules — and
+    /// it removes the dependency on someone having run the walker first, which is precisely the
+    /// silent-default shape.</para>
+    ///
+    /// <para>⚠ A state that hosts NOTHING is skipped: an empty reference is the ordinary case, not a
+    /// dangling one.</para>
+    /// </summary>
+    private void CheckSubtreeReferenceDangling(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (_catalog is null) return;
+
+        foreach (var s in asset.AllStates)
+        {
+            bool hostsSomething =
+                !string.IsNullOrEmpty(s.SubtreeName) || s.SubtreeAssetId != Guid.Empty;
+
+            if (!hostsSomething)
+                continue;
+
+            var r = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.Resolve(
+                _catalog, s.SubtreeName, s.SubtreeAssetId, Hrot.Editor.AiShared.AssetKind.BTree);
+
+            if (r.IsResolved)
+                continue;
+
+            string what = !string.IsNullOrEmpty(s.SubtreeName)
+                ? $"'{s.SubtreeName}'"
+                : $"asset id {s.SubtreeAssetId}";
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.SubtreeReferenceDangling,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' hosts subtree {what}, which no longer resolves to a BTree asset "
+              + "— reselect or clear it.",
+                new[] { s.StableId }));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rule 12 (design §9 ③) — <c>MethodAndBlueprintBothBound</c>: one slot, one host.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §9 ③.
+    ///
+    /// <para>🔴 <b>Without this rule the asset COMPILES and one binding silently wins.</b> A named
+    /// activity/guard resolves through <c>FNV1a16(FQN)</c>; a blueprint-hosted one is baked as an
+    /// explicit id, and <c>HsmFlattener</c>'s override (<c>CE-383</c>) PREFERS the explicit id. ⇒
+    /// authoring both is not "belt and braces", it is a binding the designer cannot see being
+    /// discarded.</para>
+    ///
+    /// <para>⚠ <b>Keyed on the Guid, not the name.</b> The name is display-only and may be stale
+    /// after a rename; the Guid is what the emitter bakes, so it is what decides whether a blueprint
+    /// is really bound here. ⭐ Same reasoning as <c>SubtreeReferenceDangling</c>'s pair.</para>
+    ///
+    /// <para>⛔ <b>Checks BOTH transition kinds?</b> No — a GLOBAL transition has no blueprint guard
+    /// field: <c>CE-385</c> deliberately stopped at <c>TransitionNodeDto</c>, mirroring the DTO the
+    /// emitter reads. ⚠ If a global ever gains one, this rule gains a third arm.</para>
+    /// </summary>
+    private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.ActivityBlueprintAssetId == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(s.ActivityAction))   continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' binds BOTH the activity action '{s.ActivityAction}' and an "
+              + "activity blueprint — the blueprint would win and the action be discarded silently. "
+              + "Clear one.",
+                new[] { s.StableId }));
+        }
+
+        foreach (var t in asset.AllTransitions)
+        {
+            if (t.GuardBlueprintAssetId == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(t.GuardFunction))  continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"Transition '{t.Source.Name}' → '{t.Target.Name}' binds BOTH the guard function "
+              + $"'{t.GuardFunction}' and a guard blueprint — the blueprint would win and the "
+              + "function be discarded silently. Clear one.",
+                new[] { t.Source.StableId }));
+        }
+    }
+
     // Rule 7: OutputLaneConflict.
     // For each parallel state with at least two regions, check whether any two regions
     // produce commands on the same CommandLane (overlapping OutputLaneMask bits).
@@ -299,6 +439,11 @@ public sealed class HsmValidator
     /// </para>
     ///
     /// <para>
+    /// ✅ <b><c>E5</c> item 7 ANSWERED IT — see <see cref="CheckSubtreeAssetCycles"/>.</b> ⭐ The note
+    /// below is kept because it states correctly why THIS walk is not that one.
+    /// </para>
+    ///
+    /// <para>
     /// ⛔ <b>The REAL cycle question is a different one and this rule does not answer it:</b> asset
     /// <c>A</c> hosting <c>B</c> which hosts <c>A</c>. That is a walk over ASSETS, needs a resolver
     /// this validator does not have, and belongs to whoever builds subtree hosting for real — ⭐ it is
@@ -320,6 +465,54 @@ public sealed class HsmValidator
 
             foreach (var child in node.Children) stack.Push(child);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rule 10 (<c>E5</c> item 7) — <c>SubtreeAssetCycle</c>: this asset hosts a sub-tree that
+    /// hosts this asset again.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔ <b>Why it is an ERROR and not a warning.</b> Hosting is expanded INLINE —
+    /// <c>BrainTickSystem.TickHostedChildren</c> ticks the child in the host's own frame — so a ring
+    /// has no base case: it does not loop forever at a bounded cost, it recurses until the stack dies.
+    /// ⚠ There is no runtime guard, and §32.8 item 7 says there should not be one; this is the guard.</para>
+    ///
+    /// <para>⭐ <b>The walk lives in <c>SubtreeCycleDetector</c>, shared with <c>BTreeValidator</c>,</b>
+    /// because a cycle is a property of the ASSET GRAPH and not of whichever editor happens to be
+    /// open. ⛔ An HSM-only rule would report <c>A→B→A</c> from one end of the ring and stay silent
+    /// from the other.</para>
+    ///
+    /// <para>⭐⭐ <b>It targets THE HOSTING STATES THAT SIT ON THE RING</b> — the states of this asset
+    /// whose <c>SubtreeAssetId</c> is the ring's next hop. 🔴 <b>The first cut of this rule targeted
+    /// nothing</b>, reasoning that <i>"for <c>A→B→A</c> opened at <c>B</c>, no state of <c>B</c> is at
+    /// fault."</i> ⛔ Wrong — a ring has no innocent edge, and the empty target list meant
+    /// <c>HsmGraphModel</c> had nothing to badge, so the rule was invisible on the canvas. ⚠ Found by
+    /// the forwarding rail, not by review.</para>
+    ///
+    /// <para>⚠ <b>When this asset is only on the APPROACH path</b> — <c>A→B→C→B</c> validated from
+    /// <c>A</c> — nothing here is at fault and the diagnostic stays asset-level, with no target.</para>
+    /// </summary>
+    private void CheckSubtreeAssetCycles(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (_catalog is null) return;
+
+        var cycle = Hrot.Editor.AiShared.SubtreeCycleDetector.FindCycleFrom(_catalog, asset.AssetId);
+        if (cycle.Count == 0) return;
+
+        // ⭐ The edge to cut, if this asset is on the ring at all.
+        var nextHop = Hrot.Editor.AiShared.SubtreeCycleDetector.NextHopInRing(cycle, asset.AssetId);
+
+        var targets = nextHop is null
+            ? System.Array.Empty<Guid>()
+            : asset.AllStates.Where(s => s.SubtreeAssetId == nextHop.Value)
+                             .Select(s => s.StableId).ToArray();
+
+        out_.Add(new HsmDiagnostic(
+            HsmDiagnosticCode.SubtreeAssetCycle,
+            HsmDiagnosticSeverity.Error,
+            $"Sub-tree hosting forms a cycle: " +
+            $"{Hrot.Editor.AiShared.SubtreeCycleDetector.DescribeCycle(_catalog, cycle)}. " +
+            $"Hosted sub-trees are expanded inline every tick, so a cycle recurses without a base case.",
+            targets));
     }
 
     // Rule 8b (S3-6): ConcurrentSharedScopeKey — the shared-slot analogue of Rule 8.

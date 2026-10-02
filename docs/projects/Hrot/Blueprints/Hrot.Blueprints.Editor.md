@@ -384,7 +384,7 @@ Hrot.Blueprints.Editor/
 |   |-- FunctionCallNodeDrawer.cs           -- drawer for FunctionCallNode (CLR method picker)
 |   |-- LiteralNodeDrawer.cs                -- drawer for LiteralNode's inline value editor
 |   |-- ChannelCommandNodeDrawer.cs         -- drawer for ChannelCommandNode (read-only channel/action labels)
-|   |-- SharedNodeDrawers.cs                -- GetSharedNodeDrawer / SetSharedNodeDrawer (VariableId + SharedTypeId picker)
+|   |-- SharedNodeDrawers.cs                -- GetSharedNodeDrawer / SetSharedNodeDrawer (VariableId + SharedTypeId picker)  ⛔ *(removed by `CE-440`)*
 |   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as a montage-chain UI (requires animation queries)
 |   |-- WhenNodePaletteEntries.cs           -- palette entries: WhenNode, ReadEqsResult, SpawnEqsSensor
 |   |-- BlueprintNodePaletteEntries.cs      -- full built-in node-kind vocabulary + ChannelCommandEntries + NonChannelActionEntries
@@ -527,8 +527,8 @@ public static class BlueprintEditorBootstrap
 - `CreateNodeDrawerRegistry` registers **8 drawers**: `WhenNode` → `WhenNodeDrawer`,
   `ReadEqsResultNode` → `ReadEqsResultNodeDrawer`, `SpawnEqsSensorNode` →
   `SpawnEqsSensorNodeDrawer`, `FunctionCallNode` → `FunctionCallNodeDrawer`, `LiteralNode` →
-  `LiteralNodeDrawer`, `ChannelCommandNode` → `ChannelCommandNodeDrawer`, `GetSharedNode`/
-  `SetSharedNode` → `GetSharedNodeDrawer`/`SetSharedNodeDrawer`, and — only when
+  `LiteralNodeDrawer`, `ChannelCommandNode` → `ChannelCommandNodeDrawer`, `GetSharedNode`/  ⛔ *(removed by `CE-440`)*
+  `SetSharedNode` → `GetSharedNodeDrawer`/`SetSharedNodeDrawer`, and — only when  ⛔ *(removed by `CE-440`)*
   `animationQueries` and `currentClassProvider` are both supplied — `BranchNode` →
   `PlayMontageChainNodeDrawer` (a montage-chain UI layered onto a plain Branch node).
 - `CreatePaletteRegistry` registers the 3 When-vocabulary entries, the full built-in vocabulary
@@ -719,7 +719,7 @@ The single source of truth for "what pins does this node kind have, right now, g
 asset/graph/catalog context." Resolution order: asset-authored pins (test builders) → literal
 inline-editor special case → `NodeKindRegistry` descriptor → dynamic per-kind computation
 (`EventEntryNode`, `ReturnNode`, `FunctionCallNode` CLR-vs-graph-call dispatch, `GetVariableNode`/
-`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetSharedNode`/`SetSharedNode`,
+`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetAllVariablesNode`/`SetVariablesNode`, `GetSharedNode`/`SetSharedNode`,  ⛔ *(removed by `CE-440`)*
 `MakeStructNode`/`BreakStructNode`/`SetMembersNode`, `ChannelCommandNode` channel-vs-non-channel
 dispatch, `PublishEventNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`) → static
 `BuiltInNodeRegistry` fallback. Every branch's doc comment cites the exact compiler stage
@@ -896,7 +896,7 @@ while paused.
 | `FunctionCallNodeDrawer` | `FunctionCallNode` | CLR method picker; reads/writes `TargetTypeId`/`MethodName` via `IEditService`. |
 | `LiteralNodeDrawer` | `LiteralNode` | Typed inline value editor (delegates formatting to `LiteralValueJson`). |
 | `ChannelCommandNodeDrawer` | `ChannelCommandNode` | Read-only `ChannelType`/`ActionId` labels — action is baked at palette-creation time, no in-place mutation path. |
-| `GetSharedNodeDrawer` / `SetSharedNodeDrawer` | `GetSharedNode` / `SetSharedNode` | `VariableId` (free text) + `SharedTypeId` (filtered picker over `ISharedStructTypeProvider`), editable post-placement. |
+| `GetSharedNodeDrawer` / `SetSharedNodeDrawer` | ⛔ **REMOVED by `CE-440`** — `GetSharedNode` / `SetSharedNode` | `VariableId` (free text) + `SharedTypeId` (filtered picker over `ISharedStructTypeProvider`), editable post-placement. |
 | `PlayMontageChainNodeDrawer` | `BranchNode` | Montage-chain UI over a plain Branch node; only registered when animation queries are supplied. |
 
 Palette-entry factories (`NodeKindDescriptor` producers registered into `NodeKindRegistry`):
@@ -918,7 +918,7 @@ Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers
 
 `EntityBlueprintsEditModel` is the headless view-model behind the "Entity Blueprints" runtime
 authoring panel: `RefreshReality()` scans all three blackboard-tier components
-(`BlueprintBlackboard1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
+(`BlueprintBlackboard256`/`1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
 `StageAdd`/`StageRemove`/`RevertAll` manage a pending edit set; `ComputeProjection()` returns a
 `Projection(Slots, Bytes, Tier, Status)` predicting the post-commit blackboard tier and whether
 it needs an upgrade or exceeds the ceiling; `BuildCommitPlan(CommitTiming)` emits either a

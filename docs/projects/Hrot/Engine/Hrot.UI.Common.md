@@ -1,3 +1,37 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-08-23
+current-answer: NONE IN THIS FILE. The project it documents was DELETED on 2026-08-23.
+superseded-by: docs/projects/Hrot/Engine/Hrot.Presentation.md
+stale-below: EVERYTHING. Every path, type and claim below refers to a project that no longer exists.
+-->
+# ⛔⛔ THE PROJECT THIS DOCUMENTS WAS DELETED — `2026-08-23`
+
+🔒 **User ruling:** *"delete dead code Hrot.UI.Common."*
+
+📐 **Why, measured twice and independently:** `Hrot.UI.Common.csproj` had **ZERO `ProjectReference`s
+anywhere in the repository** and was **absent from `IOS-IG-SimHost.sln`** — ⇒ it was never compiled, by
+anything, ever. ⛔⛔ **And it was not merely unused — it was a COMPLETE DUPLICATE of live source:** every
+one of its 20 files had a counterpart in **`Hrot.Presentation`** at the same relative path, and the live
+copies declare the **`Hrot.UI.Common.*` namespaces themselves**. ⇒ ⭐⭐⭐ **the shipped types this document
+describes still exist — they just live in `Hrot.Presentation` and always did.**
+
+⚠⚠ **The danger this removed, stated plainly:** a reader following this document edited
+`Hrot/Engine/Hrot.UI.Common/Panels/ConfigPanel.cs` and **saw nothing change**, because
+`Hrot/Engine/Hrot.Presentation/Panels/ConfigPanel.cs` — same namespace — is what compiles.
+
+📌 **Found by the `U-obs-5` panel sweep** *(`BP-468`)*, which triaged the pairs as *"byte-identical twins"*
+before measuring; ⭐ **they were never twins — one was live and one was dead.**
+
+⇒ 📄 **For the live types, read [`Hrot.Presentation.md`](Hrot.Presentation.md).**
+
+---
+
+## ⛔ HISTORY — the original document, describing the deleted project
+
+⛔ **DO NOT QUOTE ANY OF THIS AS CURRENT.** Kept only so the intent behind the abandoned
+shared-library split stays legible.
+
 # Hrot.UI.Common
 
 | Property | Value |

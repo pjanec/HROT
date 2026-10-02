@@ -5,8 +5,26 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 56)]
 public struct PlatoonHillAttack_Blackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Params;
+}
+
+/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="PlatoonHillAttack_Block"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PlatoonHillAttack_BlockState
+{
+    public global::Hrot.AI.Behaviors.Brains.HillAttackMutableState State;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct PlatoonHillAttack_Block
+{
+    [FieldOffset(0)]
+    public PlatoonHillAttack_Blackboard In;
+    [FieldOffset(56)]
+    public PlatoonHillAttack_BlockState St;
 }

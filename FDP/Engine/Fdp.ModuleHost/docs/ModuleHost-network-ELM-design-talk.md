@@ -2,6 +2,19 @@
 
 # Network design talk
 
+> ⭐⭐⭐ **THIS DOCUMENT IS THE ORIGIN OF THE ENTITY-CONSTRUCTION BARRIER** — §1 *(local modules ACK
+> before an entity becomes `Active`)*, §2 *(partial ownership decided per entity TYPE)* and §Part 1
+> *(the Network Gateway joins the ELM loop as a **blocking participant**)*.
+> ⚠ **MEASURED `2026-09-12`: the barrier is present and correct but its participant registry is EMPTY in
+> production**, so it completes vacuously on the next frame. See `CE-259au`.
+>
+> **related-designs** *(added `2026-09-12` — this document had no inbound links and was missed for two days)*:
+> - `docs/designs/replay-and-modules/DESIGN.md` §2.1i/§2.1j — the measured state of this barrier, and the ELM rewind plan.
+> - `docs/designs/mgmt-1/DESIGN.md` §8.10 — what must happen to this handshake during replay.
+> - `docs/designs/two-ack/TwoAck-DESIGN.md` — the IOS-facing two-phase ack built on top of it.
+> - `docs/DESIGN_Deterministic_Network_Ids.md` §2b — the ELM's pending queues as a rewind participant.
+
+
 —  
 bdc-sst-rules describes the protocol for sharing entity states via DDS. Pls check how well the networking code adheres to this, fing gaps and flaws.  
 —

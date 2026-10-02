@@ -26,7 +26,7 @@ public sealed class BTreeBlackboardAggregatorTests
         private readonly Dictionary<string, ActionSchemaEntry> _entries = new();
 
         public void Add(string fqn, Type dtoType) =>
-            _entries[fqn] = new ActionSchemaEntry(fqn, dtoType, ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+            _entries[fqn] = new ActionSchemaEntry(fqn, dtoType, ActionHosting.BTree, BlackboardAccess.ReadWrite);
 
         public IReadOnlyDictionary<string, ActionSchemaEntry> All => _entries;
         public ActionSchemaEntry? Lookup(string fqn) => _entries.TryGetValue(fqn, out var e) ? e : null;

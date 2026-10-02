@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ST-014: this project is what is LEFT of Hrot.StrideMock after the mock was removed.
+
+    It exists for exactly one type - StrideNodeBootstrapper, the node composition root the REAL
+    Stride app consumes (StrideHrotGame holds it, exposes it, and takes it via AttachBootstrapper).
+    It is not mock scaffolding: it wires ModuleHost scheduling, behavior, combat, gizmos, lifecycle,
+    network spawning, orchestration, scenario, IG and SimHost systems into a full simulation node.
+
+    Why not Hrot.Common/Infrastructure (the dispatch's lean)? StrideNodeBootstrapper depends on
+    Hrot.SimHost and Hrot.IG, and BOTH of those already reference Hrot.Common. Moving the type there
+    would require Hrot.Common -> Hrot.SimHost and invert that edge into a project reference CYCLE.
+    A composition root has to sit ABOVE the subsystems it composes, so it cannot live in the engine
+    layer they depend on. See DESIGN_Stride_Port.md.
+
+    Raylib, rlImGui, Fdp.Presentation and Fdp.Examples.Scenarios were the MOCK's rendering shell and
+    demo scenario, not this type's - dropped with it. The class comment has always said it "must not
+    reference Raylib, ImGui, or ...", so the references were untrue of it even before the mock went.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Hrot.NodeComposition</RootNamespace>
+    <AssemblyName>Hrot.NodeComposition</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Hrot.NodeComposition.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bootstrapper base class and HrotNodeBuilder -->
+    <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- NodeBootstrapper and HrotScenarioSerializerFactory -->
+    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <!-- ECS world and core types -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Toolkits: ClusterSlave, ScenarioSerializer, ISubsystem -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- VisualEffectState, TracerTarget, EventToEffectSystem, VisualEffectCleanupSystem -->
+    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+  </ItemGroup>
+
+</Project>

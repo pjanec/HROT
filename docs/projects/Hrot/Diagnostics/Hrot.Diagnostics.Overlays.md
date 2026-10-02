@@ -112,7 +112,7 @@ The subscriber (typically `TuningConsoleGizmo`) receives the prefix and calls
 
 ### SquadAssignmentOverlaySource
 
-Reads `ThreatMatrixAssignmentState` from the leader's `Blackboard1024`. For each assigned
+Reads the `Assignment` sub-region from the leader's own `SquadCognitiveState`. For each assigned
 (member, target) pair draws a thin green line from the member to the target. Annotates with
 assignment score.
 
@@ -188,7 +188,7 @@ Hrot.Diagnostics.Overlays/
 | `Fdp.Core` | `EntityRepository`, ECS component access |
 | `Fdp.Toolkit.Utility` | `UtilityResultBuffer`, `UtilityTraceWorkingMemory1024`, `UtilityDebugFlags` |
 | `Fdp.Toolkit.Perception` | `TargetMemory`, `EqsCognitiveBuffer` |
-| `Fdp.Toolkit.Behavior.Components` | `Blackboard1024` (squad assignment read) |
+| `Fdp.Toolkit.Squad` | `SquadCognitiveState` (squad assignment read) |
 | `Fdp.Toolkit.Squad` | `SquadCoordinationState` (P7) |
 | `Fdp.Presentation` | `IGizmoSource`, gizmo rendering primitives |
 | `Hrot.Diagnostics.Tuning` | `TuningConsoleGizmo.OpenForGroup` (bridge subscriber) |

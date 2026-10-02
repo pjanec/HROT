@@ -1,3 +1,67 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
+current-answer: the body below.
+related-designs:
+  - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns the HSM state's hosted-subtree field, its
+    walker and its validator rule; this doc owns the picker and the heal RULE they share.
+  - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree node, including the resolver
+    defect that erased the persisted Guid.
+  - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes an authored subtree
+    reference; it does not own any authoring surface.
+known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
+  with it. Two measured facts, 2026-09-20:
+  ⭐⭐ ①+② ARE RESOLVED IN CODE 2026-09-21 by CE-300/CE-301 — CallbackSelectionBridge and
+     IGSelectionBridge are DELETED; SharedEntitySelection is now written ONLY by
+     SelectionNotificationSystem, from SelectionChangedNotification, so every cause moves it and
+     CGF's cell has a production writer for the first time. It is a PROJECTION, railed as one.
+     📄 DESIGN_Editor_Entity_Selection_Source.md §9. ⚠ The two entries below are kept as the
+     RECORD OF WHAT WAS WRONG — including a retraction worth not re-deriving.
+  ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
+     store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
+     alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11
+     slice addressed it; it is NOT a view. Whether it should become one is UNRULED (CE-301).
+     ⭐⭐ SPLIT THE STORE BEFORE JUDGING IT, 2026-09-21 — EditorSelectionStore holds TWO unrelated things
+     and only ONE is an entity selection:
+       · ActiveAsset + per-asset sub-selection (BTree/HSM/Blueprint NODES) — ⛔ NOT an entity store,
+         entirely outside UXI-11's scope, and §5.1.1's per-asset argument is about THIS half only.
+       · SelectedEntity, delegated to SharedEntitySelection — ⭐ THIS is the second store, and it is one
+         cell, not a set: "ONE FACT ABOUT THE WORLD" in its own header.
+     ⇒ the open question is about ONE Entity? cell, not about the asset bus. §5.1 already asks for the
+     engine sync ("the single source of selection truth for all three editors plus the engine's
+     selection-sync (map, outliner, game viewport)") and §5.1.1 says SelectedEntity "stays global".
+  ② ⛔⛔ CORRECTED 2026-09-21 — the 2026-09-20 entry below was WRONG and is kept so nobody re-derives
+     it. It read: "IGSelectionBridge has exactly ONE implementation, CallbackSelectionBridge, and ZERO
+     production construction sites — the only `new CallbackSelectionBridge` is in its own test."
+     📐 MEASURED: EditorSubsystem.cs:2092 constructs it and :2105 calls Connect(_aiEditorSelectionStore),
+     inside Initialize(), unconditionally, no #if. The ONE implementation is right; "zero production
+     sites" is not. ⚠ A graph query that misses a construction site looks identical to a real absence —
+     corroborate with grep before any zero (CLAUDE.md ③).
+     ⭐ WHAT IS ACTUALLY TRUE, and it is worse than the retracted claim (CE-300):
+       · the bridge does NOT consume the DDS SelectionChangedEvent this file's §5.3 describes. It
+         subscribes to SelectionInteractionSystem.OnSelectionChanged — the LOCAL MAP-GESTURE callback.
+       · ⇒ the AI editors' SelectedEntity moves on a MAP CLICK AND NOTHING ELSE. An entity-inspector
+         click, an orbat select, a context-menu Select, a remote CMD_SET_SELECTION: none of them move it,
+         so every live-value/Watch/Details row keeps projecting the PREVIOUS entity.
+       · 🔴 This is the THIRD instance of one defect shape — UXI-11 S-3 fixed it inbound, S-6 outbound,
+         and this one sits TWO LINES BELOW the comment at EditorSubsystem.cs:2085-2090 that explains why
+         the neighbouring hand-sync was retired for being gesture-driven.
+       · on CGF the cell is INERT, not wrong: CgfSubsystem.cs:2033-2035 build three stores over one
+         SharedEntitySelection, and measured — no production writer AND no reader (CGF passes no
+         liveValueProvider to CreateRegistrar). Every reader of the cell lives in Hrot.Editor.
+  ③ ⚠ §5.4's per-window ChainToMap toggle is ROTTED by UXI-11 ruling ① ("inspector selection changes
+     global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
+     with its operator toggle. Do not implement §5.4 as written.
+related-designs:
+  - docs/blueprints/DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — CONSUMES this file's
+    `ActionSchemaExporter` / behavior-action catalog to fill the HSM action and guard pickers,
+    filtered by the `hsmAction` / `hsmGuard` flags. It owns the HSM side only; the catalog stays here.
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns WHERE an AI-editor view gets its
+    entity (unified selection when docked, frozen snapshot when pinned). SUPERSEDES this file's
+    §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
+    request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+-->
 # AI Editor — Shared Infrastructure Detailed Design
 
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Editor_Detailed_Design.md` + Inline Patches + `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md` (+ Inline Patches) + `Blueprint_Subsystem_Architecture_v1_2.md` + FDP-ECS-AI-API research report + NodeEdit-docs + FastBTree + FastHSM source.
@@ -800,6 +864,114 @@ Each subsystem editor provides its own concrete `IEditorHostServices` instance. 
 | `IDebugSession` | Subsystem-specific (`BlueprintDebugSession`, `BTreeDebugSession`, `HsmDebugSession`, all deriving from `AiDebugSessionBase`) |
 | `IInputSource` | Shared default (the engine's ImGui input adapter) |
 | `IEditorTheme` | Shared default (one theme, all three editors look like one product) |
+
+### 7.1a ⭐⭐⭐ THE ASSET PICKER — **one field drawer that offers ASSETS, not symbols** *(`2026-09-26`)*
+
+> 🔒 **User:** *"the tree asset must be pickable."*
+
+📐 **INVENTORY, `2026-09-26`** *(`search_graph` + grep — the complete set of picker attributes)*:
+**eleven** exist — `BehaviorHashPicker` · `BlackboardFieldPicker` · `HsmActionPicker` ·
+`HsmBlackboardFieldPicker` · `HsmEventPicker` · `HsmGuardPicker` · `HsmStateSelector` ·
+`HsmSyncGroupPicker` · `AnimMarkerPicker` · `MontagePicker` · `PropertyPathPicker`/`WorkingSlotPicker`
+*(ReplayBrowser)*. ⛔⛔ **Every one picks a SYMBOL — a method, event, guard, state, field or marker.
+NOT ONE picks an ASSET.**
+
+⇒ 🔴 that is why `BTreeSubtreeFacet.SubtreeName` — labelled *"Referenced asset"* — is **plain free
+text** today, and why the HSM state facet has no subtree field at all. ⭐ **The capability is genuinely
+absent, so this is a BUILD, not an adoption** *(the seam law's rarer case — stated because this
+programme's default answer has been "it already exists")*.
+
+#### The shape
+
+```mermaid
+classDiagram
+    class IPickerListSource {
+        <<interface>>
+        EXISTS
+        +GetItems() IReadOnlyList~string~
+    }
+    class IAssetCatalog {
+        <<interface>>
+        EXISTS
+        +All IReadOnlyList~IEditableAsset~
+        +FindByName(string) IEditableAsset
+        +FindByAssetId(Guid) IEditableAsset
+        +Changed event
+    }
+    class AiAssetPickerAttribute {
+        NEW
+        +AssetKind Kind
+    }
+    class AiAssetPickerDrawer {
+        NEW
+        -IAssetCatalog catalog
+        -AssetKind kind
+        +GetItems() IReadOnlyList~string~
+    }
+    class SubtreeReferenceResolver {
+        NEW - shared
+        +Resolve(catalog, name, guid) SubtreeReference
+    }
+    class SubtreeReference {
+        NEW - result
+        +string Name
+        +Guid AssetId
+        +bool IsResolved
+        +bool Healed
+    }
+
+    IPickerListSource <|.. AiAssetPickerDrawer
+    AiAssetPickerDrawer --> IAssetCatalog : All, filtered by Kind
+    AiAssetPickerDrawer ..> AiAssetPickerAttribute : registered for
+    SubtreeReferenceResolver --> IAssetCatalog
+    SubtreeReferenceResolver ..> SubtreeReference : returns
+```
+
+⭐ **Caption — what the picture shows that prose hid:** the drawer needs **nothing new** from the
+catalog. `IAssetCatalog.All` + `Changed` already exist, so the picker is a filter over a live list;
+⛔ no new catalog member, and no per-subsystem picker.
+
+#### ⭐⭐⭐ The heal rule — **why a name AND a Guid, and which one wins**
+
+```mermaid
+sequenceDiagram
+    participant L as asset load / hot reload
+    participant R as SubtreeReferenceResolver
+    participant C as IAssetCatalog
+    participant M as editor model
+
+    L->>R: Resolve(catalog, name, assetId)
+    R->>C: FindByName(name)
+    alt name resolves and Kind matches
+        C-->>R: asset
+        R-->>M: Name kept, AssetId refreshed, IsResolved = true
+    else name fails, Guid resolves
+        R->>C: FindByAssetId(assetId)
+        C-->>R: asset (it was RENAMED)
+        R-->>M: Name HEALED from the asset, IsResolved = true, Healed = true
+        Note over M: caller marks the document dirty -<br/>the heal is a real edit and must be saved
+    else neither resolves
+        R-->>M: Name kept, AssetId kept, IsResolved = false
+        Note over M: DANGLING - validator reports it.<br/>NOTHING is erased: the next load may find it
+    end
+```
+
+⭐⭐ **Caption:** the third branch is the one that was wrong in shipped code. `BTreeSubtreeResolver`
+**sets `SubtreeAssetId = Guid.Empty`** when the name misses — ⛔ **it destroys the persisted Guid at
+exactly the moment the Guid is the only thing that could identify the asset.** The rule here is
+**never erase**; a reference that cannot resolve today is still a reference.
+
+| ⭐ the rule, stated once | |
+|---|---|
+| ⭐⭐⭐ **the NAME is authored; the Guid is a persisted FALLBACK IDENTITY** | ⛔ not a cache — it is written by the picker and survives independently |
+| ⭐⭐ **name wins when both resolve** | ⚠ a name that resolves is what the designer last chose and what the runtime looks up |
+| ⭐⭐ **Guid heals the name when the name misses** | ⇒ **a rename is self-repairing**, which is the whole reason both are stored |
+| ⛔⛔ **neither branch ever CLEARS the other field** | 📌 the shipped BTree defect; a dangling reference keeps everything it has |
+
+⚠ **Who calls it:** each subsystem walks its own model *(different shapes — BTree nodes, HSM states)*
+and calls this resolver per reference. ⛔ The WALK is subsystem-specific and stays there; only the
+DECISION is shared. 📄 `BTree_Editor_NodeEditor_Host_Design.md` and
+`HSM_Editor_NodeEditor_Host_Design.md` own their walkers.
 
 ### 7.2 Per-subsystem graph model
 

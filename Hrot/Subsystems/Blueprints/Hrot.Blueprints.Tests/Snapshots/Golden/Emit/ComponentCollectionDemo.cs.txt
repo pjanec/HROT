@@ -61,9 +61,11 @@ public static class ComponentCollectionDemo_D9BB8EF6_Bp
         uint instanceVersion)
     {
         var __t0 = self;
-        ref readonly var __t1 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0);
+        var __t1_absent = default(global::Hrot.AI.Behaviors.BpCollectionDemo);
+        ref readonly var __t1 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) : ref __t1_absent);
         var __t2 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0);
-        ref readonly var __t3 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0);
+        var __t3_absent = default(global::Hrot.AI.Behaviors.BpCollectionDemo);
+        ref readonly var __t3 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) : ref __t3_absent);
         var __t5 = global::Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count(__t3);
         for (int __fe4 = 0; __fe4 < __t5; __fe4++)
         {
@@ -71,11 +73,13 @@ public static class ComponentCollectionDemo_D9BB8EF6_Bp
             var __t6 = __fe4;
             s.LoopLastItem = __t4;
         }
-        ref readonly var __t7 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0);
+        var __t7_absent = default(global::Hrot.AI.Behaviors.BpCollectionDemo);
+        ref readonly var __t7 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) : ref __t7_absent);
         var __t8 = 0;
         var __t9 = global::Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item(__t7, __t8);
         s.ElementOut = __t9;
-        ref readonly var __t10 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0);
+        var __t10_absent = default(global::Hrot.AI.Behaviors.BpCollectionDemo);
+        ref readonly var __t10 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpCollectionDemo>(__t0) : ref __t10_absent);
         var __t11 = global::Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count(__t10);
         s.CountOut = __t11;
         return;

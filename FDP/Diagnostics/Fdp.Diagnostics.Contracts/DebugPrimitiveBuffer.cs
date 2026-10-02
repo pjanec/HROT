@@ -68,6 +68,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public void AppendRaw(in DebugPrimitive primitive)
         {
+            // ⭐ §6.8 — the SAME invariant, on the other funnel. Every gizmo pick box, pick segment and
+            //   binding reaches the buffer through EmitRaw, so this is the arm that actually catches a
+            //   gizmo emitting without an identity.
+            DebugPrimitive.AssertHasIdentity(in primitive);
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
@@ -243,9 +247,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             Append(p);
         }
 
@@ -264,7 +268,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntityLocal(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0)
         {
             var p = default(DebugPrimitive);
@@ -276,15 +280,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐⭐ CE-259z — offset 8 is the SpatialAnchor cache KEY, a NETWORK id.
+            //   ⛔ It used to be `anchor.Index` (an ECS index) against a cache keyed by
+            //     SpatialAnchor.NetworkId ⇒ the lookup missed and the primitive was SILENTLY SKIPPED.
+            //   ⛔ And no AnchorGeneration is stamped: the generation is not part of the key, and
+            //     stamping it here is what made offset 12 look like an identity component.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             Append(p);
         }
 
         public void DrawEntityLocalInteractive(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0)
         {
@@ -297,8 +306,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐ CE-259z — see DrawEntityLocal.
+            // ⛔⛔ AND NO `BoxAnchorId`, THOUGH IT WOULD BE THE IDENTITY (S5) — IT PHYSICALLY DOES NOT
+            //   FIT. Measured 2026-09-10: for a Line the payload union is LineStart @24-35 and LineEnd
+            //   @36-47, with EndColor @48-51; `BoxAnchorId` is a long @44-51 ⇒ it OVERLAPS LineEnd.Z
+            //   AND EndColor. Stamping it corrupts the geometry, or is silently overwritten by it
+            //   (which is what the first attempt did — the rail read back 0).
+            //   ⇒ ⭐⭐ THIS IS THE DEEPER REASON A LINE CANNOT BE INTERACTIVE, and it is stronger than
+            //     "the hit-test does not handle Line" (CE-259ac): a Line has NO SLOT FOR AN IDENTITY.
+            //     Anything pickable must be Box2D or Sphere, whose payloads leave offset 44 free.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             p.SubElementId     = subElementId;
@@ -306,7 +324,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntitySphere(
-            Entity  anchor,
+            long    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,
@@ -321,10 +339,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.SphereCenter     = worldCenter;
             p.SphereRadius     = radius;
             p.DebugLayer       = layer;
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐ §6.7 — IDENTITY, in the field the hit-test actually routes on. ⛔ This was
+            //   `AnchorIndex = anchor.Index; AnchorGeneration = anchor.Generation` — an ECS handle in
+            //   the two offsets nothing reads for identity any more, which left the sphere pickable in
+            //   its doc comment and unpickable in fact. ⭐ A Sphere's payload (SphereCenter @24-35,
+            //   SphereRadius @36-39) leaves offset 44 free, so BoxAnchorId fits — unlike a Line, whose
+            //   LineEnd/EndColor overlap it (see DebugPrimitive.MakePickSegment's note).
+            p.BoxAnchorId      = anchorNetworkId;
             Append(p);
         }
+
+        /// <summary>
+        /// ⭐⭐ <b>C7 / CE-259z — the <c>EntityLocal</c> anchor key is 32 bits and the narrowing is
+        /// unchecked.</b> An id above <c>int.MaxValue</c> wraps, misses the <c>SpatialAnchor</c> cache and
+        /// the primitive is skipped in silence. ⛔ It cannot be widened (<c>SemanticShape</c>'s payload
+        /// union is full; 64 bytes is a DDS invariant) ⇒ assert, do not wrap.
+        /// ⚠ <c>Debug.Assert</c>, not a throw: a diagnostic emitter must never take down a frame, and
+        /// production ids count from 1 (<c>SequentialIdAllocator</c>), so this is a latent limit.
+        /// </summary>
+        private static void AssertFitsAnchorKey(long anchorNetworkId)
+            => System.Diagnostics.Debug.Assert(
+                   anchorNetworkId >= int.MinValue && anchorNetworkId <= int.MaxValue,
+                   $"EntityLocal anchor id {anchorNetworkId} does not fit the 32-bit SpatialAnchor cache "
+                 + "key; the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
 
         // ---- Internal helpers -----------------------------------------------
 
@@ -367,6 +404,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Space         = CoordinateSpace.EntityLocal;
             p.TargetView    = PipelineTarget.All;
             p.DebugLayer    = layer;
+            // ⭐⭐⭐ S7 (DESIGN_Gizmo_Anchor_Identity.md §6, CE-259z) — offset 8 is the SpatialAnchor
+            //   cache KEY for an EntityLocal primitive, and it is 32 bits wide. The cache is FILLED with
+            //   the full 64-bit SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D:63) and PROBED with
+            //   this value widened back to long (:105), so an id above int.MaxValue wraps here and the
+            //   lookup misses -- the shape is silently skipped, never drawn.
+            //   ⛔ It cannot be widened: SemanticShape's payload union is full and 64 bytes is a
+            //     DDS-marshalled invariant. ⇒ assert instead of wrapping in silence.
+            //   ⚠ Debug.Assert, not a throw: a diagnostic emitter must never take down a frame, and
+            //     production ids count from 1 (SequentialIdAllocator) so this is a latent limit, not a
+            //     live failure. A throw here would be a new way to lose the map.
+            System.Diagnostics.Debug.Assert(
+                networkId >= int.MinValue && networkId <= int.MaxValue,
+                $"SemanticShape anchor id {networkId} does not fit the 32-bit EntityLocal anchor key; " +
+                "the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
             p.AnchorIndex   = (int)networkId;
             p.ProfileId     = profileId;
             p.LengthMeters  = lengthMeters;
@@ -390,7 +441,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         internal void Append(DebugPrimitive p)
-        {            int slot = Interlocked.Increment(ref _count) - 1;
+        {
+            DebugPrimitive.AssertHasIdentity(in p);
+            int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
             else

@@ -194,13 +194,49 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             // ⭐ Nothing is invented here: VariableViewModel already carries every member
             //   DefaultValueAuthoring.OpenSession reads (FieldType, DefaultValueJson) plus the three
             //   the entry needs to be well-formed. ⛔ Same capture idiom as ReadInitialJson above.
-            ReadDeclaration: () => DeclarationOf(v));
+            ReadDeclaration: () => DeclarationOf(v),
+            // ⭐⭐⭐ Batch 98 (98a) — THE WRITE-BACK, from the object that BUILT the row.
+            // 🔴 Before this, an OK in PLANNING resolved its target by type-testing
+            //    store.ActiveAsset against IBlackboardManagedAsset — which BlueprintAsset does not
+            //    implement — so every Blueprint variable answered RefusedNoDeclarationOwner.
+            // ⭐ Nothing new is reached for: this source already holds the schema source, which is
+            //   the one vocabulary all three hosts implement. ⚠ The NAME is hoisted for the same
+            //   reason the read arms hoist it — capturing `v` would keep the schema entry alive.
+            WriteDefault: MakeWriter(v.Name),
+            // ⭐⭐⭐ Batch 99 (99a) — R-109's declaration properties, same source, same reason.
+            //    ⚠ Read PER CALL: the form must open on what the declaration holds NOW.
+            WriteProperties: MakePropertyWriter(v.Name),
+            ReadProperties:  () => _schema.ReadVariableProperties(v.Name));
 
     /// <summary>
     /// ⭐⭐ The schema's view model, expressed as the <see cref="BlackboardVariableEntry"/> the one
     /// dialog opener takes. ⛔ <b>Not a conversion between two models</b> — the view model IS the
     /// schema's projection of the declaration, and this names the members that survive the trip.
     /// </summary>
+    /// <summary>
+    /// ⭐ The row's write-back, closing over the NAME and this source's schema.
+    /// ⚠ <b>Refuses on a read-only source</b> — 📌 <c>BP1664</c>: a macro graph's locals belong to the
+    /// host after splicing, and <c>BlueprintLocalVariableSchemaSource.IsReadOnly</c> is how that is
+    /// said. ⛔ Answering <c>true</c> there would report a write that the source then discards.
+    /// </summary>
+    private WriteVariableDefault MakeWriter(string name)
+        => json =>
+        {
+            if (_schema.IsReadOnly) return false;
+            _schema.UpdateVariableDefaultValueJson(name, json);
+            return true;
+        };
+
+    /// <summary>⭐ The row's PROPERTIES write-back. ⚠ Refuses on a read-only source for the same
+    /// reason <see cref="MakeWriter"/> does — 📌 <c>BP1664</c>.</summary>
+    private WriteVariableProperties MakePropertyWriter(string name)
+        => values =>
+        {
+            if (_schema.IsReadOnly) return false;
+            _schema.UpdateVariableProperties(name, values);
+            return true;
+        };
+
     private static BlackboardVariableEntry DeclarationOf(VariableViewModel v)
         => new(
             Name:             v.Name,
@@ -234,8 +270,8 @@ public sealed class FixedVariableRowSource : IVariableRowSource
 ///
 /// <para>
 /// 🔴 <b>It does NOT go through <c>Watch._valueBuffer</c>.</b> That buffer is <c>new byte[64]</c> and
-/// <c>WriteValue</c> <b>throws</b> above it, so <c>MemberSlotList</c> (96), <c>WaveState</c> (104) and
-/// <c>HillAttackSharedState</c> (136) cannot pass through it at all. ⇒ ⭐ a pinned row reads its bytes
+/// <c>WriteValue</c> <b>throws</b> above it, so any struct over 64 bytes (e.g.
+/// <c>Fdp.Core.FixedString128</c>, 128) cannot pass through it at all. ⇒ ⭐ a pinned row reads its bytes
 /// through the same <see cref="ReadRawValue"/> every other row uses, and the 64-byte limit stays a
 /// property of that one carrier.
 /// </para>
@@ -244,19 +280,64 @@ public sealed class PinnedVariableRowSource : IVariableRowSource
 {
     private readonly List<VariableRow> _pinned = new();
 
-    /// <summary>Pins a row. ⚠ Re-pinning the same identity replaces it rather than duplicating.</summary>
-    public void Pin(VariableRow row)
+    /// <summary>
+    /// ⭐⭐ <b><c>BP-501</c> — the BINDING each pinned row was made with</b>, parallel to <see cref="_pinned"/>
+    /// and keyed by the same row identity. 📄 §3.
+    ///
+    /// <para>⛔ Why not a field on <c>VariableRowOrigin</c>: the binding is a property of the PIN — the
+    /// choice a designer made — not of a row in general. ⭐ A section source's rows are always *"the entity
+    /// this panel is about"*, with no choice involved, and widening the row identity would have touched
+    /// every construction site and the highlight cache key for a fact only the Watch has.</para>
+    /// </summary>
+    private readonly Dictionary<(Guid, Entity, string), EntityBinding> _bindings = new();
+
+    /// <summary>
+    /// Pins a row. ⚠ Re-pinning the same identity replaces it rather than duplicating.
+    ///
+    /// <para>⭐⭐ <b><c>binding</c> is the designer's CHOICE (§3)</b>: <c>Concrete</c> keeps the row on the
+    /// entity that was selected when they pinned it; <c>Chameleon</c> makes it follow the selection.
+    /// ⚠ <see langword="null"/> INFERS the kind from the row — chameleon when the row already carries the
+    /// sentinel, concrete otherwise — which is what every pre-<c>BP-501</c> caller meant and keeps them
+    /// working unchanged.</para>
+    ///
+    /// <para>⛔ The row's <c>Origin.Entity</c> is rewritten to <see cref="EntityBinding.OriginEntity"/> so
+    /// the stored row and its binding cannot disagree — a concrete row carrying the sentinel would follow
+    /// the selection while its binding claimed otherwise.</para>
+    /// </summary>
+    public void Pin(VariableRow row, EntityBinding? binding = null)
     {
-        int existing = _pinned.FindIndex(r => r.Origin.Key.Equals(row.Origin.Key));
-        if (existing >= 0) _pinned[existing] = row;
-        else               _pinned.Add(row);
+        var bind = binding ?? (row.Origin.Entity.Equals(default(Entity))
+            ? EntityBinding.Chameleon
+            // ⚠ NetworkId 0: an inferred pin has no id source. It is a within-session pin, and
+            //   IsPersistable reports that rather than the save path guessing.
+            : EntityBinding.Concrete(0, row.Origin.Entity));
+
+        var stored = bind.OriginEntity.Equals(row.Origin.Entity)
+            ? row
+            : row with { Origin = row.Origin with { Entity = bind.OriginEntity } };
+
+        int existing = _pinned.FindIndex(r => r.Origin.Key.Equals(stored.Origin.Key));
+        if (existing >= 0) _pinned[existing] = stored;
+        else               _pinned.Add(stored);
+
+        _bindings[stored.Origin.Key] = bind;
     }
+
+    /// <summary>⭐ The binding a row was pinned with, or <see langword="null"/> when it is not pinned.</summary>
+    public EntityBinding? BindingOf(VariableRowOrigin origin)
+        => _bindings.TryGetValue(origin.Key, out var b) ? b : null;
+
+    /// <summary>⭐ Every pinned row with its binding — what the persistence layer saves.</summary>
+    public IReadOnlyList<(VariableRow Row, EntityBinding Binding)> PinnedWithBindings()
+        => _pinned.Select(r => (r, _bindings.TryGetValue(r.Origin.Key, out var b)
+                                   ? b : EntityBinding.Concrete(0, r.Origin.Entity))).ToList();
 
     public bool Unpin(VariableRowOrigin origin)
     {
         int i = _pinned.FindIndex(r => r.Origin.Key.Equals(origin.Key));
         if (i < 0) return false;
         _pinned.RemoveAt(i);
+        _bindings.Remove(origin.Key);   // ⛔ or the map grows for the lifetime of the session
         return true;
     }
 

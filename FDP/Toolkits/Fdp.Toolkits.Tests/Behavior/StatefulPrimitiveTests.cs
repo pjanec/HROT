@@ -31,7 +31,11 @@ public sealed unsafe class StatefulPrimitiveTests
     private static EntityRepository CreateWorld()
     {
         var world = TestWorldFactory.Create(); // registers BrainBlackboard etc.
-        world.RegisterComponent<BlueprintBlackboard1024>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(world, maxTotalSize: 1024);
         return world;
     }
 
@@ -77,7 +81,6 @@ public sealed unsafe class StatefulPrimitiveTests
 
         var world = CreateWorld();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BlueprintBlackboard1024());
         world.AddComponent(entity, new BehaviorState());
 
@@ -92,17 +95,17 @@ public sealed unsafe class StatefulPrimitiveTests
         const int paramOffset = 0;
         string thunkKey = $"StatefulTest.Action_AdvanceCursor@{paramOffset}@{slotKey}";
 
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
 
         // Register the adapter thunk (mirror of what BTreeBridgeEmitCore would emit).
         actionReg.Register(thunkKey,
-            (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard at offset 0.
                     ref var p = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)paramOffset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)paramOffset));
 
                     // Dispatch to BlueprintBlackboard1024 (only tier in this test).
                     if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
@@ -134,14 +137,20 @@ public sealed unsafe class StatefulPrimitiveTests
             IntParams   = Array.Empty<int>(),
         };
 
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
         // Set Limit=5 in BrainBlackboard params.
-        ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+        // ⭐⭐ P4-②: the interpreter takes the params region as a `ref byte`. This test owns its
+        //   own region because its thunk (registered above) reads the HANDED-IN base — that is what
+        //   makes it a unit test of DISPATCH rather than of ingress.
+        // ⛔ It used to borrow `BrainBlackboard` as that buffer. Borrowing an ECS component for a
+        //   scratch region is the habit that hid CE-310 and CE-311, so it is not repeated here.
+        var paramsRegion = new byte[64];
+        ref byte bb = ref paramsRegion[0];
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)paramOffset));
+                ref Unsafe.AddByteOffset(ref bb, (nint)paramOffset));
             pParams.Limit = 5;
         }
 
@@ -192,7 +201,6 @@ public sealed unsafe class StatefulPrimitiveTests
 
         var world = CreateWorld();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BlueprintBlackboard1024());
         world.AddComponent(entity, new BehaviorState());
 
@@ -213,13 +221,13 @@ public sealed unsafe class StatefulPrimitiveTests
         string thunkKeyB = $"IndSlotTest.NodeB@{paramOffset}@{slotKeyB}";
 
         // Helper: build an adapter for a given slot key.
-        Func<int, NodeLogicDelegate<BrainBlackboard, BTreeContext>> makeThunk = (sk) =>
-            (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+        Func<int, NodeLogicDelegate<byte, BTreeContext>> makeThunk = (sk) =>
+            (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var p = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)0));
                     if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
                     {
                         ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard1024>(ctx.Self);
@@ -236,11 +244,17 @@ public sealed unsafe class StatefulPrimitiveTests
             };
 
         // Set Limit=100 so all nodes keep returning Running (cursor < Limit).
-        ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+        // ⭐⭐ P4-②: the interpreter takes the params region as a `ref byte`. This test owns its
+        //   own region because its thunk (registered above) reads the HANDED-IN base — that is what
+        //   makes it a unit test of DISPATCH rather than of ingress.
+        // ⛔ It used to borrow `BrainBlackboard` as that buffer. Borrowing an ECS component for a
+        //   scratch region is the habit that hid CE-310 and CE-311, so it is not repeated here.
+        var paramsRegion = new byte[64];
+        ref byte bb = ref paramsRegion[0];
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                ref Unsafe.AddByteOffset(ref bb, (nint)0));
             pParams.Limit = 100;
         }
 
@@ -249,7 +263,7 @@ public sealed unsafe class StatefulPrimitiveTests
         // Build a NodeA-only blob and a NodeB-only blob so we can advance them independently.
         // The Sequence-with-Limit=100 approach cannot run both nodes because NodeA keeps returning
         // Running (cursor < Limit), so Sequence stays at NodeA and never advances to NodeB.
-        var regA = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var regA = new ActionRegistry<byte, BTreeContext>();
         regA.Register(thunkKeyA, makeThunk(slotKeyA));
         var blobA = new BehaviorTreeBlob
         {
@@ -259,9 +273,9 @@ public sealed unsafe class StatefulPrimitiveTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpA = new Interpreter<BrainBlackboard, BTreeContext>(blobA, regA);
+        var interpA = new Interpreter<byte, BTreeContext>(blobA, regA);
 
-        var regB = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var regB = new ActionRegistry<byte, BTreeContext>();
         regB.Register(thunkKeyB, makeThunk(slotKeyB));
         var blobB = new BehaviorTreeBlob
         {
@@ -271,7 +285,7 @@ public sealed unsafe class StatefulPrimitiveTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpB = new Interpreter<BrainBlackboard, BTreeContext>(blobB, regB);
+        var interpB = new Interpreter<byte, BTreeContext>(blobB, regB);
 
         // --- Act: advance NodeA 4 times, NodeB 2 times ---
         for (int tick = 0; tick < 4; tick++)

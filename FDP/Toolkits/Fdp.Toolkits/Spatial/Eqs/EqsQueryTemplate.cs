@@ -30,6 +30,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// Fills <paramref name="candidates"/> with initial results and returns the valid count.
         /// Entity-shaped results store <c>entity.PackedValue</c> in EntityId.
         /// Positional results set EntityId = 0.
+        /// <para>Return a NEGATIVE value when the query cannot be evaluated yet (e.g. a context entity
+        /// it needs has not arrived on this node): the solver then publishes NOTHING, so a reader keeps
+        /// waiting instead of seeing an empty result that would read as "nothing there".</para>
         /// </summary>
         int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates);
     }

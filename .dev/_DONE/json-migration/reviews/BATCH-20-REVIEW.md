@@ -80,7 +80,7 @@ New debt items added:
 
 | ID | Description | Priority |
 |----|-------------|----------|
-| D-032 | `AutoRegisterAllComponentTypes` scans test assemblies — test-only component types require manual `[DataPolicy(NoSnapshot)]` marking. Consider assembly-level filtering. | P3 |
+| D-032 | `AutoRegisterAllComponentTypes` scans test assemblies — test-only component types require manual `[DataPolicy(NoPreview)]` marking. Consider assembly-level filtering. | P3 |
 | D-033 | `EntityJsonConverter` used in AbsoluteState event path but not in Changelog event path — inconsistent entity ref formatting. | P3 |
 
 Resolved:
@@ -98,7 +98,7 @@ D-030: Update LoadScenario bad-JSON fixture to dollar-sign-meta format; expect M
 D-031: Remove CycloneDDS.Schema DoesNotContain assertion from EditorDependencyTests
 D-025: Fix Phase2ConventionTests schema version check -- range instead of exact match
 D-022: Fix 31 EX_T + InlineArray test failures (triple root cause)
-  - EntityInlineComp: add DataPolicy(NoSnapshot|NoSave|NoRecord) so AutoRegisterAllComponentTypes
+  - EntityInlineComp: add DataPolicy(NoPreview|NoScenario|NoReplay) so AutoRegisterAllComponentTypes
     does not register it as snapshotable; update throw test to override with DataPolicy.Default
   - EX_T02-T24: add FormatMode=AbsoluteState to all tests expecting absolute-state JSON object
   - ExportChangelogToJson: add skip guard for first entity appearance and entity destruction frames

@@ -213,7 +213,7 @@ as a row.
 
 ---
 
-## 0-next. 📤 **Batch 25 issued** — [HANDOFF_Batch25_Matrix_And_Nodes.md](HANDOFF_Batch25_Matrix_And_Nodes.md)
+## 0-next. 📤 **Batch 25 issued** — [HANDOFF_Batch25_Matrix_And_Nodes.md](batches/HANDOFF_Batch25_Matrix_And_Nodes.md)
 
 `BP1657`→Warning (first; it unblocks the matrix) → ⭐ **the authoring-path matrix** → BP-118 (now
 unblocked) → `FixedString128` + span ctors → Print/Format String → fillers (BP-119, BP-111, BP-115).
@@ -241,7 +241,7 @@ result and one I did not consider. They also moved resolution out of the ImGui d
 
 Verified with `git merge-base --is-ancestor`: **they never saw it.** The next session must start there:
 **BP-116 · BP-117 · BP-118 + the authoring-path compile matrix** — §0b of
-[HANDOFF_Batch24_DebugPrint.md](HANDOFF_Batch24_DebugPrint.md). Items 1–3 (Print String etc.) stay
+[HANDOFF_Batch24_DebugPrint.md](batches/HANDOFF_Batch24_DebugPrint.md). Items 1–3 (Print String etc.) stay
 second priority.
 
 ### ⭐ They found a real defect in my design, unprompted
@@ -289,7 +289,7 @@ branch; 1 and 0 outputs fall through to the historic single-pin path unchanged.
 
 ## 0b. 🌙 Batch 23 was an **overnight autonomous** batch — ✅ delivered, 3 of 4 items
 
-📄 **[HANDOFF_Batch23_Overnight_Autonomous.md](HANDOFF_Batch23_Overnight_Autonomous.md)**
+📄 **[HANDOFF_Batch23_Overnight_Autonomous.md](batches/HANDOFF_Batch23_Overnight_Autonomous.md)**
 
 **Items 1–3 shipped; item 4 (BP-108) left open at the boundary — the designed outcome, correctly taken.**
 `c5f30c47` BP-112 · `0f7eaa23` BP-87 items 1–5 · `68d8d540` BP-113. **Counts reconcile three ways:

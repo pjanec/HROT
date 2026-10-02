@@ -1,0 +1,56 @@
+{
+  "entities": [
+    {
+      "label": "[Singletons]",
+      "name": null,
+      "networkId": null
+    },
+    {
+      "label": "[0, v1] (1000) Tank Platoon (Auto Spawn)",
+      "name": "Tank Platoon (Auto Spawn)",
+      "networkId": 1000
+    },
+    {
+      "label": "[1, v1] (1001) Tank Platoon (Auto Spawn)-1",
+      "name": "Tank Platoon (Auto Spawn)-1",
+      "networkId": 1001
+    },
+    {
+      "label": "[2, v1] (1002) Tank Platoon (Auto Spawn)-2",
+      "name": "Tank Platoon (Auto Spawn)-2",
+      "networkId": 1002
+    },
+    {
+      "label": "[3, v1] (1003) Tank Platoon (Auto Spawn)-3",
+      "name": "Tank Platoon (Auto Spawn)-3",
+      "networkId": 1003
+    },
+    {
+      "label": "[4, v1] (1004) Tank Platoon (Auto Spawn)-4",
+      "name": "Tank Platoon (Auto Spawn)-4",
+      "networkId": 1004
+    },
+    {
+      "label": "[5, v1] (1005)",
+      "name": null,
+      "networkId": 1005
+    },
+    {
+      "label": "[6, v1] (1006) M1 Abrams",
+      "name": "M1 Abrams",
+      "networkId": 1006
+    },
+    {
+      "label": "[7, v1] (1007) M1 Abrams",
+      "name": "M1 Abrams",
+      "networkId": 1007
+    }
+  ],
+  "panelId": "editor_fdp_inspector",
+  "panelKind": "entity-inspector",
+  "searchFilter": "",
+  "selectedComponentTypeNames": [],
+  "selectedCount": 0,
+  "selectedEntityLabel": null,
+  "totalEntityCount": 8
+}

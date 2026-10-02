@@ -118,13 +118,16 @@ public sealed class NodeOpMasterTranslator
             ReplaySeekPayload       rsp => JsonSerializer.Serialize(rsp, _jsonOptions),
             AbortTransactionPayload atp => JsonSerializer.Serialize(atp, _jsonOptions),
 
+            // ⭐ L1 — the shared content names cross the wire with the rest of the transition payload.
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
                     TargetState: p.TargetState != 0
                         ? (Hrot.NED.Descriptors.Orchestration.ClusterState?)p.TargetState
                         : null,
                     ScenarioId:  p.ScenarioId,
-                    ExerciseId:  p.ExerciseId),
+                    ExerciseId:  p.ExerciseId,
+                    TkbName:     p.TkbName,
+                    TerrainName: p.TerrainName),
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(
@@ -142,6 +145,17 @@ public sealed class NodeOpMasterTranslator
                     TargetState: null,
                     ScenarioId:  null,
                     ExerciseId:  p.ExerciseId),
+                _jsonOptions),
+
+            // ⭐ CE-279 Layer B — the distributed scenario save shares the SerializeLocal op with the .fdp
+            //   archive. Carry the scenario NAME (as ScenarioId) so the remote node reconstructs a
+            //   ScenarioSaveHandlerPayload, not an (empty) ArchiveHandlerPayload. Without this the scenario
+            //   payload was silently rebuilt as an archive payload on the wire and no slice was ever written.
+            Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload p => JsonSerializer.Serialize(
+                new NodeTransitionPayloadDto(
+                    TargetState: null,
+                    ScenarioId:  p.ScenarioName,
+                    ExerciseId:  Guid.Empty),
                 _jsonOptions),
 
             _ => JsonSerializer.Serialize(domainPayload, domainPayload.GetType(), _jsonOptions),

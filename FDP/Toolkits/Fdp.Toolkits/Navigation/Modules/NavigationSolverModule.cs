@@ -1,6 +1,7 @@
 using System;
 using CarKinem.Road;
 using CarKinem.Trajectory;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Navigation.Systems;
 using Fdp.ModuleHost.Abstractions;
 
@@ -26,6 +27,7 @@ namespace Fdp.Toolkit.Navigation.Modules
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
         private readonly RoadNetworkBlob         _roadNetwork;
+        private readonly RoadNetworkHolder?      _roadNetworkHolder;
         private readonly TrajectoryPoolManager   _trajectoryPool;
         private readonly INavmeshProvider?       _navmesh;
         private readonly IVolumetricPathProvider? _volumetric;
@@ -37,21 +39,69 @@ namespace Fdp.Toolkit.Navigation.Modules
         ///   Static road graph blob.  Pass <c>default</c> for maps without roads.
         /// </param>
         /// <param name="trajectoryPool">
-        ///   Shared trajectory pool.  A new (empty) pool is allocated when <c>null</c>.
+        ///   <b>Required.</b> The shared trajectory pool this node's <c>MuscleGround</c> capability also
+        ///   reads. See the remarks — passing <c>null</c> is rejected rather than defaulted.
         /// </param>
         /// <param name="navmesh">Optional navmesh provider forwarded to the solver.</param>
         /// <param name="volumetric">Optional volumetric provider forwarded to the solver.</param>
+        /// <remarks>
+        /// <para><b><c>B3</c> — why the pool is required and no longer defaults.</b> This parameter used
+        /// to read <c>trajectoryPool ?? new TrajectoryPoolManager()</c>. That silent default is safe only
+        /// while nothing constructs this module — and nothing does today, which is precisely why it was
+        /// never noticed. Role-based composition is about to switch it on.</para>
+        ///
+        /// <para>The failure it would produce is <b>not</b> a leak. <c>PathfindingSolverSystem</c> (this
+        /// module) writes resolved routes into the pool; <c>FormationTargetSystem</c> and
+        /// <c>CarKinematicsSystem</c> (<c>GroundKinematicsModule</c>, the <c>MuscleGround</c> capability)
+        /// read them back by handle. A node selecting both roles without threading one pool between them
+        /// gets two, and then <b>routes resolve and vehicles never follow them</b> — silently, with no
+        /// exception and nothing in a log.</para>
+        ///
+        /// <para><c>EngineBackedNavigationModule</c> — the navigation module actually in production — has
+        /// required its pool from the start and its <c>Dispose</c> deliberately frees nothing because
+        /// "the pool is owned by the host". That is the shape; this constructor now matches it.</para>
+        /// </remarks>
+        /// <param name="roadNetworkHolder">
+        ///   ⭐ Optional live carrier of the road graph. <b>Supply this on any host that can load or
+        ///   reload terrain.</b> This module runs <c>SlowBackground</c>, so its <c>Tick</c> receives an
+        ///   SoD snapshot and CANNOT read the <c>ZoneEnvironmentData</c> singleton — without a holder a
+        ///   terrain/zone load is invisible to path planning here, which is the R2 defect.
+        /// </param>
         public NavigationSolverModule(
             RoadNetworkBlob          roadNetwork,
-            TrajectoryPoolManager?   trajectoryPool = null,
+            TrajectoryPoolManager    trajectoryPool,
             INavmeshProvider?        navmesh        = null,
-            IVolumetricPathProvider? volumetric     = null)
+            IVolumetricPathProvider? volumetric     = null,
+            RoadNetworkHolder?       roadNetworkHolder = null)
         {
-            _roadNetwork    = roadNetwork;
-            _trajectoryPool = trajectoryPool ?? new TrajectoryPoolManager();
+            _roadNetwork       = roadNetwork;
+            _roadNetworkHolder = roadNetworkHolder;
+
+            // ⭐⭐ C7 — a host that composes this module WITHOUT a holder can never observe a terrain or
+            //   zone reload: this module is SlowBackground (SoD), so its view has no singleton API and
+            //   the constructor blob is all it will ever see. ⛔ That must not be silent — it is the
+            //   "silent default" shape, and the failure it produces (routes planned over a stale graph
+            //   while vehicles drive the new one) has no exception and nothing in a log.
+            // ⚠ A WARNING rather than a throw, deliberately: a host with a statically supplied graph that
+            //   never reloads is legitimate, and this is exactly that host.
+            if (roadNetworkHolder == null)
+                FdpLog<NavigationSolverModule>.Info(
+                    "[NavigationSolver] ⚠ composed with NO RoadNetworkHolder. Path planning will use the "
+                  + "construction-time road graph FOREVER — a terrain or zone load will be invisible to "
+                  + "it, because a SlowBackground module cannot read the ZoneEnvironmentData singleton. "
+                  + "Pass a holder unless this host's graph is genuinely static.");
+            _trajectoryPool = trajectoryPool
+                ?? throw new System.ArgumentNullException(
+                    nameof(trajectoryPool),
+                    "NavigationSolver must share the node's trajectory pool with MuscleGround; a private "
+                  + "pool would make routes resolve into memory the kinematics systems never read.");
             _navmesh        = navmesh;
             _volumetric     = volumetric;
         }
+
+        /// <summary>The pool this module reads and writes — exposed so a composition rail can assert
+        /// that it is the same instance the node's <c>MuscleGround</c> capability holds.</summary>
+        public TrajectoryPoolManager TrajectoryPool => _trajectoryPool;
 
         /// <summary>
         /// Registers <see cref="PathfindingResultMaterializationSystem"/> so the module host
@@ -64,9 +114,19 @@ namespace Fdp.Toolkit.Navigation.Modules
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐ R2 — the constructor blob is only a FALLBACK; <c>PathfindingSolverSystem.Execute</c>
+        /// resolves the graph every tick.
+        /// ⚠ <paramref name="view"/> is an <b>SoD snapshot</b> on this background path, and
+        /// <c>ISimulationView</c> exposes no singleton API, so the solver CANNOT read
+        /// <c>ZoneEnvironmentData</c> here — it reads the <c>RoadNetworkHolder</c> instead. A host that
+        /// composes this module without a holder will not observe a terrain/zone reload in path planning.
+        /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4.
+        /// </remarks>
         public void Tick(ISimulationView view, float dt)
         {
-            new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric)
+            new PathfindingSolverSystem(
+                    _roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder)
                 .Execute(view, dt);
         }
     }

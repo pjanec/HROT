@@ -72,6 +72,12 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                     initialComponents = mapped;
             }
 
+            // ⭐⭐⭐ TRANSLATOR — constructing the DTO directly here is CORRECT, not a bypass of
+            //   EntityCreation.RequestEntityCreation. 📄 DESIGN_Entity_Authoring_Surface.md §2: a
+            //   TRANSLATOR maps in an EXISTING representation — here a DDS sample authored on another
+            //   node, which already fixed the owner, the request id and the components. ⛔ It has no
+            //   authoring CHOICE to express, so routing it through the affordance would add a defaulting
+            //   layer over fields that are already fully determined.
             handler(new EntityCreationRequest
             {
                 RequestId             = msg.RequestId,
@@ -80,6 +86,10 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,
                 InitialComponents     = initialComponents,
+                // D2 across the node boundary: a forwarded sketch must stay unsaveable on the node that
+                // materialises it. See EntityCreationRequestFlags.Transient for why the wire needed a
+                // carrier at all -- IsTransient previously reached only the LOCAL spawn path.
+                IsTransient           = EntityCreationRequestFlags.IsTransient(msg.Flags),
             });
         }
     }

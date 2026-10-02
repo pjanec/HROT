@@ -42,14 +42,26 @@ public sealed class HsmFacetDispatcherTests
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Simple", "", false, "");
     }
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet now resolves through
+    /// <c>NodePropertiesSource</c>, not through <c>InspectorWindow</c>.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ②: the node arms were EXTRACTED to
+    /// <c>details.nodeproperties</c>. ⚠ The claim each test below makes is UNCHANGED — it was always
+    /// about the MAPPER; the window was only a convenient driver.
+    /// <para>⭐ And the port is closer to production: the context is built by
+    /// <c>DetailsContextBuilder</c>, the same call the shell makes every frame.</para>
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "HSM", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── tests ─────────────────────────────────────────────────────────────────
 
@@ -140,9 +152,9 @@ public sealed class HsmFacetDispatcherTests
         store.ActiveAsset = asset;
         // No sub-selection.
 
-        var window = MakeInspectorWindow(store, disp);
+        var source = MakeFacetSource(disp);
 
-        window.GetCurrentFacet().Should().BeNull(
+        source.FacetFor(ContextOf(store)).Should().BeNull(
             "no sub-selection means no facet");
     }
 

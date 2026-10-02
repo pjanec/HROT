@@ -82,6 +82,40 @@ namespace Fdp.Toolkit.Replication.Tests
                 "HasAuthority must return false when PrimaryOwnerId != LocalNodeId.");
         }
 
+        // ── Child part follows its parent (CE-275 ② / OQ7) ────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-275 OQ7 — a child <see cref="PartMetadata"/> entity's authority (and thus its
+        /// scenario save-eligibility) follows its ROOT parent's ownership.</b> The distributed save gate
+        /// (<c>ScenarioSerializer.CollectSaveableEntities</c>) calls <c>HasAuthority</c>, so this is what
+        /// makes a part ride the same gate as its parent rather than being saved/skipped independently.
+        /// 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </summary>
+        [Fact]
+        public void HasAuthority_ChildPart_FollowsParentOwnership()
+        {
+            _world.RegisterComponent<PartMetadata>();
+
+            // Remotely-owned parent ⇒ its child part is NOT authoritative (excluded from our save).
+            var foreignParent = _world.CreateEntity();
+            _world.AddComponent(foreignParent, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var foreignChild = _world.CreateEntity();
+            _world.AddComponent(foreignChild, new PartMetadata { ParentEntity = foreignParent });
+
+            Assert.False(((ISimulationView)_world).HasAuthority(foreignChild),
+                "a child part of a remotely-owned parent must not be authoritative — the save gate " +
+                "follows the parent, so the part is not written by a non-owning host.");
+
+            // Locally-owned parent ⇒ its child part IS authoritative (saved with the parent).
+            var ownedParent = _world.CreateEntity();
+            _world.AddComponent(ownedParent, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            var ownedChild = _world.CreateEntity();
+            _world.AddComponent(ownedChild, new PartMetadata { ParentEntity = ownedParent });
+
+            Assert.True(((ISimulationView)_world).HasAuthority(ownedChild),
+                "a child part of a locally-owned parent must be authoritative.");
+        }
+
         // ── Dead entity ───────────────────────────────────────────────────────
 
         /// <summary>

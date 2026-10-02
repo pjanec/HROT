@@ -44,6 +44,8 @@ public sealed class BlueprintNodeTitleTests
     [Theory]
     [InlineData(ArithmeticOperator.Add, "Math +")]
     [InlineData(ArithmeticOperator.Modulo, "Math %")]
+    [InlineData(ArithmeticOperator.BitAnd, "Math &")]
+    [InlineData(ArithmeticOperator.ShiftLeft, "Math <<")]
     public void BinaryOp_ShowsOperator(ArithmeticOperator op, string expected)
         => Assert.Equal(expected, Title(new BinaryOpNode { Operator = op }));
 
@@ -80,22 +82,6 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal("Make Struct",  Title(new MakeStructNode  { StructTypeId = fqn! }));
         Assert.Equal("Break Struct", Title(new BreakStructNode { StructTypeId = fqn! }));
         Assert.Equal("Set Members",  Title(new SetMembersNode  { StructTypeId = fqn! }));
-    }
-
-    // Get/Set Shared bracket the slot name into the title; empty slot keeps the bare verb.
-    [Fact]
-    public void GetShared_BracketsSlotName()
-        => Assert.Equal("Get Shared [RallyPoint]", Title(new GetSharedNode { VariableId = "RallyPoint" }));
-
-    [Fact]
-    public void SetShared_BracketsSlotName()
-        => Assert.Equal("Set Shared [RallyPoint]", Title(new SetSharedNode { VariableId = "RallyPoint" }));
-
-    [Fact]
-    public void Shared_EmptySlot_KeepsBareTitle()
-    {
-        Assert.Equal("Get Shared", Title(new GetSharedNode { VariableId = "" }));
-        Assert.Equal("Set Shared", Title(new SetSharedNode { VariableId = "" }));
     }
 
     // CA-02: GetComponent brackets the short component-type name (mirrors Make/Break/SetMembers'

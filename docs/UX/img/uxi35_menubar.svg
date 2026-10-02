@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" font-family="Segoe UI,Arial,sans-serif" font-size="13">
+  <style>
+    .t   { font-size:15px; font-weight:700; fill:#1b1b1b }
+    .lbl { font-size:12px; fill:#333 }
+    .sm  { font-size:11px; fill:#555 }
+    .bad { fill:#b3261e; font-weight:700 }
+    .ok  { fill:#1b6b2f; font-weight:700 }
+    .box { stroke:#666; stroke-width:1; rx:3 }
+  </style>
+
+  <text class="t" x="20" y="26">Main menu bar — today</text>
+
+  <!-- shell bar today -->
+  <rect class="box" x="20" y="40" width="620" height="40" fill="#eef2f7"/>
+  <text class="sm" x="28" y="34" fill="#555">WindowManager.BeginMainMenuBar  (:480-498)</text>
+  <rect class="box" x="28" y="48" width="118" height="24" fill="#dde7f3"/>
+  <text class="lbl" x="34" y="64">1 GlobalMenu trie</text>
+  <rect class="box" x="152" y="48" width="104" height="24" fill="#dde7f3"/>
+  <text class="lbl" x="158" y="64">2 Perspective</text>
+  <rect class="box" x="262" y="48" width="104" height="24" fill="#dde7f3"/>
+  <text class="lbl" x="268" y="64">3 Host menus</text>
+  <rect class="box" x="372" y="48" width="118" height="24" fill="#f6e0e0" stroke-dasharray="4 3"/>
+  <text class="lbl" x="378" y="64">4 gizmo param</text>
+  <rect class="box" x="496" y="48" width="136" height="24" fill="#dff0e2"/>
+  <text class="lbl" x="502" y="64">5 Toolbar (inline)</text>
+
+  <text class="sm" x="372" y="94" fill="#b3261e">nothing passes it</text>
+  <text class="sm" x="496" y="94" fill="#1b6b2f">already perspective-filtered</text>
+
+  <!-- rogue bars -->
+  <text class="bad" x="20" y="132">+ four subsystems open their OWN BeginMainMenuBar</text>
+  <g>
+    <rect class="box" x="20" y="144" width="140" height="26" fill="#f6e0e0"/>
+    <text class="lbl" x="27" y="161">Editor :1918</text>
+    <rect class="box" x="172" y="144" width="150" height="26" fill="#f6e0e0"/>
+    <text class="lbl" x="179" y="161">SimHost :376</text>
+    <rect class="box" x="334" y="144" width="180" height="26" fill="#f6e0e0"/>
+    <text class="lbl" x="341" y="161">ReplayBrowser :425</text>
+    <rect class="box" x="526" y="144" width="114" height="26" fill="#f6e0e0"/>
+    <text class="lbl" x="533" y="161">IG :1267</text>
+  </g>
+  <text class="sm" x="20" y="188">each: ConsumeMainMenu() → its own bar · never checks CurrentPerspective</text>
+
+  <!-- toolbar writers -->
+  <text class="t" x="20" y="224">Toolbar registry — one writer</text>
+  <rect class="box" x="20" y="236" width="200" height="30" fill="#dff0e2"/>
+  <text class="lbl" x="27" y="255">MainToolbarManager</text>
+  <text class="sm" x="27" y="282">shared shell · mature registry</text>
+  <line x1="220" y1="251" x2="290" y2="251" stroke="#1b6b2f" stroke-width="1.5"/>
+  <rect class="box" x="292" y="238" width="96" height="26" fill="#dff0e2"/>
+  <text class="lbl" x="299" y="255">Editor ✓</text>
+  <rect class="box" x="400" y="238" width="240" height="26" fill="#f6e0e0"/>
+  <text class="lbl" x="407" y="255">IG · ExCon · SimHost · Replay: 0</text>
+
+  <!-- after -->
+  <line x1="20" y1="304" x2="880" y2="304" stroke="#bbb"/>
+  <text class="t" x="20" y="330">After the designs</text>
+
+  <rect class="box" x="20" y="344" width="620" height="40" fill="#eef7ee"/>
+  <rect class="box" x="28" y="352" width="150" height="24" fill="#dff0e2"/>
+  <text class="lbl" x="34" y="368">Actions (UXI-03/04)</text>
+  <rect class="box" x="184" y="352" width="128" height="24" fill="#dff0e2"/>
+  <text class="lbl" x="190" y="368">Gizmo (UXI-13)</text>
+  <rect class="box" x="318" y="352" width="104" height="24" fill="#dff0e2"/>
+  <text class="lbl" x="324" y="368">Perspective</text>
+  <rect class="box" x="428" y="352" width="204" height="24" fill="#dff0e2"/>
+  <text class="lbl" x="434" y="368">Toolbar: tools + actions</text>
+
+  <text class="sm" x="20" y="404">ONE bar · every leaf resolves its binding by focus (UXI-05) · incompatible items absent, not greyed (rulings 47/49)</text>
+
+  <text class="bad" x="20" y="434">Missing: toolbar in 4 hosts (UXI-35) · action→toolbar adapter (UXI-35) · accelerators (UXI-36)</text>
+  <text class="sm" x="20" y="456">⭐ none needs a new mechanism — ToolbarCommandAdapter and EditorCommandDescriptor.DefaultKey already do both jobs for shell commands</text>
+</svg>

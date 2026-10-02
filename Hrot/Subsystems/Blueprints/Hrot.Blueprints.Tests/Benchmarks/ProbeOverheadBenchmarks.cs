@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core.Debug;
 
 namespace Hrot.Blueprints.Tests.Benchmarks;
@@ -67,7 +68,7 @@ public class ProbeOverheadBenchmarks
         public IEntityCommandBuffer GetCommandBuffer() => throw new NotImplementedException();
     }
 
-    private sealed class BenchmarkTimeController : IBlueprintTimeController
+    private sealed class BenchmarkTimeController : IEngineDebugTimeController
     {
         public bool PauseWasRequested  { get; private set; }
         public bool IsPausedByDebugger { get; private set; }

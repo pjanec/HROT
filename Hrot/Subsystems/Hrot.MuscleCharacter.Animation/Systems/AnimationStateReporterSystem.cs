@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Events;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Systems
 {

@@ -47,6 +47,17 @@ public static class SharedContextMenuPopulator
 
         builder.AddItem("Rotate", () => actions.ActivateRotateTool(entityId));
 
+        // ⭐⭐⭐ E2 — "Load zone", on a TERRAIN ZONE only.
+        //
+        // ⛔⛔ ALWAYS ENABLED. 🔒 User ruling (design §9.6, §9.7 ③b): the action is always cluster-wide
+        //    and is never gated on whether THIS node's copy looks fresh. A host whose local marker says
+        //    "loaded" may be the one node that is stale — the marker is deliberately never replicated
+        //    (§9.1), so it cannot speak for the cluster. ⇒ there is no `if (stale)` here, on purpose,
+        //    and adding one would be the defect §9.7 ③b names.
+        // ⚠ `tkbType` was documented as "reserved for future sub-menu filtering" — this is that future.
+        if (tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone)
+            builder.AddItem("Load zone", () => actions.LoadZone(entityId));
+
         builder.AddSeparator();
         builder.AddItem("Delete", () => actions.DeleteEntity(entityId));
     }

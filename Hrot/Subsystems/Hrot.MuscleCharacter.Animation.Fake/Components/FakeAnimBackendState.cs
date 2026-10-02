@@ -13,7 +13,7 @@ namespace Hrot.MuscleCharacter.Animation.Fake.Components;
 /// Total size ~1 KB, fits comfortably under Tier-1's 64 KB hard limit.
 /// </summary>
 [ComponentId(GlobalComponentIds.FakeAnimBackendState)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [StructLayout(LayoutKind.Sequential)]
 public struct FakeAnimBackendState
 {

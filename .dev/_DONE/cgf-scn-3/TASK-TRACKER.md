@@ -10,7 +10,7 @@
 
 - [x] **TASK-S301** Fix SetManagedComponent/RemoveManagedComponent for ActiveMissionPlan [details](./TASK-DETAIL.md#task-s301--fix-setmanagedcomponent--removemanagedcomponent-for-activemissionplan)
 - [x] **TASK-S302** Fix InlineArray Span mutation in TryBuildQueue [details](./TASK-DETAIL.md#task-s302--fix-inlinearray-span-mutation-in-trybuildqueue)
-- [x] **TASK-S303** Add DataPolicy.NoSave to BrainBlackboard [details](./TASK-DETAIL.md#task-s303--add-datapolicynosave-to-brainblackboard)
+- [x] **TASK-S303** Add DataPolicy.NoScenario to BrainBlackboard [details](./TASK-DETAIL.md#task-s303--add-datapolicynosave-to-brainblackboard)
 - [x] **TASK-S304** Fix SteppingTimeController.GetMode() [details](./TASK-DETAIL.md#task-s304--fix-steppingtimecontrollergetmode)
 
 ---

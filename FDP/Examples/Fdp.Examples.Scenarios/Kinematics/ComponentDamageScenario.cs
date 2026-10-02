@@ -89,7 +89,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
-            world.RegisterComponent<BrainHsm128>();
 
             // ── Event registration ────────────────────────────────────────────
             world.RegisterEvent<DetonationNotification>();
@@ -248,8 +247,10 @@ namespace Fdp.Examples.Scenarios.Kinematics
                 Status           = NodeStatus.Running
             });
 
-            // BrainHsm128: required for HsmDamageBridgeSystem to inject MobilityLost event.
-            world.AddComponent(e, new BrainHsm128());
+            // ⛔ O7c-④d (2026-09-23): the BrainHsm128 attach is gone with the component. Its comment
+            //   claimed HsmDamageBridgeSystem needed it — 📐 measured: no such class exists anywhere
+            //   in the tree, only comments referring to it. This scenario asserts on capability
+            //   stripping, which HealthApplicationSystem does; it never ran a machine.
 
             return e;
         }

@@ -4,8 +4,36 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// Payload for <see cref="ReferenceEditLoadHandler"/> commands.
     /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit</c> for the
     /// handler to perform any I/O; other target states are no-ops.
+    ///
+    /// <para>⭐⭐⭐ <c>L1</c> — <b><c>TkbName</c> and <c>TerrainName</c> are the SHARED CONTENT NAMES</b>,
+    /// extracted by the orchestrator from the MASTER scenario on the NAS and carried to every node on the
+    /// message that opens the <c>Loading*</c> phase.
+    /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2, <c>L1</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Why they ride the MESSAGE and not the scenario file.</b> 📐 Measured: four of the five
+    /// roles never open the scenario file at all — only <c>Brain</c> reads it, because only <c>Brain</c>
+    /// also edits and saves it. A muscle, navigation or map node therefore cannot read these names out of
+    /// the scenario, yet every ECS node needs the knowledge base (it composes the full genesis pipeline —
+    /// <c>Q65-A′</c>) and the movement roles need the terrain.</para>
+    ///
+    /// <para>⛔ <b>They previously travelled as a staged sidecar file</b>
+    /// (<c>{node staging}/TKB/ScenarioHeader.json</c>), written during the file copy — a channel that
+    /// RACES the step consuming it. 📐 Measured in one load: the content step was dispatched 6 ms after the
+    /// copy STARTED and 49 ms before the files were fanned out. The scenario loader survived only on a
+    /// two-second retry; the knowledge-base and terrain loaders do not retry and silently concluded
+    /// <i>"this scenario names none"</i> — indistinguishable from the truth.</para>
+    ///
+    /// <para>⚠ Both are <see langword="null"/>-tolerant: a scenario naming neither is legal and silent
+    /// (an absent <b>artifact</b> for a name that IS given is the loud case, and belongs to the loader).
+    /// ⭐ The pair is additive on the wire — the payload crosses as JSON, so an older reader ignores them.</para>
     /// </summary>
-    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, ClusterState TargetState = ClusterState.LoadingEdit, System.Guid ExerciseId = default);
+    public record struct EditLoadHandlerPayload(
+        string? ScenarioId,
+        bool IsNewScenario = false,
+        ClusterState TargetState = ClusterState.LoadingEdit,
+        System.Guid ExerciseId = default,
+        string? TkbName = null,
+        string? TerrainName = null);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

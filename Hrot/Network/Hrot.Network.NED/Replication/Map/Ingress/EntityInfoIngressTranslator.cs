@@ -171,11 +171,23 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             if (repo != null && _entityMap.TryGetEntity(netId, out var entity))
             {
-                repo.SetComponent(entity, igData);
-
                 // Check if the local node owns the EntityInfo descriptor
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
                 hasAuthority = repo.HasAuthority(entity, packedKey);
+
+                // ⭐ The owner is the source of truth (see "Loopback Prevention" below): it must not take
+                // its OWN samples back. It used to set the component first and check authority after, so
+                // an owner's runtime change (e.g. an Affiliation write) was overwritten by its own stale
+                // loopback sample, then republished from that stale value — measured `2026-09-30`: a
+                // SimHost force change to Hostile read Neutral 60 frames later on BOTH nodes
+                // (EqsDistributedTests T-DIS4, which sets forces through EntityWriteRouter).
+                // ⚠ Only when authority is actually TRACKED: HasAuthority answers true for an entity with no
+                // NetworkAuthority yet, which includes a ghost still being created — and a ghost must take
+                // its EntityInfo from this sample or it never promotes (MiniExConIntegrationTests).
+                bool ownsIt = hasAuthority
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(entity);
+                if (!ownsIt)
+                    repo.SetComponent(entity, igData);
             }
             else
             {

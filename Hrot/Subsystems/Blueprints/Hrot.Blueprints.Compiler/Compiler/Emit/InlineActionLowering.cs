@@ -43,7 +43,8 @@ namespace Hrot.Blueprints.Core.Compiler.Emit;
 /// </summary>
 internal static class InlineActionLowering
 {
-    private const string Bb1024Fqn = "Fdp.Toolkit.Behavior.Components.Blackboard1024";
+    // ⛔ CE-311 / P4-①: `Bb1024Fqn` is GONE. The inline AiPrimitive host resolves its working state
+    //    through the occurrence store now, so no emitter names Blackboard1024 any more.
     private const string UnsafeFqn = "System.Runtime.CompilerServices.Unsafe";
 
     public static void Emit(CSharpEmitter e, IrOp_InlineActionCall op, int resultIdx)
@@ -63,33 +64,39 @@ internal static class InlineActionLowering
 
         if (op.IsAiPrimitive)
         {
-            // -- AiPrimitive path: project WorkingState from Blackboard1024 inline --
-
+            // -- AiPrimitive path: the inline host's WorkingState, in the OCCURRENCE STORE --
+            //
+            // 🔴🔴 CE-311 / P4-① (2026-09-22) — THIS EMITTED AGAINST A COMPONENT NOTHING ADDS.
+            //   It used to emit `GetComponentRW<Blackboard1024>(self)` + the Slice-1 `Memory + 8`
+            //   block behind an 8-byte StructureHash. SLICE2 moved AiPrimitive working state to the
+            //   Blueprint tier ladder and NOTHING has added Blackboard1024 since ⇒ the emitted code
+            //   would THROW on the first inline call. ⚠ It looked green only because
+            //   BlueprintTestFixture:150 registers the component, so the fixture was the one world
+            //   where this could run — the same blindness CE-310 had.
+            //
+            // ⭐⭐ THE ROUTE, and it is the standalone thunk's own seam, not a new one:
+            //   AiPrimitiveEmitter.EmitStandaloneOccurrenceBody already resolves this asset's working
+            //   state with OccurrenceSlots.StandaloneStateKeyFor(AssetId) — its comment says
+            //   "NOT Blackboard1024" in as many words. The inline host uses the SAME key, so an inline
+            //   call and a standalone tick of one asset address one slot, which is what the shared
+            //   Memory+8 block already meant for them.
+            //
+            // ⭐ AND IT LIFTS SLICE-1's LIMIT rather than preserving it. The old block was ONE per
+            //   ENTITY, so a second stateful AiPrimitive reset the first via the hash guard (that is
+            //   exactly SLICE1-DESIGN.md:27's "exactly one stateful AiPrimitive per entity"). Keyed
+            //   per ASSET, two different primitives now get two slots and stop colliding.
+            //
+            // ⚠ The hash guard is NOT dropped — ResolveOrAttach RESETS the slot on a StructureHash
+            //   mismatch, which is the same defence in its one owner. ⇒ the manual InitBlock goes.
             e.WriteLine("unsafe");
             e.WriteLine("{");
             e.Indent();
 
-            e.WriteLine($"ref var __bb1024_{n} = ref {worldVar}.GetComponentRW<global::{Bb1024Fqn}>(self);");
-            e.WriteLine($"fixed (byte* __mem_{n} = __bb1024_{n}.Memory)");
-            e.WriteLine("{");
-            e.Indent();
-
-            // Hash check + init:
-            // If the stored hash doesn't match, zero the entire Blackboard1024 block and
-            // write the new hash.  The working state is then fully zeroed (all fields at
-            // their zero/default values).  We deliberately do NOT call
-            // InitDefaultWorkingState here because it is private to the generated AiPrimitive
-            // class and is therefore inaccessible from an external host blueprint (Slice-1).
-            e.WriteLine($"if (*(ulong*)__mem_{n} != global::{classFqn}.StructureHash)");
-            e.WriteLine("{");
-            e.Indent();
-            e.WriteLine($"global::{UnsafeFqn}.InitBlock(__mem_{n}, 0, (uint)global::{UnsafeFqn}.SizeOf<global::{Bb1024Fqn}>());");
-            e.WriteLine($"*(ulong*)__mem_{n} = global::{classFqn}.StructureHash;");
-            e.Outdent();
-            e.WriteLine("}");
-
-            // Project working state ref
-            e.WriteLine($"ref var __ws_{n} = ref global::{UnsafeFqn}.AsRef<global::{classFqn}.WorkingState>(__mem_{n} + 8);");
+            e.WriteLine($"int __iaKey_{n} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(global::{classFqn}.AssetId);");
+            e.WriteLine($"ref var __ws_{n} = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<global::{classFqn}.WorkingState>(");
+            e.WriteLine($"    {worldVar}, self, __iaKey_{n}, global::{classFqn}.StructureHash,");
+            e.WriteLine($"    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool __iaFresh_{n});");
+            e.WriteLine($"_ = __iaFresh_{n};   // a fresh slot is already zeroed; InitDefaultWorkingState stays private to the asset (Slice-1)");
 
             // Build params struct
             EmitParamsLocal(e, op, paramsFqn, classFqn, n);
@@ -100,9 +107,8 @@ internal static class InlineActionLowering
             else
                 e.WriteLine($"global::{classFqn}.Call(ref __p_{n}, ref __ws_{n}, self, {worldVar}, time);");
 
-            e.Outdent();
-            e.WriteLine("}"); // fixed
-
+            // ⭐ CE-311: no `fixed` block any more — the occurrence seam returns a managed ref, so the
+            //   old pointer pin (and its closing brace) are gone with Blackboard1024.
             e.Outdent();
             e.WriteLine("}"); // unsafe
         }

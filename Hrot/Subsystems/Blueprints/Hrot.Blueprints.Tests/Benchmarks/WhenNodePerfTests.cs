@@ -620,6 +620,7 @@ public sealed class WhenNodePerfTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var (asset, _) = BuildSpawnAsset();
         fixture.CompileAndLoad(asset, MakeEqsOptions());
         var entity = fixture.CreateEntity();
@@ -646,6 +647,7 @@ public sealed class WhenNodePerfTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var (asset, _) = BuildSpawnAsset();
         fixture.CompileAndLoad(asset, MakeEqsOptions());
         var entity = fixture.CreateEntity();

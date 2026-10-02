@@ -11,6 +11,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
 [JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
+[JsonDerivedType(typeof(GetAllVariablesNode),     "GetAllVariables")]
+[JsonDerivedType(typeof(SetVariablesNode),        "SetVariables")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
 [JsonDerivedType(typeof(ReturnNode),              "Return")]
@@ -34,8 +36,6 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(AssignRolesNode),        "AssignRoles")]
 [JsonDerivedType(typeof(AdvancePhaseNode),       "AdvancePhase")]
 [JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
-[JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
-[JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 [JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
@@ -51,6 +51,10 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(GetTimeNode),            "GetTime")]
+[JsonDerivedType(typeof(SendIntentNode),         "SendIntent")]
+[JsonDerivedType(typeof(ToJsonNode),             "ToJson")]
+[JsonDerivedType(typeof(FromJsonNode),           "FromJson")]
 [JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
 [JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
@@ -223,6 +227,43 @@ public sealed class GetParameterNode : Node
 /// how EventEntryNode's data-out pins are matched by name against <c>Graph.Inputs</c>).
 /// </summary>
 public sealed class GetAllParametersNode : Node { }
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — reads the WHOLE blackboard at once: one data-OUT pin per declared
+/// <see cref="DeclarationKind.Variable"/> (name, type), instead of chaining one
+/// <see cref="GetVariableNode"/> per field. The <see cref="GetAllParametersNode"/> twin for the
+/// block's STATE half. Pure; each pin lowers to the same <c>IrOp_ReadVariable</c> a
+/// <see cref="GetVariableNode"/> does, resolved by the pin's NAME — so the subject routing
+/// (<c>EmissionContext.ContainerFor</c>) is inherited for every dispatch.
+/// ⚠ Fixed-list variables (<c>Type.Capacity &gt; 0</c>) get no pin: a list is read through the
+/// <c>List*</c> nodes, never as a whole value on a pin (<c>BP1506</c>). 📄 Q76 §12.22.
+/// </summary>
+public sealed class GetAllVariablesNode : Node
+{
+    /// <summary>
+    /// ⭐⭐ The ONE answer to <i>"which variables get a pin?"</i> on this node and on
+    /// <see cref="SetVariablesNode"/> — every declared <see cref="DeclarationKind.Variable"/> that is
+    /// not a fixed-capacity list, in declaration order. ⛔ Stage 0, Stage 5, the <c>BP1670</c> rail and
+    /// the editor's pin projection all read it, so the four cannot drift (<c>R-132</c>).
+    /// </summary>
+    public static IEnumerable<BlueprintDeclaration> PinnedVariablesOf(BlueprintAsset? asset)
+        => asset is null
+            ? Enumerable.Empty<BlueprintDeclaration>()
+            : asset.Declarations.Of(DeclarationKind.Variable).Where(IsPinned);
+
+    /// <summary>The per-declaration half of <see cref="PinnedVariablesOf"/>: not a fixed-capacity list.</summary>
+    public static bool IsPinned(BlueprintDeclaration variable) => variable.Type is not { Capacity: > 0 };
+}
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — writes the blackboard's variables from one node: exec in/out plus one data-IN
+/// pin per declared <see cref="DeclarationKind.Variable"/> (same set and order as
+/// <see cref="GetAllVariablesNode"/>). ⭐⭐ An UNWIRED pin leaves its variable UNTOUCHED — the node
+/// lowers to one <c>IrOp_WriteVariable</c> per WIRED pin, in declaration order (the
+/// <see cref="SetMembersNode"/> precedent). Side-effecting exactly as <see cref="SetVariableNode"/>
+/// is, and shares its resolver-purity exemption. 📄 Q76 §12.22.
+/// </summary>
+public sealed class SetVariablesNode : Node { }
 
 public sealed class LiteralNode : Node
 {
@@ -432,6 +473,14 @@ public enum ArithmeticOperator
     Multiply,
     Divide,
     Modulo,
+    // ⭐ CE-471 — bitwise/shift, integer operands only (BP1678). Appended: the enum is persisted by value.
+    // BitAnd/BitOr/BitXor also accept a [Flags] enum (C# defines & | ^ on enums); shifts need an integer.
+    // ⚠ No unary BitNot: BinaryOp is A/B-shaped; `A ^ AllOnes` covers it (see BinaryOp_And_Boolean_Nodes_Design.md).
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 /// <summary>Boolean logic operator for the native <see cref="BooleanOpNode"/>.</summary>
@@ -553,53 +602,9 @@ public sealed class AcquireSlotNode : Node
     public int TotalSlots { get; set; } = 1;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// GetShared / SetShared (Slice 2a-2 -- entity-scoped Blueprint shared state)
-// Compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState
-// (Slice 2a-1). Same-entity (self) only -- no target-Entity pin, no cross-entity
-// (that is Slice 2b). No Scope field -- Entity scope is implied for 2a.
-//
-// Slice 2b adds an OPTIONAL "Target" data-in Entity pin to GetShared ONLY (see
-// NodePinSchema.GetSharedPins / Stage0_Rehydrate.EnrichGetSharedPins). When wired, the graph
-// author supplies a target Entity (any Entity-valued pin) instead of self, so a member entity
-// can read a coordinator entity's Entity-scoped shared slot directly (≤1-frame staleness,
-// TryGetShared -> false when the target hasn't provisioned yet -- never throws). SetShared
-// remains self-only by construction -- cross-entity WRITE is a separate future slice (a
-// deferred-event bus), not built here.
-// ──────────────────────────────────────────────────────────────────────────
-
-/// <summary>
-/// Reads the ENTITY-scoped shared working-state slot named <see cref="VariableId"/> off
-/// <c>self</c> (or off an explicit target Entity -- Slice 2b, see "Target" pin), via
-/// <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node (no exec pins):
-/// OPTIONAL data-in "Target" (<c>Fdp.Core.Entity</c> -- unwired = self, byte-identical to Slice
-/// 2a-2), data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
-/// (<c>System.Boolean</c>).
-/// </summary>
-public sealed class GetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// GetShared projects one data-out pin PER FIELD (read the struct once, expose each field) instead of a
-    /// single whole-struct "Value" pin. Null (and omitted from JSON) = legacy whole-struct path — existing
-    /// assets round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
-
-/// <summary>One baked shared-struct field: name + pin TypeId + byte offset within the struct (for the
-/// per-field write). Mirrors <see cref="PublishEventFieldDecl"/> plus <see cref="Offset"/>.</summary>
+/// <summary>One reflected struct field: name + pin TypeId + byte offset within the struct. Produced by the
+/// editor's struct reflector for the Make/Break/SetMembers palette. ⛔ HISTORY — named for GetShared/SetShared,
+/// its first consumer, removed by <c>CE-440</c> (decision <c>A</c>, <c>Q76</c> §12.24).</summary>
 public sealed class SharedFieldDecl
 {
     public string Name { get; set; } = "";
@@ -608,40 +613,12 @@ public sealed class SharedFieldDecl
     public int Offset { get; set; }
 }
 
-/// <summary>
-/// Writes <c>Value</c> into the ENTITY-scoped shared working-state slot named
-/// <see cref="VariableId"/> on <c>self</c>, via <c>BlueprintSharedState.TrySetShared&lt;SharedTypeId&gt;</c>.
-/// Exec node: exec-In + exec-Out, data-in "Value" (typed by <see cref="SharedTypeId"/>), plus an
-/// optional data-out "Written" (<c>System.Boolean</c>).
-/// </summary>
-public sealed class SetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// SetShared exposes one data-in pin PER FIELD; each WIRED field lowers to a per-field write
-    /// (<c>BlueprintSharedState.TrySetSharedField</c>) at that field's offset — unwired fields are
-    /// preserved. Null (and omitted from JSON) = legacy whole-struct "Value" path — existing assets
-    /// round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 // GetComponent (Hill-attack -> Blueprints migration P2 -- reads an ECS component field)
 //
 // Reflection-free by construction: ComponentTypeFqn/FieldName/FieldTypeFqn are baked strings
-// authored at edit time (mirrors GetShared/SetShared's SharedTypeId and the P7.1
+// authored at edit time (as the removed GetShared/SetShared's SharedTypeId was, and the P7.1
 // FunctionCallNode.TrailingContext bake -- see that type's doc comment for why the Roslyn
 // incremental generator, running as a netstandard2.0 analyzer, can never load game assemblies
 // to inspect a real CLR type). Lowers in Stage5_Schedule to the SAME three existing IR ops
@@ -651,8 +628,7 @@ public sealed class SetSharedNode : Node
 
 /// <summary>
 /// Reads a field off an ECS component on <c>self</c> (or an explicit target Entity -- OPTIONAL
-/// "Target" data-in pin, cross-entity read, mirrors <see cref="GetSharedNode"/>'s Slice 2b
-/// "Target" pin; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
+/// "Target" data-in pin, cross-entity read; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
 /// (<c>Fdp.Core.Entity</c>), data-out "Value" (typed by <see cref="FieldTypeFqn"/> when set,
 /// else the Stage4-resolved pin type). Compiles to
 /// <c>{world}.GetComponentRO&lt;global::ComponentTypeFqn&gt;(entity).FieldName</c> -- see
@@ -673,7 +649,7 @@ public sealed class GetComponentNode : Node
     /// non-null, GetComponent projects one data-out pin PER FIELD (read the component once, expose
     /// each field) instead of the single legacy "Value" pin (<see cref="FieldName"/>/<see
     /// cref="FieldTypeFqn"/>). Null (and omitted from JSON) = legacy single-field path -- existing
-    /// assets round-trip byte-identically. Mirrors <see cref="GetSharedNode.Fields"/> exactly, EXCEPT
+    /// assets round-trip byte-identically. Mirrors the removed GetSharedNode.Fields exactly, EXCEPT
     /// no byte <c>Offset</c> -- component reads are typed member access (<c>__c.{Name}</c>), not a
     /// blittable-struct byte read, so there is nothing to offset into.
     /// </summary>
@@ -879,7 +855,7 @@ public sealed class CompareNode : Node
 /// </summary>
 public sealed class BinaryOpNode : Node
 {
-    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
+    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo, and the CE-471 bit/shift operators).</summary>
     public ArithmeticOperator Operator { get; set; }
 }
 
@@ -922,6 +898,63 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+/// <summary>⭐ <c>CE-470</c> — which clock a <see cref="GetTimeNode"/> reads.</summary>
+public enum TimeKind
+{
+    /// <summary>Simulation time in seconds (the emitted method's <c>time</c>).</summary>
+    SimTime,
+    /// <summary>This frame's step in seconds (the emitted method's <c>deltaTime</c>).</summary>
+    DeltaTime,
+}
+
+/// <summary>
+/// ⭐ <c>CE-470</c> — <i>Get Sim Time</i> / <i>Get Delta Time</i>: a pure data node with one <c>System.Single</c>
+/// "Value" out-pin, lowered to the existing <c>IrOp_Time</c> / <c>IrOp_DeltaTime</c> (the ops the <c>Wait</c>
+/// lowering already emits). Refused with <c>BP1679</c> where the value is not in scope — see
+/// <c>docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md</c> §8.
+/// </summary>
+public sealed class GetTimeNode : Node
+{
+    public TimeKind Kind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-472 — typed Send Intent + To JSON / From JSON.
+// 📄 docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md (§3 diagrams, §4 decisions A–F).
+// All three carry the DTO's FQN + its baked members (the editor reflects the [BehaviorContract] class; the
+// compiler only reads these strings). The DTO value never appears on a wire — decision B.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Exec node: builds the intent's parameter DTO from one data-in pin per member, serialises it with the shared
+/// JSON settings and publishes <c>AssignTacticalIntentEvent { Entity = Target (default self), IntentId, JsonParams }</c>.
+/// Keyed by the INTENT id (decision A) — the receiver's mapper picks the behaviour.
+/// </summary>
+public sealed class SendIntentNode : Node
+{
+    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[BehaviorContract]</c> id).</summary>
+    public string IntentId { get; set; } = "";
+    /// <summary>FQN of the <c>[BehaviorContract]</c> parameter DTO.</summary>
+    public string DtoTypeFqn { get; set; } = "";
+    /// <summary>The DTO members exposed as pins (name + pin TypeId).</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: one data-in per DTO member → a <c>System.String</c> "Json" out (the shared JSON settings).</summary>
+public sealed class ToJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: a <c>System.String</c> "Json" in → one data-out per DTO member + "Ok" (false on bad input,
+/// members then default — decision E; it never throws in a tick).</summary>
+public sealed class FromJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1137,9 +1170,9 @@ public sealed class FlowForEachNode : Node
 {
     /// <summary>FQN of the ECS component read off self that holds the collection (e.g. "Fdp.Core.CommandHierarchy.UnitRoster").</summary>
     public string SourceComponentFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").</summary>
+    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").</summary>
     public string CountAccessorFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
+    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item").</summary>
     public string ItemAccessorFqn { get; set; } = "";
 }
 

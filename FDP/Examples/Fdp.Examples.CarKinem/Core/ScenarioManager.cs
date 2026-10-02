@@ -141,7 +141,6 @@ namespace Fdp.Examples.CarKinem.Core
             });
             
             var preset = global::CarKinem.Core.VehiclePresets.GetPreset(vehicleClass);
-            preset.Class = vehicleClass; // Ensure class is set
             _repository.AddComponent(e, preset);
             
             // Use component-based color defaults if needed, or rely on visualizer

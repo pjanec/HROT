@@ -33,8 +33,11 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         _registry = new BlueprintRegistry();
         _repo = new EntityRepository();
 
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BlueprintBlackboard4096>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 4096);
     }
 
     public void Dispose()
@@ -317,10 +320,9 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         Assert.Null(ex);
 
         // Step 4: Verify the blueprint is attached to the entity.
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -352,9 +354,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // Verify slot is gone.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(0, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -388,9 +389,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // A detached, B attached.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));

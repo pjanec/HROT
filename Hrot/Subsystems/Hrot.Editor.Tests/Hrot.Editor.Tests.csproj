@@ -11,6 +11,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
+    <!-- CE-349: the shared AI debug-session composition both hosts call. Referenced EXPLICITLY —
+         the transitive reference through Hrot.Editor did not surface the namespace at compile time. -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiComposition\Hrot.Editor.AiComposition.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />

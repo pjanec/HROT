@@ -162,8 +162,7 @@ public sealed class BlackboardTypeChoiceBuilderTests
             Fqn: "Some.Namespace.SomeAction",
             DtoType: typeof(ExporterProbeDto),
             Hosting: ActionHosting.BTree,
-            Access: BlackboardAccess.Unknown,
-            HeavyDtoType: null);
+            Access: BlackboardAccess.Unknown);
         var exporter = new StubActionSchemaExporter(new Dictionary<string, ActionSchemaEntry> { [entry.Fqn] = entry });
 
         var choices = BlackboardTypeChoiceBuilder.BuildDefault(exporter);

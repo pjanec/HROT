@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Hrot.ExCon.Panels;
@@ -11,6 +13,17 @@ public sealed record LogEntry(
     string   Direction,
     string   Topic,
     string   Details);
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="InteractionPanel"/> shows, this frame.
+/// <see cref="LogEntry"/> is dumped as-is (already a flat, delegate-free record). ⭐ Capped at
+/// <see cref="PanelConstants.MaxLogEntries"/> by construction — the underlying <c>_log</c> list already
+/// enforces that cap, so no additional truncation is needed here.</summary>
+public sealed record InteractionPanelViewModel(
+    string PanelId, string PanelKind, IReadOnlyList<LogEntry> Entries, int SelectedIndex) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ExCon UI panel that acts as a live diagnostic / event log, showing every
@@ -124,6 +137,10 @@ public sealed class InteractionPanel
 
     // Persistent buffer for the Details TextMultiline widget — avoids per-frame allocs.
     private string _detailsBuf = string.Empty;
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the committed log. No ImGui.</summary>
+    public InteractionPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind, Entries, _selectedIndex);
 
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 

@@ -50,7 +50,6 @@ public class SpawningModuleIntegrationTests
         var repo = new EntityRepository();
         // Components required by NetworkSpawningSystem / EntityLifecycleModule
         repo.RegisterComponent<NetworkIdentity>();
-        repo.RegisterComponent<NetworkOwnership>();
         repo.RegisterComponent<NetworkAuthority>();
         repo.RegisterComponent<TkbIdentity>();
         repo.RegisterComponent<GhostStateTracker>();

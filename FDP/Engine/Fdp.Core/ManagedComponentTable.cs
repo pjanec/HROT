@@ -49,11 +49,9 @@ namespace Fdp.Core
             // SyncFrom call.  Without this, the version stays at 0 and the version-
             // equality check (_chunkVersions[i] == srcVer) silently skips the chunk,
             // leaving managed components absent from SoD snapshots.
-            _chunkVersions[chunkIndex] = _chunkVersions[chunkIndex] == 0
-                ? 1u
-                : _chunkVersions[chunkIndex] + 1u;
+            BumpChunkVersion(chunkIndex);
         }
-        
+
         // NEW: Type-erased getter
         public object GetRawObject(int index)
         {
@@ -62,9 +60,39 @@ namespace Fdp.Core
             return val;
         }
 
+        /// <summary>
+        /// Type-erased removal (EntityCommandBuffer playback → RemoveManagedComponentRaw).
+        /// </summary>
+        /// <remarks>
+        /// HN-001 — the bump is load-bearing, exactly as it is in <see cref="SetRawObject"/>.
+        /// A removal that leaves the chunk version untouched is invisible to
+        /// <see cref="SyncDirtyChunks"/>, whose version-equality check then SKIPS the chunk. The
+        /// entity index has no such escape (<c>ApplyComponentFilter</c> bumps its versions on every
+        /// sync), so a preview rewind restored the component's PRESENCE bit and left the payload
+        /// null — and the next tick dereferenced it. Every payload mutation on this table must make
+        /// the chunk look dirty.
+        /// </remarks>
         public void ClearRaw(int index)
         {
-            this[index] = null;
+            int chunkIndex = index / _chunkSize;
+            int localIndex = index % _chunkSize;
+
+            if (_chunks[chunkIndex] == null)
+                return; // Nothing stored — no state change, so no version change either.
+
+            _chunks[chunkIndex][localIndex] = null;
+            BumpChunkVersion(chunkIndex);
+        }
+
+        /// <summary>
+        /// Marks a chunk dirty for the next <see cref="SyncDirtyChunks"/>. Never lands on 0 —
+        /// a fresh table's version is 0, so a 0 here would compare equal to "never written".
+        /// </summary>
+        private void BumpChunkVersion(int chunkIndex)
+        {
+            _chunkVersions[chunkIndex] = _chunkVersions[chunkIndex] == 0
+                ? 1u
+                : _chunkVersions[chunkIndex] + 1u;
         }
 
         public void Clear()
@@ -248,16 +276,18 @@ namespace Fdp.Core
         }
         
         /// <summary>
-        /// Clears a component value (sets to null).
+        /// Clears a component value (sets to null). Marks the chunk dirty — see
+        /// <see cref="ClearRaw"/> for why a silent clear corrupts a later sync.
         /// </summary>
         public void Clear(int entityIndex)
         {
             int chunkIndex = entityIndex / _chunkSize;
             int localIndex = entityIndex % _chunkSize;
-            
+
             if (_chunks[chunkIndex] != null)
             {
                 _chunks[chunkIndex][localIndex] = null;
+                BumpChunkVersion(chunkIndex);
             }
         }
 

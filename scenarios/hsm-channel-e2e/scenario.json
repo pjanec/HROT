@@ -1,0 +1,485 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0"
+  },
+  "entities": {
+    "61e2e000-0000-0000-0000-000000000001": {
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "61e2e000-0000-0000-0000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "HsmChannelE2E",
+              "behaviorParams": "{\"bpActivityParams\": {\"DestX\": 560.0, \"DestY\": 296.0}, \"bpActivityParams_2\": {\"TargetNetworkId\": 1002}, \"bpGuardParams\": {\"EngageTarget\": false}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "SimTransform": {
+        "Position": [
+          368,
+          296,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 6.55,
+        "Width": 3.6,
+        "WheelBase": 3.9300003,
+        "MaxSpeedFwd": 18,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 3,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.34906584,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 300,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 2500
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 2001
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCI--------",
+        "ModelPath": "models/bradley.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "E2E Driving (Open=false)",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 2500,
+        "VisionRange": 5000,
+        "FieldOfViewCos": 0
+      }
+    },
+    "61e2e000-0000-0000-0000-000000000002": {
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "61e2e001-0000-0000-0000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "HsmChannelE2E",
+              "behaviorParams": "{\"bpActivityParams\": {\"DestX\": 560.0, \"DestY\": 360.0}, \"bpActivityParams_2\": {\"TargetNetworkId\": 1002}, \"bpGuardParams\": {\"EngageTarget\": true}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "SimTransform": {
+        "Position": [
+          368,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 6.55,
+        "Width": 3.6,
+        "WheelBase": 3.9300003,
+        "MaxSpeedFwd": 18,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 3,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.34906584,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 300,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 2500
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 2002
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCI--------",
+        "ModelPath": "models/bradley.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "E2E Firing (Open=true)",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 2500,
+        "VisionRange": 5000,
+        "FieldOfViewCos": 0
+      }
+    },
+    "61e2e000-0000-0000-0000-000000000003": {
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": []
+        }
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "SimTransform": {
+        "Position": [
+          620,
+          328,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "None"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 6.55,
+        "Width": 3.6,
+        "WheelBase": 3.9300003,
+        "MaxSpeedFwd": 18,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 3,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.34906584,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 300,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 2500
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "NetworkIdentity": {
+        "Value": 2050
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [
+          0,
+          0,
+          0
+        ],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCI--------",
+        "ModelPath": "models/bradley.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "E2E Target (static)",
+        "ForceId": "Hostile"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 2500,
+        "VisionRange": 5000,
+        "FieldOfViewCos": 0
+      }
+    }
+  }
+}

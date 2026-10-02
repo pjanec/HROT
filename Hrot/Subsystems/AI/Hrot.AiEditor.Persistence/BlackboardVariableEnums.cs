@@ -20,10 +20,27 @@ public enum BlackboardVariableRole
 /// </summary>
 public enum WorkingStateScope
 {
-    /// <summary>Per-node local slot. Default.</summary>
+    /// <summary>
+    /// ⛔⛔ <b><c>CE-435</c> — NOT AUTHORABLE since <c>2026-09-29</c>.</b> Per-node local slot, and the
+    /// enum's DEFAULT.
+    /// <para>🔴 A <b>standalone</b> <c>Role=State</c> variable at this scope is <b>silently skipped</b>
+    /// by both bridge emitters — no slot, no diagnostic (<c>CE-423</c>) — because the Node key formula
+    /// folds <c>assetId ++ nodeVisualId</c> and ignores the variable NAME, so a variable with no node
+    /// has nothing to key off.</para>
+    /// <para>⭐ <b>The VALUE stays and is still load-bearing:</b> it keys node-BOUND working state for
+    /// hosted AiPrimitives, which is the common case and is not authored through the Variables panel.
+    /// ⛔ What was removed is the author-facing CHOICE.</para>
+    /// </summary>
     Node     = 0,
-    /// <summary>Shared across all nodes within one behavior assignment on an entity.</summary>
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE ONLY AUTHORABLE SCOPE.</b> Shared across all nodes within one behavior assignment
+    /// on an entity. <c>BehaviorTreeAsset</c>/<c>HsmAsset.UpdateVariableRole</c> force this whenever a
+    /// variable's Role becomes <c>State</c>, so the panel offers no choice.
+    /// </summary>
     Behavior = 1,
-    /// <summary>Shared across all behaviors on an entity.</summary>
-    Entity   = 2,
+
+    // ⛔ HISTORY — Entity = 2 (shared across behaviours AND entities, name-only key, CE-422) was REMOVED by
+    //   CE-441 slice 1 (Q76 §12.25): its last variable left with CE-440. A legacy file carrying "Entity" now
+    //   fails to load. Do not reuse 2.
 }

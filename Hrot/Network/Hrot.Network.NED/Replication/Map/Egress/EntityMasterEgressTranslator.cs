@@ -86,6 +86,14 @@ namespace Hrot.Map.Common.Replication.Egress
                     ? repo.GetEntityIndex().GetMetadata(entity.Index).DisType
                     : default;
 
+                // Reliable-init barrier (CE-283, §2c/§3a.2): a locally-owned entity created in
+                // reliable mode still carries PendingNetworkAck while it waits for peers. Mark the
+                // wire so receiving peers know to report their Active status. Fast-mode entities
+                // (no PendingNetworkAck) publish Flags=0 as before.
+                ulong flags = view.HasComponent<PendingNetworkAck>(entity)
+                    ? (ulong)EntityMasterFlags.WaitForAcks
+                    : 0UL;
+
                 _writer.Write(new EntityMaster
                 {
                     EntityId = (int)netId.Value,
@@ -100,7 +108,7 @@ namespace Hrot.Map.Common.Replication.Egress
                         Specific    = dis.Specific,
                         Extra       = dis.Extra,
                     },
-                    Flags = 0
+                    Flags = flags
                 });
 
                 SentSampleCount++;

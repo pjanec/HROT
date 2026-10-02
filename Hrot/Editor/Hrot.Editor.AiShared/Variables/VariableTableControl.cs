@@ -80,8 +80,52 @@ public sealed class VariableTableControl
     /// </summary>
     public bool HasEditGestures => EditValueRequested != null && PropertiesRequested != null;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100f</c>) — which row gestures THIS table offers, set by its host.</b>
+    ///
+    /// <para>📌 <b>User:</b> <i>"no one is interested in the other properties than the value in the
+    /// Watch window."</i> ⇒ the two Watch surfaces answer <see cref="VariableTableGestures.Watch"/>.</para>
+    ///
+    /// <para>⭐ <b>Defaults to <see cref="VariableTableGestures.Default"/> HERE and only here</b>, and
+    /// that is not the thing <c>U-5</c> forbids: ⛔ <c>U-5</c> is about an INTERFACE volunteering an
+    /// answer on an implementer's behalf, and <c>IVariableTableHost.Gestures</c> has no default body —
+    /// every host must answer. ⭐ This is a control that can be constructed without a host at all
+    /// *(rails do it constantly)*, and the authoring menu is the right shape for one.</para>
+    ///
+    /// <para>⚠ Assigned by <c>PerspectiveWorkspaceRegistrar.AttachEditGestures</c>, which is the ONE
+    /// place a host and its table meet — ⛔ not by each host, which would be five call sites to
+    /// forget.</para>
+    /// </summary>
+    public VariableTableGestures Gestures { get; set; } = VariableTableGestures.Default;
+
+    /// <summary>
+    /// ⭐⭐ <b>What a double-click on the NAME cell raises</b> — extracted so it can be railed, because
+    /// 📌 <c>R-21</c>/<c>R-62</c>: the draw itself cannot be driven by an ordinary test.
+    /// ⭐ Returns the gesture raised, so a rail asserts the DECISION rather than a side effect.
+    /// </summary>
+    internal VariableEditAction RaiseNameCellDoubleClick(VariableRow row)
+    {
+        if (Gestures.OffersProperties)
+        {
+            PropertiesRequested?.Invoke(row);
+            return VariableEditAction.Properties;
+        }
+
+        EditValueRequested?.Invoke(row);
+        return VariableEditAction.EditValue;
+    }
+
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
+
+    /// <summary>
+    /// ⭐⭐ <b>The formatter this control renders cells with — exposed so the panel's DUMP can produce
+    /// the SAME string the draw produces.</b>
+    /// ⛔ Not a second formatter and not a copy: 📌 a dump that formatted values its own way could
+    /// agree with itself while disagreeing with the screen, which is the failure the observability
+    /// contract exists to prevent.
+    /// </summary>
+    public VariableValueFormatter Formatter => _formatter;
 
     /// <summary>
     /// ⭐⭐⭐ <b>Exactly what this control will draw for one row — the ARTEFACT's own answer.</b>
@@ -210,8 +254,16 @@ public sealed class VariableTableControl
                     ImGui.SetTooltip(VariableRowGrouping.FullPathTooltip(row));   // ⭐ full path, always
                     // ⭐ Double-click disambiguates BY CELL -- extending the existing convention, not
                     //   overriding it: the NAME cell opens the whole properties object.
+                    // ⭐⭐⭐ ...but ONLY where the host offers that gesture. 🔴 Batch 100 (100f) made the
+                    //    gesture set host-declared and gated the MENU at :321 — ⛔ this second entry
+                    //    point was not gated, so a Watch row still opened Properties on double-click
+                    //    *(user, 2026-08-20)*. ⚠ Two entry points, one of them gated, is exactly the
+                    //    half-wired shape BP-360 had.
+                    // ⭐ A host that does not offer Properties falls back to "Edit value…" rather than
+                    //   doing nothing: the user asked for it, and a dead double-click on a live row
+                    //   reads as a broken feature.
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && row.CanEverBeWritten)
-                        PropertiesRequested?.Invoke(row);
+                        RaiseNameCellDoubleClick(row);
                 }
                 DrawRowMenu(view, row);
                 break;
@@ -262,6 +314,28 @@ public sealed class VariableTableControl
     public Func<VariableRow, bool>? IsWatched { get; set; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>AQ55</c> — raised when the designer asks to watch this row on a PICKED entity.</b>
+    /// ⛔ The control neither picks nor pins; the host routes this to
+    /// <c>AiWatchWindow.PinOnPickedEntityAsync</c>.
+    /// </summary>
+    public event Action<VariableRow>? PinOnEntityRequested;
+
+    /// <summary>
+    /// ⭐ Asks the host whether a map pick is available at all. ⛔ Null or <c>false</c> ⇒ the entry is
+    /// ABSENT — 📌 <c>VariableWatchGesture.DecidePinOnEntity</c>'s <c>hasPicker</c> remark: a host that
+    /// will never have a map teaches nothing by showing a permanently dead item.
+    /// </summary>
+    public Func<bool>? CanPinOnEntity { get; set; }
+
+    /// <summary>
+    /// ⛔ Rails only — raises <see cref="PinOnEntityRequested"/> without an ImGui context, taking the
+    /// VIEW exactly as <see cref="RaiseWatchToggleForTest"/> and <c>DrawRowMenu</c> do *(Batch 96's
+    /// rule: a rail must take its input from the SAME OBJECT the UI takes it from)*.
+    /// </summary>
+    internal void RaisePinOnEntityForTest(VariableTableView view, VariableRow row)
+        => PinOnEntityRequested?.Invoke(view.SourceOf(row));
+
+    /// <summary>
     /// ⛔ Rails only — raises <see cref="WatchToggleRequested"/> without an ImGui context.
     /// ⭐ 📌 <c>R-21</c>/<c>R-62</c>: the menu itself cannot be driven headlessly, so the rail exercises
     /// the WIRING and <c>VariableWatchGesture</c> covers the rule the menu renders.
@@ -287,13 +361,22 @@ public sealed class VariableTableControl
     {
         if (!ImGui.BeginPopupContextItem()) return;
 
-        bool writable = row.CanEverBeWritten;
+        // ⭐⭐⭐ Batch 97 (97b) — THE POLICY DECIDES, not the row kind alone.
+        // 🔴 This used to read the ROW KIND alone, for BOTH entries, and nothing else. ⛔ VariableEditPolicy also knows Replay ⇒ Denied, so the entry was live
+        //    in a state where clicking it opens NOTHING, with no explanation.
+        // ⭐ The rule is VariableEditGesture.Decide, which CALLS the policy (ruling 9) — ⛔ a second
+        //   spelling here is how the menu and the dialog would come to disagree.
+        DrawEditItem(VariableEditGesture.EditValueLabel,  VariableEditAction.EditValue,  row,
+                     () => EditValueRequested?.Invoke(row));
 
-        if (ImGui.MenuItem("Edit value…", null, false, writable))
-            EditValueRequested?.Invoke(row);
-
-        if (ImGui.MenuItem("Properties…", null, false, writable))
-            PropertiesRequested?.Invoke(row);
+        // ⭐⭐⭐ Batch 100 (100f) — the SURFACE decides whether "Properties…" is on the menu.
+        // 📌 User: "no one is interested in the other properties than the value in the Watch window."
+        // ⛔ ABSENT, not greyed — and the distinction matters: greying says "not right now" (the F3
+        //    convention, for a refusal the designer can undo by pausing), whereas this surface will
+        //    never offer it. ⭐ A permanently-greyed item is clutter that teaches nothing.
+        if (Gestures.OffersProperties)
+            DrawEditItem(VariableEditGesture.PropertiesLabel, VariableEditAction.Properties, row,
+                         () => PropertiesRequested?.Invoke(row));
 
         // ⭐⭐⭐ Batch 94 (94f) — ENTRY POINT 2 of the watch gesture (the other is the My Blueprint
         //    row menu). ⛔ One command, two surfaces: a one-surface gesture re-creates the split U-6
@@ -313,6 +396,44 @@ public sealed class VariableTableControl
                 ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(why);
 
+        // ⭐⭐⭐ AQ55 — "…on entity…": the SAME command shape one line up, bound to a picked entity
+        //    instead of the selected one. ⛔ ABSENT (not greyed) when the host has no map — a host that
+        //    will never grow one teaches nothing by showing a dead item (the Batch 100 distinction).
+        // ⭐ The rule is VariableWatchGesture.DecidePinOnEntity, not this draw path — R-21/R-62.
+        if (CanPinOnEntity?.Invoke() == true)
+        {
+            var pick = VariableWatchGesture.DecidePinOnEntity(row, RunState, hasPicker: true);
+            if (ImGui.MenuItem(pick.Label, null, false, pick.Enabled) && pick.Enabled)
+                // ⭐ THE SOURCE ROW, for the same reason the toggle above takes it (96c).
+                PinOnEntityRequested?.Invoke(view.SourceOf(row));
+            if (!pick.Enabled && pick.DisabledReason is { } pickWhy && ImGui.IsItemHovered(
+                    ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(pickWhy);
+        }
+
         ImGui.EndPopup();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 97 (<c>97b</c>) — one edit menu entry, greyed with a reason when the policy denies
+    /// it.</b> ⭐ Shaped exactly like the watch entry above it, deliberately — 📌 two spellings of "draw
+    /// a refusable menu item" is how the two would come to look different to the designer.
+    ///
+    /// <para>⚠ <b>A <c>ReadOnly</c> entry stays ENABLED</b> and opens shaped as a view *(Batch 96)*.
+    /// ⛔ Greying it would hide values the designer asked to read — 📌 <c>VariableEditLauncher.Open</c>'s
+    /// own doc-comment.</para>
+    /// </summary>
+    private void DrawEditItem(
+        string label, VariableEditAction action, VariableRow row, Action raise)
+    {
+        var gesture = VariableEditGesture.Decide(row, action, RunState);
+
+        if (ImGui.MenuItem(label, null, false, gesture.Enabled) && gesture.Enabled)
+            raise();
+
+        // ⭐⭐ Refused by GREYING WITH A REASON — ⛔ never a click that dead-ends.
+        if (!gesture.Enabled && gesture.DisabledReason is { } why && ImGui.IsItemHovered(
+                ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(why);
     }
 }

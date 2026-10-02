@@ -1,5 +1,11 @@
+using System;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Hrot.ScenarioEditor.Services;
+using Hrot.ScenarioEditor.Systems;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.ScenarioEditor;
@@ -7,18 +13,78 @@ namespace Hrot.ScenarioEditor;
 /// <summary>
 /// Entry-point <see cref="IEcsModule"/> for the Scenario Editor shared interaction logic.
 ///
-/// <para>
-/// This stub will be populated in <c>PACK2-E002</c> (tool migration) and
-/// <c>PACK2-E003</c> (render layer migration).
-/// </para>
+/// <para>⭐⭐⭐ <b><c>CE-051</c> (Axis-C <b>E3</b>) — <c>RegisterSystems</c> IS POPULATED. This finishes
+/// <c>PACK2-E002</c>, whose stub comment reserved this exact spot and was never filled in.</b>
+/// 📄 <b><c>docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md</c></b> §1, §3 ②, §4.</para>
+///
+/// <para>⭐⭐ <b>Both hosts register this module over their own viewport primitives</b> — the editor over
+/// its canvas/selection/gizmo stack, CGF over its. ⛔ That is what collapses the drift §6 warned about:
+/// before E3 the editor drove tools from a drain welded into a 5 000-line host and CGF drove them from
+/// hand-rolled context-menu callbacks that had independently diverged.</para>
+///
+/// <para>⚠ <b>The interaction systems are OPT-IN.</b> A host that supplies no
+/// <see cref="ISelectionState"/> / gizmo system — a headless node, or a unit test constructing the module
+/// only for its <see cref="FileService"/> — registers <b>no</b> systems and behaves exactly as before.
+/// ⛔ Not a silent default: the deps are constructor parameters, so a windowed host that HAS them and
+/// omits them is a wiring bug, ⭐ and a host that genuinely lacks them is stating a fact
+/// *(CLAUDE.md's silent-default rule — the caller that HAS a dependency must pass it)*.</para>
 /// </summary>
 public class ScenarioEditorModule : IEcsModule
 {
     private readonly ScenarioFileService? _fileService;
+    private readonly InteractionDeps?     _interaction;
 
-    public ScenarioEditorModule(ScenarioFileService? fileService = null)
+    /// <summary>
+    /// ⭐ The viewport dependencies the shared interaction systems need. Grouped into one record so the
+    /// module's ctor does not grow six optional parameters whose combinations are meaningless — ⛔ either
+    /// a host has a viewport or it does not.
+    /// </summary>
+    /// <para>⭐⭐⭐ <b>EVERY member is a RESOLVER, not an instance — and this is the load-bearing as-built
+    /// correction of E3.</b> 📐 Measured <c>2026-08-26</c> *(the HN-037 "check the captures" rule, which is
+    /// exactly what caught it)*: in <c>EditorSubsystem</c> the module is constructed at <c>:1273</c> and
+    /// <c>kernel.Initialize()</c> — which calls <see cref="RegisterSystems"/> — runs at <c>:1733</c>, but
+    /// <c>_camera</c> is created at <c>:1801</c>, <c>_spawnAdapter</c> at <c>:1942</c> and
+    /// <c>_selectionState</c> at <c>:1945</c>. ⛔ <b>All THREE are null when the systems are built</b>, and
+    /// worse, all three are set back to <c>null</c> on teardown *(<c>:4756-4775</c>)*. ⇒ ⛔ capturing
+    /// instances would have wired the systems to permanent nulls, silently — no exception, no log, just a
+    /// dead tool set. ⭐ Resolvers make the systems correct across the host's whole build/teardown cycle.</para>
+    /// <param name="Selection">Resolves the host's persistent viewport selection at USE time.</param>
+    /// <param name="Gizmos">Resolves the host's entity-scoped gizmo injector at USE time.</param>
+    /// <param name="Camera">Resolves the host's map camera at USE time.</param>
+    /// <param name="GlobalGizmos">Needed by the Measure tool only; <c>null</c> ⇒ Measure reports unserviceable.</param>
+    /// <param name="StartPlacementMode">The Spawn tool's behaviour; <c>null</c> ⇒ Spawn reports unserviceable.</param>
+    /// <param name="AlsoSelect">Optional host follow-through after a selection write (e.g. an inspector panel).</param>
+    public sealed record InteractionDeps(
+        Func<ISelectionState?>        Selection,
+        Func<DataDrivenGizmoSystem?>  Gizmos,
+        Func<MapCamera?>              Camera,
+        Action<Entity>?               AlsoSelect         = null,
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null,
+        // ⭐⭐⭐ UXI-11 — THE SELECTION SYSTEMS ARE BUILT BY MapInteractionPack AND PASSED IN.
+        //    🔒 User, 2026-09-20: "unify across host also the bootstrap code as far as possible,
+        //    including this entity selection stuff." 📐 This module used to CONSTRUCT the request and
+        //    notification systems, so the editor and CGF got different instances from the ones the
+        //    other three hosts built by hand — five constructions of one thing.
+        // ⚠ A RESOLVER, because the editor registers this module BEFORE it builds the pack; the
+        //   systems are asked for at kernel.Initialize() time.
+        // ⚠⚠ ORDER IS PRESERVED BY THE CALLER: the pack hands back an ordered pair
+        //   (requests, then notifications) and this module registers it as given.
+        Func<System.Collections.Generic.IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>?>? SelectionSystems = null);
+
+    // ⛔⛔ REMOVED 2026-09-09 (UXI-07 §4.10): GlobalGizmos and StartPlacementMode.
+    //    🔴 Step 3b moved the tool REGISTRATIONS out of this module and into MapInteractionPack, which
+    //    takes both through MapInteractionContext — so these two became parameters that BOTH hosts still
+    //    dutifully passed and NOTHING read. ⚠ That is not merely dead code: the Spawn tool went
+    //    unserviceable on the Editor and CGF, reporting "this host composes no spawn adapter" on hosts
+    //    that compose one, because the delegate was being handed to the wrong record.
+    //    ⭐ Deleting them makes the mistake unrepresentable rather than merely fixed.
+
+    public ScenarioEditorModule(
+        ScenarioFileService? fileService = null,
+        InteractionDeps?     interaction = null)
     {
         _fileService = fileService;
+        _interaction = interaction;
     }
 
     public string Name => "ScenarioEditor";
@@ -30,9 +96,36 @@ public class ScenarioEditorModule : IEcsModule
     /// </summary>
     public ScenarioFileService? FileService => _fileService;
 
+    /// <summary>True when this host wired the viewport interaction systems.</summary>
+    public bool HasInteractionSystems => _interaction != null;
+
     public void RegisterSystems(ISystemRegistry registry)
     {
-        // Populated in PACK2-E002 (tool systems) and PACK2-E003 (render layer).
+        // ⭐⭐⭐ PACK2-E002, finished by CE-051. The render-layer half (PACK2-E003) is still open.
+        if (_interaction is not { } deps) return;
+
+        // 🔒 UXI-07 step 3b — the drain takes the host's ONE arbiter (MapInteraction.Tools). ⛔ A host that
+        //    does not pass it gets a drain that REPORTS every dropped activation rather than swallowing it;
+        //    TheViewportInteractionIsSharedTests rails that both production roots do pass it.
+        // ⭐⭐⭐ UXI-11 S-2 — THE REQUEST SYSTEM RUNS FIRST, AND THE ORDER IS LOAD-BEARING.
+        // 🔴 The drain reads deps.Selection to find the entity a target-less activation should arm on.
+        //    Once "select this, then arm that tool" became TWO EVENTS IN ONE FRAME (S-2 made the select
+        //    a request), the old order — drain first — armed the tool on the PREVIOUS selection.
+        // 📌 That is CE-259s, filed as "ToolActivationDrainSystem registered before the select system
+        //    ⇒ the menu arms on the pre-menu selection", and it discharges here: it stopped being a
+        //    latent ordering smell and became a live defect the moment the write was deferred.
+        // ⚠ Railed by TheViewportInteractionIsSharedTests' registration-order assertion; ⛔ that rail
+        //    is the ONLY thing standing between this and a silent regression, since nothing about the
+        //    two systems' code says they must run in this order.
+        // ⭐⭐⭐ UXI-11 — register what the PACK built, in the order it hands back.
+        // ⛔ Nothing is constructed here any more; a host that supplies no pair registers no selection
+        //   systems, which is a fact about that host rather than a silent default.
+        foreach (var selectionSystem in deps.SelectionSystems?.Invoke()
+                                        ?? System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>())
+            registry.RegisterSystem(selectionSystem);
+        registry.RegisterSystem(new ToolActivationDrainSystem(
+            deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
+        registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
     }
 
     public void Tick(ISimulationView view, float deltaTime) { }

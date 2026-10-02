@@ -93,7 +93,7 @@ Components in FDP hold pure data with no logic. Because different data has diffe
 
 -   **Tier 1 (Unmanaged Components):** These are pure `struct` types stored in a `NativeChunkTable<T>`. Memory is allocated in large 64KB unmanaged chunks, providing O(1) direct pointer access and keeping data tightly packed in the CPU cache for extreme performance.-   **Tier 2 (Managed Components):** These are `class` or `record` types (strings, lists, etc.) stored in a `ManagedComponentTable<T>`. They use standard .NET garbage-collected arrays (`T?[][]`). They are slightly slower to access but necessary for complex data.
 
-**Data Policies:** You control how the engine handles your components (for saving, network replication, and the Flight Recorder) using the `[DataPolicy]` attribute. For example, `[DataPolicy(DataPolicy.NoSave)]` ensures runtime AI state isn't written to disk when saving a scenario, and `DataPolicy.Transient` prevents debug data from polluting network snapshots entirely.
+**Data Policies:** You control how the engine handles your components (for saving, network replication, and the Flight Recorder) using the `[DataPolicy]` attribute. For example, `[DataPolicy(DataPolicy.NoScenario)]` ensures runtime AI state isn't written to disk when saving a scenario, and `DataPolicy.Transient` prevents debug data from polluting network snapshots entirely.
 
 3\. The Entity Repository (The "World")
 

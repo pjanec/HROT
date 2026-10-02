@@ -43,6 +43,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ⭐⭐⭐ Batch 100 (100a) — the FRAME RAIL (R-124). TEST SUPPORT ONLY; the SAME project
+         Hrot.Editor.AiShared.Tests uses, ⛔ not a copy (ruling 9). -->
+    <ProjectReference Include="..\..\..\Editor\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
     <ProjectReference Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj" />
     <ProjectReference Include="..\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
     <!-- BP-120 (Batch 25): the authoring-path compile matrix drives the REAL source generator, not

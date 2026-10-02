@@ -25,6 +25,10 @@ internal sealed class ExConSpawnShim : ISpawnController
     /// <inheritdoc/>
     public void StartRouteAuthoringMode()
         => _logic.StartRouteAuthoringMode();
+
+    /// <inheritdoc/>
+    public void StartZoneAuthoringMode(string styleOverrideJson = "")
+        => _logic.StartZoneAuthoringMode(styleOverrideJson);
 }
 
 /// <summary>

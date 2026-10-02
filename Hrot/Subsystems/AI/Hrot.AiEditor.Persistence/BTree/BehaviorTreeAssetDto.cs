@@ -228,11 +228,37 @@ public sealed class BTreeWaitPayloadDto
     public float Duration { get; set; }
 }
 
+/// <summary>
+/// ⭐⭐ <c>CE-428</c> — the behaviour's bound RESOLVER: a blueprint resolver asset (shape ③, <c>Q76</c> §12.10b)
+/// whose one <c>Construction</c> graph refines this behaviour's block after bake + supply. ⭐ The behaviour
+/// names the resolver (<c>R-149</c>); the resolver's <c>ResolverSubject</c> back-reference is derived.
+/// </summary>
+public sealed class BTreeResolverRefDto
+{
+    public Guid AssetId { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — <c>BehaviorResolverShape.ShapeHash</c> when the resolver was picked or derived. A
+    /// different current hash means the behaviour's block changed since: the editor warns (the C# compile is
+    /// the backstop). <c>0</c> = never recorded.
+    /// </summary>
+    public uint ShapeHash { get; set; }
+}
+
 public sealed class BTreeSubtreePayloadDto
 {
     public Guid SubtreeAssetId { get; set; }
     public string SubtreeName { get; set; } = string.Empty;
     public bool IsResolved { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — the HOST blackboard variable whose bytes seed the child's Input region at each
+    /// start (<c>Q76</c> §11.7). ⚠ Its type must be the child's Input struct. <c>null</c> = unbound: the
+    /// child starts from its own authored defaults.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
 }
 
 // ── Polymorphic node types (§5.3 "[JsonPolymorphic kind]") ───────────────────
@@ -344,6 +370,10 @@ public sealed class BehaviorTreeAssetDto
 
     // ── Topology ──────────────────────────────────────────────────────────────
     public List<BTreeNodeDto> Nodes { get; set; } = new();
+
+    /// <summary>⭐ <c>CE-428</c> — the bound resolver asset, or <c>null</c> (the common case: no resolve stage).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BTreeResolverRefDto? Resolver { get; set; }
     public List<BTreePillDto> Pills { get; set; } = new();
 
     // ── Canvas layout ─────────────────────────────────────────────────────────

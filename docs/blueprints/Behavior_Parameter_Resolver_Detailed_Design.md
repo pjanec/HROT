@@ -1,3 +1,36 @@
+<!--STATUS
+state: LIVE (partly superseded — see the banner below)
+updated: 2026-09-30 (CE-448 known-rot)
+current-answer: the MODEL and PIPELINE here stand; DESIGN_Parameter_Model.md wins on any disagreement.
+stale-below: §6/§7 (ground truth + the G1-G7 gap list) were re-measured 2026-08-16 and are STALE.
+known-conflict: ⚠ §338 expresses R-132's probe as "RegisterResolver is reached ONLY from
+  CgfCuratedBehaviorRegistrar". DESIGN_Behavior_Self_Registration.md DELETES that class ⇒ the PROBE
+  must be re-expressed against the [BehaviorResolver] attribute. ⛔ The RULING is unchanged.
+known-rot: ⛔ 2026-09-30 (CE-448) — "what ParamResolverDemo ships": that asset and the reusable resolver
+  route are DELETED (DESIGN_Parameter_Model.md §P.4).
+  known-rot: ⚠ 2026-09-30 (R-155) — the pipeline order here ("bake → overlay JSON → resolve", the resolver running on the overlaid copy) is
+  the AS-BUILT, not the target. Target: the resolver receives the SOURCE and REPLACES the default copy;
+  an empty body copies nothing (DESIGN_Parameter_Model.md §P.2, CE-443). Resolvers exist only for
+  behaviours, never for actions/conditions (§P.4).
+related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): owns the target
+    start pipeline and the behaviour-vs-action split; this document keeps the resolver authoring model.
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
+    ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
+    action-binding carrier. It is DESIGN, not built; it depends on this document's model and
+    does not change it.
+  - DESIGN_Parameter_Model.md — wins on any disagreement about the params model.
+  - DESIGN_Behavior_Self_Registration.md — owns WHERE a curated resolver is declared (the attribute).
+    ⛔ It does NOT own whether the overlay wins; §338 here does.
+  - Behavior_Architecture_Implementation_Plan.md — the sequencing history.
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐⭐⭐ owns WHERE the resolved
+    values LIVE (one blackboard block per running behaviour, APPROVED 2026-09-29) and WIDENS the
+    resolver's reach from the params region to the whole block. Its §12.3 keeps THIS document's
+    bake→overlay→resolve ORDER unchanged and adds a third stage-2 supplier (a hosted child reads
+    a variable of its HOST's block). Its §12.4 binds Q43's Construction-graph resolver, which is
+    compiled and published here but read by nothing in production.
+-->
+
 # Behavior Parameters & the Resolver — Detailed Design
 
 > ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
@@ -11,6 +44,15 @@
 > ⭐⭐ **Extended since:** Instance blueprints now use this same pipeline, params belong to the
 > **occurrence** rather than the entity, and **sections replace any `Role`/`Scope` control**.
 > ⇒ **`DESIGN_Parameter_Model.md` wins on any disagreement.**
+>
+> ⭐⭐ **`2026-09-21` — related designs** *(reciprocal links, per the `related-designs` rule)*:
+> 📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) owns the
+> **blueprint-authored** resolver — it details `G2`/`R1`–`R5`, and its §8 supersedes §8.3's `R3`
+> avoidance below · 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)
+> §28 owns **where a resolved DTO lands** (the occurrence slot), which this document predates. ·
+> 📄 [`DESIGN_Resolver_World_Reach.md`](DESIGN_Resolver_World_Reach.md) **BUILDS `R4`** from §8.1 below
+> and settles `R5`'s signature — ⭐ it picks the *"adapter-supplied service arguments"* shape and
+> explicitly **refuses** the *"small read-singleton node"* alternative, with the measurement.
 
 > **Status:** design draft (2026-07-13) — resolves the "how do JSON-authored behaviors parse/post-process parameters without a curated `AiBehaviorFactory`" question. Describes the **future state**; no code has been written for it yet. Supersedes the ad-hoc, factory-injected `ParseParams` closure model.
 > **Scope:** how a behavior (BTree or HSM, hardcoded or JSON-authored) declares its authored parameters, its runtime-usable parameters, and an optional **resolver** that bridges the two; how the resolver runs exactly once at activation; how behaviors register and are referenced **by name**; and the end-to-end authoring workflow. Does **not** re-specify blackboard bin-packing, variable roles/scopes, or blueprint compilation — those are owned by the docs cited below.
@@ -234,7 +276,7 @@ Verified against code on branch `claude/hill-attack-json-slice-3-7fbaf4` (2026-0
 | **R1** | A resolver **delegate type** + a `Functions` table on `BlueprintDefinition` | Mechanical | Copy the existing `EventHandlers` dict pattern (`Fdp.Toolkits/Blueprints/BlueprintDefinition.cs:19-20`); `TickDelegate`'s `(Span<byte>, ISimulationView, Entity, float)` shape (`BlueprintDelegates.cs:11-37`) is the template. |
 | **R2** | Emit **registration** for Library functions (populate that table) | Mechanical | `LibraryEmitter` already emits deterministically-named static methods; add a registrar loop mirroring the Instance `EventHandlers` emission. Today `EmitLibraryRegistration` stops at a bare marker (`Hrot.Blueprints.Compiler/Emit/CSharpEmitter.cs:194-205`, `StateSize=0`, no delegate). |
 | **R3** | **Struct/DTO-typed** graph inputs/outputs | Hard (architectural) | `StaticTypeRegistry` is a fixed scalar/vector/Entity list; Library assets are barred from declaring variables (`Stage2_Validate.cs:95-97`, BP1011). **Avoided by §8.3.** |
-| **R4** | **World-singleton reach** from a function (geo transform, entity map) | Medium | `NetworkEntityMap` already uses `SetSingletonManaged` (`Hrot.SimHost/SimHostApp.cs:482`); **geo transform does not** (passed by ref — gap G3). `ISimulationView` exposes no singleton accessor, but the compiler already downcasts `((EntityRepository)view)` (`EmissionContext.cs:71-74`), so the runtime accessor exists; no blueprint *node*/IR op reads a singleton yet. |
+| **R4** ⭐ **DESIGNED `2026-09-21` — [`DESIGN_Resolver_World_Reach.md`](DESIGN_Resolver_World_Reach.md)** | **World-singleton reach** from a function (geo transform, entity map) | Medium | `NetworkEntityMap` already uses `SetSingletonManaged` (`Hrot.SimHost/SimHostApp.cs:482`); **geo transform does not** (passed by ref — gap G3). `ISimulationView` exposes no singleton accessor, but the compiler already downcasts `((EntityRepository)view)` (`EmissionContext.cs:71-74`), so the runtime accessor exists; no blueprint *node*/IR op reads a singleton yet. |
 | **R5** | **Invocation shim** in `BehaviorIngressSystem` | Small | Known seam (`BehaviorIngressSystem.cs:~119`), replaces the 2-arg `def.ParseParams(json, dst)` (`:96`); depends on R1–R4. |
 
 ### 8.2 Editor work (decomposes G7)
@@ -251,6 +293,32 @@ The editor is Instance-centric by omission: the data model supports all three ki
 | **E6** | "Detach authored shape" + divergence-detection UI | Lives on the behavior/BTree side, not the blueprint editor; nothing exists yet. |
 
 ### 8.3 Reuse strategy — avoid the two hard pieces (R3 + E4)
+
+> ## ⛔⛔ `2026-09-21` — **THIS SECTION'S PREMISE IS SUPERSEDED FOR `R3`. The reciprocal design is
+> [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) §8.**
+>
+> 📐 **Measured by experiment, not by reading:** a `Library` graph whose **input and output are typed
+> as a struct FQN** (`global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams`) **compiles
+> today**, and the `LibraryFunctionDelegate` adapter marshals it correctly with
+> `MemoryMarshal.Read<T>` / `Unsafe.SizeOf<T>`.
+>
+> ⭐ **Why, although `StaticTypeRegistry` is still the fixed scalar/vector/Entity list this section
+> cites:** `TryResolve`'s `global::` acceptance path takes any FQN as an unmanaged value type, and its
+> **guessed 4-byte size is never consulted on this path** — a Library asset has no state layout
+> (`StateSize = 0`) and the emitted adapter sizes with the **real CLR** `Unsafe.SizeOf<T>`.
+>
+> ⇒ ⛔ **`R3` is NOT "Hard (architectural)" any more, so the decomposition below is not needed to reach
+> a blueprint-authored resolver.** ⭐ `Q43-B2` (*"it fills any struct type it names"*) is the live
+> answer, and it is what `ParamResolverDemo` ships.
+>
+> ⚠ **What still stands here:** `E4` (a cross-asset bridge from blueprint outputs to behaviour
+> variables) is untouched by that measurement, and the scalar-decomposition rail remains a legitimate
+> authoring style — it is simply no longer **required**.
+>
+> ⭐ **And `R1`/`R2` are DONE** (`2026-07-14`): `Q43` §8.1 records that this document's own seam had
+> **zero production consumers** for two months, which is why its inventory is worth reading before
+> planning any further resolver work.
+
 
 The only architecturally-hard pieces are R3 (struct pins in the general blueprint type system) and E4 (a cross-asset bridge from blueprint outputs to behavior variables). Both are **avoided** by riding the rail that stateful actions already use — the "**BTree owns layout, blueprint provides `TickCore`**" composition from `BTree_AiActionParameterBinding_Detailed_Design.md` §3.2, where the generated per-asset registrar emits an adapter that projects a struct at its baked offset and calls the blueprint's core function.
 
@@ -274,3 +342,36 @@ The maximal alternative — a fully general struct-typed Library call ABI with a
 - **Supersedes** the factory-injected `ParseParams` closure model described operationally in `AI-Behavior-Authoring.md` §7.4 and `docs/AI_DEV_GUIDE.md` "Writing the ParseParamsDelegate" — those describe the current state this design replaces.
 - **Builds on** `BTree_AiActionParameterBinding_Detailed_Design.md` §4.4 (the `Node`/`Behavior`/`Entity` scoped-variable model; this doc adds the authored↔usable resolver on top of it) and `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` §4 (the once-at-assignment runtime pipeline; this doc names the previously-inline resolve step and makes it pluggable).
 - **Coordinates with** `Blueprint_Subsystem_Architecture_v1.2.md` for Library-function dispatch and world singletons (gap G2/G3).
+
+## 10. ⭐⭐⭐ AS-BUILT `2026-08-23` — **A CURATED RESOLVER OUTRANKS A GENERATED ONE** *(user ruling)*
+
+> ⭐⭐⭐ **User, verbatim:** *"if curated (hand-authored) exists, then no other is needed - having
+> automatically generated is undesired in such a case."*
+
+⛔⛔ **SUPERSEDES the "never overwrite" binding rule** this document's pipeline implied. `ApplyResolverOverlay`
+used to read `if (def.ParseParams == null) def.ParseParams = overlay.Resolver;` ⇒ ⭐ **whatever registered
+FIRST won**, and a generated registrar usually registers first.
+
+📌 **The defect that produced the ruling — and it is a SILENT-DEFAULT / `default:`-arm case, the family
+`CLAUDE.md` names.** `PlatoonHillAttack`'s parameters are **geo-authored** *(the mission plan carries
+`firingLineStart` / `baselineStart` as `[lat, lon]`)*, and **only** the curated
+`HillAttackCommanderNodes.ResolvePlatoonHillAttackParams` knows that shape and runs it through
+`geoTransform.ToCartesian`. ⛔ **It never ran.** The BTree JSON source generator had emitted a `ParseParams`
+into the generated registrar *(because the asset declares a managed blackboard)*, and that took the slot.
+
+⭐⭐ **Why it failed SILENTLY, which is the transferable part:** the two resolvers expect **different wire
+formats**. The generated lambda switches on top-level keys matching blackboard **variable names**
+*(`"Params"`, `"State"`)*; the mission plan's keys are **flat and geo** ⇒ every key hit the deliberate
+`default: break` *("unknown key: IGNORED")* and **nothing was ever written.** ⇒ the params region stayed
+zeros: **no exception, no log line, the behaviour otherwise running normally** — the platoon drove to
+`(0,0)`.
+
+| ⭐ the rule now | |
+|---|---|
+| ⭐⭐ **the overlay WINS** | `RegisterResolver` is reached **only** from the **generated `CuratedBehaviorRegistrar`**, whose every call site is a method a human marked **`[BehaviorResolver]`** *(every caller verified; no per-asset JSON registrar calls it)* ⇒ ⭐ **the presence of an overlay IS the signal that a human wrote a resolver for this behavior** |
+| ⚠ **`2026-09-27` — the PROBE moved, the RULING did not** | `CE-374` deleted `CgfCuratedBehaviorRegistrar`, so the sentence above used to name a class that no longer exists. ⭐ **The human declaration is now the `[BehaviorResolver]` attribute**, and it is the same signal in a checkable form. ⛔ Nothing about *"curated wins by declaration"* changed. 📄 `DESIGN_Behavior_Self_Registration.md` §8 ① |
+| ⚠ **why it regressed** | `DEBT-AIB-021` *(Batch 70)* widened the generated-emit guard from *">=1 variable with a non-null `DefaultValueJson`"* to *">=1 packed managed variable"*. ⭐ Correct on its own terms, ⛔ but `PlatoonHillAttack`'s two variables have **no defaults**, so before that change no `ParseParams` was emitted and the curated resolver bound |
+| ⭐ **the generalisation** | ⛔ **two producers for one slot, bound by registration ORDER, is not a precedence rule — it is a race.** ⭐ Where a curated and a generated artefact can both fill a slot, **curated wins by declaration**, not by arriving first |
+
+⚠ **Found by a VISUAL check driven through the MCP debug API**, not by any suite — the params region was
+zeros and every rail was green.

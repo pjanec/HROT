@@ -15,9 +15,10 @@ namespace Fdp.Toolkit.Blueprints.Events;
 /// </para>
 ///
 /// <para>
-/// ⛔ <b>The event is the ONLY source of the params JSON.</b> There is no lookup into
-/// <c>BlueprintAssignmentDto.Overrides</c> and no side table — a caller with nothing to pass leaves
-/// this null and the blueprint's declared defaults stand.
+/// ⛔ <b>At runtime attach, this event's params JSON is the ONLY source of params</b> — a caller with
+/// nothing to pass leaves it null and the blueprint's declared defaults stand. (Save→reload is a separate
+/// path: <c>BlueprintStateTranslator</c> snapshots the resolved param bytes into
+/// <c>BlueprintAssignmentDto.Params</c> and <c>BlueprintMaterializationSystem</c> re-applies them — MX-031/032.)
 /// </para>
 /// </summary>
 [EventId(BlueprintConstants.EventId_AttachInstanceBlueprint)]

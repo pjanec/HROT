@@ -27,7 +27,7 @@ namespace Hrot.SimHost.UI
     /// publishes them over DDS, making them visible on the IG map.</para>
     ///
     /// <para>Each spawned entity carries a <see cref="BehaviorState"/> and
-    /// <see cref="BrainBlackboard"/> so the BTree cognitive tier drives its behaviour
+    /// <c>BrainBlackboard</c> so the BTree cognitive tier drives its behaviour
     /// autonomously from the first frame.</para>
     /// </summary>
     public class SimHostScenarioManager
@@ -86,7 +86,7 @@ namespace Hrot.SimHost.UI
         /// <summary>
         /// Publishes a <see cref="SpawnEntityCommand"/> so that
         /// <c>NetworkSpawningSystem</c> creates a fully-networked entity with
-        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, and <c>NetworkSpawnRequest</c>.
+        /// <c>NetworkIdentity</c>, <c>NetworkAuthority</c>, and <c>NetworkSpawnRequest</c>.
         /// </summary>
         /// <param name="position">Initial world-space XY position in metres.</param>
         /// <param name="heading">Heading unit vector; yaw is derived from its angle from east.</param>

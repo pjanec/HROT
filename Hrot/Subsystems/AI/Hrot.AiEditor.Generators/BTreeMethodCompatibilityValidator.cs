@@ -26,6 +26,13 @@ internal static class BTreeMethodCompatibilityValidator
     private const string BehaviorTreeStateFqn  = "Fbt.BehaviorTreeState";
 
     /// <summary>
+    /// ⭐⭐ <c>CE-316</c> — the generated registrar's <c>TBB</c>. ⚠ Must stay in lockstep with
+    /// <c>BTreeBridgeEmitCore</c>'s <c>bbShort</c> and <c>BTreeEmitCore</c>'s; <c>BTreeTbbIsByteTests</c>
+    /// pins the three together, because a drift here is a **silent whole-asset skip**, not a build error.
+    /// </summary>
+    private const string ByteFqn = "System.Byte";
+
+    /// <summary>
     /// Validates all reachable bound Action/Condition leaves in <paramref name="dto"/>.
     /// Returns <c>null</c> if all bindings are valid; otherwise returns a human-readable
     /// reason string to embed in a BTREE0002 diagnostic.
@@ -41,8 +48,22 @@ internal static class BTreeMethodCompatibilityValidator
         BehaviorTreeAssetDto dto, Compilation compilation,
         IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas = null)
     {
-        // Build the expected type symbols from the asset's declared BB/Ctx names.
-        string bbTypeName  = dto.BlackboardTypeName;
+        // ⭐⭐⭐ CE-316 — TBB IS `byte`, AND IT COMES FROM THE EMITTER, NOT FROM THE ASSET.
+        //   🔴🔴 This line used to read `dto.BlackboardTypeName`, and that was CE-313's unfixed twin.
+        //   CE-313 made the generated registrar emit `ActionRegistry<byte, TCtx>`
+        //   (BTreeBridgeEmitCore.cs:328, `var bbShort = "byte"`), because after P3-C a thunk's
+        //   blackboard argument is the ROOT PARAMS SLOT BASE, not a named component. ⇒ this validator
+        //   kept resolving TBB from the ASSET's declared type and rejecting every method whose param 0
+        //   is `ref byte` — i.e. every method P4-② converted.
+        //   ⛔⛔ And the rejection is not a warning: BTreeJsonGenerator treats an incompatible leaf as a
+        //   WHOLE-ASSET SKIP, so six assets silently stopped generating at P4-② (§30.25 ⑤).
+        // ⭐ The CHECK itself is still real and still wanted — a method whose param 0 is `ref Something`
+        //   would not compile in the emitted registrar. Only its SOURCE OF TRUTH was wrong: it must be
+        //   what the emitter WRITES, never what the asset DECLARES.
+        // ⛔ Deliberately NOT a change to dto.BlackboardTypeName. That field is a PERSISTED input to
+        //   SubtreeSyncIdentity.Derive, which MATCHES SUBTREES (§30.19) — retargeting it renames
+        //   structs across the corpus and breaks matching silently. It keeps its other readers.
+        string bbTypeName  = ByteFqn;
         string ctxTypeName = dto.ContextTypeName;
 
         // Resolve BehaviorTreeState once — it is the same across all assets.

@@ -82,7 +82,7 @@
   <rect x="322" y="404" width="292" height="88" class="mem"/>
   <rect x="322" y="404" width="292" height="18" fill="#4a8a3c" rx="5"/>
   <text x="330" y="417" class="hd">_liveRepo — WHAT RESUMES</text>
-  <text x="334" y="443" class="t">Blackboard1024 (shared!)</text>
+  <text x="334" y="443" class="t">one working-state slot</text>
   <text x="334" y="463" class="s">write here ⇒ the sim uses it</text>
   <text x="334" y="480" class="s">after Continue (ruling 16)</text>
 
@@ -92,7 +92,7 @@
 
   <rect x="632" y="404" width="254" height="88" class="box"/>
   <text x="642" y="424" class="tb" font-size="12">Why surgical, not whole:</text>
-  <text x="642" y="444" class="s">Blackboard1024 is ONE component</text>
+  <text x="642" y="444" class="s">each node owns its own slot</text>
   <text x="642" y="460" class="s">shared by BTree + HSM + Blueprint,</text>
   <text x="642" y="476" class="s">"each subsystem at a disjoint offset"</text>
 

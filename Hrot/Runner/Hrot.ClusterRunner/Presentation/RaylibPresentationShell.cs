@@ -1,11 +1,20 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Fdp.Core.Logging;
 
 namespace Hrot.ClusterRunner.Presentation;
 
 internal sealed class RaylibPresentationShell : IPresentationShell
 {
+    /// <summary>
+    /// ⭐⭐ <b>The user layout folder's name</b> — 📌 <c>LayoutPaths</c> takes it as an argument so
+    /// <c>Fdp.Presentation</c> never learns what "HROT" is *(the design's constraint 1)*.
+    /// ⭐ <c>internal</c> so <c>LocalWindowController</c> names the same folder the ini went to, ⛔ rather
+    /// than repeating the literal and re-creating the split this batch is closing.
+    /// </summary>
+    internal const string AppFolderName = "HROT";
+
     private Raylib_cs.Texture2D _atlasTexture;
     private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
@@ -125,10 +134,9 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         var io = ImGuiNET.ImGui.GetIO();
         io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string configDir = Path.Combine(appData, "HROT");
-        Directory.CreateDirectory(configDir);
-        string iniPath = Path.Combine(configDir, "imgui.ini");
+        // ⭐⭐ Batch 103 (103a) — the same helper FdpApplication uses. 📌 See its remark: the two
+        //    computations were byte-identical and independent.
+        string iniPath = Fdp.Presentation.WindowManager.LayoutPaths.UserIniPath(AppFolderName);
         _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
         unsafe
         {
@@ -175,13 +183,31 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     {
         byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
         var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+        // Dimensions from the DECODED image (a CPU operation, valid even if the GPU upload below
+        // fails) so the atlas UV math has a correct, non-zero divisor regardless.
+        int atlasWidth = img.Width, atlasHeight = img.Height;
         _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        Raylib_cs.Raylib.UnloadImage(img);
+
+        // A headless machine whose Xvfb provides no GL driver returns texture id 0 here — the
+        // "null icon-atlas handle" case. It is not fatal: raylib's id 0 is the built-in 1x1 white
+        // texture, so icons draw as blank quads rather than crashing. Say so once, keep the decoded
+        // dimensions, and run on. (With a real GL context — hardware or Xvfb+Mesa/llvmpipe — id != 0
+        // and this path is not taken.)
+        if (_atlasTexture.Id == 0)
+        {
+            FdpLog<RaylibPresentationShell>.Warn(
+                "[Icons] The icon atlas texture failed to upload (GPU texture id 0). The editor will "
+              + "run with blank icons. On a headless Linux host, launch under Xvfb with a GL driver "
+              + "(e.g. LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe xvfb-run …).");
+            return new Fdp.Presentation.Icons.IconAtlas((nint)0, atlasWidth, atlasHeight, 16f);
+        }
+
         // Bilinear filtering so 16x16 silk cells resample smoothly when drawn larger than
         // native (DPI-scaled menu gutters, the blueprint node picker, etc.) instead of the
         // default nearest/point sampling that shows blocky pixels on upscale. At 1:1 (16px)
         // it is identical to point sampling, so no downside for native-size icons.
         Raylib_cs.Raylib.SetTextureFilter(_atlasTexture, Raylib_cs.TextureFilter.Bilinear);
-        Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);
     }

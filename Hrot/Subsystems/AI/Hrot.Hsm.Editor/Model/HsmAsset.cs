@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -135,14 +135,35 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         foreach (var v in _blackboardVariables)
         {
             if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
-            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior) continue;
 
             (keys ??= new HashSet<int>()).Add(
                 Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
                     AssetId, v.Scope, System.Guid.Empty, v.Name));
         }
         return (IReadOnlyCollection<int>?)keys ?? System.Array.Empty<int>();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5</c> item 7 — the forward asset edge: every sub-tree asset any STATE hosts.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⭐ Walks <see cref="AllStates"/>, which is the FLATTENED state list — ⛔ deliberately not
+    /// the parent/child recursion <c>HsmValidator.SubtreeHostsUnder</c> does, because that one exists
+    /// to answer a per-COMPOSITE question (which region hosts what) and this one is per-ASSET.</para>
+    ///
+    /// <para>⚠ <b>Returns the SET, so a child hosted from two states appears once</b> — that is a
+    /// legitimate diamond, and the cycle walk cares only whether the edge exists.</para>
+    /// </summary>
+    public IReadOnlyCollection<System.Guid> GetHostedSubtreeAssetIds()
+    {
+        HashSet<System.Guid>? ids = null;
+        foreach (var s in AllStates)
+        {
+            if (s.SubtreeAssetId == System.Guid.Empty) continue;
+            (ids ??= new HashSet<System.Guid>()).Add(s.SubtreeAssetId);
+        }
+        return (IReadOnlyCollection<System.Guid>?)ids ?? System.Array.Empty<System.Guid>();
     }
 
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
@@ -215,7 +236,23 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     {
         int idx = _blackboardVariables.FindIndex(v => v.Name == name);
         if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role };
+
+        // ⭐⭐⭐ CE-435 — A `State` VARIABLE IS ALWAYS `Behavior`-SCOPED, AND THE MODEL ENFORCES IT.
+        //
+        // 🔴 Before this, flipping Role to State left Scope at its default `Node`, and a STANDALONE
+        //    Node-scoped State variable is SILENTLY SKIPPED by both bridge emitters — no slot, no
+        //    diagnostic (CE-423). ⇒ the defect was reachable through the Variables panel in two
+        //    clicks, and nothing told the author their variable had no storage.
+        // 📐 Measured 2026-09-29 across every .btree.json/.hsm.json: of the authored State
+        //    variables, ZERO were at Node and (after CE-436) two at Entity, both re-homed by this
+        //    slice. `Behavior` is the only scope an author ever chose deliberately.
+        // ⛔ This does NOT touch OccurrenceSlotKey.Compute's Node arm — that keys node-BOUND working
+        //    state for hosted AiPrimitives, which is the common case and is not authored here.
+        var scope = role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
+            ? Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+            : _blackboardVariables[idx].Scope;
+
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role, Scope = scope };
         MarkDirty();
     }
 
@@ -285,6 +322,14 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// count and the conflict rule cannot disagree about what "bound to this variable" means.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b><c>CE-387</c> — STATES count too, and for the same reason the rest of this method
+    /// exists.</b> A state's <c>ExpressionTargetField</c> is a <b>READ</b> (its occurrence seeds its
+    /// params from that variable) rather than a write, ⛔ but the caller's question is
+    /// <c>IsUnused</c>, and a variable that something seeds from is plainly USED. ⚠ Omitting them
+    /// would resurrect the exact defect this method was written to fix — a bound variable offered
+    /// for deletion with a clean conscience — for the state case.
+    /// </remarks>
     public int CountNodesReferencingVariable(string name)
     {
         int count = 0;
@@ -292,6 +337,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
             if (IsExpressionTargetOf(t.ExpressionTargetField, name)) count++;
         foreach (var g in AllGlobalTransitions)
             if (IsExpressionTargetOf(g.ExpressionTargetField, name)) count++;
+        foreach (var s in AllStates)
+            if (IsExpressionTargetOf(s.ExpressionTargetField, name)) count++;
         return count;
     }
 
@@ -869,6 +916,58 @@ public sealed class StateNode : IContainerNodeModel
     // parallel regions. Guid.Empty means no sub-behavior reference.
     public Guid SubtreeAssetId;
 
+    // ⭐⭐ E5 / Q36-B = A — the hosted child's REGISTRY NAME, beside the Guid.
+    //
+    // ⛔ The Guid alone cannot host anything: a host resolves its child through BehaviorRegistry,
+    //    which is keyed by NAME (TryGetId/TryGetDefinition) — there is no asset-id index, and
+    //    Q36-B ruled against adding one (one mechanism with the shipped BTree path, whose
+    //    BTreeSubtreePayload has carried the same {Guid, Name} pair since PU).
+    // ⭐ The Guid stays as the RENAME SURVIVOR: it is what the editor re-resolves the name from.
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.8 item 1.
+    public string? SubtreeName;
+
+    // ⭐⭐ DERIVED, NOT PERSISTED — recomputed by HsmSubtreeResolver against the asset catalogue on
+    //    load and after a hot reload. 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    // ⛔ Deliberately absent from StateNodeDto, mirroring BTree: a persisted `true` would outlive
+    //    the asset it describes and claim a dangling reference is fine.
+    public bool IsSubtreeResolved;
+
+    // ⭐⭐⭐ CE-385 — the state's ACTIVITY (per-tick action) is hosted by a BLUEPRINT.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.
+    //
+    // ⛔⛔ This is NOT an alternative spelling of ActivityAction. A NAMED activity resolves through
+    //    FNV1a16(FQN); a blueprint-hosted thunk registers under its BlueprintId = FNV-1a32 of THIS
+    //    Guid — two id spaces no authorable string bridges (CE-383/CE-384). ⇒ the two fields are
+    //    MUTUALLY EXCLUSIVE, and the validator says so (design §9 ③).
+    // ⭐ Shaped exactly like the SubtreeAssetId/SubtreeName pair above: the Guid is the identity and
+    //    the RENAME SURVIVOR, the name is what the designer sees and picks.
+    public Guid ActivityBlueprintAssetId;
+
+    /// <summary>⭐ The picked blueprint's catalogue NAME, beside <see cref="ActivityBlueprintAssetId"/>.
+    /// ⚠ Display + re-resolution only — ⛔ the emitted id comes from the Guid, never from this.</summary>
+    public string? ActivityBlueprintName;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its
+    /// params from.</b> 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4;
+    /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    ///
+    /// <para>🔴 <b>The emitter has consumed this since <c>E3b-0</c> and the editor could never
+    /// produce it.</b> <c>StateNodeDto.ExpressionTargetField</c> existed and
+    /// <c>HsmBridgeEmitCore.EmitStateParamBindings</c> already turns it into a
+    /// <c>HsmParamBindings.Register</c> table — but <c>StateNode</c> had no such field and the mapper
+    /// mapped it for TRANSITIONS only ⇒ it was **always null**, and every state seeded from offset
+    /// 0.</para>
+    ///
+    /// <para>⛔⛔ <b>SAME NAME, DIFFERENT CONCEPT from <see cref="TransitionNode.ExpressionTargetField"/>
+    /// — do not unify them.</b> A transition's is an OUTPUT: the field that RECEIVES the expression
+    /// result of its action, which is why it participates in the cross-region WRITER-conflict rule.
+    /// A state's is an INPUT: the variable its occurrence SEEDS FROM. ⇒ a state binding must NEVER be
+    /// added to that conflict rule — concurrent readers are legal, and adding it would manufacture
+    /// false conflicts.</para>
+    /// </summary>
+    public string? ExpressionTargetField;
+
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
     public Vector2? SizeOverride { get; set; }
@@ -1027,6 +1126,29 @@ public sealed class TransitionNode
     public byte Priority;
     public TransitionKind Kind;
     public ushort SyncGroupId;
+
+    // ⭐⭐⭐ CE-385 — the transition's GUARD is hosted by a BLUEPRINT.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7. Same two-id-space reasoning as
+    // StateNode.ActivityBlueprintAssetId, and likewise MUTUALLY EXCLUSIVE with GuardFunction.
+    public Guid GuardBlueprintAssetId;
+
+    /// <summary>⭐ The picked blueprint's catalogue NAME. ⚠ Display + re-resolution only.</summary>
+    public string? GuardBlueprintName;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-381</c>/<c>CE-385</c> — POLLED: this transition's guard is evaluated on every
+    /// QUIESCENT tick, with no event posted.</b>
+    ///
+    /// <para>⛔⛔ <b>Not the same as "a transition with no event".</b> An eventless transition is
+    /// selected by the RTC loop's COMPLETION pass and fires once, as a consequence of another
+    /// transition firing; a polled one fires whenever its guard passes while the machine is idle.
+    /// 🔒 The two were deliberately NOT collapsed onto one encoding — 📄 §2.3, §3.1, §10 ③.</para>
+    ///
+    /// <para>⚠ <b>Editing this on a LIVE cluster appears to do nothing</b> until the behaviour is
+    /// re-assigned: <c>IsPolled</c> moves no layout, so it does not always move
+    /// <c>StructureHash</c>. 🔒 Accepted and documented — §8b.</para>
+    /// </summary>
+    public bool IsPolled;
 
     // Editor-only (persisted in layout method)
     public List<Vector2> Waypoints { get; } = new();

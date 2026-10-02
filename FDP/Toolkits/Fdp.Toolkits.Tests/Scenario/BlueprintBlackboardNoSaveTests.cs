@@ -5,12 +5,13 @@ using Fdp.Core;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Scenario;
 using Xunit;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
     /// BSA-101: Verifies that BlueprintBlackboard{1024,4096,16384} carry
-    /// [DataPolicy(DataPolicy.NoSave)] so volatile runtime bytes don't leak into scenario JSON.
+    /// [DataPolicy(DataPolicy.NoScenario)] so volatile runtime bytes don't leak into scenario JSON.
     /// </summary>
     public sealed class BlueprintBlackboardNoSaveTests : IDisposable
     {
@@ -31,7 +32,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard1024).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         [Fact]
@@ -39,7 +40,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard4096).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         [Fact]
@@ -47,7 +48,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard16384).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         // ── Test 2: Serialization exclusion ────────────────────────────────────
@@ -57,14 +58,18 @@ namespace Fdp.Toolkit.Scenario.Tests
         /// produce a "BlueprintBlackboard1024" key in the JSON.
         ///
         /// NOTE: This test may fail until Task 4's BlueprintStateTranslator is in place,
-        /// because the serializer may throw if the NoSave component isn't claimed by any
+        /// because the serializer may throw if the NoScenario component isn't claimed by any
         /// translator and FdpAutoSerializer tries to process it.
         /// This is expected — it verifies the coupling between BSA-101 and BSA-202.
         /// </summary>
         [Fact]
         public void Serialization_ExcludesBlueprintBlackboard1024()
         {
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+            //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+            //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+            //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+            BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 1024);
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, default(BlueprintBlackboard1024));
 

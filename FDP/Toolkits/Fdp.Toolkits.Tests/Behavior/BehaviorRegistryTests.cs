@@ -259,7 +259,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -295,7 +298,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 
@@ -352,21 +358,185 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
             Assert.NotNull(d1!.ParseParams);
-            Assert.Equal(typeof(int), d1.ParamsDtoType);
+            Assert.Equal(typeof(int), d1.BlackboardLayoutType);
 
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
-            Assert.Equal(typeof(int), d2.ParamsDtoType);
+            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
+        }
+
+        // ── Test 10b — the curated overlay OUTRANKS a generated ParseParams ──
+        /// <summary>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        ///
+        /// <para>
+        /// 🔴 <b>The regression this locks.</b> <c>ApplyResolverOverlay</c> used to read
+        /// <c>if (def.ParseParams == null)</c>, so a generated registrar that set its own
+        /// <c>ParseParams</c> silently discarded the curated resolver. Only the curated one
+        /// understands geo-authored parameters, so <c>PlatoonHillAttack</c>'s commander params stayed
+        /// all-zero and the platoon drove to (0,0) instead of the computed baseline. Observed live;
+        /// the tell was <c>TankSpacing == 0</c>, which the curated parser cannot emit.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Both orders are asserted: the generated registrar may run before OR after the curated
+        /// one, and the ruling must not depend on which.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_OverridesAGeneratedParseParams_InEitherOrder()
+        {
+            static BehaviorDefinition WithGeneratedParseParams(ParseParamsDelegate generated) => new()
+            {
+                Name          = "Z",
+                BrainTier     = BehaviorConstants.BrainTierBTree,
+                ParseParams   = generated,          // what a generated registrar emits
+                BlackboardLayoutType = typeof(long),       // and its own DTO type
+            };
+
+            bool generatedRan;
+            bool curatedRan;
+
+            ParseParamsDelegate MakeGenerated() =>
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => generatedRan = true;
+            ParseParamsDelegate MakeCurated() =>
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => curatedRan = true;
+
+            // ── generated topology FIRST, curated resolver second ──
+            generatedRan = false; curatedRan = false;
+            var r1 = new BehaviorRegistry();
+            r1.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r1.RegisterResolver("Z", MakeCurated(), typeof(int));
+
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
+            d1!.ParseParams!(string.Empty, null, 0, null!, default);
+            Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
+            Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
+            Assert.Equal(typeof(int), d1.BlackboardLayoutType);   // the curated DTO type wins too
+
+            // ── curated resolver FIRST, generated topology second ──
+            generatedRan = false; curatedRan = false;
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Z", MakeCurated(), typeof(int));
+            r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
+            d2!.ParseParams!(string.Empty, null, 0, null!, default);
+            Assert.True(curatedRan,    "order must not decide which resolver wins");
+            Assert.False(generatedRan);
+            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 24)]
+        private struct Ce437Block { [System.Runtime.InteropServices.FieldOffset(0)] public long In; [System.Runtime.InteropServices.FieldOffset(8)] public long StA; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 16)]
+        private struct Ce437WideParams { public long A; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-437</c> — <b>a curated resolver overlay must not DEMOTE a generated block.</b>
+        /// The resolver's type is what it WRITES — the Input region at offset 0 — not the whole block.
+        /// 🔴 Found live: <c>PlatoonHillAttack</c>'s overlay replaced its block with its 56-byte params
+        /// struct, the root slot shrank, and its <c>HillAttackMutableState</c> had nowhere to live.
+        /// ⭐ Both orders, as the rail above. ⛔ And an overlay WIDER than the Input region of a block
+        /// that has a State half is refused — the parse would overwrite the State.
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_KeepsAGeneratedBlock_WhenItsTypeFitsTheInputRegion()
+        {
+            static BehaviorDefinition Generated() => new()
+            {
+                Name                       = "Blk",
+                BrainTier                  = BehaviorConstants.BrainTierBTree,
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Ce437Block),
+                ParseParams = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
+
+            var r1 = new BehaviorRegistry();
+            r1.Register("Blk", Generated());
+            r1.RegisterResolver("Blk", curated, typeof(long));
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d1));
+            Assert.Equal(typeof(Ce437Block), d1!.BlackboardLayoutType);
+            Assert.Same(curated, d1.ParseParams);
+
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Blk", curated, typeof(long));
+            r2.Register("Blk", Generated());
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d2));
+            Assert.Equal(typeof(Ce437Block), d2!.BlackboardLayoutType);
+
+            var r3 = new BehaviorRegistry();
+            r3.Register("Blk", Generated());
+            Assert.Throws<System.InvalidOperationException>(() => r3.RegisterResolver("Blk", curated, typeof(Ce437WideParams)));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-427</c> — <b>a curated resolver takes over the SUPPLY stage, never the BAKE.</b>
+        /// A generated definition that carries <see cref="BehaviorDefinition.BakeDefaults"/> keeps its
+        /// authored defaults under a curated overlay: the composed parse bakes, then runs the curated
+        /// resolver — and the generated overlay is NOT run. 📄 <c>DESIGN_Parameter_Model.md</c> §3.2.
+        ///
+        /// <para>⭐ Both registration orders. ⚠ Composition reads the STORED overlay, never the current
+        /// <c>ParseParams</c>, so it cannot stack; a second <c>RegisterResolver</c> in one scan throws anyway
+        /// (<c>R-149</c>).</para>
+        /// <para>⚠ Inverse-edit red-proof: restore <c>def.ParseParams = overlay.Resolver</c> in
+        /// <c>ApplyResolverOverlay</c> and the baked State byte stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_RunsTheGeneratedBake_ThenTheCuratedResolver()
+        {
+            var calls = new System.Collections.Generic.List<string>();
+            BehaviorDefinition Generated() => new()
+            {
+                Name                 = "Bk",
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(Ce437Block),
+                BakeDefaults = (byte* mem, int capacity) => { calls.Add("bake"); ((Ce437Block*)mem)->StA = 42; },
+                ParseParams  = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => calls.Add("generated"),
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self)
+                => { calls.Add("curated"); ((Ce437Block*)mem)->In = 5; };
+
+            foreach (bool resolverFirst in new[] { false, true })
+            {
+                calls.Clear();
+                var r = new BehaviorRegistry();
+                if (resolverFirst) { r.RegisterResolver("Bk", curated, typeof(long)); r.Register("Bk", Generated()); }
+                else               { r.Register("Bk", Generated()); r.RegisterResolver("Bk", curated, typeof(long)); }
+
+                Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Bk"), out var d));
+                var block = default(Ce437Block);
+                d!.ParseParams!("{}", (byte*)&block, sizeof(Ce437Block), null!, default);
+
+                Assert.Equal(new[] { "bake", "curated" }, calls);
+                Assert.Equal(42, block.StA);
+                Assert.Equal(5, block.In);
+            }
+        }
+
+        /// <summary>⭐ No bake (a hand-written behaviour) ⇒ the curated resolver IS the parse, unwrapped.</summary>
+        [Fact]
+        public void RegisterResolver_WithoutABake_InstallsTheCuratedResolverItself()
+        {
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
+            var r = new BehaviorRegistry();
+            r.Register("Hw", new BehaviorDefinition { Name = "Hw", BrainTier = BehaviorConstants.BrainTierBTree });
+            r.RegisterResolver("Hw", curated, typeof(long));
+            Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Hw"), out var d));
+            Assert.Same(curated, d!.ParseParams);
         }
 
         // ── Test 11 — name-based Register overload derives id from name ─────

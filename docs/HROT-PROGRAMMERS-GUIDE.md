@@ -65,6 +65,38 @@ These hold across every subsystem. The rest of the guide assumes them.
    through an `IEntityCommandBuffer`, played back on the main thread. `GetComponentRW` is
    intentionally absent from `ISimulationView`. `.dev/.guides/CODE-STANDARDS.md:74-76`
 
+8. 🔴 **Two classes of inbound writer, with *inverse* authority gates.** Both are correct;
+   confusing them corrupts either ghosts or ownership. Rule 6 says who *owns* a component —
+   this says who may *write* one, and it depends on why you are writing.
+
+   | Writer | Purpose | Gate | Writes unowned? |
+   |---|---|---|:--:|
+   | **Replication ingress translator** | apply the **owner's state** to a local **ghost** | `if (HasAuthority) skip` | ✅ **yes — that is what a ghost is** |
+   | **Change-request applier** (attribute · descriptor · command) | apply a **request** that any node may send | `if (!HasAuthority) skip` | ❌ **never** |
+
+   Replication flows *owner → replicas*, so it writes precisely the components it does **not**
+   own — `if (!isLocallyOwned) { SetComponent(...) }`
+   `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/GeoSpatialIngressTranslator.cs:85-89`
+   (this is also §1.5's loopback guard, seen from the other side). A change request flows
+   *anyone → owner*, so it applies **only** to owned components — the reference implementation
+   is the per-field guard `if (!context.CanWrite<T>()) { reader.Skip(); return; }`
+   `FDP/Toolkits/Fdp.Toolkits/Replication/Patching/JsonAttributeCompiler.cs:40,58`, which
+   delegates to `EntityRepository.HasAuthority` via `EcsPatchContext.cs:152-162`.
+
+   🔴 **The gate is on *native component* authority, not on a descriptor key.** A request that
+   names a descriptor still resolves to components, and it is the component bits that decide.
+
+   ⚠ **Do not "fix" a translator by making its gate match the other class** — inverting a
+   replication translator silently freezes every ghost on that node. Classify the site first.
+
+   ⚠ **Known non-conformance** (tracked in `docs/UX/UX_Issues.md#uxi-30`): the **binary**
+   attribute path applies records with no gate at all
+   `FDP/Toolkits/Fdp.Toolkits/Replication/Patching/BinaryInterpreter.cs:102-128`; the descriptor
+   appliers gate on the **descriptor key** rather than component authority, with a `FIXME`
+   saying so `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/UpdateEntityDescriptorRequestSystem.cs:139-142,190`;
+   and the local `UpdateEntityCommand` consumer applies unconditionally
+   `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs:162-175`.
+
 ---
 
 ## Part 1 — Cross-cutting traps (the ones that catch everyone)
@@ -110,6 +142,8 @@ if you own it `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/GeoSpatialI
 don't reset `NetworkAuthority.PrimaryOwnerId` on re-announced `EntityMaster`
 `.../EntityMasterIngressTranslator.cs:142-146`; check DDS **instance state before `IsValid`**
 (dispose samples have `IsValid==false`) `.../EntityMasterIngressTranslator.cs:73-78`.
+⚠ This guard is the *replication* half of **Part 0 rule 8** — an ingress translator writes only
+what it does **not** own. A **change-request** applier has the opposite gate; do not unify them.
 
 ### 1.6 🔴 One-frame latencies are structural, not bugs
 The double-buffered event bus delivers events in frame **N+1** `FDP/Engine/Fdp.Core/FdpEventBus.cs:13`.
@@ -143,13 +177,13 @@ noted. All are named constants in code (cite shown).
 |---|---|---|---|
 | Registered component types (`BitMask512`) | **511** max ID | out-of-range, guarded only in `FDP_PARANOID_MODE` | `FDP/Engine/Fdp.Core/ComponentIdAttribute.cs:20` |
 | ECB unmanaged component payload | **1024 B** | throws `ArgumentException` at record | `FDP/Engine/Fdp.Core/EntityCommandBuffer.cs:35` |
-| `BehaviorParameters` DTO | **100 B** | compile error FDP_001 / startup throw | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26` |
+| Root params occurrence slot | **16 096 B** — the largest tier's payload | compile error FDP_001 / attach-time failure | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:39` |
 | Channel `Params` / `State` buffers | **32 B each** (≤96 B struct) | corrupts adjacent state | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:10-16` |
 | Action types per dispatcher channel | **64** (0 = none) | — | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:31` |
 | Mission plan phases | **8** | excess tasks dropped + Warn | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/MissionComponents.cs:143` |
 | Tracked targets (`TargetMemory`/`SensorContactList`) | **16** | lowest-score evicted / dropped | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:11` |
 | Perception broadphase candidates / observer / tick | **256** | dropped from LOS this tick | `FDP/Toolkits/Fdp.Toolkits/Perception/Systems/VisionBroadphaseSystem.cs:46` |
-| Perception grid footprint | **1000 m × 1000 m, ≤50 000 entities** | not perceived | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:44,57` |
+| Perception grid footprint | **1000 m × 1000 m, ≤50 000 entities** — anchored at the world origin, so only x, y ∈ [0, 1000) m; negative coordinates are outside it. The old `AreaQuery` inherits it; EQS `EntitiesOfForceInArea` does not (`EqsDistributedTests` T-DIS10) | not perceived | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:44,57` |
 | Sensor track-lost debounce | **20 perception ticks (~2 s @10 Hz)** | not configurable | `FDP/Toolkits/Fdp.Toolkits/Perception/Systems/SensorTrackDebounceSystem.cs:40` |
 | EQS Top-K per result | **16** | — | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsResultPool.cs:17` |
 | EQS in-flight result pool | **1024** | ring overwrite before egress | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsResultPool.cs:18` |
@@ -161,9 +195,16 @@ noted. All are named constants in code (cite shown).
 | Weapon mounts enumerated / entity | **16** | truncated | `FDP/Toolkits/Fdp.Toolkits/Combat/WeaponMountQuery.cs:37` |
 | `UnitRoster` subordinates / commander | **16** | assignment rejected + event | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:32` |
 | Squad contact pool / role-slot members | **16** | lowest-threat evicted / OOB if exceeded | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs:128-134` |
-| Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:348-357` |
-| Blueprint Instance variable tiers | **928 / 3936 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
+| Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** ⚠ `CE-326` | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:490-502` |
+| Blueprint Instance variable tiers | **176 / 800 / 3808 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:525-537` |
 | Tuning piecewise curve control points | **64** | truncated + warn | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning/TuningRegistry.cs:19` |
+
+> ⚠ **`CE-326` — the AiPrimitive row's two numbers are RETIRED GEOMETRY, and they are still enforced.**
+> **100 B** was the width of `BrainBlackboard.BehaviorParameters` and **1016 B** the payload of
+> `Blackboard1024`; `P4` deleted both components. `CE-307` repointed the other four sites that
+> enforced 100 at the tier ladder (**16 096**), but `Stage2_Validate` hardcodes these two literals
+> and was missed. ✅ Latent — the check is compile-time and the tree builds green, so no shipped
+> asset exceeds either bound today. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30.15.
 | `DebugPrimitive` struct | **64 B** (one cache line) | overflow / payload aliasing | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs:16` |
 | Debug-draw buffer / persistent | **4096 / 256 slots** | `DroppedCount++`, discarded | `FDP/Diagnostics/Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:13-15` |
 | Sub-tick debug ring | **256 node entries** | oldest dropped | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Debug/SubTickSnapshotRecorder.cs:49` |
@@ -181,9 +222,12 @@ noted. All are named constants in code (cite shown).
 >   while `CODE-STANDARDS.md:94` and the architecture narrative still say **256 / `BitMask256`**.
 >   `BitMask256` exists and is the 32-byte query/header mask, but the registrable-ID ceiling
 >   the runtime enforces is 511. Treat 511 as authoritative; fix the docs.
-> - The behavior-parameter cap is **100 B** in code (FDP_001 + `BehaviorConstants.cs:27`),
->   while `AI_DEV_GUIDE.md:859` describes a **60-byte** parameter region in a 128-byte
->   blackboard. Treat **100 B** as authoritative.
+> - The behaviour-parameter bound is **16 096 B**, the largest occurrence tier's payload, enforced
+>   at compile time by `FDP_001` and structurally at attach time by the allocator. `CE-307`
+>   (`2026-09-22`) replaced the old 100-byte corruption guard with this capacity bound when params
+>   moved into an occurrence slot sized by `RootParamsBytes(def)`
+>   (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.25). ⚠ Older text describing a
+>   **100-byte** or **60-byte** parameter region belongs to the deleted fixed-size blackboard.
 
 ---
 
@@ -441,7 +485,7 @@ noted. All are named constants in code (cite shown).
 - 🔴 **`CognitiveInterruptSystem` is the sole writer of `PreviousCapabilities`**; reactors read
   it and must run `[UpdateBefore]` it. **Interrupt bytes are edge-triggered and cleared
   end-of-frame** — consume them within the same tick. `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs:38-41`
-- 🔴 **Only `BTreeTickSystem` publishes `BehaviorFinishedEvent`** (root-level); dispatchers
+- 🔴 **Only `BrainTickSystem` publishes `BehaviorFinishedEvent`** (root-level, from either arm); dispatchers
   (leaf-level) must not. **`IActionExecutor.OnEnter` must fully initialize state** so the
   same-frame `Execute` is safe. **Behavior-param parse is atomic** — a parse failure leaves
   the entity on its old behavior entirely. `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/BehaviorFinishedEvent.cs:16-20`, `Systems/BehaviorIngressSystem.cs:27-104`
@@ -477,8 +521,10 @@ noted. All are named constants in code (cite shown).
   `WhenNode(EventFired)` + `FallingEdge` never fires. `.../Stage2_Validate.cs:829-838,813-818`
 
 ### 6.3 Roslyn generators & analyzers (compile-time invariants)
-- 🔴 **FDP_001** errors if any `[SharedAiAction]`/`[SharedAiCondition]` DTO > **100 B** (would
-  overrun `BrainBlackboard`). Keep that analyzer in the FDP Behavior domain — never in generic
+- 🔴 **An oversized `[SharedAiAction]`/`[SharedAiCondition]` DTO fails at ATTACH, structurally** — a
+  behaviour's params must fit its occurrence-slot tier (`RootParamsBytes(def)`); the partition
+  allocator's `TryAttach` refuses a payload that will not fit any tier, up to 16 096 B at the top
+  tier (`BlueprintBlackboard16384`). Keep that bound in the FDP Behavior domain — never in generic
   FastBTree/FastHSM. `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26`
 - 🔴 **Never add/remove ECS components inside HSM/BTree `SharedAi` thunks** — they write
   directly during chunk iteration; structural mutation corrupts the chunk arrays. `FDP/Toolkits/Fdp.Toolkits.Analyzers/HsmActionGenerator.cs:695`
@@ -534,7 +580,7 @@ noted. All are named constants in code (cite shown).
 - 🔴 **Managed recordable classes need a public parameterless ctor**, ≥1 public serializable
   member (else warmup throws), and **no circular references** (stack-overflow) and **no
   interface-typed fields** (shallow-copied only). `FDP/Engine/Fdp.Core/FlightRecorder/FdpAutoSerializer.cs:56-300`
-- 🟡 **`.fdp` format is version-locked** — no migration; mismatched `FORMAT_VERSION` throws. `DataPolicy.NoRecord` events never appear in replay. Don't set `RecordingConfiguration.Blocking=true` in production (stalls the main thread). `FDP/Engine/Fdp.Core/FlightRecorder/PlaybackController.cs:92-98`
+- 🟡 **`.fdp` format is version-locked** — no migration; mismatched `FORMAT_VERSION` throws. `DataPolicy.NoReplay` events never appear in replay. Don't set `RecordingConfiguration.Blocking=true` in production (stalls the main thread). `FDP/Engine/Fdp.Core/FlightRecorder/PlaybackController.cs:92-98`
 - 🔵 **Delta gap:** cold-chunk field changes via direct `GetMetadata()` ref-access don't stamp
   `LastChangeTick` and are dropped from delta frames (DEBT D004). After a dropped frame the
   recorder auto-forces the next keyframe — don't also request one. `FDP/Engine/Fdp.Core/FlightRecorder/RecorderSystem.cs:117-122`
@@ -604,7 +650,7 @@ noted. All are named constants in code (cite shown).
   `VehicleState` stripping, frustration skips belong in the **Stride muscle**
   (`InfantryVehicleStateStripTkbTranslator`), never in shared `NavigationExecutionSystem`
   (commit `8b8cc439` did this and broke non-Stride tank routing — reverted). Reference-guard
-  tests enforce `Hrot.Stride.Core` has no Raylib/rlImGui/StrideMock deps. `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:16`, `Stride/Hrot.Stride.Core.Tests/ReferenceGuardTests.cs:32`
+  tests enforce `Hrot.Stride.Core` has no Raylib/rlImGui/NodeComposition deps. `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:16`, `Stride/Hrot.Stride.Core.Tests/ReferenceGuardTests.cs:41`
 - 🔴 **`BulletReverseSyncSystem` must be `TogglablePostSimulationGroup`-wrapped (off during
   replay) and only process `.WithOwned<SimTransform>()`** — else it overwrites restored/ghost
   positions. Capsule (character) velocity is derived from **pose delta**, not

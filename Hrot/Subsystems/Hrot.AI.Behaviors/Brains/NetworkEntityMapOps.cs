@@ -1,7 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -27,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <paramref name="targetNetworkId"/> is a visible/wireable blueprint data pin.
         /// </para>
         /// <para>
-        /// <b>GAP-10 (mirrors <see cref="HillAssault2TankOps.HasTarget"/>):</b> <see cref="ISimulationView"/>
+        /// <b>GAP-10 (as the retired <c>HillAssault2TankOps.HasTarget</c> did):</b> <see cref="ISimulationView"/>
         /// exposes no singleton read API, so this helper downcasts back to the real
         /// <see cref="EntityRepository"/> (which the compiler's P7 "view" argument always is, for the
         /// AiPrimitive dispatch this slice targets) to reach the singleton. Declared parameter type
@@ -36,17 +35,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="Entity.Null"/> rather than throw.
         /// </para>
         /// </summary>
-        [BlueprintCallable("NetworkMap")]
+        /// <remarks>⭐ <c>CE-469</c>: routed to the built-in
+        /// <see cref="StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId"/> — one implementation. Kept for
+        /// <c>HsmFireActivity.bp.json</c>'s baked FunctionCall (the <c>HillAssault2_*</c> twins that also called it retired
+        /// <c>2026-10-01</c>). ⚠ Deliberately NOT <c>[BlueprintCallable]</c>: the palette offers only <i>Entity From Network
+        /// Id</i> (the compiler never reads the attribute, so the baked call still compiles).</remarks>
         public static Entity ResolveTarget(long targetNetworkId, ISimulationView view)
-        {
-            if (view is not EntityRepository world)
-                return Entity.Null;
-
-            if (!world.HasSingletonManaged<NetworkEntityMap>())
-                return Entity.Null;
-
-            var map = world.GetSingletonManaged<NetworkEntityMap>();
-            return (map != null && map.TryGetEntity(targetNetworkId, out var target)) ? target : Entity.Null;
-        }
+            => StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId(targetNetworkId, view);
     }
 }

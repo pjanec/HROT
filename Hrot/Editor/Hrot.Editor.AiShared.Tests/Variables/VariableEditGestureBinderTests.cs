@@ -77,9 +77,21 @@ public sealed class VariableEditGestureBinderTests
     ///
     /// <para>⭐ Asserted on the SESSION's document, not on the action the binder recorded: the action is
     /// what this class chose, the document is what the designer gets.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>NARROWED, Batch 99 (<c>99a</c>) — and the narrowing is the POINT, not a
+    /// concession.</b> 📌 <c>R-109</c>: <i>"Properties CANNOT be a StructEdit document"</i>, because
+    /// <c>Name</c> is a <b>RENAME</b> and <c>Type</c> is a <b>RETYPE MIGRATION</b> — operations, not
+    /// fields. ⇒ ⛔ <b>the "both" in this rail's old name was the DEFECT</b>: Batch 96 corrected
+    /// <i>which</i> document Properties opened while leaving intact the premise that it opens one at
+    /// all, and that premise is what <c>BP-359</c> actually was.</para>
+    ///
+    /// <para>⚠ <b>What the rail keeps is the half <c>R-109</c> explicitly preserves</b> —
+    /// <i>"'Edit value…' stays StructEdit, unchanged"</i> — so the <c>$</c>-rooted whole-value document
+    /// is still asserted here, on the gesture that still opens one. ⭐ The Properties half moves to
+    /// <see cref="ThePropertiesGesture_OpensNoStructEditSession"/>, which asserts its ABSENCE.</para>
     /// </summary>
     [Fact]
-    public void BothGesturesOpenTheWholeValueDocument()
+    public void TheValueGestureOpensTheWholeValueDocument()
     {
         var (binder, _) = Make(VariableRunState.Planning);
 
@@ -87,19 +99,47 @@ public sealed class VariableEditGestureBinderTests
         Assert.NotNull(binder.ActiveSession);
         var fieldRoot = binder.ActiveSession!.Document.Root;
 
-        binder.OnProperties(Row());
-        Assert.NotNull(binder.ActiveSession);
-        var wholeRoot = binder.ActiveSession!.Document.Root;
-
-        // ⭐⭐⭐ Batch 96 — BOTH are the whole value, with both of DemoVar's fields.
-        // 🔴 The first line used to read Assert.Equal("$.Count", fieldRoot.JsonPath) — see the summary:
-        //    that node is the DTO's own Count member, matched only because this fixture's variable
-        //    happens to be named after one of its own fields.
+        // ⭐⭐⭐ Batch 96 — the whole value, with both of DemoVar's fields.
+        // 🔴 This used to read Assert.Equal("$.Count", fieldRoot.JsonPath) — see above: that node is
+        //    the DTO's own Count member, matched only because this fixture's variable happens to be
+        //    named after one of its own fields.
         Assert.Equal("$", fieldRoot.JsonPath);
         Assert.Equal(2, fieldRoot.Children.Count);
+    }
 
-        Assert.Equal("$", wholeRoot.JsonPath);
-        Assert.Equal(2, wholeRoot.Children.Count);
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — the OTHER half of the rail above, asserting an ABSENCE.</b>
+    ///
+    /// <para>📌 <c>R-108</c>: <i>"the two menu items are TWO OBJECTS, not two SCOPES"</i> · 📌
+    /// <c>R-109</c>: the declaration object is <b>not a struct StructEdit can document</b>. ⇒ ⭐ the
+    /// binder RAISES <see cref="VariableEditGestureBinder.PropertiesRequestedForRow"/> and opens
+    /// <b>no session at all</b>.</para>
+    ///
+    /// <para>⭐ <b>Why an absence is worth a rail:</b> the defect it fences is a FALLTHROUGH — deleting
+    /// the early return in <c>Open</c> silently restores <c>BP-359</c>, and every other rail here would
+    /// stay green because they all drive the VALUE gesture.</para>
+    ///
+    /// <para>⚠ <b>Deliberately duplicated</b> by <c>ThePropertiesFormIsCustomTests</c> in
+    /// <c>Hrot.Blueprints.Tests</c>. ⭐ That one asserts it over a whole Blueprint scene <i>with the
+    /// form attached</i>; this one is the binder's OWN rail, in the binder's own file, so a change to
+    /// <c>Open</c> reddens something a reader of that file can see. ⛔ Ruling 9 is about
+    /// IMPLEMENTATIONS — there is still exactly one early return.</para>
+    /// </summary>
+    [Fact]
+    public void ThePropertiesGesture_OpensNoStructEditSession()
+    {
+        var (binder, _) = Make(VariableRunState.Planning);
+
+        VariableRow? raised   = null;
+        bool         editable = false;
+        binder.PropertiesRequestedForRow += (r, e) => { raised = r; editable = e; };
+
+        binder.OnProperties(Row());
+
+        Assert.Null(binder.ActiveSession);                                // ⛔ no StructEdit document
+        Assert.Equal(VariableEditAction.Properties, binder.LastAction);   // ⭐ the gesture still landed
+        Assert.NotNull(raised);
+        Assert.True(editable);                                            // ⭐ planning ⇒ editable
     }
 
     /// <summary>
@@ -120,15 +160,27 @@ public sealed class VariableEditGestureBinderTests
     /// <summary>
     /// ⚠ <b>A READ-ONLY row still OPENS</b> — §5: <i>properties are read-only mid-run, not absent</i>.
     /// ⛔ Refusing to open would hide values a designer wants to read.
+    ///
+    /// <para>⭐⭐ <b>RE-EVIDENCED, Batch 99 (<c>99a</c>) — the PROPERTY is unchanged, only what proves
+    /// it.</b> 📌 <c>R-109</c> made Properties a custom form, so <i>"it opened"</i> is no longer
+    /// <c>ActiveSession != null</c>; it is the form event being RAISED. ⛔ <b>And the assertion got
+    /// STRONGER, not weaker</b>: the old one could not tell <i>read-only</i> from <i>editable</i> at all
+    /// — a session opened either way — whereas the <c>bool</c> carries the distinction this rail's own
+    /// name is about. ⚠ It would have stayed green if a running row had been offered an EDITABLE
+    /// dialog.</para>
     /// </summary>
     [Fact]
     public void ANodeOwnedRow_StillOpens_BecauseReadOnlyIsNotAbsent()
     {
         var (binder, _) = Make(VariableRunState.Running);
 
+        bool raised = false, editable = true;
+        binder.PropertiesRequestedForRow += (_, e) => { raised = true; editable = e; };
+
         binder.OnProperties(Row(kind: VariableRowKind.NodeOwned));
 
-        Assert.NotNull(binder.ActiveSession);
+        Assert.True(raised);       // ⭐ NOT absent — the form is offered
+        Assert.False(editable);    // ⭐ but READ-ONLY, which the old session-shaped rail could not see
     }
 
     /// <summary>⛔ A STALE row's asset or entity is gone: denied outright, in every run state.</summary>

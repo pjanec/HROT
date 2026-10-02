@@ -1,0 +1,191 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000160-0000-0000-0000-000000000001",
+  "Name": "HsmDriveActivity",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "HsmAction"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d1600001-0001-0001-0001-000000000001",
+      "Name": "DestX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "Tooltip": "World X of the MoveTo destination, seeded from the hosting HSM\u0027s blackboard.",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "d1600001-0002-0002-0002-000000000001",
+      "Name": "DestY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "Tooltip": "World Y of the MoveTo destination, seeded from the hosting HSM\u0027s blackboard.",
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "00000160-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "60000001-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "60000001-0005-0005-0005-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 380,
+            "Comment": "The blackboard values arrive here: an HSM activity\u0027s blueprint Parameters are seeded from the hosting machine\u0027s blackboard variables of the same name."
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Single",
+          "ValueJson": "0f",
+          "Id": "60000001-0006-0006-0006-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 520,
+            "Comment": "Z is always ground level here."
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.VectorOps",
+          "MethodName": "Vec3",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Id": "60000001-0007-0007-0007-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 330,
+            "Y": 420,
+            "Comment": "A Vector3 must be COMPOSED and LINKED. A PinDefault string for a Vector3 pin is silently dropped by the emitter (measured: shipped Loco1 has the same shape and emits no Destination at all), so the command would drive to the world origin."
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "60000001-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 160,
+            "Comment": "The movement half of the acceptance description: while in this state, drive locomotion."
+          },
+          "PinDefaults": {
+            "ArrivalRadius": "5",
+            "Speed": "8",
+            "ReverseAllowed": "1"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "60000001-0004-0004-0004-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "60000001-0002-0002-0002-000000000001",
+          "FromPinId": "466ac673-d9c1-c654-b814-72a3444c3bdb",
+          "ToNodeId": "60000001-0003-0003-0003-000000000001",
+          "ToPinId": "586ee405-31ef-035b-a17e-1790805cea35"
+        },
+        {
+          "FromNodeId": "60000001-0005-0005-0005-000000000001",
+          "FromPinId": "07aa6e0d-77bf-0f5d-927f-98c2c2bf0c1b",
+          "ToNodeId": "60000001-0007-0007-0007-000000000001",
+          "ToPinId": "2de66f18-ab4f-4850-9653-ebffadc06fa8"
+        },
+        {
+          "FromNodeId": "60000001-0005-0005-0005-000000000001",
+          "FromPinId": "47793c2c-a4e6-7f5d-a9e7-6d35fd33039a",
+          "ToNodeId": "60000001-0007-0007-0007-000000000001",
+          "ToPinId": "ba1be124-6927-5350-9a6d-ec653f604079"
+        },
+        {
+          "FromNodeId": "60000001-0006-0006-0006-000000000001",
+          "FromPinId": "b2d0cf05-896c-8055-8562-444964b3f31f",
+          "ToNodeId": "60000001-0007-0007-0007-000000000001",
+          "ToPinId": "b31c1088-d81d-0752-9033-21979c214628"
+        },
+        {
+          "FromNodeId": "60000001-0007-0007-0007-000000000001",
+          "FromPinId": "5d694771-1668-c758-8f51-cc7a213310f5",
+          "ToNodeId": "60000001-0003-0003-0003-000000000001",
+          "ToPinId": "09e1ef39-659c-705f-9f50-f26e48fdc208"
+        },
+        {
+          "FromNodeId": "60000001-0003-0003-0003-000000000001",
+          "FromPinId": "10ae4641-4435-0653-bd90-07a0a186934a",
+          "ToNodeId": "60000001-0004-0004-0004-000000000001",
+          "ToPinId": "31667a28-2bd7-0b5e-9442-8647ef64da19"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "HSM activity: drives the LOCOMOTION channel to a destination taken from the hosting HSM\u0027s blackboard (DestX/DestY -\u003E blueprint Parameters -\u003E Vec3 -\u003E the MoveTo Destination pin). Half of the end-to-end runtime check for the HSM \u002B blueprint channel programme (Q74 8.4).",
+    "Category": null,
+    "Recipe": null
+  }
+}

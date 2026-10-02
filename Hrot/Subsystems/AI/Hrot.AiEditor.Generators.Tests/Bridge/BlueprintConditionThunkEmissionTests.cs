@@ -82,7 +82,8 @@ public sealed class BlueprintConditionThunkEmissionTests
 
         // WorkingState comes from the partition-slot rail, not the fixed Blackboard1024+8 — a
         // composed condition needs the same cross-tick memory as an action.
-        bridge.Should().Contain("BlueprintBlackboardPartitions.TryGetSlotOffset",
+        // ⚠ A2b (2026-09-20) — see the action sibling: the ladder collapsed into the seam.
+        bridge.Should().Contain("OccurrenceStoreAccess.TryResolveOccurrence",
             "WorkingState must be projected from the entity's partition slot, not Blackboard1024+8");
 
         // The final dispatch calls the blueprint's generated TickCore with the (params, ws, self,

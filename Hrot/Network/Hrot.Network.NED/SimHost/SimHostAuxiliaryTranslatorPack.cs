@@ -60,9 +60,6 @@ public static class SimHostAuxiliaryTranslatorPack
             // Tactical intent: egress from Commander Brain, ingress on subordinate Brain.
             translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
             translators.Add(new TacticalIntentIngressTranslator(participant, entityMap));
-            // EQS area-query pipeline (Brain side).
-            translators.Add(new AreaQueryBrainEgressTranslator(participant, entityMap, localNodeId));
-            translators.Add(new AreaQueryBrainIngressTranslator(participant, entityMap, localNodeId));
             // EQS pipeline — Brain side.
             translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap));
             translators.Add(new EqsResultIngressTranslator(participant, entityMap));
@@ -85,9 +82,6 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
-            // EQS area-query pipeline (Muscle side).
-            translators.Add(new AreaQueryMuscleIngressTranslator(participant, entityMap));
-            translators.Add(new AreaQueryMuscleEgressTranslator(participant, entityMap));
             // EQS pipeline — Muscle side.
             translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap));
             translators.Add(new EqsResultEventEgressTranslator(participant, entityMap));

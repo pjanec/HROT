@@ -18,6 +18,7 @@ public static class MoveToAndFire_649F8F53_Bp
 {
     public const int BlueprintId = unchecked((int)0x649F8F53);
     public const ulong StructureHash = 3870073181076616415UL;
+    public static readonly global::System.Guid AssetId = new global::System.Guid("00000005-0000-0000-0000-000000000001");
     
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct Params
@@ -35,6 +36,7 @@ public static class MoveToAndFire_649F8F53_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -62,8 +64,17 @@ public static class MoveToAndFire_649F8F53_Bp
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* MoveTo */
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
-            __ch_0.ActionInstanceId++;
+            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+            {
+                __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            }
+            if (__chNew_0)
+            {
+                unchecked { __ch_0.ActionInstanceId++; }
+            }
         }
         global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000005-0000-0000-0000-000000000003");
         ws.__phase = 1;
@@ -74,7 +85,8 @@ public static class MoveToAndFire_649F8F53_Bp
         
         __block_phase1_channel_check:
         var __t4 = self;
-        ref readonly var __t5 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4);
+        var __t5_absent = default(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel);
+        ref readonly var __t5 = ref (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4) ? ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4) : ref __t5_absent);
         var __t6 = __t5.Status;
         var __t7 = global::Fbt.NodeStatus.Running;
         var __t8 = ((int)__t6 == (int)__t7);
@@ -88,7 +100,8 @@ public static class MoveToAndFire_649F8F53_Bp
         
         __block_phase1_not_running:
         var __t9 = self;
-        ref readonly var __t10 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9);
+        var __t10_absent = default(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel);
+        ref readonly var __t10 = ref (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9) ? ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9) : ref __t10_absent);
         var __t11 = __t10.Status;
         var __t12 = global::Fbt.NodeStatus.Failure;
         var __t13 = ((int)__t11 == (int)__t12);
@@ -104,32 +117,22 @@ public static class MoveToAndFire_649F8F53_Bp
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
-        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
-        //      Standalone hosting is the single-method case, so the baked offset is 0.
+        // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
+        //          store — NOT Blackboard1024, and no longer the SHARED param region.
+        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                ref bb.BehaviorParameters[0], (nint)0));
-        ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
-        unsafe
-        {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
-            }
-        }
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+        return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
     }
     
 }
@@ -137,7 +140,7 @@ public static class MoveToAndFire_649F8F53_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_MoveToAndFire_649F8F53_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(MoveToAndFire_649F8F53_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {
@@ -145,6 +148,7 @@ public static class BlueprintRegistrar_MoveToAndFire_649F8F53_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = MoveToAndFire_649F8F53_Bp.StructureHash,
             StateSize = MoveToAndFire_649F8F53_Bp.StateSize,
+            ParamsSize = MoveToAndFire_649F8F53_Bp.ParamsSize,
             AssetId = new Guid("00000005-0000-0000-0000-000000000001"),
             StateClrType = typeof(MoveToAndFire_649F8F53_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

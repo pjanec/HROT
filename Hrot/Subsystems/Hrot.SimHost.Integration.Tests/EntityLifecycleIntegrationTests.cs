@@ -54,7 +54,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
-            role:         NodeRole.ImageGenerator);
+            role:         NodeRole.Map2D);
         _ig = new IgApplication();
         _ig.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: igFactory);
     }

@@ -161,46 +161,37 @@ public sealed class BlackboardBinPackerTests
     // Ceiling tests
     // -------------------------------------------------------------------------
 
+    // ⭐⭐ CE-314: both fixtures are SIZED FROM THE CONSTANT. They used to hard-code 25/26 ints against
+    //    a 100-byte ceiling, so when CE-307 moved the ceiling they asserted nothing about it. ⛔ A
+    //    boundary test that hard-codes the boundary stops being a boundary test the day it moves.
+    private const int IntBytes = 4;
+
     [Fact]
     public void ExactlyAtCeiling_NoWarning()
     {
-        // Pack twenty 4-byte ints = 80 bytes, then five 4-byte floats = 20 bytes = 100 total.
+        int count = BlackboardBinPacker.MaxInlineBytes / IntBytes;   // exactly fills the region
         var vars = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 20; i++) vars.Add(V($"i{i}", typeof(int)));
-        for (int i = 0; i < 5; i++) vars.Add(V($"f{i}", typeof(float)));
+        for (int i = 0; i < count; i++) vars.Add(V($"i{i}", typeof(int)));
 
         var result = BlackboardBinPacker.Pack(vars);
 
-        Assert.Equal(100, result.TotalInlineBytes);
+        Assert.Equal(BlackboardBinPacker.MaxInlineBytes, result.TotalInlineBytes);
         Assert.Equal(PackWarning.None, result.Warning);
-        Assert.False(result.RequiresHeavyComponent);
     }
 
     [Fact]
     public void OverCeiling_WarningInlineMemoryExceeded()
     {
-        // 26 x 4-byte ints = 104 bytes > 100.
+        int count = (BlackboardBinPacker.MaxInlineBytes / IntBytes) + 1;   // one int past it
         var vars = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 26; i++) vars.Add(V($"n{i}", typeof(int)));
+        for (int i = 0; i < count; i++) vars.Add(V($"n{i}", typeof(int)));
 
         var result = BlackboardBinPacker.Pack(vars);
 
         Assert.True(result.TotalInlineBytes > BlackboardBinPacker.MaxInlineBytes);
         Assert.Equal(PackWarning.InlineMemoryExceeded, result.Warning);
-        Assert.False(result.RequiresHeavyComponent);
     }
 
-    [Fact]
-    public void OverCeiling_RequiresHeavyComponent_IsFalse()
-    {
-        var vars = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 26; i++) vars.Add(V($"n{i}", typeof(int)));
-
-        var result = BlackboardBinPacker.Pack(vars);
-
-        // Heavy spill is TASK-BB-1c-04; always false in this slice.
-        Assert.False(result.RequiresHeavyComponent);
-    }
 
     // -------------------------------------------------------------------------
     // Empty / null cases
@@ -229,14 +220,6 @@ public sealed class BlackboardBinPackerTests
     // Tier assignment
     // -------------------------------------------------------------------------
 
-    [Fact]
-    public void AllVariables_Tier_IsInline()
-    {
-        var result = Pack(V("a", typeof(int)), V("b", typeof(bool)), V("c", typeof(float)));
-
-        foreach (var v in result.Variables)
-            Assert.Equal(PackTier.Inline, v.Tier);
-    }
 
     // -------------------------------------------------------------------------
     // Order preservation
@@ -266,7 +249,7 @@ public sealed class BlackboardBinPackerTests
     }
 
     // -------------------------------------------------------------------------
-    // TASK-BB-1c-04: Heavy-tier spill
+    // Aggregated variables (CE-314: they continue the ONE region; the heavy tier is gone)
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -285,127 +268,69 @@ public sealed class BlackboardBinPackerTests
 
         var result = BlackboardBinPacker.Pack(master, aggregated);
 
-        // All three should be inline.
-        Assert.All(result.Variables, v => Assert.Equal(PackTier.Inline, v.Tier));
-        Assert.Equal(0, result.TotalHeavyBytes);
-        Assert.False(result.RequiresHeavyComponent);
+        // ⭐ CE-314: aggregated variables continue the SAME region; there is no tier to check.
+        Assert.Equal(3, result.Variables.Count);
+        Assert.Equal(12, result.TotalInlineBytes);
     }
 
-    [Fact]
-    public void Pack_aggregated_vars_that_overflow_inline_placed_heavy()
-    {
-        // 25 ints = 100 bytes (exactly at MaxInlineBytes).
-        // One more aggregated int: 100 + 4 = 104 > MaxInlineBytes => must spill.
-        var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 25; i++) master.Add(V($"m{i}", typeof(int)));
+    // ⭐⭐⭐ CE-314 — REPLACEMENT COVERAGE. Nine tests were deleted with the heavy tier, but three of
+    //    them were the ONLY place two surviving behaviours were asserted: that aggregated variables
+    //    (a) continue the master region's offsets rather than restarting, and (b) align correctly
+    //    ACROSS the master/aggregated boundary. ⛔ Deleting the spill tests without these would have
+    //    silently dropped that coverage — the "route, don't just delete" half of the removal.
 
-        var aggregated = new List<BlackboardVariableDescriptor>
-        {
-            V("overflow", typeof(int)),
-        };
+    [Fact]
+    public void Pack_aggregated_vars_continue_the_master_regions_offsets()
+    {
+        // 3 ints = 12 B of master; the aggregated int must land at 12, NOT restart at 0.
+        var master = new List<BlackboardVariableDescriptor>();
+        for (int i = 0; i < 3; i++) master.Add(V($"m{i}", typeof(int)));
+        var aggregated = new List<BlackboardVariableDescriptor> { V("agg", typeof(int)) };
 
         var result = BlackboardBinPacker.Pack(master, aggregated);
 
-        var heavy = result.Variables.Where(v => v.Tier == PackTier.Heavy).ToList();
-        Assert.Single(heavy);
-        Assert.Equal("overflow", heavy[0].Name);
+        var agg = result.Variables.First(v => v.Name == "agg");
+        Assert.Equal(12, agg.ByteOffset);
+        Assert.Equal(16, result.TotalInlineBytes);
     }
 
     [Fact]
-    public void Pack_aggregated_vars_require_heavy_component_flag()
+    public void Pack_aggregated_vars_align_across_the_master_boundary()
     {
-        // Same setup: 25 master ints (100 B), one aggregated int forces heavy.
-        var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 25; i++) master.Add(V($"m{i}", typeof(int)));
-        var aggregated = new List<BlackboardVariableDescriptor> { V("x", typeof(int)) };
+        // Master ends at 1 byte (a bool). An aggregated long must align to 8 => offset 8, not 1.
+        var master = new List<BlackboardVariableDescriptor> { V("mb", typeof(bool)) };
+        var aggregated = new List<BlackboardVariableDescriptor> { V("al", typeof(long)) };
 
         var result = BlackboardBinPacker.Pack(master, aggregated);
 
-        Assert.True(result.RequiresHeavyComponent);
+        Assert.Equal(0, result.Variables.First(v => v.Name == "mb").ByteOffset);
+        Assert.Equal(8, result.Variables.First(v => v.Name == "al").ByteOffset);
+        Assert.Equal(16, result.TotalInlineBytes);
     }
 
+    /// <summary>
+    /// ⛔ The deleted <c>Pack_master_overflow_does_not_trigger_heavy_placement</c> also pinned that an
+    /// over-budget pack still returns EVERY variable with a resolved offset — the panel draws the rows
+    /// either way. ⭐ Kept, without the heavy half.
+    /// </summary>
     [Fact]
-    public void Pack_master_overflow_does_not_trigger_heavy_placement()
+    public void Pack_overBudget_stillResolvesEveryVariablesOffset()
     {
-        // 26 ints = 104 bytes: master itself exceeds 100 B ceiling.
+        int count = (BlackboardBinPacker.MaxInlineBytes / IntBytes) + 2;
         var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 26; i++) master.Add(V($"m{i}", typeof(int)));
-        var aggregated = new List<BlackboardVariableDescriptor> { V("x", typeof(int)) };
+        for (int i = 0; i < count; i++) master.Add(V($"m{i}", typeof(int)));
+        var aggregated = new List<BlackboardVariableDescriptor> { V("agg", typeof(int)) };
 
         var result = BlackboardBinPacker.Pack(master, aggregated);
 
-        // Master overflow takes precedence; heavy component must NOT be set.
-        Assert.False(result.RequiresHeavyComponent);
         Assert.Equal(PackWarning.InlineMemoryExceeded, result.Warning);
+        Assert.Equal(count + 1, result.Variables.Count);
+        Assert.Contains(result.Variables, v => v.Name == "agg");
     }
 
-    [Fact]
-    public void Pack_heavy_offset_starts_at_zero()
-    {
-        // 25 ints = 100 B inline; first aggregated int spills to heavy at offset 0.
-        var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 25; i++) master.Add(V($"m{i}", typeof(int)));
-        var aggregated = new List<BlackboardVariableDescriptor>
-        {
-            V("h1", typeof(int)),
-        };
 
-        var result = BlackboardBinPacker.Pack(master, aggregated);
 
-        var heavy = result.Variables.Where(v => v.Tier == PackTier.Heavy).ToList();
-        // First heavy var should start at offset 0.
-        Assert.Single(heavy);
-        Assert.Equal(0, heavy[0].ByteOffset);
-    }
 
-    [Fact]
-    public void Pack_heavy_alignment_respected()
-    {
-        // 25 ints = 100 B inline; bool + long both spill to heavy.
-        // bool is 1 B at heavy offset 0; long (8 B) must align to 8 => offset 8.
-        var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 25; i++) master.Add(V($"m{i}", typeof(int)));
-        var aggregated = new List<BlackboardVariableDescriptor>
-        {
-            V("hb", typeof(bool)),
-            V("hl", typeof(long)),
-        };
-
-        var result = BlackboardBinPacker.Pack(master, aggregated);
-
-        var heavyBool = result.Variables.First(v => v.Name == "hb");
-        var heavyLong = result.Variables.First(v => v.Name == "hl");
-
-        Assert.Equal(PackTier.Heavy, heavyBool.Tier);
-        Assert.Equal(PackTier.Heavy, heavyLong.Tier);
-        // bool at 0; long must align to 8.
-        Assert.Equal(0, heavyBool.ByteOffset);
-        Assert.Equal(8, heavyLong.ByteOffset);
-    }
-
-    [Fact]
-    public void TotalHeavyBytes_zero_when_no_heavy_vars()
-    {
-        var result = BlackboardBinPacker.Pack(new[] { V("x", typeof(int)) });
-
-        Assert.Equal(0, result.TotalHeavyBytes);
-    }
-
-    [Fact]
-    public void TotalHeavyBytes_nonzero_when_heavy_vars_present()
-    {
-        // 25 ints = 100 B inline; one aggregated int (4 B) spills to heavy.
-        var master = new List<BlackboardVariableDescriptor>();
-        for (int i = 0; i < 25; i++) master.Add(V($"m{i}", typeof(int)));
-        var aggregated = new List<BlackboardVariableDescriptor>
-        {
-            V("h1", typeof(int)),
-        };
-
-        var result = BlackboardBinPacker.Pack(master, aggregated);
-
-        Assert.True(result.TotalHeavyBytes > 0);
-    }
 
     // Regression: an unmarshalable type (e.g. a variable whose CLR type couldn't be resolved and
     // fell back to System.Object) must NOT crash the editor render loop — it degrades to 0 bytes.

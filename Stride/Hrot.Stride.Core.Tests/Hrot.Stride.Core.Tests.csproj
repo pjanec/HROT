@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Suppress CycloneDDS code-generator: pulled in transitively but not used here -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit"                  Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector"     Version="6.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.20.72" />
+  </ItemGroup>
+
+  <!-- Stride packages required to reference Stride types in tests -->
+  <ItemGroup>
+    <PackageReference Include="Stride.Engine" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Stride.Core\Hrot.Stride.Core.csproj" />
+    <!-- Required to load Hrot.NodeComposition assembly for T3 reference-closure tests (ST-014: was Hrot.StrideMock) -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.NodeComposition\Hrot.NodeComposition.csproj" />
+    <!-- Required for FakeNavmeshProvider/FakeNavLayer/NavPolygon in T2 contract-parity tests -->
+    <ProjectReference Include="..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>

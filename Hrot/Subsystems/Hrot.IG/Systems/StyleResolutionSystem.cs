@@ -3,6 +3,7 @@ using System.Globalization;
 using Hrot.NED.Descriptors;
 using FdpEntityInfo = Fdp.Core.EntityInfo;
 using Hrot.IG.Components;
+using Fdp.Toolkit.Combat.Components;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Core.Logging;
 using Fdp.Core;
@@ -159,10 +160,21 @@ public class StyleResolutionSystem : IEcsModuleSystem
         if (_userConfig.HideLabels)
             labelText = string.Empty;
 
+        // ⭐ DamageLevel stays a 0..100 percentage (ResolvedStyle's documented range), but it is now
+        //   DERIVED from the authority's Health rather than read from a precomputed wire field.
+        //   🔒 User ruling, 2026-09-05: "no precalculated percentages".
+        // ⚠ Max <= 0 leaves the style at DamageMin — an entity with no meaningful maximum renders as
+        //   undamaged rather than as a division by zero.
         float damage = ResolvedStyleConstants.DamageMin;
-        if (view.HasComponent<IgHealthState>(entity))
+        if (view.HasComponent<Health>(entity))
         {
-            damage = view.GetComponentRO<IgHealthState>(entity).Damage;
+            ref readonly var health = ref view.GetComponentRO<Health>(entity);
+            if (health.Max > 0f)
+            {
+                damage = (1f - health.Current / health.Max) * 100f;
+                if (damage < ResolvedStyleConstants.DamageMin) damage = ResolvedStyleConstants.DamageMin;
+                if (damage > ResolvedStyleConstants.DamageMax) damage = ResolvedStyleConstants.DamageMax;
+            }
         }
 
         // ── Assemble output ───────────────────────────────────────────────────

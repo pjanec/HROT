@@ -141,7 +141,7 @@ How to elegantly filter out undesired components from initialization list? Ie th
 
 Your suggestion to introduce a global registry for filtering "undesired" components is architecturally flawed.
 
-Creating a global "DoNotLoad" registry or modifying the global `[DataPolicy]` attributes (like `DataPolicy.NoSave`) conflates domain definitions with context-specific pipeline requirements. Components such as `NetworkIdentity`, `NetworkAuthority`, and `LifecycleDescriptor` are strictly required to be persisted and restored during a Checkpoint or SaveGame load. If you exclude them at a global registry level, you will permanently break the engine's ability to serialize and restore live, distributed simulation states.
+Creating a global "DoNotLoad" registry or modifying the global `[DataPolicy]` attributes (like `DataPolicy.NoScenario`) conflates domain definitions with context-specific pipeline requirements. Components such as `NetworkIdentity`, `NetworkAuthority`, and `LifecycleDescriptor` are strictly required to be persisted and restored during a Checkpoint or SaveGame load. If you exclude them at a global registry level, you will permanently break the engine's ability to serialize and restore live, distributed simulation states.
 
 The divergence in persistence semantics—where a Checkpoint requires network IDs but a Scenario injection must strip them—dictates that the filtering logic must be owned exclusively by the Scenario Loader context, not a global registry.
 
@@ -224,7 +224,7 @@ Wait shouldnt we use some attribute instead of enumerating them? Something like 
 
 Introducing a `[NoScenarioSave]` attribute is an architectural anti-pattern. You are conflating the static domain definition of a data structure with the context-specific rules of a single execution pipeline.
 
-If you place a scenario-specific attribute or leverage the existing `[DataPolicy(DataPolicy.NoSave)]` directly on core network components like `NetworkIdentity` or `NetworkAuthority`, you pollute the lowest-level engine domain (`Fdp.Core` and `Fdp.Toolkit.Replication`) with concepts from a higher-level tooling module (`Fdp.Toolkit.Scenario`). Core network descriptors must remain strictly ignorant of how scenarios or episodes are authored.
+If you place a scenario-specific attribute or leverage the existing `[DataPolicy(DataPolicy.NoScenario)]` directly on core network components like `NetworkIdentity` or `NetworkAuthority`, you pollute the lowest-level engine domain (`Fdp.Core` and `Fdp.Toolkit.Replication`) with concepts from a higher-level tooling module (`Fdp.Toolkit.Scenario`). Core network descriptors must remain strictly ignorant of how scenarios or episodes are authored.
 
 Furthermore, attributes are statically compiled metadata. Whether a component is "undesired" depends entirely on the operational context. When the cluster orchestrator executes a `TakeCheckpoint` operation, `NetworkIdentity` and `NetworkAuthority` are strictly mandatory to perfectly restore the distributed session state. If you mark them with an attribute to filter them out for scenario injection, you will permanently break checkpoint creation and save-game restoration because `EntityRepository.GetSaveableMask()` will globally exclude them.
 

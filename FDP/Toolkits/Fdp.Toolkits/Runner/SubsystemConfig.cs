@@ -40,5 +40,22 @@
         /// Defaults to <c>() => true</c> so standalone subsystems (non-ClusterRunner) are unaffected.
         /// </summary>
         public Func<bool> IsActiveMapOwner { get; set; } = () => true;
+
+        /// <summary>
+        /// Asks the host to leave its frame loop gracefully, as though the window's [X] had been
+        /// approved: the loop finishes the current frame, then falls into its <c>finally</c> and
+        /// runs <c>Shutdown()</c> on every subsystem.
+        /// </summary>
+        /// <remarks>
+        /// Injected by <see cref="SubsystemOrchestrator"/> during <c>Initialize()</c>, where it is
+        /// bound to <see cref="SubsystemOrchestrator.Stop"/>. Both host loops honour it — the
+        /// orchestrator's own <c>Run()</c> and the Composition Root's render loop, which polls
+        /// <see cref="SubsystemOrchestrator.IsRunning"/> each frame.
+        /// <para>Safe to call from any thread (the flag it sets is volatile), which is what lets a
+        /// subsystem's control plane — e.g. the editor's <c>POST /shutdown</c> — stop the process
+        /// without doing its own <c>Environment.Exit</c> and losing the ordered teardown.</para>
+        /// Defaults to a no-op so a standalone subsystem outside the orchestrator is unaffected.
+        /// </remarks>
+        public Action RequestAppExit { get; set; } = () => { };
     }
 }

@@ -67,7 +67,7 @@ public sealed class BlackboardFieldPickerDrawerTests
         var asset = MakeAsset(
             Var("floatVar", typeof(float)),
             Var("intVar",   typeof(int)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -116,7 +116,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void GetItems_ReturnsEmpty_AndHasNoCompatible_WhenNoMatchingVars()
     {
         var asset    = MakeAsset(Var("intVar", typeof(int)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -145,7 +145,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void FqnContext_UpdatedByMapper_IsPickedUpByDrawer()
     {
         var asset    = MakeAsset(Var("floatVar", typeof(float)), Var("intVar", typeof(int)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext();
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -166,7 +166,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void Promote_CreatesAutoVar_WithCorrectNameAndType_AndIsAutoManaged()
     {
         var asset    = MakeAsset(); // no vars
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -185,7 +185,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void Promote_Idempotent_WhenVarAlreadyExists()
     {
         var asset    = MakeAsset();
-        var entry    = new ActionSchemaEntry("Ns.IntAction", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.IntAction", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = "Ns.IntAction" };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -202,7 +202,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void Promote_TwoDifferentVisualIds_CreatesTwoVars()
     {
         var asset    = MakeAsset();
-        var entry    = new ActionSchemaEntry("Ns.BoolAction", typeof(bool), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.BoolAction", typeof(bool), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = "Ns.BoolAction" };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -231,7 +231,7 @@ public sealed class BlackboardFieldPickerDrawerTests
     public void Promote_ReturnsNull_WhenFqnIsNull()
     {
         var asset    = MakeAsset();
-        var entry    = new ActionSchemaEntry("Ns.Action", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.Action", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = null };
         var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);

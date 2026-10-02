@@ -41,24 +41,48 @@ public sealed class HsmFacetFqnContext
 
 /// <summary>
 /// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
-/// <see cref="HsmActionPickerAttribute"/>. Lists action function names from the
-/// active HSM asset's transitions + global transitions.
+/// <see cref="HsmActionPickerAttribute"/>.
+///
+/// <para>⭐⭐⭐ <b><c>CE-386</c> — it offers the REGISTERED HSM activities, not only the names this
+/// asset already mentions.</b> 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3.</para>
+///
+/// <para>🔴 <b>What was broken.</b> The list was built ONLY from the asset's own bindings ⇒ a name
+/// could be picked once it was already in use, and the FIRST binding was UNMAKEABLE from the
+/// inspector. A picker that can only offer what you have already chosen is not a picker.</para>
+///
+/// <para>⚠ <b>The self-referential list SURVIVES as the no-catalog fallback</b> (the headless host,
+/// and every fixture that constructs a drawer with one argument) — ⛔ but a production caller that
+/// HAS the exporter must pass it, which is what the rail asserts. ⭐ The union is deliberate even
+/// WITH a catalog: an asset may name an action the current assembly no longer exports, and dropping
+/// it from the list would hide a dangling binding instead of showing it.</para>
 /// </summary>
 public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly IActionSchemaExporter? _schema;
 
-    public HsmActionPickerDrawer(HsmAsset asset)
+    public HsmActionPickerDrawer(HsmAsset asset) : this(asset, null) { }
+
+    public HsmActionPickerDrawer(HsmAsset asset, IActionSchemaExporter? schema)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _asset  = asset ?? throw new ArgumentNullException(nameof(asset));
+        _schema = schema;
     }
 
     public Type TargetType => typeof(string);
 
-    /// <summary>Returns all distinct action function names from the asset's transitions.</summary>
+    /// <summary>Every registered HSM ACTIVITY, unioned with the names this asset already binds.</summary>
     public IReadOnlyList<string> GetItems()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+
+        // ⭐ CE-386 — the catalog half. HsmActivity, not Hsm: a bare Hsm entry may be a GUARD, and
+        //   offering a guard as an activity is the wrong-kind defect CE-396 fixed one layer up.
+        if (_schema != null)
+            foreach (var kv in _schema.All)
+                if (kv.Value.Hosting.HasFlag(ActionHosting.HsmActivity))
+                    names.Add(kv.Key);
+
         foreach (var t in _asset.AllTransitions)
         {
             if (!string.IsNullOrEmpty(t.ActionFunction)) names.Add(t.ActionFunction!);
@@ -74,25 +98,33 @@ public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
         }
         foreach (var g in _asset.AllGlobalTransitions)
             if (!string.IsNullOrEmpty(g.ActionFunction)) names.Add(g.ActionFunction!);
-        return names.OrderBy(n => n).ToList();
+        return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-462</c> (E4 ④) — the SHOWN text: name + technology. ⛔ <see cref="GetItems"/> still returns
+    /// the stored FQNs, so every consumer that binds by value is unchanged.
+    /// </summary>
+    public string Label(string fqn) => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.PickerLabel(fqn, _schema);
 
     /// <inheritdoc/>
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmact", GetItems());
+        return HsmPickerHelper.RenderCombo(ref value, "##hsmact", GetItems(), Label);
     }
 }
 
 /// <summary>Internal rendering helpers shared by all HSM picker drawers.</summary>
 internal static class HsmPickerHelper
 {
-    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items)
+    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items,
+                                     Func<string, string>? label = null)
     {
         var current = value as string ?? string.Empty;
+        label ??= s => s;
         bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo(id, current))
+        if (ImGuiNET.ImGui.BeginCombo(id, label(current)))
         {
             // Allow clearing.
             if (ImGuiNET.ImGui.Selectable("(none)", string.IsNullOrEmpty(current)) && !string.IsNullOrEmpty(current))
@@ -103,7 +135,8 @@ internal static class HsmPickerHelper
             foreach (var name in items)
             {
                 bool sel = name == current;
-                if (ImGuiNET.ImGui.Selectable(name, sel) && !sel)
+                // ⚠ "##"+name keeps the ImGui id the VALUE, so two entries with the same label stay distinct.
+                if (ImGuiNET.ImGui.Selectable($"{label(name)}##{name}", sel) && !sel)
                 {
                     value   = name;
                     changed = true;
@@ -123,28 +156,47 @@ internal static class HsmPickerHelper
 public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly IActionSchemaExporter? _schema;
 
-    public HsmGuardPickerDrawer(HsmAsset asset)
+    public HsmGuardPickerDrawer(HsmAsset asset) : this(asset, null) { }
+
+    /// <summary>⭐⭐ <c>CE-386</c> — see <see cref="HsmActionPickerDrawer"/> for why the catalog half
+    /// exists and why the asset's own names stay in the union.</summary>
+    public HsmGuardPickerDrawer(HsmAsset asset, IActionSchemaExporter? schema)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _asset  = asset ?? throw new ArgumentNullException(nameof(asset));
+        _schema = schema;
     }
 
     public Type TargetType => typeof(string);
 
+    /// <summary>Every registered HSM GUARD, unioned with the guards this asset already binds.</summary>
     public IReadOnlyList<string> GetItems()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+
+        if (_schema != null)
+            foreach (var kv in _schema.All)
+                if (kv.Value.Hosting.HasFlag(ActionHosting.HsmGuard))
+                    names.Add(kv.Key);
+
         foreach (var t in _asset.AllTransitions)
             if (!string.IsNullOrEmpty(t.GuardFunction)) names.Add(t.GuardFunction!);
         foreach (var g in _asset.AllGlobalTransitions)
             if (!string.IsNullOrEmpty(g.GuardFunction)) names.Add(g.GuardFunction!);
-        return names.OrderBy(n => n).ToList();
+        return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-462</c> (E4 ④) — the SHOWN text: name + technology. ⛔ <see cref="GetItems"/> still returns
+    /// the stored FQNs, so every consumer that binds by value is unchanged.
+    /// </summary>
+    public string Label(string fqn) => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.PickerLabel(fqn, _schema);
 
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmguard", GetItems());
+        return HsmPickerHelper.RenderCombo(ref value, "##hsmguard", GetItems(), Label);
     }
 }
 
@@ -405,18 +457,10 @@ public sealed class HsmBlackboardFieldPickerDrawer : IImGuiFieldDrawer, IPickerL
         var entry = _exporter.Lookup(fqn);
         if (entry is null) return null;
 
-        if (!Guid.TryParse(facetVisualId, out var visualGuid)) return null;
-        var varName = $"_auto_{visualGuid:N}";
-
-        if (_asset.BlackboardVariables.Any(v => v.Name == varName)) return varName;
-
-        _asset.AddVariable(new BlackboardVariableEntry(
-            Name:          varName,
-            FieldType:     entry.DtoType,
-            Comment:       null,
-            IsAutoManaged: true));
-
-        return varName;
+        // ⭐ ONE implementation, shared with the BTree picker (ruling 9). ⛔ The two bodies were
+        //   character-for-character identical.
+        return Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+                   .PromoteForSite(_asset, facetVisualId, entry.DtoType);
     }
 
     /// <inheritdoc/>
@@ -479,10 +523,17 @@ public static class HsmPickerDrawerFactory
     /// When <paramref name="exporter"/> and <paramref name="fqnContext"/> are provided, the
     /// <see cref="HsmBlackboardFieldPickerDrawer"/> filters variables by the current action's DtoType.
     /// </summary>
+    /// <param name="catalog">
+    /// ⭐⭐ §11.1a — the asset catalogue that feeds the <c>[AiAssetPicker]</c> on
+    /// <c>StateFacet.SubtreeName</c>. ⚠ Optional so headless fixtures need not supply one; ⛔ a
+    /// production host HAS one and must pass it, or the hosted-subtree field silently offers
+    /// nothing — the exact silent-default shape this codebase keeps paying for.
+    /// </param>
     public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
         HsmAsset               asset,
         IActionSchemaExporter? exporter   = null,
-        HsmFacetFqnContext?    fqnContext  = null)
+        HsmFacetFqnContext?    fqnContext  = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
@@ -492,12 +543,37 @@ public static class HsmPickerDrawerFactory
 
         var bbDrawer = new HsmBlackboardFieldPickerDrawer(asset, exporter, fqnAccessor, fqnContext);
 
+        // ⭐⭐⭐ CE-386 — the exporter reaches the two pickers that had been ignoring it.
+        // 📐 The plumbing was already there: AiFacetPickerBinder.Rebuild:95, the ONE production
+        //    site, already passes services.ActionSchema into this factory, and the factory already
+        //    took it — it simply only ever reached HsmBlackboardFieldPickerDrawer. ⇒ the forwarding
+        //    was never the defect; the CONSUMPTION was (design §9 rail ⑧, re-aimed).
         var composite = new HsmCompositeStringDrawer()
-            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset))
-            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset))
+            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset, exporter))
+            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset, exporter))
             .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
             .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset))
             .Register<HsmBlackboardFieldPickerAttribute>(bbDrawer);
+
+        // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
+        //    null catalogue could only ever draw an empty list, and an empty dropdown reads as
+        //    "there are no such assets" rather than "this host wired nothing".
+        // ⭐⭐⭐ CE-396 — ONE drawer PER KIND, chosen from the attribute the field carries, so
+        //    `[AiAssetPicker(BTree)]` (StateFacet.SubtreeName) and `[AiAssetPicker(Blueprint)]`
+        //    (CE-385's activity/guard fields) each offer their own kind. ⛔ The previous
+        //    registration hard-wired BTree and would have answered for both.
+        if (catalog is not null)
+        {
+            var byKind = new Dictionary<Hrot.Editor.AiShared.AssetKind,
+                                        Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer>();
+            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(attr =>
+            {
+                if (!byKind.TryGetValue(attr.Kind, out var d))
+                    byKind[attr.Kind] = d =
+                        new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, attr.Kind);
+                return d;
+            });
+        }
 
         return new Dictionary<Type, IImGuiFieldDrawer>
         {
@@ -514,13 +590,32 @@ public static class HsmPickerDrawerFactory
 /// </summary>
 internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
 {
-    private readonly Dictionary<Type, IImGuiFieldDrawer> _byAttribute = new();
+    // ⭐⭐⭐ CE-396 — the registry maps an attribute TYPE to a factory over the attribute INSTANCE,
+    //    not to a fixed drawer.
+    //
+    // 🔴 WHY IT HAD TO CHANGE. `AiAssetPickerAttribute` CARRIES A KIND (`[AiAssetPicker(BTree)]`,
+    //    `[AiAssetPicker(Blueprint)]`), and the old registry keyed by type alone ⇒ whichever kind was
+    //    registered first answered for EVERY kind. With only `StateFacet.SubtreeName` in the tree
+    //    that was invisible; CE-385's blueprint pickers would have silently drawn the BTREE list —
+    //    a dropdown full of plausible, wrong names. ⛔ A picker that offers the wrong asset kind is
+    //    worse than one that offers nothing: nothing is diagnosable.
+    // ⭐ Every other picker here is kind-less and registers through the constant overload unchanged.
+    private readonly Dictionary<Type, Func<Attribute, IImGuiFieldDrawer?>> _byAttribute = new();
 
     public Type TargetType => typeof(string);
 
     public HsmCompositeStringDrawer Register<TAttribute>(IImGuiFieldDrawer drawer) where TAttribute : Attribute
     {
-        _byAttribute[typeof(TAttribute)] = drawer;
+        _byAttribute[typeof(TAttribute)] = _ => drawer;
+        return this;
+    }
+
+    /// <summary>⭐ <c>CE-396</c> — register a drawer chosen FROM the attribute instance, for marker
+    /// attributes that carry a discriminator (today: <c>AiAssetPickerAttribute.Kind</c>).</summary>
+    public HsmCompositeStringDrawer Register<TAttribute>(Func<TAttribute, IImGuiFieldDrawer?> factory)
+        where TAttribute : Attribute
+    {
+        _byAttribute[typeof(TAttribute)] = a => factory((TAttribute)a);
         return this;
     }
 
@@ -529,8 +624,8 @@ internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
         if (node is null) return null;
         foreach (var attr in node.Metadata.CustomAttributes)
         {
-            if (_byAttribute.TryGetValue(attr.GetType(), out var drawer))
-                return drawer;
+            if (_byAttribute.TryGetValue(attr.GetType(), out var factory))
+                return factory(attr);
         }
         return null;
     }

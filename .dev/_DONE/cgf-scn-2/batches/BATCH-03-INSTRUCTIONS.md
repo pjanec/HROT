@@ -472,7 +472,7 @@ Minimum **18 new unit tests** across all 6 tasks.
 
 ## Common Pitfalls
 
-- `DataPolicy.Transient` is a combined flag (`NoSave | NoRecord`). Do not use `NoSave`
+- `DataPolicy.Transient` is a combined flag (`NoScenario | NoReplay`). Do not use `NoScenario`
   only for Intent DTOs — they must also be excluded from checkpoints.
 - `NetworkEntityMap.TryGetEntity(long, out Entity)` may have a different parameter name
   than expected. Read the actual source before writing code.

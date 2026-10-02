@@ -288,7 +288,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationStatus)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationStatus
     {
         /// <summary>
@@ -372,7 +372,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationCorridorMuscle)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationCorridorMuscle
     {
         /// <summary>Handle to the active route in the path registry. 0 = no active route.</summary>

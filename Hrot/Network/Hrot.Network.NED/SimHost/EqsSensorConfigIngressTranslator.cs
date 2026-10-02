@@ -16,8 +16,9 @@ namespace Hrot.Network.NED.SimHost
     /// Muscle-side ingress translator: receives <see cref="EqsSensorConfigTopic"/> samples
     /// and applies the <c>EqsSensor</c> component to the corresponding ghost entity so the
     /// solver picks it up on the next tick.
-    /// On <c>NOT_ALIVE_DISPOSED</c>, removes <c>EqsSensor</c> from the ghost entity,
-    /// signalling the solver to drop the query.
+    /// On <c>NOT_ALIVE_DISPOSED</c>, removes a LEGACY sensor (part 0) from the ghost entity; a child sensor's dispose
+    /// only forgets the key — its carrier dies with its parent (<c>CE-486</c>). An ended child sensor arrives as a
+    /// <c>Suspended</c> config, which the solver skips.
     /// </summary>
     public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator
     {
@@ -27,6 +28,22 @@ namespace Hrot.Network.NED.SimHost
         // Dictionary-cached entity lookup: (ParentNetworkId, LocalChildIndex) -> child ghost entity.
         // Avoids ECS query scans inside the polling loop (O(1) steady-state lookup).
         private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
+
+        // ⭐ Samples whose parent or context-slot entities are not on this node YET. DDS Take() consumes
+        // a sample, and the Brain re-sends only on change — so a sample applied too early (or dropped
+        // because its parent was missing) would leave the sensor without its area FOREVER. Each poll
+        // retries these; a sample leaves the set once its parent and every named slot resolve.
+        private readonly Dictionary<(long ParentNetId, int ChildIndex), Pending> _pending = new();
+        private readonly List<(long ParentNetId, int ChildIndex)> _resolvedKeys = new();
+        // Carriers created through the command buffer and not yet visible in the world.
+        private readonly HashSet<(long ParentNetId, int ChildIndex)> _awaitingPlayback = new();
+
+        private struct Pending
+        {
+            public EqsSensorConfigTopic Data;
+            public bool Applied;          // applied at least once (parent was present)
+            public int  ResolvedSlotMask; // which named slots resolved when last applied
+        }
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
@@ -71,15 +88,14 @@ namespace Hrot.Network.NED.SimHost
                 if (localChildIndex == 0)
                 {
                     // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
-                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
-
                     if (sample.IsValid)
                     {
-                        cmd.SetComponent(parentGhost, BuildSensor(sample.Data));
-                        _childGhostCache[(parentNetId, 0)] = parentGhost;
+                        _pending[(parentNetId, 0)] = new Pending { Data = sample.Data };
                     }
                     else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
                     {
+                        _pending.Remove((parentNetId, 0));
+                        if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
                         cmd.RemoveComponent<EqsSensor>(parentGhost);
                         _childGhostCache.Remove((parentNetId, 0));
                     }
@@ -87,41 +103,149 @@ namespace Hrot.Network.NED.SimHost
                 else
                 {
                     // Child-entity sensor path: carrier ghost is spawned/reused from cache.
-                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
-
                     var cacheKey = (parentNetId, localChildIndex);
 
                     if (sample.IsValid)
                     {
-                        if (!_childGhostCache.TryGetValue(cacheKey, out var child))
-                        {
-                            // Cache miss: spawn carrier ghost entity.
-                            // No NetworkIdentity, TkbIdentity, or GhostStateTracker on the carrier.
-                            child = cmd.CreateEntity();
-                            cmd.AddComponent(child, new PartMetadata
-                            {
-                                ParentEntity      = parentGhost,
-                                InstanceId        = localChildIndex,
-                                DescriptorOrdinal = 0,
-                            });
-                            cmd.AddComponent(child, BuildSensor(sample.Data));
-                            cmd.AddComponent(child, default(EqsCognitiveBuffer));
-                            _childGhostCache[cacheKey] = child;
-                        }
-                        else
-                        {
-                            // Cache hit: update sensor parameters on existing carrier.
-                            cmd.SetComponent(child, BuildSensor(sample.Data));
-                        }
+                        _pending[cacheKey] = new Pending { Data = sample.Data };
                     }
                     else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
                     {
-                        if (_childGhostCache.Remove(cacheKey, out var dead))
-                            cmd.DestroyEntity(dead);
+                        // ⭐⭐ CE-486 — a child-sensor dispose is NOT "destroy the carrier". The Brain never disposes a
+                        //    child instance while its parent lives (it writes Suspended instead), so a dispose now only
+                        //    comes with the parent's death — and SubEntityCleanupSystem already destroys that parent's
+                        //    carriers. 🔴 Destroying here was the design's §2 ② race: a dispose and a write for the same
+                        //    key in one batch queued the destroy, then applied the new config to the doomed carrier.
+                        //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
+                        _pending.Remove(cacheKey);
+                        _awaitingPlayback.Remove(cacheKey);
+                        _childGhostCache.Remove(cacheKey);
                     }
                 }
             }
+
+            ApplyPending(cmd, view);
         }
+
+        // Applies every pending sample whose parent is present; re-applies one only when a named slot
+        // has newly resolved; drops it from the set once the parent and all named slots resolved.
+        private void ApplyPending(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_pending.Count == 0) return;
+
+            _resolvedKeys.Clear();
+            foreach (var key in new List<(long ParentNetId, int ChildIndex)>(_pending.Keys))
+            {
+                var pending = _pending[key];
+                if (!_entityMap.TryGetEntity(key.ParentNetId, out var parentGhost)) continue;
+
+                var sensor = BuildSensor(pending.Data);
+                int named  = NamedSlotMask(pending.Data);
+                int mask   = ResolvedSlotMask(in sensor);
+
+                if (!pending.Applied || mask != pending.ResolvedSlotMask)
+                {
+                    // A carrier created by an earlier poll is not in the world until that command
+                    // buffer plays back — wait for it rather than create a second one.
+                    if (!Apply(cmd, view, key, parentGhost, sensor)) continue;
+                    pending.Applied          = true;
+                    pending.ResolvedSlotMask = mask;
+                    _pending[key]            = pending;
+                }
+
+                if (mask == named) _resolvedKeys.Add(key);
+            }
+
+            foreach (var key in _resolvedKeys) _pending.Remove(key);
+        }
+
+        // Returns false when the sample must wait (its carrier is created but not yet played back).
+        private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
+                           Entity parentGhost, EqsSensor sensor)
+        {
+            if (key.ChildIndex == 0)
+            {
+                // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
+                cmd.SetComponent(parentGhost, sensor);
+                _childGhostCache[key] = parentGhost;
+                return true;
+            }
+
+            if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
+            {
+                // Existing carrier: update its parameters.
+                _awaitingPlayback.Remove(key);
+                cmd.SetComponent(child, sensor);
+                return true;
+            }
+
+            if (_awaitingPlayback.Contains(key)) return false;
+
+            // ⭐ CE-486 — an ended sensor with no carrier needs none: there is nothing to solve. (A late-joining Muscle
+            //   receives every instance TransientLocal holds, suspended ones included.) The next lifetime's config for
+            //   this part id creates the carrier then.
+            if (sensor.Suspended) return true;
+
+            // ⭐ No carrier yet: create one. ⛔ The handle cmd.CreateEntity() returns is a PLACEHOLDER
+            // that is valid only inside this command buffer's playback — it used to be cached and reused
+            // for every later update and dispose, so on the Muscle a child sensor's parameters never
+            // changed after its first sample and a disposed sensor's carrier was never destroyed. The real
+            // entity is found in the world on the next poll (TryFindCarrier).
+            // No NetworkIdentity, TkbIdentity, or GhostStateTracker on the carrier.
+            child = cmd.CreateEntity();
+            cmd.AddComponent(child, new PartMetadata
+            {
+                ParentEntity      = parentGhost,
+                InstanceId        = key.ChildIndex,
+                DescriptorOrdinal = 0,
+            });
+            cmd.AddComponent(child, sensor);
+            cmd.AddComponent(child, default(EqsCognitiveBuffer));
+            _awaitingPlayback.Add(key);
+            return true;
+        }
+
+        // The carrier ghost for (parent, childIndex) as it exists in the WORLD — never an ECB placeholder.
+        private bool TryFindCarrier(ISimulationView view, Entity parentGhost, int childIndex, out Entity carrier)
+        {
+            if (_childGhostCache.TryGetValue((ParentKey(parentGhost), childIndex), out carrier)
+                && IsCarrierOf(view, carrier, parentGhost, childIndex))
+                return true;
+
+            foreach (var e in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                if (!IsCarrierOf(view, e, parentGhost, childIndex)) continue;
+                carrier = e;
+                _childGhostCache[(ParentKey(parentGhost), childIndex)] = e;
+                return true;
+            }
+
+            carrier = Entity.Null;
+            return false;
+        }
+
+        private long ParentKey(Entity parentGhost)
+            => _entityMap.TryGetNetworkId(parentGhost, out long net) ? net : 0L;
+
+        private static bool IsCarrierOf(ISimulationView view, Entity e, Entity parentGhost, int childIndex)
+        {
+            if (e.IsNull || e.Index < 0 || !view.IsAlive(e) || !view.HasComponent<PartMetadata>(e)) return false;
+            var meta = view.GetComponentRO<PartMetadata>(e);
+            return meta.ParentEntity == parentGhost && meta.InstanceId == childIndex;
+        }
+
+        private static int NamedSlotMask(in EqsSensorConfigTopic d)
+            => (d.ContextSlot0NetworkId != 0 ? 1 : 0)
+             | (d.ContextSlot1NetworkId != 0 ? 2 : 0)
+             | (d.ContextSlot2NetworkId != 0 ? 4 : 0);
+
+        private static int ResolvedSlotMask(in EqsSensor s)
+            => (s.ContextSlot0.IsNull ? 0 : 1)
+             | (s.ContextSlot1.IsNull ? 0 : 2)
+             | (s.ContextSlot2.IsNull ? 0 : 4);
+
+        /// <summary>Samples waiting for their parent or a context-slot entity (test hook).</summary>
+        internal int PendingCount => _pending.Count;
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }
@@ -154,6 +278,7 @@ namespace Hrot.Network.NED.SimHost
             ContextSlot0        = ResolveSlot(data.ContextSlot0NetworkId),
             ContextSlot1        = ResolveSlot(data.ContextSlot1NetworkId),
             ContextSlot2        = ResolveSlot(data.ContextSlot2NetworkId),
+            Suspended           = data.Suspended,
         };
     }
 }

@@ -8,15 +8,9 @@ namespace Hrot.Blueprints.Tests.Editor;
 // have been removed along with the class.
 public sealed class EditorWindowTests
 {
-    // InspectorWindow
-
-    [Fact]
-    public void InspectorWindow_Constructor_SetsTitle()
-    {
-        var w = new InspectorWindow(
-            new EditorSelectionStore(), new DirtyTracker(), new DrawerRegistry());
-        Assert.Equal("Inspector", w.Title);
-    }
+    // ⛔ L5 — InspectorWindow_Constructor_SetsTitle DELETED with the stub it asserted.
+    //    ⚠ It asserted a TITLE on a window whose body was placeholder text; nothing else covered it,
+    //      and there is nothing left to cover.
 
     // PreferencesWindow
 

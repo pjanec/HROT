@@ -612,6 +612,97 @@ public sealed class WhenNodeRuntimeTests
         Assert.Null(Record.Exception(() => fixture.TickFrame(0.016f)));
     }
 
+    // ======================== CE-446: the same When, in a blueprint BEHAVIOUR ========================
+
+    /// <summary>
+    /// Compiles <paramref name="asset"/> as a blueprint BEHAVIOUR (<c>Dispatch = Behavior</c>, CE-446), loads it, and
+    /// assigns it to a fresh entity through the real <c>BehaviorIngressSystem</c>. The block is the root params slot.
+    /// </summary>
+    private static Entity AssignAsBehaviour(BlueprintTestFixture fixture, BlueprintAsset asset, CompileOptions options)
+    {
+        asset.Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior;
+        fixture.CompileAndLoad(asset, options);
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        fixture.World.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+            { Entity = entity, BehaviorName = asset.Name, JsonParams = string.Empty });
+        fixture.World.Bus.SwapBuffers();
+        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(fixture.BehaviorRegistry).Execute(fixture.World, 0.016f);
+        return entity;
+    }
+
+    /// <summary>Reads a field of a behaviour's block (its registered layout type) from the root params slot.</summary>
+    private static unsafe T ReadBehaviourField<T>(BlueprintTestFixture fixture, string behaviourName, Entity entity, string field)
+        where T : unmanaged
+    {
+        Assert.True(fixture.BehaviorRegistry.TryGetId(behaviourName, out int id));
+        Assert.True(fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(fixture.World, entity, out byte* root),
+            "the behaviour's block must be attached");
+        return *(T*)(root + (int)Marshal.OffsetOf(def!.BlackboardLayoutType!, field));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-446 — a <c>When</c> node runs inside a blueprint BEHAVIOUR</b>, ticked by <c>BrainTickSystem</c>, not
+    /// <c>BlueprintTickSystem</c>: the Instance-only restriction (BP2001) does not apply to a behaviour, the synthesized
+    /// state lands in its block, and the event reaches it. Same asset as the Instance rail above, dispatch flipped.
+    /// </summary>
+    [Fact]
+    public void CE446_EventFired_Fires_InABlueprintBehaviour()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset  = BuildEventFiredAsset(targetFilter: EventTargetFilter.None);
+        // ⚠ An Instance Return means "end THIS frame"; a behaviour Return means "FINISHED" (Q77 D). The Instance asset
+        //   returns on both paths every frame, so as a behaviour it would finish on frame 1 — drop the Returns: the
+        //   paths fall off the end, which a behaviour reads as Running.
+        foreach (var g in asset.Graphs)
+        {
+            var returns = g.Nodes.OfType<ReturnNode>().Select(n => n.Id).ToHashSet();
+            g.Nodes.RemoveAll(n => returns.Contains(n.Id));
+            g.Links.RemoveAll(l => returns.Contains(l.ToNodeId));
+        }
+        var entity = AssignAsBehaviour(fixture, asset, OptionsWithEmptyEventCatalog());
+        var brain  = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(fixture.BehaviorRegistry);
+
+        fixture.World.Bus.SwapBuffers();
+        brain.Execute(fixture.World, 0.016f);                 // no event yet
+        Assert.False(ReadBehaviourField<bool>(fixture, asset.Name, entity, "WasFired"));
+
+        fixture.World.Bus.Publish(new WhenTestHitEvent { Damage = 10f });
+        fixture.World.Bus.SwapBuffers();
+        brain.Execute(fixture.World, 0.016f);                 // the event is visible this frame
+        Assert.True(ReadBehaviourField<bool>(fixture, asset.Name, entity, "WasFired"));
+        Assert.Equal(Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,
+            fixture.World.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity).BrainTier);   // no Return ⇒ still running
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>Regression, found by CE-446 (2026-09-30): an INSTANCE whose When has an UNCONNECTED exit did not compile.</b>
+    /// The empty Out block fell through to nothing — a bare C# label before the method's closing brace (CS1525/CS1002).
+    /// ⭐ Stage 5 now seals an unconnected When exit like a Branch arm (<c>SealFallThrough</c>).
+    /// <para>⚠ Before the fix: the behaviour variant failed Roslyn with CS1525/CS1002/CS0161, and this Instance variant's
+    /// dumped source ended in the same bare <c>__block_when_…_out:</c> label before <c>}</c>.</para>
+    /// </summary>
+    [Fact]
+    public void AWhenWithUnconnectedExits_CompilesAndTicks_ForAnInstance()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BuildEventFiredAsset(targetFilter: EventTargetFilter.None);
+        foreach (var g in asset.Graphs)
+        {
+            var returns = g.Nodes.OfType<ReturnNode>().Select(n => n.Id).ToHashSet();
+            g.Nodes.RemoveAll(n => returns.Contains(n.Id));
+            g.Links.RemoveAll(l => returns.Contains(l.ToNodeId));
+        }
+        fixture.CompileAndLoad(asset, OptionsWithEmptyEventCatalog());   // ⛔ threw BlueprintCompileException before
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.World.Bus.Publish(new WhenTestHitEvent { Damage = 10f });
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, entity, "WasFired"));
+    }
+
     // ======================== EventFired Tests ========================
 
     [Fact]

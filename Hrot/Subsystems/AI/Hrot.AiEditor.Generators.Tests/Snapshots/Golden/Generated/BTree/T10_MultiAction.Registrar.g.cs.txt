@@ -29,7 +29,7 @@ public static class T10_MultiActionRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = T10_MultiAction.Build();
@@ -39,49 +39,50 @@ public static class T10_MultiActionRegistrar
         // S1-3: baked-offset action thunks for managed blackboard.
         // Key = {MethodFqn}@{offset} — matches blob key from topology emit.
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter@0",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum@8",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum(ref dto, ref st, ref ctx);
                 }
             });
 
         // S1-3: baked-offset condition thunks for managed blackboard.
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold@0",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold(ref dto, ref st, ref ctx);
                 }
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
-            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
             {
-                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>("{\"Counter\":0,\"Threshold\":1000}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
@@ -90,6 +91,12 @@ public static class T10_MultiActionRegistrar
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams>("{\"Sum\":0,\"Step\":7}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __v);
                 }
+            }
+            __bakeDefaults = __BakeDefaults;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
 
                 // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
                 // variable's deserializer (DEBT-AIB-021 names this shape).
@@ -136,7 +143,10 @@ public static class T10_MultiActionRegistrar
                 new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 0),
                 new("accum", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams), 8),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T10_MultiAction_Block),
             ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
         });
     }
 }

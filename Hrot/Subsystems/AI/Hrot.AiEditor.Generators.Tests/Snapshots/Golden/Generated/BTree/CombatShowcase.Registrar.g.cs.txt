@@ -20,14 +20,19 @@ public static class CombatShowcaseRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = CombatShowcase.Build();
 
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
+
+        // E6 — this asset hosts a sub-tree: plan its sites, then bind after Register.
+        var __hosted = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(
+            blob, "CombatShowcase", new global::System.Guid("aaaaaaaa-0000-0000-0000-000000000001"));
+        interpreter.SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;
 
         // 4. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("CombatShowcase"), "CombatShowcase", new BehaviorDefinition
@@ -35,6 +40,11 @@ public static class CombatShowcaseRegistrar
             Name         = "CombatShowcase",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            StatefulWorkingSlots = __hosted.Slots,
         });
+
+        // E6 — bind AFTER Register: HostedChildren resolves the CHILD through the
+        //      registry, and registrars run in an arbitrary order.
+        global::Fdp.Toolkit.Behavior.BTreeHostedSites.Bind(beh, blob, __hosted);
     }
 }

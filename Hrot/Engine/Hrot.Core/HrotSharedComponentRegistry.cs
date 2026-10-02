@@ -38,11 +38,11 @@ public static class HrotSharedComponentRegistry
     {
         // ── Network replication components ────────────────────────────────────
         world.RegisterComponent<NetworkIdentity>();
-        world.RegisterComponent<NetworkOwnership>();
-        world.RegisterComponent<NetworkAuthority>();
+        world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
+        world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();
 
@@ -52,6 +52,24 @@ public static class HrotSharedComponentRegistry
 
         // ── Hierarchical entity linking (personal routes, sub-entities) ──────
         world.RegisterComponent<PartMetadata>();
+        // ⭐ CE-485: the brain-local owner stamp of a part (an EQS sensor) — every host that can create one.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+
+        // ── Terrain / zone loading ────────────────────────────────────────────
+        // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
+        //   TkbLoadClusterStateHandler. A host that loads nothing still stamps the marker (a node with
+        //   nothing to do is satisfied immediately, not left unset) — if a non-building node left it
+        //   unset, its map would read "not loaded" forever.
+        // ⛔ Node-local: [DataPolicy(NoScenario | NoReplay)], never replicated. See the type's own notes.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainAssetLoadState>();
+
+        // ⚠⚠ THIS REGISTRATION IS LOAD-BEARING, NOT BOOKKEEPING. [DataPolicy] on a MANAGED type is
+        //    applied by RegisterManagedComponent and by nothing else — SetSingletonManaged
+        //    auto-registers through ManagedComponentType<T>.ID, which does not read the attribute and
+        //    leaves the registry defaults (recordable = saveable = TRUE). ⇒ remove this line and the
+        //    parsed terrain definition starts being written into flight recordings, silently, despite
+        //    carrying NoReplay. Pinned by SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy.
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();
@@ -63,6 +81,7 @@ public static class HrotSharedComponentRegistry
         // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
         world.RegisterManagedComponent<DescriptorOwnership>();
         world.RegisterManagedComponent<PendingAuthorityGrants>();
+        world.RegisterManagedComponent<NetworkAckPeerSet>();   // CE-283: reliable-init barrier peer set
 
         // ── Lifecycle events (network entity construction / destruction) ──────
         world.RegisterEvent<ConstructionOrder>();
@@ -88,11 +107,88 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>();   // CE-276
         world.RegisterEvent<SwitchTimeModeEvent>();
         world.RegisterEvent<TimeSyncRequest>();
         world.RegisterEvent<TimeSyncResponse>();
         world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Replication.Components.DescriptorAuthorityChanged>();
         world.RegisterManagedEvent<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
+
+        // ── Ownership handover bus contract ───────────────────────────────────
+        // ⭐⭐⭐ ADDED 2026-09-04 after a MEASURED live cluster failure: a `--mode all` run loaded
+        //    hill-attack (8 entities, OperatingLive), ran 50 s of sim time, and NOTHING MOVED.
+        //    The run log carried, on every frame:
+        //      "Strict Mode Violation: Unmanaged event type 'OwnershipUpdate' (ID: 9030) was
+        //       published without being explicitly registered."
+        //      at DeferredTakeoverSystem.ExecuteTakeover(...) DeferredTakeoverSystem.cs:125
+        //
+        // 📐 THE DAMAGE IS WORSE THAN A DROPPED EVENT, because the throw lands MID-METHOD:
+        //      2a  SetAuthority(entity, componentId, true)        ✅ applied
+        //      2b  Bus.Publish(new OwnershipUpdate{...})          🔴 THROWS  (:125)
+        //      3   SetManagedComponent(entity, ownership)         ⛔ never runs
+        //      4   RemoveManagedComponent<PendingAuthorityGrants> ⛔ never runs
+        //    ⇒ the Muscle claims raw authority bits but never records DescriptorOwnership, the
+        //    transient grant is never stripped so the system retries forever, and the Brain never
+        //    receives the yield so it never drops ITS bits. Measured on the live cluster: entity
+        //    1000 read HasAuthority=true/PrimaryOwnerId=400 on CGF and PrimaryOwnerId=-1 on
+        //    SimHost — the Muscle that integrates kinematics had no ownership, so nothing moved.
+        // 📄 docs/HROT architecture.md §444, §508-512 describe this handshake in five steps and
+        //    name step 5 "Symmetrical Yield ... publishes an OwnershipUpdate ... the Brain's
+        //    OwnershipIngressSystem ... drops its local authority bits". Step 5 never ran in
+        //    production. Searched docs/ and .dev/ for a record that the handover is deliberately
+        //    disabled — none found; user confirmed 2026-09-04 that it is not.
+        //
+        // ⚠⚠ THE LINE DIRECTLY ABOVE IS NOT THIS ONE — and that near-miss is why this was invisible.
+        //    There are TWO distinct types named DescriptorAuthorityChanged:
+        //      · Replication.Components.DescriptorAuthorityChanged  EventId 9010  — registered above,
+        //        and no production code publishes it;
+        //      · Replication.Messages.DescriptorAuthorityChanged    EventId 9031  — published by
+        //        OwnershipIngressSystem:87, and registered NOWHERE until now.
+        //    ⛔ The Components one is deliberately LEFT REGISTERED rather than deleted: it is
+        //    registered-and-unpublished, which is dormant, not harmful, and "unreferenced is not
+        //    unintentional" — removing it is a separate call with its own evidence.
+        //
+        // ⭐ Home chosen to match CE-161's fix exactly: the registration goes on the ONE Hrot-wide
+        //    path all four node bootstrappers already call, not into four host registries where it
+        //    would be four fresh chances to forget. Both publishers (DeferredTakeoverSystem and
+        //    OwnershipEgressSystem) and the consumer (OwnershipIngressSystem) are thereby served on
+        //    every node, which is what R-138's "nodes should be equal" requires.
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.OwnershipUpdate>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
+
+        // ── Blueprint blackboard tiers ────────────────────────────────────────
+        // ⭐⭐⭐ ADDED 2026-09-03 after a MEASURED production crash: a `--mode all` cluster aborted on
+        //    its first live scenario load with
+        //      "Component BlueprintBlackboard1024 is not registered"
+        //    from BehaviorIngressSystem.ProvisionStatefulSlots, on CGF.
+        //
+        // 📐 BehaviorIngressSystem provisions these tiers and MissionControlModule schedules it, but the
+        //    only code that REGISTERED them was Hrot.Blueprints.Editor's BlueprintRuntimeWiring, whose
+        //    sole production caller is the Editor. ⇒ CGF scheduled the system and never registered its
+        //    precondition. Three of the four node bootstrappers were missing it.
+        //
+        // ⭐ The tier LIST lives with the tier TYPES (Fdp.Toolkits, the same assembly as the system that
+        //    needs them); this registry is the one Hrot-wide call site, so no node can be missing it.
+        //    ⛔ Deliberately NOT a line added to CgfComponentRegistry — that would be a fourth chance to
+        //    forget, which is exactly how this arose.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3b.
+        Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
+
+        // ── Squad cognitive state (O1, 2026-09-20) ────────────────────────────
+        // ⭐⭐ REGISTERED HERE FOR THE SAME REASON THE TIERS ARE (CE-161): UnitHierarchySystem now
+        //    ADDS this component when an entity becomes a commander, and that system runs on every
+        //    node. A per-host registration would be a per-host chance to forget — which is exactly
+        //    how CE-161's "Component BlueprintBlackboard1024 is not registered" crash on CGF arose.
+        // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
+        //    materialise on an entity that actually becomes a commander.
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+
+        // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────
+        // ⭐ The entity-fact half of the BrainBlackboard split. Registered on the same Hrot-wide path
+        //   as the tiers and the squad state, for the same CE-161 reason: BehaviorTkbTranslator adds
+        //   it on every node that spawns a brain entity, so a per-host registration would be a
+        //   per-host chance to forget.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainInterrupts>();
     }
 }

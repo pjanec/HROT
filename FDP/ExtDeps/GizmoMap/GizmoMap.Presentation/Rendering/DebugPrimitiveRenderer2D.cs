@@ -342,7 +342,7 @@ namespace GizmoMap.Presentation
                     {
                         // Already outside camera space (outer guard called EndMode2D):
                         // TextX/TextY are screen pixels — draw at the requested pixel size.
-                        float offsetY = (short)prim.AnchorGeneration;
+                        float offsetY = prim.LineOffsetPx;   // S6 -- the alias, no cast
                         Raylib.DrawTextEx(font, str, new Vector2(prim.TextX, prim.TextY + offsetY), px, 1f, color);
                     }
                     else
@@ -357,7 +357,7 @@ namespace GizmoMap.Presentation
                         float camZoom = camera.Zoom > 0f ? camera.Zoom : (zoom > 0f ? zoom : 1f);
                         float invZoom = 1f / camZoom;
                         // Screen-pixel line offset (signed) converted to world units so it stays constant on screen.
-                        float offsetY = (short)prim.AnchorGeneration * invZoom;
+                        float offsetY = prim.LineOffsetPx * invZoom;   // S6 -- the alias, no cast
                         Raylib.DrawTextEx(
                             font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
                             px * invZoom, 1f * invZoom, color);

@@ -69,6 +69,58 @@ public sealed class TheRowSamplesOnThePulseTests
         Assert.Equal(1, src.ObjectReads);
     }
 
+    // ══ Batch 97 (97d) — the SECOND clock ════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R-76</c>'s BINDING clock: a selection change re-samples, WITH THE PULSE STOPPED.</b>
+    ///
+    /// <para>🔴 Before <c>97d</c> the sampler had ONE clock, so under a breakpoint — where the pulse
+    /// never moves — selecting another entity re-evaluated <b>nothing</b>. 📌 The user: <i>"the watch
+    /// row must update (accessor evaluated) even if time currently stopped."</i></para>
+    /// </summary>
+    [Fact]
+    public void ASelectionChangeReSamplesEvenThoughThePulseHasNotMoved()
+    {
+        var src     = new CountingRow();
+        var sampler = new VariableRowSampler();
+        var rows    = new[] { src.Row() };
+
+        sampler.Sample(rows, VariableRunState.Paused);
+        Assert.Equal(1, src.ObjectReads);
+
+        sampler.Sample(rows, VariableRunState.Paused);
+        Assert.Equal(1, src.ObjectReads);                     // ⭐ still one — rule 2 holds
+
+        EntityBindingFrame.Advance();                          // ⭐⭐ the designer picks another entity
+
+        src.Value = 99;
+        var afterRebind = sampler.Sample(rows, VariableRunState.Paused);
+
+        Assert.Equal(2, src.ObjectReads);
+        Assert.Equal(99, ReadI32(afterRebind[0]));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>…and it does NOT fire on a mere repaint.</b> ⛔ 📌 <c>R-76</c>: <i>"re-resolving the
+    /// binding per tick would churn the row's identity under the cursor."</i> ⚠ Without this, the
+    /// binding clock would silently become "sample every frame" and undo <c>94c</c>.
+    /// </summary>
+    [Fact]
+    public void TheBindingClockDoesNotFireOnARepaint()
+    {
+        var src     = new CountingRow();
+        var sampler = new VariableRowSampler();
+        var rows    = new[] { src.Row() };
+
+        EntityBindingFrame.Advance();
+        sampler.Sample(rows, VariableRunState.Paused);
+        int afterFirst = src.ObjectReads;
+
+        for (int i = 0; i < 5; i++) sampler.Sample(rows, VariableRunState.Paused);
+
+        Assert.Equal(afterFirst, src.ObjectReads);
+    }
+
     /// <summary>⭐⭐ …and when the pulse MOVES, exactly one more sample is taken.</summary>
     [Fact]
     public void MovingThePulseTakesExactlyOneMoreSample()

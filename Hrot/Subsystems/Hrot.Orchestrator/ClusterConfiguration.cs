@@ -26,7 +26,12 @@ public sealed class ClusterConfiguration
     /// files from nodes.  Must differ from each node's <c>LocalTempRoot</c> to
     /// prevent source == destination errors.  Default is for single-machine dev use only.
     /// </summary>
-    public string NasBasePath { get; init; } = Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot(), "shared");
+    /// <remarks>
+    /// ⭐ The default routes through <c>OrchestrationConstants.GetSharedRoot()</c> so the literal
+    /// <c>"shared"</c> has ONE definition — <c>Hrot.CGF</c> cannot reference this assembly and resolves
+    /// the same root from <c>Fdp.Toolkits</c>. 📄 <c>SharedDirectoryName</c>'s remarks carry the measurement.
+    /// </remarks>
+    public string NasBasePath { get; init; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot();
 
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     public static ClusterConfiguration Default { get; } = new();

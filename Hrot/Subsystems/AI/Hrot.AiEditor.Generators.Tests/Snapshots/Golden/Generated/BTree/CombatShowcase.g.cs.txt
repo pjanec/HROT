@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class CombatShowcase
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .ObserverSelector(obs =>
             {
                 obs.Sequence(seq =>

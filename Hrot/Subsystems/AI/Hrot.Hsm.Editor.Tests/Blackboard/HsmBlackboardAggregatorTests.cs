@@ -27,7 +27,7 @@ public sealed class HsmBlackboardAggregatorTests
 
         public void Add(string fqn, Type dtoType) =>
             _entries[fqn] = new ActionSchemaEntry(
-                fqn, dtoType, ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+                fqn, dtoType, ActionHosting.Hsm, BlackboardAccess.ReadWrite);
 
         public IReadOnlyDictionary<string, ActionSchemaEntry> All => _entries;
         public ActionSchemaEntry? Lookup(string fqn) => _entries.TryGetValue(fqn, out var e) ? e : null;

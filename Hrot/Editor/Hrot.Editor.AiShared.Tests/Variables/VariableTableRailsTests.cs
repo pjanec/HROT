@@ -221,7 +221,18 @@ public sealed class VariableTableRailsTests
         model.Build();
 
         cellA1.Bytes = I32(7); cellA1.Tick = 1;
-        model.Monitor.MarkPending(b1.Origin);
+
+        // ⭐⭐⭐ W4 — pending now comes from the SHARED staged set, not from a flag on the monitor.
+        //    📄 DESIGN_Staged_Live_Write.md §4 fork A. ⛔ MarkPending/ClearPending were DELETED (R-13);
+        //    this rail's claim is unchanged — a collapsed header inherits its children's state — but it
+        //    now makes it through the mechanism production uses.
+        // ⚠ a1 and b1 share an ENTITY and differ by ASSET, so the fake address must discriminate on the
+        //   origin — see FakeStagedWriteView.AddressOf. ⛔ A constant address would yellow both rows and
+        //   the rail would assert nothing.
+        var staged = new FakeStagedWrites();
+        staged.Stage(b1.Origin, b1.Origin.Entity, I32(9));
+        model.StagedWrites = FakeStagedWriteView.Over(staged, () => null);
+
         var view = model.Build();
 
         var alpha = view.Groups.Single(g => g.Header == "Alpha");
@@ -365,7 +376,11 @@ public sealed class VariableTableRailsTests
         var model = Model(new[] { row });
         model.Build();
 
-        model.Monitor.MarkPending(row.Origin);
+        // ⭐⭐⭐ W4 — through the SHARED staged set, which is now the only source of yellow (§4 fork A).
+        var staged = new FakeStagedWrites();
+        model.StagedWrites = FakeStagedWriteView.Over(staged, () => null);
+        staged.Stage(row.Origin, row.Origin.Entity, I32(42));
+
         var pendingOnly = model.Build().HighlightOf(row);
         Assert.True (pendingOnly.Pending);
         Assert.False(pendingOnly.Changed);
@@ -373,9 +388,15 @@ public sealed class VariableTableRailsTests
         cell.Bytes = I32(2); cell.Tick = 1;
         var both = model.Build().HighlightOf(row);
         Assert.True(both.Pending);
-        Assert.True(both.Changed);                       // ⭐ both at once is representable
+        // ⭐⭐ BOTH AT ONCE IS STILL REPRESENTABLE, and W4 did not change that. ⚠ 📄 §1's "never red and
+        //    yellow for the SAME CAUSE" is honoured upstream — the monitor observes the SAMPLED bytes,
+        //    so the designer's own staged edit can never be what sets `Changed`. ⛔ "The sim moved this
+        //    while my edit was still staged" is a different fact and must stay expressible.
+        Assert.True(both.Changed);
 
-        model.Monitor.ClearPending(row.Origin);
+        // ⭐⭐⭐ THE AUTO-CLEAR — 📌 the whole reason fork A won: nothing calls a `ClearPending`; the
+        //    mutation simply leaves the queue when the tick drains it, and the yellow goes with it.
+        staged.DrainInto(null!);
         Assert.False(model.Build().HighlightOf(row).Pending);
     }
 

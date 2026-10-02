@@ -77,6 +77,15 @@ public interface IExConLogic
     void StartAreaAuthoringMode(string styleOverrideJson = "");
 
     /// <summary>
+    /// ⭐⭐ <c>E5</c> — activates TERRAIN-ZONE authoring on the map host. Same
+    /// <c>CMD_START_AUTHORING</c> command as <see cref="StartAreaAuthoringMode"/>, carrying the zone
+    /// <c>tkbType</c> so the host's shared area arm births a <c>TerrainZone</c> (<c>B1</c>).
+    /// 🔒 The <c>U6</c> ruling: *"nothing of it should be IG host only."*
+    /// </summary>
+    /// <param name="styleOverrideJson">Optional overlay style JSON; empty uses the host default.</param>
+    void StartZoneAuthoringMode(string styleOverrideJson = "");
+
+    /// <summary>
     /// Activates the polyline route authoring tool. The operator draws a shared
     /// <c>TacGraphic_Route</c> entity by clicking waypoints on the map canvas.
     /// </summary>
@@ -103,7 +112,23 @@ public interface IExConLogic
     /// Applies a local selection optimistically and publishes
     /// <c>MapCommandRequest(CMD_SET_SELECTION, {"entityId": id})</c> to the IG.
     /// </summary>
+    /// <remarks>⭐ Q73 §8 — <paramref name="entityId"/> <c>0</c> CLEARS the selection, on the IG map too
+    /// (a <c>CMD_SET_SELECTION</c> with no id means clear).</remarks>
     void SendSetSelection(int entityId);
+
+    /// <summary>
+    /// ⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — the network id ExCon currently has selected.</b> The read half
+    /// of this host's selection seam; <see cref="SendSetSelection"/> is the write half.
+    ///
+    /// <para>📐 The property already existed on the implementation and only the WRITE half was on this
+    /// interface, which is why a panel could ask ExCon to change the selection but not to report it.
+    /// ⇒ every surface kept its own idea of what was selected — 🔒 exactly what ruling ① retires
+    /// (<i>"inspector selection changes global entity selection state … every host"</i>).</para>
+    ///
+    /// <para>⚠ ExCon has NO ECS world, so this is a network id rather than an <c>Entity</c>, and the
+    /// selection it names lives on the remote map. 📄 <c>UX_Feature_Selection.md</c> §2.7.13.</para>
+    /// </summary>
+    int SelectedEntityId { get; }
 
     /// <summary>
     /// Publishes <c>MapCommandRequest(CMD_SET_VIEW, {"entityId": id})</c>

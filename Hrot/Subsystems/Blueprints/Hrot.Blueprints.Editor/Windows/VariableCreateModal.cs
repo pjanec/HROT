@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Editor.AiShared.Variables;   // 99a — the shared properties form
 using ImGuiNET;
 
 namespace Hrot.Blueprints.Editor.Windows;
@@ -58,6 +59,15 @@ public sealed class VariableCreateModal
     private readonly BlueprintAsset? _asset;
     private readonly string          _title;
     private readonly string          _defaultName;
+
+    /// <summary>⭐ 99a — what a CREATE gesture can author. ⛔ Not <c>VariablePropertySchema.For(...)</c>:
+    /// that names what a DECLARATION carries, and a create dialog authors neither a comment nor a
+    /// category. ⚠ The container fields below are create-only and are drawn by this class.</summary>
+    private static readonly VariableProperty[] CreateFields =
+        { VariableProperty.Name, VariableProperty.Type };
+
+    /// <summary>⭐ 99a — the shared form's backing store, so Name/Type have ONE implementation.</summary>
+    private readonly VariablePropertyState _form = new();
 
     private bool   _openRequested;
     private string _name;
@@ -131,26 +141,24 @@ public sealed class VariableCreateModal
         if (!ImGui.BeginPopupModal(_popupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
             return;
 
-        ImGui.TextUnformatted("Name");
-        ImGui.SetNextItemWidth(220f);
-        ImGui.InputText("##bp_var_name", ref _name, 128);
-
-        ImGui.TextUnformatted("Type");
-        ImGui.SetNextItemWidth(220f);
+        // ⭐⭐⭐ Batch 99 (99a) — RULING 9 AT THE RIGHT LEVEL: create and edit-properties draw the SAME
+        //    form. 📌 The steer: "factor VariableCreateModal's body into a reusable properties form,
+        //    and let both the create gesture and 'Properties…' drive it" — ⛔ not two dialogs that each
+        //    know how to draw a type combo over SelectableTypeIds.
+        // ⭐ Only Name and Type move: Container/Capacity/Initial Length below are CREATE-ONLY (a
+        //   declaration's container is fixed once it exists), and VariablePropertySchema does not name
+        //   them — which is exactly why the schema is the filter rather than a hand-kept list.
         var typeIds = BlueprintTypeSystem.SelectableTypeIds;
-        var typeId  = typeIds[Math.Clamp(_typeIndex, 0, typeIds.Count - 1)];
-        if (ImGui.BeginCombo("##bp_var_type", ShortName(typeId)))
-        {
-            for (int i = 0; i < typeIds.Count; i++)
-            {
-                bool selected = i == _typeIndex;
-                if (ImGui.Selectable(ShortName(typeIds[i]), selected))
-                    _typeIndex = i;
-                if (selected)
-                    ImGui.SetItemDefaultFocus();
-            }
-            ImGui.EndCombo();
-        }
+        _form.Name   = _name;
+        _form.TypeId = typeIds[Math.Clamp(_typeIndex, 0, typeIds.Count - 1)];
+
+        VariablePropertyFields.Draw(
+            CreateFields, _form, "bp_var",
+            typeIds, ShortName, enabled: true, typeDisabledReason: null);
+
+        _name = _form.Name;
+        _typeIndex = IndexOfType(typeIds, _form.TypeId);
+        var typeId = _form.TypeId;
 
         // FC-2/LV-4: Container — Single (scalar) or List (fixed-capacity). The discriminator
         // written to the asset is BlueprintTypeRef.Capacity (never IsArray — F7).
@@ -218,6 +226,15 @@ public sealed class VariableCreateModal
             ImGui.CloseCurrentPopup();
 
         ImGui.EndPopup();
+    }
+
+    /// <summary>⭐ The form edits a type ID; this class has always tracked an INDEX. ⚠ An unknown id
+    /// keeps index 0 rather than throwing — the combo can only offer ids from the list it was given.</summary>
+    private static int IndexOfType(IReadOnlyList<string> typeIds, string typeId)
+    {
+        for (int i = 0; i < typeIds.Count; i++)
+            if (string.Equals(typeIds[i], typeId, StringComparison.Ordinal)) return i;
+        return 0;
     }
 
     private static string ShortName(string typeId)

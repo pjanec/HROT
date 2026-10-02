@@ -14,7 +14,12 @@ using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.AI.Behaviors.Gizmos
 {
-    [GizmoProjector(typeof(BrainBlackboard), typeof(BehaviorState), typeof(SimTransform))]
+    // ⭐ P4-③ (CE-303): gated on BehaviorState + SimTransform. ⛔ BrainBlackboard was dropped from
+    //   the gate, NOT swapped for a tier component: a tier component means "this entity has SOME
+    //   occurrence storage", which is not a proxy for "this entity has a brain" — and the Draw body
+    //   already refuses on a root-slot miss. ⚠ Gating on a tier would also pin the gizmo to whichever
+    //   tier the entity happens to land on, which the allocator may promote at any time.
+    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform))]
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).
@@ -34,13 +39,14 @@ namespace Hrot.AI.Behaviors.Gizmos
             if (bs.ActiveBehaviorHash != PlatoonHillAttack_BT)
                 return;
 
-            ref readonly var bb = ref view.GetComponentRO<BrainBlackboard>(entity);
+            // P3-C: the behaviour's params live in its ROOT PARAMS OCCURRENCE SLOT now, not in a
+            // BrainBlackboard component. ⚠ The VIEW form, because a gizmo may be drawing a snapshot.
+            // ⛔ A miss draws NOTHING rather than a line through the origin — the old read could not
+            //    fail, so silently projecting zeros would put a 0,0 firing line on the map.
+            if (!RootParamsAccess.TryGetRootBytesInView(view, entity, out byte* mem))
+                return;
 
-            // Project the first bytes of the blackboard parameters as PlatoonHillAttackParams.
-            PlatoonHillAttackParams p;
-            ref var bbMut = ref Unsafe.AsRef(in bb);
-            fixed (byte* mem = &bbMut.BehaviorParameters[0])
-                p = *(PlatoonHillAttackParams*)mem;
+            var p = *(PlatoonHillAttackParams*)mem;
 
             var fireStart = new Vector3(p.StartX,         p.StartY,         0f);
             var fireEnd   = new Vector3(p.EndX,           p.EndY,           0f);

@@ -11,21 +11,27 @@ using Fdp.Toolkit.Physics.Math;
 namespace Fdp.Toolkit.Physics.Systems
 {
     /// <summary>
-    /// Background-capable system that resolves all pending <see cref="RaycastRequestEvent"/>s
-    /// using a broad-phase spatial-hash query followed by per-entity
-    /// <see cref="Intersection2D.RaycastCircle"/> narrow-phase checks.
+    /// Background-capable system that resolves all pending <see cref="RaycastRequestEvent"/>s.
     ///
-    /// <para><b>Execution model:</b> reads <see cref="RaycastRequestEvent"/>s accumulated in
-    /// the <see cref="FdpEventBus"/> (from the previous frame, via
-    /// <see cref="ISimulationView.ReadEvents{T}"/>), resolves each cast, then publishes one
+    /// <para><b>Default mode (spatial-hash):</b> broad-phase spatial-hash query followed by
+    /// per-entity <see cref="Intersection2D.RaycastCircle"/> narrow-phase checks.
+    /// Reads <see cref="RaycastRequestEvent"/>s, resolves each cast, publishes one
     /// <see cref="RaycastResultEvent"/> per request via
     /// <see cref="IEntityCommandBuffer.PublishEvent{T}"/>.
     /// <see cref="RaycastResultMaterializationSystem"/> (main thread) writes the results into
     /// the <see cref="RaycastBatchData"/> ring buffer so BTree consumers can poll them.</para>
     ///
-    /// <para><b>Parallelism:</b> The narrow-phase loop uses <see cref="Parallel.For"/> so that
-    /// each ray is resolved independently. Results are collected into a temporary array and then
-    /// published serially after the parallel loop to keep cmd-buffer access on one thread.</para>
+    /// <para><b>Backend override (STR-P3-T3):</b> When <see cref="RaycastBackend"/> is set
+    /// (e.g. to the Stride/Bullet adapter <c>StrideRaycastBackend</c> in
+    /// <c>Hrot.Stride.Core</c>), every ray is resolved via that backend instead.
+    /// The spatial-hash path is bypassed entirely.  This allows the Stride node to use real
+    /// 3-D scene-geometry raycasts (walls, ramps, obstacles) without changing the event
+    /// plumbing.  <c>Fdp.Toolkits</c> never references <c>Hrot.Stride.Core</c>; the
+    /// dependency goes the other way via the <see cref="IRaycastBackend"/> seam.</para>
+    ///
+    /// <para><b>Parallelism:</b> The narrow-phase loop uses <see cref="Parallel.For"/> in
+    /// spatial-hash mode.  Backend mode runs serially (backends are single-threaded by the
+    /// host-thread invariant, design §8.3).</para>
     ///
     /// <para><b>Thread safety of <c>World.GetComponent&lt;T&gt;</c> inside Parallel.For:</b>
     /// <see cref="EntityRepository"/> states that component access is not formally thread-safe.
@@ -38,6 +44,19 @@ namespace Fdp.Toolkit.Physics.Systems
     [UpdateInPhase(SystemPhase.Input)]
     public class RaycastSolverSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// Optional 3-D raycast backend (STR-P3-T3).
+        ///
+        /// <para>
+        /// When non-null, every <see cref="RaycastRequestEvent"/> is resolved via this
+        /// backend instead of the default flat spatial-hash + circle-sweep path.
+        /// Set by the Stride node after the <c>PhysicsProcessor</c> is running.
+        /// Leave null on non-Stride nodes (SimHost, headless tests) — they continue to
+        /// use the spatial-hash approximation.
+        /// </para>
+        /// </summary>
+        public IRaycastBackend? RaycastBackend { get; set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -47,6 +66,35 @@ namespace Fdp.Toolkit.Physics.Systems
 
             var requests = view.ReadEvents<RaycastRequestEvent>();
             if (requests.IsEmpty) return;
+
+            // ── Backend override path (STR-P3-T3) ─────────────────────────────────
+            // When a 3-D raycast backend is registered, delegate every request to it
+            // and bypass the spatial-hash path entirely.
+            if (RaycastBackend != null)
+            {
+                var backendCmd = view.GetCommandBuffer();
+                for (int i = 0; i < requests.Length; i++)
+                {
+                    ref readonly var req = ref requests[i];
+                    var hit = RaycastBackend.Raycast(
+                        start:          req.Start,
+                        end:            req.End,
+                        rayId:          req.RayId,
+                        layerMask:      req.LayerMask,
+                        ignoreEntity:   req.IgnoreEntity,
+                        observerEntity: req.Observer,
+                        targetEntity:   req.Target);
+                    // Echo the request fields that HitResolutionSystem needs.
+                    hit.Start        = req.Start;
+                    hit.End          = req.End;
+                    hit.IgnoreEntity = req.IgnoreEntity;
+                    hit.Observer     = req.Observer;
+                    hit.Target       = req.Target;
+                    hit.SourceNodeId = req.SourceNodeId;
+                    backendCmd.PublishEvent(new RaycastResultEvent { Hit = hit });
+                }
+                return;
+            }
 
             if (!repo.HasSingleton<SpatialGridData>()) return;
             // Value-copy of the SpatialGridData struct — carries native pointers to grid arrays.

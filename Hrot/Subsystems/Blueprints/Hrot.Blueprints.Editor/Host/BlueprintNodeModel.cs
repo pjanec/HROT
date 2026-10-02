@@ -299,8 +299,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         // Slice 2a-3: GetShared/SetShared — VariableId is a raw manifest-provisioned slot name
         // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed. The slot
         // name is bracketed into the title for fast identification (also shown on the collapsed Value pin).
-        Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => string.IsNullOrEmpty(gsn.VariableId) ? "Get Shared" : $"Get Shared [{gsn.VariableId}]",
-        Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => string.IsNullOrEmpty(ssn.VariableId) ? "Set Shared" : $"Set Shared [{ssn.VariableId}]",
         // CA-02: bracket the short component type name, mirroring Make/Break/SetMembers's
         // "[ShortTypeName]" convention -- the component identity is the interesting bit, not the
         // generic "GetComponentNode" class name.
@@ -333,6 +331,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         // BlueprintGraphModel), so the title stays clean/uncluttered.
         Hrot.Blueprints.Core.Assets.GetParameterNode      => "Get Parameter",
         Hrot.Blueprints.Core.Assets.GetAllParametersNode  => "Get All Parameters",
+        Hrot.Blueprints.Core.Assets.GetAllVariablesNode   => "Get All Variables",
+        Hrot.Blueprints.Core.Assets.SetVariablesNode      => "Set Variables",
         // Inline-editable Literals show their value in the body editor, so the title stays the type
         // ("Literal (Int32)"). Rarer types (no inline editor) keep the value in the title.
         Hrot.Blueprints.Core.Assets.LiteralNode lt        => LiteralValueJson.HasInlineEditor(lt.TypeId)
@@ -342,6 +342,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
+        Hrot.Blueprints.Core.Assets.SendIntentNode si     => string.IsNullOrEmpty(si.IntentId) ? "Send Intent" : $"Send Intent: {si.IntentId}",
+        Hrot.Blueprints.Core.Assets.ToJsonNode tj         => string.IsNullOrEmpty(tj.DtoTypeFqn) ? "To JSON"   : $"To JSON [{ShortTypeName(tj.DtoTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.FromJsonNode fj       => string.IsNullOrEmpty(fj.DtoTypeFqn) ? "From JSON" : $"From JSON [{ShortTypeName(fj.DtoTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.GetTimeNode gtn       => gtn.Kind == Hrot.Blueprints.Core.Assets.TimeKind.DeltaTime ? "Get Delta Time" : "Get Sim Time",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => string.IsNullOrEmpty(cp.FunctionRef)
             ? "Call Peer"
@@ -381,8 +385,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.EventEntryNode           => NodeCategory.Event,
         Hrot.Blueprints.Core.Assets.GetVariableNode          => NodeCategory.VariableGet,
         Hrot.Blueprints.Core.Assets.SetVariableNode          => NodeCategory.VariableSet,
-        Hrot.Blueprints.Core.Assets.GetSharedNode            => NodeCategory.VariableGet,
-        Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         // CA-02: GetComponent is pure-data (no exec pins), the "get" analog of GetShared.
         Hrot.Blueprints.Core.Assets.GetComponentNode         => NodeCategory.VariableGet,
         // CA-04: SetComponent is an exec node, the "set" analog of SetShared.
@@ -402,10 +404,15 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.GetAllVariablesNode      => NodeCategory.VariableGet,
+        Hrot.Blueprints.Core.Assets.SetVariablesNode         => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.CompareNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BinaryOpNode             => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.NotNode                  => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.GetTimeNode              => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.ToJsonNode               => NodeCategory.Pure,   // CE-472
+        Hrot.Blueprints.Core.Assets.FromJsonNode             => NodeCategory.Pure,
         // Q#14 Option B struct-value nodes are pure data (construct/deconstruct/copy-modify).
         Hrot.Blueprints.Core.Assets.MakeStructNode           => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BreakStructNode          => NodeCategory.Pure,
@@ -565,6 +572,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Multiply => "*",
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Divide   => "/",
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Modulo   => "%",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitAnd     => "&",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitOr      => "|",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitXor     => "^",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.ShiftLeft  => "<<",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.ShiftRight => ">>",
         _                                                       => op.ToString(),
     };
 

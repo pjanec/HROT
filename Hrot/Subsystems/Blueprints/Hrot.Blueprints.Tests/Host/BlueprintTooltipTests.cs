@@ -40,7 +40,7 @@ public sealed class BlueprintTooltipTests
     [Theory]
     [InlineData("System.Numerics.Vector3", "Vector3")]
     [InlineData("System.Single", "Single")]
-    [InlineData("global::Hrot.AI.Behaviors.Brains.WaveState", "WaveState")]
+    [InlineData("global::Hrot.AI.Behaviors.Brains.HillAttackRunner", "HillAttackRunner")]
     [InlineData("Entity", "Entity")]
     public void ShortTypeName_StripsNamespaceAndGlobalSentinel(string typeId, string expected)
         => Assert.Equal(expected, TooltipText.ShortTypeName(typeId));
@@ -70,7 +70,7 @@ public sealed class BlueprintTooltipTests
     [Fact]
     public void FunctionCall_Tooltip_BuildsSignatureFromPins()
     {
-        var fc = new FunctionCallNode { MethodName = "TotalSlots", TargetTypeId = "Hrot.AI.Behaviors.Brains.SegmentMath", IsPure = true };
+        var fc = new FunctionCallNode { MethodName = "TotalSlots", TargetTypeId = "Demo.GridMath", IsPure = true };
         var pins = new IPinModel[]
         {
             DataPin("width",  "In",  "System.Single"),
@@ -81,7 +81,7 @@ public sealed class BlueprintTooltipTests
         Assert.NotNull(tip);
         Assert.Contains("Int32 TotalSlots(Single width, Single stride)", tip);
         // the CLR target FQN is surfaced for "which method is this?" clarity.
-        Assert.Contains("CLR method — Hrot.AI.Behaviors.Brains.SegmentMath", tip);
+        Assert.Contains("CLR method — Demo.GridMath", tip);
     }
 
     [Fact]

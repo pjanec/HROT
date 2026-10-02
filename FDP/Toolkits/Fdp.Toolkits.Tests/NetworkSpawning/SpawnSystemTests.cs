@@ -39,7 +39,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
@@ -171,7 +170,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         }
 
         [Fact]
-        public void Spawn_SetsNetworkOwnership_LocalNodeIdMatchesSystemConfig()
+        public void Spawn_SetsNetworkAuthority_LocalNodeIdMatchesSystemConfig()
         {
             var repo        = CreateWorld();
             var tkb         = CreateTkb();
@@ -189,9 +188,9 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             Assert.True(networkMap.TryGetEntity(10L, out var entity));
 
-            var ownership = repo.GetComponent<NetworkOwnership>(entity);
-            Assert.Equal(LocalNodeId, ownership.LocalNodeId);
-            Assert.Equal(3, ownership.PrimaryOwnerId);
+            var authority = repo.GetComponent<NetworkAuthority>(entity);
+            Assert.Equal(LocalNodeId, authority.LocalNodeId);
+            Assert.Equal(3, authority.PrimaryOwnerId);
             Assert.False(repo.HasAuthority<NetworkIdentity>(entity));
         }
 
@@ -218,7 +217,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             Assert.True(networkMap.TryGetEntity(11L, out var entity));
             Assert.True(repo.HasAuthority<NetworkIdentity>(entity));
-            Assert.True(repo.HasAuthority<NetworkOwnership>(entity));
             Assert.True(repo.HasAuthority<NetworkAuthority>(entity));
             Assert.True(repo.HasAuthority<TkbIdentity>(entity));
             Assert.True(repo.HasAuthority<TestPositionComponent>(entity));

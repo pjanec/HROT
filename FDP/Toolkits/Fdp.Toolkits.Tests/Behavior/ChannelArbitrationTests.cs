@@ -233,5 +233,225 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+
+        // ── CE-402 — a BLUEPRINT-issued channel command must CLAIM the channel ──────────────
+
+        /// <summary>
+        /// 🔴🔴 <b><c>CE402_R1</c> — a channel command issued by a REAL GENERATED BLUEPRINT survives
+        /// arbitration.</b> 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §0 ③, §6 ①.
+        ///
+        /// <para>⛔⛔ <b>The defect.</b> <c>ChannelCommandLowering</c> wrote <c>ActiveAction</c>, the
+        /// params and <c>ActionInstanceId++</c> — and never stamped <c>BehaviorInstanceId</c>. Every
+        /// other production channel writer stamps it explicitly (<c>CgfNodes</c>,
+        /// <c>HillAttackTankNodes</c>, <c>EqsCombatNodes</c>, <c>HsmChannelRegionNodes</c> — 11 sites);
+        /// the blueprint lowering was the only one that did not. ⇒ <c>Arbitration_ClearsStaleChannel</c>
+        /// above describes exactly what then happened to every blueprint channel command **on the very
+        /// next tick**: zeroed. Nothing ever moved.</para>
+        ///
+        /// <para>⭐⭐ <b>Why this rail drives a REAL generated blueprint</b> rather than hand-writing
+        /// the channel: the defect was in the EMITTER, so a fixture that writes the channel itself
+        /// cannot see it. <c>ChannelMoveAndWaitDemo</c> (formerly <c>HillAssault2ReverseToBaseline</c>, renamed by <c>CE-477</c>) is a shipped asset whose graph issues the
+        /// built-in <c>MoveTo</c> channel command, and its <c>TickCore</c> is the emitter's own output.</para>
+        ///
+        /// <para>✅ <b>Red-proof:</b> delete the <c>BehaviorInstanceId</c> stamp from
+        /// <c>ChannelCommandLowering.Emit</c> ⇒ the post-arbitration assertion reddens.</para>
+        /// </summary>
+        [Fact]
+        public void CE402_R1_ABlueprintIssuedChannelCommandSurvivesArbitration()
+        {
+            var world = TestWorldFactory.Create();
+            var e     = world.CreateEntity();
+
+            // ⭐ InstanceId 7 rather than 0/1: a stamp that only "works" because both sides are
+            //   zero would pass with the defect still present.
+            world.AddComponent(e, new BehaviorState { InstanceId = 7 });
+            world.AddComponent(e, new LocomotionChannel());
+
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
+            global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
+                .TickCore(ref p, ref ws, e, world, 0f);
+
+            var issued = world.GetComponent<LocomotionChannel>(e);
+            Assert.Equal((ushort)1, issued.ActiveAction);        // MoveTo — the blueprint issued it
+            Assert.Equal(7u,        issued.BehaviorInstanceId);  // ⭐ CE-402 — and CLAIMED it
+
+            new ChannelArbitrationSystem().Execute(world, 0.016f);
+
+            Assert.Equal((ushort)1, world.GetComponent<LocomotionChannel>(e).ActiveAction);
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE402_R2</c> — the NON-VACUITY half.</b> Same blueprint, same tick, but the
+        /// behaviour is preempted afterwards ⇒ arbitration MUST still clear it.
+        ///
+        /// <para>🔒 Without this, <c>R1</c> would also pass if <c>CE-402</c> had been "fixed" by
+        /// neutering arbitration (<c>D-C3</c>, the arm Q74 rejects as the cheapest-looking and worst).
+        /// ⭐ This pins that the claim is <b>scoped to one behaviour instance</b>, not a blanket
+        /// exemption.</para>
+        /// </summary>
+        [Fact]
+        public void CE402_R2_TheClaimIsScopedToOneBehaviourInstance_NotABlanketExemption()
+        {
+            var world = TestWorldFactory.Create();
+            var e     = world.CreateEntity();
+
+            world.AddComponent(e, new BehaviorState { InstanceId = 7 });
+            world.AddComponent(e, new LocomotionChannel());
+
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
+            global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
+                .TickCore(ref p, ref ws, e, world, 0f);
+
+            // The behaviour is preempted — a new instance takes over.
+            ref var behaviour = ref world.GetComponentRW<BehaviorState>(e);
+            behaviour.InstanceId = 8;
+
+            new ChannelArbitrationSystem().Execute(world, 0.016f);
+
+            Assert.Equal(0, world.GetComponent<LocomotionChannel>(e).ActiveAction);
+
+            world.Dispose();
+        }
+
+        // ── CE-405 — RE-ISSUING THE SAME COMMAND MUST NOT COUNT AS A NEW ONE ───────────────
+
+        /// <summary>
+        /// Drives the real generated <c>ChannelMoveAndWaitDemo_FF75553A_Bp</c> and replays
+        /// its entry block by resetting the working state's phase, which is what a blueprint on a
+        /// per-tick path does naturally. Returns the channel after <paramref name="ticks"/> issues.
+        /// </summary>
+        private static (uint actionInstanceId, int onEnterCalls) ReIssue(
+            int ticks, float baselineXPerTick = 0f, NodeStatus statusBetweenTicks = NodeStatus.Running)
+        {
+            var world = TestWorldFactory.Create();
+            var e     = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState { InstanceId = 7 });
+            world.AddComponent(e, new LocomotionChannel { Status = NodeStatus.Running });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+
+            var dispatcher = new LocomotionDispatcherSystem();
+            var spy = new WritingSpyExecutor<LocomotionChannel>();
+            dispatcher.RegisterExecutor(1, spy);   // MoveTo
+
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
+
+            for (int i = 0; i < ticks; i++)
+            {
+                ws.__phase = 0;                                  // replay the entry block
+                p.BaselineX += baselineXPerTick;                 // 0 => an IDENTICAL command
+                if (i > 0 && statusBetweenTicks != NodeStatus.Running)
+                {
+                    ref var pre = ref world.GetComponentRW<LocomotionChannel>(e);
+                    pre.Status = statusBetweenTicks;
+                }
+                global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
+                    .TickCore(ref p, ref ws, e, world, 0.016f);
+                dispatcher.Execute(world, 0.016f);
+            }
+
+            var ch = world.GetComponent<LocomotionChannel>(e);
+            world.Dispose();
+            return (ch.ActionInstanceId, spy.OnEnterCallCount);
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>CE405_R1</c> — re-issuing an IDENTICAL channel command does not advance
+        /// <c>ActionInstanceId</c>, so the executor is not re-entered.</b>
+        /// 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §9.7.
+        ///
+        /// <para>⛔⛔ <b>The defect.</b> <c>ChannelCommandLowering</c> bumped <c>ActionInstanceId</c>
+        /// unconditionally, every time the op ran. <c>LocomotionDispatcherSystem.cs:62</c> reads ANY
+        /// change in that id as <i>"a new action was dispatched"</i> and calls <c>OnExit</c> +
+        /// <c>OnEnter</c> — and for <c>MoveTo</c>, <c>OnEnter</c> RE-PLANS THE PATH. ⇒ a blueprint
+        /// issuing a channel command on a per-tick path re-planned every frame.</para>
+        ///
+        /// <para>⚠ <b>Why it was latent.</b> 📐 The one shipped blueprint that issues a channel
+        /// command gates it behind its own <c>ws.__phase</c> wait, so the op ran ONCE. This rail
+        /// resets the phase to replay the entry block — the shape an HSM activity blueprint has
+        /// naturally, and the shape the editor end-to-end fixtures will author.</para>
+        ///
+        /// <para>✅ <b>Red-proof:</b> make the emitted <c>ActionInstanceId++</c> unconditional again
+        /// ⇒ the id reaches 5 and <c>OnEnter</c> is called 5 times.</para>
+        /// </summary>
+        [Fact]
+        public void CE405_R1_ReIssuingTheSameCommand_DoesNotReEnterTheExecutor()
+        {
+            var (actionInstanceId, onEnterCalls) = ReIssue(ticks: 5);
+
+            Assert.Equal(1u, actionInstanceId);   // ⭐ one command, issued five times
+            Assert.Equal(1, onEnterCalls);        // ⭐ and the muscle was entered ONCE
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE405_R2</c> — the NON-VACUITY half: CHANGED PARAMS still re-enter.</b>
+        ///
+        /// <para>🔒 This is why the test is <i>action id + params bytes</i> and not <i>action id
+        /// alone</i>. <c>CgfNodes.cs:461-463</c> (Wander) re-enters DELIBERATELY on a fresh
+        /// destination — suppressing that would break re-planning, which is a worse defect than the
+        /// one being fixed. ⭐ Without this rail, <c>R1</c> would also pass if the emitter had simply
+        /// stopped bumping the id at all.</para>
+        /// </summary>
+        [Fact]
+        public void CE405_R2_ChangedParams_DoReEnterTheExecutor()
+        {
+            var (actionInstanceId, onEnterCalls) = ReIssue(ticks: 5, baselineXPerTick: 10f);
+
+            Assert.Equal(5u, actionInstanceId);   // a genuinely new destination each tick
+            Assert.Equal(5, onEnterCalls);        // ⇒ re-planned each tick, as intended
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE405_R3</c> — a FAILED channel is retried</b>, rather than left stuck behind its
+        /// own "nothing changed" test.
+        /// </summary>
+        [Fact]
+        public void CE405_R3_AFailedChannelIsReActivated_NotLeftStuck()
+        {
+            var (actionInstanceId, onEnterCalls) =
+                ReIssue(ticks: 2, statusBetweenTicks: NodeStatus.Failure);
+
+            Assert.Equal(2u, actionInstanceId);
+            Assert.Equal(2, onEnterCalls);
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>CE408_R1</c> — A COMPLETED COMMAND RE-ISSUED BY A PER-TICK ACTIVITY MUST NOT
+        /// RE-ENTER THE EXECUTOR.</b> 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §9.9.
+        ///
+        /// <para>⛔⛔ <b>This rail exists because the opposite was built first and shipped for one
+        /// commit.</b> <c>CE405_R4</c> asserted that a command whose <c>Status</c> had gone terminal
+        /// should re-activate — <i>"open that door twice is two opens"</i> — so the emitted guard was
+        /// <c>Status != Running</c>. 🔴 <b>The live run destroyed it.</b> An HSM activity blueprint
+        /// ticks every frame; <c>HsmFireActivity</c>'s <c>AimAndFire</c> completes immediately against
+        /// an invalid target, so every frame saw a terminal status and re-activated:
+        /// <c>ActionInstanceId</c> reached <b>266 in ~3 seconds</b>, i.e. 266 OnExit/OnEnter pairs on
+        /// a command nobody re-issued deliberately.</para>
+        ///
+        /// <para>⭐ <b>The channel cannot distinguish the two readings</b> — "the activity ticked
+        /// again" and "the author asked again" are identical from here. 📐 The evidence breaks the
+        /// tie: all 12 channel executors are STANDING ORDERS doing their work in <c>Execute</c>
+        /// (<c>AimAndFireExecutor.cs:61-76</c> fires once per cooldown per Running tick;
+        /// <c>OpenDoorExecutor.cs:30-33</c>; <c>EjectPassengersExecutor.cs:37-70</c>) and NOT ONE
+        /// does its work in <c>OnEnter</c>. ⇒ the storm is real and measured; the deliberate-repeat
+        /// case has no instance in this codebase. <c>CE-408</c> carries the hole that leaves.</para>
+        ///
+        /// <para>✅ <b>Red-proof:</b> widen the emitted guard back to <c>Status != Running</c> ⇒ this
+        /// reddens with 2 activations instead of 1.</para>
+        /// </summary>
+        [Fact]
+        public void CE408_R1_ACompletedCommandReIssuedByAPerTickActivity_DoesNotReEnter()
+        {
+            var (actionInstanceId, onEnterCalls) =
+                ReIssue(ticks: 2, statusBetweenTicks: NodeStatus.Success);
+
+            Assert.Equal(1u, actionInstanceId);   // ⭐ one standing order, not two
+            Assert.Equal(1, onEnterCalls);        // ⭐ and one activation — no storm
+        }
+
     }
 }

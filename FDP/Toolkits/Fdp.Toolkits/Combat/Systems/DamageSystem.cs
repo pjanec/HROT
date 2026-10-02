@@ -71,18 +71,23 @@ namespace Fdp.Toolkit.Combat.Systems
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
 
-                // 6. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
-                //    the same frame), then destroy the hit entity.
+                // 6. If lethal: strip capabilities. ⛔ The entity is NOT removed — a dead body stays
+                //    in the world (no magic vanishing). 🔒 User ruling `2026-09-13`: *"dead entity
+                //    should not vanish, it should stay dead in the world, every entity."* Combat-death
+                //    is the state `Health.Current <= 0` (+ CanMove/CanShoot stripped), NOT ECS removal;
+                //    `IsAlive` means "the entity exists", which a corpse still does.
+                //    ⚠ Previously this called `repo.DestroyEntity(evt.HitEntity)`; that made downstream
+                //    `!IsAlive(target)` death-checks true by DELETING the target, conflating ECS
+                //    existence with combat-death. Removed.
                 if (health.Current <= 0f)
                 {
                     // Strip CanMove + CanShoot so downstream systems (e.g. HsmDamageBridgeSystem)
-                    // can detect mobility loss even though the entity is about to be removed.
+                    // detect the mobility/fire kill.
                     if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
                     {
                         ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
                         caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
                     }
-                    repo.DestroyEntity(evt.HitEntity);
                 }
                 else if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
                 {

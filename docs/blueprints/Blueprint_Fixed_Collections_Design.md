@@ -1,3 +1,12 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30 (STATUS block added; content unchanged)
+current-answer: the whole document; read the "Second review" deltas before quoting the top sections.
+related-designs:
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — decision C4 asks whether the curated-accessor
+    (CuratedStatic) collection mode can be joined by direct fixed-buffer field access.
+-->
+
 # Blueprint Fixed Collections — umbrella design
 
 One capability, three homes. A **fixed-capacity, blittable, ordered collection**
@@ -61,12 +70,12 @@ Investigated 2026-08-03 — captured so the relationship isn't re-derived later.
   the method a live reinterpret-cast `ref`. So an array field is read/written exactly like any field —
   `p.field.Items[i] = x;` mutates in place, zero copy. **A component collection is reachable the same way** via
   `ctx.World.GetComponentRW<C>()`.
-- **There isn't one blackboard — there are three components.** `BrainBlackboard` (an action's active param block),
-  a heavy-DTO `Blackboard1024`, and the tiered, slot-partitioned `BlueprintBlackboard1024/4096/16384` (which holds
-  blueprint `State`/`WorkingState` **and** BTree *stateful* working-state **and** `GetShared`/`SetShared`, each in
-  its own keyed slot). So a **blueprint variable collection** lives in a `BlueprintBlackboard*` slot; an **action
-  collection** lives in the action's `BrainBlackboard`/partition block; a **component collection** lives on the
-  ECS component. They are separate homes, not one shared pool.
+- **There isn't one blackboard — there is one tiered, slot-partitioned home.** `BlueprintBlackboard256/1024/4096/16384`
+  holds blueprint `State`/`WorkingState` **and** BTree/HSM *stateful* working-state **and** `GetShared`/`SetShared`
+  **and** an action's root params, each in its own keyed occurrence slot. So a **blueprint variable collection**
+  lives in a `BlueprintBlackboard*` slot; an **action collection** lives in the action's root params occurrence
+  slot, in that same tier ladder; a **component collection** lives on the ECS component. They are separate
+  **slots**, not one shared pool.
 - **The one coincidence:** an *AiPrimitive* (a blueprint compiled **into** an action) has its `WorkingState` == the
   action's `ws` — there a blueprint-variable collection and the action's collection are the same bytes.
 - **Two type systems.** Blueprints use the structured `BlueprintTypeRef`→`IrTypeRef` path; the behavior editor uses

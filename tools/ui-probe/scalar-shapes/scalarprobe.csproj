@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable><AssemblyName>scalarprobe</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="/home/user/HROT/Hrot/Editor/Hrot.Editor.AiShared/Hrot.Editor.AiShared.csproj" />
+    <ProjectReference Include="/home/user/HROT/FDP/Engine/Fdp.Presentation/Fdp.Presentation.csproj" />
+    <ProjectReference Include="/home/user/HROT/FDP/ExtDeps/StructEdit/src/StructEdit.Reflection/StructEdit.Reflection.csproj" />
+  </ItemGroup>
+</Project>

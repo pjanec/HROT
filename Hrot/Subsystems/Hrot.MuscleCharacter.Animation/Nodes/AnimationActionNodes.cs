@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Events;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Nodes
 {

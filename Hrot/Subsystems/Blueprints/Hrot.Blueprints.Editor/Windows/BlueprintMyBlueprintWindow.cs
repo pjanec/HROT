@@ -3,16 +3,94 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using System;
 using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind — one vocabulary for the three lists
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Variables;
+using Hrot.Editor.AiShared.Windows;   // MyBlueprintItemDump — the shared hand-written dump
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Action;
 using NodeEditor.UI.Panels;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⛔⛔ Hand-written <see cref="Dump"/>, and it reuses
+/// <see cref="Hrot.Editor.AiShared.Windows.MyBlueprintItemDump"/> for every item rather than
+/// re-deriving the projection: <c>MyBlueprintItem</c> is the SAME NodeEdit type
+/// <c>AiMyBlueprintWindow</c>'s view-model already projects by hand (the queue's gotcha against
+/// reflecting over a NodeEdit type), so writing a second hand projection here would be ruling 9's
+/// duplicate mechanism.</para>
+///
+/// <para>⭐ <c>PanelKind</c> cites <see cref="PanelIds.MyBlueprint"/> — the SAME constant
+/// <c>AiMyBlueprintWindow.Kind</c> cites — 📄 <c>PanelIds.cs</c>'s own remarks: <i>"a second
+/// implementation must agree… when it is converted, it must cite THIS, not repeat the string."</i></para>
+/// </summary>
+public sealed class BlueprintMyBlueprintPanelViewModel : IPanelViewModel
+{
+    private readonly BlueprintMyBlueprintModel _model;
+
+    public BlueprintMyBlueprintPanelViewModel(
+        string panelId, string panelKind, BlueprintMyBlueprintModel model,
+        bool hasPanel, string? emptyReason)
+    {
+        PanelId     = panelId;
+        PanelKind   = panelKind;
+        _model      = model;
+        HasPanel    = hasPanel;
+        EmptyReason = emptyReason;
+    }
+
+    /// <inheritdoc/>
+    public string PanelId { get; }
+
+    /// <inheritdoc/>
+    public string PanelKind { get; }
+
+    /// <summary>⭐ True once host services and commands are wired and the panel can draw — mirrors
+    /// <see cref="BlueprintMyBlueprintWindow.HasPanel"/>.</summary>
+    public bool HasPanel { get; }
+
+    /// <summary>⭐ Why nothing is drawn, or null when <see cref="HasPanel"/> is true.</summary>
+    public string? EmptyReason { get; }
+
+    /// <inheritdoc/>
+    public JsonNode Dump()
+    {
+        var sections = new JsonArray();
+        foreach (var s in _model.Sections)
+        {
+            var items = new JsonArray();
+            foreach (var it in _model.GetItems(s.Id))
+                items.Add(MyBlueprintItemDump.Of(it));
+
+            sections.Add(new JsonObject
+            {
+                ["id"]             = s.Id,
+                ["displayName"]    = s.DisplayName,
+                ["sortOrder"]      = s.SortOrder,
+                ["canCreateItems"] = s.CanCreateItems,
+                ["items"]          = items,
+            });
+        }
+
+        return new JsonObject
+        {
+            ["panelId"]          = PanelId,
+            ["panelKind"]        = PanelKind,
+            ["hasEditableAsset"] = _model.EditableAsset != null,
+            ["hasPanel"]         = HasPanel,
+            ["emptyReason"]      = EmptyReason,
+            ["sections"]         = sections,
+        };
+    }
+}
 
 /// <summary>
 /// <see cref="ManagedWindow"/> that hosts the NodeEdit <see cref="MyBlueprintPanel"/>
@@ -25,8 +103,98 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </summary>
 public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutlineSelectionSource,
                                                  Hrot.Editor.AiShared.Selection.IDetailsSurfaceClaimant,
-                                                 ILiveVariableProjectionHost
+                                                 ILiveVariableProjectionHost,
+                                                 Hrot.Editor.AiShared.Variables.IVariableWatchToggleHost
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⭐⭐⭐ Cites <see cref="PanelIds.MyBlueprint"/> — see the
+    /// class remarks on <see cref="BlueprintMyBlueprintPanelViewModel"/>.</summary>
+    internal const string Kind = PanelIds.MyBlueprint;
+    // ── 98c: BP-360, the outline's watch entry ───────────────────────────────
+
+    private Action<Hrot.Editor.AiShared.Variables.VariableRow>? _watchToggle;
+
+    /// <inheritdoc/>
+    public void SetWatchToggle(Action<Hrot.Editor.AiShared.Variables.VariableRow>? toggle)
+        => _watchToggle = toggle;
+
+    /// <summary>⭐ True once a real toggle has been installed. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED window, ⛔ never on the registrar's source (📌 <c>M-22</c>).</summary>
+    public bool HasWatchToggle => _watchToggle != null;
+
+    /// <summary>
+    /// ⭐⭐ <b>Resolves an outline item id to the row the Watch would pin.</b>
+    ///
+    /// <para>⭐ Routed through <see cref="ResolveVariableSelection"/> — the SAME resolver the Details
+    /// panel uses — so the outline cannot pin a row the panel would not show. ⛔ A second lookup here
+    /// would be a second answer to "which variable is this item?".</para>
+    ///
+    /// <para>⚠ <c>null</c> when the id names no variable *(a graph, a function, a stale id)*, and the
+    /// command then refuses rather than pinning a guess.</para>
+    /// </summary>
+    internal Hrot.Editor.AiShared.Variables.VariableRow? RowForItem(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        foreach (var section in new[]
+                 {
+                     BlueprintMyBlueprintModel.SectionVariables,
+                     BlueprintMyBlueprintModel.SectionParameters,
+                     BlueprintMyBlueprintModel.SectionLocalVariables,
+                 })
+        {
+            foreach (var item in _model.GetItems(section))
+            {
+                if (!string.Equals(item.ItemId, itemId, StringComparison.Ordinal)) continue;
+
+                var selection = ResolveVariableSelection(item);
+                if (selection.Source is null) return null;
+
+                foreach (var row in selection.Source.GetRows())
+                    if (string.Equals(row.ShortName, selection.SelectedVariablePath, StringComparison.Ordinal))
+                        return row;
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — registers the command the outline's menu looks for.</b>
+    ///
+    /// <para>⛔⛔ <b>Only when a real toggle was installed.</b> 📐 The menu enables itself on
+    /// <c>commands.Get(id) is not null</c> — so registering unconditionally would ENABLE the entry on a
+    /// perspective with no Watch and make the click do nothing. ⚠ That is the trap this item exists to
+    /// close, and re-creating it one layer down would be worse than leaving it greyed.</para>
+    ///
+    /// <para>⭐ The refusal stays honest: with no toggle the entry greys and its tooltip already names
+    /// the missing command.</para>
+    /// </summary>
+    /// <summary>⭐ The outline's own item id for a named variable — ⛔ so a rail asks the OUTLINE what
+    /// it would pass rather than fabricating an id the scheme could move away from.</summary>
+    internal string RowIdForTest(string displayName)
+        => _model.GetItems(BlueprintMyBlueprintModel.SectionVariables)
+                 .First(i => string.Equals(i.DisplayName, displayName, StringComparison.Ordinal))
+                 .ItemId;
+
+    private void RegisterWatchCommand(EditorCommandsImpl commands)
+    {
+        if (_watchToggle is null) return;
+
+        BlueprintDocumentFactory.RegisterToggleVariableWatchCommand(
+            commands,
+            itemId =>
+            {
+                // ⛔ Never silence: BP-223/Q26-B2 — a gesture that cannot proceed says so, through the
+                //   SAME indicator every other refusal in this window uses.
+                if (RowForItem(itemId) is not { } row)
+                {
+                    Refuse("That item is not a variable this Watch can pin.");
+                    return;
+                }
+                _watchToggle(row);
+            });
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 90 (<c>90b</c>) — the live projection, installed by the registrar.</b>
     /// 📌 <c>R-67</c>: the registrar already HOLDS the provider, so this arrives in its one
@@ -53,6 +221,21 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         var asset = _model.EditableAsset;
         return asset is null ? null : _liveProjection?.GetLiveObjects(asset);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 98 (<c>98a</c>) — the ONE place this window resolves "mark the document dirty".</b>
+    ///
+    /// <para>🔴 Before this it was computed as a LOCAL inside <c>Retarget</c> and therefore
+    /// unreachable from <see cref="ResolveVariableSelection"/>, which is why the Details row source
+    /// was handed <c>onChanged: () =&gt; { }</c>. ⇒ once <c>98a</c> gave that source a write, the edit
+    /// would have landed in memory and never reached the file.</para>
+    ///
+    /// <para>⭐ Reads <c>_model.EditableAsset</c> rather than capturing one — <c>Retarget</c> assigns
+    /// it before anything here runs, and the active document changes underneath. ⚠ <c>null</c> for a
+    /// non-file asset *(headless tests, an in-memory document)*, which is an honest "nothing to mark".</para>
+    /// </summary>
+    private Action? MarkDirtyAction()
+        => _model.EditableAsset is Catalog.BlueprintFileAsset bpFile ? bpFile.MarkDirty : null;
 
     private readonly BlueprintMyBlueprintModel _model = new();
 
@@ -108,6 +291,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                owningPerspective ?? "Blueprint",
                WindowScope.PerspectiveBound)
     {
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -154,9 +339,13 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         // headless-tested create path (BlueprintDocumentFactory.CreateVariable).
         if (blueprintAsset != null && commands is EditorCommandsImpl cmdImpl)
         {
-            var markDirty = editableAsset is Catalog.BlueprintFileAsset bpFile
-                ? (Action)bpFile.MarkDirty
-                : null;
+            var markDirty = MarkDirtyAction();
+
+            // ⭐⭐⭐ Batch 98 (98c) — BP-360. Registered HERE, with the document's other commands,
+            //    because this is where an EditorCommandsImpl exists. ⚠ Re-registered per retarget for
+            //    the same reason the modals are rebuilt: the handler closes over this window, and the
+            //    ROW it resolves must come from the document now active.
+            RegisterWatchCommand(cmdImpl);
             _createVariableModal = new VariableCreateModal(
                 (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateVariable(
                     blueprintAsset, name, typeId, markDirty, capacity, initialLength),
@@ -413,7 +602,19 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                 assetName: asset.Name,
                 entity:    default,
                 section:   item.SectionId,
-                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { }),
+                // ⭐⭐⭐ Batch 98 (98a) — THE SILENT DEFAULT, in its textbook form.
+                // 🔴🔴 This read `onChanged: () => { }`. ⛔ Harmless while the source was READ-ONLY —
+                //    the panel re-reads every frame, so nothing needed telling — but `98a` gives this
+                //    source a WRITE (UpdateVariableDefaultValueJson), and an edit that lands in the
+                //    declaration without marking the document dirty is LOST ON CLOSE. The designer
+                //    sees the new value, saves nothing, and the file still holds the old one.
+                // ⭐ 📌 CLAUDE.md's rule, exactly: "a production caller that HAS a dependency must
+                //   PASS it." This window computed `markDirty` from the SAME editable asset ~260
+                //   lines above and did not hand it here. Two hundred lines away
+                //   BlueprintVariablesWindow:403 constructs the SAME CLASS with the real callback.
+                // ⚠ Resolved PER CALL, not captured: the active document changes under this window.
+                schema:    new BlueprintVariableSchemaSource(
+                               asset, kind, onChanged: MarkDirtyAction() ?? (() => { })),
                 // ⭐⭐⭐ Batch 90 (90b) — the asset-scoped arm gets the same live map. ⛔ BOTH sites, or
                 //    the designer would see live values on locals and "(pending)" on globals, which
                 //    reads as a broken feature rather than as two seams.
@@ -481,8 +682,28 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
     public Hrot.Editor.AiShared.Selection.SelectionOrigin DetailsOrigin
         => Hrot.Editor.AiShared.Selection.SelectionOrigin.VariableOutline;
 
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ No ImGui — <c>_model</c> is never null (a readonly field
+    /// initialised at construction), so the empty-reason logic only needs the host-services/commands
+    /// check, exactly mirroring <c>_panel == null</c>'s own condition below.
+    /// </summary>
+    private BlueprintMyBlueprintPanelViewModel BuildAndPublish()
+    {
+        bool hasPanel = _hostServices != null && _commands != null;
+        string? emptyReason = hasPanel ? null : "No blueprint open.";
+
+        var vm = new BlueprintMyBlueprintPanelViewModel(Id, Kind, _model, hasPanel, emptyReason);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal BlueprintMyBlueprintPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
+        var vm = BuildAndPublish();
+
         // ⭐⭐⭐ Batch 87 — claim the Details panel for the OUTLINE while this window holds focus
         //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge — see AiGraphCanvasWindow.
         if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
@@ -490,7 +711,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
 
         if (_model == null || _hostServices == null || _commands == null)
         {
-            ImGuiNET.ImGui.TextDisabled("No blueprint open.");
+            ImGuiNET.ImGui.TextDisabled(vm.EmptyReason ?? "No blueprint open.");
             return;
         }
 

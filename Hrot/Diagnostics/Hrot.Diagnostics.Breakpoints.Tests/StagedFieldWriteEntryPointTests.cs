@@ -91,9 +91,10 @@ public sealed class StagedFieldWriteEntryPointTests
         manager.StageFieldMutation(target, typeof(OffsetAddressedComp), 4, BitConverter.GetBytes(99));
 
         // ⭐ The drain writes into the repo's command buffer; playback is the tick boundary.
-        //   ⚠ RequestContinue (not Step) on purpose — ruling 15 names both, and both must drain.
+        //   ⚠ RequestContinue (not Step) on purpose — both resume paths must reach the same drain.
+        //   ⭐⭐ W5: the drain is no longer INSIDE RequestContinue — see ResumeThenDrain.
         var ecb = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)live).GetCommandBuffer();
-        manager.RequestContinue();
+        manager.ContinueAndDrain(live);
         ecb.Playback(live);
 
         var after = live.GetComponent<OffsetAddressedComp>(target);
@@ -119,7 +120,7 @@ public sealed class StagedFieldWriteEntryPointTests
         manager.StageFieldMutation(target, typeof(OffsetAddressedComp), 0, BitConverter.GetBytes(9));
 
         var ecb = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)live).GetCommandBuffer();
-        manager.RequestStep();
+        manager.StepAndDrain(live);              // ⭐ W5: two steps, not one — see ResumeThenDrain
         ecb.Playback(live);
 
         var after = live.GetComponent<OffsetAddressedComp>(target);

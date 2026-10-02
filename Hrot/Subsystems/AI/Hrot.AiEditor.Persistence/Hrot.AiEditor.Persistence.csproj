@@ -22,6 +22,31 @@
          on both sides, so no CS0436 arises for a project referencing both. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlackboardParamsExpression.cs"
              Link="Emit\Shared\BlackboardParamsExpression.cs" />
+
+    <!-- A1 (PLAN_Occurrence_Storage_Build): ONE spelling of the stateful slot key, shared with the
+         RUNTIME (Fdp.Toolkits, net8.0). Same reasoning as BP-306 above and deliberately the same
+         mechanism: LINKED, not referenced, because this assembly carries no project references by
+         design. The file is netstandard2.0-subset on purpose so it compiles on both sides, and it is
+         `internal` on both, so no CS0436 for a project referencing both.
+         ⛔ The compile-time key and the runtime key MUST be byte-identical — when they disagree the
+         slot is simply never found, with no error anywhere. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Behavior\Shared\OccurrenceSlotKey.cs"
+             Link="Emit\Shared\OccurrenceSlotKey.cs" />
+
+    <!-- CE-388 / Q74 D-F: ONE spelling of the HSM action/guard/exit-cleanup id, shared with the
+         GENERATOR that registers under it (Fdp.Toolkits.Analyzers). Same mechanism and same reason
+         as the two above: LINKED, not referenced.
+         🔒 User ruling 2026-09-28: "no duplicating the HsmActionKey formula, must be shared."
+         ⛔ A shared ASSEMBLY is not available here — all three consumers are netstandard2.0 (so a
+         public type in net8.0 Fdp.Toolkits is unreachable), and the analyzer ships to 12 consumers
+         as OutputItemType="Analyzer" with ZERO project references, so any dependency it gained
+         would have to ship as an Analyzer item into all 12 (CE-379's defect class).
+         ⛔⛔ HsmEmitCore BAKES this id into the blob and the generated registrar REGISTERS under it.
+         When the two disagree the state binds an action nothing is registered under — silently.
+         CE-403 measured that exact failure in the sibling table (keyed on the SHORT name while the
+         asset holds the FQN), which is why this may never become a second copy. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
+             Link="Emit\Shared\HsmActionKey.cs" />
   </ItemGroup>
 
 </Project>

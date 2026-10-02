@@ -37,7 +37,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// <see cref="NodeStatus.Failure"/> otherwise.
         /// </returns>
         public static NodeStatus Condition_HasTarget(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -65,7 +65,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// </summary>
         /// <returns><see cref="NodeStatus.Running"/> while the target is alive.</returns>
         public static unsafe NodeStatus Action_AimAndFire(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -111,7 +111,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// </summary>
         [BTreeDeactivator("Fdp.Examples.UrbanCombat.Brains.InsurgentNodes.Action_AimAndFire")]
         public static void Deactivate_AimAndFire(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -128,7 +128,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// Used as the fallback branch in the Ambush Selector when no target is present.
         /// </summary>
         public static NodeStatus Action_HoldPosition(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)

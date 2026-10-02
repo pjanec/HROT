@@ -1,5 +1,36 @@
 # Architect Question #33 — blueprint as a brain tier, and suspendable sub-behaviours
 
+> ## ⭐ `2026-09-30` — TRACKED AS `CE-446`; ITS PARAMETERS FOLLOW `DESIGN_Parameter_Model` §P
+>
+> 🔒 User, `2026-09-30`: *"I meant i need the behavior to be implementable by blueprint"* — this question's
+> blueprint brain tier (`O9` in [`DESIGN_Occurrence_Scoped_Storage`](DESIGN_Occurrence_Scoped_Storage.md) §12)
+> is that capability, tracked as `CE-446` in [`Blueprint_Issues_Tracker`](Blueprint_Issues_Tracker.md). A
+> blueprint behaviour takes its inputs ONCE at start — the intent JSON by default copy, or its ONE optional
+> resolver which receives the source — and its own actions read its block live
+> ([`DESIGN_Parameter_Model`](DESIGN_Parameter_Model.md) §P.2/§P.3, `R-155`). ⛔ It is not a `BlueprintInstance`
+> (attached, several per entity, no resolver).
+
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves params and
+> brain state into **per-occurrence allocator slots** and renames `BlueprintBlackboard*` →
+> **`OccurrenceStore*`**. Build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), reopened `2026-09-19`.
+>
+> ⭐⭐ **What THIS question still owns, and that design explicitly does NOT:** blueprint as an
+> **assigned root brain tier** — §0 ruling 1, §1.5.1's discriminant-not-bitmask shape, and the
+> registry / tick-path / preemption gaps. ⭐ That design is a **prerequisite** for it *(see its §12)*,
+> never the delivery.
+>
+> ### ✅ SEQUENCED `2026-09-19` — this is now `O9`, the follow-on to the occurrence work
+>
+> 🔒 **User, verbatim:** *"I need it (using blueprint instance as root behavior) to be solved after the
+> occurences."* ⇒ ⛔ **not parked, not speculative — the named next stage after
+> [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) `O8`.**
+> ⚠ `DESIGN_Parameter_Model.md` called this question *"PARKED"* until `2026-09-19`; **that row was wrong
+> and is corrected** — it had contradicted this file's own UNPARKED header since `2026-08-16`.
+
+
 > **Coordinator, `2026-08-16`.**
 > ⛔ **`N = 33` taken across ALL active branches** (rule 3a); highest existing is `32`.
 > 📄 Context: [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md)
@@ -25,7 +56,7 @@
 > | | disposition |
 > |---|---|
 > | ⭐⭐ **`Q33-E`'s first slice — *"HSM emitter consumes `Role`/`Scope`"*** | ⛔ **PULLED OUT — it is parameter work.** BTree's `BTreeBridgeEmitCore` has **45** `Role`/`Scope` refs; both HSM emitters have **0** ⇒ *"multi-field editor-authored inputs for BTree **and HSM**"* **cannot work on HSM** until this lands, and it needs none of `A`–`D` |
-> | **`Q33-D`** | ⭐ **answered provisionally: `D1`** *(keep `blueprintId` identity)*. ✅ **Safe to postpone `D2`:** `BlueprintBlackboard*` is `[DataPolicy(NoSave)]` so the slot table **never hits disk**, and `InitialBlueprintsIntent.Blueprints` is already a `List<BlueprintAssignmentDto>` with per-entry `Overrides` ⇒ two entries for one `AssetId` are **already expressible on disk**; only the idempotent attach collapses them. ⇒ **widening later is a RUNTIME change, not a migration** |
+> | **`Q33-D`** | ⭐ **answered provisionally: `D1`** *(keep `blueprintId` identity)*. ✅ **Safe to postpone `D2`:** `BlueprintBlackboard*` is `[DataPolicy(NoScenario)]` so the slot table **never hits disk**, and `InitialBlueprintsIntent.Blueprints` is already a `List<BlueprintAssignmentDto>` with per-entry `Overrides` ⇒ two entries for one `AssetId` are **already expressible on disk**; only the idempotent attach collapses them. ⇒ **widening later is a RUNTIME change, not a migration** |
 >
 > ⚠ **One carry-forward for Track C:** its row identity `(AssetId, Entity, VariablePath)` gains a
 > **fourth component** if `D2` ever happens. ⭐ **Note it in the design; do not build for it.**
@@ -122,7 +153,7 @@ three-way — too wide instead of too narrow.**
 ⚖️ **Keep the root as a DISCRIMINANT.** If presence is genuinely needed *(trace-buffer allocation is the
 plausible consumer)*, ⭐ **derive it from the composition** — the root asset's subtree references already
 say which interpreters are involved — **or add a separate mask.** ⛔ **Do not overload one field.**
-📌 `BehaviorState` is `[DataPolicy(NoSave)]` ⇒ **deferring costs nothing.**
+📌 `BehaviorState` is `[DataPolicy(NoScenario)]` ⇒ **deferring costs nothing.**
 
 ### 1.5.2 ⭐⭐⭐ "In what way are latent nodes a problem?" — **not at all for Instance dispatch**
 
@@ -166,8 +197,8 @@ contract to carry a status?"*
 | path | storage | keyed by | cursor | params |
 |---|---|---|---|---|
 | **Instance** | `BlueprintBlackboard` partition slot | `blueprintId` | ✅ **16 B** | ⛔ *(ruled: add)* |
-| ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | `bb.BehaviorParameters` |
-| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | `Blackboard1024 + 8` | ⛔ **unkeyed — one per entity** | ⛔ | `bb.BehaviorParameters[0]` |
+| ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | root params slot (`RootParamsAccess`, per-field offset) |
+| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | occurrence slot in the tier ladder (`BlueprintBlackboard{256,1024,4096,16384}`) | ✅ **`{fqn}@{offset}@{slotKey}`** | ⛔ | root params occurrence slot (`RootParamsAccess`, index 0) |
 
 ```csharp
 // StatefulBTreeActionBinder — the composition path
@@ -341,7 +372,8 @@ binding** — like a call's arguments — not a runtime message.
 
 #### ③ ⚠ Sizing consequence — **one slot per hosting state**
 
-`MaxSlots` is **4 / 8 / 16** for the 1024 / 4096 / 16384 tiers. ⇒ **an HSM with many hosting states
+`MaxSlots` is **3 / 12 / 16 / 16** for the 256 / 1024 / 4096 / 16384 tiers *(re-picked by `B3②`; the
+payloads are 176 / 800 / 3 808 / 16 096 B)*. ⇒ **an HSM with many hosting states
 drives the tier choice**, and `ChooseTier` must size against the **sum**, exactly as
 `BlueprintMaterializationSystem` already pre-provisions *"from the aggregate slot + byte requirements"*.
 

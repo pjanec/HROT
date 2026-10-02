@@ -69,6 +69,29 @@ public record ArchivePayloadDto(
     Guid          ExerciseId
 );
 
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.LoadZone</c> DDS requests — ONE zone per request
+/// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3).
+///
+/// <para>⛔ Replaces the previous abuse of <see cref="ArchivePayloadDto"/>, whose
+/// <c>ExerciseId</c> (a <see cref="Guid"/>) was being stringified into the zone id. That silently
+/// restricted zone ids to GUID shape and named the field after a different domain entirely.</para>
+/// </summary>
+public record ZonePayloadDto(
+    [property: JsonPropertyName("ZoneId")]
+    string?       ZoneId
+);
+
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.BuildTerrainAsset</c> DDS requests.
+/// <para><c>Kinds</c> names the asset kinds to rebuild; null or empty means "all".
+/// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1.</para>
+/// </summary>
+public record TerrainAssetBuildPayloadDto(
+    [property: JsonPropertyName("Kinds")]
+    string[]?     Kinds
+);
+
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
 public record SeekReplayPayloadDto(
     [property: JsonPropertyName("TargetWallTicks")]
@@ -101,7 +124,17 @@ public record NodeTransitionPayloadDto(
     string?        ScenarioId,
 
     [property: JsonPropertyName("ExerciseId")]
-    Guid          ExerciseId
+    Guid          ExerciseId,
+
+    // ⭐⭐⭐ L1 — the SHARED CONTENT NAMES. See EditLoadHandlerPayload's remarks for why they ride the
+    //    message: four of the five roles never open the scenario file, so they cannot read these out of it.
+    // ⭐ Optional with a null default, so every existing positional construction still compiles and an
+    //   older peer that omits them decodes to null — the wire form is JSON, so this is purely additive.
+    [property: JsonPropertyName("TkbName")]
+    string?        TkbName = null,
+
+    [property: JsonPropertyName("TerrainName")]
+    string?        TerrainName = null
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>
@@ -140,6 +173,14 @@ public sealed record FileManifestEntry
     /// should be written (e.g. <c>exercises\2026-03-29\checkpoint_a.fdp</c>).
     /// </summary>
     public string RelativeDest { get; init; } = string.Empty;
+
+    /// <summary>
+    /// CE-277(c1): the slice's <c>$meta.docType</c>, carried from the node's
+    /// <c>FileManifestResult</c> through the JSON round-trip so the orchestrator can classify a pulled
+    /// scenario slice (merge our format, route a foreign one verbatim). <c>null</c> for non-scenario paths
+    /// (e.g. the <c>.fdp</c> archive), which are not merged.
+    /// </summary>
+    public string? DocType { get; init; }
 }
 
 /// <summary>

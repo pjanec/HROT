@@ -73,8 +73,12 @@ namespace Fdp.Toolkit.Scenario.Tests
             _repo.RegisterComponent<FixedByteComp>();
             _repo.RegisterComponent<FixedLongComp>();
             _repo.RegisterComponent<InlineFloatComp>();
-            _repo.RegisterComponent<BrainBlackboard>();
-            // Override NoSave so FdpAutoSerializer includes MissionPlanQueue in round-trip tests.
+            // ⭐ P4: was RegisterComponent<BrainBlackboard>(), the NoScenario stand-in this fixture
+            //   needs for the DOM-exclusion test. BehaviorState carries the same attribute and
+            //   outlives the retired component. ⚠ It must be REGISTERED, not merely set: SetComponent
+            //   goes through AddUnmanagedComponent, which refuses an unregistered type.
+            _repo.RegisterComponent<BehaviorState>();
+            // Override NoScenario so FdpAutoSerializer includes MissionPlanQueue in round-trip tests.
             _repo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
         }
 
@@ -133,7 +137,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>();
 
             serializer.Deserialize(freshRepo, dom);
@@ -148,48 +151,95 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // ── S301-SC3: Entity in InlineArray must throw ────────────────────────────
+        // ── CE-467-A: Entity in InlineArray round-trips through the IGuidResolver ──
 
         /// <summary>
-        /// S301-SC3 / S302-SC3: Build() must throw InvalidOperationException if an
-        /// [InlineArray] field has element type Entity.
+        /// ⭐ CE-467-A (supersedes S301-SC3's "must throw"): an <c>[InlineArray]</c> of <see cref="Entity"/> is
+        /// serialized element-by-element through the <see cref="IGuidResolver"/> — GUID strings in the DOM, entities
+        /// back on inject — exactly like a scalar <see cref="Entity"/> field. This is the route the cgf-scn-2 design
+        /// talk named for it; invariant 3 (<i>"entity handles never cross scenario boundaries"</i>) holds because no raw
+        /// handle is written. Needed by <c>UnitRoster.SubordinateEntities</c> (CE-467).
         /// </summary>
         [Fact]
-        public void Build_ComponentWithEntityInInlineArray_Throws()
+        public void EntityInInlineArray_RoundTripsThroughTheGuidResolver()
         {
             ComponentTypeRegistry.Clear();
-            var tempRepo = new EntityRepository();
-            // Override the DataPolicy so EntityInlineComp is snapshotable for this test.
-            // (The type is marked NoSnapshot by default to avoid polluting other test runs.)
-            tempRepo.RegisterComponent<EntityInlineComp>(DataPolicy.Default);
-            var autoSerializer = new FdpAutoSerializer();
-            Assert.Throws<InvalidOperationException>(() => autoSerializer.Build());
-            tempRepo.Dispose();
+            var repo = new EntityRepository();
+            repo.RegisterComponent<EntityInlineComp>(DataPolicy.Default);
+            var serializer = new FdpAutoSerializer();
+            serializer.Build();   // ⛔ used to throw here
+            int typeId = ComponentType<EntityInlineComp>.ID;
+
+            var owner = repo.CreateEntity();
+            var a = repo.CreateEntity();
+            var b = repo.CreateEntity();
+            var comp = new EntityInlineComp();
+            comp.Refs[0] = a;
+            comp.Refs[1] = b;
+            repo.SetComponent(owner, comp);
+
+            var resolver = new MapResolver();
+            resolver.Add(a, "guid-a");
+            resolver.Add(b, "guid-b");
+            var json = serializer.TryExtract(repo, owner, typeId, resolver);
+
+            Assert.NotNull(json);
+            var arr = Assert.IsType<JsonArray>(json!["Refs"]);
+            Assert.Equal("guid-a", arr[0]!.GetValue<string>());
+            Assert.Equal("guid-b", arr[1]!.GetValue<string>());
+
+            var target = new EntityRepository();
+            target.RegisterComponent<EntityInlineComp>(DataPolicy.Default);
+            var t = target.CreateEntity();
+            var a2 = target.CreateEntity();
+            var b2 = target.CreateEntity();
+            var back = new MapResolver();
+            back.Add(a2, "guid-a");
+            back.Add(b2, "guid-b");
+            serializer.TryInject(target, t, typeId, json, back);
+
+            var restored = target.GetComponent<EntityInlineComp>(t);
+            Assert.Equal(a2, restored.Refs[0]);
+            Assert.Equal(b2, restored.Refs[1]);
+
+            target.Dispose();
+            repo.Dispose();
             ComponentTypeRegistry.Clear();
             // Re-register for subsequent tests.
             _repo.RegisterComponent<FixedByteComp>();
             _repo.RegisterComponent<FixedLongComp>();
             _repo.RegisterComponent<InlineFloatComp>();
-            _repo.RegisterComponent<BrainBlackboard>();
             _repo.RegisterComponent<MissionPlanQueue>();
         }
 
-        // ── S303-SC1: BrainBlackboard excluded from DOM (DataPolicy.NoSave) ─────
+        private sealed class MapResolver : IGuidResolver
+        {
+            private readonly System.Collections.Generic.Dictionary<Entity, string> _toGuid = new();
+            private readonly System.Collections.Generic.Dictionary<string, Entity> _toEntity = new();
+            public void Add(Entity e, string guid) { _toGuid[e] = guid; _toEntity[guid] = e; }
+            public string Resolve(Entity entity) => _toGuid.TryGetValue(entity, out var g) ? g : "";
+            public Entity Resolve(string guidStr) => _toEntity.TryGetValue(guidStr, out var e) ? e : Entity.Null;
+        }
+
+        // ── S303-SC1: BrainBlackboard excluded from DOM (DataPolicy.NoScenario) ─────
 
         /// <summary>
-        /// S303-SC1: <see cref="BrainBlackboard"/> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c>
-        /// and must therefore be absent from the serialized DOM.
-        /// A co-present saveable component must still appear.
+        /// S303-SC1: a component marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> must be absent
+        /// from the serialized DOM, and a co-present saveable component must still appear.
+        ///
+        /// <para>⭐⭐ <b><c>P4</c> (2026-09-22) — RE-HOMED FROM <c>BrainBlackboard</c>, not deleted with
+        /// it.</b> ⛔ The retired component was only this test's FIXTURE; the claim under test is the
+        /// serializer's <c>DataPolicy</c> exclusion, which is very much alive. ⚠ <c>BehaviorState</c>
+        /// carries the same attribute and is the natural stand-in. 🔒 The <c>CE-314</c> lesson applied:
+        /// before deleting a test with the thing it names, ask which of its assertions were ABOUT that
+        /// thing and which merely USED it.</para>
         /// </summary>
         [Fact]
-        public unsafe void BrainBlackboard_DataPolicyNoSave_ExcludedFromDom()
+        public unsafe void NoScenarioComponent_IsExcludedFromDom_WhileSaveableCoPresentOneRemains()
         {
             var entity = _repo.CreateEntity();
 
-            var bb = new BrainBlackboard();
-            for (int i = 0; i < BehaviorConstants.MaxBehaviorParamByteSize; i++)
-                bb.BehaviorParameters[i] = (byte)(i & 0xFF);
-            _repo.SetComponent(entity, bb);
+            _repo.SetComponent(entity, new BehaviorState { ActiveBehaviorHash = 1234, BrainTier = 2 });
 
             var fixedComp = new FixedByteComp();
             fixedComp.Data[0] = 0xAB;
@@ -201,8 +251,8 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entitiesNode = (JsonObject)dom["Entities"]!;
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
-            Assert.False(entityNode.ContainsKey("BrainBlackboard"),
-                "BrainBlackboard must be excluded from the DOM (DataPolicy.NoSave).");
+            Assert.False(entityNode.ContainsKey("BehaviorState"),
+                "A DataPolicy.NoScenario component must be excluded from the DOM.");
             Assert.True(entityNode.ContainsKey("FixedByteComp"),
                 "Saveable co-present component must still appear in the DOM.");
         }
@@ -254,7 +304,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>();
             serializer.Deserialize(freshRepo, dom);
 
@@ -299,7 +348,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
             serializer.Deserialize(freshRepo, dom);
 
@@ -332,11 +380,10 @@ namespace Fdp.Toolkit.Scenario.Tests
     }
 
     // ── Entity-in-InlineArray test component ────────────────────────────────
-    // Used to verify Build() throws when Entity appears as an InlineArray element.
+    // CE-467-A: used to prove an Entity InlineArray round-trips through the IGuidResolver.
 
     /// <summary>
-    /// [InlineArray] of Entity handles.
-    /// <see cref="FdpAutoSerializer.Build"/> must throw for components using this type.
+    /// [InlineArray] of Entity handles — serialized through the <see cref="IGuidResolver"/> (CE-467-A).
     /// </summary>
     [InlineArray(2)]
     [StructLayout(LayoutKind.Sequential)]
@@ -346,19 +393,16 @@ namespace Fdp.Toolkit.Scenario.Tests
     }
 
     /// <summary>
-    /// Component with an [InlineArray] field of Entity elements.
-    /// <see cref="FdpAutoSerializer.Build"/> must throw for this type when it is snapshotable.
-    /// Marked NoSnapshot/NoSave/NoRecord so that AutoRegisterAllComponentTypes (used in
-    /// RecordingExportService) does not register it as snapshotable, which would cause
-    /// FdpAutoSerializer.Build() to throw unexpectedly in EX_T recording-export tests.
-    /// The Build_ComponentWithEntityInInlineArray_Throws test overrides the policy explicitly.
+    /// Component with an [InlineArray] field of Entity elements (CE-467-A round-trip rail).
+    /// Marked NoPreview/NoScenario/NoReplay so AutoRegisterAllComponentTypes does not pick it up in other
+    /// tests; the rail registers it with <see cref="DataPolicy.Default"/> explicitly.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(228)]
-    [DataPolicy(DataPolicy.NoSnapshot | DataPolicy.NoSave | DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario | DataPolicy.NoReplay)]
     public struct EntityInlineComp
     {
-        /// <summary>Inline array of entity refs — intentionally invalid for serialization.</summary>
+        /// <summary>Inline array of entity refs.</summary>
         public EntityBuffer2 Refs;
     }
 }

@@ -135,7 +135,7 @@ internal static class NodePinSchema
             MacroCallNode mc    => MacroCallPins(mc, asset),
             GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
-            // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
+            // GetParameter: pin-less assets carry no
             // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
             // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
             // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).
@@ -144,8 +144,10 @@ internal static class NodePinSchema
             // one "Value"-style data-out pin per asset Parameter directly from asset.Parameters
             // (mirrors EventEntryNodePins projecting one data-out per Graph.Inputs entry).
             GetAllParametersNode => GetAllParametersPins(asset),
-            GetSharedNode gsn   => GetSharedPins(gsn),
-            SetSharedNode ssn   => SetSharedPins(ssn),
+            // CE-433: the blackboard twins -- the SAME variable set the compiler pins
+            // (GetAllVariablesNode.PinnedVariablesOf), so the canvas and Stage0 cannot disagree.
+            GetAllVariablesNode  => AllVariablesPins(asset, "Out", withExec: false),
+            SetVariablesNode     => AllVariablesPins(asset, "In",  withExec: true),
             GetComponentNode gcn => GetComponentPins(gcn),
             SetComponentNode scn => SetComponentPins(scn),
             ComponentForEachNode cfe   => ComponentForEachPins(cfe),
@@ -160,6 +162,10 @@ internal static class NodePinSchema
             SetMembersNode smn  => SetMembersPins(smn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             PublishEventNode pev => PublishEventPins(pev),
+            // ⭐ CE-472 — parity with Stage0_Rehydrate's SendIntent / ToJson / FromJson enrichment.
+            SendIntentNode sin => SendIntentPins(sin),
+            ToJsonNode tjn     => ToJsonPins(tjn),
+            FromJsonNode fjn   => FromJsonPins(fjn),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
 
@@ -309,6 +315,40 @@ internal static class NodePinSchema
     /// load-bearing. System/catalog events (EventId only, no baked FQN) have no shape available in the editor
     /// host, so they fall through to the exec-only registry shape — unchanged (no regression).
     /// </summary>
+    /// <summary>⭐ CE-472 — exec pair, optional <c>Target</c> entity, one data-IN per baked DTO member.</summary>
+    private static IReadOnlyList<Pin> SendIntentPins(SendIntentNode sin)
+    {
+        var pins = new List<Pin>(3 + sin.Fields.Count)
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Target", "In", "Fdp.Core.Entity"),
+        };
+        foreach (var f in sin.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
+    }
+
+    /// <summary>⭐ CE-472 — one data-IN per DTO member, <c>Json</c> string out.</summary>
+    private static IReadOnlyList<Pin> ToJsonPins(ToJsonNode tjn)
+    {
+        var pins = new List<Pin>(tjn.Fields.Count + 1);
+        foreach (var f in tjn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Json", "Out", "System.String"));
+        return pins;
+    }
+
+    /// <summary>⭐ CE-472 — <c>Json</c> string in, one data-OUT per DTO member, then <c>Ok</c>.</summary>
+    private static IReadOnlyList<Pin> FromJsonPins(FromJsonNode fjn)
+    {
+        var pins = new List<Pin>(fjn.Fields.Count + 2) { MakeData("Json", "In", "System.String") };
+        foreach (var f in fjn.Fields)
+            pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> PublishEventPins(PublishEventNode pev)
     {
         if (string.IsNullOrEmpty(pev.EventTypeFqn))
@@ -966,6 +1006,26 @@ internal static class NodePinSchema
         return "System.Object";
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-433</c> (editor projection): one data pin per
+    /// <see cref="GetAllVariablesNode.PinnedVariablesOf"/> entry, behind Set's exec In/Out.
+    /// </summary>
+    private static IReadOnlyList<Pin> AllVariablesPins(BlueprintAsset? asset, string direction, bool withExec)
+    {
+        var pins = new List<Pin>();
+        if (withExec)
+        {
+            pins.Add(MakeExec("In",  "In"));
+            pins.Add(MakeExec("Out", "Out"));
+        }
+        foreach (var v in GetAllVariablesNode.PinnedVariablesOf(asset))
+        {
+            var typeId = string.IsNullOrEmpty(v.Type?.TypeId) ? "System.Object" : v.Type.TypeId;
+            pins.Add(MakeData(v.Name, direction, typeId));
+        }
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv, string typeId)
         => new[]
         {
@@ -974,38 +1034,6 @@ internal static class NodePinSchema
             MakeData("Value", "In",  typeId),
             MakeData("Value", "Out", typeId),
         };
-
-    /// <summary>
-    /// GetSharedNode (Slice 2a-2 + Slice 2b): pure-data node. Data-out "Value" typed DIRECTLY
-    /// from <see cref="GetSharedNode.SharedTypeId"/> (NOT <see cref="ResolveVariableTypeId"/> --
-    /// the shared struct is foreign to this asset's variable list) + data-out "Found"
-    /// (<c>System.Boolean</c>). Slice 2b adds an OPTIONAL data-in "Target" pin typed
-    /// <c>Fdp.Core.Entity</c> (same TypeId string the compiler's <c>StaticTypeRegistry</c> and
-    /// <c>IrOp_GetComponent</c>'s Entity argument resolve to) -- when left unwired, the node reads
-    /// off <c>self</c> exactly as Slice 2a-2 (byte-identical); when wired, the graph author
-    /// supplies a target Entity (e.g. read off <c>UnitSubordinate</c>'s commander ref via an
-    /// impure ECS-read node -- authoring guidance, not built here) for a cross-entity read. Kept
-    /// in parity with the compiler's <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
-    /// </summary>
-    private static IReadOnlyList<Pin> GetSharedPins(GetSharedNode gsn)
-    {
-        // Q#14 multi-pin: baked per-field decls → Target + one data-out per field + Found (read the struct
-        // once, project each field). Parity with the compiler's Stage0 EnrichGetSharedPins.
-        if (gsn.Fields is { Count: > 0 })
-        {
-            var pins = new List<Pin>(2 + gsn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
-            foreach (var f in gsn.Fields)
-                pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
-            pins.Add(MakeData("Found", "Out", "System.Boolean"));
-            return pins;
-        }
-        return new[]
-        {
-            MakeData("Target", "In",  "Fdp.Core.Entity"),
-            MakeData("Value",  "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
-            MakeData("Found",  "Out", "System.Boolean"),
-        };
-    }
 
     /// <summary>
     /// GetComponentNode (CA-02, Slice 1a): pure-data node. EXACT parity with the compiler's
@@ -1279,26 +1307,6 @@ internal static class NodePinSchema
             pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
         pins.Add(MakeData("Result", "Out", structType));
         return pins;
-    }
-
-    private static IReadOnlyList<Pin> SetSharedPins(SetSharedNode ssn)
-    {
-        // Q#14 multi-pin: baked per-field decls → exec + one data-in per field (unwired fields preserved).
-        // Parity with the compiler's Stage0 EnrichSetSharedPins.
-        if (ssn.Fields is { Count: > 0 })
-        {
-            var pins = new List<Pin>(2 + ssn.Fields.Count) { MakeExec("In", "In"), MakeExec("Out", "Out") };
-            foreach (var f in ssn.Fields)
-                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
-            return pins;
-        }
-        return new[]
-        {
-            MakeExec("In",      "In"),
-            MakeExec("Out",     "Out"),
-            MakeData("Value",   "In",  SharedTypePinTypeId(ssn.SharedTypeId)),
-            MakeData("Written", "Out", "System.Boolean"),
-        };
     }
 
     /// <summary>

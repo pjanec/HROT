@@ -70,7 +70,7 @@ namespace Fhsm.Tests.Generated
 
             // ---- Guards from Fhsm.Tests.SourceGen.ActionDispatchTests ----
             HsmActionDispatcher.RegisterGuard(Hash("TestGuard"),
-                (IntPtr)(delegate* <void*, void*, ushort, bool>)
+                (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)
                     &Fhsm.Tests.SourceGen.ActionDispatchTests.TestGuard);
 
             // ---- Actions from Fhsm.Tests.Kernel.CommandBufferIntegrationTests ----
@@ -92,12 +92,12 @@ namespace Fhsm.Tests.Generated
 
             // ---- Guards from Fhsm.Tests.Integration.HsmSourceGenIntegrationTests ----
             HsmActionDispatcher.RegisterGuard(Hash("IntegrationTestGuard"),
-                (IntPtr)(delegate* <void*, void*, ushort, bool>)
+                (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)
                     &Fhsm.Tests.Integration.HsmSourceGenIntegrationTests.IntegrationTestGuard);
 
             // ---- Guards from Fhsm.Tests.Integration.HsmTerminalStateIntegrationTests ----
             HsmActionDispatcher.RegisterGuard(Hash("ReloadTestGuard"),
-                (IntPtr)(delegate* <void*, void*, ushort, bool>)
+                (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)
                     &Fhsm.Tests.Integration.HsmTerminalStateIntegrationTests.ReloadTestGuard);
         }
     }

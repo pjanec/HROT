@@ -5,10 +5,30 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 12)]
 public struct T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParamsSharedA;
+    [FieldOffset(4)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParamsSharedB;
+    [FieldOffset(8)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParamsControl;
+}
+
+/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="T35_SharedWorkingState_Block"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct T35_SharedWorkingState_BlockState
+{
+    public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState bpSharedWorkingState;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct T35_SharedWorkingState_Block
+{
+    [FieldOffset(0)]
+    public T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    [FieldOffset(16)]
+    public T35_SharedWorkingState_BlockState St;
 }

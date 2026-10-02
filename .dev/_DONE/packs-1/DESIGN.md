@@ -430,7 +430,7 @@ passes it directly to `ClusterScenarioPanel`, embedding a DDS socket inside the 
    carries the same fields as `ClusterOpRequest` but with no DDS attributes:
    ```csharp
    [EventId(9018)]
-   [DataPolicy(DataPolicy.NoRecord)]
+   [DataPolicy(DataPolicy.NoReplay)]
    public sealed class ClusterOpIntent
    {
        public Guid             RequestId;

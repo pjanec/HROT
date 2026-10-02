@@ -15,10 +15,10 @@ All 5 tasks implemented correctly. Code verified by reading source files and run
 
 ## Scope Check
 
-- [x] TASK-S101: `DataPolicy.NoSave` and `NoRecord` XML comments corrected — verified in source.
-- [x] TASK-S102: `[DataPolicy(DataPolicy.NoSave)]` added to `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` — verified.
-- [x] TASK-S103: `[DataPolicy(DataPolicy.NoSave)]` added to `BrainBTreeState`, `BrainHsm64`, `BrainHsm128` — verified. `NoRecord` correctly NOT added.
-- [x] TASK-S104: `[DataPolicy(DataPolicy.NoSave)]` added to `SensorContactList`, `ActiveSensorTracks` — verified.
+- [x] TASK-S101: `DataPolicy.NoScenario` and `NoReplay` XML comments corrected — verified in source.
+- [x] TASK-S102: `[DataPolicy(DataPolicy.NoScenario)]` added to `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` — verified.
+- [x] TASK-S103: `[DataPolicy(DataPolicy.NoScenario)]` added to `BrainBTreeState`, `BrainHsm64`, `BrainHsm128` — verified. `NoReplay` correctly NOT added.
+- [x] TASK-S104: `[DataPolicy(DataPolicy.NoScenario)]` added to `SensorContactList`, `ActiveSensorTracks` — verified.
 - [x] TASK-S105: `WeaponChannelTranslator.cs` deleted; no references remain in any `.cs` file — verified with grep.
 
 ---
@@ -51,7 +51,7 @@ None. Clean implementation.
 
 No new P2/P3 debt items from this batch.
 
-Developer noted potential other execution-state components that might need `[DataPolicy(DataPolicy.NoSave)]` — this will be evaluated as part of Phase 2+ reviews.
+Developer noted potential other execution-state components that might need `[DataPolicy(DataPolicy.NoScenario)]` — this will be evaluated as part of Phase 2+ reviews.
 
 ---
 

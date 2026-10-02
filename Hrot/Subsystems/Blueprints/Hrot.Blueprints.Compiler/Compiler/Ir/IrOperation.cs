@@ -154,7 +154,7 @@ public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue
 
 /// <summary>
 /// CA-03 (Slice W1, Q#16) -- unmanaged, self-only, write-if-present ECS write. A SINGLE guarded
-/// block (not per-field ops, unlike multi-pin SetShared's <see cref="IrOp_WriteSharedField"/>):
+/// block (not per-field ops, unlike the removed multi-pin SetShared's IrOp_WriteSharedField):
 /// the entity's <c>HasComponent&lt;T&gt;</c> result drives BOTH the emitting
 /// <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this op's ResultValue) AND the
 /// write guard -- <c>GetComponentRW&lt;T&gt;</c> is fetched only INSIDE that guard (mirrors
@@ -162,7 +162,7 @@ public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue
 /// the fields present in <see cref="Fields"/> are assigned; an unwired field is simply ABSENT from
 /// the list (Stage5 only adds a WIRED field's resolved value here), so its value in the live
 /// component is left untouched ("unwired preserved" -- same semantics as
-/// <see cref="IrOp_WriteSharedField"/>, but as one statement/block instead of N, since this is a
+/// the removed IrOp_WriteSharedField, but as one statement/block instead of N, since this is a
 /// typed member write, not a byte-offset write, so there is no independent-byte-range reason to
 /// split it per field).
 /// </summary>
@@ -715,7 +715,8 @@ public sealed record IrOp_ReadEqsResult(
 public sealed record IrOp_SpawnEqsSensor(
     /// <summary>Template's BlueprintId as a hex uint literal (e.g. "0xA3F7C218u").</summary>
     string TemplateBlueprintIdLiteral,
-    /// <summary>Baked InstanceId derived from node.Id.GetHashCode() at compile time.</summary>
+    /// <summary>The sensor's SITE id, baked from the node id at compile time. ⭐ CE-485: no longer the DDS key — the part id
+    /// is allocated at runtime (<c>EqsChildSensor.Ensure</c>).</summary>
     int BakedInstanceId,
     /// <summary>IrValue for SearchRadius input (or null -> literal 0f).</summary>
     IrValue? SearchRadiusValue,
@@ -726,7 +727,16 @@ public sealed record IrOp_SpawnEqsSensor(
     /// <summary>IrValue for PublishPolicy input (or null -> literal (byte)0).</summary>
     IrValue? PublishPolicyValue,
     /// <summary>IrValue for Priority input (or null -> literal (byte)0).</summary>
-    IrValue? PriorityValue
+    IrValue? PriorityValue,
+    /// <summary>IrValue for the ContextSlot0 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot0Value = null,
+    /// <summary>IrValue for the ContextSlot1 entity input (or null -> default Entity) — the area for
+    /// the area query's EQS form.</summary>
+    IrValue? ContextSlot1Value = null,
+    /// <summary>IrValue for the ContextSlot2 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot2Value = null,
+    /// <summary>⭐ CE-485 — IrValue for the Key entity input (or null -> key 0): one sensor per key from this node.</summary>
+    IrValue? KeyValue = null
 ) : IrOperation;
 
 /// <summary>
@@ -753,87 +763,27 @@ public sealed record IrOp_ReadRankedResult(
     string ResultStructTypeName
 ) : IrOperation;
 
-// ── GetShared / SetShared (Slice 2a-2) ────────────────────────────────────
-
-/// <summary>
-/// Emitted by Stage 5 for a <c>GetSharedNode</c>. Reads the ENTITY-scoped shared working-state
-/// slot named <paramref name="VariableId"/> via
-/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TryGetShared&lt;T&gt;</c> (Slice
-/// 2a-1 accessor). The statement's own <c>ResultValue</c> holds the "Value" output;
-/// <paramref name="FoundValue"/> is a second, already-allocated <see cref="IrValue"/> that this
-/// op DECLARES (not references) -- Stage 7 emits both locals from this single statement, mirroring
-/// how <c>IrOp_ReadEqsResult</c>/<c>IrOp_ReadRankedResult</c> feed a multi-field result to
-/// downstream consumers, but without an intermediate helper struct (the two outputs are declared
-/// inline).
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
-/// <param name="SharedTypeFqn">
-/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
-/// argument for <c>TryGetShared&lt;T&gt;</c>.
-/// </param>
-/// <param name="FoundValue">
-/// The "Found" (<c>System.Boolean</c>) output slot, declared by this statement's emission.
-/// </param>
-/// <param name="TargetEntity">
-/// Slice 2b -- cross-entity read. The resolved "Target" data-in pin, when the <c>GetSharedNode</c>
-/// has it wired (any Entity-valued pin the graph author supplies -- mirrors how
-/// <see cref="IrOp_GetComponent"/> carries its <c>Entity</c> argument as a resolved
-/// <see cref="IrValue"/>). <c>null</c> when the pin is unwired -- Stage 7 then emits <c>self</c>
-/// EXACTLY as Slice 2a-2 (byte-identical unwired path).
-/// </param>
-public sealed record IrOp_ReadShared(
-    string VariableId,
-    string SharedTypeFqn,
-    IrValue FoundValue,
-    IrValue? TargetEntity = null
-) : IrOperation;
-
-/// <summary>
-/// Emitted by Stage 5 for a <c>SetSharedNode</c>. Writes <paramref name="Value"/> into the
-/// ENTITY-scoped shared working-state slot named <paramref name="VariableId"/> via
-/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TrySetShared&lt;T&gt;</c> (Slice
-/// 2a-1 accessor). When the node's optional "Written" data-out pin is wired, the statement's
-/// <c>ResultValue</c> captures the returned <c>bool</c>; otherwise the call's result is discarded.
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
-/// <param name="SharedTypeFqn">
-/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
-/// argument for <c>TrySetShared&lt;T&gt;</c>.
-/// </param>
-/// <param name="Value">The resolved "Value" data-in.</param>
-public sealed record IrOp_WriteShared(
-    string VariableId,
-    string SharedTypeFqn,
-    IrValue Value
-) : IrOperation;
-
-/// <summary>
-/// Q#14 multi-pin SetShared: writes ONE field (<paramref name="Value"/>) into the ENTITY-scoped shared
-/// slot <paramref name="VariableId"/> at byte <paramref name="FieldOffset"/> within
-/// <paramref name="SharedTypeFqn"/>, via <c>BlueprintSharedState.TrySetSharedField&lt;TStruct,TField&gt;</c>.
-/// One statement per WIRED field pin (unwired fields never emit → preserved). Sources are resolved
-/// top-to-bottom into temporaries before the writes (evaluate-then-write); the per-field writes touch
-/// distinct byte ranges, so they are order-independent.
-/// </summary>
-/// <param name="VariableId">Entity-scoped slot name (name-keyed).</param>
-/// <param name="SharedTypeFqn">FQN of the shared struct (TStruct — hash validation + bounds).</param>
-/// <param name="FieldTypeFqn">FQN of the field type (TField — the write width).</param>
-/// <param name="FieldOffset">Byte offset of the field within the struct (editor-baked).</param>
-/// <param name="Value">The resolved field data-in.</param>
-public sealed record IrOp_WriteSharedField(
-    string VariableId,
-    string SharedTypeFqn,
-    string FieldTypeFqn,
-    int FieldOffset,
-    IrValue Value
-) : IrOperation;
-
 /// <summary>
 /// Q#14 Option B (<c>MakeStructNode</c>): constructs a struct value from per-field values —
 /// <c>var __t{result} = new global::{StructFqn} { A = __t{..}, B = __t{..} };</c>. The result is the
 /// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
 /// object-initializer construction, but the value flows out instead of being published).
 /// </summary>
+/// <summary>
+/// ⭐ CE-472 — <c>var __t{r} = JsonSerializer.Serialize(__t{Value}, FdpJsonOptionsRegistry.DefaultRelaxed);</c> — the
+/// one serializer setting every behaviour parse already reads with (DESIGN_Typed_Intent_And_Json_Nodes §4 C).
+/// </summary>
+public sealed record IrOp_ToJson(IrValue Value) : IrOperation;
+
+/// <summary>
+/// ⭐ CE-472 — deserialises <see cref="Json"/> into a <see cref="TypeFqn"/> instance, never null and never throwing:
+/// bad or empty input yields <c>new T()</c> and records failure in <c>__fjok{r}</c>, read by <see cref="IrOp_FromJsonOk"/>.
+/// </summary>
+public sealed record IrOp_FromJson(IrValue Json, string TypeFqn) : IrOperation;
+
+/// <summary>⭐ CE-472 — <c>var __t{r} = __fjok{Dto};</c> — whether the <see cref="IrOp_FromJson"/> that produced <see cref="Dto"/> parsed.</summary>
+public sealed record IrOp_FromJsonOk(IrValue Dto) : IrOperation;
+
 public sealed record IrOp_MakeStruct(
     string StructFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields

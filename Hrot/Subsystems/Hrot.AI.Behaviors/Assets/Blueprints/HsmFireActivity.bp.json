@@ -1,0 +1,152 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000160-0000-0000-0000-000000000002",
+  "Name": "HsmFireActivity",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "HsmAction"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d1600002-0001-0001-0001-000000000001",
+      "Name": "TargetNetworkId",
+      "Type": {
+        "TypeId": "System.Int64",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "Tooltip": "NetworkIdentity of the entity to engage, seeded from the hosting HSM\u0027s blackboard. A network id, not an Entity: entity handles are not stable across a scenario load.",
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "00000160-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "60000002-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "60000002-0005-0005-0005-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 380,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.NetworkEntityMapOps",
+          "MethodName": "ResolveTarget",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Id": "60000002-0006-0006-0006-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 330,
+            "Y": 380,
+            "Comment": "Network id -\u003E live Entity. Without this the Target is Entity.Null, AimAndFire reports Success on its first tick (target not alive) and never fires a shot."
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "Id": "60000002-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 160,
+            "Comment": "The weapon half of the acceptance description."
+          },
+          "PinDefaults": {
+            "CooldownSeconds": "1.5"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "60000002-0004-0004-0004-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "60000002-0002-0002-0002-000000000001",
+          "FromPinId": "be457627-82bd-a950-9695-c371dbc56ca6",
+          "ToNodeId": "60000002-0003-0003-0003-000000000001",
+          "ToPinId": "cbfa61f7-fa71-745a-b45f-76382a77cafd"
+        },
+        {
+          "FromNodeId": "60000002-0005-0005-0005-000000000001",
+          "FromPinId": "e392ee15-95c7-9c5d-8f0e-354278335de1",
+          "ToNodeId": "60000002-0006-0006-0006-000000000001",
+          "ToPinId": "84b9362a-6086-0155-8a7f-9d351afcbd8f"
+        },
+        {
+          "FromNodeId": "60000002-0006-0006-0006-000000000001",
+          "FromPinId": "24e0c528-5b17-0c51-9fb7-24bd5de813fa",
+          "ToNodeId": "60000002-0003-0003-0003-000000000001",
+          "ToPinId": "97f4db04-7720-1957-89b6-86eeb656a0e1"
+        },
+        {
+          "FromNodeId": "60000002-0003-0003-0003-000000000001",
+          "FromPinId": "da4aa66a-b8d0-ec5b-b216-7364b4a3b718",
+          "ToNodeId": "60000002-0004-0004-0004-000000000001",
+          "ToPinId": "b6bb79f7-d7f0-ee53-b557-9f64e9f1c441"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "HSM activity: drives the WEAPON channel at a target resolved from the hosting HSM\u0027s blackboard (TargetNetworkId -\u003E ResolveTarget -\u003E the AimAndFire Target pin). A DIFFERENT channel from the movement state, so the hand-off is observable on two components.",
+    "Category": null,
+    "Recipe": null
+  }
+}

@@ -121,7 +121,13 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
     // ── IOrbatController ──────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public void SelectEntity(int entityId) => _logic.SelectEntity(entityId);
+    /// <remarks>
+    /// ⭐ <c>CE-259t</c> — <see cref="IExConLogic.SendSetSelection"/>, not <c>SelectEntity</c>: the latter set
+    /// ExCon's selection LOCALLY and never told the IG map it remote-controls, so the two diverged. 🔒 User,
+    /// <c>2026-09-30</c>: the IG map remote-controlled from ExCon "should sync the selection". SendSetSelection
+    /// sets the local one too and writes <c>CMD_SET_SELECTION</c> — the path ExCon's own orbat panel already uses.
+    /// </remarks>
+    public void SelectEntity(int entityId) => _logic.SendSetSelection(entityId);
 
     /// <inheritdoc/>
     public void CreateUnit(long tkbType) => _logic.StartPlacementMode(tkbType, (string?)null);

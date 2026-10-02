@@ -77,8 +77,11 @@ public sealed unsafe class BlueprintVariableWiringRegressionTests
     {
         ComponentTypeRegistry.Clear();
         var repo = new EntityRepository();
-        repo.RegisterComponent<BlueprintBlackboard1024>();
-        repo.RegisterComponent<BlueprintBlackboard4096>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(repo, maxTotalSize: 4096);
         // BB16384 intentionally omitted -- see BlueprintVariableCompilerTests' class summary.
 
         var entity = repo.CreateEntity();

@@ -72,7 +72,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
             var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Ori.Heading);
 
-            cmd.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
+            cmd.SetComponent(entity, new NetworkTransform
+            {
+                LastPosition = position,
+                LastRotation = rotation,
+                SimStamp     = DecodeSimStampOrComplain(data.Time, netId),
+            });
 
             // Guard: do NOT override SimTransform for locally-owned entities.
             // In AllInOne / combined Brain+Muscle roles, DDS loopback causes this translator
@@ -102,6 +107,35 @@ namespace Hrot.Map.Common.Replication.Ingress
             }
         }
 
+        /// <summary>
+        /// Decodes the sample's simulation-time stamp, complaining loudly if it carries none.
+        ///
+        /// <para>
+        /// There is deliberately no silent fallback. An unstamped sample decodes to a stamp of zero,
+        /// which dead reckoning would read as an age of "the whole run so far" and use to fling the
+        /// entity across the map along its last known velocity — a spectacular symptom whose cause
+        /// would be invisible. Every publisher in this codebase stamps; a sample that does not came
+        /// from something that has not been updated, and that is a defect to fix at the source, not
+        /// to absorb here. The sample is still applied (a stale-stamped position beats no position),
+        /// so this degrades to "no extrapolation" rather than to nothing.
+        /// </para>
+        ///
+        /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> rule R6.</para>
+        /// </summary>
+        private double DecodeSimStampOrComplain(DateTime wireStamp, long entityId)
+        {
+            if (SimStampCodec.TryDecode(wireStamp, out double simStamp))
+                return simStamp;
+
+            FdpLog<GeoSpatialIngressTranslator>.Warn(
+                "[Node-{0}] WorldPos for entity {1} arrived with NO simulation-time stamp. " +
+                "Dead reckoning cannot extrapolate it and will hold the raw sample. " +
+                "The publisher is not stamping — fix it there (docs/DESIGN_Dead_Reckoning.md R6).",
+                _localNodeId, entityId);
+
+            return 0.0;
+        }
+
         public override void ScanAndPublish(ISimulationView view) { }
 
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
@@ -113,7 +147,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             var position  = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
             var rotation  = SimTransformBridgeSystem.HeadingDegToRotation(geo.Ori.Heading);
 
-            repo.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
+            repo.SetComponent(entity, new NetworkTransform
+            {
+                LastPosition = position,
+                LastRotation = rotation,
+                SimStamp     = DecodeSimStampOrComplain(geo.Time, geo.EntityId),
+            });
             repo.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
 
             // 2. Velocity

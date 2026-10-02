@@ -333,6 +333,35 @@ public class ExConLogicTests
         Assert.Contains("8802", captured!.CommandArgsJson);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>E5</c> — ExCon can start ZONE authoring on the map host.
+    ///
+    /// <para>🔒 The <c>U6</c> ruling: *"area authoring should be part of unified Map2d role features …
+    /// nothing of it should be IG host only."* ⭐ Same <c>CMD_START_AUTHORING</c> command as the area
+    /// arm, carrying <c>tkbType = TerrainZone</c> so the host's shared <c>AreaAuthoringArm</c> births a
+    /// zone. ⛔ Before this the type could not be requested at all: the area command sends no
+    /// <c>tkbType</c> and the host hard-coded <c>TacGraphic_Area</c>.</para>
+    ///
+    /// <para>⚠ Asserting on the <b>8804</b> in the args, not just on the command type, is what makes
+    /// this non-vacuous — an implementation that forwarded to the area arm would pass a
+    /// command-type-only assertion.</para>
+    /// </summary>
+    [Fact]
+    public void StartZoneAuthoringMode_WritesStartAuthoring_CarryingTheZoneTkbType()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
+
+        logic.StartZoneAuthoringMode();
+
+        Assert.NotNull(captured);
+        Assert.Equal("CMD_START_AUTHORING", captured!.CommandType);
+        // tkbType 8804 is TerrainZone (B1)
+        Assert.Contains("8804", captured!.CommandArgsJson);
+    }
+
     [Fact]
     public void StartRouteAuthoringMode_WithCommandWriter_TracksRequest()
     {

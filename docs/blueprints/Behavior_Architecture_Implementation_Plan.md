@@ -1,3 +1,18 @@
+<!--STATUS
+state: LIVE
+doc-type: a SEQUENCING plan (how and in what order), not a design. ⛔ Quote a DESIGN for intent.
+updated: 2026-09-27 (related-designs added; no plan content changed)
+current-answer: the Progress blocks below, newest first.
+stale-below: ⚠ the Progress notes are dated; verify any "DONE"/"remaining" line against git before
+  acting on it.
+related-designs:
+  - DESIGN_Behavior_Self_Registration.md — ⭐⭐ Phase 2 here retired `AiBehaviorFactory` and ruled that
+    "every behavior self-registers via [BlueprintRegistrar] discovery". THAT design finishes the
+    sentence for C#-defined behaviours: it generates `CgfCuratedBehaviorRegistrar`'s body and deletes
+    the file. ⛔ This plan owns the sequencing HISTORY; it does not own that design.
+  - Behavior_Parameter_Resolver_Detailed_Design.md — owns the resolver overlay and R-132.
+-->
+
 # Behavior Architecture — Sequenced Implementation Plan
 
 > **Progress (2026-07-14, cont.):** **Phase 3 partially landed —** **I1** (AiPrimitive BTree
@@ -100,9 +115,9 @@ Phase 2 depends on Phase 1 (single record per name) and delivers the "behavior o
 
 | # | Task | Key files / seams | Owner | Gate |
 |---|---|---|---|---|
-| 3a | **I1** — route AiPrimitive action/condition thunks into the `ActionRegistry<BrainBlackboard,BTreeContext>` the FastBTree interpreter actually reads (string key `{fqn}@{offset}[@{slotKey}]`), instead of the orphaned `BehaviorRegistry` int-keyed dicts. | `CSharpEmitter.EmitAiPrimitiveRegistration`, `AiPrimitiveEmitter`, `Interpreter.BindActions` contract | [O] | un-skip a minimal MoveToAndFire interpreter-tick test → green |
+| 3a | **I1** — route AiPrimitive action/condition thunks into the `ActionRegistry<byte,BTreeContext>` the FastBTree interpreter actually reads (string key `{fqn}@{offset}[@{slotKey}]`), instead of the orphaned `BehaviorRegistry` int-keyed dicts. | `CSharpEmitter.EmitAiPrimitiveRegistration`, `AiPrimitiveEmitter`, `Interpreter.BindActions` contract | [O] | un-skip a minimal MoveToAndFire interpreter-tick test → green |
 | 3b | **I2** — emit the per-node adapter ("BTree owns layout, blueprint provides `TickCore`") by reusing `BTreeBridgeEmitCore.EmitStatefulActionThunks` with a "MethodFqn = generated `TickCore`" case. | `BTreeBridgeEmitCore.cs` | [O] | byte-identity; new blueprint-action tick test |
-| 3c | **I3** — move blueprint working state onto the S3-G partition-slot rail (`BlueprintBlackboardPartitions` / `StatefulWorkingSlots`), replacing the fixed `Blackboard1024`+offset-8 in `AiPrimitiveEmitter`. Lifts the one-stateful-primitive-per-entity cap. | `AiPrimitiveEmitter.cs`, `BehaviorIngressSystem` provisioning | [O] | T20/T30-style stateful proof; Generators |
+| 3c | **I3** — move blueprint working state onto the S3-G partition-slot rail (`BlueprintBlackboardPartitions` / `StatefulWorkingSlots`), replacing the old fixed-offset single-tenant projection in `AiPrimitiveEmitter`. Lifts the one-stateful-primitive-per-entity cap. | `AiPrimitiveEmitter.cs`, `BehaviorIngressSystem` provisioning | [O] | T20/T30-style stateful proof; Generators |
 | 3d | **G2 / §8.3** — the **Library-function resolver** path: make Library functions runtime-invocable (delegate + `Functions` table on `BlueprintDefinition`, registrar emission — R1/R2) so a resolver can be authored as a blueprint, marshalled via the Phase-2 seam. (Today's self-probe fix already made Library emit compile.) | `BlueprintDefinition.cs`, `CSharpEmitter` Library registration, `LibraryEmitter` | [O] | Roslyn-compile + invoke test for a Library resolver |
 
 ## 6. Phase 4 — Editor authoring (Windows-verified)

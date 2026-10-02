@@ -26,11 +26,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\src\Fbt.Compiler\Fbt.Compiler.csproj" />
-    <ProjectReference Include="..\..\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\..\examples\Fbt.Examples.FluentBTree\Fbt.Examples.FluentBTree.csproj" />
-    <ProjectReference Include="..\..\examples\Fbt.Examples.FluentBTree.Trees\Fbt.Examples.FluentBTree.Trees.csproj" />
   </ItemGroup>
 
 </Project>

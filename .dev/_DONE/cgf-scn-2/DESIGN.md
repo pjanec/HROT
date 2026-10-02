@@ -5,7 +5,7 @@
 This workstream addresses five tightly related gaps discovered during scenario-authoring testing
 in the Hrot distributed CGF cluster. The root cause of all bugs is the same: the
 `FdpAutoSerializer` silently truncates data it cannot handle (fixed buffers, InlineArrays,
-managed classes), and several execution-tier components lack the `[DataPolicy(DataPolicy.NoSave)]`
+managed classes), and several execution-tier components lack the `[DataPolicy(DataPolicy.NoScenario)]`
 guard that would keep them out of scenario JSON in the first place.
 
 Custom `IEntityScenarioTranslator` implementations (`TargetMemoryTranslator`,
@@ -33,18 +33,18 @@ Scenarios and Checkpoints use two entirely separate persistence paths governed b
 different `DataPolicy` bitmasks:
 
 - **Scenarios** — processed by `ScenarioSerializer` / `FdpAutoSerializer`, which respects
-  `ComponentTypeRegistry.GetSaveableTypeIds()`.  Components carrying `DataPolicy.NoSave`
+  `ComponentTypeRegistry.GetSaveableTypeIds()`.  Components carrying `DataPolicy.NoScenario`
   are excluded from the JSON DOM.
 
 - **Checkpoints (Flight Recorder)** — processed by `CheckpointIOWorker` /
   `RecorderSystem.RecordKeyframe`, which respects `ComponentTypeRegistry.GetRecordableTypeIds()`.
-  Components carrying `DataPolicy.NoRecord` are excluded from the binary `.fdp` file.
+  Components carrying `DataPolicy.NoReplay` are excluded from the binary `.fdp` file.
 
-The current `DataPolicy.NoSave` XML comment incorrectly reads  
+The current `DataPolicy.NoScenario` XML comment incorrectly reads  
 *"Exclude from Save Game / Checkpoints"*.  It should read  
 *"Exclude from Scenario JSON serialization"*.
 
-### Components to Mark `[DataPolicy(DataPolicy.NoSave)]`
+### Components to Mark `[DataPolicy(DataPolicy.NoScenario)]`
 
 | File | Component | Reason |
 |---|---|---|
@@ -61,7 +61,7 @@ The current `DataPolicy.NoSave` XML comment incorrectly reads
 
 `Hrot/Subsystems/Hrot.SimHost/Serializers/WeaponChannelTranslator.cs` must be deleted.
 It was introduced to partially preserve `WeaponChannel` across scenario round-trips.  Now that
-`WeaponChannel` carries `[DataPolicy(DataPolicy.NoSave)]`, the serializer never visits it.
+`WeaponChannel` carries `[DataPolicy(DataPolicy.NoScenario)]`, the serializer never visits it.
 The active behavior re-initializes the channel organically on the first simulation tick after
 load through `BehaviorIngressSystem`.
 
@@ -356,9 +356,9 @@ race conditions on deserialization.  Event persistence applies **only** to binar
 1. **State vs. Message boundary.** Events live exclusively in the `FdpEventBus`; they must never
    be written to scenario JSON.
 
-2. **DataPolicy.NoSave governs scenario exclusion.**  Any component with volatile mid-tick runtime
+2. **DataPolicy.NoScenario governs scenario exclusion.**  Any component with volatile mid-tick runtime
    state (execution channels, brain pointers, sensor contacts) must carry this flag.
-   `DataPolicy.NoRecord` governs checkpoint exclusion and is independent.
+   `DataPolicy.NoReplay` governs checkpoint exclusion and is independent.
 
 3. **Entity handles never cross scenario boundaries.**  All translators must convert `Entity`
    handles to stable GUID strings (or Network IDs for distributed loading) before writing to DOM.
@@ -371,5 +371,5 @@ race conditions on deserialization.  Event persistence applies **only** to binar
    `ActiveMissionPlan`.  This component is the only place where scenario serialization needs to
    capture behavioral intent.
 
-5. **Checkpoint binary clone is complete.**  `DataPolicy.NoRecord` is the guard for checkpoint
-   exclusion.  Items marked `DataPolicy.NoSave` only are still written to binary checkpoints.
+5. **Checkpoint binary clone is complete.**  `DataPolicy.NoReplay` is the guard for checkpoint
+   exclusion.  Items marked `DataPolicy.NoScenario` only are still written to binary checkpoints.

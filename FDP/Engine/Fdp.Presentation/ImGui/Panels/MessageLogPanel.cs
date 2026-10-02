@@ -4,11 +4,56 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Text.Json.Nodes;
 using Fdp.Core.Logging;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels
 {
+    /// <summary>⭐ One log row, projected for the dump. ⚠ <see cref="Timestamp"/> is round-trip ISO 8601,
+    /// not the render's <c>HH:mm:ss.fff</c> — the dump needs the full instant, the UI only the clock
+    /// time.</summary>
+    public sealed record MessageLogRowViewModel(string Timestamp, string LoggerName, string Severity, string Message);
+
+    /// <summary>⭐ One tab's state and (capped) filtered content. 📌 <see cref="FilteredMessages"/> is
+    /// capped at <see cref="MessageLogPanelViewModel.MaxRowsPerTab"/> — the raw sources can hold
+    /// thousands of entries and the dump is for assertions/conformance, not a full log export.</summary>
+    public sealed record MessageLogTabViewModel(
+        string SourceId,
+        string DisplayName,
+        int TotalCount,
+        int FilteredCount,
+        bool HasUnobservedAttention,
+        bool NotificationsEnabled,
+        string FilterText,
+        IReadOnlyList<string> HiddenSeverities,
+        IReadOnlyList<MessageLogRowViewModel> FilteredMessages);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="MessageLogWindow"/> shows, this frame.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    ///
+    /// <para>⚠⚠ <b>Dumps EVERY tab, not only the ImGui-active one.</b> ⛔ Which tab is "active" is owned
+    /// by ImGui's own tab-bar state, not by <see cref="MessageLogPanel"/> — there is no headless notion
+    /// of "the selected tab" to key a single-tab dump off. ⭐ Since each tab's filter state is independent
+    /// and already tracked outside ImGui (<c>TabState</c>), dumping all of them is a superset of what a
+    /// single frame paints, never a mismatch with it — 📌 the rendering itself is UNCHANGED by this.</para>
+    /// </summary>
+    public sealed record MessageLogPanelViewModel(
+        string PanelId,
+        string PanelKind,
+        bool ShowTimestamp,
+        bool ShowLogger,
+        IReadOnlyList<MessageLogTabViewModel> Tabs) : IPanelViewModel
+    {
+        /// <summary>⭐ Cap applied per tab when building <see cref="MessageLogTabViewModel.FilteredMessages"/>.</summary>
+        public const int MaxRowsPerTab = 500;
+
+        /// <inheritdoc/>
+        public JsonNode Dump() => PanelDump.Of(this);
+    }
+
     /// <summary>
     /// Embeddable ImGui panel that displays a tabbed message log.
     ///
@@ -129,6 +174,68 @@ namespace Fdp.Presentation.Panels
         public void SelectTab(string sourceId)
         {
             _forceSelectTabId = sourceId;
+        }
+
+        // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+        /// <summary>
+        /// ⭐⭐⭐ <b>BUILD — a pure projection of every tab's filtered content. No ImGui.</b>
+        /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Mirrors the same filter logic
+        /// <see cref="DrawMessageList"/> applies per row — kept in sync by hand since <c>TabState</c> is
+        /// private to this class and the two must agree on what "filtered" means.
+        /// </summary>
+        public MessageLogPanelViewModel BuildViewModel(string panelId, string panelKind)
+        {
+            // Lazily subscribe to sources that were registered after construction — mirrors DrawContent
+            // so a headless caller sees every registered source even before a frame has ever drawn.
+            foreach (var source in _registry.Sources)
+                EnsureTabState(source);
+
+            var tabs = new List<MessageLogTabViewModel>(_registry.Sources.Count);
+            foreach (var source in _registry.Sources)
+            {
+                if (!_tabStates.TryGetValue(source.SourceId, out var state))
+                    continue;
+
+                var messages = source.GetMessages();
+                var rows = new List<MessageLogRowViewModel>();
+                foreach (var msg in messages)
+                {
+                    if (state.HiddenSeverities.Contains(msg.Severity))
+                        continue;
+                    if (!string.IsNullOrEmpty(state.FilterText) &&
+                        !msg.Message.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase) &&
+                        !msg.LoggerName.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    bool loggerHidden;
+                    lock (state.HiddenLoggers)
+                        loggerHidden = state.HiddenLoggers.Contains(msg.LoggerName);
+                    if (loggerHidden) continue;
+
+                    if (rows.Count < MessageLogPanelViewModel.MaxRowsPerTab)
+                        rows.Add(new MessageLogRowViewModel(
+                            msg.Timestamp.ToString("O"), msg.LoggerName, msg.Severity.ToString(), msg.Message));
+                }
+
+                // ⚠ HiddenSeverities is read unlocked here, exactly as DrawMessageList already does —
+                //   it is only ever mutated from the UI thread (the severity-filter popup).
+                var hiddenSeverities = state.HiddenSeverities
+                    .Select(s => s.ToString())
+                    .OrderBy(s => s, StringComparer.Ordinal)
+                    .ToList();
+
+                tabs.Add(new MessageLogTabViewModel(
+                    SourceId:               source.SourceId,
+                    DisplayName:            source.DisplayName,
+                    TotalCount:             messages.Count,
+                    FilteredCount:          rows.Count,
+                    HasUnobservedAttention: state.HasUnobservedAttention,
+                    NotificationsEnabled:   state.NotificationsEnabled,
+                    FilterText:             state.FilterText,
+                    HiddenSeverities:       hiddenSeverities,
+                    FilteredMessages:       rows));
+            }
+
+            return new MessageLogPanelViewModel(panelId, panelKind, _showTimestamp, _showLogger, tabs);
         }
 
         // ── Public draw entry point ──────────────────────────────────────────

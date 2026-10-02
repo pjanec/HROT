@@ -163,6 +163,13 @@ namespace Hrot.Map.Common.Replication.Ingress
             }
 
             queue.PhaseCount = (byte)count;
+
+            // ⭐ CE-483 (egress half, W3): restore the progress the owner sent — the outcomes, the current phase and the
+            //   halt. ⛔ Was `CurrentPhase = 0` with every task state dropped: a replica showed phase 0, and a node that later
+            //   took authority over the entity restarted the plan from the beginning.
+            var states = new eTaskState[count];
+            for (int i = 0; i < count; i++) states[i] = tasks[i].State;
+            Hrot.Map.Common.Replication.MissionProgressWire.Decode(states, ref queue);
             return queue;
         }
 

@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Utility
     /// <summary>
     /// 1024-byte unmanaged ring buffer of <see cref="UtilityTraceRecord"/>s.
     /// Per-entity trace memory for Utility AI scoring; opt-in via
-    /// <c>UtilityDebugFlags.TraceEnabled</c>. NoSave keeps it out of scenario JSON.
+    /// <c>UtilityDebugFlags.TraceEnabled</c>. NoScenario keeps it out of scenario JSON.
     /// </summary>
     /// <remarks>
     /// Layout: 8-byte header + 1016-byte buffer. First 992 bytes of buffer used
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Utility
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
     [ComponentId(UtilityApplicationComponentIds.UtilityTraceWorkingMemory)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct UtilityTraceWorkingMemory1024
     {
         public const int RecordStride    = 32;

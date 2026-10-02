@@ -17,12 +17,12 @@ namespace Fdp.Core
     /// Component ID 84 is reserved for this type across all toolkits.
     /// </para>
     /// <para>
-    /// <b>Data policy:</b> Marked <see cref="DataPolicy.NoSave"/> — this is a runtime
+    /// <b>Data policy:</b> Marked <see cref="DataPolicy.NoScenario"/> — this is a runtime
     /// marker stamped at load time and must never appear in persisted scenario files.
     /// </para>
     /// </remarks>
     [ComponentId(84)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct EpisodeTag
     {
         /// <summary>Identifier of the episode this entity belongs to.</summary>

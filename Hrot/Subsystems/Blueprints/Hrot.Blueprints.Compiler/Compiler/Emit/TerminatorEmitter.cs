@@ -27,6 +27,9 @@ internal static class TerminatorEmitter
                 // scalar and a ValueTuple, so no return-type string is needed at this point.
                 else if (t.ReturnsDefault)
                     e.WriteLine("return default;");
+                // ⭐ CE-446: a behaviour Tick that falls off the end or suspends has NOT finished.
+                else if (ctx.IsBehaviorTick)
+                    e.WriteLine(EmissionContext.ReturnRunning);
                 else
                     e.WriteLine("return;");
                 break;

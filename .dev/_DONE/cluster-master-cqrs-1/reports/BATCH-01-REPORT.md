@@ -35,9 +35,9 @@ Integer values verified against `Hrot.NED/Orchestration/OrchestrationMessages.cs
 **File created:** `FDP/Toolkits/FDP.Toolkit.Orchestration/Events/ClusterCqrsEvents.cs`
 
 Structs:
-- `ClusterOpCompletedEvent` — EventId 9011, `[DataPolicy(DataPolicy.NoRecord)]`
-- `ExecuteNodeOpIntent` — EventId 9012, `[DataPolicy(DataPolicy.NoRecord)]`
-- `NodeOpCompletedEvent` — EventId 9013, `[DataPolicy(DataPolicy.NoRecord)]`
+- `ClusterOpCompletedEvent` — EventId 9011, `[DataPolicy(DataPolicy.NoReplay)]`
+- `ExecuteNodeOpIntent` — EventId 9012, `[DataPolicy(DataPolicy.NoReplay)]`
+- `NodeOpCompletedEvent` — EventId 9013, `[DataPolicy(DataPolicy.NoReplay)]`
 
 All structs carry `object?` payload fields (no `string? PayloadJson`, no `string? ResultJson`). No `System.Text.Json` in the file. No `ExecuteClusterOpIntent` was created.
 
@@ -61,7 +61,7 @@ Types:
 - `TakeCheckpointIntent` — EventId 9056 (only `Guid RequestId`, no other fields)
 - `LoadZoneIntent` — EventId 9057
 
-`TransitionStateIntent.TargetState` uses `FDP.Toolkit.Orchestration.ClusterState` (not `Hrot.NED`). All structs `[DataPolicy(DataPolicy.NoRecord)]`.
+`TransitionStateIntent.TargetState` uses `FDP.Toolkit.Orchestration.ClusterState` (not `Hrot.NED`). All structs `[DataPolicy(DataPolicy.NoReplay)]`.
 
 **Tests added (CMC-S003 in FdpOrchestrationCqrsStructTests.cs):** 6 additional tests covering field structures, `TakeCheckpointIntent` single-field constraint, and EventId range uniqueness.
 

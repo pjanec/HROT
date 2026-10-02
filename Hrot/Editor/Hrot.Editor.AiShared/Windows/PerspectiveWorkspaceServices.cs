@@ -80,6 +80,39 @@ public sealed class PerspectiveWorkspaceServices
 
     // ── Optional, but shared when present ─────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.4</c> — where the Details context gets its selected ENTITIES</b>
+    /// *(<c>R-122</c>: "entity selection is on the entity")*. ⭐ Production passes a
+    /// <c>WorldEntitySelectionSource</c> over the kernel's live world.
+    ///
+    /// <para>⛔⛔ <b>It belongs in THIS bag and nowhere else.</b> 📌 This class exists because
+    /// <i>"the next shared service is one more thing three call sites must remember, and the third one
+    /// has now forgotten three times"</i> — ⚠ a per-perspective entity source would be exactly that
+    /// mistake, and the entity is <b>one fact about the world</b>, not a per-perspective one.</para>
+    ///
+    /// <para>⚠ Optional, because headless hosts have no World; ⛔ but a production caller that HAS one
+    /// must pass it, and <c>TheEntityContextReadsTheWorldTests</c> asserts that on the CONSTRUCTED
+    /// object rather than on this declaration.</para>
+    /// </summary>
+    public Shell.IEntitySelectionSource? EntitySelection { get; init; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the ONE staged-write query every variable surface reads.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A, §7 *(<c>R-120</c>)*.
+    ///
+    /// <para>⛔⛔ <b>In THIS bag for the same reason <see cref="EntitySelection"/> is:</b> what is
+    /// staged is <b>one fact about the editor</b>, not a per-perspective one. ⚠ A per-perspective
+    /// staged set would let a Blueprint Details panel and a Blueprint Watch — built by the same
+    /// registrar — still agree, while the same variable on another perspective's surface disagreed;
+    /// 📌 §7 is explicit that the surfaces <b>do NOT diverge</b>.</para>
+    ///
+    /// <para>⚠ Optional, because a headless host has no <c>DataBreakpointManager</c> and nothing can be
+    /// staged. ⛔ But a production caller that HAS one must pass it *(the <c>2026-08-16</c> rule)*, and
+    /// the rail asserts that on the CONSTRUCTED models — Details and Watch holding the SAME
+    /// instance — ⛔ never on this declaration.</para>
+    /// </summary>
+    public Variables.StagedWriteView? StagedWrites { get; init; }
+
     /// <summary>Shared breakpoint manager; drives the per-perspective Watch + Breakpoints windows.</summary>
     public IDataBreakpointManager? BreakpointManager { get; init; }
 
@@ -106,6 +139,28 @@ public sealed class PerspectiveWorkspaceServices
 
     /// <summary>Decoder for raw blackboard bytes; shared by the table and the Watch formatter.</summary>
     public DecodeRawValue? ValueDecoder { get; init; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>AQ55</c> — the host's "point at an entity" capability</b>, handed to every
+    /// perspective's Watch window. 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c>.
+    ///
+    /// <para>⚠ Optional: a headless host and a shell with no map have nothing to pick with, and the
+    /// menu entry is then ABSENT rather than dead. ⛔ But a composition root that HAS a map-pick
+    /// service must pass it *(the <c>2026-08-16</c> rule)*, and the rail asserts that on the
+    /// CONSTRUCTED window's <c>HasEntityPicker</c> — ⛔ never on this declaration.</para>
+    /// </summary>
+    public Variables.WatchEntityPicker? EntityPicker { get; init; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>BP-511</c> — the staging⇄runtime identity bridge</b> every perspective's Watch needs for a
+    /// pin to survive a scenario reload. 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8a.
+    ///
+    /// <para>⚠ Optional: a headless host has no world to resolve an id against, and a pin is then
+    /// within-session — which the persistence layer already reports rather than hiding. ⛔ But a
+    /// composition root that HAS a world must pass it, and the rail asserts that on the CONSTRUCTED
+    /// window's <c>HasEntityIdentity</c>.</para>
+    /// </summary>
+    public Variables.WatchEntityIdentity? EntityIdentity { get; init; }
 
     /// <param name="facetEditService">
     ///   ⛔ <b>Throws when null.</b> 📌 <c>R-67</c> — the omission this type exists to make impossible.
@@ -143,6 +198,12 @@ public sealed class PerspectiveWorkspaceServices
     /// <param name="liveValueProvider">
     ///   ⭐ The perspective's live-value provider, or null where none exists yet (Blueprint).
     /// </param>
+    /// <param name="writeLive">
+    ///   ⭐⭐ The perspective's LIVE blackboard writer, or null where none exists.
+    ///   ⚠ <b>Genuinely per-perspective</b>, exactly like <paramref name="liveValueProvider"/>: 📐 only
+    ///   Blueprint has a live write path *(<c>IBlueprintDebugSession</c>)*; BTree/HSM have none, and
+    ///   ⛔ their <c>LiveWriteUnavailable</c> refusal is the honest answer, not a gap to paper over.
+    /// </param>
     /// <param name="hostKind">
     ///   ⭐ Override only. ⛔ Normally null — 📌 Batch 80 made the registrar DERIVE it from the
     ///   perspective name precisely because a caller forgot it for two perspectives.
@@ -152,7 +213,8 @@ public sealed class PerspectiveWorkspaceServices
         EditorSelectionStore          selectionStore,
         IReadOnlyList<IAssetValidator> validators,
         ILiveBlackboardValueProvider? liveValueProvider = null,
-        BlackboardHostKind?           hostKind          = null)
+        BlackboardHostKind?           hostKind          = null,
+        WriteLiveValue?               writeLive         = null)
         => new PerspectiveWorkspaceRegistrar(
             perspectiveName, selectionStore, Catalog, RefactorService, DebugRegistry,
             validators:                    validators ?? throw new ArgumentNullException(nameof(validators)),
@@ -169,5 +231,10 @@ public sealed class PerspectiveWorkspaceServices
             hostKind:                      hostKind,
             valueDecoder:                  ValueDecoder,
             isSimUp:                       IsSimUp,
-            isFrozen:                      IsFrozen);
+            isFrozen:                      IsFrozen,
+            writeLive:                     writeLive,
+            entitySelection:               EntitySelection,
+            stagedWrites:                  StagedWrites,
+            entityPicker:                  EntityPicker,
+            entityIdentity:                EntityIdentity);
 }

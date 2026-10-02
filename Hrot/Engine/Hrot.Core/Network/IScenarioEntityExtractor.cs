@@ -33,4 +33,22 @@ public interface IScenarioEntityExtractor
         ScenarioSerializer serializer,
         string json,
         INetworkIdAllocator idAllocator);
+
+    /// <summary>
+    /// ⭐⭐ <c>L4a</c> — the same extraction, with the host's optional BEHAVIOUR REMAPPER.
+    ///
+    /// <para>⭐ Added so the ONE <c>ScenarioLoadStep</c> can serve every host through this interface. 📐 The
+    /// remapper patches network ids embedded in mission-plan parameters; before the step existed, only CGF
+    /// passed one, and it could do so only by depending on the CONCRETE extractor — which is a large part
+    /// of why CGF needed a handler of its own at all.</para>
+    ///
+    /// <para>⚠ The default implementation ignores the remapper, so an extractor that has no notion of one
+    /// (a test double, a host that does not remap) needs no change and behaves exactly as before.</para>
+    /// </summary>
+    IReadOnlyList<EntityCreationRequest> Extract(
+        ScenarioSerializer serializer,
+        string json,
+        INetworkIdAllocator idAllocator,
+        Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper)
+        => Extract(serializer, json, idAllocator);
 }

@@ -152,6 +152,24 @@ public sealed class VariableTableModel
 
     public VariableChangeMonitor Monitor => _monitor;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the SHARED staged-write query.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A, §7.
+    ///
+    /// <para>⛔⛔ <b>NOT constructed here</b>, unlike <see cref="Monitor"/> and <see cref="Sampler"/>.
+    /// 📌 <c>R-120</c>: <i>"a view owns no shared state."</i> Those two are a panel's MEMORY and are
+    /// correctly per-panel; this is a QUERY over state the whole editor shares — 📐 §2 <c>I2</c>
+    /// measured what happens when that is got backwards. ⭐ <b>One instance, built at the composition
+    /// root and forwarded by <c>PerspectiveWorkspaceRegistrar</c> through
+    /// <see cref="IVariableTableHost.TableModel"/></b>, so Details and Watch read the SAME set and
+    /// therefore cannot disagree.</para>
+    ///
+    /// <para>⚠ <c>null</c> ⇒ nothing yellows. ⭐ Correct for a rail's hand-built model and for a host
+    /// with no staged-write source — ⛔ and it is exactly the shape the forwarding rail asserts against,
+    /// per the <c>2026-08-16</c> rule: <i>a production caller that HAS a dependency must PASS it.</i></para>
+    /// </summary>
+    public StagedWriteView? StagedWrites { get; set; }
+
     /// <summary>⭐ This panel's sampler. ⛔ Exposed for rails only — nothing outside drives it.</summary>
     internal VariableRowSampler Sampler => _sampler;
 
@@ -175,9 +193,16 @@ public sealed class VariableTableModel
         var names      = new Dictionary<(Guid, Fdp.Core.Entity, string), string>();
         foreach (var row in rows)
         {
-            highlights[row.Origin.Key] = _monitor.Observe(row, RunState);
+            // ⭐⭐⭐ W4 — OBSERVED ON THE SAMPLED (REAL) BYTES, BEFORE the staged override below.
+            // ⛔⛔ Order is load-bearing: observing the STAGED bytes would read the designer's own edit
+            //    as "the value changed" and paint the row RED — 📄 §1: "A row is never red and yellow
+            //    for the same cause — a user edit is yellow, never red."
+            highlights[row.Origin.Key] = _monitor.Observe(row, RunState, StagedWrites);
             names[row.Origin.Key]      = VariableRowGrouping.DisplayName(row, rows, GroupBy);
         }
+
+        // ⭐⭐⭐ W4 — and NOW the display shows the staged bytes (§7).
+        rows = ApplyStagedValues(rows);
 
         var groups    = VariableRowGrouping.Group(rows, GroupBy);
         var ungrouped = groups.Count == 0 ? rows : VariableRowGrouping.Ungrouped(rows, GroupBy);
@@ -187,5 +212,63 @@ public sealed class VariableTableModel
         return new VariableTableView(
             rows, groups, ungrouped, Columns, highlights, names, VariableValue.ModeFor(RunState),
             SelectedVariablePath, sources);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the OPTIMISTIC DISPLAY.</b> 📄 <c>DESIGN_Staged_Live_Write.md</c> §7:
+    /// <i>"the instant an edit stages, Details AND Watch both show the staged bytes, both yellow."</i>
+    /// 🔒 <b>User, <c>2026-08-21</c>:</b> <i>"both showing the same staged value, immediately after user
+    /// edit."</i>
+    ///
+    /// <para>⭐⭐ <b>Both arms are rewritten, and the OBJECT arm must be CLEARED.</b> 📐 Measured at
+    /// <c>VariableValueFormatter.Decode:190</c>: <i>"the OBJECT arm, preferred when present"</i> ⇒
+    /// ⛔ overriding only the bytes would leave a Blueprint live row rendering the <b>applied</b> value
+    /// while the row is yellow — the exact disagreement §7 exists to remove.</para>
+    ///
+    /// <para>⭐⭐ <b><c>ReadWritten</c> becomes <see langword="true"/></b> — ⛔ otherwise
+    /// <c>Cell</c>'s <c>if (!row.WrittenNow) return "(pending)"</c> would hide the staged value behind
+    /// the *first-write* placeholder, and the designer's own number would be the one thing they could
+    /// not see.</para>
+    ///
+    /// <para>⚠⚠ <b>A row with no <c>ClrType</c> is left ALONE — deliberately, and it is a real limit.</b>
+    /// 📐 The byte arm decodes via <c>row.ClrType</c>; with none, forcing the byte path would render
+    /// <c>&lt;unreadable&gt;</c>. ⇒ ⭐ such a row still goes YELLOW *(the highlight is computed
+    /// independently, above)* but keeps showing its last applied value — ⛔ which is strictly better
+    /// than replacing a real number with an error string. 📌 Stated rather than silently defaulted; if a
+    /// host wants the staged value there, it must supply the row's type.</para>
+    ///
+    /// <para>⭐ <b>Allocation:</b> the list is rebuilt only when something is actually staged — the
+    /// common case returns <paramref name="rows"/> unchanged.</para>
+    /// </summary>
+    private IReadOnlyList<VariableRow> ApplyStagedValues(IReadOnlyList<VariableRow> rows)
+    {
+        var staged = StagedWrites;
+        if (staged is null || !staged.HasPending) return rows;
+
+        List<VariableRow>? rewritten = null;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            if (row.ClrType is null || !staged.TryGetTyped(row.Origin, out var bytes) || bytes.Length == 0)
+            {
+                rewritten?.Add(row);
+                continue;
+            }
+
+            if (rewritten is null)
+            {
+                rewritten = new List<VariableRow>(rows.Count);
+                for (int j = 0; j < i; j++) rewritten.Add(rows[j]);
+            }
+
+            rewritten.Add(row with
+            {
+                ReadValue       = () => bytes,
+                ReadValueObject = null,
+                ReadWritten     = () => true,
+            });
+        }
+
+        return rewritten ?? rows;
     }
 }

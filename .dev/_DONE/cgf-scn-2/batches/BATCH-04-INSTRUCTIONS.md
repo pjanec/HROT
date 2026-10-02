@@ -76,7 +76,7 @@ If you have questions, create:
 
 ## Context
 
-Phases 1–4 fixed scenario serialization (NoSave tagging, InlineArray support, custom
+Phases 1–4 fixed scenario serialization (NoScenario tagging, InlineArray support, custom
 translators, genesis intents).  Phase 5 addresses the **checkpoint pipeline**: currently
 `CheckpointIOWorker.WriteCheckpointFile` serializes a snapshot of ECS state but omits
 any events that were live on the bus.  After loading, systems that react to events

@@ -99,7 +99,7 @@ public sealed class ExConOrbatAdapterTests
         Assert.Equal(10, nodes[0].EntityId);
     }
 
-    // ── Test 4: SelectEntity delegates to IExConLogic.SelectEntity ────────────
+    // ── Test 4: SelectEntity delegates to IExConLogic.SendSetSelection (CE-259t) ──
 
     [Fact]
     public void SelectEntity_DelegatesToLogicSelectEntity()
@@ -110,7 +110,10 @@ public sealed class ExConOrbatAdapterTests
 
         adapter.SelectEntity(42);
 
-        logicMock.Verify(l => l.SelectEntity(42), Times.Once);
+        // ⭐ CE-259t — the cluster must hear it: SendSetSelection (local + CMD_SET_SELECTION), not the
+        //   local-only SelectEntity this rail used to pin.
+        logicMock.Verify(l => l.SendSetSelection(42), Times.Once);
+        logicMock.Verify(l => l.SelectEntity(It.IsAny<int>()), Times.Never);
     }
 
     // ── Test 5: CreateUnit delegates to IExConLogic.StartPlacementMode ────────

@@ -53,21 +53,51 @@ public static class BlueprintSelectionBridgeHelper
         SelectionState  selection,
         BlueprintAsset? bpAsset)
     {
-        if (bpAsset == null) return null;
-        if (selection.Count != 1) return null;
+        var all = MapSelections(selection, bpAsset);
+        return all.Count == 1 ? all[0] : null;
+    }
 
-        // Find the single selected node id.
-        using var enumerator = selection.Nodes.GetEnumerator();
-        if (!enumerator.MoveNext()) return null;
-        var nodeId = enumerator.Current;
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.2</c> — THE BRIDGE REPORTS, IT NEVER FILTERS.</b> 📌 <c>R-118</c>, and 📄
+    /// <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L0.2</c>: <i>"map every selected node; empty
+    /// list only when nothing is selected; an unresolvable node is DROPPED, not fatal."</i>
+    ///
+    /// <para>🔴 <b>What was deleted here, and why it was wrong:</b> <c>if (selection.Count != 1) return
+    /// null;</c>. ⛔ That one <c>null</c> meant <b>three different facts</b> — <i>nothing is
+    /// selected</i>, <i>more than one thing is</i>, and <i>the node is not in this asset</i> — and a
+    /// caller could not tell them apart. 📌 The design's own words: <i>"three facts flattened into
+    /// one."</i></para>
+    ///
+    /// <para>⭐⭐ <b>And it caused the PAN defect</b> *(§2b's second sequence)*: a pan does not change
+    /// the selection, but with two nodes selected this returned <c>null</c> every frame, so the store
+    /// was told <i>"nothing"</i> and the panel LOST the node. ⇒ ⭐ reporting the same set every frame
+    /// lets the store's elementwise guard see no change and stay silent.</para>
+    ///
+    /// <para>⚠ <b>An unresolvable node is DROPPED, not fatal</b> — a canvas id with no owning graph is
+    /// stale, and one stale id must not discard the designer's other selections.</para>
+    /// </summary>
+    public static IReadOnlyList<BlueprintNodeSelection> MapSelections(
+        SelectionState  selection,
+        BlueprintAsset? bpAsset)
+    {
+        if (bpAsset == null) return Array.Empty<BlueprintNodeSelection>();
 
-        // Walk asset graphs to find the graph that owns this node.
-        foreach (var graph in bpAsset.Graphs)
+        List<BlueprintNodeSelection>? mapped = null;
+        foreach (var nodeId in selection.Nodes)
         {
-            if (graph.Nodes.Any(n => n.Id == nodeId.Value))
-                return new BlueprintNodeSelection(graph.Id, nodeId.Value);
+            // Walk asset graphs to find the graph that owns this node.
+            foreach (var graph in bpAsset.Graphs)
+            {
+                if (!graph.Nodes.Any(n => n.Id == nodeId.Value)) continue;
+                (mapped ??= new List<BlueprintNodeSelection>()).Add(
+                    new BlueprintNodeSelection(graph.Id, nodeId.Value));
+                break;
+            }
+            // ⭐ no `else` — an unresolvable id is skipped, deliberately and silently.
         }
-        return null;
+
+        // ⭐ The empty case allocates nothing, so "nothing selected" costs no garbage per frame.
+        return (IReadOnlyList<BlueprintNodeSelection>?)mapped ?? Array.Empty<BlueprintNodeSelection>();
     }
 
     /// <summary>
@@ -91,8 +121,9 @@ public static class BlueprintSelectionBridgeHelper
         return ctx =>
         {
             var bpAsset = ctx.AssetRef as BlueprintAsset;
-            var newSel  = MapSelection(ctx.View.Selection, bpAsset);
-            selectionStore.ActiveSubSelection = newSel;
+            // ⭐⭐ L0.2 — the FULL set is published. 📌 R-118: the store decides nothing either; the
+            //    "exactly one" question moves to a view's predicate (L1.4).
+            selectionStore.ActiveSubSelections = MapSelections(ctx.View.Selection, bpAsset);
         };
     }
 }

@@ -277,7 +277,7 @@ public sealed class VariableSchemaSourceKindTests
         Assert.Throws<NotSupportedException>(
             () => src.UpdateVariableRole("V0", Hrot.AiEditor.Persistence.BlackboardVariableRole.State));
         Assert.Throws<NotSupportedException>(
-            () => src.UpdateVariableScope("V0", Hrot.AiEditor.Persistence.WorkingStateScope.Entity));
+            () => src.UpdateVariableScope("V0", Hrot.AiEditor.Persistence.WorkingStateScope.Behavior));
     }
 
     /// <summary>The locals source answers the same way, for the same reason.</summary>

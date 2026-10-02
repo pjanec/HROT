@@ -17,9 +17,9 @@ namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
     /// FastBTree action node delegates for CGF Brain-tier mission behaviors.
-    /// Hot-reloadable copy compiled independently into Hrot.AI.Behaviors so the
-    /// FbtAssemblyHotReloader can load a fresh version without restarting the editor.
-    /// Source of truth is Hrot.CGF.Brains.CgfNodes; keep both files in sync.
+    /// Compiled into Hrot.AI.Behaviors so the FbtAssemblyHotReloader can load a fresh version without
+    /// restarting the editor. ⚠ CE-447: an older header said a second copy lived in Hrot.CGF.Brains and had to
+    /// be kept in sync — measured 2026-09-30, it does not exist; this is the only CgfNodes.
     /// </summary>
     public static class CgfNodes
     {
@@ -82,7 +82,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>
             /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow.
-            /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> at spawn time and read by
+            /// Written into <c>the root params slot</c> at spawn time and read by
             /// <see cref="Action_WriteFollowRouteChannel"/> to populate the locomotion channel.
             /// </summary>
             public int   TrajectoryId;
@@ -125,24 +125,9 @@ namespace Hrot.AI.Behaviors.Brains
             public int   RoundsFired;
         }
 
-        // -- JSON parse DTOs (private) --
-
-        private class MoveToLocationParamsJsonDto
-        {
-            public double TargetLat { get; set; }
-            public double TargetLon { get; set; }
-            public float Speed { get; set; }
-            public float ArrivalRadius { get; set; }
-            public float X { get; set; }
-            public float Y { get; set; }
-        }
-
-        private class FireAtTargetParamsJsonDto
-        {
-            public long  TargetNetworkId  { get; set; }
-            public int   MaxRounds        { get; set; }
-            public float CooldownSeconds  { get; set; }
-        }
+        // ⭐ CE-447 (2026-09-30): no private parse DTOs — the resolvers deserialise into the ONE authored contract,
+        //   Hrot.Core's [BehaviorContract] classes (the paramSchema a scenario is authored against). ⛔ The private
+        //   copies here had drifted (float vs double, R-132: one producer per slot).
 
         /// <summary>
         /// Fallback travel speed (m/s) applied when a <c>MoveToLocation</c> params JSON
@@ -158,27 +143,29 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
         /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
         /// </summary>
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
+        [Fdp.Toolkit.Behavior.BehaviorResolver("MoveToLocation")]
+        public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 : null;
-            ParseMoveToParams(json, ptr, geo!);
+            ParseMoveToParams(json, ptr, capacity, geo!);
         }
 
         /// <summary>
         /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
         /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
         /// </summary>
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FireAtTarget")]
+        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 : null) ?? new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            ParseFireAtTargetParams(json, ptr, map);
+            ParseFireAtTargetParams(json, ptr, capacity, map);
         }
 
-        public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
+        public static unsafe void ParseMoveToParams(string json, byte* ptr, int capacity, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -186,7 +173,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            var dto = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, JsonOptions);
+            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(json, JsonOptions);
             if (dto == null)
             {
                 Unsafe.Write(ptr, default(MoveToLocationParams));
@@ -195,8 +182,8 @@ namespace Hrot.AI.Behaviors.Brains
 
             var p = new MoveToLocationParams
             {
-                Speed = dto.Speed > 0f ? dto.Speed : DefaultMoveToSpeed,
-                ArrivalRadius = dto.ArrivalRadius > 0f ? dto.ArrivalRadius : 5f,
+                Speed = dto.Speed > 0 ? (float)dto.Speed : DefaultMoveToSpeed,
+                ArrivalRadius = dto.ArrivalRadius > 0 ? (float)dto.ArrivalRadius : 5f,
                 X = dto.X,
                 Y = dto.Y
             };
@@ -212,7 +199,10 @@ namespace Hrot.AI.Behaviors.Brains
             Unsafe.Write(ptr, p);
         }
 
-        public static unsafe void ParseFollowRouteParams(string json, byte* ptr)
+        // 3-param shape: the generator emits the (json, memory, capacity, world, self, host)
+        // adapter the hand-written registrar used to spell out by hand.
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FollowRoute")]
+        public static unsafe void ParseFollowRouteParams(string json, byte* ptr, int capacity)
         {
             var p = string.IsNullOrWhiteSpace(json)
                 ? default
@@ -225,7 +215,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
         /// </summary>
         public static unsafe void ParseFireAtTargetParams(
-            string json, byte* ptr,
+            string json, byte* ptr, int capacity,
             Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -234,7 +224,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
+            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(json, JsonOptions);
             if (dto == null)
             {
                 BehaviorLog.ParseWarn("FireAtTarget JSON deserialized to null; using default params.");
@@ -414,7 +404,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [BTreeAction]
         public static NodeStatus Action_Wander(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -437,8 +427,13 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // Pick a random destination in the square [-WanderRadius, +WanderRadius]^2
                 // centred on the world origin.
-                float x = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
-                float y = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
+                // ⭐ CE-202 — one generator, TWO draws. A stateless seed-per-call would have handed
+                //   x == y and sent every wanderer down the diagonal; SimRng advances per draw.
+                //   The salt (1) distinguishes this call site from the firing-slot pick, which is
+                //   seeded from the same entity and tick.
+                var wanderRng = SimRng.FromSim((int)ctx.Self.Index, 1, ctx.World.SimulationTime);
+                float x = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
+                float y = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
 
                 // Propagate behavior instance id so ChannelArbitrationSystem does not
                 // clear the channel on the same frame we pick a new target.
@@ -601,7 +596,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// visible. Always returns <see cref="NodeStatus.Running"/> so the Selector stays alive.
         /// </summary>
         public static NodeStatus Action_HoldPosition(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -617,7 +612,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("MoveToLocation")]
+        [BTreeDefinition("MoveToLocation", Curated = true, ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
             return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
@@ -627,7 +622,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FollowRoute")]
+        [BTreeDefinition("FollowRoute", Curated = true, ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
             return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
@@ -637,7 +632,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("JoinFormation")]
+        [BTreeDefinition("JoinFormation", Curated = true, ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
             return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
@@ -647,17 +642,22 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("WanderMilitary")]
-        public static BTreeBuilder<BrainBlackboard, BTreeContext> BuildWanderMilitaryTree()
+        [BTreeDefinition("WanderMilitary", Curated = true)]
+        // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
+        //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
+        //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
+        // ⚠ WanderMilitary declares NO params, so its entity has no root slot and the tick hands the
+        //   interpreter a scratch byte. That is safe precisely because nothing here projects.
+        public static BTreeBuilder<byte, BTreeContext> BuildWanderMilitaryTree()
         {
-            return new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            return new BTreeBuilder<byte, BTreeContext>()
                 .Action(Action_Wander);
         }
 
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FireAtTarget")]
+        [BTreeDefinition("FireAtTarget", Curated = true, ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {
             return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()

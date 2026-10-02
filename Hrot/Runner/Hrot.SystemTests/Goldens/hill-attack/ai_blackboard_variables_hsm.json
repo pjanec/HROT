@@ -1,0 +1,14 @@
+{
+  "hardcodedDtoFieldCount": 0,
+  "hasActiveAsset": false,
+  "inlineBudget": 16096,
+  "isBlackboardEditorManaged": false,
+  "panelId": "ai_blackboard_variables_hsm",
+  "panelKind": "blackboard-authoring",
+  "totalInlineBytes": 0,
+  "unboundRequirementCount": 0,
+  "unboundRequirements": [],
+  "variableCount": 0,
+  "variables": [],
+  "warning": "None"
+}

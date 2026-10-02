@@ -9,6 +9,11 @@
 > [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md).
 > `ReadEqsResultNode`'s own drawer *is* built, and its `EqsSensorHandle` variable picker is the
 > reusable piece for the EqsResult form.
+>
+> ⚠ **`2026-10-01` — `SpawnEqsSensorNode` is FIND-OR-CREATE, not one-shot** (§1.6/§7 below say "each execution creates a
+> new sensor"). Its handle used to be the ECB placeholder, never alive after playback, so `ReadEqsResultNode` could not
+> work; it now goes through `EqsChildSensor.Ensure` (handle pending on the creating tick). Built-ins
+> `Refresh EQS Sensor` / `Destroy EQS Sensor` close the lifecycle. 📄 [`DESIGN_Hill_Attack_Eqs_Migration.md`](DESIGN_Hill_Attack_Eqs_Migration.md) §4 D3, §6.
 
 > **Status:** Detailed design for the next development iteration on top of the existing Blueprint subsystem (Architecture v1.2 + all subsequent detailed designs and inline patches), the AI Editor Shared Infrastructure, and the EQS v1.3 design. Architect-approved scope, fully resolved — ready for implementation.
 > **Version:** v2.2 supersedes v2.1. Changes from v2.1: `SpawnEqsSensorNode` simplified to use the engine's actual fixed `EqsSensor` struct shape (no dynamic-reflection per-template parameter struct; the parameters are a fixed set of universal `EqsSensor` fields exposed as standard typed input pins). Recipe 1's OnSpawn graph replaced with a first-tick pattern in the Tick graph (no dependency on a lifecycle event with filter syntax). All §17 open questions now resolved. The §17 section becomes "Resolutions Summary." Effort estimates tick down by ~1-2 days each on M4 and M5 (no dynamic-binding scaffolding needed).
@@ -98,7 +103,7 @@ This iteration is **predominantly an editor + compiler addition**, with one smal
 | Subsystem | What we reuse | What we add |
 |---|---|---|
 | **Blueprint compiler** | All eight pipeline stages, the existing `IrOperation` taxonomy, structure-hash machinery, generator output topology, `IEntityCommandBuffer ecb` parameter in Tick methods | Three new IR primitives (`WhenIrNode`, `ReadEqsResultIrNode`, `SpawnEqsSensorIrNode`); three new node-discriminator entries; small additions to validator and structure-hash contribution |
-| **Blueprint runtime** | `BlueprintTickSystem`, `BlueprintRegistry`, per-slot soft/hard reconciliation, `Blackboard1024` / `BlueprintBlackboard*` projection | Nothing structural — only generated code uses the existing surface |
+| **Blueprint runtime** | `BlueprintTickSystem`, `BlueprintRegistry`, per-slot soft/hard reconciliation, `BlueprintBlackboard*` occurrence-slot projection | Nothing structural — only generated code uses the existing surface |
 | **Predicate infrastructure** | `SearchPredicateDto` family, `IPredicateCompiler`, `IEventScannerCompiler`, all five specialized StructEdit drawers, JSON polymorphic round-trip, hot-reload recompile pattern from `DataBreakpointManager` | Nothing — consumed as-is |
 | **EQS** | `EqsSensor`, `EqsCognitiveBuffer`, `EqsResultArray` (`[InlineArray(16)]`), `GetSpanRO()` access pattern, sensor `Epoch` field, `LastUpdateTick` field (deterministic), child-entity hosting via `PartMetadata` + `SubEntityCleanupSystem`, `EqsTemplateRegistry`, `EqsTemplate` attribute, the per-template parameter struct convention | One additive field: `EqsCognitiveBuffer.LastUpdateTimeSeconds` (float). One new wrapper struct: `EqsSensorHandle { Entity ChildId; }` |
 | **ECS / `IEntityCommandBuffer`** | Existing deferred-component-attach API (`ecb.AddComponent<T>`, `ecb.CreateEntity`), `PartMetadata`, `SubEntityCleanupSystem`, `view.IsAlive(Entity)` | Nothing — consumed as-is |

@@ -155,9 +155,14 @@ public sealed class StatefulSlotKeyTests
         bridgeSrc.Should().Contain(expectedSlotKey.ToString(),
             $"emitted bridge must contain the baked SlotKey literal {expectedSlotKey} (FNV-1a result)");
 
-        // (b) TryGetSlotOffset is called.
-        bridgeSrc.Should().Contain("TryGetSlotOffset",
-            "emitted bridge must call BlueprintBlackboardPartitions.TryGetSlotOffset");
+        // (b) The slot is resolved through the partition allocator.
+        // ⚠ A2b (2026-09-20) — this used to pin the literal "TryGetSlotOffset", because the emitter
+        //   hand-rolled the 16384 → 4096 → 1024 ladder and called it in each arm. The ladder is now ONE
+        //   call to OccurrenceStoreAccess.TryResolveOccurrence, which calls TryGetSlotOffset itself.
+        //   ⭐ The CLAIM is unchanged — resolution goes through the partition slot — so the assertion
+        //   moves to the seam rather than being deleted or weakened.
+        bridgeSrc.Should().Contain("OccurrenceStoreAccess.TryResolveOccurrence",
+            "emitted bridge must resolve the slot through the one occurrence-store seam (A2b)");
 
         // (c) WorkingState projection at the returned offset.
         bridgeSrc.Should().Contain("Unsafe.AsRef",
@@ -247,33 +252,17 @@ public sealed class StatefulSlotKeyTests
             "Node scope via 4-arg overload must be byte-identical to the 2-arg legacy result");
     }
 
-    /// <summary>
-    /// S3-2 (optional): Entity scope produces the same key regardless of assetId.
-    /// This verifies that assetId is intentionally excluded for post-MVP entity-lifetime slots.
-    /// </summary>
-    [Fact]
-    public void SlotKey_Entity_IndependentOfAsset()
-    {
-        var assetId1     = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
-        var assetId2     = Guid.Parse("ffffffff-0000-0000-0000-0000000000ff");
-        var nodeId       = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
-        const string variableId = "entityScopedVar";
-
-        int key1 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId1, WorkingStateScope.Entity, nodeId, variableId);
-        int key2 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId2, WorkingStateScope.Entity, nodeId, variableId);
-
-        key1.Should().Be(key2,
-            "Entity-scoped key must not depend on assetId (survives behavior switch)");
-        key1.Should().BeGreaterThanOrEqualTo(0, "slot key must be non-negative (0x7FFFFFFF mask)");
-    }
+    // ⛔ HISTORY — SlotKey_Entity_IndependentOfAsset pinned the Entity scope's asset-free key. Entity was removed
+    //   by CE-441 slice 1 (Q76 §12.25) after CE-440 removed its only consumer (GetShared/SetShared).
 
     // ── S3-7: manifest carries role/scope ─────────────────────────────────────────
 
     /// <summary>
-    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a Behavior-scoped State variable
-    /// must carry the authored Role (State=1) and Scope (Behavior=1) as the trailing ctor args, so
-    /// the live inspector can group/label by scope. (Node/Input assets stay byte-identical — the
-    /// args are omitted when default — which is why only the non-default case is asserted here.)
+    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a side-slot State variable
+    /// must carry the authored Role (State=1) and Scope as the trailing ctor args, so the live inspector can
+    /// group/label by scope. ⚠ <c>CE-437</c> moved every Behavior-scoped State variable into the block (no
+    /// manifest entry) and <c>CE-441</c> slice 1 removed Entity, so the side-slot subject is the NODE-bound
+    /// State variable — Role=State makes the args non-default even at Scope=Node.
     /// </summary>
     [Fact]
     public void StatefulSlotInfo_CarriesRoleAndScope()
@@ -305,12 +294,13 @@ public sealed class StatefulSlotKeyTests
                         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
                         Role = BlackboardVariableRole.Input,
                     },
+                    // ⚠ NODE scope (the default): Behavior is block-resident (CE-437), Entity is gone (CE-441).
+                    //   A node-bound State variable is the one that still rides a side slot.
                     new BlackboardVariableDto
                     {
                         Name  = "shared",
                         Type  = new BlackboardTypeRefDto { TypeId = StateTypeId },
                         Role  = BlackboardVariableRole.State,
-                        Scope = WorkingStateScope.Behavior,
                     }
                 }
             },
@@ -337,7 +327,7 @@ public sealed class StatefulSlotKeyTests
         // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string, as named enum casts
         // (clarity-only change — same bytes, self-documenting source text) rather than raw ints.
         bridgeSrc.Should().Contain(
-            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)",
-            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State, Scope=Behavior as named enum casts");
+            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Node)",
+            "the StatefulSlotInfo for a side-slot State variable must carry its Role and Scope as named enum casts");
     }
 }

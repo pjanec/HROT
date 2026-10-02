@@ -88,12 +88,12 @@
   <path class="arr" d="M857 300 L857 326"/>
 
   <rect x="28" y="330" width="466" height="50" class="in"/>
-  <text x="36" y="348" class="tb">⇒ BrainBlackboard.BehaviorParameters — the Role=Input bytes</text>
+  <text x="36" y="348" class="tb">⇒ the root params slot — the Role=Input bytes</text>
   <text x="36" y="366" class="m">def.ParseParams(evt.JsonParams, dst, repo, evt.Entity)   // one production call site</text>
 
   <rect x="742" y="330" width="230" height="50" class="st"/>
   <text x="750" y="348" class="tb">⇒ the State partitions</text>
-  <text x="750" y="366" class="s">Blackboard1024 / tiered blueprint slots</text>
+  <text x="750" y="366" class="s">working-state / tiered blueprint slots</text>
 
   <!-- FOOTER -->
   <rect x="16" y="400" width="968" height="124" class="box"/>

@@ -43,7 +43,7 @@ Network (DDS)                  ACL Layer                        ECS (local)
 EntityInfo                     EntityInfoIngressTranslator      UnitSubordinate
   CommanderId (int)   ──────>    resolve via NetworkEntityMap     Commander (Entity 8B)
   TacticalDesignation           write CmdAssignSubordinate >─>    Designation (ushort)
-                                                                 UnitRoster (NoSave cache)
+                                                                 UnitRoster (NoScenario cache)
 EntityInfo              <─────  EntityInfoEgressTranslator        Count, SubordinateEntities[]
   CommanderId (int)              read UnitSubordinate.Commander
   TacticalDesignation            map to network ID
@@ -100,11 +100,11 @@ public struct UnitSubordinate
 
 ### 1.3 UnitRoster Component
 
-Unsafe struct placed on **commander entities**. Marked `NoSave` because it is entirely
+Unsafe struct placed on **commander entities**. Marked `NoScenario` because it is entirely
 derived from the bottom-up `UnitSubordinate` records and is rebuilt on scenario load.
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(HrotComponentIds.UnitRoster)]        // ID 182
 public unsafe struct UnitRoster
@@ -609,7 +609,7 @@ Direct attachment of `UnitSubordinate` or publishing `CmdAssignSubordinate` from
 
 | Decision | Rationale |
 |----------|-----------|
-| `UnitRoster` is `NoSave` | It is fully derived; saving fixed buffers with entity handles would corrupt on reload |
+| `UnitRoster` is `NoScenario` | It is fully derived; saving fixed buffers with entity handles would corrupt on reload |
 | `UnitSubordinate.Commander` is `Entity` (8 bytes) | Prevents zombie references from entity index recycling |
 | Bottom-up (`UnitSubordinate`) is the truth; top-down (`UnitRoster`) is a cache | Network sends 1 field per subordinate (not an array); matches DDS EntityInfo protocol |
 | CommanderId removed from `Fdp.Core.EntityInfo` | Eliminates duplicate of the same relationship across two components |
@@ -670,7 +670,7 @@ the absolute ECS truth for the AI tier. The DDS `EntityInfo` descriptor carries 
 
 ### 8.4 Scenario Serialization (Genesis Pipeline)
 
-- `UnitRoster` carries `[DataPolicy(DataPolicy.NoSave)]` and is dynamically reconstructed from
+- `UnitRoster` carries `[DataPolicy(DataPolicy.NoScenario)]` and is dynamically reconstructed from
   `UnitSubordinate` records after load.
 - `UnitSubordinateTranslator` converts `Entity` handles to GUID strings on save and attaches
   `InitialUnitSubordinateIntent` on load.

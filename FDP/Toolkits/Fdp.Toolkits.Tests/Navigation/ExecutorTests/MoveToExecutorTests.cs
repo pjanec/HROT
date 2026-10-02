@@ -370,6 +370,53 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
+
+        // ── Test 5: a BRAIN-ONLY entity has no NavigationStatus at all (CE-229) ──────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-229</c> — <b>a missing <see cref="NavigationStatus"/> must keep Running, not throw.</b>
+        ///
+        /// <para>
+        /// 📐 <b>The live crash this reproduces.</b> <c>NavigationStatus</c> is written by the MUSCLE
+        /// layer. This executor runs on the BRAIN, so an entity with no muscle tier never has one — a
+        /// platoon commander carries <c>NavigationIntent</c> but not <c>NavigationStatus</c>. Giving it a
+        /// <c>MoveToLocation</c> mission task made <c>GetComponent</c> throw, the exception escaped
+        /// <c>ModuleHostKernel.UpdateInternal</c>, and the entire host process died — measured on the live
+        /// editor <c>2026-09-08</c>, <c>"Unhandled exception … Entity Entity(0, v1) missing
+        /// NavigationStatus"</c> followed by <c>Aborted</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ <b>Keeping Running is not a new policy — it is the policy the test above already asserts.</b>
+        /// A stale status means "the muscle layer has not caught up"; an absent one is that same condition
+        /// one step earlier. <c>HillAttackCommanderNodes</c> already treats a missing
+        /// <c>NavigationStatus</c> exactly this way. This executor was the outlier that threw.
+        /// </para>
+        ///
+        /// <para>
+        /// ⛔ It must NOT report Success: an absent report is not an arrival, and a behaviour waiting on
+        /// this node has to keep waiting. That is the half a bare "does not throw" assertion would miss,
+        /// so both are asserted.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_Execute_KeepsRunningWhenTheEntityHasNoNavigationStatus()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 5);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            // The brain-only shape: NavigationIntent stays (OnEnter wrote it), NavigationStatus is gone
+            // because no muscle layer ever reports for this entity.
+            world.RemoveComponent<NavigationStatus>(entity);
+            Assert.False(world.HasComponent<NavigationStatus>(entity));
+
+            executor.Execute(entity, ref channel, world, 0.016f);   // must not throw
+
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
     }
 }
 

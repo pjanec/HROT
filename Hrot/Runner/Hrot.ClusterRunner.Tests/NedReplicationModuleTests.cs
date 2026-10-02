@@ -67,8 +67,16 @@ public sealed class NedReplicationModuleTests
         Assert.Contains(typeof(SmartEgressSystem),           registry.RegisteredTypes);
         Assert.Contains(typeof(CycloneNetworkCleanupSystem), registry.RegisteredTypes);
         Assert.Contains(typeof(DisposalMonitoringSystem),    registry.RegisteredTypes);
-        // DeadReckoning must NOT be registered for pure Muscle
-        Assert.DoesNotContain(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+        // CE-211 — INVERTED, and this rail is the point of the change.
+        // It used to assert that a pure Muscle node does NOT register dead reckoning. That encoded
+        // the belief DR is an ImageGenerator feature. It is not: a Muscle node carries replicas of
+        // every entity it does not own, and without DR their positions jump between packets — which
+        // is what perception and the local grid then read. The narrowing that keeps DR off this
+        // node's OWN entities is the driveFromNetwork flag below, not the absence of the system.
+        // 📄 docs/DESIGN_Dead_Reckoning.md rule R1 (user ruling D1).
+        Assert.Contains(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+        // ...and because this node owns entities, DR is narrowed to ghosts rather than driving all.
+        Assert.False(module.DriveFromNetwork);
     }
 
     // ── SC2 — ImageGenerator role ─────────────────────────────────────────────
@@ -76,7 +84,7 @@ public sealed class NedReplicationModuleTests
     [Fact]
     public void ImageGenerator_RegistersDeadReckoningSystem()
     {
-        var module   = BuildModule(NodeRole.ImageGenerator);
+        var module   = BuildModule(NodeRole.Map2D);
         var registry = new CapturingRegistry();
         module.RegisterSystems(registry);
 
@@ -91,7 +99,7 @@ public sealed class NedReplicationModuleTests
     [Fact]
     public void AllInOne_RegistersBothSmartEgressAndDeadReckoning_WithDriveFromNetworkFalse()
     {
-        var module   = BuildModule(NodeRole.MuscleGround | NodeRole.ImageGenerator);
+        var module   = BuildModule(NodeRole.MuscleGround | NodeRole.Map2D);
         var registry = new CapturingRegistry();
         module.RegisterSystems(registry);
 
@@ -135,8 +143,10 @@ public sealed class NedReplicationModuleTests
 
         Assert.Contains(typeof(GhostCreationSystem), registry.RegisteredTypes);
         Assert.Contains(typeof(SmartEgressSystem),   registry.RegisteredTypes);
-        // DeadReckoning must NOT be registered for Brain-only
-        Assert.DoesNotContain(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+        // CE-211 — INVERTED for the same reason as the Muscle rail above: every node that carries
+        // replicas owes dead reckoning, and a Brain node carries plenty. 📄 R1 / ruling D1.
+        Assert.Contains(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+        Assert.False(module.DriveFromNetwork);
     }
 
     // ── Corrective-0 — NetworkLifecycleSystemGroup exposed ────────────────────

@@ -14,18 +14,22 @@ namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator that tracks dirty <see cref="Health"/> components and publishes
-    /// <see cref="EntityDamage"/> DDS messages so the IG and ExCon can update health bars.
+    /// <see cref="EntityDamage"/> DDS messages so the IG and ExCon can show entity health.
     ///
     /// <para>
-    /// Change detection is performed by comparing <see cref="Health.Current"/> against a
-    /// per-entity cache keyed by network ID.  A DDS sample is only written when the value
-    /// has changed from the last published value, preventing unnecessary traffic on every tick.
+    /// Change detection compares BOTH <see cref="Health.Current"/> and <see cref="Health.Max"/>
+    /// against a per-entity cache keyed by network ID. A DDS sample is only written when either
+    /// has changed, preventing unnecessary traffic on every tick.
     /// </para>
     ///
     /// <para>
-    /// The <see cref="EntityDamage.Damage"/> wire field is a 0â€“100 damage level where
-    /// 0 = fully healthy and 100 = fully destroyed/dead, derived from
-    /// <c>(1 â’ Current / Max) Ă— 100</c>.
+    /// ⭐⭐⭐ <b>CE-196 — the sample carries Current and Max, NOT a precomputed percentage.</b>
+    /// It used to publish a 0–100 damage level derived from <c>(1 − Current / Max) × 100</c>. That was
+    /// computed against the SENDER's <c>Max</c>, while every receiver kept its own TKB-seeded one — so
+    /// the nodes disagreed about the same entity (measured: 50/50 on the Brain, 3000/3000 on IG).
+    /// Shipping the pair makes the receiver's <see cref="Health"/> identical to the authority's, and
+    /// each consumer derives whatever fraction it needs to render.
+    /// 🔒 User ruling, 2026-09-05: "no precalculated percentages".
     /// </para>
     /// </summary>
     public class EntityDamageEgressTranslator : IDescriptorTranslator
@@ -37,7 +41,8 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap        _entityMap;
 
         /// <summary>
-        /// Cache of last-published <see cref="Health.Current"/> per network entity ID.
+        /// Cache of the last-published (<see cref="Health.Current"/>, <see cref="Health.Max"/>) pair
+        /// per network entity ID.
         ///
         /// <para>
         /// <b>TD-9 â€” Memory leak risk:</b> entries are only removed in <see cref="Dispose(long)"/>,
@@ -48,7 +53,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// A dedicated lifecycle cleanup pass should be added in a future debt-burndown batch.
         /// </para>
         /// </summary>
-        private readonly Dictionary<long, float> _lastPublished = new();
+        private readonly Dictionary<long, (float Current, float Max)> _lastPublished = new();
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => OrdinalValue;
@@ -68,7 +73,8 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Scans all authority-owned entities that have both a <see cref="Health"/> and a
         /// <see cref="NetworkIdentity"/> component, and publishes an <see cref="EntityDamage"/>
-        /// DDS sample whenever <see cref="Health.Current"/> has changed since the last publish.
+        /// DDS sample whenever <see cref="Health.Current"/> or <see cref="Health.Max"/> has changed
+        /// since the last publish.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
@@ -90,22 +96,26 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var health = ref view.GetComponentRO<Health>(entity);
 
                 float current = health.Current;
+                float max     = health.Max;
 
                 // Only send when health has actually changed.
-                if (_lastPublished.TryGetValue(netId.Value, out float prev) && prev == current)
+                // ⚠ The comparison covers BOTH fields: Max is authored data (a scenario may set it, and
+                //   an editor write may change it), so a Max-only change must still reach the receivers.
+                //   Comparing Current alone would silently pin them to a stale maximum.
+                if (_lastPublished.TryGetValue(netId.Value, out (float Current, float Max) prev)
+                    && prev.Current == current && prev.Max == max)
                     continue;
 
-                _lastPublished[netId.Value] = current;
+                _lastPublished[netId.Value] = (current, max);
 
-                float max    = health.Max > 0f ? health.Max : 1f;
-                float damage = (1f - current / max) * 100f;
-                if (damage < 0f)   damage = 0f;
-                if (damage > 100f) damage = 100f;
-
+                // ⛔ NO PERCENTAGE IS COMPUTED HERE. The pair travels and every consumer derives what it
+                //    needs — one representation of health on the wire, as on the components.
+                //    📄 See the descriptor's own remarks in SimDescriptors.cs.
                 _writer.Write(new EntityDamage
                 {
                     EntityId = (int)netId.Value,
-                    Damage   = damage,
+                    Current  = current,
+                    Max      = max,
                 });
 
                 SentSampleCount++;

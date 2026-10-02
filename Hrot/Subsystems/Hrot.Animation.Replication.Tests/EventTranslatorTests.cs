@@ -7,6 +7,7 @@ using Hrot.Animation.Replication.Translators.Events;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Events;
 using Xunit;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Tests;
 

@@ -64,9 +64,9 @@ public sealed class ResolverWorldSingletonTests
         var buffer = new byte[BehaviorConstants.MaxBehaviorParamByteSize];
         fixed (byte* p = buffer)
         {
-            // ⭐ world + self and nothing else — the whole point. `host` is null: a root behaviour.
+            // ⭐ world + self and nothing else — the whole point (`host` retired by CE-445).
             HillAttackCommanderNodes.ResolvePlatoonHillAttackParams(
-                PlanJson(), p, world, default, host: null);
+                PlanJson(), p, buffer.Length, world, default);
             return *(PlatoonHillAttackParams*)p;
         }
     }

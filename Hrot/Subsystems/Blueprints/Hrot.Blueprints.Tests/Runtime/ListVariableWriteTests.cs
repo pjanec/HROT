@@ -487,29 +487,8 @@ public sealed class ListVariableWriteTests
         Assert.DoesNotContain(sink2.All, x => x.Code == DiagnosticCodes.BP1507);
     }
 
-    [Fact]
-    public void SharedHome_FencedAtWireLevel_ListIntoSetShared_TripsBP1506()
-    {
-        // R5's Shared half: there is no list-typed shared DECLARATION surface, so the fence is
-        // the wire rule -- a list variable feeding SetShared's "Value" pin is not in BP1506's
-        // allowlist (consumers' "Collection" / identical-shape SetVariable clone only).
-        var asset = BuildTwoListAsset();
-        var graph = asset.Graphs[0];
-
-        var gvOut = DataPin("Value", "Out", "System.Int32", isArray: true);
-        var gv = new GetVariableNode { Id = Guid.NewGuid(), VariableId = asset.Variables[0].Id.ToString() };
-        gv.Pins.Add(gvOut);
-        var ssVal = DataPin("Value", "In", "System.Int32", isArray: true);
-        var ss = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "sharedSlot", SharedTypeId = "System.Int32" };
-        ss.Pins.Add(ssVal);
-        graph.Nodes.Add(gv);
-        graph.Nodes.Add(ss);
-        graph.Links.Add(new Link { FromNodeId = gv.Id, FromPinId = gvOut.Id, ToNodeId = ss.Id, ToPinId = ssVal.Id });
-
-        var sink = new DiagnosticSink();
-        Stage2_Validate.Run(asset, new ValidationContext(sink, Options()));
-        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1506);
-    }
+    // ⛔ HISTORY — a rail here fenced a list value into SetShared at the wire (BP1506). The node pair was
+    //   removed by CE-440 (Q76 §12.24), so the Shared home no longer exists to fence.
 
     // ---- editor pin parity --------------------------------------------------
 

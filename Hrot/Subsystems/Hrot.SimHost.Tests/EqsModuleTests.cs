@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.IG.Components;
 using Hrot.SimHost.Modules;
@@ -16,8 +17,8 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="AreaQuerySolverSystem"/> and <see cref="EqsModule"/>
-    /// (TASK-HA002).
+    /// Unit tests for <see cref="EqsModule"/> and the EQS area template (TASK-HA002, re-homed onto EQS when
+    /// the AreaQuery pipeline was retired — EQS design §18).
     /// </summary>
     public class EqsModuleTests : IDisposable
     {
@@ -80,130 +81,14 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        // Runs the full event pipeline: swap (requests now readable) -> solve -> playback
-        // -> swap (results now readable) -> materialize.
-        private void RunSolverPipeline(float dt = 0.016f)
-        {
-            var view = (ISimulationView)_world;
-            _world.Bus.SwapBuffers();
-            var solver = new AreaQuerySolverSystem();
-            solver.Execute(view, dt);
-            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
-            ecb.Playback(_world);
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(view, dt);
-        }
 
         private static void DisposeEqsSingletons(EntityRepository world)
         {
-            if (world.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var b = ref world.GetSingleton<AreaQueryBatchData>();
-                if (b.Results.IsCreated)  b.Results.Dispose();
-            }
-            if (world.HasSingleton<EqsTargetPool>())
-            {
-                var p = world.GetSingleton<EqsTargetPool>();
-                if (p.Targets.IsCreated) p.Targets.Dispose();
-            }
             if (world.HasSingleton<EqsResultPool>())
             {
                 var r = world.GetSingleton<EqsResultPool>();
                 if (r.Results.IsCreated) r.Results.Dispose();
             }
-        }
-
-        // â”€â”€ SC-HA002-3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// When no AreaQueryRequestEvent has been published, running the full pipeline
-        /// must leave all result slots in their default (not-ready) state.
-        /// </summary>
-        [Fact]
-        public void Solver_DoesNothing_WhenNoPendingRequests()
-        {
-            // Act â€” pipeline with no events published
-            RunSolverPipeline();
-
-            // Assert â€” no result slot should have IsReady set
-            ref readonly var batch = ref _world.GetSingleton<AreaQueryBatchData>();
-            Assert.False(batch.Results[0].IsReady);
-        }
-
-        // â”€â”€ SC-HA002-1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// When a request targets a polygon with no hostile entities inside, the solver
-        /// must mark the result <c>IsReady == true</c> with <c>TargetCount == 0</c>.
-        /// </summary>
-        [Fact]
-        public void Solver_SetsIsReadyTrue_WhenNoViableTargetsFound()
-        {
-            // Arrange â€” create a small square polygon with no entities inside
-            var polygon = new List<Vector2>
-            {
-                new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
-            };
-            var areaEntity       = CreateAreaEntity(polygon);
-            var requestingEntity = _world.CreateEntity();
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-            Assert.True(requestId >= 0, "RequestAreaQuery must succeed (returns slot index 0..63, or -1 when full)");
-
-            // Act
-            RunSolverPipeline();
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady);
-            Assert.Equal(0, result.TargetCount);
-        }
-
-        // â”€â”€ SC-HA002-2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        /// <summary>
-        /// The solver must include entities within the polygon and exclude entities outside.
-        /// </summary>
-        [Fact]
-        public void Solver_FindsEntitiesInsidePolygon()
-        {
-            // Arrange â€” 30x30 m polygon centred at (50,50)
-            var polygon = new List<Vector2>
-            {
-                new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-            };
-            var areaEntity       = CreateAreaEntity(polygon);
-            var requestingEntity = _world.CreateEntity();
-
-            // One hostile INSIDE, one hostile OUTSIDE, one friendly INSIDE
-            var inside1  = CreateEnemyAt(new Vector2(50f, 50f)); // hostile, inside  -> should appear
-            var outside1 = CreateEnemyAt(new Vector2(80f, 80f)); // hostile, outside -> must NOT appear
-
-            var friendlyInside = _world.CreateEntity();
-            _world.AddComponent(friendlyInside, new SimTransform
-            {
-                Position = new Vector3(45f, 45f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(friendlyInside, new EntityInfo { ForceId = ForceId.Friend });
-            _grid.Add(friendlyInside, new Vector2(45f, 45f));
-            _world.SetSingleton(new SpatialGridData { Grid = _grid });
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-
-            // Act
-            RunSolverPipeline();
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "Result must be marked ready");
-            Assert.Equal(1, result.TargetCount);
-
-            long storedHandle = AreaQueryBatchHelper.GetTargetFromPool(
-                _world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside1.PackedValue, storedHandle);
         }
 
         // â”€â”€ SC-HA002-4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -222,56 +107,6 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(10, policy.TargetFrequencyHz);
         }
 
-        // ── SC-HA002-5 ────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Polygon vertices are stored in local space relative to the area entity's
-        /// <see cref="SimTransform"/>.  An entity inside the world-space polygon
-        /// (local vertex + area origin) must be found; an entity at the raw local
-        /// vertex coordinates (ignoring the origin offset) must be excluded.
-        /// </summary>
-        [Fact]
-        public void Solver_RespectsSimTransformOffset_PolygonIsLocalToAreaOrigin()
-        {
-            // Area entity at world position (20, 20).
-            // Local polygon: (0,0)-(10,0)-(10,10)-(0,10).
-            // World-space polygon: (20,20)-(30,20)-(30,30)-(20,30).
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
-            {
-                Position = new Vector3(20f, 20f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-            ecb.AddManagedComponent(areaEntity, new EditablePolyline
-            {
-                Points = new List<Vector2>
-                {
-                    new(0f, 0f), new(10f, 0f), new(10f, 10f), new(0f, 10f),
-                },
-                Version = 1,
-            });
-            ecb.Playback(_world);
-
-            var requestingEntity = _world.CreateEntity();
-
-            // Hostile at world (25, 25) = local (5, 5): inside the polygon.
-            var inside = CreateEnemyAt(new Vector2(25f, 25f));
-            // Hostile at world (5, 5) = local (-15, -15): outside (raw local coords, no offset).
-            CreateEnemyAt(new Vector2(5f, 5f));
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-
-            RunSolverPipeline();
-
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "Result must be ready");
-            Assert.Equal(1, result.TargetCount);
-            long stored = AreaQueryBatchHelper.GetTargetFromPool(_world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside.PackedValue, stored);
-        }
-
         // ── SC-HA002-6 ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -285,7 +120,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CognitiveSpatialModule_Policy_IsSlowBackground10Hz()
         {
-            using var module = new CognitiveSpatialModule(new EntityRepository());
+            using var module = new CognitiveSpatialModule();
             var policy = module.Policy;
 
             Assert.Equal(RunMode.Asynchronous, policy.Mode);
@@ -293,226 +128,299 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(10, policy.TargetFrequencyHz);
         }
 
-        // ── SC-HA002-7 ────────────────────────────────────────────────────────────
+        // ── The area query inside EQS 1.3 (design EQS §17) ─────────────────────────
 
         /// <summary>
-        /// <see cref="CognitiveSpatialModule"/> resolves an area query when the
-        /// snapshot passed to its <c>Tick</c> method contains entity positions (via
-        /// <see cref="SimTransform"/>) and the area polygon coordinates (via
-        /// <see cref="EditablePolyline"/> + <see cref="SimTransform"/>).
-        ///
-        /// <para>Verifies the full per-module pipeline: <c>LocalGridBuilderSystem</c>
-        /// rebuilds the private spatial hash grid from entity SimTransforms in the
-        /// snapshot; <see cref="AreaQuerySolverSystem"/> queries that grid against
-        /// the polygon; the result is materialized into
-        /// <see cref="AreaQueryBatchData"/>.</para>
+        /// The template's baked id is the canonical hash of its AssetId — the id a blueprint
+        /// <c>SpawnEqsSensor</c> node bakes — so blueprint and C# callers reach the same template.
         /// </summary>
         [Fact]
-        public void CognitiveSpatialModule_ResolvesAreaQuery_WhenSnapshotHasEntityPositionsAndAreaCoordinates()
+        public void EntitiesOfForceInArea_BlueprintId_IsTheCanonicalHashOfItsAssetId()
         {
-            // Arrange: area polygon at world origin; 30x30 m square.
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity,
-            });
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-            ecb.AddManagedComponent(areaEntity, new EditablePolyline
-            {
-                Points = new List<Vector2>
-                {
-                    new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-                },
-                Version = 1,
-            });
-            ecb.Playback(_world);
-
-            var inside = CreateEnemyAt(new Vector2(50f, 50f));  // inside polygon
-            CreateEnemyAt(new Vector2(80f, 80f));               // outside polygon
-
-            var requestingEntity = _world.CreateEntity();
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requestingEntity, areaEntity, ForceId.Hostile);
-
-            // Pass _world as liveWorld so the injected AreaQuerySolverSystem can access
-            // EqsTargetPool and write result events via ECB.
-            using var module = new CognitiveSpatialModule(_world);
-            module.RegisterSystems(new CapturingRegistry());
-
-            // Swap so the module Tick can read the queued request event.
-            _world.Bus.SwapBuffers();
-
-            // Tick: LocalGridBuilderSystem rebuilds the private grid from entity SimTransforms
-            // in the snapshot; AreaQuerySolverSystem queries that grid and publishes results.
-            module.Tick(_world, 0.1f);
-
-            // Playback the ECB to publish result events to the bus write buffer.
-            ((Fdp.Core.EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer())
-                .Playback(_world);
-
-            // Swap so the materialization system can read the result events.
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(_world, 0.1f);
-
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady, "EQS result must be ready after CognitiveSpatialModule tick");
-            Assert.Equal(1, result.TargetCount);
-            long stored = AreaQueryBatchHelper.GetTargetFromPool(_world, result.TargetGroupHandle, 0);
-            Assert.Equal((long)inside.PackedValue, stored);
+            Assert.Equal(
+                EqsTemplateRegistry.BlueprintIdOf(new Guid(EntitiesOfForceInArea.AssetId)),
+                EntitiesOfForceInArea.BlueprintId);
         }
 
-        // ── SC-HA002-8 ────────────────────────────────────────────────────────────
-
         /// <summary>
-        /// Reproduces the real Hill-Attack execution path end-to-end through the
-        /// <see cref="SharedSnapshotProvider"/> convoy.
-        ///
-        /// <para>
-        /// In production, both <c>CognitiveSpatialModule</c> (10 Hz SoD) and
-        /// <c>NavigationSolverModule</c> (10 Hz SoD) are grouped by the kernel into
-        /// a single <see cref="SharedSnapshotProvider"/>.  The first module to call
-        /// <see cref="SharedSnapshotProvider.AcquireView"/> creates the snapshot and
-        /// advances <c>_lastSeenTick</c>; the second reuses the same snapshot.
-        /// Both modules hold the snapshot simultaneously until they both release.
-        /// </para>
-        ///
-        /// <para>
-        /// The previous implementation called <c>Bus.SwapBuffers()</c> after
-        /// <c>FlushToReplica</c>, which moved injected events from the READ buffer to
-        /// the WRITE buffer and immediately cleared them — making the bus appear
-        /// empty to every convoy member.  This test verifies the fix: events flushed
-        /// into the READ buffer survive and are visible to all convoy members.
-        /// </para>
-        ///
-        /// <para>Entity coordinates are exact values from the Hill-Attack scenario:
-        /// area entity at (670, 473.5), two hostile infantry units at (668, 427)
-        /// and (668, 522), both geometrically inside the area polygon.</para>
+        /// CE-465 red-proof: the production install finds the [EqsTemplate] classes, so a sensor gets a
+        /// real template instead of the empty-result stub.
         /// </summary>
         [Fact]
-        public void CognitiveSpatialModule_ResolvesAreaQuery_ThroughSharedSnapshotProvider_ConvoyWithNavigationSolver()
+        public void InstallDefault_RegistersTheAreaTemplate_AndKeepsAnExistingRegistry()
         {
-            // --- Arrange: exact Hill-Attack scenario coordinates ---
+            var registry = EqsTemplateRegistry.InstallDefault(_world);
 
-            // Area entity at world (670, 473.5, 0).
-            var areaEntity = _world.CreateEntity();
-            _world.AddComponent(areaEntity, new SimTransform
-            {
-                Position = new Vector3(670f, 473.5f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            {
-                var ecb = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-                ecb.AddManagedComponent(areaEntity, new EditablePolyline
-                {
-                    Points = new List<Vector2>
-                    {
-                        new(-53f, -88.5f), new(-54f, 90.5f),
-                        new( 51f,  85.5f), new( 56f, -87.5f),
-                    },
-                    Version = 1,
-                });
-                ecb.Playback(_world);
-            }
-
-            // Hostile 1: local (-2, -46.5) => inside polygon.
-            var hostile1 = _world.CreateEntity();
-            _world.AddComponent(hostile1, new SimTransform
-            {
-                Position = new Vector3(668f, 427f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(hostile1, new EntityInfo { ForceId = ForceId.Hostile });
-
-            // Hostile 2: local (-2, 48.5) => inside polygon.
-            var hostile2 = _world.CreateEntity();
-            _world.AddComponent(hostile2, new SimTransform
-            {
-                Position = new Vector3(668f, 522f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _world.AddComponent(hostile2, new EntityInfo { ForceId = ForceId.Hostile });
-
-            var requester = _world.CreateEntity();
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _world, requester, areaEntity, ForceId.Hostile);
-
-            // --- Simulate ModuleHostKernel.CaptureFrame ---
-            // Kernel swaps the live bus so published events enter the READ buffer,
-            // then CaptureFrame snapshots that READ buffer into the accumulator.
-            _world.Bus.SwapBuffers();
-            var accumulator = new EventAccumulator();
-            accumulator.CaptureFrame(_world.Bus, _world.GlobalVersion);
-
-            // --- Build SharedSnapshotProvider (mirrors kernel convoy setup) ---
-            // The schema setup pre-registers typed NativeEventStream<T> entries,
-            // exactly as SimHostComponentRegistry.RegisterAll does on every pool repo.
-            // Without pre-registration InjectIntoCurrentBySize falls back to the
-            // UntypedNativeEventStream path whose Swap() is a no-op, masking the bug.
-            Action<EntityRepository> schemaSetup = repo =>
-            {
-                repo.RegisterEvent<AreaQueryRequestEvent>();
-                repo.RegisterEvent<AreaQueryResultEvent>();
-            };
-            var pool = new SnapshotPool(schemaSetup, warmupCount: 0);
-            // Use the full snapshotable mask — same as CalculateUnionMask for the convoy.
-            var unionMask512 = _world.GetSnapshotableMask();
-            var provider = new SharedSnapshotProvider(_world, accumulator, unionMask512, pool);
-
-            // --- Simulate convoy: NavigationSolverModule acquires the view FIRST ---
-            // This is the race the old 11Hz hack worked around.
-            // AcquireView creates the shared snapshot, flushes events, and advances
-            // _lastSeenTick.  With the bug present (SwapBuffers after FlushToReplica)
-            // those events would be cleared before any module can read them.
-            var navView = provider.AcquireView();   // _activeReaders = 1
-
-            // CognitiveSpatialModule acquires the SAME snapshot concurrently.
-            // In production both modules hold views simultaneously on background threads;
-            // in this test we serialize the acquisition for determinism.
-            var cogView = provider.AcquireView();   // _activeReaders = 2, same snapshot
-
-            // Both acquisitions must return the identical EntityRepository.
-            Assert.Same(navView, cogView);
-
-            // NavSolver ticks (no EQS interest — we just verify it doesn't disturb events).
-            // cogView == navView so the snapshot is shared; we tick with the same object.
-            using var module = new CognitiveSpatialModule(_world);
-            module.RegisterSystems(new CapturingRegistry());
-            module.Tick(cogView, 1f / 10f);
-
-            // Simulate ModuleHostKernel.HarvestEntry: play the snapshot ECB back to
-            // the live world so the AreaQueryResultEvent lands in _world's WRITE buffer.
-            ((EntityCommandBuffer)((ISimulationView)cogView).GetCommandBuffer())
-                .Playback(_world);
-
-            // Release both convoy members (order does not matter).
-            provider.ReleaseView(navView);   // _activeReaders = 1
-            provider.ReleaseView(cogView);   // _activeReaders = 0, snapshot returned to pool
-
-            // --- Next kernel frame: swap + materialize ---
-            _world.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(_world, 1f / 10f);
-
-            // --- Assert ---
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
-            Assert.True(result.IsReady,
-                "EQS result must be ready after CognitiveSpatialModule tick through the " +
-                "SharedSnapshotProvider convoy path (hill-attack scenario coordinates).");
-            Assert.Equal(2, result.TargetCount);
+            Assert.True(registry.TryGetTemplate(EntitiesOfForceInArea.BlueprintId, out var t));
+            Assert.IsType<EntitiesInAreaGenerator>(t.Generator);
+            Assert.True(registry.TryGetTemplate(FindCoverFromTarget.BlueprintId, out _),
+                "a hand-typed template id must keep resolving for its C# callers");
+            Assert.Same(registry, EqsTemplateRegistry.InstallDefault(_world));
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────────
+        /// <summary>
+        /// ⭐ The area template on one world: hostile + inside + not wrecked, over a polygon whose origin is
+        /// OFFSET — covers the relative-to-origin polygon, force, wreck and outside cases at once.
+        /// ⚠ Was a parity rail against the old AreaQuery solver (both answered this set) until the pipeline
+        /// was retired — EQS design §18.
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_ReportsTheLiveHostilesInside()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
+            {
+                new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f),
+            });
+            _world.GetComponentRW<SimTransform>(area).Position = new Vector3(50f, 50f, 0f); // offset origin
+
+            var inside1  = CreateEnemyAt(new Vector2(50f, 50f));
+            var inside2  = CreateEnemyAt(new Vector2(60f, 40f));
+            CreateEnemyAt(new Vector2(80f, 80f));                       // outside
+            var wreck    = CreateEnemyAt(new Vector2(45f, 55f));
+            _world.AddComponent(wreck, new Health { Current = 0f, Max = 100f });
+            var friendly = CreateEnemyAt(new Vector2(55f, 55f));
+            _world.GetComponentRW<EntityInfo>(friendly).ForceId = ForceId.Friend;
+
+            var sensor = RunEqsAreaSensor(area);
+
+            Assert.Equal(new HashSet<long> { (long)inside1.PackedValue, (long)inside2.PackedValue }, BufferEntities(sensor));
+        }
 
         /// <summary>
-        /// Minimal <see cref="ISystemRegistry"/> that returns each system unchanged so that
-        /// <see cref="CognitiveSpatialModule.RegisterSystems"/> can initialise its internal
-        /// system references without requiring the full <c>ModuleHostKernel</c>.
+        /// Re-homed SC-HA002-5: polygon vertices are LOCAL to the area's <see cref="SimTransform"/>. A hostile
+        /// inside the world-space polygon (local vertex + origin) is found; one at the raw local coordinates
+        /// (ignoring the origin) is not.
         /// </summary>
-        private sealed class CapturingRegistry : ISystemRegistry
+        [Fact]
+        public void AreaTemplate_PolygonIsLocalToTheAreaOrigin()
         {
-            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem { }
-            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
-                => system;
+            var area = CreateAreaEntity(new List<Vector2>
+            {
+                new(0f, 0f), new(10f, 0f), new(10f, 10f), new(0f, 10f),
+            });
+            _world.GetComponentRW<SimTransform>(area).Position = new Vector3(20f, 20f, 0f);
+
+            var inside = CreateEnemyAt(new Vector2(25f, 25f));   // local (5, 5)
+            CreateEnemyAt(new Vector2(5f, 5f));                   // local (-15, -15)
+
+            var sensor = RunEqsAreaSensor(area);
+
+            Assert.Equal(new HashSet<long> { (long)inside.PackedValue }, BufferEntities(sensor));
+        }
+
+        /// <summary>
+        /// Re-homed SC-HA002-1: an area with a polygon and no hostile inside ⇒ a READY, EMPTY answer —
+        /// "the area is clear" is a real answer once the area exists (contrast <c>AreaTemplate_WithNoArea_PublishesNothing</c>).
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_WithNoTargetInside_PublishesAReadyEmptyAnswer()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
+            {
+                new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
+            });
+            CreateEnemyAt(new Vector2(50f, 50f));                 // outside
+
+            var sensor = RunEqsAreaSensor(area);
+
+            ref readonly var buffer = ref _world.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            Assert.True(buffer.IsReady);
+            Assert.Equal(0, buffer.Count);
+        }
+
+        /// <summary>
+        /// "No area ⇒ no answer": when the area entity is not (yet) present, the EQS solver publishes
+        /// NOTHING — the buffer stays not-ready — instead of an empty result that reads as "area clear".
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_WithNoArea_PublishesNothing()
+        {
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(Entity.Null);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);
+        }
+
+        // ── EqsChildSensor — the ONE Brain-side child-sensor lifecycle (DESIGN_Hill_Attack_Eqs_Migration.md §4 D1–D3) ──
+
+        private Entity BehaviourParent(uint runInstanceId)
+        {
+            // SimHostComponentRegistry registers no BehaviorState (the cognitive registry does) — register it for these rails.
+            if (!_world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorState), out _))
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            var parent = _world.CreateEntity();
+            _world.AddComponent(parent, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = runInstanceId });
+            return parent;
+        }
+
+        private int PartIdOf(Entity child)
+            => _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).InstanceId;
+
+        /// <summary>⭐ CE-485 — on the live world Ensure creates the child AT ONCE (no placeholder), stamped with the owning run
+        /// and its site, with part id 1 (the lowest free) and the run in the epoch's high 16 bits; a second call FINDS it.</summary>
+        [Fact]
+        public void EqsChildSensor_Ensure_CreatesImmediately_Stamped_ThenFinds()
+        {
+            var parent = BehaviourParent(5);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            var child = EqsChildSensor.Ensure(view, parent, 7, cfg);
+            Assert.False(child.IsNull);
+            Assert.True(_world.IsAlive(child));
+            Assert.Equal(parent, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).ParentEntity);
+            Assert.Equal(1, PartIdOf(child));                                         // allocated, not the site id
+            var stamp = _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(child);
+            Assert.Equal(5u, stamp.OwnerInstanceId);
+            Assert.Equal(7, stamp.SiteId);
+            Assert.Equal((5u << 16) | (cfg.Epoch & 0xFFFFu), _world.GetComponentRO<EqsSensor>(child).Epoch);
+            Assert.Equal(cfg.BlueprintId, _world.GetComponentRO<EqsSensor>(child).BlueprintId);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(child).IsReady);
+
+            Assert.Equal(child, EqsChildSensor.Ensure(view, parent, 7, cfg));      // found — no second sensor
+            Assert.Equal(child, EqsChildSensor.Find(view, parent, 7));
+            Assert.True(EqsChildSensor.Find(view, parent, 8).IsNull);              // another site is another sensor
+        }
+
+        /// <summary>⭐ CE-485 — two creations in ONE frame get DIFFERENT part ids (the second sees the first); a key separates
+        /// two sensors of one site; a freed id is REUSED by the next creation.</summary>
+        [Fact]
+        public void EqsChildSensor_AllocatesLowestFreePartId_SameFrame_Keys_AndReuse()
+        {
+            var parent = BehaviourParent(3);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            var a = EqsChildSensor.Ensure(view, parent, 10, cfg);
+            var b = EqsChildSensor.Ensure(view, parent, 20, cfg);
+            var c = EqsChildSensor.Ensure(view, parent, 20, cfg, key: 42);
+            Assert.Equal(new[] { 1, 2, 3 }, new[] { PartIdOf(a), PartIdOf(b), PartIdOf(c) });
+            Assert.NotEqual(b, c);
+
+            _world.DestroyEntity(a);                                                  // part id 1 is free again
+            var d = EqsChildSensor.Ensure(view, parent, 30, cfg);
+            Assert.Equal(1, PartIdOf(d));
+
+            var other = BehaviourParent(3);                                           // ids are per parent
+            Assert.Equal(1, PartIdOf(EqsChildSensor.Ensure(view, other, 10, cfg)));
+        }
+
+        /// <summary>⭐ CE-485 — a sensor of an EARLIER run is never this run's sensor: after the run changes, Find misses it and
+        /// Ensure creates a fresh one (with a fresh owner in the epoch).</summary>
+        [Fact]
+        public void EqsChildSensor_Find_IsScopedToTheCurrentRun()
+        {
+            var parent = BehaviourParent(1);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var first = EqsChildSensor.Ensure(view, parent, 7, cfg);
+
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 2;
+            Assert.True(EqsChildSensor.Find(view, parent, 7).IsNull);
+            var second = EqsChildSensor.Ensure(view, parent, 7, cfg);
+            Assert.NotEqual(first, second);
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(second).Epoch >> 16);
+        }
+
+        /// <summary>⭐ CE-485 — Release destroys exactly the ending run's parts of that parent: not another run's, not another
+        /// parent's.</summary>
+        [Fact]
+        public void BehaviorOwnedParts_Release_DestroysOnlyTheEndingRunsParts()
+        {
+            var parent = BehaviourParent(4);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var mine1 = EqsChildSensor.Ensure(view, parent, 1, cfg);
+            var mine2 = EqsChildSensor.Ensure(view, parent, 2, cfg);
+            var otherParent = BehaviourParent(4);
+            var theirs = EqsChildSensor.Ensure(view, otherParent, 1, cfg);
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 5;
+            var nextRun = EqsChildSensor.Ensure(view, parent, 1, cfg);
+
+            Assert.Equal(2, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 4));
+            Assert.False(_world.IsAlive(mine1));
+            Assert.False(_world.IsAlive(mine2));
+            Assert.True(_world.IsAlive(theirs));
+            Assert.True(_world.IsAlive(nextRun));
+            Assert.Equal(0, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 0));   // 0 = unowned
+        }
+
+        /// <summary>⭐ CE-485 — Refresh counts in the epoch's LOW 16 bits only; the owner in the high 16 never changes.</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_KeepsTheOwnerBits()
+        {
+            var parent = BehaviourParent(9);
+            var view = (ISimulationView)_world;
+            var child = EqsChildSensor.Ensure(view, parent, 1, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            uint before = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.True(EqsChildSensor.Refresh(view, child));
+            uint after = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.Equal(before >> 16, after >> 16);
+            Assert.Equal((before & 0xFFFFu) + 1u, after & 0xFFFFu);
+        }
+
+        /// <summary>Refresh = a new epoch and a cleared buffer, so the solver's answer for the OLD epoch is dropped and
+        /// IsReady turns true only on an answer computed after the refresh (EqsResultUpdateSystem's epoch filter).</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_DropsTheOldEpochsAnswer()
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var area = CreateAreaEntity(new List<Vector2> { new(0f, 0f), new(100f, 0f), new(100f, 100f), new(0f, 100f) });
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(area);
+            Assert.Equal(1, _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count);
+
+            // the solver answers epoch 1 ...
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            // ... but the sensor is refreshed before that answer is applied
+            Assert.True(EqsChildSensor.Refresh(view, sensor));
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(sensor).Epoch);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // the epoch-1 answer did not count
+
+            Assert.False(EqsChildSensor.Refresh(view, Entity.Null));
+        }
+
+        /// <summary>Destroy removes the sensor; a null or dead handle is a no-op.</summary>
+        [Fact]
+        public void EqsChildSensor_Destroy_RemovesIt_AndIgnoresNull()
+        {
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            var view = (ISimulationView)_world;
+            EqsChildSensor.Destroy(view, Entity.Null);
+            EqsChildSensor.Destroy(view, sensor);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            Assert.False(_world.IsAlive(sensor));
+            EqsChildSensor.Destroy(view, sensor);   // dead ⇒ no-op
+        }
+
+        // Spawns a local EQS area sensor, runs the solver once and applies its result (Path B).
+        private Entity RunEqsAreaSensor(Entity area)
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+            _world.AddComponent(sensor, new EqsCognitiveBuffer());
+
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            return sensor;
+        }
+
+        private HashSet<long> BufferEntities(Entity sensor)
+        {
+            var set = new HashSet<long>();
+            ref readonly var buf = ref _world.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            Assert.True(buf.IsReady, "the EQS buffer must be ready after one solver pass");
+            var span = buf.GetSpanRO();
+            for (int i = 0; i < buf.Count; i++) set.Add(span[i].EntityId);
+            return set;
         }
     }
 }

@@ -1,54 +1,45 @@
-using System.Collections.Generic;
 using System.Numerics;
-using CarKinem.Road;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
-using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Events;
-using Hrot.Map.Common.Scenario;
-using Hrot.Map.Common.Services;
 
 namespace Hrot.Editor.Systems;
 
 /// <summary>
-/// ECS system that processes zone authoring commands in the editor world.
-/// <list type="bullet">
-///   <item><see cref="SpawnZoneObstacleCommand"/> — creates a new obstacle entity with
-///   <see cref="SimTransform"/>, <see cref="PhysicsCollider"/>, and <see cref="ZoneMembership"/>.</item>
-///   <item><see cref="UpdateZoneConfigCommand"/> — loads a road-network blob from the
-///   supplied JSON path and stores it as <see cref="ZoneEnvironmentData"/> singleton.</item>
+/// ECS system that turns an obstacle-placement click into an ENTITY.
+///
+/// <para>⭐⭐ <b>What F1 removed from it, and why the rest stayed.</b> This system had three jobs; two are
+/// retired and one is not:</para>
+/// <list type="number">
+///   <item>⛔ <b>mirroring into <c>ZoneDefinitionDto</c>s for the save pipeline</b> — RETIRED. The DTO and
+///     the embedded <c>Zones</c> section are gone; the obstacle entity IS the definition, and it is saved
+///     by the ordinary gate like any other entity.</item>
+///   <item>⛔ <b>stamping <c>ZoneMembership</c></b> — RETIRED. Zones are entities with polygons now, so
+///     "which zone is this obstacle in" is geometry, not a stored name that can drift from it.</item>
+///   <item>⛔ <b><c>UpdateZoneConfigCommand</c>: loading a road network from a path into
+///     <c>ZoneEnvironmentData</c></b> — RETIRED, and it was a live hazard. It wrote the road-network
+///     singleton DIRECTLY, bypassing <c>RoadNetworkHolder</c>, so a background solver holding a lease
+///     could not see the new graph and the old one was never retired. The road network is declared by the
+///     TERRAIN asset and published through the holder by the terrain loader (§2.1d, §6).</item>
 /// </list>
-/// When a <see cref="ZoneManagerService"/> is provided, both commands also update the
-/// service's active-zone tracking so that <c>ScenarioFileService.SaveScenario</c> persists
-/// the correct zone DTO data.
+///
+/// <para>⭐ <b>Job 1 stayed because it is a SURFACE, not a duplicate mechanism.</b> Placing an obstacle on
+/// the map is a live authoring affordance whose replacement (§9, the zones view) is still OPEN in the
+/// design. Deleting the consumer would have left <c>EditorZoneAdapter</c> publishing a command nothing
+/// reads — a click that silently does nothing. "No rush removals": route, do not delete.</para>
+///
+/// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c (obstacles), §5.1, §6 (retirement), §9 (still open).
 /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
-    public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
+[UpdateInPhase(SystemPhase.Simulation)]
+public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
 {
-    private readonly ZoneManagerService? _zoneService;
-    private readonly Dictionary<string, ZoneDefinitionDto> _dtos = new();
-
-    /// <summary>
-    /// Initialises the system with an optional <see cref="ZoneManagerService"/> for
-    /// zone-DTO tracking during save.
-    /// </summary>
-    public EditorZoneAuthoringSystem(ZoneManagerService? zoneService = null)
-    {
-        _zoneService = zoneService;
-    }
-
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        ProcessObstacles(view);
-        ProcessZoneConfig(view);
-    }
-
-    private void ProcessObstacles(ISimulationView view)
-    {
         var repo = (EntityRepository)view;
+
         foreach (var cmd in view.ReadManagedEvents<SpawnZoneObstacleCommand>())
         {
             var entity = repo.CreateEntity();
@@ -63,47 +54,6 @@ namespace Hrot.Editor.Systems;
                 Radius         = cmd.Radius,
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer,
             });
-
-            repo.AddComponent(entity, new ZoneMembership { ZoneName = cmd.ZoneName });
-
-            // Mirror to zone DTO tracking for save pipeline.
-            if (_zoneService != null)
-            {
-                if (!_dtos.TryGetValue(cmd.ZoneName, out var dto))
-                    _dtos[cmd.ZoneName] = dto = new ZoneDefinitionDto();
-
-                dto.Obstacles ??= new List<ZoneObstacleDto>();
-                dto.Obstacles.Add(new ZoneObstacleDto
-                {
-                    X      = cmd.Position.X,
-                    Y      = cmd.Position.Y,
-                    Radius = cmd.Radius,
-                });
-
-                _zoneService.SetActiveZones(_dtos);
-            }
-        }
-    }
-
-    private void ProcessZoneConfig(ISimulationView view)
-    {
-        var repo = (EntityRepository)view;
-        foreach (var cmd in view.ReadManagedEvents<UpdateZoneConfigCommand>())
-        {
-            if (string.IsNullOrEmpty(cmd.RoadNetworkPath)) continue;
-
-            var blob = RoadNetworkLoader.LoadFromJson(cmd.RoadNetworkPath);
-            repo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = blob });
-
-            // Mirror to zone DTO tracking for save pipeline.
-            if (_zoneService != null)
-            {
-                if (!_dtos.TryGetValue(cmd.ZoneName, out var dto))
-                    _dtos[cmd.ZoneName] = dto = new ZoneDefinitionDto();
-
-                dto.RoadNetworkPath = cmd.RoadNetworkPath;
-                _zoneService.SetActiveZones(_dtos);
-            }
         }
     }
 }

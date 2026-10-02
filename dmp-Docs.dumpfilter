@@ -1,0 +1,21 @@
+- *
+
++ docs
++ FDP/Docs
++ Hrot/Docs
+
+- **/.*
+- **/obj
+- **/bin
+- **/build
+- **/artifacts
+
+- **/*.png
+- **/*.jpg
+- **/*.jpeg
+- **/*.gif
+- **/*.svg
+- **/*.pdf
+- **/*.zip
+- **/*.dll
+- **/*.exe

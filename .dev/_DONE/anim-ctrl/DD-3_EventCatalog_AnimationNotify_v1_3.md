@@ -133,7 +133,7 @@ used with `FdpEventBus` requires it), each event carries:
 - `[EventId(int)]` — unique ID validated at registration time by
   `EventTypeRegistry`. Reserved ID block for animation events is 8000–8099
   (pending §9.7 confirmation with engine architect).
-- `[DataPolicy(DataPolicy.NoRecord)]` — prevents these transient bus
+- `[DataPolicy(DataPolicy.NoReplay)]` — prevents these transient bus
   events from flooding the Flight Recorder. Matches the pattern of
   `ClusterStateChangedEvent` and other transient bus events.
 
@@ -141,7 +141,7 @@ used with `FdpEventBus` requires it), each event carries:
 
 ```csharp
 [EventId(8001)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct MontageStartedEvent
 {
     public readonly Entity Target;
@@ -153,7 +153,7 @@ public readonly struct MontageStartedEvent
 }
 
 [EventId(8002)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct MontageEndedEvent
 {
     public readonly Entity Target;
@@ -174,7 +174,7 @@ public enum MontageEndReason : byte
 }
 
 [EventId(8003)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct MontageSectionAdvancedEvent
 {
     public readonly Entity Target;
@@ -186,7 +186,7 @@ public readonly struct MontageSectionAdvancedEvent
 }
 
 [EventId(8004)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct StanceChangedEvent
 {
     public readonly Entity Target;
@@ -199,7 +199,7 @@ public readonly struct StanceChangedEvent
 
 ```csharp
 [EventId(8010)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct FootstepEvent
 {
     public readonly Entity Target;
@@ -209,7 +209,7 @@ public readonly struct FootstepEvent
 }
 
 [EventId(8011)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct HitWindowOpenedEvent
 {
     public readonly Entity Target;
@@ -220,7 +220,7 @@ public readonly struct HitWindowOpenedEvent
 }
 
 [EventId(8012)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct HitWindowClosedEvent
 {
     public readonly Entity Target;
@@ -231,7 +231,7 @@ public readonly struct HitWindowClosedEvent
 }
 
 [EventId(8013)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public readonly struct AnimNotifyEvent          // generic catch-all
 {
     public readonly Entity Target;
@@ -735,7 +735,7 @@ needed.
 ### 10.4 ✅ Flaw 4: Missing `[EventId]` and `[DataPolicy]` attributes
 
 **Resolved:** Every event type in §3 now carries `[EventId(80xx)]`
-and `[DataPolicy(DataPolicy.NoRecord)]`. Reserved ID block 8000-8099
+and `[DataPolicy(DataPolicy.NoReplay)]`. Reserved ID block 8000-8099
 proposed; final allocation pending §9.7 architect confirmation.
 
 ---
@@ -750,7 +750,7 @@ flagged flaws, and the §9.7 `[EventId]` block allocation are resolved.
 DD-3 v1.2 specifies the Engine Event Catalog registrations and
 cross-node propagation for the eight animation notify events. Each
 event type carries the engine-mandatory `[EventId(80xx)]` and
-`[DataPolicy(DataPolicy.NoRecord)]` attributes, using the
+`[DataPolicy(DataPolicy.NoReplay)]` attributes, using the
 architect-allocated 8000-8099 reserved block (8001-8013 in current
 use). Catalog entries declare display names, categories, target-field
 self-filtering, and filterable payload fields. Seven of eight events

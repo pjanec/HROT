@@ -1,0 +1,388 @@
+<!--STATUS
+state: LIVE
+doc-type: runbook (the standing HOW-TO for system/smoke/conformance tests + golden maintenance — not a
+  buildable design, so no build-state/UML gate). Handoffs REFERENCE this; every implementation session follows it.
+updated: 2026-08-26
+current-answer: the whole file — how the C# harness drives the system over HTTP, how to write a smoke test,
+  the perspective-switch capture protocol, how goldens are made/maintained, how conformance reuses it all,
+  §7 — how to tell a real red from an exhausted process — and §8, the classified integration-suite ledger.
+design-basis: DESIGN_MCP_System_Test_Harness.md (the harness) · DESIGN_UI_Observability_Snapshot.md (PanelSnapshot) ·
+  DESIGN_Headless_Testability.md (the taxonomy) · MCP_Integration.md (the API).
+known-conflict: none.
+-->
+# RUNBOOK — how we test the system, and how we keep goldens honest
+
+> ⭐ **This is the doc handoffs cite.** When a batch touches behaviour or what a panel shows, the implementing
+> session follows §6 **in the same batch**, and the coordinator verifies it on merge.
+
+## 1. The harness at a glance
+
+⭐ The harness boots the **real process as a subprocess** (headless, Xvfb on Linux) and drives it over HTTP with
+a typed **C# `McpClient`** — ⛔ **not** through the Node MCP server *(that is the agent-facing driver)*. Same HTTP
+control plane, C# client.
+
+```
+[Fact] test  →  McpClient (HTTP)  →  DebugApiHost :port  →  DebugApiService (sim thread)  →  the process
+```
+
+⭐⭐ **It is ONE binary — `Hrot.ClusterRunner` — and `--mode` selects which subsystem(s) run.** The editor is
+not a different executable; it is the cluster runner hosting the **editor** subsystem. ⇒ there is really **one
+fixture, parameterised by mode**:
+
+| `--mode` | subsystem(s) in the process | perspectives you can snapshot |
+|---|---|---|
+| **editor** *(fixture built, HN-120)* | the **editor** subsystem | the editor's perspectives |
+| ⭐ **all** *(to reach for conformance)* | **`orchestrator,simhost,ig,excon,cgf` — FIVE subsystems** in ONE process | each submodule, **by switching perspective** *(`PerspectiveCoordinatorSystem`)* |
+
+⚠⚠ **CORRECTED `2026-08-23`: there is NO `--mode cluster`.** The shorthand is **`all`** *(= `demo`)*; an unknown
+mode **throws** *(`HrotRunnerConfiguration.cs:104-123`)*. ⛔ And the two modes' perspective sets are **disjoint**,
+so conformance **discovers** them per mode rather than switching both to one name.
+
+⭐⭐ **Consequence for the read-API:** `PanelSnapshot` is a **process-wide static singleton** — it already exists
+in every mode. What is editor-only today is the **`DebugApiHost` wiring** *(constructed in `EditorSubsystem`)*.
+⇒ the conformance prerequisite is NOT *"add the API to two more hosts"* — it is **wire the existing
+`DebugApiHost` one level up** *(the `ClusterRunner` host, mode-independent)* so `/panels`, `/perspective` etc.
+answer in **cluster** mode too. One implementation, enabled in every mode.
+⭐ One process per test-collection; tests share it; scenarios load **sequentially** within the collection.
+
+## 2. Writing a smoke test — the shape
+
+```csharp
+[Fact, Trait("Category","SystemSmoke")]
+public async Task Squad_advances_and_the_watch_shows_it() {
+    await Mcp.LoadScenarioAsync("hill-attack");      // a curated scenario (git-seeded)
+    await Mcp.EnterPreviewAsync();
+    await Mcp.StepAsync(600);                         // deterministic ticks
+    // behaviour/state layer:
+    var st = await Mcp.GetEntityStateAsync(squadId);
+    Assert.True(st.Speed > 0);
+    // panel/visual layer (pixel-free — the model the renderer reads):
+    var watch = await Mcp.GetPanelAsync("ai.watch");
+    Assert.Equal("11", watch["rows"]![0]!["value"]!.GetValue<string>());
+}
+```
+
+⭐ **Three read layers, all over the same API** — assert at whichever the feature lives in:
+1. **behaviour/state** — `/entities`, `/entities/{id}/state` *(position·velocity·speed·behavior)*, `/entities/{id}/variable` *(watch value + pending)*, `/events`, `/breakpoints/hits`.
+2. **panel/visual** — `GET /panels/{id}` → the panel's **view-model JSON** *(from `PanelSnapshot`)*. ⭐ this is "what the user sees", machine-checkable, no pixels.
+3. **determinism** — deterministic timestep + record/replay for frame-exact checks.
+
+## 3. ⛔⛔ THE PERSPECTIVE PROTOCOL — a panel only snapshots when its perspective is ACTIVE
+
+⭐⭐ **Panels register to `PanelSnapshot` only when their DRAW runs, and only the ACTIVE perspective draws.**
+📐 Measured: an editor reports **~11 of 47** instrumented panels captured at once — the rest belong to other
+perspectives. ⇒ to snapshot a panel that lives in perspective *P*:
+
+```
+POST /perspective {"name":"P"}     // WindowManager.SwitchPerspective / PerspectiveCoordinatorSystem
+POST /sim/step {"ticks":1}         // let P's panels draw once so they register
+GET  /panels/{id}                  // now captured
+```
+
+⚠ **Required capability, NOT yet built:** `GET /perspectives` *(list)* + `POST /perspective {name}` *(switch)*
+on the DebugApi. ⛔ Until it exists, only the default perspective's panels are reachable. **This is a prerequisite
+for cross-perspective smoke and for ALL conformance.**
+
+⭐ **Cluster runner:** its perspectives ARE the submodules — CGF · SimHost · Orchestrator
+*(`PerspectiveCoordinatorSystem` maps the names)*. Same protocol: switch to the CGF perspective to snapshot CGF's
+panels.
+
+## 4. Goldens — assertion vs snapshot, and how to keep them honest
+
+Two styles, used for different jobs:
+
+| style | what | when |
+|---|---|---|
+| ⭐ **hand-written assertion** | the expected value is IN the test *(`Assert.Equal(11, tier)`)* | specific, meaningful checks — the capability ladder + scenario cases |
+| ⭐ **golden / snapshot** | dump the whole model *(all captured panels + state)* to a JSON file in git, compare future runs to it | broad *"did anything change?"* coverage per scenario |
+
+### How a golden is made and maintained
+
+| step | how |
+|---|---|
+| **location** | `Hrot.SystemTests/Goldens/<scenario>/<perspective>.json` *(one per scenario × perspective)* — checked into git |
+| **create/update** | ⭐ follow the **existing** per-family env convention *(`EQS_GOLDEN_CAPTURE` is the precedent)* — set **`PANEL_GOLDEN_CAPTURE=1`** and the test writes the dump instead of comparing. ⛔ **Do not invent a new golden mechanism** — reuse the `<FAMILY>_GOLDEN_CAPTURE` shape |
+| ⛔⛔ **review the diff** | a regenerated golden is a **DIFF you must read**, never a rubber-stamp — 📌 the rule-8 gate already demands *"golden movement as a diff shape"* |
+| ⭐ **ship it with the feature** | ⛔ **a change that alters what a panel shows regenerates its golden IN THE SAME BATCH** — see §6 |
+
+⚠ **Determinism is mandatory for goldens** — fixed timestep, fixed frame count, sorted keys. A golden that
+flakes is worse than none.
+
+## 5. Conformance — the same tests, a different assertion
+
+⭐⭐ Conformance **reuses** the scenarios, the driver and the read surface. It only swaps the final assert:
+
+| | asserts | reference data |
+|---|---|---|
+| **smoke** | host X shows the RIGHT thing | a golden or a hand-written expectation |
+| ⭐ **conformance** | host X and host Y show the SAME thing | ⛔ **none** — the reference IS the other host's live dump |
+
+```
+proc A (--mode editor):  load S → switch to the perspective with panel K → step → dump K
+proc B (--mode all):     load S → switch to the CGF perspective with panel K → step → dump K
+assert:                  dump_A[K]  ==  dump_B[K]     // same binary, two modes; diff by PanelKind
+```
+
+⭐ **No golden to maintain for conformance** — both hosts change together when a feature changes; if they DON'T,
+that divergence is the bug conformance exists to catch.
+
+## 6. ⭐⭐⭐ THE OBLIGATION — every implementation session, every batch
+
+> ⛔ **If your change alters system behaviour or what a panel shows, the test/golden update ships in the SAME
+> batch.** A green suite that still encodes the old behaviour is a false green.
+
+| your change | you do, in the same batch |
+|---|---|
+| new/changed **behaviour** | add or update the **assertion** *(or the scenario case)* |
+| new/changed **panel content** | regenerate the affected **golden** *(`UPDATE_GOLDENS=1`)* and **read the diff** in your report |
+| new **panel** | it publishes in some perspective ⇒ add it to that perspective's golden |
+| new **capability** *(endpoint/feature)* | add one **smoke case** to the ladder |
+
+⭐ **The coordinator verifies on merge** *(rule 8 + obligation ⑤)*: a golden moved without a diff shape in the
+report, or a behaviour change with no test change, is an **incomplete batch** — sent back.
+
+⛔ **Do NOT** hand-edit a golden file to make a test pass — regenerate it and justify the diff. A hand-patched
+golden is the exact false-green this runbook exists to prevent.
+
+---
+
+## 7. ⛔⛔⛔ WHEN THE SUITE ITSELF IS THE DEFECT — **the leak that read as flakiness for ~40 batches**
+
+> ⭐⭐⭐ **The rule this section exists for: ⛔ a red is not evidence until the INSTRUMENT is known good.**
+> A process that has run out of memory fails tests that have nothing wrong with them, and it fails a
+> *different* set every run — which is indistinguishable from flakiness, and was read as flakiness.
+
+### 7.1 📐 What was actually happening *(measured `2026-08-26`, 16 GB / 4 CPU)*
+
+| the symptom, as previously recorded | ⭐ what it really was |
+|---|---|
+| `Hrot.ClusterRunner.Integration.Tests` **aborts at a different count every run** *(`38`, `76`, `89`, `117`…)* — `BP-378`, `F17` | the host **ran out of memory and died**; the count is just how far it got |
+| *"the failure identity ROTATES between runs"* — `DEBT-AIB-030`, `TM-032`, `TM-036`, `ST-026`, `HN-019`, `BP-471` | ⚠ under memory pressure, **whichever test allocates at the wrong moment loses** |
+| *"every named one PASSES under `--filter`"* | ⭐ of course — **a filtered run never reaches the pressure** |
+| three different proximate causes *(DDS `dds_take -3`, a `ModuleHost` timeout, `OutOfMemoryException`)* | ⛔ **ONE root cause with three faces** |
+
+⭐⭐ **The chain, end to end:**
+
+```
+a node teardown releases the KERNEL but not the REPOSITORIES it ran on
+  → RSS climbs monotonically (measured 4.1 → 9.9 GB in 45 s of one run)
+  → 77 × OutOfMemoryException out of EntityIndex / NativeChunkTable ctors
+  → a harness CONSTRUCTOR throws
+  → xUnit does NOT call Dispose on an instance whose ctor threw
+  → its DDS participant + background id-allocator poll thread survive
+  → that thread calls dds_take on a dead handle
+  → unhandled exception on a NON-TEST thread ⇒ the whole host process dies
+```
+
+⛔⛔ **The dominant term was NOT the world.** `ModuleHostKernel.Initialize` builds a `SnapshotPool` with
+`warmupCount: 10`, and nothing ever released it ⇒ **ten `EntityRepository` instances leaked per kernel**,
+each holding an `int[1_000_000]` free list plus one `NativeChunkTable` per registered component.
+⭐ **This is a PRODUCT defect, not a test defect** — every node teardown in the shipping runner leaked them.
+
+### 7.2 ⭐⭐⭐ THE INSTRUMENT — **`EntityRepository.LiveInstanceCount`**
+
+⛔ **A leaked repository is invisible**: it throws nothing, logs nothing, and fails no assertion. So the
+count is the whole difference between arguing and knowing.
+
+```csharp
+int before = EntityRepository.LiveInstanceCount;
+using (var harness = new HrotRunnerHarness()) { /* … */ }
+Assert.Equal(before, EntityRepository.LiveInstanceCount);   // ⭐ a DELTA, never an absolute
+```
+
+⭐⭐ **And when it is non-zero, get the LINE, not just the number:**
+
+```bash
+FDP_TRACK_REPO_LEAKS=1 dotnet test <proj> --no-build --filter TheHarnessReleasesEveryWorld
+```
+
+📌 It records each repository's construction stack and prints them in the failure. **That is what found
+`SnapshotPool` and then `OnDemandProvider`** — the count alone had only said *"ten of them, somewhere."*
+📐 One full five-subsystem harness round-trip: **32 leaked → 2 → 0.**
+
+### 7.3 ⭐ THE HABIT — **three checks before you believe a red**
+
+| # | check | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **did the run FINISH?** `Total tests: Unknown` + *"Test Run Aborted"* ⇒ ⛔ **the numbers are not comparable to anything** — not to the base tree, not to the previous run | the pre-fix suite could not produce a total at all |
+| **②** | ⭐⭐ **`grep -c OutOfMemoryException` the log** | ⛔ **any** non-zero count invalidates every red in that run |
+| **③** | ⭐ **watch RSS**: `while :; do free -m; sleep 15; done` alongside the run | ⭐ a MONOTONIC climb is a leak; a plateau is a working set |
+
+⇒ ⭐⭐ **Only after ①–③ are clean is a filtered base-vs-change comparison meaningful.** ⚠ `F17`'s
+*"quote a filtered subset run on both trees"* was the right MITIGATION for an un-gateable suite — ⛔ it was
+never the fix, and it is no longer needed for this suite.
+
+### 7.4 ⛔ WHAT THIS FORBIDS
+
+⛔⛔ **`DisableParallelization` is not a cure for a rotating red.** 📌 It was proposed as the cheap fix for
+`DEBT-AIB-030` and it *does* reduce the reds — ⚠ **because it lowers the peak memory, not because ordering
+was the problem.** ⇒ that is `R-131`'s permanent filter-around wearing a different hat. ⭐ **The one
+legitimate use is the opposite one:** the world-leak rail is `DisableParallelization` **because
+`LiveInstanceCount` is process-wide**, so a concurrent collection would make the delta meaningless — the
+attribute is protecting a *measurement*, not hiding a *failure*.
+
+---
+
+## 8. ⭐⭐⭐ THE INTEGRATION-SUITE LEDGER — **51 reds, classified** *(`QA-013`, `2026-08-26`)*
+
+> ⭐ §7 made the suite FINISH. This section is what it then showed. ⛔ **These reds are not new** — the
+> suite could never complete, so they had never been visible at once. 📐 Base-proved below.
+
+### 8.1 ⭐⭐ THE ONE MEASUREMENT THAT SPLITS THEM — **run each failing class ALONE**
+
+```bash
+dotnet test <proj> --no-build --filter "FullyQualifiedName~<Class>"
+```
+
+| | count | meaning |
+|---|---:|---|
+| ⭐⭐ **red in the SUITE *and* ALONE** | **43** | ⛔ **genuine, deterministic.** Not interference, not pressure — the code or the assertion is wrong |
+| ⚠ **red in the SUITE, GREEN ALONE** | **8** *(9 counting the one the confirming run added — see below)* | **environmental** — timing under suite load. ⛔ Do NOT read these as defects |
+
+⇒ ⭐⭐⭐ **This split costs ~20 minutes and is the first thing to run on any new red here.** It is the
+difference between filing a defect and filing noise, and no message shape tells you which is which.
+
+📌 **It paid for itself inside this very batch.** The confirming run surfaced a **9th** red that had been
+green in the two runs before it — `EyesAndMuscleIntegrationTests.Module_EyesAndMuscleTicks_IncrementAfterPumping`
+(*"EyesTicks expected > 0, was 0"*, a **background-thread** tick count). ⛔ It looked exactly like a
+regression from the change in the same run. 📐 Run alone, three times: **3/3, 3/3, 3/3.** ⇒ environmental,
+and ⭐ **the isolation run is what stopped it being filed as one.**
+
+### 8.2 📐 BASE-PROOF *(dispatch base `dbdc5e783` — the tree before §7's fixes)*
+
+⚠⚠ **The base tree cannot run these classes TOGETHER** — even a 7-class filtered subset aborts
+(`Total tests: Unknown`, 1 passed). ⇒ **base-proving had to be done ONE CLASS AT A TIME.**
+
+| | count |
+|---|---:|
+| ✅ confirmed **red at base** | **47** |
+| ✅ confirmed **green at base** *(⇒ environmental, not a regression)* | 1 *(`EqsContextSlotTests` 7/7 at base)* |
+| ⚠ **not evaluable** — the base host aborts before the class reports | 4 *(`ClusterOpE2eScriptTests`)* |
+
+⇒ ⭐ **no red is attributable to §7's fixes**, and the four unevaluable ones are deterministic today
+with a named root cause (`QA-018`).
+
+### 8.3 ⭐⭐⭐ THE CLASSIFIED LEDGER
+
+| bucket | n | verdict + the measured root cause | owning design · lane |
+|---|---:|---|---|
+| ✅ **FIXED — stale assertion** | **3** | see §8.4 | backend |
+| 🔴 **`QA-017`** cluster transition | 7 | **real.** The 2PC never leaves state **0** — *"Cluster did not reach state 31 within 4000 frames. Current: 0"*. ⚠ The roster IS populated *(the test's own `ActiveNodes.Count > 0` assert passes first)*, and the bootstrap latch is NOT the gate *(no `orchestrator-config.json` ⇒ `Mandatory` empty ⇒ latch set in the ctor)*. ⭐⭐ **And the PRODUCTION path is proven green**: `MCP_Integration.md` §"Group U — AS-BUILT" measured `--mode all` reaching `OperatingLive` with 8 entities on 2026-08-24 ⇒ **suspect the in-process harness's drive/pump, not the state machine** | `MCP_Integration.md` §Group U · `designs/mgmt-1/DESIGN.md` §12/§5.5 · backend |
+| 🔴 **`QA-018`** SimHost test-hook | 4 | **real, and a two-sided CONTRADICTION.** `SimHostApp.TestHook_AddSystem` documents *"must be called AFTER `InitializeEmbedded`"* and throws `if (!_initialized)`; `ModuleHostKernel.RegisterGlobalSystem` throws `if (_initialized)`. ⇒ ⛔ **the hook's contract is impossible to satisfy.** ⭐ The seam to use already exists — `SimHostNodeBootstrapper.ApplicationSystemsRegistrar`, invoked at `SharedApplicationBootstrapper:139`, one line BEFORE the kernel `Initialize` at `:142`; and `MovingEntitySystem` already builds its query lazily *precisely* so it can be registered early | — *(no design; the hook's own doc-comment is the contract)* · backend |
+| 🔴 **`QA-019`** editor feature switch | 4 | **real.** `EditorApplication.SwitchToExternalAsync` → `ModuleHostKernel.UninstallModulesAsync` → *"Module `SimHostCoreLogicPack` is not currently installed in this kernel."* ⇒ the uninstall list and what the editor actually installs have diverged | `DESIGN_Perspective_Unification.md` · ⚠ editor production — **UI lane neighbours** |
+| 🔴 **`QA-020`** replication promotion | 17 | **real, and one shape**: an entity is created but never **promotes** / never takes **authority** / never **moves** on the far node *(ghost stays inactive, `SimTransform`/`NavigationStatus` authority never delegated)*. ⚠⚠ **The single biggest bucket — treat it as ONE investigation, not 17** | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-16 *(AX-009/Q59 as-built)* · `DESIGN_Deterministic_Network_Ids.md` · ⛔ **replication production — CROSS-LANE** |
+| 🔴 **`QA-021`** mission control | 1 | **real.** *"MissionControlRequest did not reach DDS within the timeout."* | `designs/tactical-intent/DESIGN.md` · ⚠ neighbours **MX4b** (MCP lane) |
+| 🔴 **`QA-022`** map / area authoring | 3 | **real.** The creation tool never activates; the placed entity never gets its TkbType; `EditablePolyline` never attaches | `designs/mgmt-1/DESIGN.md` · UI lane neighbours |
+| 🔴 **`QA-023`** blueprints | 1 | **real.** `BlueprintStateTranslator.Inject` does not set `InitialBlueprintsIntent` for the mixed legacy+new key case | `Blueprint_Subsystem_DEBUG-DD-ADDENDUM.md` · backend/blueprints |
+| 🔴 **`QA-024`** EQS phase machine | 3 | **real** *(fail alone too)*: `SensorEvalState.Phase` never reaches `_AwaitingRaycasts`, `CognitiveBuffer.IsReady` never set, a large score delta does not re-publish | `designs/eqs-2/EQS_Design_v1.3_final.md` · backend |
+| ⚠ **`QA-025`** environmental | 8 *(+1)* | ⛔ **NOT defects** — green alone, red under suite load. 7×`Eqs` *(the AccurateLos/ContextSlot/Distributed family)* + `SelectionAndMissionIntegrationTests`; ⭐ **+ `EyesAndMuscleIntegrationTests.Module_EyesAndMuscleTicks_IncrementAfterPumping`**, which the confirming run added and the isolation run cleared **3/3 ×3**. All timeout- or background-thread-shaped | — |
+
+### 8.4 ✅ THE THREE STALE ASSERTIONS — **fixed here, each with the measurement that decided it**
+
+| test | it asserted | 📐 why that is stale |
+|---|---|---|
+| `EqsResult_FlagsMeaningful_StructSizeUnchanged` | `sizeof == 24` | ⭐ `P3D-201` added `PositionZ` ⇒ 8+16+4 = 28 → **32**. This project's own csproj already defines `EQS_HAS_POSITIONZ` for that promotion; only this assertion was left behind. **The invariant it exists for still holds** — with the old `_pad` the size was 32 too, so `FlagsMeaningful` is still free |
+| `CaptureLiveState_WithoutDebugMap_ReturnsSnapshotWithEmptyFields` | `FieldValues` empty | ⭐ `CaptureStateSnapshot` consults `_debugMaps` **only for the asset name**; fields come from `_registry`. And the design says `RegisterDebugMap` binds **BREAKPOINTS** — it was never a precondition for state capture. The test pinned an implementation detail |
+| `SaveScenario_SubsystemTypeIsHrotScenario` | `Header.SubsystemType` | ⭐ `ScenarioSerializer.Serialize:199-200` writes `Header` with only `TkbName`, then `JsonEnvelope.Write(…DocumentMeta…)` ⇒ the type lives in **`$meta.docType`**; the serializer's own comment calls `Header.SubsystemType` the LEGACY shape the LOAD path still accepts. ⚠ The test also swallowed its own fallback, so the failure read as *"Operation is not valid due to the current state of the object"* — a message naming nothing |
+
+⇒ ⭐⭐ **All three were the TEST behind the code, not the code behind the design** — and in each case a
+deliberate, documented change had moved on without them.
+
+---
+
+## 9. ⭐⭐⭐ §8's DEFECTS, ROOT-CAUSED — **`QA-017` · `QA-024` · `QA-022`** *(`2026-08-26`)*
+
+> ⭐⭐ **The through-line of all three: NOTHING IN THE FAILURE TEXT NAMED THE CAUSE, and in two of
+> the three the cause was in a component the failing test does not mention.**
+
+### 9.1 ⛔⛔⛔ THE SHAPE THAT COST TWO BATCHES — **a strict DTO rejects a payload, and the rejection reaches nobody**
+
+📐 **`QA-017` was TWO instances of one shape, one field apart.**
+
+| # | the payload | what rejected it | where the rejection WENT |
+|---|---|---|---|
+| **A** | `TargetState` sent as `(int)ClusterState.OperatingLive` | ⭐ `StrictStringEnumConverter` — **written for exactly this**; `OrchestrationJsonOptions` documents itself as rejecting integer enums *"to avoid silent integer-as-enum bugs"* | `ClusterOpRequestAdapter` throws → `ClusterMaster` catches into **`FdpLog.Warn`** |
+| **B** | `ExerciseId` sent as `"e2e-all-01"` | ⭐ it is a **non-nullable `Guid`** ⇒ `JsonException` | the adapter wraps it into the **same** `InvalidOperationException` ⇒ the **same** `Warn` |
+
+⇒ ⭐⭐⭐ **In both cases `ProcessTransitionStateIntent` never runs, `_currentDsmState` is never advanced,
+and the cluster sits at its current state with NOTHING on any surface an operator or a test watches.**
+⛔ *"Cluster did not reach state 31"* is the symptom of a **parse failure two components upstream.**
+
+⚠ **The swallow itself is production and is NOT fixed here** — `Hrot/Subsystems/Hrot.Orchestrator/` is
+the TIME lane's file. Refiled as **`QA-032`**.
+
+### 9.2 ⛔⛔ THE HARNESS THREW ITS OWN DIAGNOSTIC AWAY — **`QA-028`, and it is why 9.1 stayed hidden**
+
+📐 `HeadlessTestExecutor.RunAsync` collapses **every** failure into the integer `1` and sends the reason
+to the injected `ILogger`. ⛔ Every script-driven test injects **`NullLogger.Instance`** and then asserts
+`Assert.Equal(0, result)`.
+
+⇒ ⭐ **The entire red was `Expected: 0 / Actual: 1`.** The handler underneath had built a precise message
+naming the slave's state id and the roster size, and **not one character of it survived.**
+
+| ⭐ the fix | |
+|---|---|
+| `HeadlessTestExecutor.AssertionFailures` is now **public** | ⛔ the reasons must not depend on the caller's logger choice |
+| `ScriptRunAssert.Passed(executor, exitCode)` — **all 6 call sites** | ⭐ asserts on the failure LIST; the integer is only its cardinality |
+| the transition handler now reports the **master's** state too | ⛔ without it a red cannot separate *"master never transitioned"* from *"master did, slave did not"* — different components |
+
+📌 **It paid on the very next run**, printing *"ExCon `ClusterSlave.LocalStateIdForTest` is 0 … Active
+roster nodes at timeout: 3"* — which is what located instance **B**.
+
+### 9.3 ⭐⭐⭐ `QA-024` — **ONE MISSING LINE, THREE LAYERS AWAY** *(`QA-030`)*
+
+📐 `EntityRepository.SyncFrom` copied `_globalVersion` and **not** `_simulationTick`.
+⛔ `ISimulationView.Tick` reads `_simulationTick` ⇒ **every SoD / background snapshot reported
+`Tick == 1` for the life of the process.**
+
+| 📐 **measured with a throwaway probe** *(`EditorHarness` + the EQS solver)* | |
+|---|---|
+| the live repo's tick | **1 → 121 → 241** over 240 pumped frames |
+| the solver's re-evaluations | **37** |
+| `view.Tick` on every one of them | ⛔ **1** |
+
+⇒ **two cross-tick mechanisms, both inert, both silent:**
+- `EqsResultEvent.RefreshTick = tick + 1` was **always 2** ⇒ `LastUpdateTick` never moved, so *"a large
+  score delta re-publishes"* failed **even though the publish happened**;
+- `SensorEvalState.AwaitingSinceTick == currentTick` is the `_AwaitingRaycasts` skip-guard ⇒ once a
+  sensor entered that phase it **could never leave it** — flatly contradicting
+  `designs/eqs-2/EQS_Design_v1.3_final.md:422` *("on subsequent ticks polls the raycast result ring buffer")*.
+
+⛔⛔ **Why ~8 000 tests never caught it.** The class invariant is `_globalVersion >= _simulationTick`
+*(`EntityRepository.cs:65`)* — ⭐ **advancing one clock and not the other keeps that inequality TRUE**,
+so no assert could fire. ⚠ **And the comment on that exact line already CLAIMED to sync *"the correct
+tick/version reference"*** — it only ever synced the version.
+
+⇒ ⭐⭐ **`SyncCarriesTheSimulationTickTests` asserts the TICK, deliberately not the version** — a rail
+written against `GlobalVersion` would have passed throughout the whole life of the defect.
+
+### 9.4 ⭐ `QA-022` — **measured CROSS-LANE, stopped, refiled** *(`R-106`)*
+
+📐 With `QA-033`'s breakage neutralised locally, all 3 still fail, and the messages are viewport-tool
+**production**: *"CreationTool did not become active in time"* · *"SimHost did not attach
+`EditablePolyline` in time"* · *"SimHost entity did not have expected `TkbType`"* ⇒ **UI lane.**
+
+### 9.5 🔴🔴 `QA-033` — **a merged UI change takes down 127 of 267 integration tests**
+
+📐 **Measured at `42a6ef37c`: 267 total · 130 passed · 134 failed · 3 skipped — 127 of the 134 carry ONE
+message**: *"System `ToolActivationDrainSystem` must have `[UpdateInPhase]` attribute"*. It throws inside
+`ScenarioEditorModule.RegisterSystems` → `ModuleHostKernel.Initialize` → **`CgfSubsystem.Initialize`**,
+so **every harness that boots CGF dies in its constructor.** *(The pre-`CE-051` baseline was 51 reds.)*
+
+⭐ Three systems lack the attribute — `ToolActivationDrainSystem`, `SelectEntitySystem`,
+`CenterOnEntitySystem` — and the phase is **not** a judgement call: `DataDrivenGizmoSystem`,
+`GlobalGizmoManager` and `CanvasMenuUpdateSystem` are all `[UpdateInPhase(SystemPhase.PostSimulation)]`,
+and the drain **activates gizmos on the first two**.
+
+⛔ **NOT APPLIED — UI-lane production file.** ⚠⚠ **Every verification run recorded in §9 was made with
+those three attributes applied LOCALLY and UNCOMMITTED**; without them the integration suite cannot boot
+CGF at all, so no integration number is obtainable on the merged tree as it stands.
+
+### 9.6 ⭐⭐ THE HABIT THIS ADDS TO §7.3 — **a red whose text names no component needs an INSTRUMENT, not a theory**
+
+⛔ **Three of my own hypotheses were refuted by measurement in this batch alone** *(the bootstrap latch —
+twice; "the slave never applies the state"; "the planner rejects the transition")*.
+⭐ **What actually resolved each one was a cheap instrument**: expose the executor's failure list · add
+the master's state to a message · a 40-line probe test printing `view.Tick` per solver call.
+⇒ ⭐ **Build the instrument before the second hypothesis.** The probe that closed `QA-024` took minutes
+and turned three timeouts into one line.

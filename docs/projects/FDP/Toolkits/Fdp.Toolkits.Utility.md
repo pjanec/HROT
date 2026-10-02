@@ -59,8 +59,8 @@ scoring.
 |                                                                  |
 |  Leader entity (virtual)                                         |
 |    +-- ThreatMatrixAssignmentSystem (greedy focus-fire assign.)  |
-|         +-- writes per-member assignments --> Blackboard1024     |
-|              (ThreatMatrixAssignmentState, 1024 bytes)           |
+|         +-- writes per-member assignments -> SquadCognitiveState |
+|              (Assignment sub-region, own ECS component)          |
 |                                                                  |
 |  Member entity                                                   |
 |    +-- ThreatRankingDecision   (candidate scorer)                |
@@ -86,7 +86,7 @@ scoring.
 | **Scoring core** | consideration -> curve -> aggregate | single 0--1 score for one option |
 | **Candidate scorer** | core run over a dynamic list (targets, weapons) | ranked Top-N in `UtilityResultBuffer` |
 | **UtilitySelector / PostureSelect** | core run over a fixed authored set | one winning posture byte |
-| **Group layer** | leader greedy assignment over (member x target) matrix | per-member target written to `Blackboard1024` |
+| **Group layer** | leader greedy assignment over (member x target) matrix | per-member target written to `SquadCognitiveState` |
 
 ---
 
@@ -501,7 +501,7 @@ UtilityAutoDiscovery.ScanAndRegister();
 
 ## UtilityResultBuffer
 
-**ECS component** (`ComponentId` = 151, `DataPolicy.NoSave`). Stores the ranked output of
+**ECS component** (`ComponentId` = 151, `DataPolicy.NoScenario`). Stores the ranked output of
 one `UtilityScorer.Evaluate` call.
 
 ```
@@ -544,7 +544,7 @@ to bypass the C# `[InlineArray]` defensive-copy trap.
 
 ### UtilityDebugFlags
 
-**ECS component** (`ComponentId` = 149, `DataPolicy.NoSave`). Per-entity opt-in flag:
+**ECS component** (`ComponentId` = 149, `DataPolicy.NoScenario`). Per-entity opt-in flag:
 
 ```csharp
 [ComponentId(UtilityApplicationComponentIds.UtilityDebugFlags)]
@@ -556,7 +556,7 @@ public struct UtilityDebugFlags
 
 ### UtilityTraceWorkingMemory1024
 
-**ECS component** (`ComponentId` = 150, `DataPolicy.NoSave`). 1024-byte unmanaged ring buffer
+**ECS component** (`ComponentId` = 150, `DataPolicy.NoScenario`). 1024-byte unmanaged ring buffer
 of 32-byte `UtilityTraceRecord` entries (32 records maximum).
 
 Each `UtilityTraceRecord` captures one step of the evaluation:
@@ -664,12 +664,13 @@ system.Run(repo, leaderEntity);
 1. Read `UnitRoster` (member list) and `TargetMemory` (contact list) from the leader.
 2. For each member in roster order, score all targets using `LeaderAssignmentDecision`.
 3. Assign the member to the highest-scoring target whose `focusFireCount` is below the cap.
-4. Write all assignments into `ThreatMatrixAssignmentState` projected onto the leader's
-   `Blackboard1024`.
+4. Write all assignments into the `Assignment` sub-region of the leader's own
+   `SquadCognitiveState` component.
 
 ### ThreatMatrixAssignmentState
 
-Overlay on the squad leader's `Blackboard1024` (all 1024 bytes used):
+The `Assignment` sub-region of the squad leader's `SquadCognitiveState` (§3.1 of
+`Hrot.SquadCoordination.md`):
 
 ```
 ThreatMatrixAssignmentState = 16 x AssignmentSlot (64 bytes each = 1024 bytes)
@@ -685,8 +686,7 @@ AssignmentSlot (64 bytes, Sequential):
 Access:
 
 ```csharp
-ref var bb    = ref repo.GetComponentRW<Blackboard1024>(leader);
-ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+ref var state = ref repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
 long target   = state.GetAssignedTarget(memberRosterIndex);
 ```
 
@@ -747,9 +747,9 @@ var (handle, score, valid) = UtilityBlueprintBridge.ReadRankedResult(view, self,
 
 | Component | ID | DataPolicy | Size | Purpose |
 |---|---|---|---|---|
-| `UtilityDebugFlags` | 149 | NoSave | 1 byte | Per-entity trace enable flag |
-| `UtilityTraceWorkingMemory1024` | 150 | NoSave | 1024 bytes | Scoring trace ring buffer (32 x 32-byte records) |
-| `UtilityResultBuffer` | 151 | NoSave | ~260 bytes | Ranked scoring output (16 entries + count + margin) |
+| `UtilityDebugFlags` | 149 | NoScenario | 1 byte | Per-entity trace enable flag |
+| `UtilityTraceWorkingMemory1024` | 150 | NoScenario | 1024 bytes | Scoring trace ring buffer (32 x 32-byte records) |
+| `UtilityResultBuffer` | 151 | NoScenario | ~260 bytes | Ranked scoring output (16 entries + count + margin) |
 
 ---
 
@@ -805,7 +805,7 @@ Utility/
 | `Fdp.ModuleHost.Abstractions` | `ISimulationView` (Blueprint bridge) |
 | `Fdp.Toolkit.Combat.Components` | `WeaponState` (ammo, cooldown) |
 | `Fdp.Toolkit.Perception` / `.Components` | `TargetMemory`, `EqsCognitiveBuffer` |
-| `Fdp.Toolkit.Behavior.Components` | `Blackboard1024`, `UnitRoster` |
+| `Fdp.Toolkit.Behavior.Components` | `SquadCognitiveState`, `UnitRoster` |
 | `Fdp.Toolkit.Geographic.Components` | `Position` (distance inputs) |
 | `Fdp.Toolkit.Replication.Components` | `Health` |
 | `Fdp.Toolkit.Spatial.Eqs` | `EqsCognitiveBuffer` read in EQS input readers |
@@ -823,7 +823,7 @@ FNV-1a-16 identifiers for squad-tier input readers:
 
 | Constant | ID | Source |
 |---|---|---|
-| `SquadKnowsContact` | `0xBA51` | merged contact pool in commander `Blackboard1024` |
+| `SquadKnowsContact` | `0xBA51` | merged contact pool in commander `SquadCognitiveState` |
 | `SquadContactThreatLevel` | `0x2457` | threat score for Context in the squad pool |
 | `SquadStrengthRatio` | `0x6EDF` | live-member count / (live-member + contact count) |
 | `SquadAmmoRollup` | `0x8501` | fraction of squad members with ammo > 0 |
@@ -865,7 +865,7 @@ All phases complete as of 2026-05-30:
 
 | Phase | Status | Content |
 |---|---|---|
-| Phase 0 | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, `Blackboard1024.Project<T>`, `UtilityTestWorld`, gate test |
+| Phase 0 | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, typed projection of a per-entity storage slot (`OccurrenceStoreAccess`), `UtilityTestWorld`, gate test |
 | Phase 1 | Complete | Scoring core, curve evaluation, aggregator, trace buffer, `UtilityScorer`, 17 standard inputs, `ThreatMatrixAssignmentSystem`, 4 starter-pack decisions, BTree/HSM/Blueprint integration nodes |
 | Phase 2 | Complete | `UtilityInputGenerator`, `UtilityDecisionGenerator`, `UtilityAuthoringAnalyzer`, `UtilityAutoDiscovery` startup handshake |
 | Phase 3 | Complete | `CurveWidget.Draw` host-agnostic curve widget (`Hrot.Utility.Editor`) |

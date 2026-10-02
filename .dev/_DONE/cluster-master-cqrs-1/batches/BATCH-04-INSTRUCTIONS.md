@@ -212,7 +212,7 @@ Update the body to use the parameters. Update any call sites if needed (all test
    If `ClusterStateTransitionedEvent` doesn't yet exist in `ClusterCqrsEvents.cs`, add it:
    ```csharp
    [EventId(9015)]
-   [DataPolicy(DataPolicy.NoRecord)]
+   [DataPolicy(DataPolicy.NoReplay)]
    public struct ClusterStateTransitionedEvent
    {
        public int    NewStateId;   // ClusterState enum value

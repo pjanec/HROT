@@ -1,0 +1,304 @@
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
+index 47f9cc0bb..a22aad2e5 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
+@@ -17,6 +17,17 @@ internal static class AiPrimitiveEmitter
+ 
+         e.WriteLine($"public const int BlueprintId = unchecked((int)0x{asset.BlueprintId:X8});");
+         e.WriteLine($"public const ulong StructureHash = {asset.StructureHash}UL;");
++        // ⭐ O7b — the CHILD's identity, for the occurrence key an HSM-hosted thunk computes. The HOST
++        //   comes from the instance pointer the kernel passes (§24.9), so only this half is baked.
++        // ⛔⛔ Emitted ONLY for an asset that actually declares HSM hosting. Emitting it for every
++        //    asset moved 11 golden baselines for assets that cannot use it — the corpus must stay
++        //    byte-identical wherever the feature is not used, which is the property O4 established
++        //    and the thing that makes "did this change behaviour?" answerable.
++        if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction) ||
++            asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
++        {
++            e.WriteLine($"public static readonly global::System.Guid AssetId = new global::System.Guid(\"{asset.AssetId}\");");
++        }
+         e.WriteLine();
+ 
+         EmitParamsStruct(e, asset);
+@@ -415,25 +426,7 @@ internal static class AiPrimitiveEmitter
+         e.WriteLine("public static unsafe void HsmActivity(void* instance, void* context, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
+         e.WriteLine("{");
+         e.Indent();
+-        e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
+-        e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
+-        e.WriteLine("ref var p = ref *(Params*)instance;");
+-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
+-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
+-        e.WriteLine("{");
+-        e.Indent();
+-        e.WriteLine("if (*(ulong*)memory != StructureHash)");
+-        e.WriteLine("{");
+-        e.Indent();
+-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
+-        e.WriteLine("*(ulong*)memory = StructureHash;");
+-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
+-        e.Outdent();
+-        e.WriteLine("}");
+-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
+-        e.WriteLine("TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
+-        e.Outdent();
+-        e.WriteLine("}");
++        EmitHsmOccurrenceBody(e, "TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
+         e.Outdent();
+         e.WriteLine("}");
+     }
+@@ -443,27 +436,43 @@ internal static class AiPrimitiveEmitter
+         e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
+         e.WriteLine("{");
+         e.Indent();
++        EmitHsmOccurrenceBody(e,
++            "return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Fbt.NodeStatus.Success;");
++        e.Outdent();
++        e.WriteLine("}");
++    }
++
++    /// <summary>
++    /// ⭐⭐⭐ <c>O7b</c> — the occurrence-keyed body both HSM thunks share.
++    ///
++    /// <para>🔴 <b>It replaces TWO defects at once.</b> ① <c>BP-297</c>/<c>E3</c>: the working state was
++    /// <c>GetComponentRW&lt;Blackboard1024&gt;(self)</c> at a hard-coded <c>memory + 8</c> — one per
++    /// ENTITY, so two concurrently-active regions aliased. ② <c>CE-297</c>: the params were read as
++    /// <c>*(Params*)instance</c>, but the kernel passes the <b>HSM INSTANCE</b> there — the sibling
++    /// generator ignores that pointer and projects from <c>BrainBlackboard</c>, which is what this now
++    /// does, matching the BTree path.</para>
++    /// </summary>
++    private static void EmitHsmOccurrenceBody(CSharpEmitter e, string tail)
++    {
+         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
+         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
+-        e.WriteLine("ref var p = ref *(Params*)instance;");
+-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
+-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
+-        e.WriteLine("{");
+-        e.Indent();
+-        e.WriteLine("if (*(ulong*)memory != StructureHash)");
++        e.WriteLine();
++        e.WriteLine("// CE-297: params come from the blackboard, NOT from the kernel's instance pointer.");
++        e.WriteLine("ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
++        EmitParamProjection(e);
++        e.WriteLine();
++        e.WriteLine("// O7/E3: this occurrence's OWN working state, keyed by the (region, state) the");
++        e.WriteLine("//        kernel stamped (O6) and by the hosting machine's id from the instance header.");
++        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
++        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<WorkingState>(");
++        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached);");
++        e.WriteLine("if (freshlyAttached)");
+         e.WriteLine("{");
+         e.Indent();
+-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
+-        e.WriteLine("*(ulong*)memory = StructureHash;");
+-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
+-        e.Outdent();
+-        e.WriteLine("}");
+-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
+-        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Fbt.NodeStatus.Success;");
+-        e.Outdent();
+-        e.WriteLine("}");
++        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
+         e.Outdent();
+         e.WriteLine("}");
++        e.WriteLine(tail);
+     }
+ 
+     private static void EmitBlueprintCallThunk(CSharpEmitter e)
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/BlueprintTestFixture.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/BlueprintTestFixture.cs
+index 23b37eea5..e896abe0e 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/BlueprintTestFixture.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/BlueprintTestFixture.cs
+@@ -559,89 +559,128 @@ public static class ThrowingRegistrar
+         return status;
+     }
+ 
++    /// <summary>
++    /// ⭐⭐⭐ <c>O7b</c> — invokes the asset's HSM thunk <b>through a real kernel dispatch</b>.
++    ///
++    /// <para>🔴 <b>Why it can no longer be called directly.</b> The thunk now keys its working state by
++    /// the <c>(region, state)</c> pair the kernel stamps (<c>O6</c>) and by the hosting machine id in
++    /// the instance header. ⛔ <c>HsmCommandWriter.StampOccurrence</c> is <b>internal to the kernel on
++    /// purpose</b> — a harness that could forge a stamp could forge a cross-occurrence alias — so the
++    /// only honest way to invoke one is to let the kernel dispatch it.</para>
++    ///
++    /// <para>⭐ <b>This makes the fixture more truthful, not less convenient:</b> it now exercises the
++    /// production path (kernel → dispatcher → thunk → occurrence store) instead of a hand-rolled
++    /// approximation of it. ⚠ The old shape passed a pinned <c>Params</c> box as <c>instance</c>, which
++    /// is exactly the convention <c>CE-297</c> records as wrong.</para>
++    /// </summary>
+     public unsafe bool InvokeHsmAction(BlueprintAsset asset, Entity entity)
+     {
+-        var genType = FindGeneratedType(asset);
++        DispatchThroughKernel(asset, entity, asGuard: false, eventId: 0);
++        return true;
++    }
+ 
+-        // The generated registrar calls:
+-        // HsmActionDispatcher.RegisterAction(unchecked((ushort)ClassName.BlueprintId), ...)
+-        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+-        ushort actionId = unchecked((ushort)blueprintId);
++    /// <summary>The guard twin of <see cref="InvokeHsmAction"/> — same kernel dispatch, same reasons.</summary>
++    public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
++        => DispatchThroughKernel(asset, entity, asGuard: true, eventId);
+ 
+-        // Generated HsmActivity reads Blackboard1024 from the entity; ensure it exists.
+-        if (!_repo.HasComponent<Blackboard1024>(entity))
+-            _repo.AddComponent(entity, default(Blackboard1024));
++    /// <summary>
++    /// Builds a one-state HSM whose entry action (or whose single guarded transition) is the asset's
++    /// thunk, and ticks it once. ⭐ The kernel stamps <c>(region 0, state 0)</c> before the dispatch,
++    /// which is the identity the thunk keys on.
++    /// </summary>
++    private unsafe bool DispatchThroughKernel(BlueprintAsset asset, Entity entity, bool asGuard, ushort eventId)
++    {
++        _ = FindGeneratedType(asset);   // keeps the "asset was compiled" precondition explicit
+ 
+-        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
++        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
++        ushort id = unchecked((ushort)blueprintId);
++
++        // The thunk projects its params from BrainBlackboard (CE-297) and its working state from the
++        // entity's occurrence store, so both must exist before the dispatch.
++        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(entity))
++            _repo.AddComponent(entity, default(global::Fdp.Toolkit.Behavior.Components.BrainBlackboard));
++        EnsureOccurrenceStore(entity);
+ 
+-        // ⭐ O6 — the guard signature now carries the HsmCommandWriter so a guard learns which
+-        //   occurrence it is, exactly as an action does. Invoking one OUTSIDE the kernel means
+-        //   nothing stamped it, so the writer is left at its (NoRegionSlot, NoStateId) sentinels —
+-        //   which is the honest answer here, not a fabricated identity.
+-        var page   = default(global::Fhsm.Kernel.Data.CommandPage);
+-        var writer = new global::Fhsm.Kernel.Data.HsmCommandWriter(&page);
++        const uint MachineId = 0x07B0A5E1;
++        var states = new global::Fhsm.Kernel.Data.StateDef[1];
++        var transitions = Array.Empty<global::Fhsm.Kernel.Data.TransitionDef>();
+ 
+-        var paramsType = genType.GetNestedType("Params");
+-        if (paramsType != null && paramsType.IsValueType)
++        if (asGuard)
+         {
+-            var paramsBoxed = Activator.CreateInstance(paramsType)!;
+-            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
+-            try
++            // A guard only runs while a transition is being SELECTED, so give it one to guard.
++            states = new[]
+             {
+-                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
+-                HsmActionDispatcher.ExecuteAction(actionId, paramsPtr, &bridge, null);
+-            }
+-            finally
++                new global::Fhsm.Kernel.Data.StateDef
++                {
++                    ParentIndex = 0xFFFF, FirstTransitionIndex = 0, TransitionCount = 1,
++                },
++            };
++            transitions = new[]
+             {
+-                paramsHandle.Free();
+-            }
++                new global::Fhsm.Kernel.Data.TransitionDef
++                {
++                    SourceStateIndex = 0, TargetStateIndex = 0, EventId = eventId, GuardId = id,
++                },
++            };
+         }
+         else
+         {
+-            HsmActionDispatcher.ExecuteAction(actionId, null, &bridge, null);
++            states[0] = new global::Fhsm.Kernel.Data.StateDef
++            {
++                ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, OnEntryActionId = id,
++            };
+         }
+-        return true;
+-    }
+ 
+-    public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
+-    {
+-        var genType = FindGeneratedType(asset);
+-
+-        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+-        ushort guardId  = unchecked((ushort)blueprintId);
+-
+-        // Generated HsmGuard reads Blackboard1024 from the entity; ensure it exists.
+-        if (!_repo.HasComponent<Blackboard1024>(entity))
+-            _repo.AddComponent(entity, default(Blackboard1024));
+-
+-        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+-
+-        // ⭐ O6 — the guard signature now carries the HsmCommandWriter so a guard learns which
+-        //   occurrence it is, exactly as an action does. Invoking one OUTSIDE the kernel means
+-        //   nothing stamped it, so the writer is left at its (NoRegionSlot, NoStateId) sentinels —
+-        //   which is the honest answer here, not a fabricated identity.
+-        var page   = default(global::Fhsm.Kernel.Data.CommandPage);
+-        var writer = new global::Fhsm.Kernel.Data.HsmCommandWriter(&page);
+-
+-        var paramsType = genType.GetNestedType("Params");
+-        if (paramsType != null && paramsType.IsValueType)
++        var header = new global::Fhsm.Kernel.Data.HsmDefinitionHeader
+         {
+-            var paramsBoxed = Activator.CreateInstance(paramsType)!;
+-            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
+-            try
+-            {
+-                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
+-                return HsmActionDispatcher.EvaluateGuard(guardId, paramsPtr, &bridge, eventId, &writer);
+-            }
+-            finally
+-            {
+-                paramsHandle.Free();
+-            }
++            StructureHash = MachineId,
++            StateCount = (ushort)states.Length,
++            TransitionCount = (ushort)transitions.Length,
++        };
++        var blob = new global::Fhsm.Kernel.Data.HsmDefinitionBlob(
++            header, states, transitions,
++            Array.Empty<global::Fhsm.Kernel.Data.RegionDef>(),
++            Array.Empty<global::Fhsm.Kernel.Data.GlobalTransitionDef>(),
++            Array.Empty<ushort>(), Array.Empty<ushort>());
++
++        var inst = new global::Fhsm.Kernel.Data.HsmInstance128();
++        inst.Header.MachineId = MachineId;
++        // ⚠ 0 is a VALID state index, so every unused region slot must read 0xFFFF or the kernel
++        //   treats all four as sitting in state 0 (measured — design §23.5).
++        for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
++
++        if (asGuard)
++        {
++            inst.ActiveLeafIds[0] = 0;
++            inst.Header.Phase = global::Fhsm.Kernel.Data.InstancePhase.RTC;
++            inst.Reserved1 = eventId;
+         }
+         else
+         {
+-            return HsmActionDispatcher.EvaluateGuard(guardId, null, &bridge, eventId, &writer);
++            inst.Header.Phase = global::Fhsm.Kernel.Data.InstancePhase.Entry;
+         }
++
++        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
++        var page = default(global::Fhsm.Kernel.Data.CommandPage);
++        global::Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in bridge, 0.016f, ref page);
++
++        // For a guard, "did it pass?" is observable as the transition having been taken.
++        return !asGuard || inst.ActiveLeafIds[0] == 0;
++    }
++
++    /// <summary>The entity's occurrence store — where an HSM-hosted occurrence's working state lives.</summary>
++    private unsafe void EnsureOccurrenceStore(Entity entity)
++    {
++        if (_repo.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(entity))
++            return;
++
++        _repo.AddComponent(entity, default(global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024));
++        ref var tier = ref _repo.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(entity);
++        fixed (byte* mem = tier.Memory)
++            global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
++                mem,
++                global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.TotalSize,
++                (byte)global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.MaxSlots);
+     }
+ 
+     private Type FindGeneratedType(BlueprintAsset asset)

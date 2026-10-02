@@ -155,4 +155,113 @@ public sealed class RecipePickerSourceTests
         var entry2 = source.ToEntry(new RecipeChoice(AssetKind.Blueprint, otherRecipe));
         Assert.Null(entry2.Description);
     }
+
+    // ── CE-460 (E4): product-first tree ────────────────────────────────
+
+    /// <summary>A service whose recipes answer <see cref="INewAssetService.ProductOf"/> by name.</summary>
+    private sealed class FakeProductService : INewAssetService
+    {
+        private readonly IReadOnlyList<IEditableAsset> _recipes;
+        private readonly IReadOnlyDictionary<string, AuthoringProduct> _products;
+
+        public FakeProductService(AssetKind kind, IReadOnlyList<IEditableAsset> recipes,
+                                  IReadOnlyDictionary<string, AuthoringProduct> products)
+        {
+            Kind = kind; _recipes = recipes; _products = products;
+        }
+
+        public AssetKind Kind { get; }
+        public IReadOnlyList<IEditableAsset> AvailableRecipes() => _recipes;
+        public IEditableAsset CreateNew(IEditableAsset? recipe, string name, string relPath)
+            => throw new NotSupportedException();
+        public AuthoringProduct? ProductOf(IEditableAsset recipe)
+            => _products.TryGetValue(recipe.Name, out var p) ? p : null;
+        // ⚠ Mirrors BlueprintNewAssetService: "Behavior" is a blank template like "Empty".
+        public bool IsBlankTemplate(IEditableAsset recipe) => recipe.Name is "Empty" or "Behavior";
+    }
+
+    private static Dictionary<AssetKind, INewAssetService> ProductServices()
+    {
+        static FakeEditableAsset A(string n, AssetKind k) => new() { Name = n, Kind = k };
+        return new Dictionary<AssetKind, INewAssetService>
+        {
+            // Blueprint: Empty (instance, no product), Behavior blank, one condition recipe from disk.
+            [AssetKind.Blueprint] = new FakeProductService(AssetKind.Blueprint,
+                new IEditableAsset[] { A("Empty", AssetKind.Blueprint), A("Behavior", AssetKind.Blueprint),
+                                       A("GateConditionDemo", AssetKind.Blueprint) },
+                new Dictionary<string, AuthoringProduct>
+                {
+                    ["Behavior"] = AuthoringProduct.Behavior,
+                    ["GateConditionDemo"] = AuthoringProduct.Condition,
+                }),
+            // BTree: two recipes, both behaviours.
+            [AssetKind.BTree] = new FakeProductService(AssetKind.BTree,
+                new IEditableAsset[] { A("Empty", AssetKind.BTree), A("Starter", AssetKind.BTree) },
+                new Dictionary<string, AuthoringProduct>
+                {
+                    ["Empty"] = AuthoringProduct.Behavior, ["Starter"] = AuthoringProduct.Behavior,
+                }),
+            // Scenario: says nothing ⇒ never under a product.
+            [AssetKind.Scenario] = new FakeNewAssetService(AssetKind.Scenario,
+                new IEditableAsset[] { A("Empty", AssetKind.Scenario) }),
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-460</c> — under a product ROOT the tree lists only that product's recipes, the path starts
+    /// at the technology, a technology with ONE recipe collapses to a leaf named after it, and the C# row
+    /// is appended. 🔴 Red-proof: drop the ProductOf filter in Query ⇒ the Scenario and Empty-blueprint
+    /// recipes appear and the count assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE460_A_product_root_lists_that_product_by_technology()
+    {
+        var source  = new RecipePickerSource(ProductServices(), product: AuthoringProduct.Behavior);
+        var entries = source.BuildEntries("", null);
+
+        Assert.Equal("New Behavior", source.Title);
+
+        // BTree keeps its folder (two recipes); Blueprint collapses to ONE leaf named "Blueprint".
+        var recipes = entries.Where(e => e.Tag is RecipeChoice).ToList();
+        Assert.Equal(3, recipes.Count);
+        Assert.Equal(2, recipes.Count(e => e.Category == "BTree"));
+        var bp = Assert.Single(recipes, e => ((RecipeChoice)e.Tag!).Kind == AssetKind.Blueprint);
+        Assert.Null(bp.Category);
+        Assert.Equal("Blueprint", bp.Name);
+        Assert.Equal("Behavior", ((RecipeChoice)bp.Tag!).Recipe.Name);
+
+        // ⭐ D5 — the C# row, shown, not creatable.
+        var cs = Assert.Single(entries, e => e.Tag is NotCreatableChoice);
+        Assert.Equal(RecipePickerSource.CSharpTechnology, ((NotCreatableChoice)cs.Tag!).Technology);
+        Assert.Contains("CE-459", cs.Description);
+    }
+
+    /// <summary>
+    /// ⭐ A collapsed CONTENT recipe keeps its own name beside the technology, so two conditions from disk
+    /// would not both read "Blueprint".
+    /// </summary>
+    [Fact]
+    public void CE460_A_collapsed_content_recipe_keeps_its_name()
+    {
+        var entries = new RecipePickerSource(ProductServices(), product: AuthoringProduct.Condition)
+            .BuildEntries("", null);
+
+        var leaf = Assert.Single(entries, e => e.Tag is RecipeChoice);
+        Assert.Equal("Blueprint: GateConditionDemo", leaf.Name);
+        Assert.Null(leaf.Category);
+    }
+
+    /// <summary>
+    /// ⭐⭐ New Asset is UNCHANGED (handoff acceptance ③): no product ⇒ every recipe of every kind, under
+    /// its kind, and no C# row.
+    /// </summary>
+    [Fact]
+    public void CE460_Without_a_product_the_tree_is_new_assets_unchanged()
+    {
+        var entries = new RecipePickerSource(ProductServices()).BuildEntries("", null);
+
+        Assert.Equal(6, entries.Count);
+        Assert.All(entries, e => Assert.IsType<RecipeChoice>(e.Tag));
+        Assert.All(entries, e => Assert.Equal(((RecipeChoice)e.Tag!).Kind.ToString(), e.Category));
+    }
 }

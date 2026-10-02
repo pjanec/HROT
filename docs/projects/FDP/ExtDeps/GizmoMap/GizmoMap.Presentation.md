@@ -62,7 +62,6 @@ only dependencies are Raylib-cs, rlImgui-cs, ImGui.NET, and the StructEdit libra
 |  |      v                     |  | (binding merger + sorter)  |  |
 |  | +----+-------------------+ |  +----------------------------+  |
 |  | | MilStd2525Renderer     | |                                  |
-|  | | SemanticShapeRenderer  | |  +----------------------------+  |
 |  | | RichTextRenderer       | |  | GizmoInteractionProxyTool  |  |
 |  | | IconAtlasAdapter       | |  | (drag state machine)       |  |
 |  | | PerspectiveShapeRenderer| |  +----------------------------+  |
@@ -127,7 +126,6 @@ GizmoMap.Presentation/
 |   +-- MilStd2525Renderer.cs       NATO SIDC symbol stub renderer
 |   +-- PresentationMath.cs         Camera/world conversion helpers
 |   +-- RichTextRenderer.cs         Inline rich-text tag parser and renderer
-|   +-- SemanticShapeRenderer.cs    DIS-profile silhouette renderer
 |
 +-- Shapes/
 |   +-- DefaultEntityShapeLibrary.cs Built-in shape profiles (fallback)
@@ -237,7 +235,7 @@ specific Raylib or helper call:
 | `EntityBadge`      | `RichTextRenderer` at entity position                       |
 | `Icon`             | `IconAtlasAdapter.Draw`                                     |
 | `MilStd2525`       | `MilStd2525Renderer.Draw`                                   |
-| `SemanticShape`    | `SemanticShapeRenderer.Draw` or `PerspectiveShapeRenderer`  |
+| `SemanticShape`    | `PerspectiveShapeRenderer`, else the inline wire-box fallback |
 | `StructInspector`  | `ImGuiPropertyTreeAdapter.Schedule` (deferred to ImGui pass)|
 
 ---
@@ -353,11 +351,18 @@ Renders a polyline-based shape profile with optional depth-exaggeration (pseudo-
 | `widthMeters`             | Platform bounding width                             |
 | `exaggerationCoefficient` | Z-depth to screen-scale factor (default 0.05)       |
 
-#### `SemanticShapeRenderer` (sealed class)
+#### ⛔ `SemanticShapeRenderer` — **DELETED `2026-08-30`**
 
-Profile-based renderer with a `ISemanticShapeProfileRegistry` lookup. Falls back to a
-magenta outline circle when no profile is found. Renders a red X overlay when
-`conditionMask` bit 0 (`Damaged`) is set.
+Removed together with `ISemanticShapeProfileRegistry` and `SemanticShapeProfile`. It was a
+second, weaker implementation of the silhouette path's job — `profileId` → *dimensions*
+(where `IEntityShapeLibrary` gives *polylines*) — drawing a rectangle plus a red X on damage.
+It had **zero callers** from its first commit, and `UX_Seam_Inventory.md` already recorded its
+registry at `0/0/0` adoption.
+
+🔒 **User ruling, `2026-08-30`:** *"SemanticShapeRenderer is not doing anything I wanted and is
+basically superseded by other ways of rendering entity shapes, we can remove it completely."*
+The one behaviour worth keeping — the damage X — is cheaper to emit gizmo-side as two `Line`
+primitives than to keep a renderer alive for.
 
 ---
 

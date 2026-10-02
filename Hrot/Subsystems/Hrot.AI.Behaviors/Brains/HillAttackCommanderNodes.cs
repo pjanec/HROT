@@ -12,6 +12,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -26,10 +27,11 @@ namespace Hrot.AI.Behaviors.Brains
     ///
     /// <para>S3-G: the six mutable-state nodes use the four-parameter stateful form
     /// <c>(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState, ref BTreeContext)</c>.
-    /// The <see cref="HillAttackMutableState"/> working state is a <c>Behavior</c>-scoped variable that
-    /// lives in a <c>BlueprintBlackboard*</c> partition slot; it is projected by the JSON emitter's stateful
-    /// thunk (production path) or the code builder's <c>StatefulAction</c> helper (<see cref="BuildPlatoonHillAttackTree"/>).
-    /// The old <c>Blackboard1024</c> + <c>Unsafe.As</c> projection is gone.
+    /// The <see cref="HillAttackMutableState"/> working state lives in the behaviour's ONE block — projected by the
+    /// JSON emitter's thunk from <c>PlatoonHillAttack_Block.St.State</c> (production, <c>CE-437</c>) or by the code
+    /// builder's <c>StatefulAction</c> from <see cref="PlatoonHillAttackBlackboard.State"/>
+    /// (<see cref="BuildPlatoonHillAttackTree"/>, <c>CE-430</c>). ⛔ HISTORY: a Behavior-scoped partition slot
+    /// (S3-G), and before it a <c>Blackboard1024</c> + <c>Unsafe.As</c> offset.
     /// <c>Condition_AreAllAtBaseline</c> touches no working state and stays three-parameter.</para>
     /// </summary>
     public static unsafe class HillAttackCommanderNodes
@@ -37,6 +39,49 @@ namespace Hrot.AI.Behaviors.Brains
         // Integer ID of the HullDownAttackRun subordinate behavior.
         // Compared against BehaviorState.ActiveBehaviorHash to detect run start / end.
         private static readonly int HullDownAttackRunBehaviorId = BehaviorHash.FromName(BehaviorNames.HullDownAttackRun);
+
+        // ── The area query: one EQS child sensor (DESIGN_Hill_Attack_Eqs_Migration.md §3.2, §4 D2/D5/D6) ──
+
+        /// <summary>
+        /// The EQS template the commander asks — <c>EntitiesOfForceInArea</c> (<c>Hrot.SimHost</c>, Muscle side). ⭐ A Brain
+        /// behaviour names a template by its AssetId, exactly as a blueprint's <c>SpawnEqsSensor.TemplateAssetId</c> does;
+        /// <c>HillAttackNodeTests.EQS_AreaSensor_AsksTheEntitiesOfForceInAreaTemplate</c> pins it equal to the template's own constant.
+        /// </summary>
+        public const string AreaTemplateAssetId = "3e5a7c91-2b4d-4f86-a0c3-5d7e9f1b2a64";
+
+        /// <summary>The commander's sensor SITE (<see cref="EqsChildSensor.Ensure"/>) — which of the commander's sensors this is.
+        /// ⭐ CE-485: no longer the DDS key — the part id is allocated and reused, and the sensor dies with the behaviour run
+        /// (📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4/D5).</summary>
+        public const int AreaSensorInstanceId = 0x48410001;
+
+        private static readonly uint AreaTemplateBlueprintId = EqsTemplateRegistry.BlueprintIdOf(new Guid(AreaTemplateAssetId));
+
+        /// <summary>The sensor configuration for <paramref name="area"/>: hostile, alive entities inside its polygon.</summary>
+        public static EqsSensor AreaSensor(Entity area) => new EqsSensor
+        {
+            BlueprintId   = AreaTemplateBlueprintId,
+            Epoch         = 1u,
+            FactionFilter = 1u << (int)ForceId.Hostile,
+            ContextSlot1  = area,
+        };
+
+        /// <summary><see cref="HillAttackMutableState.CachedEqsRequestId"/> while the sensor that answers is still being created
+        /// — its CREATION is the question (the first answer is computed after it), so no refresh is needed (§3.2).</summary>
+        public const long SensorBeingCreated = -2;
+
+        /// <summary>The sensor whose answer is awaited, or <see cref="Entity.Null"/>. While it is being created it is FOUND
+        /// (an ECB handle is not an entity) and cached once it exists.</summary>
+        private static Entity InFlightSensor(ref HillAttackMutableState s, ref BTreeContext ctx)
+        {
+            if (s.CachedEqsRequestId == -1) return Entity.Null;
+            if (s.CachedEqsRequestId == SensorBeingCreated)
+            {
+                var found = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
+                if (!found.IsNull) s.CachedEqsRequestId = (long)found.PackedValue;
+                return found;
+            }
+            return s.CachedEqsRequestId < 0 ? Entity.Null : new Entity((ulong)s.CachedEqsRequestId);
+        }
 
         // ── Phase 4.1: Setup nodes ────────────────────────────────────────────────
 
@@ -63,7 +108,6 @@ namespace Hrot.AI.Behaviors.Brains
             s.ActiveAttackerCount = 0;
             s.CurrentWave         = 0;
             s.CachedEqsRequestId  = -1;
-            s.CachedTargetGroupHandle = -1;
             s.EqsRequestTime      = 0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
@@ -91,10 +135,10 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < count; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
-                if (!ctx.World.IsAlive(sub)) continue;
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Interpolate baseline position for this tank.
                 float t  = count > 1 ? (float)i / (count - 1) : 0.5f;
@@ -147,10 +191,10 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < count; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
-                if (!ctx.World.IsAlive(sub)) continue;  // dead = counts as arrived
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;  // dead (knocked out or gone) = counts as arrived
 
                 if (!ctx.World.HasComponent<NavigationStatus>(sub))
                 {
@@ -180,100 +224,114 @@ namespace Hrot.AI.Behaviors.Brains
         // ── Phase 4.2: EQS integration nodes ─────────────────────────────────────
 
         /// <summary>
-        /// Submits an area query for the target polygon.
-        /// Returns <see cref="NodeStatus.Running"/> when the batch is full or when a
-        /// previously submitted request is still being resolved.
-        /// Returns <see cref="NodeStatus.Success"/> once the request is queued.
+        /// Asks the area query: ensures the commander's EQS child sensor exists and REFRESHES it (a new epoch), so the next
+        /// answer is computed after this moment — the old per-wave request, on one persistent sensor.
+        /// Returns <see cref="NodeStatus.Running"/> while the sensor is being created or a refreshed answer is still in flight,
+        /// <see cref="NodeStatus.Success"/> once the question is asked, <see cref="NodeStatus.Failure"/> without a live area.
         /// </summary>
         public static NodeStatus Action_RequestAreaQuery(
             ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            // Guard: if a request is already in-flight, do not submit a duplicate.
-            if (s.CachedEqsRequestId != -1)
+            // Guard: a question already in flight is not asked twice.
+            var inFlight = InFlightSensor(ref s, ref ctx);
+            if (inFlight.IsNull && s.CachedEqsRequestId == SensorBeingCreated)
+                return NodeStatus.Running;       // still being created
+            if (!inFlight.IsNull)
             {
-                var existing = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-                if (!existing.IsReady)
+                if (ctx.World.IsAlive(inFlight) && ctx.World.HasComponent<EqsCognitiveBuffer>(inFlight))
                 {
-                    if (BehaviorLog.IsTraceEnabled)
-                        BehaviorLog.Trace(ref ctx, "EQS request in flight. RequestId=" + s.CachedEqsRequestId + ".");
-                    return NodeStatus.Running;
+                    if (!ctx.World.GetComponentRO<EqsCognitiveBuffer>(inFlight).IsReady)
+                    {
+                        if (BehaviorLog.IsTraceEnabled)
+                            BehaviorLog.Trace(ref ctx, "EQS area query in flight. Sensor=" + inFlight.Index + ".");
+                        return NodeStatus.Running;
+                    }
+                    return NodeStatus.Success;   // answered; the next node consumes it
                 }
-                // Result is ready; advance sequence so next node can consume it.
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "EQS request already resolved. RequestId=" + s.CachedEqsRequestId + ".");
-                return NodeStatus.Success;
+                s.CachedEqsRequestId = -1;       // the sensor vanished: ask again below
             }
 
             // Guard: TargetAreaEntity must be alive before submitting a query.
             if (p.TargetAreaEntity.IsNull || !ctx.World.IsAlive(p.TargetAreaEntity))
             {
                 BehaviorLog.Error(ref ctx, "TargetAreaEntity is null or dead. Cannot execute area query.");
+                // ⭐ CE-482 — FAIL LOUD: no area means the attack cannot be planned; the run ends Faulted, the plan halts.
+                BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.MissingInput,
+                    "Hill attack: the target area entity is missing or dead.");
                 return NodeStatus.Failure;
             }
 
-            // Submit fresh request.
-            long id = AreaQueryBatchHelper.RequestAreaQuery(ctx.World, ctx.Self, p.TargetAreaEntity, ForceId.Hostile);
-            if (id == -1)
+            var config = AreaSensor(p.TargetAreaEntity);
+            var sensor = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
+            if (sensor.IsNull)
             {
-                BehaviorLog.Warn(ref ctx, "EQS area query batch is full; retrying next frame. Consider increasing DefaultCapacity.");
-                return NodeStatus.Running;  // batch full; retry next frame
+                // ⭐ The creation IS the question. CE-485: on the live world the sensor exists at once; only a deferred view
+                //   (Null) leaves it to be found after playback.
+                sensor = EqsChildSensor.Ensure(ctx.World, ctx.Self, AreaSensorInstanceId, config);
+                s.CachedEqsRequestId = sensor.IsNull ? SensorBeingCreated : (long)sensor.PackedValue;
             }
-
-            s.CachedEqsRequestId = id;
+            else
+            {
+                EqsChildSensor.Refresh(ctx.World, sensor, config);   // ask again: a new epoch, the old answer cleared
+                s.CachedEqsRequestId = (long)sensor.PackedValue;
+            }
             s.EqsRequestTime = ctx.World.SimulationTime;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Submitted EQS area query. RequestId=" + id + ".");
+                BehaviorLog.Debug(ref ctx, "Asked the EQS area query. Sensor=" + (sensor.IsNull ? "creating" : sensor.Index.ToString()) + ".");
             return NodeStatus.Success;
         }
 
         /// <summary>
-        /// Polls for the area query result.
-        /// Returns <see cref="NodeStatus.Running"/> while the result is not yet ready.
-        /// Returns <see cref="NodeStatus.Failure"/> when the area is clear (TargetCount == 0).
-        /// Returns <see cref="NodeStatus.Success"/> when targets are present; caches the
-        /// <c>TargetGroupHandle</c> for use by <see cref="Action_DispatchWaveWithTargets"/>.
-        /// Per SC-HA011-5, <c>CachedEqsRequestId</c> is NOT cleared on the Success path.
+        /// Polls the area query's answer.
+        /// Returns <see cref="NodeStatus.Running"/> while no answer for the current epoch has arrived;
+        /// <see cref="NodeStatus.Failure"/> when the area is clear (0 targets) or after 5 s without an answer (⭐ with no area
+        /// on the Muscle the sensor answers NOTHING — EQS design §17.5 — so the timeout, never a false "clear", ends it);
+        /// <see cref="NodeStatus.Success"/> when targets are present. ⭐ <c>CachedEqsRequestId</c> is NOT cleared on Success
+        /// (SC-HA011-5): the dispatch reads the answer from the same sensor.
         /// </summary>
         public static NodeStatus Condition_IsAreaQueryResolved(
             ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
             if (s.CachedEqsRequestId == -1)
                 return NodeStatus.Failure;  // guard; should not occur in correct topology
+            var sensor = InFlightSensor(ref s, ref ctx);
 
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-            if (!result.IsReady)
+            bool ready = ctx.World.IsAlive(sensor)
+                && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor)
+                && ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady;
+            if (!ready)
             {
                 if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
-                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s. RequestId=" + s.CachedEqsRequestId + ".");
-                    AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
+                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s.");
+                    // ⭐ CE-482 — FAIL LOUD: with no area on the Muscle the sensor answers NOTHING (EQS §17.5), so silence
+                    //   means the question cannot be answered — never a quiet "area clear".
+                    BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.NoAnswerTimeout,
+                        "Hill attack: the EQS area sensor did not answer within 5 s.");
+                    EqsChildSensor.Destroy(ctx.World, sensor);
                     s.CachedEqsRequestId = -1;
-                    s.CachedTargetGroupHandle = -1;
                     return NodeStatus.Failure;
                 }
                 if (BehaviorLog.IsTraceEnabled)
-                    BehaviorLog.Trace(ref ctx, "Waiting EQS result. RequestId=" + s.CachedEqsRequestId + ".");
+                    BehaviorLog.Trace(ref ctx, "Waiting EQS result.");
                 return NodeStatus.Running;
             }
 
-            if (result.TargetCount == 0)
+            int count = ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
+            if (count == 0)
             {
-                // Area cleared: break out of the Repeater so the BTree can finish.
-                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
-                s.CachedEqsRequestId      = -1;
-                s.CachedTargetGroupHandle = -1;
-                s.EqsRequestTime          = 0f;
+                // Area cleared: break out of the Repeater so the BTree can finish; the sensor is no longer needed.
+                EqsChildSensor.Destroy(ctx.World, sensor);
+                s.CachedEqsRequestId = -1;
+                s.EqsRequestTime     = 0f;
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. RequestId=" + result.RequestId + " targets=0.");
+                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. targets=0.");
                 return NodeStatus.Failure;
             }
 
-            // Targets found: cache the pool handle for Action_DispatchWaveWithTargets.
-            // CachedEqsRequestId is intentionally NOT cleared here (SC-HA011-5).
-            s.CachedTargetGroupHandle = result.TargetGroupHandle;
             s.EqsRequestTime = 0f;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "EQS resolved targets. RequestId=" + result.RequestId + " targets=" + result.TargetCount + " handle=" + result.TargetGroupHandle + ".");
+                BehaviorLog.Debug(ref ctx, "EQS resolved targets. targets=" + count + ".");
             return NodeStatus.Success;
         }
 
@@ -291,31 +349,24 @@ namespace Hrot.AI.Behaviors.Brains
             s.ActiveAttackerCount = 0;
             byte dispatchWave = s.CurrentWave;
 
-            // Resolve target count from the cached EQS result.
+            // The answer: Brain-local target entities from the area sensor's buffer (copied — the loop below publishes).
+            long* targets = stackalloc long[EqsResultPool.MaxTopK];
             int targetCount = 0;
-            if (s.CachedEqsRequestId != -1)
+            var sensor = InFlightSensor(ref s, ref ctx);
+            if (!sensor.IsNull && ctx.World.IsAlive(sensor) && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor))
             {
-                var eqsResult = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-                if (eqsResult.IsReady)
-                    targetCount = eqsResult.TargetCount;
-            }
-            // Fallback: probe pool if result is no longer in the batch.
-            if (targetCount == 0 && s.CachedTargetGroupHandle >= 0)
-            {
-                while (true)
+                ref readonly var answer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor);
+                if (answer.IsReady)
                 {
-                    long t = AreaQueryBatchHelper.GetTargetFromPool(ctx.World, s.CachedTargetGroupHandle, targetCount);
-                    if (t == 0L) break;
-                    targetCount++;
-                    if (targetCount > 1024) break;  // safety cap
+                    var results = answer.GetSpanRO();
+                    targetCount = Math.Min(answer.Count, EqsResultPool.MaxTopK);
+                    for (int k = 0; k < targetCount; k++) targets[k] = results[k].EntityId;
                 }
             }
-            if (targetCount == 0) targetCount = 1;  // avoid divide-by-zero
+            int targetModulus = targetCount == 0 ? 1 : targetCount;  // avoid divide-by-zero
 
             if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
             {
-                s.CachedTargetGroupHandle = -1;
-                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
                 s.CachedEqsRequestId      = -1;
                 s.EqsRequestTime          = 0f;
                 s.CurrentWave             = (byte)(1 - s.CurrentWave);
@@ -331,10 +382,10 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < rosterCount && s.ActiveAttackerCount < 8; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
-                if (!ctx.World.IsAlive(sub)) continue;
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
@@ -351,7 +402,15 @@ namespace Hrot.AI.Behaviors.Brains
                     BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
                     continue;  // no slots left; skip tank
                 }
-                int firingSlot = avail[Random.Shared.Next(0, availCount)];
+                // ⭐⭐ CE-202 — REPRODUCIBLE, not fixed. This drew from Random.Shared, so two runs of the
+                //    same scenario picked different slots and could not be compared at all; it is also
+                //    why CE-174's mechanism made kills look intermittent. Same inputs now give the same
+                //    slot, while the xorshift keeps the scatter an observer sees.
+                //    ⛔ SlotOps.PickRandomFreeSlot — the curated twin of this very line — has carried
+                //    the deterministic form since architect Q#8-C mandated it. This is the oracle
+                //    adopting it, not a new invention.
+                var slotRng = SimRng.FromSim((int)sub.Index, s.CurrentWave, ctx.World.SimulationTime);
+                int firingSlot = avail[slotRng.NextInt(0, availCount)];
 
                 // Interpolate firing-slot world position.
                 float ft = s.TotalSlots > 1 ? (float)firingSlot / (s.TotalSlots - 1) : 0.5f;
@@ -362,13 +421,13 @@ namespace Hrot.AI.Behaviors.Brains
                 int baselineSlot = PickClosestBaselineSlot(ref p, ref s, fx, fy, s.TotalSlots);
 
                 // Round-robin target assignment.
-                int targetIdx   = activeTankIndexInWave % targetCount;
-                long targetPacked = AreaQueryBatchHelper.GetTargetFromPool(ctx.World, s.CachedTargetGroupHandle, targetIdx);
+                int targetIdx   = activeTankIndexInWave % targetModulus;
+                long targetPacked = targetIdx < targetCount ? targets[targetIdx] : 0L;
                 long targetNetId  = 0L;
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);
-                    if (ctx.World.IsAlive(targetEntity)
+                    if (CombatLife.IsAlive(ctx.World, targetEntity)   // CE-466: never aim at a knocked-out target
                         && ctx.World.HasComponent<NetworkIdentity>(targetEntity))
                     {
                         targetNetId = ctx.World.GetComponentRO<NetworkIdentity>(targetEntity).Value;
@@ -426,9 +485,7 @@ namespace Hrot.AI.Behaviors.Brains
                 });
             }
 
-            s.CachedTargetGroupHandle = -1;
-            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
-            s.CachedEqsRequestId      = -1;
+            s.CachedEqsRequestId      = -1;   // the answer is consumed; the sensor stays for the next wave (§4 D6)
             s.EqsRequestTime          = 0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
             if (BehaviorLog.IsDebugEnabled)
@@ -454,7 +511,7 @@ namespace Hrot.AI.Behaviors.Brains
                 long packed    = s.ActiveEntityPacked[i];
                 var attacker   = new Entity((ulong)packed);
 
-                if (!ctx.World.IsAlive(attacker))
+                if (!CombatLife.IsAlive(ctx.World, attacker))   // CE-466: knocked out (Health <= 0) or gone
                 {
                     // Tank died: permanently burn the slot it was assigned.
                     s.BurnedSlotsMask     |= (ushort)(1 << s.ActiveSlotIndex[i]);
@@ -505,10 +562,9 @@ namespace Hrot.AI.Behaviors.Brains
         // ── Deactivators ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Deactivator for <see cref="Action_RequestAreaQuery"/>. Resets
-        /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when
-        /// the BTree execution pointer leaves the node via a mission-level abort, preventing
-        /// the in-flight EQS query slot from being orphaned indefinitely.
+        /// Deactivator for <see cref="Action_RequestAreaQuery"/>. Destroys the in-flight EQS area sensor and resets
+        /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when the BTree execution pointer leaves the
+        /// node via a mission-level abort, so the Muscle stops evaluating it. A null or dead sensor is a no-op.
         ///
         /// <para>S3-G: five-parameter stateful deactivator. The working state <paramref name="s"/> is
         /// projected from the behaviour-scoped partition slot by the emitted wrapper (registered under the
@@ -522,7 +578,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx,
             int paramIndex)
         {
-            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
+            EqsChildSensor.Destroy(ctx.World, InFlightSensor(ref s, ref ctx));
             s.CachedEqsRequestId = -1;
         }
 
@@ -547,36 +603,32 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDefinition("PlatoonHillAttack")]
         public static BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext> BuildPlatoonHillAttackTree()
         {
-            // S3-G: the six mutable-state nodes bind HillAttackMutableState as a Behavior-scoped
-            // working-state variable ("State") — one shared partition slot, shared across all of them.
-            // The asset id matches PlatoonHillAttack.btree.json so the code-first and JSON slot keys agree.
-            // Condition_AreAllAtBaseline touches no working state and stays the plain 3-param form.
-            var manifest = new StatefulSlotManifestBuilder(new Guid("1a000000-0000-0000-0000-0000000000dd"));
-            const string stateVar = "State";
-
+            // ⭐ CE-430 (Q76 §12.23): the six mutable-state nodes project BOTH fields of the one block —
+            //   bb.Params and bb.State — so all six share one State by construction, with no slot key,
+            //   scope or manifest. Condition_AreAllAtBaseline touches no working state (3-param form).
             return new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()
                 .Sequence(seq => seq
                     .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, Action_CalculateSegments, manifest, stateVar,
-                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a1"), "CalculateSegments")
+                        bb => bb.Params, bb => bb.State, Action_CalculateSegments, new Guid("1a000000-0000-0000-0000-0000000000a1"))
                     .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, Action_DispatchAllToBaseline, manifest, stateVar,
-                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a2"), "DispatchAllToBaseline")
+                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a2"))
                     .Action(bb => bb.Params, Condition_AreAllAtBaseline)
-                    .Repeater(-1, rep => rep
-                        .Sequence(wseq => wseq
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Action_RequestAreaQuery, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b1"), "RequestAreaQuery")
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Condition_IsAreaQueryResolved, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b2"), "IsAreaQueryResolved")
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Action_DispatchWaveWithTargets, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b3"), "DispatchWaveWithTargets")
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Condition_IsWaveCompleted, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b4"), "IsWaveCompleted"))));
+                    // ⭐ CE-459: area clear ends the wave loop with Failure; ForceSuccess lets the sequence go on to
+                    //   return the platoon to the baseline (mirrors PlatoonHillAttack.btree.json).
+                    .ForceSuccess(fs => fs
+                        .Repeater(-1, rep => rep
+                            .Sequence(wseq => wseq
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Action_RequestAreaQuery, new Guid("1a000000-0000-0000-0000-0000000000b1"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Condition_IsAreaQueryResolved, new Guid("1a000000-0000-0000-0000-0000000000b2"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Action_DispatchWaveWithTargets, new Guid("1a000000-0000-0000-0000-0000000000b3"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Condition_IsWaveCompleted, new Guid("1a000000-0000-0000-0000-0000000000b4")))))
+                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a4"))
+                    .Action(bb => bb.Params, Condition_AreAllAtBaseline));
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────
@@ -646,8 +698,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// Converts geodetic coordinates to ENU Cartesian via
         /// <paramref name="geoTransform"/> when available; falls back to
         /// longitude/latitude as X/Y in Cartesian-only contexts.
-        /// The attack direction is computed as the left-hand perpendicular of the
-        /// normalised firing-line vector — it is not authored directly.
+        /// The attack direction is computed as the <b>perpendicular of the normalised
+        /// firing-line vector, signed to point away from the baseline</b> — it is not
+        /// authored directly. See the computation for why the sign needs the baseline.
         /// </summary>
         /// <summary>
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform and
@@ -655,9 +708,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ParsePlatoonHillAttackParams"/>. This is what the behavior registers as its
         /// resolver — no registration-time closure over geo/entity-map is needed.
         /// </summary>
+        [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack",
+            ParamsType = typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
         public static unsafe void ResolvePlatoonHillAttackParams(
-            string json, byte* ptr, Fdp.Core.EntityRepository world, Entity self,
-            Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
@@ -665,12 +719,12 @@ namespace Hrot.AI.Behaviors.Brains
             var map = (world.HasSingletonManaged<NetworkEntityMap>()
                 ? world.GetSingletonManaged<NetworkEntityMap>()
                 : null) ?? new NetworkEntityMap();
-            ParsePlatoonHillAttackParams(json, ptr, geo, map);
+            ParsePlatoonHillAttackParams(json, ptr, capacity, geo, map);
         }
 
         public static unsafe void ParsePlatoonHillAttackParams(
             string json,
-            byte* ptr,
+            byte* ptr, int capacity,
             Fdp.Modules.Geographic.IGeographicTransform? geoTransform,
             NetworkEntityMap entityMap)
         {
@@ -730,25 +784,61 @@ namespace Hrot.AI.Behaviors.Brains
                 result.BaselineEndX = (float)dto.BaselineEnd.Longitude; result.BaselineEndY = (float)dto.BaselineEnd.Latitude;
             }
 
-            // Compute attack direction from baseline center to firing-line center.
+            // Attack direction: the PERPENDICULAR of the firing line, signed to point AWAY
+            // from the baseline.
+            //
+            // ⚠ This used to be normalize(firingCenter - baselineCenter) — the baseline-to-
+            // firing-line approach vector — which is a different quantity whenever the baseline
+            // is not parallel to the firing line and centred opposite it. The two agree only in
+            // that special case, which is why SC-HA016-2 could not tell them apart. The tanks
+            // creep along this vector and the overshoot guard projects onto it, so it must be
+            // the normal of the firing line: the line is the position to hold, and "forward"
+            // means straight out from it, not "whatever bearing we happened to approach on".
+            //
+            // The baseline is still needed, but only to CHOOSE THE SIGN: a perpendicular has
+            // two directions and only the one leading away from where the platoon staged is
+            // the attack direction.
             var baselineCenter = new Vector2(
                 (result.BaselineStartX + result.BaselineEndX) * 0.5f,
                 (result.BaselineStartY + result.BaselineEndY) * 0.5f);
             var firingCenter = new Vector2(
                 (result.StartX + result.EndX) * 0.5f,
                 (result.StartY + result.EndY) * 0.5f);
-            var attackVec = firingCenter - baselineCenter;
-            float len = attackVec.Length();
-            if (len > 0.0001f)
+            var awayFromBaseline = firingCenter - baselineCenter;
+
+            var firingVec = new Vector2(result.EndX - result.StartX, result.EndY - result.StartY);
+            float firingLen = firingVec.Length();
+
+            if (firingLen > 0.0001f)
             {
-                var norm = attackVec / len;
-                result.AttackDirX = norm.X;
-                result.AttackDirY = norm.Y;
+                var tangent = firingVec / firingLen;
+                var perpendicular = new Vector2(tangent.Y, -tangent.X);
+
+                // Flip to the half-plane the baseline is NOT in. A dot of exactly zero means the
+                // baseline centre lies ON the firing line, so neither side is "away" — keep the
+                // right-hand normal rather than pretending the data decided.
+                if (Vector2.Dot(perpendicular, awayFromBaseline) < 0f)
+                    perpendicular = -perpendicular;
+
+                result.AttackDirX = perpendicular.X;
+                result.AttackDirY = perpendicular.Y;
             }
             else
             {
-                result.AttackDirX = 1f;
-                result.AttackDirY = 0f;
+                // Degenerate firing line (start == end): it has no tangent and therefore no
+                // normal. Fall back to the approach vector, which at least points at the enemy.
+                float awayLen = awayFromBaseline.Length();
+                if (awayLen > 0.0001f)
+                {
+                    var norm = awayFromBaseline / awayLen;
+                    result.AttackDirX = norm.X;
+                    result.AttackDirY = norm.Y;
+                }
+                else
+                {
+                    result.AttackDirX = 1f;
+                    result.AttackDirY = 0f;
+                }
             }
 
             // Resolve target area entity.

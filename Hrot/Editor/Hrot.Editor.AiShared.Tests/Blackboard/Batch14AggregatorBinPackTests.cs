@@ -98,12 +98,21 @@ public sealed class Batch14AggregatorBinPackTests
             $"Expected total inline bytes <= {BlackboardBinPacker.MaxInlineBytes}, got {vm.TotalInlineBytes}");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-314</c> — <b>a 104-byte aggregated DTO now simply FITS.</b> This test used to assert
+    /// it <i>"spills to the heavy tier"</i> and set <c>RequiresHeavyComponent</c> — ⛔ a tier addressing
+    /// <c>Blackboard1024</c>, which <c>P4</c>-① deleted, so the spill had nowhere to land and the flag
+    /// reported a component that cannot exist.
+    ///
+    /// <para>⭐ Rewritten to assert what the same fixture means now: the DTO is placed in the ONE params
+    /// region, counted in the total, and raises NO warning — because the ceiling is the largest
+    /// occurrence tier's payload, not 100 bytes.</para>
+    /// </summary>
     [Fact]
-    public void BuildViewModel_AggregatedRequirements_DontFitInline_RequiresHeavyComponent()
+    public void BuildViewModel_AggregatedRequirement_LargerThanTheOldCap_FitsTheParamsRegion()
     {
-        // Asset has no explicit variables. Aggregated requirement introduces BigDto (104 bytes).
-        // 104 > 100 → the aggregated variable spills to the heavy tier.
-        // RequiresHeavyComponent must be true; PackWarning must be None (heavy budget not exceeded).
+        // Asset has no explicit variables. Aggregated requirement introduces BigDto (104 bytes) —
+        // over the RETIRED 100-byte cap, comfortably under the real ceiling.
         var asset = new ManagedAsset
         {
             BlackboardVariables = Array.Empty<BlackboardVariableEntry>()
@@ -123,20 +132,21 @@ public sealed class Batch14AggregatorBinPackTests
         var vm = BlackboardAuthoringWindow.BuildViewModel(asset, aggregationResult: aggregation);
 
         Assert.True(vm.IsBlackboardEditorManaged);
-        // BigDto (104 bytes) > MaxInlineBytes (100) → spills to heavy.
-        Assert.True(vm.RequiresHeavyComponent,
-            "A BigDto that does not fit inline should cause RequiresHeavyComponent to be true");
-        // Heavy budget is 928; 104 is well within it — no warning.
         Assert.Equal(PackWarning.None, vm.Warning);
+        Assert.True(vm.TotalInlineBytes > 100,
+            $"BigDto is over the retired 100-byte cap; expected it to be counted (got {vm.TotalInlineBytes})");
+        Assert.True(vm.TotalInlineBytes <= BlackboardBinPacker.MaxInlineBytes);
     }
 
     [Fact]
     public void BuildViewModel_MasterVars_OverflowInlineBudget_SurfacesInlineWarning()
     {
-        // Fill master vars so the inline budget is exceeded (13 × 8-byte long = 104 bytes > 100).
+        // ⭐ CE-314/CE-307: sized FROM the ceiling rather than the retired literal 100 (it used to be
+        //   13 × 8-byte long = 104 B). ⛔ A budget test that hard-codes the budget stops testing it.
+        int longCount = (BlackboardBinPacker.MaxInlineBytes / 8) + 1;
         var asset = new ManagedAsset
         {
-            BlackboardVariables = Enumerable.Range(0, 13)
+            BlackboardVariables = Enumerable.Range(0, longCount)
                 .Select(i => new BlackboardVariableEntry($"var{i}", typeof(long), null))
                 .ToArray()
         };

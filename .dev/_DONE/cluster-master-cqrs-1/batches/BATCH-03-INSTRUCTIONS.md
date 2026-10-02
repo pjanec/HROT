@@ -48,7 +48,7 @@ Add `NodeHeartbeatEvent` to `FDP/Toolkits/FDP.Toolkit.Orchestration/Events/Clust
 /// Consumed by <c>NodeOpSlaveTranslator</c> to write <c>NodeHeartbeat</c> DDS topic.
 /// </summary>
 [EventId(9014)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct NodeHeartbeatEvent
 {
     public int    NodeId;
@@ -266,7 +266,7 @@ All suites must pass after this batch (except the 3 confirmed pre-existing failu
 
 ## 🎯 Success Criteria
 
-- [ ] `NodeHeartbeatEvent` defined with EventId 9014, `[DataPolicy(DataPolicy.NoRecord)]`
+- [ ] `NodeHeartbeatEvent` defined with EventId 9014, `[DataPolicy(DataPolicy.NoReplay)]`
 - [ ] `ClusterSlave.Tick()` reads from `_eventBus.ConsumeManaged<ExecuteNodeOpIntent>()` (no transport poll)
 - [ ] `ClusterSlave.Tick()` publishes `NodeHeartbeatEvent` to bus (no `_transport.PublishHeartbeat`)
 - [ ] `ClusterSlave.DispatchIntent` publishes `NodeOpCompletedEvent` to bus after prepare completes (success + failure cases)

@@ -207,7 +207,7 @@ down exactly what to reuse.
 - **Byte-addressed per-instance state** = compiler-emitted `[StructLayout(Sequential)] State` reinterpret-cast
   over the blackboard slot span (`InstanceEmitter.EmitStateStruct`). **Reuse for the event payload struct** —
   `EventHandlerDelegate` already takes `ReadOnlySpan<byte> payload` (`BlueprintDelegates.cs:44-51`).
-- **Tick systems:** `BlueprintTickSystem` (Instance), `BTreeTickSystem`/`HsmTickSystem`. `BTreeTickSystem`
+- **Tick systems:** `BlueprintTickSystem` (Instance) and `BrainTickSystem` (both brain arms). `BrainTickSystem`
   already drains `Bus.Read<…>()` (precedent). Dispatch-pump home: a new Input-phase system after `SwapBuffers`
   before `BlueprintTickSystem`, or folded into `BlueprintTickSystem`'s per-slot loop (already has
   `view/ecb/entity/def` per instance).

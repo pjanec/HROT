@@ -233,6 +233,14 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 return ApplyCollapse(
                     collapseMacro.Nodes, collapseMacro.MacroName, CollapseTarget.Macro);
 
+            // The Blueprint canvas pills are DERIVED from node properties (BlueprintGraphModel.
+            // GetAttachmentsForNode) — there is nothing to remove or restore, and a pill vanishes
+            // with its host node. Accepted as no-ops so a Delete over a selection that includes a
+            // pill still deletes the nodes in the same batch (ApplyBatch stops on first failure).
+            case GraphCommand.RemoveAttachments:
+            case GraphCommand.AddAttachment:
+                return new GraphCommandResult(true, null);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);
@@ -641,17 +649,6 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         {
             if (props.TryGetValue("ChannelType", out var ct) && ct is string cts) cc.ChannelType = cts;
             if (props.TryGetValue("ActionId",    out var ai) && ai is string ais) cc.ActionId    = ais;
-        }
-        else if (node is GetSharedNode gsn)
-        {
-            // Slice 2a-3: bake VariableId/SharedTypeId at create-time (mirrors GetVariableNode).
-            if (props.TryGetValue("VariableId",   out var vid) && vid is string vs)  gsn.VariableId   = vs;
-            if (props.TryGetValue("SharedTypeId", out var tid) && tid is string ts)  gsn.SharedTypeId = ts;
-        }
-        else if (node is SetSharedNode ssn)
-        {
-            if (props.TryGetValue("VariableId",   out var vid) && vid is string vs)  ssn.VariableId   = vs;
-            if (props.TryGetValue("SharedTypeId", out var tid) && tid is string ts)  ssn.SharedTypeId = ts;
         }
     }
 
@@ -1218,15 +1215,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         "Title"        => node.EditorMetadata.CustomTitle,
         "TargetTypeId" => (node as FunctionCallNode)?.TargetTypeId,
         "MethodName"   => (node as FunctionCallNode)?.MethodName,
-        // Slice 2a-3: GetSharedNode/SetSharedNode share the "VariableId" key with
-        // GetVariableNode/SetVariableNode (same authoring concept: the slot name).
         "VariableId"   => (node as GetVariableNode)?.VariableId
-                       ?? (node as SetVariableNode)?.VariableId
-                       ?? (node as GetSharedNode)?.VariableId
-                       ?? (node as SetSharedNode)?.VariableId,
-        // Slice 2a-3: the Category-1 shared struct FQN, unique to GetShared/SetShared.
-        "SharedTypeId" => (node as GetSharedNode)?.SharedTypeId
-                       ?? (node as SetSharedNode)?.SharedTypeId,
+                       ?? (node as SetVariableNode)?.VariableId,
         "EventTypeId"  => (node as EventEntryNode)?.EventTypeId,
         "isBreakpoint" => null,   // runtime-only; not stored on asset
         _              => null,
@@ -1257,21 +1247,6 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 break;
             case "VariableId" when node is SetVariableNode sv:
                 sv.VariableId = value as string ?? "";
-                break;
-            // Slice 2a-3: GetSharedNode/SetSharedNode VariableId + SharedTypeId — the same
-            // SetNodeProperty path GetVariableNode/SetVariableNode use, so any UI that issues
-            // GraphCommand.SetNodeProperty (e.g. a future picker widget) works unmodified.
-            case "VariableId" when node is GetSharedNode gsn:
-                gsn.VariableId = value as string ?? "";
-                break;
-            case "VariableId" when node is SetSharedNode ssn:
-                ssn.VariableId = value as string ?? "";
-                break;
-            case "SharedTypeId" when node is GetSharedNode gsn2:
-                gsn2.SharedTypeId = value as string ?? "";
-                break;
-            case "SharedTypeId" when node is SetSharedNode ssn2:
-                ssn2.SharedTypeId = value as string ?? "";
                 break;
             case "EventTypeId" when node is EventEntryNode ee:
                 ee.EventTypeId = value as string ?? "";

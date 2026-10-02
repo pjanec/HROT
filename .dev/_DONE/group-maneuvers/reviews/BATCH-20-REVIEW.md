@@ -48,7 +48,7 @@ PASS.
   Aliasing test confirms ref read-back matches the write.
 - `SquadStateMarker` carries `[ComponentId(GlobalComponentIds.SquadStateMarker)]` with ID 256.
   `GlobalComponentIds.cs` updated with squad block 256-299 and doc comment. PASS.
-- `[DataPolicy(DataPolicy.NoSave)]` attribute applied correctly (NoSave = 1<<3 in existing enum).
+- `[DataPolicy(DataPolicy.NoScenario)]` attribute applied correctly (NoScenario = 1<<3 in existing enum).
 
 **Debt (P2):** `SquadCognitiveState._scalarPad` should be renamed to `public uint Flags`
 per the design spec (bit 0 = missionOverride). Required before Phase 3 mission-override work.

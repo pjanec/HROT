@@ -53,6 +53,20 @@ namespace Hrot.AiEditor.Generators.Tests.Tripwires
         /// </summary>
         private static readonly IReadOnlyList<string> Baseline = new[]
         {
+            // ⭐⭐⭐ P2 — THE FIRST ENTRY HERE THAT IS *NOT* INERT, AND IT IS THE REASON THE
+            //   HAZARD THIS TRIPWIRE GUARDS IS NOW FIXED RATHER THAN DEFERRED.
+            //
+            // Hrot.AI.Behaviors IS generator-bearing, so HsmActionGenerator really does emit a thunk
+            // for these two — which is exactly what the four entries below never had. ⛔ They are
+            // listed rather than rejected because the change they demanded ("this now needs E3") HAS
+            // LANDED: EmitSharedAiActionThunk resolves its own occurrence via KeyForCurated instead
+            // of reading a baked offset into the entity's one BrainBlackboard.
+            //
+            // ⭐ Two entries, at DIFFERENT field offsets, so the @offset half of the compound-key
+            //   identity is exercised — all four legacy entries sit at @0.
+            "Hrot.AI.Behaviors :: HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+            "Hrot.AI.Behaviors :: HsmTwoRegionCuratedNodes.Action_ReadSecondParams",
+
             "Fdp.Toolkits :: BlueprintLifecycleLibrary.AttachInstanceBlueprint",
             "Fdp.Toolkits :: BlueprintLifecycleLibrary.RemoveInstanceBlueprint",
             "Fdp.Toolkits :: BlueprintLifecycleLibrary.ReplaceInstanceBlueprint",
@@ -167,7 +181,9 @@ namespace Synthetic
         /// </summary>
         private static readonly string[] DtoBindingAttributes =
         {
-            "SharedAiAction", "SharedAiCondition", "SharedAiHeavyAction", "SharedAiHeavyCondition",
+                        // ⛔ CE-327: SharedAiHeavyAction/SharedAiHeavyCondition are deleted (§30.29), so a
+            //   source file naming them is no longer a DTO-binding site — it is a stale reference.
+            "SharedAiAction", "SharedAiCondition",
         };
 
         private static IEnumerable<Entry> ScanDirectory(string dir, string projectName)

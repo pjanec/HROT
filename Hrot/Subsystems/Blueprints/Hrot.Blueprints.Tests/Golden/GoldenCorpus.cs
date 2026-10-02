@@ -42,14 +42,17 @@ public static class GoldenCorpus
     /// <c>Hrot.AI.Behaviors.csproj</c>: <c>&lt;AdditionalFiles Include="Assets\Blueprints\**\*.bp.json" /&gt;</c>.
     /// ⛔ <b>Not "all shipped <c>.bp.json</c>".</b> <c>Recipes/Blueprints</c> is <c>Content</c> —
     /// production never compiles it — and globbing <b>both</b> roots <b>throws</b>, because assets
-    /// exist in each sharing an <c>AssetId</c>. It happens to be 42 files today; the definition is the
+    /// exist in each sharing an <c>AssetId</c>. It happens to be 44 files today (was 50 before <c>CE-436</c>); the definition is the
     /// glob, and <c>GoldenCorpusTests</c> asserts the <c>.csproj</c> still says so.
     /// </para>
     /// </summary>
     public const string CorpusGlobInProject = @"Assets\Blueprints\**\*.bp.json";
 
     /// <summary>
-    /// ⚠ <b>The preload.</b> Three <c>HillAssault2I_*</c> assets fail <c>BP1602</c> under a bare
+    /// ⚠ <b>The preload.</b> ⛔ <c>CE-436</c> deleted the three <c>HillAssault2I_*</c> assets this
+    /// note was written for, so the SYMPTOM below no longer has a known instance — the guard stays
+    /// because the mechanism has not changed: any asset whose Stage 0 must reflect over
+    /// <c>Hrot.AI.Behaviors</c> hits it. ⚠ Historic wording: three <c>HillAssault2I_*</c> assets fail <c>BP1602</c> under a bare
     /// compile: a null <see cref="IClrSignatureResolver"/> makes Stage 0 reflect over <b>loaded</b>
     /// assemblies, and nothing has loaded <c>Hrot.AI.Behaviors</c> yet. ⭐ One type touch ⇒ 42/42.
     /// ⭐ <b>Batch 52: superseded by <c>TestAssemblyModuleInit</c></b>; kept as a local guard because

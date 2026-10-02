@@ -1,0 +1,255 @@
+using System;
+using Fdp.Core;
+using Fdp.ModuleHost.Scheduling;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+
+namespace Hrot.ScenarioEditor.Map
+{
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-23</c> <c>S2b</c> — the ONE place the map's machinery is constructed.</b>
+    /// 📄 Design: <c>docs/UX/UX_Feature_Map_Parity.md</c> §3.2 · §3.2a · §3.2b (UML) · ⭐ **§3.2d (the
+    /// three amendments measured before building)**.
+    ///
+    /// <para>📐 <b>What it replaces.</b> Five hosts built the same buffer, the same two registries, the
+    /// same reflection call, the same three systems, the same togglable group and the same gate — by hand,
+    /// in five composition roots: <c>SimHostApp</c> · <c>CgfSubsystem</c> · <c>IgApplication</c> ·
+    /// <c>EditorSubsystem</c> · <c>ReplayBrowserSubsystem</c>.</para>
+    ///
+    /// <para>🔴🔴 <b>Why that mattered, concretely.</b> <c>S2a</c> measured that the difference between a
+    /// working map and a dark one was <b>a single constructor argument</b> that one host passed and four
+    /// did not (<c>CE-123</c>: SimHost handed <c>StatelessGizmoSystem</c> the selection predicate meant for
+    /// the drag handles). Five hand-written constructions are five chances to get an argument wrong, and
+    /// nothing reports it. This pack is what removes those chances.</para>
+    ///
+    /// <para>🔒 <b>The pack CONSTRUCTS; the HOST SCHEDULES.</b> User ruling, <c>2026-08-28</c>. Enforced
+    /// structurally: <see cref="MapInteractionContext"/> carries no <c>ModuleHostKernel</c>, so scheduling
+    /// is unreachable from here rather than merely forbidden — the run-set follows the host's ROLE
+    /// (<c>DESIGN_Subsystem_Composition_Unification.md</c> §3.1/§3.2).</para>
+    ///
+    /// <para>⛔ <b>Equally deliberately NOT here:</b> DDS publishers, ingress/egress translators, action
+    /// registries, canvas menus and layer-control gizmos. Those are the host's role or
+    /// its own affordances; a host adds its gizmos through
+    /// <see cref="MapInteractionContext.ContributeExtras"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>AMENDED <c>2026-09-20</c>: <i>"selection systems"</i> WAS on that exclusion list and is
+    /// now BUILT HERE.</b> 🔒 User: <i>"we want to unify across host also the bootstrap code as far as
+    /// possible, including this entity selection stuff."</i> 📐 The exclusion was written when selection
+    /// genuinely was host-shaped — five hosts, three different parallel stores, five hand-rolled writers.
+    /// <c>UXI-11</c> <c>S-1</c>…<c>S-3b</c> made the wiring <b>identical on every host</b>, at which point
+    /// the exclusion preserved exactly the five-way duplication this pack exists to remove. ⭐ The ruling
+    /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
+    /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
+    /// </summary>
+    public static class MapInteractionPack
+    {
+        /// <summary>
+        /// The policy every projector gets unless the host says otherwise: culling for the entity
+        /// projector (itself gated by a setting), the framework default for everything else.
+        /// </summary>
+        private static Func<Type, IGizmoVisibilityPolicy?> DefaultVisibilityPolicy(GizmoSettingsRegistry settings)
+        {
+            var culling = new CullingStateVisibilityPolicy(settings);
+            return type => type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)
+                ? culling
+                : null;
+        }
+
+        /// <summary>
+        /// Constructs the map's gizmo machinery and hands it back for the host to schedule.
+        /// </summary>
+        public static MapInteraction Build(MapInteractionContext ctx)
+        {
+            if (ctx is null) throw new ArgumentNullException(nameof(ctx));
+            if (ctx.World is null) throw new ArgumentException("MapInteractionContext.World is required.", nameof(ctx));
+
+            var buffer = ctx.BufferCapacity is int capacity
+                ? new DebugPrimitiveBuffer(capacity)
+                : new DebugPrimitiveBuffer();
+
+            // Every host either creates a bus and registers the interaction events over it, or already has
+            // one. Doing it here means a host cannot forget the RegisterAll half.
+            var bus = ctx.InteractionBus;
+            if (bus is null)
+            {
+                bus = new FdpEventBus();
+                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            }
+
+            var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
+            var gizmoRegistry     = new GizmoRegistry();
+            var statelessRegistry = new StatelessGizmoRegistry();
+
+            // ST-031: one reflection pass replaces the five hand-rolled per-host family lists. Uniform
+            // membership; component presence decides what actually draws.
+            // ⭐⭐ S4: the resolver is how a reflection-discovered projector gets a visibility policy.
+            // The DEFAULT attaches CullingStateVisibilityPolicy to the entity projector — the policy itself
+            // is off unless the host sets map.entity.cullOffscreen, so this changes no behaviour until
+            // asked. A host may override the whole resolver to attach any policy to any projector.
+            // 📄 UX_Feature_Map_Parity.md §3.2f · UX_Feature_Entity_Symbology.md §3.4.
+            var resolve = ctx.VisibilityPolicyResolver ?? DefaultVisibilityPolicy(settings);
+            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve);
+
+            // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
+            // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache
+            // from registry.Rules.Count — a rule added later lands beyond the cache and silently ignores
+            // its visibility policy. Giving hosts this one window closes the hazard by construction.
+            ctx.ContributeExtras?.Invoke(
+                new MapInteractionRegistries(gizmoRegistry, statelessRegistry, settings, buffer, bus));
+
+            // ⭐⭐⭐ R-144 / §6.2b — THE ONE FOCUS SLOT, created HERE because this is the only production
+            //    site that builds both arbiters. 📐 The defect it closes is named two comments below and
+            //    was written in this file long before the ruling: the two systems "each guard exclusivity
+            //    only within themselves while sharing `bus`, so two 'exclusive' tools can hold focus at
+            //    once."  ⛔ One registry EACH would satisfy every signature and fix nothing — the whole of
+            //    68-A is that this single instance reaches both constructors.
+            // ⚠ Q27-B, "per subsystem": the slot's lifetime is the map's, which is this object's.
+            var focus = new GizmoFocusRegistry();
+
+            var globalManager = new GlobalGizmoManager(
+                buffer, bus, breakpointManager: ctx.BreakpointManager, focus: focus);
+
+            var dataDriven = new DataDrivenGizmoSystem(
+                gizmoRegistry,
+                buffer,
+                isSelectedPredicate: ctx.IsSelectedPredicate,
+                interactionBus: bus,
+                breakpointManager: ctx.BreakpointManager,
+                focus: focus);
+
+            // 🔒 NO isSelectedPredicate here, ever. On StatelessGizmoSystem the predicate is ONE BLANKET
+            // GATE over every projector the host owns — the entity avatars, the routes, the tactical areas,
+            // the map overlay. That is CE-123, and the rail TheMapIsNotSelectionGatedRails pins it.
+            var stateless = new StatelessGizmoSystem(statelessRegistry, buffer);
+
+            // Group member order follows the four hosts that agree (global manager, drag handles, map);
+            // the editor listed the first two the other way round, which nothing depended on.
+            //
+            // ⭐⭐ S3: MapSelfCheckSystem goes LAST, so it observes the frame the other three just wrote.
+            // Putting it in the group rather than asking hosts to schedule it separately is deliberate —
+            // a diagnostic a host can forget to wire is a diagnostic that is absent exactly where it is
+            // needed. §3.2e.
+            // ⚠ The group's members are constructor-only, and the self-check needs to know whether the
+            // group is enabled — hence the delegate and the deferred assignment rather than a circular
+            // constructor pair.
+            TogglablePostSimulationGroup? groupRef = null;
+            var selfCheck = new MapSelfCheckSystem(
+                buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic);
+
+            // ⭐⭐⭐ CE-259r — THE ORDER IS LOAD-BEARING, AND `stateless` MUST PRECEDE `dataDriven`.
+            //   📐 Measured 2026-09-10: the host clears the primitive buffer (EndFrame) immediately before
+            //     ticking this group, so a hit-test dispatched INSIDE the group sees only what earlier
+            //     members have emitted THIS frame. With dataDriven first, EntityPickerGizmo's hover
+            //     hit-tested an EMPTY buffer (frame=0, anchored=0) => Entity.Null every frame =>
+            //     _hoveredValid never true => amber crosshair, and its left-release pick arm unreachable.
+            //     ⛔ NOT a "partly filled frame" problem — the buffer is EMPTY; it is pure ordering.
+            //   ⭐ The entity pick boxes come from the STATELESS projector (EntityPresentationGizmo), so
+            //     running it first is what makes the picker's hover resolve.
+            //   🔴🔴🔴 CORRECTED 2026-09-10, SAME DAY, BY AN OPERATOR RUN. The first fix put `stateless`
+            //     second (after globalManager) and DID NOT WORK — the crosshair stayed amber.
+            //     📐 CAUSE: the production picker is registered on ToolArbiter.Global
+            //     (PickerToolHost.cs:116, g.Register at :173/:272), so its hover hit-test runs inside
+            //     EntityPickerGizmo.OnDragUpdate (:141-146) dispatched by GLOBALMANAGER — the FIRST group
+            //     member — not by dataDriven. Swapping stateless past dataDriven alone left globalManager
+            //     ahead of it, so the buffer was still empty.
+            //     ⛔ MY HEADLESS PROBE PUT THE PICKER IN dataDriven and therefore measured a scenario that
+            //     does not exist in production. That is the same mistake the CE-259q rail made and wrote
+            //     down as a lesson — "mirror the ARBITERS, not just the gesture" — repeated.
+            //     ⇒ `stateless` must precede EVERY arbiter that dispatches interactions, so it goes FIRST.
+            //   ⚠⚠ This ALSO flips the z-order tiebreak: emission order breaks DebugLayer ties
+            //     (DebugGizmoLayer.cs:510) and pick boxes + tool handles are both layer 0 => a HANDLE now
+            //     beats an entity box. 🔒 Ruled CORRECT for an ACTIVE tool (user, 2026-09-10) — and safe
+            //     only because §4.7i makes a SUSPENDED tool draw no handles at all. ⛔ Do not reorder this
+            //     back, and do not ship it without §4.7i.
+            //   📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence) and §4.7i.
+            var group = new TogglablePostSimulationGroup(
+                "GizmoExecution", stateless, globalManager, dataDriven, selfCheck);
+            groupRef = group;
+
+            // ⭐⭐⭐ UXI-07 step 3b — THE ONE ARBITER, built here so all FIVE hosts get it.
+            // 📐 The defect is structural in the two lines above: globalManager and dataDriven each guard
+            //    exclusivity only within themselves while sharing `bus`, so two "exclusive" tools can hold
+            //    focus at once. ⇒ the arbiter belongs where the pair is CONSTRUCTED, not behind a system
+            //    only two of the five hosts compose.
+            // 🔒 Q27-B: "per subsystem" — the arbiter's lifetime is the map's, which is this object's.
+            // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
+            //    construction: "all map subsystems share the FULL tool set … never set membership."
+            //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            var tools = new Hrot.ScenarioEditor.Tools.ToolController(
+                () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
+
+            Hrot.ScenarioEditor.Tools.ScenarioToolRegistrations.RegisterAll(
+                tools,
+                world:               () => ctx.World,
+                gizmos:              () => dataDriven,
+                globalGizmos:        () => globalManager,
+                startPlacementMode:  ctx.StartPlacementMode,
+                reportUnserviceable: ctx.ReportUnserviceableTool,
+                measureUnits:        ctx.MeasureUnits);
+
+            // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
+            // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
+            // viewer-attach path and would sit behind a permanently shut gate. The per-host truth survives
+            // as this one named input; what dies is the four scattered literals.
+            group.Enabled = ctx.StartEnabled;
+
+            var gate = new GizmoExecutionController(group, globalManager, dataDriven);
+
+            // ⭐⭐⭐ UXI-11 — THE SELECTION, BUILT HERE SO ALL FIVE HOSTS GET THE SAME ONE.
+            // 🔒 User, 2026-09-20: "unify across host also the bootstrap code as far as possible,
+            //    including this entity selection stuff."
+            // 📐 What this replaces: five composition roots each constructing EcsSelectionState, the
+            //    interaction system, the request system and the notification system in their own order,
+            //    plus — before S-1..S-3b — three different parallel stores. Same disease as the buffer
+            //    and the three gizmo systems this pack was written for, and the same cure.
+            // ⛔ The pack still CONSTRUCTS ONLY. Scheduling stays the host's, per the 2026-08-28 ruling
+            //   and enforced structurally: MapInteractionContext carries no kernel.
+            var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+
+            // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
+            // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and
+            //    rubberband, not just editor and cgf."
+            // 🔴 MEASURED, and the shape is sharper than "it is missing": the box-select LOGIC already
+            //    ran everywhere — SelectionInteractionSystem tracks _isBoxSelecting and commits the box
+            //    on all five hosts. What only the editor and ReplayBrowser had was the STATE OBJECT and
+            //    the GIZMO THAT DRAWS IT. ⇒ on IG, SimHost and CGF the drag worked and was invisible.
+            // ⭐ Same cure as S-3c: the thing every host needs is constructed in the one place that
+            //    builds the map, not in five composition roots three of which forgot.
+            // ⚠ ctx.RubberBand is still honoured — a host that needs the handle before Build() returns
+            //   passes its own and the pack adopts it rather than making a second one.
+            var rubberBand = ctx.RubberBand ?? new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBand));
+
+            var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
+                ctx.World, bus, rubberBand, selection);
+            if (ctx.OnMapSelectionChanged != null)
+                selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
+
+            // ⚠ ORDER IS LOAD-BEARING and the pack cannot enforce it — the host schedules. Requests must
+            //   apply BEFORE the announcement is consumed, or a cause and its consequence land a frame
+            //   apart. MapInteraction.SelectionSystemsInOrder exists so a host cannot get it wrong.
+            var selectionRequests = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => selection);
+
+            // ⭐⭐⭐ UXI-11 S-5 — ruling ②: "if entity becomes unselected, it should cancel any editing on
+            //   the entity losing the selection." The arbiter and the store are BOTH built right here, so
+            //   the hook is a constructor argument rather than a per-host wiring step — all five hosts get
+            //   it, in one place, exactly as S-3c did for the selection itself.
+            // 🔒 THE SILENT-DEFAULT RULE, applied: both parameters are optional so a lightweight host or a
+            //   test need not supply them, but this caller HOLDS them and therefore PASSES them.
+            // ⭐⭐⭐ CE-300 — the AI editors' entity cell joins the SAME announcement, as a third
+            //   consequence. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1 / §4.
+            // ⛔ NOT a fourth system: this class already IS "what a selection change causes", and a
+            //   parallel consumer of one edge would be two implementations of one concept (ruling 9) —
+            //   the same argument S-5 made for putting CancelArmedOn here.
+            var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
+                ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
+
+            return new MapInteraction(
+                buffer, bus, gizmoRegistry, statelessRegistry, settings,
+                globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
+                selection, selectionInteraction, selectionRequests, selectionNotifications,
+                rubberBand);
+        }
+    }
+}

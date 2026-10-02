@@ -18,9 +18,16 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// <summary>
 /// ⭐⭐⭐ <b>Batch 95 (<c>95b</c>) — the selected entity reaches every perspective, and a VALUE ARRIVES.</b>
 ///
-/// <para>🔴🔴 <b>The defect, measured.</b> The editor holds <b>four</b>
+/// <para>⚠⚠ <b><c>CE-300</c> SUPERSEDED THE MECHANISM BELOW, <c>2026-09-21</c> — the RAILS STAND.</b>
+/// <c>CallbackSelectionBridge</c> is DELETED; the cell is now written by
+/// <c>SelectionNotificationSystem</c> from <c>SelectionChangedNotification</c>, so which store a test
+/// writes is moot — they are one cell, which is exactly what these rails assert.
+/// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1. ⛔ Read "the bridge's
+/// store" below as "the store production used to write".</para>
+///
+/// <para>🔴🔴 <b>The defect, measured (Batch 95).</b> The editor holds <b>four</b>
 /// <see cref="EditorSelectionStore"/>s — one per perspective plus the bridge's own — and
-/// <c>CallbackSelectionBridge.Connect</c> is called <b>exactly once</b>, on the fourth
+/// <c>CallbackSelectionBridge.Connect</c> was called <b>exactly once</b>, on the fourth
 /// (<c>EditorSubsystem:1351</c>). ⇒ <c>SelectedEntity</c> was <c>null</c> on all three perspective
 /// stores, always ⇒ every live-value provider returned <c>null</c> on its <b>second line</b>
 /// (<c>var entity = _store.SelectedEntity; if (entity is null) return null;</c>) ⇒ ⛔ <b>every
@@ -202,22 +209,30 @@ public sealed class TheSelectedEntityReachesEveryPerspectiveTests
     }
 
     /// <summary>
-    /// ⚠⚠ <b>THE RESIDUAL GAP, asserted on purpose</b> — a selection made while the debugger holds
-    /// time is not visible until the next brain frame.
+    /// ⭐⭐⭐ <b>FLIPPED, Batch 97 (<c>97d</c>) — THE BINDING CLOCK. A selection change is visible
+    /// IMMEDIATELY, with time stopped.</b>
     ///
-    /// <para>📌 <c>R-103</c> (the user's specification) is <i>"the accessor is called once per brain
-    /// frame and the value is cached"</i>, and 📌 it also says <i>"pin-while-paused samples
-    /// immediately"</i> — ⭐ <b>the same courtesy is not extended to a SELECTION change</b>, because
-    /// the sampler has no notion of one. ⇒ under a breakpoint pause, selecting a different entity
-    /// shows the previous sample until the run continues.</para>
+    /// <para>🔴🔴 <b>What this rail asserted before</b> *(Batch 95, on purpose)*: the sampler had ONE
+    /// clock — the behaviour pulse — so a selection made under a breakpoint showed the previous
+    /// sample until the run continued.</para>
     ///
-    /// <para>⛔ <b>Deliberately NOT fixed in this batch</b>, and this rail is why the claim is honest:
-    /// 95b's scope is that a value can arrive at all. ⚠ If someone teaches the sampler about
-    /// selection later, this test goes RED and that is the correct signal — flip it, do not delete
-    /// it.</para>
+    /// <para>📄 <b><c>R-76</c> has always specified TWO clocks</b> — VALUE *(every brain tick)* and
+    /// <b>BINDING</b> *(only on selection change)* — ⛔ and the second one did not exist in code.
+    /// 📌 The user: <i>"when entity selection changes, the watch row must update (accessor evaluated)
+    /// even if time currently stopped."</i></para>
+    ///
+    /// <para>⭐⭐ <b>Two entities, one asset, one variable, DIFFERENT VALUES, and the pulse never
+    /// moves.</b> ⛔ And the switch must NOT light the change highlight: a chameleon row is <i>"this
+    /// variable, on whoever is selected"</i> *(<c>R-78</c>)*, so re-binding is not the sim changing
+    /// anything — 📌 a false 🔴 is the one thing a monitor must not do.</para>
+    ///
+    /// <para>⛔ <b>Whose object:</b> the rows come from the production
+    /// <see cref="SectionVariableRowSource"/> through a real <see cref="VariableTableModel"/>, and the
+    /// selection is made on the store the bridge writes — ⚠ the RUN is stubbed *(the state reader)*,
+    /// exactly as the value rail above states.</para>
     /// </summary>
     [Fact]
-    public void TheSelectionIsNotVisibleUntilTheNextPulse()
+    public void ASelectionChangeIsVisibleImmediatelyEvenWithTimeStopped()
     {
         var shared      = new SharedEntitySelection();
         var bridgeStore = new EditorSelectionStore(shared);
@@ -226,13 +241,17 @@ public sealed class TheSelectedEntityReachesEveryPerspectiveTests
         var asset    = BlueprintAssetWithHealth();
         var editable = new BlueprintEditableAssetAdapter(asset);
 
+        var entityA = new Entity(11, 1);
+        var entityB = new Entity(22, 1);
+
+        // ⭐ The two entities genuinely hold different values — ⛔ otherwise "it updated" is unfalsifiable.
         var provider = new BlueprintLiveValueProvider(
             readerFactory: () => (self, assetId) => new BlueprintStateSnapshot(
                 Self:        self,
                 AssetId:     assetId,
                 AssetName:   asset.Name,
                 Dispatch:    Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
-                FieldValues: new Dictionary<string, object> { ["Health"] = 42 },
+                FieldValues: new Dictionary<string, object> { ["Health"] = self == entityA ? 11 : 22 },
                 Cursor:      null),
             store: perspective);
 
@@ -240,6 +259,8 @@ public sealed class TheSelectedEntityReachesEveryPerspectiveTests
             new SectionVariableRowSource(
                 assetId:     asset.AssetId,
                 assetName:   asset.Name,
+                // ⭐⭐ entity: default IS THE CHAMELEON SENTINEL (R-78) — ⛔ NOT a defect, and a
+                //    concrete entity here would break exactly the behaviour this rail asserts.
                 entity:      default,
                 section:     "s",
                 schema:      new BlueprintVariableSchemaSource(asset, VariableKind.Variable, () => { }),
@@ -248,12 +269,21 @@ public sealed class TheSelectedEntityReachesEveryPerspectiveTests
         { RunState = VariableRunState.Paused };
         var formatter = new VariableValueFormatter(RawValueDecoder.Instance);
 
-        model.Build();                              // takes this pulse's sample: nothing selected
-        bridgeStore.SelectedEntity = Selected;      // ...and the pulse does not move
+        // ── A is selected, and the pulse does NOT move again for the rest of this test ──
+        bridgeStore.SelectedEntity = entityA;
+        var onA = model.Build();
+        Assert.Contains("11", formatter.Cell(onA.AllRows.Single(), onA.ValueMode));
 
-        var same = model.Build();
-        Assert.Contains("pending", formatter.Cell(same.AllRows.Single(), same.ValueMode),
-            StringComparison.OrdinalIgnoreCase);
+        // ── the designer picks B. Time is stopped. ────────────────────────────
+        bridgeStore.SelectedEntity = entityB;
+
+        var onB = model.Build();
+        var row = onB.AllRows.Single();
+
+        Assert.Contains("22", formatter.Cell(row, onB.ValueMode));
+        Assert.False(onB.HighlightOf(row).Changed,
+            "re-binding to another entity is not the simulation changing the value — a red here " +
+            "would tell the designer something happened in the run that did not.");
     }
 
     /// <summary>

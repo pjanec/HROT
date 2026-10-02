@@ -96,6 +96,57 @@ public delegate uint? ReadAssetTick();
 public delegate BlackboardVariableEntry? ReadVariableDeclaration();
 
 /// <summary>
+/// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — WRITES this row's authored initial value back to its declaration.</b>
+///
+/// <para>🔴🔴 <b>The defect.</b> 📐 Measured: <c>VariableEditCommit.CommitInitialValue</c> resolved its
+/// write target through <c>PerspectiveWorkspaceRegistrar.DeclarationOwnerOf</c>, which type-tests
+/// <c>store.ActiveAsset is IBlackboardManagedAsset</c> — ⛔ and <c>BlueprintAsset</c> is not one. ⇒ in
+/// <b>PLANNING</b>, the ordinary authoring state, <c>TargetFor</c> chooses the initial value, the owner
+/// was <b>always <c>null</c> on Blueprint</b>, and <b>OK refused on every Blueprint variable, every
+/// time.</b> 📌 <c>BP-355</c> named this exact asymmetry — <i>"the same vocabulary mismatch <c>95a</c>
+/// fixed for READING, unfixed for WRITING"</i> — and it was never given to anyone as an item.</para>
+///
+/// <para>⭐⭐ <b>Why the ROW carries it, mirroring <see cref="ReadVariableDeclaration"/>.</b> 📐 Measured
+/// before choosing: Blueprint's <c>IVariablesSchemaSource</c>s are constructed <b>inside
+/// <c>BlueprintMyBlueprintWindow</c>, per outline selection</b> — the asset-scoped one at <c>:416</c>,
+/// the graph-scoped one at <c>:223</c> — ⛔ <b>long after <c>CreateRegistrar</c> has returned</b>, and
+/// the graph-scoped one follows the canvas by delegate. ⇒ a seam supplied at the composition root
+/// could answer for the two asset-scoped sections and <b>not</b> for Local Variables. ⚠ <b>That is the
+/// same measurement <c>95a</c> made</b>, and it is why the read arm lives here too.</para>
+///
+/// <para>⭐ <b>The source that BUILT the row already holds the writable object</b> —
+/// <c>SectionVariableRowSource</c> holds an <c>IVariablesSchemaSource</c>,
+/// <c>BlackboardSectionRowSource</c> an <c>IBlackboardManagedAsset</c> — so nothing new reaches a call
+/// site that could forget it *(📌 <c>R-67</c>)*, and a <b>pinned</b> Watch row keeps its write-back
+/// because a pin copies the row.</para>
+///
+/// <para>⚠ <b>Returns <c>false</c> for <i>"this source cannot write"</i></b>, and the commit then falls
+/// back to the asset arm — ⛔ it is NOT <i>"the write failed"</i>. ⭐ <c>null</c> as the argument
+/// CLEARS the authored default, exactly as <c>UpdateVariableDefaultValueJson</c> defines it.</para>
+/// </summary>
+public delegate bool WriteVariableDefault(string? defaultValueJson);
+
+/// <summary>
+/// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — WRITES this row's DECLARATION PROPERTIES back.</b>
+/// 📌 <c>R-108</c>/<c>R-109</c>: <i>"'Properties…' must open the DECLARATION, not the value"</i>, as a
+/// CUSTOM form. ⇒ the commit needs its own target, by the same route and for the same reason as
+/// <see cref="WriteVariableDefault"/>: Blueprint's schema sources are built per outline selection,
+/// inside the window, long after the composition root has finished.
+/// ⚠ <c>false</c> means <i>"this source cannot write"</i> — ⛔ not <i>"the write failed"</i>.
+/// </summary>
+public delegate bool WriteVariableProperties(VariablePropertyValues values);
+
+/// <summary>
+/// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — reads the declaration's KIND and its non-value members.</b>
+/// ⚠ <b>Not just <see cref="ReadVariableDeclaration"/>:</b> 📐 <c>BlackboardVariableEntry</c> carries
+/// Name · FieldType · Comment · DefaultValueJson · Role · Scope — ⛔ <b>and none of Tooltip, Category,
+/// IsEditable, IsExposedOnSpawn</b>, which are exactly what <c>VariablePropertySchema</c> says a
+/// <c>VariableDecl</c>'s form must show. ⭐ <c>null</c> ⇒ the form offers the smallest set rather than
+/// inventing values it cannot store.
+/// </summary>
+public delegate DeclarationPropertySnapshot? ReadVariableProperties();
+
+/// <summary>
 /// ⭐⭐ Row identity (§1a). <b><see cref="Entity"/> is PART of it</b> — the same asset on two entities
 /// has two different values, so the key is <c>(AssetId, Entity, VariablePath)</c>, ⛔ never
 /// <c>(asset, variable)</c>.
@@ -116,6 +167,37 @@ public readonly record struct VariableRowOrigin(
     /// <summary>⭐ The identity triple §4a keys the highlight cache by. ⛔ <see cref="AssetName"/> and
     /// <see cref="Section"/> are excluded — a row does not change identity because it was regrouped.</summary>
     public (Guid, Entity, string) Key => (AssetId, Entity, VariablePath);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-305</c> — WHICH ENTITY THIS ROW IS ABOUT. 📌 <c>R-78</c>'s two kinds, in one
+    /// place.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §3 · <c>DESIGN_Editor_Entity_Selection_Source.md</c> §5.4.
+    ///
+    /// <para>⭐ <b>CONCRETE</b> — a row bound to a specific entity answers that entity, always.
+    /// ⭐ <b>CHAMELEON</b> — a row carrying the sentinel (<c>default</c>) answers <i>"whoever is
+    /// selected"</i>, which is what <paramref name="chameleon"/> supplies.</para>
+    ///
+    /// <para>⛔⛔ <b>Why it lives HERE and not in each consumer.</b> 📐 Measured <c>2026-09-21</c>: the
+    /// yellow implemented this rule (<c>StagedWriteView.EntityFor</c>) and <b>the WRITE did not</b> —
+    /// <c>BlueprintLiveValueWriter</c> read the selection unconditionally, with a remark saying the
+    /// origin must never be read. ⇒ the two would have disagreed for the FIRST concrete row anyone
+    /// produced, and a designer would have watched one entity go yellow while another was written.
+    /// 🔒 The writer's own invariant — <i>"the write must target whatever the READ displayed"</i> —
+    /// was true only because no concrete row existed yet. ⭐ One method makes it true by construction
+    /// (📌 <c>R-13</c>: route, don't duplicate).</para>
+    ///
+    /// <para>⚠ <b>A frozen (PINNED) view produces CONCRETE rows</b>, which is exactly how 🔒 the user's
+    /// <c>2026-09-21</c> ruling — <i>"the write target should come from the same
+    /// <c>IDetailsContextSource</c> the view read from"</i> — is satisfied without any surface asking
+    /// a global what is selected.</para>
+    /// </summary>
+    /// <param name="chameleon">
+    /// ⚠ The FALLBACK, consulted only for a sentinel origin — ⛔ never an override. <c>null</c> means
+    /// nothing is selected, and the row then resolves to <see cref="Entity.Null"/>, which every caller
+    /// already treats as <i>"cannot project"</i>.
+    /// </param>
+    public Entity Resolve(Entity? chameleon)
+        => Entity.Equals(default(Entity)) ? chameleon ?? default : Entity;
 }
 
 /// <summary>§1a / §5 — the two kinds that can never get a writable dialog.</summary>
@@ -184,7 +266,15 @@ public sealed record VariableRow(
     // 🔴 Why: the edit gestures resolved a row by type-testing store.ActiveAsset against
     //    IBlackboardManagedAsset, which BlueprintAsset does not implement ⇒ the dialog could never
     //    open on Blueprint. See ReadVariableDeclaration for the full measurement.
-    ReadVariableDeclaration? ReadDeclaration = null)
+    ReadVariableDeclaration? ReadDeclaration = null,
+    // ⭐⭐⭐ Batch 98 (98a) — the WRITE half of ReadDeclaration, and the reason OK refused on every
+    //    Blueprint variable while PLANNING. Same optional-and-preferred shape as every arm above
+    //    (📌 ruling 9 — one precedent, not a new idiom). See WriteVariableDefault for the measurement.
+    WriteVariableDefault? WriteDefault = null,
+    // ⭐⭐⭐ Batch 99 (99a) — R-108/R-109's "Properties… opens the DECLARATION" needs its own read and
+    //    write targets, by the same route and for the same reason as WriteDefault above.
+    WriteVariableProperties? WriteProperties = null,
+    ReadVariableProperties? ReadProperties = null)
 {
     /// <summary>
     /// ⭐⭐ <b>Has this variable ever been written, as of NOW.</b> ⭐ Prefers <see cref="ReadWritten"/>

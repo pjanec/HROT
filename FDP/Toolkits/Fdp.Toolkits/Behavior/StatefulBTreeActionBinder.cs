@@ -12,64 +12,15 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
-    /// S3-G (stage 2): accumulates the <see cref="StatefulSlotInfo"/> manifest produced while a code
-    /// <c>[BTreeDefinition]</c> builder binds stateful nodes via
-    /// <see cref="StatefulBTreeActionBinder.StatefulAction{TBB,TParams,TWorkingState}"/>. Behavior/Entity
-    /// scoped nodes that resolve to the same slot key are deduped to a single manifest entry (one shared
-    /// partition slot), matching <c>BTreeBridgeEmitCore.EmitStatefulWorkingSlotsArray</c>. The caller reads
-    /// <see cref="ToManifest"/> and hands it to the <see cref="BehaviorDefinition.StatefulWorkingSlots"/>
-    /// so <c>BehaviorIngressSystem</c> provisions the slots before the first tick.
-    /// </summary>
-    public sealed class StatefulSlotManifestBuilder
-    {
-        private readonly Dictionary<int, StatefulSlotInfo> _slots = new();
-        private readonly List<int> _order = new();
-
-        /// <summary>Creates a manifest builder for the asset identified by <paramref name="assetId"/>.</summary>
-        public StatefulSlotManifestBuilder(Guid assetId) => AssetId = assetId;
-
-        /// <summary>Asset id folded into Node/Behavior-scoped slot keys.</summary>
-        public Guid AssetId { get; }
-
-        /// <summary>
-        /// Records a slot (idempotent by <paramref name="slotKey"/>). Returns the manifest entry, whether
-        /// freshly added or the existing shared one. Called by the binder; not usually called directly.
-        /// </summary>
-        internal StatefulSlotInfo Add(
-            int slotKey, int payloadSize, uint structureHash,
-            Type workingStateType, string? nodeLabel, StatefulSlotScope scope)
-        {
-            if (_slots.TryGetValue(slotKey, out var existing))
-                return existing;
-
-            var info = new StatefulSlotInfo(
-                slotKey, payloadSize, structureHash, workingStateType, nodeLabel,
-                Role: 1 /* State */, Scope: (byte)scope);
-            _slots[slotKey] = info;
-            _order.Add(slotKey);
-            return info;
-        }
-
-        /// <summary>Returns the deduped manifest in first-seen order, or <c>null</c> if no stateful nodes were bound.</summary>
-        public IReadOnlyList<StatefulSlotInfo>? ToManifest()
-            => _order.Count == 0 ? null : _order.Select(k => _slots[k]).ToList();
-    }
-
-    /// <summary>
-    /// S3-G (stage 2): curries a four-parameter stateful node method into a FastBTree
-    /// <see cref="NodeLogicDelegate{TBlackboard,TContext}"/> and registers it in the tree builder's
-    /// <see cref="ActionRegistry{TBlackboard,TContext}"/>, so the code <c>[BTreeDefinition]</c> builder can author
-    /// <c>ThreeParamReusableStateful</c> nodes without any FastBTree change. This runtime toolkit only touches
-    /// <c>Fbt.Kernel</c> types (delegate + registry); the authoring-side <c>StatefulAction</c> extension (which
-    /// needs <c>Fbt.Compiler</c>'s <c>BTreeBuilder</c>) is a thin wrapper that calls this and then adds the leaf
-    /// node via the generic <c>BTreeBuilder.Action(string methodKey)</c> seam.
+    /// The code-built stateful-node seam plus the occurrence slot-key algorithms.
     ///
-    /// <para>The curried thunk is the run-time analogue of the JSON emitter's stateful thunk
-    /// (<c>BTreeBridgeEmitCore.EmitStatefulActionThunks</c>): it projects the params at the blackboard field
-    /// offset, dispatches across the entity's partition tier (16384 → 4096 → 1024),
-    /// <c>TryGetSlotOffset(scopeKey)</c>, projects the working state, and calls
-    /// <c>(ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TContext)</c>. The scope key is computed
-    /// with the same FNV-1a as <c>BTreeBridgeEmitCore.ComputeStatefulSlotKey</c>.</para>
+    /// <para>⭐ <see cref="RegisterBlockThunk{TBB,TParams,TWorkingState}"/> (<c>CE-430</c>) curries a four-parameter
+    /// stateful node method over the behaviour's OWN block — params and working state are both fields of the
+    /// code builder's <c>TBlackboard</c>. This runtime toolkit only touches <c>Fbt.Kernel</c> types; the
+    /// authoring-side <c>StatefulAction</c> extension (which needs <c>Fbt.Compiler</c>) wraps it.</para>
+    ///
+    /// <para>The key helpers (<see cref="ComputeStatefulSlotKey"/>, <see cref="ComputeOccurrenceSlotKey"/>,
+    /// <see cref="ComputeTypeNameHash"/>) still serve the generated and HSM occurrence paths.</para>
     /// </summary>
     public static class StatefulBTreeActionBinder
     {
@@ -82,37 +33,41 @@ namespace Fdp.Toolkit.Behavior
         /// <list type="bullet">
         ///   <item><see cref="StatefulSlotScope.Node"/>: FNV(assetId bytes ++ nodeVisualId bytes).</item>
         ///   <item><see cref="StatefulSlotScope.Behavior"/>: FNV(assetId bytes ++ variableId UTF-8).</item>
-        ///   <item><see cref="StatefulSlotScope.Entity"/>: FNV(variableId UTF-8 only).</item>
+        ///   <item><c>Entity</c>: ⛔ removed by <c>CE-441</c> slice 1.</item>
         /// </list>
         /// Result masked to a non-negative int.
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>A1 (<c>PLAN_Occurrence_Storage_Build</c>): this is now a THIN WRAPPER.</b> The
+        /// algorithm lives in <see cref="Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey"/>, one file
+        /// LINKED into the authoring assembly as well, so the compile-time and runtime keys cannot
+        /// drift. ⛔ Do not re-inline the FNV here — that divergence is <c>F5</c> and it fails
+        /// silently (the slot is never found, nothing throws).
+        /// <para>⚠ The cast is safe because the two enums are pinned value-for-value by
+        /// <c>OccurrenceSlotKeyParityTests</c>.</para>
+        /// </remarks>
         public static int ComputeStatefulSlotKey(
             Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
-        {
-            unchecked
-            {
-                uint hash = FnvOffsetBasis;
-                switch (scope)
-                {
-                    case StatefulSlotScope.Node:
-                        foreach (byte b in assetId.ToByteArray())      { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in nodeVisualId.ToByteArray()) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.Compute(
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
-                    case StatefulSlotScope.Behavior:
-                        foreach (byte b in assetId.ToByteArray())                          { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    case StatefulSlotScope.Entity:
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(scope), scope, null);
-                }
-            }
-        }
+        /// <summary>
+        /// ⭐ The NESTED form — <c>DESIGN_Occurrence_Scoped_Storage</c> §3's <c>(assetId, hostPath)</c>.
+        /// <paramref name="hostKey"/> <c>== 0</c> means a ROOT occurrence and returns exactly what
+        /// <see cref="ComputeStatefulSlotKey(Guid, StatefulSlotScope, Guid, string)"/> returns.
+        /// </summary>
+        public static int ComputeOccurrenceSlotKey(
+            int hostKey, int siteId, Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeNested(
+                   hostKey,
+                   siteId,
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
         /// <summary>
         /// FNV-1a-32 of the UTF-8-ish bytes of a type name, matching
@@ -139,123 +94,51 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
-        /// Curries a four-parameter stateful node method into a <see cref="NodeLogicDelegate{TBlackboard,TContext}"/>,
-        /// registers it in <paramref name="registry"/> under the emitter-compatible key
-        /// <c>{MethodFqn}@{paramOffset}@{slotKey}</c>, records the slot in <paramref name="manifest"/>, and returns
-        /// the key. The caller then adds the leaf node referencing that key through FastBTree's generic seam
-        /// (<c>BTreeBuilder.Action(string methodKey)</c>) — the thin authoring-side <c>StatefulAction</c> extension
-        /// does exactly this, keeping the FastBTree <c>Fbt.Compiler</c> dependency out of this runtime toolkit.
+        /// ⭐⭐ <c>CE-430</c> — curries a four-parameter stateful node method over the behaviour's OWN block:
+        /// both the params and the working state are FIELDS of <typeparamref name="TBB"/>, projected from
+        /// <c>ref bb</c> at offsets baked once here. Registers the thunk under
+        /// <c>{MethodFqn}@{paramOffset}@{stateOffset}</c> and returns that key; the caller adds the leaf through
+        /// FastBTree's generic <c>BTreeBuilder.Action(string methodKey)</c> seam (the authoring-side
+        /// <c>StatefulAction</c> extension does exactly this, keeping <c>Fbt.Compiler</c> out of this toolkit).
         ///
-        /// <para>The param field is projected from the blackboard via <paramref name="paramSelector"/> (offset baked
-        /// once at build time); the working state is projected from the partition slot keyed by
-        /// (<paramref name="scope"/>, asset, <paramref name="variableId"/>).</para>
+        /// <para>⭐ Two nodes that project the SAME state field share it; two that project DIFFERENT fields keep
+        /// independent state — the block expresses sharing with no slot key, scope or manifest.</para>
+        ///
+        /// <para>⛔⛔ HISTORY — <c>RegisterStatefulThunk</c> + <c>StatefulSlotManifestBuilder</c> (S3-G) put the
+        /// state in a partition slot keyed by (scope, asset, variable) and needed the ingress to provision it
+        /// from a manifest. Deleted by <c>CE-430</c> once the one production author (the hand-written
+        /// PlatoonHillAttack tree) moved its state into its blackboard. 📄 <c>Q76</c> §12.23.</para>
         /// </summary>
         /// <param name="registry">The tree builder's action registry (<c>builder.GetRegistry()</c>).</param>
-        /// <param name="paramSelector">Direct field/property access selecting the params sub-field, e.g. <c>bb =&gt; bb.Params</c>.</param>
+        /// <param name="paramSelector">Direct field access selecting the params, e.g. <c>bb =&gt; bb.Params</c>.</param>
+        /// <param name="stateSelector">Direct field access selecting the working state, e.g. <c>bb =&gt; bb.State</c>.</param>
         /// <param name="logic">The four-parameter stateful node method.</param>
-        /// <param name="manifest">Accumulates the working-slot manifest; supplies the asset id.</param>
-        /// <param name="variableId">Working-state variable name; drives the slot key for Behavior/Entity scope.</param>
-        /// <param name="scope">Slot scope. Behavior (default) shares one slot across co-bound nodes.</param>
-        /// <param name="visualId">Stable node visual id. Required for <see cref="StatefulSlotScope.Node"/> (folded into the key).</param>
-        /// <param name="label">Optional friendly label for the inspector; defaults to the method name.</param>
         /// <returns>The registry key the caller must pass to <c>BTreeBuilder.Action(string)</c>.</returns>
-        public static string RegisterStatefulThunk<TBB, TParams, TWorkingState>(
+        public static string RegisterBlockThunk<TBB, TParams, TWorkingState>(
             ActionRegistry<TBB, BTreeContext> registry,
             Expression<Func<TBB, TParams>> paramSelector,
-            ReusableStatefulActionDelegate<TParams, TWorkingState, BTreeContext> logic,
-            StatefulSlotManifestBuilder manifest,
-            string variableId,
-            StatefulSlotScope scope = StatefulSlotScope.Behavior,
-            Guid visualId = default,
-            string? label = null)
+            Expression<Func<TBB, TWorkingState>> stateSelector,
+            ReusableStatefulActionDelegate<TParams, TWorkingState, BTreeContext> logic)
             where TBB : struct
             where TParams : unmanaged
             where TWorkingState : unmanaged
         {
             if (registry == null) throw new ArgumentNullException(nameof(registry));
             if (logic == null) throw new ArgumentNullException(nameof(logic));
-            if (manifest == null) throw new ArgumentNullException(nameof(manifest));
-            if (string.IsNullOrEmpty(variableId)) throw new ArgumentException("variableId is required.", nameof(variableId));
-            if (scope == StatefulSlotScope.Node && visualId == default)
-                throw new ArgumentException("Node-scoped stateful bindings require a stable visualId (it is folded into the slot key).", nameof(visualId));
 
             nint paramOffset = ExtractFieldOffset(paramSelector);
+            nint stateOffset = ExtractFieldOffset(stateSelector);
 
-            // Behavior/Entity scope ignore the node id; Node scope folds it in.
-            Guid keyVisualId = scope == StatefulSlotScope.Node ? visualId : Guid.Empty;
-            int slotKey = ComputeStatefulSlotKey(manifest.AssetId, scope, keyVisualId, variableId);
-
-            // Curried thunk — runtime analogue of the emitted stateful thunk (tier dispatch + slot projection).
             NodeLogicDelegate<TBB, BTreeContext> thunk =
                 (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 {
-                    unsafe
-                    {
-                        ref TParams p = ref Unsafe.As<TBB, TParams>(
-                            ref Unsafe.AddByteOffset(ref bb, paramOffset));
-
-                        if (ctx.World.HasComponent<BlueprintBlackboard16384>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard16384>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard16384");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        if (ctx.World.HasComponent<BlueprintBlackboard4096>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard4096>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard4096");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard1024>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard1024");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        System.Diagnostics.Debug.Assert(false, $"S3-G: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}");
-                        return NodeStatus.Failure;
-                    }
+                    ref TParams p = ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, paramOffset));
+                    ref TWorkingState ws = ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, stateOffset));
+                    return logic(ref p, ref ws, ref st, ref ctx);
                 };
 
-            // Explicit key (matches the emitter convention {MethodFqn}@{paramOffset}@{slotKey}) so
-            // co-bound Behavior-scoped nodes on distinct methods each get a distinct registry entry,
-            // rather than colliding on the auto-generated lambda name.
-            string key = $"{logic.Method.DeclaringType!.FullName}.{logic.Method.Name}@{paramOffset}@{slotKey}";
+            string key = $"{logic.Method.DeclaringType!.FullName}.{logic.Method.Name}@{paramOffset}@{stateOffset}";
             registry.Register(key, thunk);
-
-            manifest.Add(
-                slotKey,
-                payloadSize: Marshal.SizeOf<TWorkingState>(),
-                structureHash: unchecked(ComputeTypeNameHash(typeof(TWorkingState).FullName ?? string.Empty)
-                                          ^ (uint)Marshal.SizeOf<TWorkingState>()),
-                workingStateType: typeof(TWorkingState),
-                nodeLabel: label ?? logic.Method.Name,
-                scope: scope);
-
             return key;
         }
 
@@ -266,7 +149,7 @@ namespace Fdp.Toolkit.Behavior
                 memberExpr = unary.Operand as MemberExpression;
             if (memberExpr == null)
                 throw new ArgumentException(
-                    "paramSelector must be a direct field or property access (e.g. bb => bb.Params).",
+                    "The selector must be a direct field access (e.g. bb => bb.Params).",
                     nameof(selector));
             return (nint)Marshal.OffsetOf<TBB>(memberExpr.Member.Name);
         }

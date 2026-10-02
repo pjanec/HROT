@@ -88,7 +88,7 @@ Define `PlayMontageParams`, `StopMontageParams`, `PlayMontageQueueParams`, `Look
 
 ### ANC-P0-05 — Replicated/contractual components
 **Refs:** DD-1 §5.1; mini §3.3, §4.1.
-Define `AnimationChannel`, `LookAtChannel` (channel shape, `Params`/`State` blobs), `StanceIntent`, `StanceStatus` (+`StanceTransitionPhase` enum), `StanceId` enum (DD-4 §3.2), `AnimationMontageQueue` (`[InlineArray(8)]` `Entries`, `Count`, `QueueVersion`), `MontageQueueEntry`, `AnimationMontageQueueState`. All `[ComponentId]` from the P0-03 block, `[DataPolicy(NoSave)]`.
+Define `AnimationChannel`, `LookAtChannel` (channel shape, `Params`/`State` blobs), `StanceIntent`, `StanceStatus` (+`StanceTransitionPhase` enum), `StanceId` enum (DD-4 §3.2), `AnimationMontageQueue` (`[InlineArray(8)]` `Entries`, `Count`, `QueueVersion`), `MontageQueueEntry`, `AnimationMontageQueueState`. All `[ComponentId]` from the P0-03 block, `[DataPolicy(NoScenario)]`.
 **Success:** Layout tests: each channel ≤96 B; `AnimationMontageQueue` total ≤140 B; `AnimationMontageQueueState` and stance components =16 B. `[InlineArray]` mutation via Span-cast verified by a write-read test.
 
 ### ANC-P0-06 — Muscle-internal components
@@ -115,7 +115,7 @@ state lives in one Tier-1 component, validated by Layer-1 unit tests.
 
 ### ANC-P1-01 — `FakeAnimBackendState` component + sub-structs
 **Refs:** DD-Fake §2 (§2.1–2.4).
-Define the unmanaged component and `FakeSlotState`/`FakeAimState`/`FakeStanceState`, `[InlineArray(8)]` `FakeSlotsBuffer`, `[InlineArray(16)]` `FakePendingNotifyBuffer`, bools-as-bytes, `ulong FiredNotifyMask`. `[ComponentId(240)]`, `[DataPolicy(NoSave)]`.
+Define the unmanaged component and `FakeSlotState`/`FakeAimState`/`FakeStanceState`, `[InlineArray(8)]` `FakeSlotsBuffer`, `[InlineArray(16)]` `FakePendingNotifyBuffer`, bools-as-bytes, `ulong FiredNotifyMask`. `[ComponentId(240)]`, `[DataPolicy(NoScenario)]`.
 **Success:** Size test ≈1 KB and <64 KB; layout deterministic (sequential). Compiles in `Hrot.MuscleCharacter.Animation.Fake`.
 
 ### ANC-P1-02 — Backend scaffold: `Initialize`, handle table, Register/Unregister
@@ -281,7 +281,7 @@ the two When-node validator rules.
 
 ### ANC-P4-01 — Eight event types + mandatory attributes
 **Refs:** DD-3 §3 (§3.1–3.2), §9.7.
-`MontageStartedEvent`/`MontageEndedEvent`(+`MontageEndReason`)/`MontageSectionAdvancedEvent`/`StanceChangedEvent`/`FootstepEvent`/`HitWindowOpenedEvent`/`HitWindowClosedEvent`/`AnimNotifyEvent`, each `[EventId(82xx)]` (**8201–8213, block 8200–8299**) + `[DataPolicy(NoRecord)]`, `Entity Target` first.
+`MontageStartedEvent`/`MontageEndedEvent`(+`MontageEndReason`)/`MontageSectionAdvancedEvent`/`StanceChangedEvent`/`FootstepEvent`/`HitWindowOpenedEvent`/`HitWindowClosedEvent`/`AnimNotifyEvent`, each `[EventId(82xx)]` (**8201–8213, block 8200–8299**) + `[DataPolicy(NoReplay)]`, `Entity Target` first.
 > ⚠ **Architect ruling — supersedes DD-3 §3/§9.7.** The original `8000–8099`
 > block is **revoked**: `Hrot.Common.Events.GlobalActionRequestedEvent` already
 > occupies `[EventId(8059)]` ([verified](Hrot/Engine/Hrot.Common/Events/GlobalActionRequestedEvent.cs)),

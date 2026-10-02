@@ -95,7 +95,11 @@ internal static class InstanceEmitter
             e.WriteLine();
         }
 
-        EmitTickThunk(e);
+        // ⭐ CE-446: a BEHAVIOUR is registered as a behaviour, not an Instance — its entry points replace the thunk.
+        if (asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior)
+            EmitBehaviorEntryPoints(e, asset);
+        else
+            EmitTickThunk(e);
         e.WriteLine();
 
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
@@ -254,10 +258,6 @@ internal static class InstanceEmitter
     /// does); <b>malformed JSON THROWS</b>, which is what makes parse-before-commit meaningful.
     /// </para>
     ///
-    /// <para>
-    /// ⚠ <c>host</c> is accepted and unused — <c>IHostVariableAccess</c> ships declared-not-implemented
-    /// and <c>E7a</c> populates it. Its value for a root occurrence is <c>null</c>.
-    /// </para>
     /// </summary>
     private static void EmitParseParams(CSharpEmitter e, IrAsset asset)
     {
@@ -265,15 +265,39 @@ internal static class InstanceEmitter
         e.Indent();
         e.WriteLine("string json,");
         e.WriteLine("byte* memory,");
+        e.WriteLine("int capacity,");                 // CE-331 — the writable extent
         e.WriteLine("global::Fdp.Core.EntityRepository world,");
-        e.WriteLine("global::Fdp.Core.Entity self,");
-        e.WriteLine("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+        e.WriteLine("global::Fdp.Core.Entity self)");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
+        // ⭐⭐⭐ CE-331 — THE EMITTED PARSER CHECKS ITS OWN ROOM, which a bare `byte*` made
+        //   impossible. `Unsafe.AsRef<Params>` reinterprets the pointer as the whole struct, so
+        //   a region narrower than `sizeof(Params)` is corrupted by the very first write
+        //   (`p = default`) — before any field is even parsed. ⇒ refuse, loudly, instead.
+        e.WriteLine("if (capacity < sizeof(Params))");
+        e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
+        e.WriteLine("        $\"the params region holds {capacity} bytes but this asset's Params "
+                  + "needs {sizeof(Params)}; the occurrence slot was sized for a different "
+                  + "behaviour (CE-331).\");");
         e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);");
         e.WriteLine("p = default;");
 
+        EmitParamsDefaultsAndOverlay(e, asset);
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+        EmitParamJsonOptions(e);
+    }
+
+    /// <summary>
+    /// ⭐ The one "declared Parameter defaults, then the JSON wrapper object by name" body, over a local
+    /// <c>ref Params p</c> — shared by an Instance's <c>ParseParams</c> and a behaviour resolver asset's
+    /// <c>ParseAuthored</c> (<c>CE-443</c>). An absent key keeps its default; an unknown key is ignored;
+    /// malformed JSON throws. ⚠ Needs <c>__ParamJsonOptions</c> in scope (<see cref="EmitParamJsonOptions"/>).
+    /// </summary>
+    internal static void EmitParamsDefaultsAndOverlay(CSharpEmitter e, IrAsset asset)
+    {
         // Step 1 — the declared defaults.
         foreach (var f in asset.Parameters.Where(f =>
             !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
@@ -292,12 +316,15 @@ internal static class InstanceEmitter
         e.WriteLine("foreach (var __prop in __doc.RootElement.EnumerateObject())");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("switch (__prop.Name)");
+        // ⭐ CE-464: keys match CASE-INSENSITIVELY, like __ParamJsonOptions (PropertyNameCaseInsensitive) and the curated
+        //   DTO parsers — a scenario authored "firingLineStart" must fill FiringLineStart. ⛔ It matched exactly, so a
+        //   camelCase key was silently dropped as "unknown" and the parameter kept its default.
+        e.WriteLine("switch (__prop.Name.ToLowerInvariant())");
         e.WriteLine("{");
         e.Indent();
         foreach (var f in asset.Parameters)
         {
-            e.WriteLine($"case \"{f.Name}\":");
+            e.WriteLine($"case \"{f.Name.ToLowerInvariant()}\":");
             e.Indent();
             e.WriteLine($"p.{f.Name} = global::System.Text.Json.JsonSerializer.Deserialize<{CSharpType(f.Type)}>(");
             e.WriteLine("    __prop.Value.GetRawText(), __ParamJsonOptions)!;");
@@ -310,9 +337,11 @@ internal static class InstanceEmitter
         e.WriteLine("}");
         e.Outdent();
         e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine();
+    }
+
+    /// <summary>The platform-canonical JSON options field the overlay body reads.</summary>
+    internal static void EmitParamJsonOptions(CSharpEmitter e)
+    {
         e.WriteLine("// ⭐ The platform-canonical options, so params share ONE wire format with");
         e.WriteLine("// scenario save/load and with the BTree bridge's own ParseParams.");
         e.WriteLine("private static readonly global::System.Text.Json.JsonSerializerOptions __ParamJsonOptions =");
@@ -425,8 +454,10 @@ internal static class InstanceEmitter
 
     private static void EmitTickMethod(CSharpEmitter e, IrAsset asset)
     {
+        // ⭐ CE-446: a behaviour's Tick reports whether it finished (BehaviorDispatch).
+        bool behaviour = asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior;
         // Q-18.1: includes uint instanceVersion as last parameter
-        e.WriteLine("public static void Tick(");
+        e.WriteLine(behaviour ? "public static global::Fbt.NodeStatus Tick(" : "public static void Tick(");
         e.Indent();
         e.WriteLine("ref State s,");
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
@@ -446,7 +477,88 @@ internal static class InstanceEmitter
         {
             LibraryEmitter.EmitGraphBody(e, asset, tickGraph);
         }
+        else if (behaviour)
+        {
+            e.WriteLine(EmissionContext.ReturnRunning);   // no Tick graph: never finishes on its own
+        }
 
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6) — the two entry points a blueprint BEHAVIOUR registers with.
+    /// <list type="bullet">
+    /// <item><c>BehaviorParseParams</c> — the root block IS the Instance payload <c>[Cursor][Params][State]</c>: bake the
+    /// whole block (<c>InitDefault</c>: cursor zeroed, Variable defaults), then parse the JSON onto <c>Params</c> at
+    /// <c>ParamsOffset</c> (the Instance <c>ParseParams</c>, unchanged).</item>
+    /// <item><c>BehaviorTick</c> — dispatch this frame's events to the Event graphs (the Instance dispatch, over the
+    /// handler table), then run the Tick, whose status ends the behaviour.</item>
+    /// </list>
+    /// </summary>
+    private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
+    {
+        var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
+        // ⭐ CE-446 (Q77 §3 B) — the behaviour's OWN resolver: its one Construction graph, over the injected block.
+        //   Emitted with the Instance context (StateVar `s`, params `s.Params`); a Construction graph's view is `world`.
+        var resolver = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
+        if (resolver is not null)
+        {
+            e.WriteLine($"/// <summary>CE-446: the behaviour's own resolver — reads its Parameters, writes its Variables.</summary>");
+            e.WriteLine($"private static void Resolve_{Sanitizer.SanitizeName(resolver.Name)}(ref State s, "
+                      + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
+            e.WriteLine("{");
+            e.Indent();
+            LibraryEmitter.EmitGraphBody(e, asset, resolver);
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+
+        if (events.Count > 0)
+        {
+            e.WriteLine("private static readonly global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate> BehaviorEventHandlers =");
+            e.WriteLine("    new(global::System.StringComparer.Ordinal)");
+            e.WriteLine("{");
+            e.Indent();
+            foreach (var g in events)
+                e.WriteLine($"[\"{g.EventTypeFqn ?? g.Name}\"] = Event_{g.Name}_Thunk,");
+            e.Outdent();
+            e.WriteLine("};");
+            e.WriteLine();
+        }
+
+        e.WriteLine("/// <summary>CE-446: bake the whole block, then parse Params at their offset.</summary>");
+        e.WriteLine("public static unsafe void BehaviorParseParams(string json, byte* memory, int capacity,");
+        e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("if (capacity < StateSize)");
+        e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
+        e.WriteLine("        $\"the behaviour block holds {capacity} bytes but this blueprint needs {StateSize} (CE-446).\");");
+        e.WriteLine("InitDefault(new global::System.Span<byte>(memory, StateSize));");
+        if (asset.Parameters.Count > 0)
+            e.WriteLine("ParseParams(json, memory + ParamsOffset, capacity - ParamsOffset, world, self);");
+        // ⭐ The resolver runs LAST, inside the ingress shadow: Parameters are parsed, Variables baked — it derives state.
+        if (resolver is not null)
+            e.WriteLine($"Resolve_{Sanitizer.SanitizeName(resolver.Name)}("
+                      + "ref global::System.Runtime.CompilerServices.Unsafe.AsRef<State>(memory), world, self);");
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+
+        e.WriteLine("/// <summary>CE-446: this frame's events, then the Tick — its status ends the behaviour.</summary>");
+        e.WriteLine("public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block,");
+        e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
+        e.WriteLine("    global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId)");
+        e.WriteLine("{");
+        e.Indent();
+        if (events.Count > 0)
+            e.WriteLine("global::Fdp.Toolkit.Blueprints.BlueprintEventDispatch.Dispatch(BehaviorEventHandlers, "
+                      + "new global::System.Span<byte>(global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref block), StateSize), "
+                      + "world.Bus, world, ecb, self, time, deltaTime);");
+        e.WriteLine("return Tick(ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(ref block), "
+                  + "world, ecb, self, time, deltaTime, instanceId);");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -564,6 +676,35 @@ internal static class InstanceEmitter
     private static string CSharpType(IrTypeRef t) => StatementEmitter.TypeRefToCSharp(t);
 
     /// <summary>
+    /// ⭐ Every statement of every graph — INCLUDING those nested in a loop body (<see cref="IrOp_ForEach.Body"/>) or a branch
+    /// (<see cref="IrOp_If.Then"/> / <see cref="IrOp_If.Else"/>). 🔴 The helper collectors used to walk only the top-level
+    /// block statements, so a <c>Read EQS Result</c> inside a <c>For Each</c> body got a call site and NO helper — CS0103 in
+    /// the real generator build (found by <c>PlatoonHillAttackBp</c>'s EQS migration, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §6).
+    /// </summary>
+    private static IEnumerable<IrStatement> AllStatements(IrAsset asset)
+    {
+        foreach (var graph in asset.Graphs)
+        foreach (var block in graph.Blocks)
+        foreach (var stmt in Descend(block.Statements))
+            yield return stmt;
+
+        static IEnumerable<IrStatement> Descend(IReadOnlyList<IrStatement> statements)
+        {
+            foreach (var stmt in statements)
+            {
+                yield return stmt;
+                var nested = stmt.Operation switch
+                {
+                    IrOp_ForEach fe => Descend(fe.Body),
+                    IrOp_If br      => Descend(br.Then).Concat(Descend(br.Else)),
+                    _               => Enumerable.Empty<IrStatement>(),
+                };
+                foreach (var inner in nested) yield return inner;
+            }
+        }
+    }
+
+    /// <summary>
     /// Collects all unique IrOp_WhenConditionMetCheck operations across all graphs.
     /// Returns list of (id8, predicateJson) pairs, deduplicated by SynthFieldName.
     /// </summary>
@@ -572,9 +713,7 @@ internal static class InstanceEmitter
         var result = new List<(string, string)>();
         var seen   = new HashSet<string>();
 
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_WhenConditionMetCheck op) continue;
             if (!seen.Add(op.SynthFieldName)) continue;
@@ -651,9 +790,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_WhenEqsResultCheck>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_WhenEqsResultCheck op) continue;
             if (!seen.Add(op.SynthFieldName)) continue;
@@ -725,9 +862,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ReadEqsResult>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ReadEqsResult op) continue;
             if (!seen.Add(op.NodeId8)) continue;
@@ -810,9 +945,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ScoreDecision>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ScoreDecision op) continue;
             if (!seen.Add(op.NodeId8)) continue;
@@ -825,9 +958,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ReadRankedResult>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ReadRankedResult op) continue;
             if (!seen.Add(op.NodeId8)) continue;

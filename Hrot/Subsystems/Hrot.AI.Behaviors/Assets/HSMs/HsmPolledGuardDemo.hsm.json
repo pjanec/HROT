@@ -1,0 +1,136 @@
+{
+  "$meta": {
+    "docType": "Hrot.Hsm",
+    "schemaVersion": 1
+  },
+  "AssetId": "00000151-0000-0000-0000-000000000001",
+  "Name": "HsmPolledGuardDemo",
+  "TargetNamespace": "Hrot.AI.Behaviors.Machines",
+  "BlackboardTypeName": "HsmPolledGuardDemo_Blackboard",
+  "States": [
+    {
+      "StableId": "51000000-0000-0000-0000-000000000000",
+      "Name": "__Root",
+      "ChildStableIds": [
+        "51000000-0000-0000-0000-00000000000a",
+        "51000000-0000-0000-0000-00000000000b"
+      ],
+      "ParentStableId": null,
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 0,
+      "Y": 0,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "51000000-0000-0000-0000-00000000000a",
+      "Name": "Waiting",
+      "ChildStableIds": [],
+      "ParentStableId": "51000000-0000-0000-0000-000000000000",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "ExpressionTargetField": "EngageTarget",
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 100,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "CE-397: the state the polled guard is evaluated from. Its ExpressionTargetField (CE-387) is what seeds the guard occurrence's params from the blackboard's 'Open'.",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "51000000-0000-0000-0000-00000000000b",
+      "Name": "Finished",
+      "ChildStableIds": [],
+      "ParentStableId": "51000000-0000-0000-0000-000000000000",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": true,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 400,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "The exit state: reaching it finishes the behaviour.",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    }
+  ],
+  "Regions": [],
+  "Transitions": [
+    {
+      "VisualId": "51000000-0000-0000-0000-0000000000c1",
+      "SourceStableId": "51000000-0000-0000-0000-00000000000a",
+      "TargetStableId": "51000000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "GuardFunction": null,
+      "GuardBlueprintAssetId": "00000150-0000-0000-0000-000000000001",
+      "GuardBlueprintName": "HsmGuardDemo",
+      "IsPolled": true,
+      "ActionFunction": null,
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "Waypoints": [],
+      "Comment": "CE-397: POLLED, guarded by a BLUEPRINT. No event is ever posted -- the guard is evaluated on every quiescent tick and the machine leaves Waiting the moment it passes."
+    }
+  ],
+  "GlobalTransitions": [],
+  "Events": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "HsmPolledGuardDemo_Blackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "EngageTarget",
+        "Type": {
+          "TypeId": "System.Boolean",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "false",
+        "Comment": "CE-397: seeds HsmGuardDemo's 'Open' parameter. Role=Input, so it is packed and addressable by HsmParamBindings.",
+        "IsAutoManaged": false
+      }
+    ]
+  }
+}

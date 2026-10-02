@@ -1,12 +1,42 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.ReplayBrowser.Federation;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
 
 public enum ViewMode { SingleNode, Merged }
+
+/// <summary>⭐ One node's offset row, projected for the dump.</summary>
+public sealed record FederationNodeRowViewModel(int NodeId, long OffsetTicks);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="FederationPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠⚠ <b>No production host draws this panel.</b> 📐 Measured — <c>ReplayBrowserSubsystem</c>
+/// constructs <c>_federationPanel</c> and wires its <c>OnViewModeChanged</c> event, but never calls
+/// <see cref="FederationPanel.DrawContent"/> anywhere in the tree. ⇒ per the queue's caller-registers
+/// rule there is no host to call <c>DeclareInstrumented</c>/<c>Register</c> from —
+/// <see cref="FederationPanel.BuildViewModel"/> exists so the projection is ready the moment a host
+/// draws it, but this panel is NOT wired into <c>PanelSnapshot</c> yet. Reported rather than silently
+/// skipped, per the sweep's own rule.</para>
+/// </summary>
+public sealed record FederationPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    ViewMode ActiveMode,
+    bool HasNonZeroOffset,
+    int LocalEntitiesProviderNodeId,
+    IReadOnlyList<FederationNodeRowViewModel> Nodes) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ImGui panel for per-node replay federation controls.
@@ -50,6 +80,18 @@ public sealed class FederationPanel
 
     public void SetLocalEntitiesProvider(int nodeId)
         => _manager.SetLocalEntitiesProvider(nodeId);
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the manager's node offsets. No ImGui. ⚠ Not wired to
+    /// any host yet — see the view-model's own remarks.</summary>
+    public FederationPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var nodes = _manager.Contexts.Keys.OrderBy(x => x)
+            .Select(nodeId => new FederationNodeRowViewModel(
+                nodeId, _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L))
+            .ToList();
+        return new FederationPanelViewModel(
+            panelId, panelKind, ActiveMode, HasNonZeroOffset, _manager.LocalEntitiesProviderNodeId, nodes);
+    }
 
     public void DrawContent()
     {

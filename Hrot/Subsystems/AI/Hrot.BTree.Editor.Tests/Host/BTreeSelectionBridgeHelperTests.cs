@@ -49,14 +49,23 @@ public sealed class BTreeSelectionBridgeHelperTests
             Guid.NewGuid(), "TestTree", "/test.cs", false,
             string.Empty, string.Empty);
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet resolves through <c>NodePropertiesSource</c> now.</b>
+    /// 📄 §7.6 ②: <c>InspectorWindow</c>'s node arms were EXTRACTED to <c>details.nodeproperties</c>.
+    /// ⚠ The claim below is unchanged — it is about the BRIDGE, and the window was only the driver.
+    /// ⭐ The context is built by <c>DetailsContextBuilder</c>, the call the shell makes every frame.
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor    = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "BTree", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── MapSelection null / empty guards ──────────────────────────────────────
 
@@ -144,7 +153,7 @@ public sealed class BTreeSelectionBridgeHelperTests
     /// FIX-A end-to-end headless: confirms the full chain
     ///   SetFacetDispatcher(BuildFacetDispatcher(asset)) +
     ///   ActiveSubSelection = new BTreeNodeSelection(visualId)
-    ///   → inspector.GetCurrentFacet() != null.
+    ///   → source.FacetFor(ContextOf(store)) != null.
     /// This is the exact condition the lead's symptom report describes as broken.
     /// Uses Action node (Sequence tree): Action facet requires only a MethodName, no FloatParams.
     /// </summary>
@@ -160,12 +169,12 @@ public sealed class BTreeSelectionBridgeHelperTests
         var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset);
         dispatcher.Should().NotBeNull();
 
-        var inspector  = MakeInspectorWindow(store, dispatcher);
+        var source     = MakeFacetSource(dispatcher);
 
         // Simulate what AfterDraw publishes: canvas node click → BTreeNodeSelection.
         store.ActiveSubSelection = new BTreeNodeSelection(actionNode.VisualId);
 
-        var facet = inspector.GetCurrentFacet();
+        var facet = source.FacetFor(ContextOf(store));
 
         facet.Should().NotBeNull(
             "dispatcher + ActiveSubSelection → facet must be non-null");

@@ -64,27 +64,45 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     /// <b>no window titled "Details" was registered on any AI perspective</b> — measured by
     /// <c>search_graph</c> (gate 8): exactly one such window existed, on Blueprint.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) added the <c>Blueprint</c> row.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①: the shell is built for EVERY perspective.
+    /// ⚠ Blueprint used to be the <b>negative</b> control here — see
+    /// <see cref="TheBlueprintPerspective_KeepsItsPersistedWindowId"/> for what replaced it and why.
+    /// </remarks>
     [Theory]
     [InlineData("BTree")]
     [InlineData("HSM")]
+    [InlineData("Blueprint")]
     public void AnAiPerspective_GetsADetailsPanel(string perspective)
     {
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore());
 
-        Assert.NotNull(reg.AiDetails);
-        Assert.Equal("Details", reg.AiDetails!.Title);
-        Assert.Equal(perspective, reg.AiDetails.OwningPerspective);
+        Assert.NotNull(reg.Details);
+        Assert.Equal("Details", reg.Details!.Title);
+        Assert.Equal(perspective, reg.Details.OwningPerspective);
     }
 
     /// <summary>
-    /// ⛔ <b>The negative control, and it is a design claim, not a formality.</b> Blueprint already has
-    /// <c>BlueprintDetailsWindow</c>; a second Details there would be <b>two panels for one
-    /// concept</b> — 📌 ruling 9. ⚠ It would also collide on the window id, which <c>RegisterCore</c>
-    /// now refuses at startup.
+    /// ⛔⛔ <b>RE-EXPRESSED at <c>S1</c> — the claim INVERTED, and the ruling behind it did not.</b>
+    ///
+    /// <para>📌 <b>What this rail used to say:</b> <i>"Blueprint gets NO ai details panel — it already has
+    /// <c>BlueprintDetailsWindow</c>; a second Details there would be two panels for one concept
+    /// (ruling 9), and it would collide on the window id."</i> ⭐ <b>Both halves were correct and both are
+    /// now satisfied the other way round:</b> §7.3 ①③ keeps ONE panel by <b>retiring</b>
+    /// <c>BlueprintDetailsWindow</c> and handing Blueprint the SAME shell — ⛔ not by leaving Blueprint
+    /// without one.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>So the reachable claim moved to the id</b>, which is the half that can still break
+    /// silently. 📄 §5 / <c>TASKS_One_Shell_BP399.md</c> §4: <i>"the persisted ids are KEPT —
+    /// <c>ai_details_blueprint</c> stays"</i>, because a bare key rename <b>silently resets every saved
+    /// layout</b>. ⚠ Nothing else in the suite pins that string, and a refactor that regenerated the id
+    /// from the perspective name would produce a working editor with everyone's docking lost.</para>
     /// </summary>
     [Fact]
-    public void TheBlueprintPerspective_GetsNoAiDetailsPanel()
-        => Assert.Null(AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).AiDetails);
+    public void TheBlueprintPerspective_KeepsItsPersistedWindowId()
+        => Assert.Equal("ai_details_blueprint",
+                        AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).Details!.Id);
 
     /// <summary>
     /// ⭐⭐ <b>Registered by <c>RegisterWindows</c>, not left to the host.</b> 🔴 Asked of the
@@ -100,19 +118,24 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore());
         reg.RegisterWindows(wm);
 
-        Assert.True(wm.TryGetWindow(reg.AiDetails!.Id, out var found));
-        Assert.Same(reg.AiDetails, found);
+        Assert.True(wm.TryGetWindow(reg.Details!.Id, out var found));
+        Assert.Same(reg.Details, found);
     }
 
-    /// <summary>⚠ The two AI hosts must not share an id — both perspectives exist at once, and the
-    /// later registration would evict the earlier window.</summary>
+    /// <summary>⚠ The AI hosts must not share an id — all three perspectives exist at once, and the
+    /// later registration would evict the earlier window.
+    /// <para>⭐ <b><c>S1</c> widened this from two to THREE</b>: Blueprint's shell now goes through the
+    /// same registrar, so it joins the same collision surface. 📌 <c>RegisterCore</c> throws on a
+    /// duplicate id (Batch 81's guard) — which is exactly why <c>S1</c> could not be staged as "add the
+    /// shell now, retire the old window later" (<c>TASKS_One_Shell_BP399.md</c> §3).</para></summary>
     [Fact]
-    public void TheTwoAiDetailsPanels_HaveDistinctIds()
+    public void TheAiDetailsPanels_HaveDistinctIds()
     {
-        var bt = AsTheEditorBuildsIt("BTree", new EditorSelectionStore()).AiDetails!;
-        var hs = AsTheEditorBuildsIt("HSM",   new EditorSelectionStore()).AiDetails!;
+        var ids = new[] { "BTree", "HSM", "Blueprint" }
+                  .Select(p => AsTheEditorBuildsIt(p, new EditorSelectionStore()).Details!.Id)
+                  .ToArray();
 
-        Assert.NotEqual(bt.Id, hs.Id);
+        Assert.Equal(ids.Length, ids.Distinct().Count());
     }
 
     // ══ the routing — outline click → the panel's ROWS ═══════════════════════
@@ -145,13 +168,13 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
-        Assert.True(reg.AiDetails!.ShowingVariables);
-        Assert.Equal("Inputs", reg.AiDetails.Heading);
+        Assert.True(reg.Details!.ShowingVariables);
+        Assert.Equal("Inputs", reg.Details.Heading);
         Assert.Equal(new[] { "Ammo", "Health" }, DetailsRowNames(reg));
 
         reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);
 
-        Assert.Equal("Working State", reg.AiDetails.Heading);
+        Assert.Equal("Working State", reg.Details.Heading);
         Assert.Equal(new[] { "Cursor" }, DetailsRowNames(reg));
     }
 
@@ -169,7 +192,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionAssetGlobals);
 
-        Assert.Equal("Asset Globals", reg.AiDetails!.Heading);
+        Assert.Equal("Asset Globals", reg.Details!.Heading);
     }
 
     /// <summary>
@@ -187,8 +210,8 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectItem(BlackboardMyBlueprintModel.SectionInputs, "Ammo");
 
-        Assert.Equal("Ammo", reg.AiDetails!.Variables.SelectedVariablePath);
-        var view = reg.AiDetails.Variables.Model.Build();
+        Assert.Equal("Ammo", reg.Details!.Variables.SelectedVariablePath);
+        var view = reg.Details.Variables.Model.Build();
         Assert.True(view.IsSelected(view.AllRows.Single(r => r.ShortName == "Ammo")));
         Assert.False(view.IsSelected(view.AllRows.Single(r => r.ShortName == "Health")));
     }
@@ -205,12 +228,12 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         store.ActiveAsset = FakeAsset.With(Var("Health"));
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
-        Assert.True(reg.AiDetails!.ShowingVariables);
+        Assert.True(reg.Details!.ShowingVariables);
 
-        reg.AiDetails.ShowVariables(VariableOutlineSelection.None);
+        reg.Details.ShowVariables(VariableOutlineSelection.None);
 
-        Assert.False(reg.AiDetails.ShowingVariables);
-        Assert.Null(reg.AiDetails.Heading);
+        Assert.False(reg.Details.ShowingVariables);
+        Assert.Null(reg.Details.Heading);
     }
 
     /// <summary>⭐ Before any click the panel shows NOTHING — ⛔ not an empty table, which reads as
@@ -218,7 +241,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     [Fact]
     public void BeforeAnyClick_ThePanelShowsNothing()
         => Assert.False(AsTheEditorBuildsIt("BTree", new EditorSelectionStore())
-                        .AiDetails!.ShowingVariables);
+                        .Details!.ShowingVariables);
 
     // ══ the services the panel needs, asked of the panel ═════════════════════
 
@@ -232,7 +255,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     [InlineData("HSM")]
     public void TheDetailsPanel_HasItsRunStateSource(string perspective)
         => Assert.True(AsTheEditorBuildsIt(perspective, new EditorSelectionStore())
-                       .AiDetails!.Variables.HasRunStateSource);
+                       .Details!.Variables.HasRunStateSource);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 87's contract, applied to the new host.</b> 🔴 The twelfth instance was a Details
@@ -246,7 +269,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     {
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore(), withEditService: true);
 
-        var table = ((IVariableTableHost)reg.AiDetails!).VariableTable;
+        var table = ((IVariableTableHost)reg.Details!).VariableTable;
         Assert.NotNull(table);
         Assert.Contains(table!, reg.BoundTables);
         Assert.True(table!.HasEditGestures);
@@ -265,7 +288,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         //   statically (CS0184) and the rail would not compile the day someone adds the interface,
         //   which is precisely the day it should FAIL instead.
         => Assert.DoesNotContain(typeof(IDetailsSurfaceClaimant),
-                                 typeof(AiDetailsWindow).GetInterfaces());
+                                 typeof(DetailsWindow).GetInterfaces());
 
     /// <summary>⭐ The outline still claims, unchanged — the half that DOES drive the panel.</summary>
     [Fact]
@@ -298,7 +321,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private static string[] DetailsRowNames(PerspectiveWorkspaceRegistrar reg)
-        => reg.AiDetails!.Variables.Model.Build().AllRows
+        => reg.Details!.Variables.Model.Build().AllRows
               .Select(r => r.ShortName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
     private static BlackboardVariableEntry Var(string n) => new(n, typeof(float), null);

@@ -179,7 +179,14 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    DERIVED from that name rather than passed — which is the whole fix, since EditorSubsystem
         //    never passed it. ⇒ it gets a My Blueprint outline too (7 → 8).
         // ⚠ Batch 88b: BP-317 -- the AI Details panel, on the same derived host kind (8 → 9).
-        Assert.Equal(9, reg.RegisteredWindows.Count);
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        // ⚠ CE-303 (2026-09-21): ONE FEWER per perspective — RuntimeInspectorWindow is dissolved
+        //    into details.runtime.<kind> views (§4's closed question Q-iii). ⭐ The count is kept
+        //    EXACT rather than relaxed: it is what makes an accidental extra window visible.
+        Assert.Equal(7, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC4: With manager, 8 windows per perspective (+1 in Batch 79) ─
@@ -196,7 +203,14 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    → 11 (Batch 88b, BP-317: the AI Details panel).
         // ⭐ The name of this test is kept so the AIE-034 scenario stays traceable; the count is what
         //    moved, deliberately, in all three batches.
-        Assert.Equal(11, reg.RegisteredWindows.Count);
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        // ⚠ CE-303 (2026-09-21): ONE FEWER per perspective — RuntimeInspectorWindow is dissolved
+        //    into details.runtime.<kind> views (§4's closed question Q-iii). ⭐ The count is kept
+        //    EXACT rather than relaxed: it is what makes an accidental extra window visible.
+        Assert.Equal(9, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC5: All ids are distinct across three perspectives ───────────
@@ -226,10 +240,20 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    on BTree and HSM only — Blueprint keeps its own, which is why this is +2 and not +3).
         // ⚠ 29 → 31 (Batch 88b: the AI Details panel, again BTree and HSM only — Blueprint keeps
         //    BlueprintDetailsWindow, so again +2 and not +3).
+        // ⛔⛔ 31 → 32 (S1 / BP-399, 2026-08-22 — DESIGN_Details_Panel_View_Switching.md §7.3 ①: the shell
+        //    is built for EVERY perspective, so Blueprint gets the third AI Details panel and the 88b
+        //    note above is SUPERSEDED. BlueprintDetailsWindow retires in the same commit — it claims the
+        //    same id, and RegisterCore throws on a duplicate).
         // ⭐ What this test is ABOUT is unchanged — every id is still distinct across perspectives,
         //    the property that would break if a new window forgot its perspective suffix.
-        Assert.Equal(31, allIds.Count);
-        Assert.Equal(31, allIds.Distinct().Count());
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        // ⚠ CE-303 (2026-09-21): THREE fewer — one dissolved RuntimeInspectorWindow per AI
+        //    registrar (§4's Q-iii). ⭐ Exact, not relaxed: the DISTINCT half is the real claim.
+        Assert.Equal(26, allIds.Count);
+        Assert.Equal(26, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

@@ -24,7 +24,7 @@ namespace Hrot.Network.BDC.Tests
                 geoTransform: geoTransform,
                 eventBus:     eventBus,
                 localNodeId:  1,
-                role:         NodeRole.Brain | NodeRole.MuscleGround | NodeRole.ImageGenerator);
+                role:         NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Map2D);
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace Hrot.Network.BDC.Tests
             var geoTransform = Substitute.For<IGeographicTransform>();
             var eventBus     = new FdpEventBus();
             var factory = new BdcNetworkFactory(
-                null, entityMap, geoTransform, eventBus, 1, NodeRole.ImageGenerator);
+                null, entityMap, geoTransform, eventBus, 1, NodeRole.Map2D);
             var module = factory.CreateReplicationModule();
             Assert.True(module.DriveFromNetwork);
         }

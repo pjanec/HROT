@@ -1,0 +1,30 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000040-0000-0000-0000-000000000000
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Explicit, Size = 4)]
+public struct T40_BehaviorResolverAsset_Blackboard
+{
+    [FieldOffset(0)]
+    public float Speed;
+}
+
+/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="T40_BehaviorResolverAsset_Block"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct T40_BehaviorResolverAsset_BlockState
+{
+    public float Doubled;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct T40_BehaviorResolverAsset_Block
+{
+    [FieldOffset(0)]
+    public T40_BehaviorResolverAsset_Blackboard In;
+    [FieldOffset(8)]
+    public T40_BehaviorResolverAsset_BlockState St;
+}

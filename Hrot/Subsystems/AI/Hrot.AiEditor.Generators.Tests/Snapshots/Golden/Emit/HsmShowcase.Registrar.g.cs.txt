@@ -28,6 +28,7 @@ public static class HsmShowcaseRegistrar
             Name          = "HsmShowcase",
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
         });
     }
 }

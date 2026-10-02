@@ -107,8 +107,8 @@ Auto-name as **`_auto_{VisualId:N}`** (BTree) or **`_auto_{StableId:N}`** (HSM):
 
 ### 3.5 Lifecycle — auto-delete with the node
 When the owning action node is **deleted**, the command sink (`BTreeCommandSink` / `HsmCommandSink`) **removes the
-node-owned variable** from the blackboard list and triggers a **re-pack** (so its 100-byte inline memory isn't
-orphaned). This mirrors the Subtree-allocation lifecycle ("adding/removing a Subtree node adds/removes its
+node-owned variable** from the blackboard list and triggers a **re-pack** (so its bytes in the params
+region aren't orphaned). This mirrors the Subtree-allocation lifecycle ("adding/removing a Subtree node adds/removes its
 allocation").
 
 ### 3.6 Presentation (Variables panel)
@@ -119,7 +119,8 @@ vars" toggle). The designer experiences "values on the node"; the panel stays cl
 ### 3.7 Interactions with existing machinery (all handled)
 - **Unused-variable diagnostics (DD §12):** never false-positives — the node's `ExpressionTargetField` gives the
   auto-var a reference count of 1 while the node lives, and §3.5 deletes it when the node dies.
-- **Bin-packing (DD §6):** identical to any master variable (inline tier, spill to heavy as needed).
+- **Bin-packing (DD §6):** identical to any master variable — it joins the asset's params region, which is
+  seated in whichever occurrence tier fits.
 - **Approach-A aliasing (DD §7):** **EXCLUDE** node-owned variables from the "Defined Variables" **drop-target**
   list — a sub-tree must not alias a node-private variable. (UI filter only.)
 - **Cross-region conflict validator (DD §9):** no false positives — a node-owned var has exactly one writer (its

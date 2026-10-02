@@ -23,7 +23,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterEvent<DestructionOrder>();
             return repo;
         }
@@ -49,11 +49,9 @@ namespace Hrot.SimHost.Tests
         {
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(netId));
-            repo.AddComponent(entity, new NetworkOwnership
-            {
-                PrimaryOwnerId = primaryOwner,
-                LocalNodeId    = localNode
-            });
+            repo.AddComponent(entity, new NetworkAuthority(
+                primaryOwnerId: primaryOwner,
+                localNodeId:    localNode));
             return entity;
         }
 

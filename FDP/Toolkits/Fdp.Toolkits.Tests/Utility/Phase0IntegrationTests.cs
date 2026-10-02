@@ -69,22 +69,18 @@ namespace Fdp.Toolkit.Tests
             var m2 = w.SpawnSquadMember(leader, health01: 1f, ammo01: 1f);
             {
                 ref var roster = ref w.Repo.GetComponentRW<UnitRoster>(leader);
-                int slot1 = UnitRoster.IndexOf(ref roster, (long)m1.PackedValue);
-                int slot2 = UnitRoster.IndexOf(ref roster, (long)m2.PackedValue);
+                int slot1 = UnitRoster.IndexOf(ref roster, m1);
+                int slot2 = UnitRoster.IndexOf(ref roster, m2);
                 Assert.True(slot1 >= 0, "m1 should be in roster");
                 Assert.True(slot2 >= 0, "m2 should be in roster");
                 Assert.NotEqual(slot1, slot2);
             }
 
-            // ── P0.5: Blackboard1024.Project<T> ─────────────────────────────────────
-            {
-                ref var bb = ref w.Repo.GetComponentRW<Blackboard1024>(leader);
-                ref var proj = ref Blackboard1024.Project<TestProjectionStruct>(ref bb);
-                proj.Value = 42;
-                // Re-read via projection must see the mutation
-                ref var reread = ref Blackboard1024.Project<TestProjectionStruct>(ref bb);
-                Assert.Equal(42, reread.Value);
-            }
+            // ⛔ P0.5 WAS HERE — `Blackboard1024.Project<T>` aliasing. Deleted by `P4`-① with its
+            //    component. ⭐ The CLAIM is not lost: `OccurrenceStoreAccessTests` pins the same
+            //    property on the storage that replaced it — round-trip through a provisioned slot,
+            //    `DistinctVariableIds_AreIndependentSlots_NoCollision`, and
+            //    `A2_R5_ResolveOccurrence_LandsAtTheAllocatorsOwnOffset`. 📄 §30.16 ④.
 
             // ── P0.6: EQS sensor child entities ──────────────────────────────────────
             var coverSensor = w.SpawnEqsSensor(agent, Fnv1a32("CoverQuery"), topScore: 0.85f, count: 3, instanceId: 0);

@@ -140,35 +140,14 @@ public sealed class BTreeNodeCatalog : INodeCatalog
 
     /// <summary>
     /// Derives a friendly palette label for a generated AiPrimitive from its <c>TickCore</c> FQN.
-    /// The Blueprint compiler emits <c>{Namespace}.{SanitizedName}_{BlueprintId:X8}_Bp.TickCore</c>
-    /// (see <c>AiPrimitiveEmitter</c>), so strip <c>.TickCore</c>, take the declaring type's short
-    /// name, then drop the trailing <c>_{8 hex}_Bp</c> to recover the authored blueprint name.
-    /// Falls back to the declaring type's short name if the pattern does not match.
+    ///
+    /// <para>⭐⭐ <b><c>CE-414</c>: the parsing MOVED to
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming"/> and this forwards to it</b>, because
+    /// the HSM editor's compose step needs the same convention. ⛔ Two copies of the emitter's class-name
+    /// format is how one of them quietly stops matching (ruling 9).</para>
     /// </summary>
     internal static string AiPrimitiveDisplayName(string tickCoreFqn)
-    {
-        int lastDot = tickCoreFqn.LastIndexOf('.');
-        string declFqn = lastDot > 0 ? tickCoreFqn.Substring(0, lastDot) : tickCoreFqn;
-        int declDot = declFqn.LastIndexOf('.');
-        string declShort = declDot >= 0 ? declFqn.Substring(declDot + 1) : declFqn;
-
-        string name = declShort;
-        if (name.EndsWith("_Bp", StringComparison.Ordinal))
-            name = name.Substring(0, name.Length - 3);
-
-        int us = name.LastIndexOf('_');
-        if (us > 0 && name.Length - us - 1 == 8 && IsHex(name.AsSpan(us + 1)))
-            name = name.Substring(0, us);
-
-        return string.IsNullOrEmpty(name) ? declShort : name;
-
-        static bool IsHex(ReadOnlySpan<char> s)
-        {
-            foreach (var c in s)
-                if (!Uri.IsHexDigit(c)) return false;
-            return true;
-        }
-    }
+        => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.DisplayNameFromTickCoreFqn(tickCoreFqn);
 
     private static IReadOnlyList<NodeCatalogEntry> BuildStaticEntries()
     {

@@ -43,11 +43,54 @@ public class PerspectiveWorkspaceRegistrar
     /// <summary>The Find-Results window for this perspective.</summary>
     public FindResultsWindow FindResults { get; }
 
-    /// <summary>The Inspector window for this perspective.</summary>
-    public InspectorWindow Inspector { get; }
+    // ⛔⛔ S5 (BP-399, 2026-08-22) — THE INSPECTOR WINDOW IS RETIRED.
+    //    📄 DESIGN_Details_Panel_View_Switching.md §7.6 ⑤ / §6 L5 ("per item, after its replacement is
+    //       live"). All six of its arms are Details views or menu items now; after S4 removed the last
+    //       one it drew nothing at all, so keeping it registered would have shipped an empty window.
+    //    ⚠⚠ AND THE LAYOUT HALF IS REAL — I first claimed it was a no-op and was WRONG. A grep over
+    //       *.cs found only this file, so I concluded `ai_inspector_*` was in no layout. 🔴
+    //       TheDefaultLayoutIsNotStaleTests caught it: the ids ARE in layout/default/imgui.ini and
+    //       layout/default/fdp_windows.json, and both are now updated. ⭐ B103b's stale-layout rail is
+    //       exactly the control that was supposed to catch this, and it did — on the first run.
 
-    /// <summary>The Runtime Inspector window for this perspective.</summary>
-    public RuntimeInspectorWindow RuntimeInspector { get; }
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S2</c> — this perspective's NODE-PROPERTIES services.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3's catalogue · §7.6 ②.
+    /// <para>⚠ <b>The composition root wires the facet DISPATCHER through this</b>, not through
+    /// <see cref="Inspector"/> any more — the node arms are a Details view now
+    /// *(<c>Shell.NodePropertiesDetailsView</c>)</para>
+    /// </summary>
+    public Shell.NodePropertiesSource NodeProperties { get; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>S4</c> — the PARAMETER SYNCHRONIZATION services for this perspective.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ④. ⛔ Per-PERSPECTIVE, not per-window
+    /// *(<c>R-120</c>)* — the composition root re-wires the resolver when the document changes.
+    /// </summary>
+    public Shell.ParameterSyncSource ParameterSync { get; } = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-303</c> — a runtime pane becomes a DETAILS VIEW, and there is no window any more.</b>
+    /// 🔒 <c>DESIGN_Details_Panel_View_Switching.md</c> §4, closed question <c>Q-iii</c>:
+    /// <c>RuntimeInspectorWindow</c> <i>"⛔ registry on the wrong axis (<c>R-112</c>) ⇒ <b>dissolves</b>:
+    /// 3 panes → 3 predicated views"</i>. 📐 The code had kept BOTH for a while — the window drew panes
+    /// by an <c>AssetKind</c> lookup while the same panes were also offered as
+    /// <c>details.runtime.&lt;kind&gt;</c>.
+    ///
+    /// <para>⛔⛔ <b>Keeping both was not merely redundant — it BLOCKED pinning.</b> The window has no
+    /// <see cref="Shell.DetailsContext"/> to give a pane, so as long as it drew them the pane had to
+    /// resolve its own entity from a global ⇒ a pinned view could not honour its frozen entity.
+    /// 🔒 User, <c>2026-09-21</c>: <i>"let it dissolve."</i></para>
+    ///
+    /// <para>⚠ <b>The duplicate-id guard is inherited, not lost</b>: a second pane for one kind now
+    /// throws from <see cref="Shell.DetailsViewRegistry.Add"/> — 📌 the <c>G4</c> precedent, fail where
+    /// it is wired. ⛔ It used to be silent in the window's <c>_panes.Find</c> path.</para>
+    /// </summary>
+    public void RegisterRuntimePane(Debug.IRuntimeInspectorPane pane)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        DetailsViews.Add(Shell.RuntimeDetailsViewDescriptor.For(pane));
+    }
 
     /// <summary>The Trace Timeline window for this perspective.</summary>
     public TraceTimelineWindow TraceTimeline { get; }
@@ -71,6 +114,20 @@ public class PerspectiveWorkspaceRegistrar
     public AiWatchWindow? Watch { get; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-071</c> — the per-perspective comparison SUMMARY panel; <see langword="null"/> when no
+    /// <see cref="Comparison.ComparisonSessionRegistry"/> was supplied.
+    /// 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c>.
+    /// <para>⚠ Absent rather than empty when the host has no comparison capability — ruling 49.</para>
+    /// </summary>
+    public Comparison.UI.ComparisonSummaryPanel? ComparisonSummary { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-071</c> — the per-perspective comparison CHANGES sidebar; <see langword="null"/> when no
+    /// session registry was supplied.
+    /// </summary>
+    public Comparison.UI.ComparisonSidebar? ComparisonChanges { get; }
+
+    /// <summary>
     /// ⭐⭐ <c>C-outline</c> — the My Blueprint outline for this perspective. ⛔ Null on the Blueprint
     /// perspective, which has its own <c>BlueprintMyBlueprintWindow</c>; non-null on BTree and HSM.
     /// </summary>
@@ -90,7 +147,7 @@ public class PerspectiveWorkspaceRegistrar
     /// <para>⭐ 📌 <c>Q32</c> ruling 6 — <i>"the same Details panel is REUSED for every asset type"</i>:
     /// what is reused is <c>VariableDetailsSection</c>, which both windows host.</para>
     /// </summary>
-    public AiDetailsWindow? AiDetails { get; }
+    public DetailsWindow? Details { get; }
 
     /// <summary>
     /// ⭐ The one value formatter, shared by <see cref="Variables"/> and <see cref="Watch"/>.
@@ -180,6 +237,12 @@ public class PerspectiveWorkspaceRegistrar
     ///   that cannot observe the sim. 📌 <c>R-66</c>: this replaced <c>IDebugSessionRegistry</c>, whose
     ///   <c>ActiveSession</c> means <i>"a document is open"</i> and made <c>Planning</c> unreachable.
     /// </param>
+    /// <param name="writeLive">
+    ///   ⭐⭐ The host's LIVE blackboard writer, used only while frozen *(📌 ruling 15)*.
+    ///   ⛔ <b>Null is not "refuse"</b> — it produces <c>Outcome.LiveWriteUnavailable</c>, whose message
+    ///   says <i>"no live writer is installed for this host"</i>. ⚠ That is the honest answer for
+    ///   BTree/HSM, which have no live write path at all.
+    /// </param>
     /// <param name="isFrozen">
     ///   ⭐ Whether the debugger holds time — <c>IDataBreakpointManager.IsPaused</c> OR
     ///   <c>IEngineDebugTimeController.IsPausedByDebugger</c> (📌 ruling 15 names both arms).
@@ -205,7 +268,12 @@ public class PerspectiveWorkspaceRegistrar
         BlackboardHostKind? hostKind = null,
         DecodeRawValue? valueDecoder = null,
         Func<bool>? isSimUp = null,
-        Func<bool>? isFrozen = null)
+        Func<bool>? isFrozen = null,
+        WriteLiveValue? writeLive = null,
+        Shell.IEntitySelectionSource? entitySelection = null,
+        StagedWriteView? stagedWrites = null,
+        WatchEntityPicker? entityPicker = null,
+        WatchEntityIdentity? entityIdentity = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -223,6 +291,20 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
+
+        // ⭐⭐⭐ L6.1a — THE WORKSPACE, built before ANY host and after the argument guards.
+        //   ⛔ Everything below reads DetailsViews / EntitySelection / StagedWrites THROUGH it, and
+        //     AttachEditGestures forwards the staged view during this very constructor. A later
+        //     assignment would wire the hosts built before it against nothing — 📌 exactly L3.3's
+        //     construction-order defect, which the production-built rail caught on its first run.
+        //   ⚠ `_runState` is assigned just below, so the workspace takes a LAMBDA rather than the
+        //     field: a context reads the run state at BUILD time, per frame, never captured.
+        Workspace = new Shell.PerspectiveWorkspace(
+            // ⚠ `_runState!` — the field is assigned two lines below and the compiler's flow analysis
+            //   cannot see that the lambda only runs later. ⛔ Constructing the workspace AFTER the
+            //   assignment would read better but put it after the run-state comment block, which is
+            //   where a future edit would insert a host; the bang is the smaller risk, stated.
+            perspectiveName, selectionStore, () => _runState!(), entitySelection, stagedWrites);
         // ⭐ Row 58 — the run state, from signals that are ABOUT TIME.
         // 🔴🔴 Batch 84 / R-66: this used to be RunStateSource.For(debugRegistry), on the premise that
         //    "a live session is what running means to this editor". MEASURED FALSE — ActiveSession is
@@ -231,6 +313,8 @@ public class PerspectiveWorkspaceRegistrar
         // ⛔ The registry is still a constructor argument, and still right for what it is: which
         //    document's session is active. It is simply not a clock.
         _runState = RunStateSource.For(isSimUp, isFrozen);
+        // ⭐ 2026-08-21 — the same two predicates as a sentence, for the refusal message.
+        _describeRunState = RunStateSource.Describe(isSimUp, isFrozen);
         var suffix = perspectiveName.ToLowerInvariant();
         var vl     = validators ?? Array.Empty<IAssetValidator>();
 
@@ -239,31 +323,43 @@ public class PerspectiveWorkspaceRegistrar
             idOverride:        $"ai_find_results_{suffix}",
             owningPerspective: perspectiveName);
 
-        Inspector = new InspectorWindow(
-            store:                         selectionStore,
-            refactorService:               refactorService,
-            findResults:                   FindResults,
-            idOverride:                    $"ai_inspector_{suffix}",
-            owningPerspective:             perspectiveName,
-            schemaExporter:                schemaExporter,
-            facetEditService:              facetEditService,
-            facetCustomDrawers:            facetCustomDrawers,
-            expressionTargetFieldAccessor: expressionTargetFieldAccessor,
-            // ⭐⭐⭐ Batch 92 (92d) — THE SILENT-DEFAULT PATTERN, textbook shape.
-            // 🔴 This is the ONLY production construction of InspectorWindow, and it omitted the
-            //    resolver while HOLDING the catalog that answers it two lines up ⇒ the PARAMETER
-            //    SYNCHRONIZATION panel rendered "Sub-asset resolver not configured." everywhere
-            //    (InspectorWindow:449), so no designer could author a sync binding at all.
-            // ⭐ The rule: "a production caller that HAS a dependency must PASS it." The catalog is
-            //    a constructor argument; nothing new is introduced here.
-            // ⚠ Coherent only now: 92b makes the bindings this panel authors actually execute.
-            subAssetResolver:              id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
+        // ⭐⭐⭐ S4: the sub-asset resolver feeds the PARAMETER SYNCHRONIZATION Details view.
+        //    📌 The 2026-08-16 rule — this registrar HOLDS the catalog, so it passes it.
+        //    🔴 92d is this seam's own history of NOT doing so: the (now-retired) InspectorWindow was
+        //       constructed here without it while the catalog sat two lines up, and every designer saw
+        //       "Sub-asset resolver not configured." Kept as a named refusal, and railed.
+        ParameterSync.SetSubAssetResolver(id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
 
-        RuntimeInspector = new RuntimeInspectorWindow(
-            store:             selectionStore,
-            registry:          debugRegistry,
-            idOverride:        $"ai_runtime_inspector_{suffix}",
-            owningPerspective: perspectiveName);
+        // ⭐⭐⭐ S2 (BP-399) — THE NODE-PROPERTIES SERVICES, and the ONE facet cache.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §7.3's catalogue · §7.6 ②.
+        // 🔴 These four used to be InspectorWindow constructor arguments, which is why the composition
+        //    root re-wired the DISPATCHER by calling `registrar.Inspector.SetFacetDispatcher(...)`.
+        //    ⛔ The node arms are a VIEW now, and a view instance is per-WINDOW (docked · float · pin)
+        //    while these services are per-PERSPECTIVE — so they live here, once (R-120).
+        // ⭐ Registered into THIS perspective's catalogue immediately, so the root has nothing extra to
+        //   remember (R-67). ⚠ The descriptor's predicate asks the source whether it can map the
+        //   selection at all, so a perspective with no dispatcher simply never offers the view.
+        NodeProperties = new Shell.NodePropertiesSource();
+        NodeProperties.SetFacetEditService(facetEditService, facetCustomDrawers);
+        NodeProperties.SetExpressionTargetFieldAccessor(expressionTargetFieldAccessor);
+
+        // ⛔⛔ REGISTERED FOR THE FACET-DISPATCHING HOSTS ONLY — and this is NOT §7.3 ③'s mistake
+        //    repeated, it is a DIFFERENT question with the same test.
+        // 📐 FOUND BY THE ID GUARD, at startup, on the first full-editor run of S2: registering this
+        //    unconditionally collided with BlueprintDetailsContribution's own `details.nodeproperties`
+        //    (§7.4 draws them as TWO classes — NodePropertiesDetailsView from InspectorWindow and
+        //    BlueprintNodeDetailsView from BlueprintDetailsWindow — and §7.6 ② gives them ONE id).
+        //    ⭐ Batch 81's duplicate-id guard did exactly its job: loud at construction, not a silent
+        //       shadow (the G4 precedent).
+        // ⭐⭐ WHY THE GATE IS HONEST HERE: §7.3 ③ objects to HostKindOf gating THE SHELL, because
+        //    "which blackboard host is this?" has nothing to do with whether a perspective deserves a
+        //    Details panel. ⛔ But it has EVERYTHING to do with whether a perspective's nodes are
+        //    described by FACETS: the facet dispatcher is a BTree/HSM concept, and EditorSubsystem
+        //    wires one for exactly those two. ⇒ Blueprint's nodes are described by IBlueprintNodeDrawer
+        //    instead, and its own root contributes that view.
+        // ⚠ Without the gate this was harmless at DRAW time (Blueprint has no dispatcher, so CanShow
+        //   is always false) and fatal at REGISTRATION time — which is the better place to fail.
+        // ⭐ The registration itself is a few lines down, where `effectiveHost` is computed.
 
         TraceTimeline = new TraceTimelineWindow(
             store:             selectionStore,
@@ -288,11 +384,58 @@ public class PerspectiveWorkspaceRegistrar
             //    validator two lines up and not to this window.
             actionSchemaExporter: schemaExporter);
 
+        // ⭐⭐⭐ L3.3 — BlackboardAuthoring is built HERE (like Details), so the claim chain never
+        //    sees it; its arm is mirrored through the SAME one implementation.
+        ContributeDetailsViews(BlackboardAuthoring);
+
+        // ⭐⭐⭐ CE-071 — THE COMPARISON RESULT SURFACES, mounted at last.
+        // 📄 docs/DESIGN_Comparison_Ui_Mounting.md §4 D1/D2 · §7's three blockers.
+        //
+        // 📐 Measured 2026-08-27: ComparisonSummaryPanel and ComparisonSidebar had ZERO production
+        //    constructions and reached no WindowManager on either host ⇒ the comparison round-trip
+        //    completed on the editor and its RESULT was invisible. The only class that ever named them
+        //    was SharedAiWindowRegistrar, which nothing called (deleted, CE-070).
+        //
+        // ⭐⭐ Built HERE and not left to the host, for the reason RegisterWindows states in its own
+        //    words about the other five: "a surface the host must remember to attach is how these five
+        //    came to be unreachable in the first place." ⛔ Two hosts × three perspectives = six places
+        //    to forget.
+        //
+        // ⭐ Guarded on sessionRegistry, which is the honest capability test: with no registry there is
+        //    no comparison state to show, so the windows are ABSENT rather than empty (ruling 49) —
+        //    exactly how Breakpoints/Watch treat a missing breakpointManager.
+        if (sessionRegistry != null)
+        {
+            ComparisonSummary = new Comparison.UI.ComparisonSummaryPanel(
+                registry:          sessionRegistry,
+                // ⭐⭐ B3 — the store is PASSED. The registrar HOLDS it (it handed the same instance to
+                //    four windows above), and a production caller that HAS a dependency must pass it
+                //    (the 2026-08-16 rule). ⛔ Without it the panel renders HasSession:false forever.
+                store:             selectionStore,
+                idOverride:        $"ai_comparison_summary_{suffix}",
+                owningPerspective: perspectiveName);
+
+            ComparisonChanges = new Comparison.UI.ComparisonSidebar(
+                registry:          sessionRegistry,
+                store:             selectionStore,
+                idOverride:        $"ai_comparison_changes_{suffix}",
+                owningPerspective: perspectiveName);
+        }
+
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,
             validators:        vl,
             idOverride:        $"ai_diagnostics_{suffix}",
-            owningPerspective: perspectiveName);
+            owningPerspective: perspectiveName,
+            // ⭐⭐⭐ AIE-053 — the short-name collision rows land in the ISSUE TABLE.
+            // 🔒 User, 2026-08-22: "if collision strip is a warning about naming collision or
+            //    something, it need to be routed to where the collision can be seen or fixed."
+            // 📄 docs/designs/blueprint-integ-1/DESIGN.md §5.7: "surface SubElementCollision
+            //    diagnostics … in the shared windows."
+            // ⚠ The strip this replaces was DEAD — it called GetBindingAmbiguities, which returns
+            //   Array.Empty unconditionally. See SubElementCollisionDiagnostics.
+            // ⭐ PASSED, not defaulted: this registrar HOLDS the exporter (2026-08-16 rule).
+            schemaDiagnostics: () => Validation.SubElementCollisionDiagnostics.For(schemaExporter));
 
         // ⭐⭐ Track C, WIRED (Batch 79). Everything below was built, tested and hosted by NOTHING
         //    until this batch -- the table, its dialog launcher, the tick highlight and the outline.
@@ -339,7 +482,13 @@ public class PerspectiveWorkspaceRegistrar
                 //    the whole dialog exists for has never landed in production, on any host.
                 // ⭐ Derived from the store this registrar already holds — ⛔ nothing new for the
                 //   composition root to forget (R-67).
-                assetOf:       row => DeclarationOwnerOf(selectionStore, row));
+                assetOf:       row => DeclarationOwnerOf(selectionStore, row),
+                // ⭐⭐⭐ Batch 97 (97c) — THE LIVE WRITER, host-supplied. 🔴 Batch 96 measured this
+                //    parameter as never passed, so VariableEditCommit returned LiveWriteUnavailable
+                //    on every paused edit, on every host. ⛔ It is NOT defaulted here: only a host
+                //    that HAS a live write path may supply one, and BTree/HSM genuinely do not —
+                //    their refusal stays honest rather than becoming a guessed byte offset.
+                writeLive:     writeLive);
 
             // ⭐⭐⭐ Batch 87 — ONE attach point, reached through IVariableTableHost.
             // 🔴🔴 THE TWELFTH INSTANCE, and it was the line right here: this said
@@ -353,7 +502,8 @@ public class PerspectiveWorkspaceRegistrar
             //    idOverride. 🔴 Once 89a puts the modal in the frame, all three registrars draw one
             //    every frame; sharing one ImGui id was correct only because `if (!IsOpen) return` fires
             //    first for the other two — an undocumented guard between two popups with one id.
-            EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix);
+            EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix,
+                                             describeRunState: _describeRunState);
         }
 
 
@@ -363,6 +513,29 @@ public class PerspectiveWorkspaceRegistrar
         //    let EditorSubsystem forget it for both AI perspectives while the tests passed.
         //    ⛔ The parameter survives as an OVERRIDE, so an unusual perspective name can still say so.
         var effectiveHost = hostKind ?? HostKindOf(perspectiveName);
+
+        // ⭐⭐⭐ S2 — the generic NODE-PROPERTIES view, for the facet-dispatching hosts (see the note
+        //    beside NodeProperties above for why this gate is honest and §7.3 ③'s is not).
+        if (effectiveHost != null)
+            DetailsViews.Add(Shell.NodePropertiesDetailsViewDescriptor.For(NodeProperties));
+
+        // ⭐⭐ S3 (§7.6 ③) — the UTILITY CONSIDERATION stub, ported honestly as a stub.
+        //    ⛔ UNGATED, and that is the point: its predicate is the SELECTION's existence, so it offers
+        //       itself only where a consideration can be selected. Gating it by host kind would be a
+        //       second, weaker statement of the same rule (§7.3 ③'s objection), and the selection
+        //       already answers it exactly.
+        //    ⚠ Measured 2026-08-22: nothing in this repo RAISES UtilityConsiderationSelection, so this
+        //      view never claims the panel today. It is DORMANT, not dead — the utility-AI editor is
+        //      designed (docs/designs/utility-ai/) and unbuilt. See the view's own remarks.
+        DetailsViews.Add(Shell.UtilityConsiderationDetailsViewDescriptor.For());
+
+        // ⭐⭐⭐ S4 (§7.6 ④) — PARAMETER SYNCHRONIZATION, the last of BP-399's five rows.
+        //    ⛔ UNGATED for the same reason as S3: the predicate asks whether the SELECTION is a subtree
+        //       node on an IBTreeSyncableAsset, which is a sharper statement than any host-kind gate and
+        //       is exactly the condition the retired arm tested.
+        //    ⚠ R-99 is satisfied now, not waived: the bindings this table authors reach the runtime
+        //      since Q49 (identity survives a reload) and Q50 (the master declares the slice).
+        DetailsViews.Add(Shell.ParameterSyncDetailsViewDescriptor.For(ParameterSync));
 
         // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
@@ -414,21 +587,6 @@ public class PerspectiveWorkspaceRegistrar
                 if (source != null) Variables.ShowSection(section, source);
             };
 
-            // ⭐⭐⭐ 88b / BP-317 — the DETAILS panel for BTree and HSM.
-            //    📌 Q32 ruling 6: "The same Details panel is REUSED for every asset type — HSM, BTree,
-            //       Blueprint ⇒ this is a cross-host deliverable, not a blueprint one."
-            //    📐 Measured (gate 8): exactly ONE production window was titled "Details" and exactly
-            //       ONE type hosted a VariableDetailsSection — BlueprintDetailsWindow, on Blueprint
-            //       only. ⛔ The AI perspectives had NO Details panel at all (R-60), which is what
-            //       R-62 cites for keeping visual checks suspended on those two hosts.
-            //    ⭐⭐ Built HERE and not by the composition root, for the same reason MyBlueprint and
-            //       Variables are: a surface the host must remember to attach is how five surfaces
-            //       came to be unreachable. ⇒ EditorSubsystem gains NOTHING to forget.
-            AiDetails = new AiDetailsWindow(
-                id:                $"ai_details_{suffix}",
-                owningPerspective: perspectiveName,
-                // ⭐ The ONE formatter, shared with the standalone table and the Watch.
-                formatter:         ValueFormatter);
 
             // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
             //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
@@ -446,13 +604,51 @@ public class PerspectiveWorkspaceRegistrar
             //    and the run-state install have ONE implementation across all three hosts (ruling 9).
             //    ⛔ Not re-implemented here — ConnectOutlineToDetails is the one path.
             _outlineSelection ??= MyBlueprint;
-            _detailsHost      ??= AiDetails;
-            ConnectOutlineToDetails();
-
-            // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
-            //    Attach line here is precisely what the twelfth instance was.
-            AttachEditGestures(AiDetails);
         }
+
+        // ⭐⭐⭐ S1 — THE SHELL IS BUILT FOR **EVERY** PERSPECTIVE, OUTSIDE THE HOST-KIND GATE.
+        // 📄 DESIGN_Details_Panel_View_Switching.md §7.3 ①③ (user ruling 2026-08-22: "one Details
+        //    window … same/reused across the perspectives, no parallel implementations").
+        //
+        // 🔴🔴 THE DEFECT THIS ENDS: these lines used to sit INSIDE `if (effectiveHost != null)`, and
+        //    HostKindOf() answers only BTree and Hsm. ⇒ Blueprint and Scenario never got a shell from
+        //    this registrar, and BlueprintDetailsWindow — a separate sealed class with NO view
+        //    registry, NO toolbar and NO float/pin — filled the slot under the SAME id and title.
+        //    ⛔ `effectiveHost` answers "which blackboard host is this?". That is a fair question, and
+        //       it has NOTHING to do with whether a perspective deserves a Details panel. Reusing it as
+        //       the shell gate is the actual bug (§7.3 ③).
+        Details = new DetailsWindow(
+            id:                $"ai_details_{suffix}",
+            owningPerspective: perspectiveName,
+            // ⭐ The ONE formatter, shared with the standalone table and the Watch.
+            formatter:         ValueFormatter,
+            // ⭐⭐⭐ L2.1 — BOTH shell collaborators are PASSED, not attached later.
+            //   📌 The 2026-08-16 rule: "a production caller that HAS a dependency must PASS it."
+            views:             DetailsViews,
+            // ⭐⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
+            context:           Workspace.ContextSource());
+
+        // ⭐⭐⭐ Wired through the SAME pair RegisterExtraWindow uses, so the routing and the run-state
+        //    install have ONE implementation across all FOUR hosts (ruling 9).
+        //    ⚠ `??=` — an outline that claimed the panel above keeps it; a perspective with no outline
+        //      (Scenario, Blueprint) simply has none to connect, and ConnectOutlineToDetails no-ops.
+        _detailsHost ??= Details;
+        ConnectOutlineToDetails();
+
+        // ⭐⭐⭐ L1.2 — Details is built HERE, not handed in through RegisterExtraWindow, so its
+        //    claim-chain arm is mirrored here: ⭐ ONE registration path per concept (ruling 9).
+        // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
+        //   registers its views exactly once.
+        ContributeDetailsViews(Details);
+
+        // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other.
+        AttachEditGestures(Details);
+
+        // ⭐⭐⭐ S1 — and a PROPERTIES-FORM host like any other. 📌 Ruling 9: the subscription has ONE
+        //    implementation (SubscribePropertiesForm), reached from both construction paths.
+        // ⚠ Subscribing is not the same as HAVING a form: the shell answers `false` until a host installs
+        //   one (DetailsWindow.HasPropertiesForm), which is the honest shape R-109 asks for.
+        SubscribePropertiesForm(Details);
 
         // AIE-034: per-perspective Watch + Breakpoints windows (optional).
         if (breakpointManager != null)
@@ -469,6 +665,33 @@ public class PerspectiveWorkspaceRegistrar
                 owningPerspective: perspectiveName,
                 manager:           breakpointManager,
                 formatter:         ValueFormatter);
+
+            // ⭐⭐⭐ Batch 100 (100e) — THE NINTH INSTANCE OF THE SILENT DEFAULT, and it was ours.
+            //
+            // 🔴🔴 Measured: every SetRunStateSource call site was a DETAILS host. The Watch built its
+            //    VariableTableModel and was never given one ⇒ it sat at Planning ⇒
+            //    VariableValue.ModeFor(Planning) picks the INITIAL arm (Q32 ruling 3) ⇒ the pinned row
+            //    rendered DefaultValueJson — 0 — for ever, WHILE THE ROW ITSELF WAS A LIVE CAMERA.
+            //    ⛔ The feature looked built from every angle except the designer's.
+            //
+            // 📌 "A production caller that HAS a dependency must PASS it." This registrar holds
+            //    _runState, hands it to the details host at ConnectOutlineToDetails, and holds this
+            //    window. ⭐ Passed HERE, in the pass that already builds it — nothing new for
+            //    EditorSubsystem to forget (R-67).
+            Watch.SetRunStateSource(_runState);
+
+            // ⭐⭐⭐ AQ55 — the map picker, PASSED in the same pass that builds the window.
+            // ⚠ Optional because a headless host and a shell without an IG genuinely have no map;
+            //   ⛔ but a composition root that HAS one must pass it (the silent-default rule), and
+            //   HasEntityPicker is the rail surface that says whether it did — asserted on the
+            //   CONSTRUCTED window, never on this line (R-67).
+            if (entityPicker != null) Watch.SetEntityPicker(entityPicker);
+
+            // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge, PASSED in the pass that builds the
+            //    window. 📄 DESIGN_Variable_Watch_Pinning.md §5/§8a.
+            // ⚠ Optional because a headless host has no world to resolve against; ⛔ but a composition
+            //   root that HAS one must pass it, and HasEntityIdentity is the rail surface (R-67).
+            if (entityIdentity != null) Watch.SetEntityIdentity(entityIdentity);
 
             // ⭐⭐ Batch 87 — the Watch is built AFTER the binder, so it gets its own attach call here
             //    rather than a re-ordering of the constructor. ⛔ BP-330: its table was private with no
@@ -533,10 +756,8 @@ public class PerspectiveWorkspaceRegistrar
     {
         if (windowManager is null) throw new ArgumentNullException(nameof(windowManager));
 
-        // Register the six core side-panels.
+        // ⭐ S5: FIVE core side-panels now — the Inspector is retired (§7.6 ⑤).
         RegisterCore(windowManager, FindResults);
-        RegisterCore(windowManager, Inspector);
-        RegisterCore(windowManager, RuntimeInspector);
         RegisterCore(windowManager, TraceTimeline);
         RegisterCore(windowManager, BlackboardAuthoring);
         RegisterCore(windowManager, Diagnostics);
@@ -546,6 +767,13 @@ public class PerspectiveWorkspaceRegistrar
         if (Breakpoints != null) RegisterCore(windowManager, Breakpoints);
         if (Watch      != null) RegisterCore(windowManager, Watch);
 
+        // ⭐⭐⭐ CE-071 — the comparison result surfaces. Same shape as Watch/Breakpoints: created only
+        //    when the capability was supplied, registered here so no host can forget them.
+        //    📌 They were unreachable for months precisely because registration was left to a class
+        //    nobody called.
+        if (ComparisonSummary != null) RegisterCore(windowManager, ComparisonSummary);
+        if (ComparisonChanges != null) RegisterCore(windowManager, ComparisonChanges);
+
         // ⭐⭐ Track C (Batch 79). ⛔ Registered here, not left to RegisterExtraWindow: a surface the
         //    host must remember to attach is how these five came to be unreachable in the first place.
         RegisterCore(windowManager, Variables);
@@ -554,7 +782,16 @@ public class PerspectiveWorkspaceRegistrar
         // ⭐⭐ 88b — same reasoning as the two above: registered HERE, not left to the host. ⛔ Its
         //    ROUTING is already live from the constructor, so a host that forgets to register it loses
         //    the window but never leaves a half-wired panel.
-        if (AiDetails != null) RegisterCore(windowManager, AiDetails);
+        if (Details != null)
+        {
+            RegisterCore(windowManager, Details);
+            // ⭐⭐⭐ VC-1 — the explicit AttachWindowManager call that used to sit HERE is GONE.
+            //    🔴 It had exactly one caller — this line — so the Scenario Details host, built at the
+            //       composition root instead of through this registrar, never got a manager and its
+            //       float/pin buttons could not draw (the user's VC-1 finding).
+            //    ⭐ DetailsWindow now self-wires from ManagedWindow.OnRegistered, which RegisterCore's
+            //       RegisterWindow call raises for EVERY path ⇒ no root can forget (R-126's PULL shape).
+        }
 
         // ⭐⭐⭐ Batch 89 (BP-327, REOPENED) — THE MODAL JOINS THE FRAME.
         //    🔴🔴 Batch 87 built VariableEditModal complete — drawer body, OK, Cancel, a greyed OK with
@@ -565,7 +802,7 @@ public class PerspectiveWorkspaceRegistrar
         //    ⛔ NOT drawn from a window's client area: ManagedWindow.Render returns early when the
         //    window is closed or belongs to another perspective, so the dialog would vanish exactly
         //    like it does today. ⛔ NOT a line in EditorSubsystem: three registrars are three lines to
-        //    forget, and R-67 is the whole reason AiDetails, MyBlueprint and Variables are registered
+        //    forget, and R-67 is the whole reason Details, MyBlueprint and Variables are registered
         //    HERE. ⭐ The overlay slot is the one documented for "the modal overlays all other windows".
         //    ⭐ A METHOD GROUP, not a lambda, so a rail can assert this modal's Draw is in the path.
         if (EditModal != null) windowManager.RegisterFrameOverlay(EditModal.Draw);
@@ -616,6 +853,17 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IVariableDetailsHost      detailsHost)   _detailsHost      ??= detailsHost;
         ConnectOutlineToDetails();
 
+        // ⭐⭐⭐ L1.2 — A WINDOW THAT CONTRIBUTES DETAILS VIEWS REGISTERS THEM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §6 L1.2: "registration through the existing
+        //    claim chain — ⛔ no new root argument". 📌 R-67, and this registrar is the one that has
+        //    forgotten a service four times: an interface arm means a host added later binds itself
+        //    with NO new line anywhere, so there is nothing for EditorSubsystem to forget.
+        // ⚠ Read ONCE, at registration — a source that varies its offer does so in its predicates
+        //   (R-116), not by being re-read every frame.
+        // ⛔ Registered even for a source that yields nothing: "asked and there are none" must be
+        //   distinguishable from "never asked" — the second is the bug this arm exists to prevent.
+        ContributeDetailsViews(window);
+
         // ⭐⭐⭐ Batch 87 — the Details panel and the Blueprint Watch arrive HERE, as extras, which is
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
         //    over the INTERFACE so a host added later binds itself with no new line anywhere.
@@ -629,6 +877,23 @@ public class PerspectiveWorkspaceRegistrar
         //      asked" — the second is the bug this line exists to make impossible.
         if (window is ILiveVariableProjectionHost projectionHost)
             projectionHost.SetLiveProjection(LiveProjection);
+
+        // ⭐⭐⭐ Batch 98 (98c) — BP-360: the outline's "Watch this variable" was drawn and DEAD.
+        //    📐 MyBlueprintContextMenu enables it on commands.Get("editor.toggle-variable-watch"), and
+        //    nothing registered that command ⇒ Batch 94's "ONE command, TWO entry points" was half
+        //    true: the table's entry was wired here, the outline's was not.
+        // ⭐ Same pass, same reason as the projection above (R-67): this registrar already HOLDS the
+        //   Watch, so the outline is handed the toggle here and EditorSubsystem gains nothing to forget.
+        // ⚠ null when this perspective has no Watch window — the host then greys its entry instead of
+        //   registering a command that would do nothing.
+        if (window is IVariableWatchToggleHost watchHost)
+            watchHost.SetWatchToggle(Watch is null ? null : ToggleWatch);
+
+        // ⭐⭐⭐ Batch 99 (99a) — R-109: "Properties…" is a CUSTOM form, so the binder cannot open one
+        //    and the host that HAS one must. ⭐ Same pass, same reason as the two above (R-67).
+        // ⚠ Subscribed ONCE per host: RegisterExtraWindow can be called again for the same window, and
+        //   a second subscription would open the form twice on one gesture.
+        SubscribePropertiesForm(window);
 
         // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
         //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
@@ -648,7 +913,37 @@ public class PerspectiveWorkspaceRegistrar
                 () => _selectionStore.NotifySurfaceFocused(claimant.DetailsOrigin);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — <c>R-109</c>: <i>"Properties…"</i> is a CUSTOM form, so the
+    /// binder cannot open one and the host that HAS one must.</b>
+    ///
+    /// <para>⚠ <b>Subscribed ONCE per host</b> — <see cref="RegisterExtraWindow"/> can be called again
+    /// for the same window, and a second subscription would open the form twice on one gesture.</para>
+    ///
+    /// <para>⭐⭐ <b><c>S1</c> made this a METHOD.</b> 📐 It was inline in <see cref="RegisterExtraWindow"/>,
+    /// which was enough while only <c>BlueprintDetailsWindow</c> — an EXTRA window — had a form. ⛔ The
+    /// shell is built in the CONSTRUCTOR and never passes through that method, so leaving the arm inline
+    /// would have made <c>DetailsWindow</c>'s form unreachable by the gesture. 📌 Ruling 9: one
+    /// implementation, two call sites.</para>
+    /// </summary>
+    private void SubscribePropertiesForm(object? candidate)
+    {
+        if (candidate is IVariablePropertiesFormHost formHost
+            && EditGestures is not null
+            && _propertiesHosts.Add(formHost))
+        {
+            EditGestures.PropertiesRequestedForRow +=
+                (row, editable) => formHost.OpenVariableProperties(row, editable);
+        }
+    }
+
     private readonly Func<VariableRunState> _runState;
+
+    /// <summary>⭐ What the run state was OBSERVED to be — reported by a refusal, never inferred.</summary>
+    private readonly Func<string> _describeRunState;
+
+    /// <summary>⭐ A rail surface: the sentence a refusal would print right now.</summary>
+    public string DescribeRunState() => _describeRunState();
     private readonly EditorSelectionStore  _selectionStore;
 
     /// <summary>
@@ -662,6 +957,72 @@ public class PerspectiveWorkspaceRegistrar
 
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L1.1</c>/<c>L1.2</c> — THIS PERSPECTIVE'S DETAILS-VIEW CATALOGUE.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §2: <c>PerspectiveWorkspace *-- DetailsViewRegistry</c>.
+    ///
+    /// <para>⚠ <b>A STATED PLACEMENT DEVIATION.</b> §2 composes the registry into
+    /// <c>PerspectiveWorkspace</c> — ⛔ but that type is extracted in <b><c>L6.1</c></b> *(§6:
+    /// "extract <c>PerspectiveWorkspace</c>, give Scenario one, rename the key with a layout
+    /// migration")*, not in <c>L1</c>. ⇒ ⭐ the registry lives on the registrar now, and <c>L6.1</c>
+    /// carries it across when it splits §5's <i>"wiring hub"</i> half out. 📌 §5 is explicit that the
+    /// generic half is <i>"trapped inside the specific one"</i> — this is one more thing that travels
+    /// with it, ⛔ not a second registry.</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L6.1a</c> — THE GENERIC HALF, now a collaborator rather than fields on this class.</b>
+    /// 📄 §5: <i>"the generic half is trapped inside the specific one."</i> ⭐ This registrar keeps its
+    /// 21-parameter AI-authoring bag; ⛔ the registry, the context builder, the entity source and the
+    /// claim chain moved to <see cref="Shell.PerspectiveWorkspace"/>, so Scenario can have those four
+    /// WITHOUT the bag *(<c>L6.1c</c>)*.
+    /// <para>⚠ Every member below is a FORWARD, deliberately: <c>L6.1a</c> is a pure refactor and the
+    /// existing callers must not move. 📌 The stage gate *(<c>TheAiOfferSetsAreUnchangedTests</c>)* is
+    /// what says the move was clean.</para>
+    /// </summary>
+    public Shell.PerspectiveWorkspace Workspace { get; }
+
+    /// <inheritdoc cref="Shell.PerspectiveWorkspace.DetailsViews"/>
+    public Shell.DetailsViewRegistry DetailsViews => Workspace.DetailsViews;
+
+    /// <summary>⚠ Guards against double-registration: <c>RegisterExtraWindow</c> can be called twice
+    /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
+    /// re-registration into a crash.</summary>
+    /// <summary>
+    /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL
+    /// source — 📌 <c>R-67</c>, and the control the <c>2026-08-16</c> rule prescribes.
+    /// ⭐ <c>L6.1a</c>: forwarded from <see cref="Workspace"/>, which now owns it.
+    /// </summary>
+    public Shell.IEntitySelectionSource? EntitySelection => Workspace.EntitySelection;
+
+    /// <summary>
+    /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL view,
+    /// and that the SAME instance reached both a Details-shaped and a Watch-shaped model —
+    /// 📌 <c>R-67</c>, and the <c>2026-08-16</c> rule's prescribed control.
+    /// ⭐ <c>L6.1a</c>: forwarded from <see cref="Workspace"/>, which now carries it.
+    /// </summary>
+    public StagedWriteView? StagedWrites => Workspace.StagedWrites;
+
+    // ⭐ L6.1a — the `_viewSources` guard moved with the chain (PerspectiveWorkspace.Contribute).
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — the ONE place a window's Details views reach the catalogue.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L1.2</c> *(<c>R-67</c>)*.
+    ///
+    /// <para>⚠⚠ <b>Collapsed from TWO copies, before <c>L3.3</c> could add a THIRD.</b> 📐 <c>L1.2</c>
+    /// wrote this arm in <c>RegisterExtraWindow</c> and mirrored it in the constructor for <c>Details</c>
+    /// *(which the chain never sees)*; ⛔ <c>BlackboardAuthoring</c> is a third window in the same
+    /// position. 📌 Ruling 9 — <i>"no keeping two implementations for the same concept"</i> — and three
+    /// copies of a guarded loop is how one of them quietly loses its guard.</para>
+    ///
+    /// <para>⭐ Read ONCE, at registration — a source that varies its offer does so in its predicates
+    /// *(<c>R-116</c>)*, ⛔ not by being re-read every frame. ⭐ The <c>_viewSources</c> guard means a
+    /// window reaching BOTH paths contributes exactly once.</para>
+    /// </summary>
+    /// <remarks>⭐ <c>L6.1a</c> — the BODY moved to <see cref="Shell.PerspectiveWorkspace.Contribute"/>;
+    /// this stays as the registrar's name for it so the ~5 call sites are unchanged. ⛔ Not a second
+    /// implementation — one line, forwarding.</remarks>
+    private void ContributeDetailsViews(object? candidate) => Workspace.Contribute(candidate);
     private bool                             _outlineConnected;
 
     /// <summary>
@@ -742,9 +1103,32 @@ public class PerspectiveWorkspaceRegistrar
     /// without a <c>facetEditService</c> silently got no watch toggle either. ⛔ Two capabilities, two
     /// preconditions; ⭐ neither may hide behind the other.
     /// </summary>
+    /// <summary>⭐ Hosts already subscribed to the Properties gesture — ⛔ so a re-registered window
+    /// does not open the form twice on one click.</summary>
+    private readonly HashSet<IVariablePropertiesFormHost> _propertiesHosts = new();
+
     private void AttachEditGestures(IVariableTableHost? host)
     {
-        if (host?.VariableTable is not { } table) return;
+        if (host is null) return;
+
+        // ⭐⭐⭐ W4 — THE SHARED YELLOW REACHES EVERY TABLE HOST FROM HERE.
+        // 📄 DESIGN_Staged_Live_Write.md §7: Details and Watch must show the SAME staged bytes ⇒ they
+        //    must read the SAME StagedWriteView instance. ⛔ Not four assignments beside four
+        //    constructors — 📌 the reason IVariableTableHost exists at all: "a fifth host added later
+        //    must not depend on someone remembering a fourth Attach line." There are SIX now.
+        // ⚠ Deliberately BEFORE the `VariableTable is null` guard below: a host can own a MODEL without
+        //   yet owning a control, and a model with no yellow is precisely the silent default this
+        //   forwarding exists to prevent.
+        if (host.TableModel is { } model) model.StagedWrites = Workspace.StagedWrites;
+
+        if (host.VariableTable is not { } table) return;
+
+        // ⭐⭐⭐ Batch 100 (100f) — THE HOST'S OWN ANSWER, carried to its table.
+        // 🔴 This method used to give EVERY table host EVERY gesture, because it had nothing to ask.
+        //    ⛔ Not an `if (host is AiWatchWindow)`: that puts the Watch's editorial decision in a file
+        //    that knows nothing about watching, and — measured — there are TWO watch surfaces, so the
+        //    type test would already have missed one (Blueprints' WatchPanelWindow).
+        table.Gestures = host.Gestures;
 
         if (EditGestures is not null && !_boundTables.Contains(table))
         {
@@ -768,17 +1152,66 @@ public class PerspectiveWorkspaceRegistrar
     /// </summary>
     private void AttachWatchGesture(VariableTableControl table)
     {
-        if (Watch is not { } watch || table.IsWatched is not null) return;
+        if (Watch is null || table.IsWatched is not null) return;
 
-        table.IsWatched = row => watch.Pinned.GetRows()
-            .Any(r => r.Origin.Key.Equals(row.Origin.Key));
+        table.IsWatched            = IsWatched;
+        table.WatchToggleRequested += ToggleWatch;
 
-        table.WatchToggleRequested += row =>
-        {
-            // ⭐ A toggle, resolved against the store rather than a remembered flag — ⛔ two panels
-            //   can pin the same variable and the store is the only truth about what is pinned.
-            if (!watch.Pinned.Unpin(row.Origin)) watch.Pinned.Pin(row);
-        };
+        // ⭐⭐⭐ AQ55 — the "…on entity…" entry, wired in the SAME place as the toggle. ⛔ Not a second
+        //    Attach line for a host to forget: IVariableTableHost exists precisely so "a fifth host
+        //    added later must not depend on someone remembering a fourth Attach line."
+        table.CanPinOnEntity        = () => Watch?.HasEntityPicker == true;
+        table.PinOnEntityRequested += PinOnPickedEntity;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>AQ55</c> — route the row to the Watch's picker.</b>
+    ///
+    /// <para>⚠ <b>Fire-and-forget, and deliberately so:</b> the pick is an async gesture that resolves
+    /// when the designer clicks the map, possibly many frames later. ⛔ Awaiting it inside a menu
+    /// callback would block the draw thread on a click that has not happened.</para>
+    ///
+    /// <para>⛔ A fault is swallowed to the console rather than left unobserved — a cancelled pick is
+    /// already <c>false</c> inside <c>PinOnPickedEntityAsync</c>, so anything reaching here is a real
+    /// failure of the host's pick service.</para>
+    /// </summary>
+    private void PinOnPickedEntity(VariableRow row)
+    {
+        if (Watch is not { } watch) return;
+
+        _ = watch.PinOnPickedEntityAsync(row).ContinueWith(
+            t => Console.WriteLine($"[AQ55] pin-on-entity failed: {t.Exception?.GetBaseException().Message}"),
+            System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Is this row pinned?</b> — asked of the STORE, not of a remembered flag. ⛔ Two panels can
+    /// pin the same variable, and the store is the only truth about what is pinned.
+    /// ⚠ <c>false</c> when the perspective has no Watch, which is honest rather than a throw.
+    /// </summary>
+    private bool IsWatched(VariableRow row)
+        => Watch is { } w && w.Pinned.GetRows().Any(r => r.Origin.Key.Equals(row.Origin.Key));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — THE toggle, now shared by both entry points.</b>
+    ///
+    /// <para>🔴 It used to live inline in <see cref="AttachWatchGesture"/>, reachable only by the
+    /// Details table. ⇒ the outline's <i>"Watch this variable"</i> had nothing to call and its command
+    /// was never registered *(<c>BP-360</c>)*. ⭐ Batch 94 specified <b>ONE command, TWO entry
+    /// points</b>; ⛔ giving the outline its own copy would have made that two implementations
+    /// *(ruling 9)* — the second of which would drift on the unpin-first rule below.</para>
+    /// </summary>
+    private void ToggleWatch(VariableRow row)
+    {
+        if (Watch is not { } watch) return;
+        // ⭐ Unpin FIRST: a toggle resolved against the store, ⛔ never a remembered flag.
+        // ⭐⭐⭐ BP-511 — the BINDING IS PASSED, not inferred. 📄 DESIGN_Variable_Watch_Pinning.md §5.
+        //    ⛔⛔ `Pin(row)` with no binding infers one, and its concrete arm has NO id source ⇒ it wrote
+        //    `Concrete(0, entity)`, so THE GESTURE A DESIGNER ACTUALLY USES made a pin that could never
+        //    persist — honest (IsPersistable said false) and useless. ⭐ `BindingFor` fills in the
+        //    AUTHORED id from the load's published table, and still yields a chameleon for the sentinel.
+        if (!watch.Pinned.Unpin(row.Origin))
+            watch.Pinned.Pin(row, watch.BindingFor(row.Origin.Entity));
     }
 
     /// <summary>
@@ -804,11 +1237,15 @@ public class PerspectiveWorkspaceRegistrar
     /// so writing blindly to whatever document happens to be open would land a designer's edit
     /// <b>in the wrong asset</b> — ⛔ silently, and with an Ok outcome saying it worked.</para>
     ///
-    /// <para>⚠ <b>Blueprint still resolves to <c>null</c> here, and that is now HONEST rather than
-    /// silent</b>: the write target is typed <c>IBlackboardManagedAsset</c>, which
-    /// <c>BlueprintAsset</c> does not implement — 📌 the same vocabulary mismatch <c>95a</c> fixed for
-    /// READING, still open for WRITING. ⭐ The refusal it produces is
-    /// <c>RefusedNoDeclarationOwner</c>, which says so, ⛔ instead of blaming the row's kind.</para>
+    /// <para>⚠ <b>Blueprint still resolves to <c>null</c> HERE, and since Batch 98 that no longer
+    /// refuses the edit.</b> The write target is typed <c>IBlackboardManagedAsset</c>, which
+    /// <c>BlueprintAsset</c> does not implement — and 📌 <b><c>98a</c> closed that</b> by giving the ROW
+    /// a write-back *(<c>VariableRow.WriteDefault</c>)*, which <c>CommitInitialValue</c> now asks FIRST.
+    /// ⇒ ⭐ this method is the <b>FALLBACK</b>, for a row built without one.</para>
+    ///
+    /// <para>⛔ <b>It is not dead code and must not be deleted:</b> a hand-constructed row, or any host
+    /// with an asset but no schema source, still lands here — and its refusal is still
+    /// <c>RefusedNoDeclarationOwner</c>, which says what is missing ⛔ instead of blaming the row's kind.</para>
     /// </summary>
     private static IBlackboardManagedAsset? DeclarationOwnerOf(
         EditorSelectionStore store, VariableRow row)

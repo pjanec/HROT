@@ -24,7 +24,10 @@ namespace Hrot.SimHost.Tests
         {
             var world = new EntityRepository();
 
-            world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            // 🔴 P3-C: the executor reads its params from the ROOT PARAMS OCCURRENCE SLOT now, so
+            //   the world needs the tier components it lives in.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<InFormationTag>();
             world.RegisterEvent<CmdJoinFormation>();
@@ -35,15 +38,39 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// Writes <paramref name="p"/> into the entity's <see cref="BrainBlackboard.BehaviorParameters"/>
-        /// at offset 0, simulating what <c>BehaviorDefinition.ParseParams</c> would do.
+        /// Writes <paramref name="p"/> into the entity's ROOT PARAMS OCCURRENCE SLOT at offset 0,
+        /// simulating what <c>BehaviorDefinition.ParseParams</c> would do.
+        ///
+        /// <para>🔴 <c>P3-C</c> (<c>2026-09-21</c>): this used to write
+        /// <c>BrainBlackboard.BehaviorParameters</c>. ⭐ Same offset, same bytes — only the anchor
+        /// moved (§29.6) — but the slot has to be ATTACHED first, which is what ingress does in
+        /// production and what this helper now does for the test.</para>
         /// </summary>
         private static unsafe void WriteBlackboardParams(
             EntityRepository world, Entity entity, JoinFormationParams p)
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            fixed (byte* dst = &bb.BehaviorParameters[0])
-                *(JoinFormationParams*)dst = p;
+            const int HarnessBehaviourHash = 0x7E5703;
+
+            if (!world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+                world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+            ref var st = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity);
+            st.ActiveBehaviorHash = HarnessBehaviourHash;
+
+            var spec = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Select(
+                Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize + 16, requiredSlots: 1);
+            if (Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetStoreSize(world, entity) == 0)
+            {
+                spec.Add(world, entity);
+                Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
+                    spec.Memory(world, entity), spec.TotalSize, (byte)spec.MaxSlots);
+            }
+
+            byte* dst = Fdp.Toolkit.Behavior.RootParamsAccess.ResolveOrAttachRoot(
+                world, entity, HarnessBehaviourHash,
+                Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize,
+                Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree, out _);
+
+            *(JoinFormationParams*)dst = p;
         }
 
         // ── Tests ─────────────────────────────────────────────────────────────
@@ -64,7 +91,6 @@ namespace Hrot.SimHost.Tests
             var follower = world.CreateEntity();
             var leader   = world.CreateEntity();
 
-            world.AddComponent(follower, new BrainBlackboard());
             world.AddComponent(follower, new LocomotionChannel { Status = default });
 
             // Register leader in the NetworkEntityMap under network ID 10.
@@ -104,7 +130,6 @@ namespace Hrot.SimHost.Tests
             var entityMap    = new NetworkEntityMap(); // leader NOT registered
 
             var follower = world.CreateEntity();
-            world.AddComponent(follower, new BrainBlackboard());
 
             WriteBlackboardParams(world, follower, new JoinFormationParams
             {

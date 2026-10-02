@@ -30,6 +30,22 @@ public enum BTreeDiagnosticCode
     NestedRepeater,
     /// <summary>A Parallel node is nested inside another Parallel (kernel-illegal).</summary>
     NestedParallel,
+
+    /// <summary>
+    /// ⭐⭐ <c>E5</c> item 7 — this asset hosts a sub-tree that hosts this asset again
+    /// (<c>A</c> hosts <c>B</c> hosts <c>A</c>), directly or through a chain.
+    /// ⛔ <b>Distinct from <see cref="CycleDetected"/>, which is the NODE graph inside one asset.</b>
+    /// This one is a walk over ASSETS and is detected at validation time.
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    /// </summary>
+    SubtreeAssetCycle,
+
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — the behaviour's bound resolver was derived for a DIFFERENT block shape than the one the
+    /// behaviour has now (a variable renamed, retyped, added or removed). ⚠ A WARNING: the C# compile is the
+    /// safety net (§12.12c); this is the early, ergonomic notice. 📄 <c>Q76</c> §12.21.
+    /// </summary>
+    ResolverOutOfDate,
 }
 
 /// <summary>

@@ -1,4 +1,6 @@
-﻿using Hrot.Core.Mission;
+﻿using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
+using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Fdp.Toolkit.DER;
@@ -26,6 +28,18 @@ public sealed class OrbatNode
 
     /// <summary>True if the entity has at least one direct subordinate.</summary>
     public bool HasChildren { get; init; }
+}
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="OrbatPanel"/> shows, this frame. ⭐
+/// <see cref="Nodes"/> is dumped as-is (<see cref="OrbatNode"/> is already a flat DTO). ⚠ NOT the
+/// same panel as <c>SharedOrbatPanel</c> in <c>Hrot.UI.Common.Panels</c> (group 5's twin) — this is
+/// ExCon's own ORBAT tree, a different implementation with its own filter/selection state; hence a
+/// distinct kind rather than reusing <c>PanelIds.SharedOrbat</c>.</summary>
+public sealed record OrbatPanelViewModel(
+    string PanelId, string PanelKind, string FilterText, long SelectedType, IReadOnlyList<OrbatNode> Nodes) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
 }
 
 /// <summary>
@@ -242,6 +256,11 @@ public sealed class OrbatPanel
     /// Renders the ORBAT tree panel via ImGui.
     /// Called once per frame from the application shell (Phase P9).
     /// </summary>
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the visible ORBAT nodes. No ImGui. ⭐ Reuses
+    /// <see cref="GetVisibleNodes"/>, the SAME source <see cref="DrawContent"/> reads.</summary>
+    public OrbatPanelViewModel BuildViewModel(IExConLogic logic, string panelId, string panelKind) =>
+        new(panelId, panelKind, _filterText, _selectedType, GetVisibleNodes(logic.Repo));
+
     public void Draw(IExConLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;

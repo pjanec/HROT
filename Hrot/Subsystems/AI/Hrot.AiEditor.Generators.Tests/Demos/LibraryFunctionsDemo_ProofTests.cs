@@ -48,7 +48,7 @@ public sealed class LibraryFunctionsDemo_ProofTests
 
     /// <summary>
     /// Locates the generated class by name pattern rather than hardcoding the BlueprintId hash baked
-    /// into it (mirrors <c>HillAssault2_CalculateSegments_ProofTests.FindGeneratedBlueprintType</c>).
+    /// into it (as <c>ChannelMoveAndWaitDemo_ProofTests</c> does).
     /// </summary>
     private static Type FindGeneratedType(string prefix)
     {

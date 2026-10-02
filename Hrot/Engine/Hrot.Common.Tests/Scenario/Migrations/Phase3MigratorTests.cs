@@ -267,9 +267,11 @@ public sealed class Phase3MigratorTests
 
     // Test 13
     [Fact]
-    public void ScenarioMigrationModule_CurrentVersion_Is2()
+    public void ScenarioMigrationModule_CurrentVersion_Is3()
     {
-        Assert.Equal(2, ScenarioMigrationModule.CurrentVersion);
+        // 2 -> 3: V2ToV3_RemoveBrainBlackboard. P4 retired the component without migrating the
+        // corpus, which made every scenario still carrying the key unloadable.
+        Assert.Equal(3, ScenarioMigrationModule.CurrentVersion);
     }
 
     // Test 14
@@ -294,7 +296,7 @@ public sealed class Phase3MigratorTests
 
     // Test 16
     [Fact]
-    public async Task ReadOnlyAdapter_LoadV1ScenarioCorpus_ProducesV2Dom()
+    public async Task ReadOnlyAdapter_LoadV1ScenarioCorpus_ProducesCurrentDom()
     {
         string workspaceRoot = FindWorkspaceRoot();
         string path = Path.Combine(
@@ -308,7 +310,7 @@ public sealed class Phase3MigratorTests
 
         JsonObject dom = outcome.AsJsonObject();
 
-        Assert.Equal(2, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(3, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
 
         var entityInfo1 = dom["entities"]!
             ["aaaaaaaa-0001-0000-0000-000000000001"]!

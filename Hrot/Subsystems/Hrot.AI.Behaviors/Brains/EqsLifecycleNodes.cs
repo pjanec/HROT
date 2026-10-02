@@ -179,40 +179,17 @@ namespace Hrot.AI.Behaviors.Brains
         // ── Action_SpawnEqsSensorChild ────────────────────────────────────────
 
         /// <summary>
-        /// Finds an existing child entity whose <see cref="PartMetadata"/> matches
-        /// <paramref name="parent"/> and <paramref name="instanceId"/>.
-        /// Used only on first entry or after a BTree restart when the blackboard handle is empty.
-        /// </summary>
-        private static Entity FindExistingChild(ISimulationView world, Entity parent, int instanceId)
-        {
-            // Build a fresh query each time -- EntityQuery caches internal component-array pointers;
-            // reusing it across structural mutations (add/remove components, entity creation) risks
-            // an AccessViolationException when the underlying array is reallocated.
-            // FindExistingChild is called at most once per BTree restart (idle-state guard above
-            // short-circuits on subsequent ticks), so the allocation cost is negligible.
-            var query = world.Query().With<PartMetadata>().Build();
-            foreach (var candidate in query)
-            {
-                var meta = world.GetComponentRO<PartMetadata>(candidate);
-                if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
-                    return candidate;
-            }
-            return Entity.Null;
-        }
-
-        /// <summary>
-        /// Persistent action that spawns a child sensor entity via the deferred command buffer.
+        /// Persistent action that ensures this node's child sensor exists.
         ///
-        /// <list type="bullet">
-        ///   <item>First tick: spawns the child via ECB; stores a placeholder handle.</item>
-        ///   <item>Second tick: placeholder is invalid; <c>FindExistingChild</c> locates the real
-        ///     entity created by ECB playback and caches its handle.</item>
-        ///   <item>Subsequent ticks: handle is valid and entity is alive; returns Success immediately
-        ///     (no ECS scan in steady state).</item>
-        /// </list>
+        /// <para>⭐ <b>CE-485</b> (📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D5): routed through
+        /// <see cref="EqsChildSensor.Ensure"/> — the site is <see cref="EqsSpawnParams.ChildSlotIndex"/>, the part id (DDS key)
+        /// is allocated and reused, and the sensor is stamped with the behaviour run, which destroys it when it ends. ⛔ The old
+        /// <c>(Self.Index &lt;&lt; 8) | slot</c> part id is retired (it grew with the world and overflowed). ⭐ On the live world
+        /// the child exists at once, so <see cref="EqsSpawnParams.SpawnedHandle"/> is a real entity on the creating tick —
+        /// closes <c>CE-481</c> (it used to publish an ECB placeholder).</para>
         ///
-        /// <para>The deactivator <see cref="Deactivate_SpawnEqsSensorChild"/> destroys the child
-        /// via ECB when the enclosing sub-tree is aborted.</para>
+        /// <para>The deactivator <see cref="Deactivate_SpawnEqsSensorChild"/> destroys the child when the enclosing sub-tree is
+        /// aborted.</para>
         /// </summary>
         [BTreeAction]
         public static NodeStatus Action_SpawnEqsSensorChild(
@@ -220,33 +197,11 @@ namespace Hrot.AI.Behaviors.Brains
             ref BehaviorTreeState state,
             ref BTreeContext ctx)
         {
-            // Deterministic LocalChildIndex: stable across ticks for the same (parent, slot) pair.
-            int localChildIndex = (int)(((uint)ctx.Self.Index << 8) | p.ChildSlotIndex);
-
             // Idempotency: if previously spawned and still alive, reuse existing handle.
             if (p.SpawnedHandle.IsValid && ctx.World.IsAlive(p.SpawnedHandle.ChildId))
                 return NodeStatus.Success;
 
-            // Fallback idempotency scan on first entry (or after a BTree restart that cleared the
-            // blackboard). Uses a cached module-level query -- never rebuilt per tick.
-            Entity existingChild = FindExistingChild(ctx.World, ctx.Self, localChildIndex);
-            if (!existingChild.IsNull)
-            {
-                p.SpawnedHandle = new EqsSensorHandle(existingChild);
-                return NodeStatus.Success;
-            }
-
-            // Spawn new child via ECB (deferred structural mutation -- BTree runs in Simulation phase).
-            var ecb   = ((ISimulationView)ctx.World).GetCommandBuffer();
-            var child = ecb.CreateEntity();
-
-            ecb.AddComponent(child, new PartMetadata
-            {
-                ParentEntity      = ctx.Self,
-                InstanceId        = localChildIndex,
-                DescriptorOrdinal = 0,
-            });
-            ecb.AddComponent(child, new EqsSensor
+            var child = EqsChildSensor.Ensure(ctx.World, ctx.Self, p.ChildSlotIndex, new EqsSensor
             {
                 BlueprintId         = p.SensorConfig.BlueprintId,
                 Epoch               = 1,
@@ -258,9 +213,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ContextSlot1        = p.SensorConfig.ContextSlot1,
                 ContextSlot2        = p.SensorConfig.ContextSlot2,
             });
-            ecb.AddComponent(child, default(EqsCognitiveBuffer));
-
-            p.SpawnedHandle = new EqsSensorHandle(child);
+            p.SpawnedHandle = new EqsSensorHandle(child);   // Null only on a deferred (non-live) view
             return NodeStatus.Success;
         }
 

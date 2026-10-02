@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 ﻿using System.Collections;
 using System.Linq;
 using System.Numerics;
@@ -214,14 +215,14 @@ public class IgApplicationPanelTests
     }
 
     [Fact]
-    public void InitializeEcs_RegistersIgHealthState()
+    public void InitializeEcs_RegistersHealth()
     {
         var app = new IgApplication();
         try
         {
             app.InitializeEmbedded(headless: true);
 
-            var exception = Record.Exception(() => app.World.GetComponentTable<IgHealthState>());
+            var exception = Record.Exception(() => app.World.GetComponentTable<Health>());
 
             Assert.Null(exception);
         }

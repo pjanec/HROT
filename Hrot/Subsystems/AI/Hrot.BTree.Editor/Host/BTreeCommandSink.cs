@@ -221,39 +221,30 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// </summary>
     private void ComposeAiPrimitiveAction(BTreeActionPayload action, ActionSchemaEntry entry)
     {
-        action.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        var composed = ComposeAiPrimitiveVariables(entry);
 
-        // An AiPrimitive binding bin-packs its Params inline into the managed BrainBlackboard, so it
-        // hard-requires an editor-managed blackboard (codegen otherwise fails with BTREE0002). Placing
-        // the node is exactly the moment that requirement becomes true, so enable managed mode here
-        // rather than making the first Full Rebuild fail and forcing a manual "use editor managed
-        // blackboard" step. There is no valid state with a composed AiPrimitive node and Managed=false.
-        _asset.IsBlackboardEditorManaged = true;
-
-        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
-        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
-        // still placed) if the generated shape doesn't match — never throws.
-        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
-        action.WorkingStateTypeId = wsType?.FullName;
-
-        string varName = GenerateUniqueVariableName("bpParams");
-        _asset.AddVariable(new BlackboardVariableEntry(
-            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
-
-        action.ExpressionTargetField = varName;
-
-        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
-        // (Input) variable above, so its Scope is independently authorable. Only created when the
-        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
-        if (wsType != null)
-        {
-            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
-            _asset.AddVariable(new BlackboardVariableEntry(
-                wsVarName, wsType, Comment: null, IsAutoManaged: true,
-                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
-            action.WorkingStateTargetField = wsVarName;
-        }
+        action.DelegateShape           = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        action.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
+        action.ExpressionTargetField   = composed.ParamsVariable;
+        action.WorkingStateTargetField = composed.WorkingStateVariable;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The composition itself — <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, which
+    /// the HSM host calls too.</b> 🔒 User, <c>2026-09-28</c>: <i>"If btree does something right, hsm
+    /// should reuse it by sharing wherever possible, not by duplication."</i>
+    ///
+    /// <para>⚠⚠ <b>CORRECTED:</b> flipping the asset into editor-managed mode used to live here and was
+    /// described as BTree-specific. 📐 It is not — <c>HsmBridgeEmitCore.PackParams:464</c> gates the HSM
+    /// params path on the same flag, and does so <b>silently</b>. ⇒ it moved INTO
+    /// <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, where both hosts get it.</para>
+    ///
+    /// <para>⛔ The two CALLERS stay separate only because <c>BTreeActionPayload</c> and
+    /// <c>BTreeConditionPayload</c> are two sealed classes with identical members and no common base —
+    /// ⚠ a model duplication that predates this and is NOT resolved here.</para>
+    /// </summary>
+    private ComposedBlueprintVariables ComposeAiPrimitiveVariables(ActionSchemaEntry entry)
+        => AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
 
     /// <summary>
     /// E2: composes a placed Condition node onto a Blueprint-compiled AiPrimitive (T31 shape),
@@ -269,53 +260,14 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// </summary>
     private void ComposeAiPrimitiveCondition(BTreeConditionPayload condition, ActionSchemaEntry entry)
     {
-        condition.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        var composed = ComposeAiPrimitiveVariables(entry);
 
-        // Same hard requirement as the action path: an AiPrimitive binding bin-packs its Params
-        // inline into the managed BrainBlackboard, so it hard-requires an editor-managed blackboard.
-        _asset.IsBlackboardEditorManaged = true;
-
-        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
-        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
-        // still placed) if the generated shape doesn't match — never throws.
-        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
-        condition.WorkingStateTypeId = wsType?.FullName;
-
-        string varName = GenerateUniqueVariableName("bpParams");
-        _asset.AddVariable(new BlackboardVariableEntry(
-            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
-
-        condition.ExpressionTargetField = varName;
-
-        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
-        // (Input) variable above, so its Scope is independently authorable. Only created when the
-        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
-        if (wsType != null)
-        {
-            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
-            _asset.AddVariable(new BlackboardVariableEntry(
-                wsVarName, wsType, Comment: null, IsAutoManaged: true,
-                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
-            condition.WorkingStateTargetField = wsVarName;
-        }
+        condition.DelegateShape           = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        condition.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
+        condition.ExpressionTargetField   = composed.ParamsVariable;
+        condition.WorkingStateTargetField = composed.WorkingStateVariable;
     }
 
-    /// <summary>Returns baseName if unused, else baseName_2, baseName_3, … — first unused wins.</summary>
-    private string GenerateUniqueVariableName(string baseName)
-    {
-        if (_asset.BlackboardVariables.All(v => v.Name != baseName))
-            return baseName;
-
-        int suffix = 2;
-        string candidate;
-        do
-        {
-            candidate = $"{baseName}_{suffix}";
-            suffix++;
-        } while (_asset.BlackboardVariables.Any(v => v.Name == candidate));
-
-        return candidate;
-    }
 
     /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>
     private static string FriendlyLabel(NodeType type) => type switch
@@ -383,16 +335,19 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
         foreach (var varName in candidateVars)
         {
-            var varEntry = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == varName);
-            if (varEntry is not { IsAutoManaged: true })
-                continue;
+            // ⚠ The still-referenced test is BTree's own and stays here: a BTree variable can be
+            //   shared by several nodes (Slice 1's Behavior-scoped working state is exactly that), so
+            //   deleting one node must not take a variable another still binds. ⛔ An HSM hosting site
+            //   is 1:1 with its composed variable, which is why its caller needs no such check.
             bool stillReferenced = _asset.Nodes.Any(n =>
-                n.Action?.ExpressionTargetField     == varName ||
-                n.Action?.WorkingStateTargetField   == varName ||
-                n.Condition?.ExpressionTargetField  == varName ||
+                n.Action?.ExpressionTargetField      == varName ||
+                n.Action?.WorkingStateTargetField    == varName ||
+                n.Condition?.ExpressionTargetField   == varName ||
                 n.Condition?.WorkingStateTargetField == varName);
+
+            // ⭐ The IsAutoManaged test itself is SHARED — one rule for "may the editor delete this?".
             if (!stillReferenced)
-                _asset.RemoveVariable(varName);
+                AutoManagedVariables.RemoveIfAutoManaged(_asset, varName);
         }
         _asset.MarkDirty();
     }
