@@ -1,6 +1,6 @@
 # HANDOFF — ownership programme: the remaining work (backend lane)
 
-> **Dispatched at `c6aae29e5`** (branch `backend`). ⭐ **Your scope is FROZEN at that sha** — documents that change
+> **Dispatched at `c6aae29e5`, re-stamped (rule 1a, unstarted) after item ① resolved** (branch `backend`). ⭐ **Your scope is FROZEN at that sha** — documents that change
 > after it are FYI only; if one invalidates an item, STOP that item and report it (never the batch, `R-106`).
 > ⛔ **CE-3000 (the CycloneDDS.NET library fixes) is NOT in scope** — user, `2026-10-02`: *"No ce 3000 yet."*
 
@@ -30,14 +30,11 @@
 ⭐ For every item: **read the cited design section first** (`R-129`), find and run the **feature's own suite** (T-1), add
 rails **into** that suite, and **fold what you learn back into the owning design** before the batch closes.
 
-### ① Confirm the 15 order-dependent cluster reds are pre-existing *(small, do first)*
+### ① ~~Confirm the 15 order-dependent cluster reds are pre-existing~~ — ✅ RESOLVED before dispatch
 
-The full `Hrot.ClusterRunner.Integration.Tests` run at `c6aae29e5` showed 15 failures in four classes —
-`EditorSubsystemBootTests`, `TimeControlIntegrationTests`, `HeadlessGizmoStreamingTests`, `IdAllocatorDiscoveryTests` —
-**every one passes alone** (12/0, 14/0). A comparison run at the base `faaf2e8d2` was started and had not reported when this
-was written. ⇒ Run the full suite once at `faaf2e8d2` (a `git worktree`, built from its own test project) and compare the
-failing set. Same set ⇒ pre-existing, record it on `CE-518`. Different ⇒ `EditorHarness` now builds `EntityCreationPack`
-(CE-515 ③, `EditorHarness.cs`) — that is the one shared-fixture change in the window; start there.
+The base `faaf2e8d2` run failed 16/320 in a DIFFERENT set; the failures rotate between full runs and every one
+checked passes alone. Recorded on `CE-518`. ⭐ **Gate `Hrot.ClusterRunner.Integration.Tests` by class `--filter`, never by
+the whole suite.** *(Fixing that order-dependence is CE-518 work, item ⑥.)*
 
 ### ② `CE-3003` — a debug route that writes through `EntityWriteRouter`, then re-run E4 and E6
 
