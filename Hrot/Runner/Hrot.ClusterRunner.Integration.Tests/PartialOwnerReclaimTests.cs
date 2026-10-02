@@ -16,8 +16,8 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <summary>
 /// ⭐ Ownership build S7 (R-167): a node that LEAVES gives back what it owned, on every node, with no message. The
 /// departing node is a foreign DDS participant (node 77) the test drives directly — it heartbeats, takes or is given
-/// ownership, then disposes its heartbeat instance, which is what a clean exit does (a crash reaches the same ingest
-/// path as not-alive-no-writers once the participant lease expires). 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c>
+/// ownership, then deletes its heartbeat writer, as an exit does (a crash reaches the same ingest path once the
+/// participant lease expires). 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c>
 /// §5.3, §5.6 S7, §5.7 E8.
 /// </summary>
 public class PartialOwnerReclaimTests
@@ -54,7 +54,7 @@ public class PartialOwnerReclaimTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         using var fake = new DdsParticipant((uint)domainId);
-        using var hb   = new DdsWriter<NodeHeartbeat>(fake);
+        var hb = new DdsWriter<NodeHeartbeat>(fake);   // deleted below: node 77 leaves
         Heartbeat(hb);
 
         var matched = DateTime.UtcNow.AddSeconds(2);                                // let discovery match node 77
@@ -75,7 +75,10 @@ public class PartialOwnerReclaimTests
         PumpAlive(harness, hb, () => DateTime.UtcNow > until, timeoutFrames: 5000);
         Assert.True(cgf.HasManagedComponent<OutgoingGrantsPending>(tank), "Node 77 never takes over, so the grant stays pending.");
 
-        hb.DisposeInstance(new NodeHeartbeat { NodeId = FakeNode });                 // node 77 leaves
+        // Node 77 leaves: its heartbeat WRITER goes away, as on an exit or a crash. ⚠ Not a single DisposeInstance:
+        // NodeHeartbeat is BestEffort, so one dispose sample can be lost (measured: 1 run in 7); a deleted writer
+        // reaches every reader through DDS discovery, which is reliable.
+        hb.Dispose();
 
         Assert.True(harness.PumpUntil(() => cgf.HasAuthority<SimTransform>(tank), timeoutFrames: 2000),
             $"CGF must take back the kinematic group once its grantee has left. {Describe(cgf, tank)}");
@@ -91,7 +94,7 @@ public class PartialOwnerReclaimTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         using var fake  = new DdsParticipant((uint)domainId);
-        using var hb    = new DdsWriter<NodeHeartbeat>(fake);
+        var hb = new DdsWriter<NodeHeartbeat>(fake);   // deleted below: node 77 leaves
         using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
         Heartbeat(hb);
 
@@ -117,7 +120,10 @@ public class PartialOwnerReclaimTests
             "Both nodes must record node 77 as the position's owner.");
         Assert.False(sim.HasAuthority<SimTransform>(simTank));
 
-        hb.DisposeInstance(new NodeHeartbeat { NodeId = FakeNode });                 // node 77 leaves
+        // Node 77 leaves: its heartbeat WRITER goes away, as on an exit or a crash. ⚠ Not a single DisposeInstance:
+        // NodeHeartbeat is BestEffort, so one dispose sample can be lost (measured: 1 run in 7); a deleted writer
+        // reaches every reader through DDS discovery, which is reliable.
+        hb.Dispose();
 
         int cgfNode = harness.Cgf!.TestHook_NodeId;
         Assert.True(harness.PumpUntil(() => Recorded(cgf, cgfTank, worldPos) == cgfNode
