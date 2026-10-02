@@ -344,5 +344,5 @@ are the hosts where no grant is ever executed: the offline editor (correct — o
 | S4 | retire the promote-leg claim (B4); creator claims all (D-7) | §10 probe as a rail: no component claimed by two nodes, every creation path |
 | S5 | `OwnershipApplier` extraction + `OwnershipRecomputeSystem` + `OutgoingGrantsPending` (B5) | `MasterOnly` transfer rail; F7 timeline rail |
 | S6 | parts: gate lookup, part claims, per-instance apply, `PartMetadata.DescriptorOrdinal` removed, `CE-507` (B6) | EQS suites |
-| S7 | `PartialOwnerReclaim` (B7) with the P10 guard | crash rail (kill a Muscle process) |
+| S7 | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512` (b)(c); (a) stays with `CE-506`) | crash rail (kill a Muscle process) |
 | S8 | `HealthApplicationSystem` gate (`CE-510`); ingress skip-when-owned for group descriptors (F-5) | damage rail on a SimHost-created entity |
