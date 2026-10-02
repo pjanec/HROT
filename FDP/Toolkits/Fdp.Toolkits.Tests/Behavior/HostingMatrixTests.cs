@@ -206,4 +206,126 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         run.Frame();
         Assert.Equal(1, run.FinishedCount());
     }
+
+    // ══ S5b — nesting: a hosted child that hosts ═════════════════════════════════════════════════
+
+    private const string MidName   = "S5_Mid";
+    private const string LeafName  = "S5_Leaf";
+    private static readonly Guid SiteA   = new("05b00000-0000-0000-0000-00000000000a");
+    private static readonly Guid SiteB   = new("05b00000-0000-0000-0000-00000000000b");
+    private static readonly Guid SiteMid = new("05b00000-0000-0000-0000-0000000000c0");
+
+    private static NodeStatus LeafCounts(ref byte block, ref byte exec, EntityRepository world,
+        IEntityCommandBuffer ecb, Entity self, float time, float deltaTime, uint instanceId)
+    {
+        Unsafe.As<byte, int>(ref exec)++;
+        return NodeStatus.Running;
+    }
+
+    /// <summary>
+    /// Registers HOST → (sites) → MID (BTree, hosts LEAF at one site) → LEAF (blueprint, counts its ticks in its Exec),
+    /// assigns the host through the real ingress, and returns the run plus the mid's template key at each host site and the
+    /// leaf's template key inside the mid.
+    /// </summary>
+    private static (Run Run, int[] MidKeys, int LeafKey) AssignChain(Action<BTreeBuilder<byte, BTreeContext>> hostShape)
+    {
+        var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+
+        var mb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Subtree(LeafName, visualId: SiteMid));
+        var midBlob = mb.Compile(MidName);
+        var midPlan = BTreeHostedSites.PlanFor(midBlob, MidName);
+        beh.Register(MidName, new BehaviorDefinition
+        {
+            Name = MidName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(midBlob, mb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = midPlan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, midBlob, midPlan);
+
+        beh.Register(LeafName, new BehaviorDefinition
+        {
+            Name = LeafName, BrainTier = BehaviorConstants.BrainTierBlueprint, BlueprintTick = LeafCounts, BrainStateBytes = 16,
+        });
+
+        var hb = new BTreeBuilder<byte, BTreeContext>();
+        hostShape(hb);
+        var hostBlob = hb.Compile(HostName);
+        var hostPlan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = hostPlan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, hostPlan);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+
+        var midKeys = new int[hostPlan.Entries.Count];
+        for (int k = 0; k < midKeys.Length; k++) midKeys[k] = hostPlan.Entries[k].TreeStateSlotKey;
+        var run = new Run { World = world, Entity = entity, SlotKey = midKeys[0], Brain = new BrainTickSystem(beh) };
+        return (run, midKeys, midPlan.Entries[0].TreeStateSlotKey);
+    }
+
+    private static int LeafTicks(Run run, int midKey, int leafKey)
+    {
+        int key = OccurrenceSlots.HostedKeyAt(midKey, leafKey);
+        byte* store = OccurrenceStoreAccess.TryGetStore(run.World, run.Entity, out _);
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int off),
+            $"the grandchild's nested slot {key} must be provisioned by ingress");
+        return *(int*)(store + off);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5b — the SAME child at two sites, each hosting a grandchild: two grandchild occurrences, never one.</b>
+    /// Ingress provisions both nested slots (they cannot be attached mid-tick), and each grandchild ticks once per frame in
+    /// its own brain state.
+    /// <para>✅ Red-proof: make <c>OccurrenceSlots.HostedKeyAt</c> ignore its parent and the two grandchildren share one slot
+    /// (or are never provisioned).</para>
+    /// </summary>
+    [Fact]
+    public void S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences()
+    {
+        var (run, midKeys, leafKey) = AssignChain(h => h.Parallel(0, p => p
+            .Subtree(MidName, visualId: SiteA)
+            .Subtree(MidName, visualId: SiteB)));
+        using var _ = run.World;
+        Assert.Equal(2, midKeys.Length);
+        Assert.NotEqual(OccurrenceSlots.HostedKeyAt(midKeys[0], leafKey), OccurrenceSlots.HostedKeyAt(midKeys[1], leafKey));
+
+        run.Frame(); run.Frame(); run.Frame();
+
+        Assert.Equal(3, LeafTicks(run, midKeys[0], leafKey));
+        Assert.Equal(3, LeafTicks(run, midKeys[1], leafKey));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S5b — resetting a child resets ITS children too (I7).</b> The reset the kernel routes on a Subtree node's exit
+    /// (and the HSM host on an inactive state) now walks down: the grandchild's brain state is cleared with its parent's,
+    /// and the next entry starts the whole chain fresh.
+    /// <para>⚠ Composed like <c>E6_R3b</c>: the kernel cannot abandon a still-Running child through a selector (it resumes
+    /// into it), so the reset is called directly — <c>E6_R3a</c> proves the kernel calls it.</para>
+    /// </summary>
+    [Fact]
+    public void S5b_ResettingAChild_ResetsItsGrandchildToo()
+    {
+        var (run, midKeys, leafKey) = AssignChain(h => h.Sequence(seq => seq.Subtree(MidName, visualId: SiteA)));
+        using var _ = run.World;
+
+        run.Frame(); run.Frame();
+        Assert.Equal(2, LeafTicks(run, midKeys[0], leafKey));
+
+        HostedSubtree.Reset(run.World, run.Entity, midKeys[0]);
+        Assert.Equal(0, LeafTicks(run, midKeys[0], leafKey));
+
+        run.Frame();
+        Assert.Equal(1, LeafTicks(run, midKeys[0], leafKey));   // a fresh start, all the way down
+    }
+
 }

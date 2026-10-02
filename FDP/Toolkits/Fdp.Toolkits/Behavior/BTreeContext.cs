@@ -49,6 +49,12 @@ namespace Fdp.Toolkit.Behavior
         /// stamping into trace records.</summary>
         internal uint _instanceId;
 
+        /// <summary>
+        /// ⭐ S5b — the slot key of the OCCURRENCE this tree runs as: 0 for the root, the hosted slot's actual key for a
+        /// hosted child. A hosting site nests its own child's key under it (<c>OccurrenceSlots.HostedKeyAt</c>).
+        /// </summary>
+        internal int _occurrenceKey;
+
         // ── IAIContext implementation ──────────────────────────────────────────────
         float IAIContext.DeltaTime   => _deltaTime;
         float IAIContext.Time        => _time;

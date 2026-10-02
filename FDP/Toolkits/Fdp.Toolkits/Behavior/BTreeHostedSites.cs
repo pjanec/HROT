@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Behavior;
 /// <summary>
 /// ⭐⭐⭐ <b>Which NODE of a BTree hosts a child, and under which tree-state slot.</b>
 /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §33. The twin of <see cref="HsmHostedSubtrees"/>,
-/// keyed the same way — by the blob's <c>StructureHash</c>.
+/// keyed by the BLOB INSTANCE (S5b — see the table's remarks).
 ///
 /// <para>⭐⭐⭐ <b>WHY IT WALKS THE BLOB, and this is the whole reason hand-written trees work.</b>
 /// 🔒 User, <c>2026-09-27</c>: *"i need to support hand written c# btree subtrees as well."*
@@ -36,8 +36,15 @@ public static class BTreeHostedSites
     /// <c>BehaviorDefinition</c>, or <see cref="HostedSubtree.Tick"/> throws on the undeclared slot.</param>
     public readonly record struct Plan(IReadOnlyList<Entry> Entries, IReadOnlyList<StatefulSlotInfo> Slots);
 
-    // blob StructureHash -> nodeIndex -> (slot key, site binding). Mirrors HsmHostedSubtrees._byMachine.
-    private static readonly Dictionary<int, Dictionary<int, (int Key, HostedSubtree.SiteBinding Binding)>> _byStructureHash = new();
+    // blob (BY REFERENCE) -> nodeIndex -> (slot key, site binding).
+    // ⛔⛔ S5b / CE-2000 — it used to be keyed by blob.StructureHash, which hashes node TYPES and child COUNTS only
+    //   (TreeCompiler.CalculateStructureHash). Two trees of the same shape — a host `Sequence(Subtree)` and its child
+    //   `Sequence(Subtree)` — shared ONE map, and the last Bind won: the child's site then looked up the host's key.
+    //   ⭐ The interpreter hands the host its own blob instance (Interpreter._blob) and every registrar binds that same
+    //   instance, so the reference IS the identity. ⚠ A hot-reloaded tree is a new blob ⇒ a new entry; the old one is
+    //   unreachable (a small, startup-scale leak, not a per-tick cost).
+    private static readonly Dictionary<BehaviorTreeBlob, Dictionary<int, (int Key, HostedSubtree.SiteBinding Binding)>> _byBlob
+        = new(ReferenceEqualityComparer.Instance);
     /// <summary>
     /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
     /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
@@ -144,7 +151,7 @@ public static class BTreeHostedSites
 
         // ⭐ Last writer wins, deliberately: hot reload re-runs registrars and the NEW blob's map is
         //   the one that must be reachable. Same rule HostedChildren.Register follows.
-        lock (WriteLock) _byStructureHash[blob.StructureHash] = map;
+        lock (WriteLock) _byBlob[blob] = map;
     }
 
     /// <summary>⭐ The slot key for a hosting node, or <c>false</c> when this node hosts nothing.</summary>
@@ -157,7 +164,7 @@ public static class BTreeHostedSites
     {
         treeStateSlotKey = 0; binding = default;
         if (blob is null
-            || !_byStructureHash.TryGetValue(blob.StructureHash, out var map)
+            || !_byBlob.TryGetValue(blob, out var map)
             || !map.TryGetValue(nodeIndex, out var site)) return false;
         (treeStateSlotKey, binding) = site;
         return true;
@@ -179,7 +186,7 @@ public static class BTreeHostedSites
     }
 
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
-    public static void ClearForTests() { lock (WriteLock) _byStructureHash.Clear(); }
+    public static void ClearForTests() { lock (WriteLock) _byBlob.Clear(); }
 
     // ---- internals ----------------------------------------------------------
 

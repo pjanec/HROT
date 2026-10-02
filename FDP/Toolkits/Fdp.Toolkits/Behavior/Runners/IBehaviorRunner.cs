@@ -52,6 +52,8 @@ namespace Fdp.Toolkit.Behavior.Runners
         public BehaviorDefinition Definition;
         /// <summary>The run's <c>BehaviorState.InstanceId</c> — a hosted child shares its host's (U-10).</summary>
         public uint InstanceId;
+        /// <summary>⭐ S5b — the run's occurrence key: 0 at the root, its hosted slot's actual key when hosted.</summary>
+        public int OccurrenceKey;
         public IEntityCommandBuffer? Ecb;
         public float DeltaTime;
     }

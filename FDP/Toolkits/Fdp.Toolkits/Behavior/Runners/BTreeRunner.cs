@@ -85,6 +85,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 _intParams   = Array.Empty<int>(),
                 _instanceId  = ctx.InstanceId,
                 TraceBuffer  = tracePtr,
+                _occurrenceKey = ctx.OccurrenceKey,
             };
 
             var interpreter = ctx.Definition.BTreeInterpreter!;

@@ -99,24 +99,61 @@ public static unsafe class HostedSubtree
     {
         if (slots is null) return slots!;
         StatefulSlotInfo[]? copy = null;
+        List<StatefulSlotInfo>? nested = null;
         for (int i = 0; i < slots.Count; i++)
         {
             var s = slots[i];
             if (!IsTreeStateSlot(s)) continue;
 
             HostedChildren.TryGetDefinition(s.SlotKey, out var childDef);
-            int size = SlotPayloadSizeFor(childDef);
-            uint hash = s.StructureHash;
-            unchecked
-            {
-                hash = (hash ^ (uint)size) * 16777619u;
-                if (childDef?.BlackboardLayoutType is { } t)
-                    hash = (hash ^ (uint)t.FullName!.GetHashCode()) * 16777619u;
-            }
             copy ??= ToArray(slots);
-            copy[i] = s with { PayloadSize = size, StructureHash = hash };
+            copy[i] = Sized(s, s.SlotKey, childDef);
+
+            // ⭐⭐ S5b — the child's OWN hosted sites, recursively, under their nested keys: provisioning is recursive
+            //   because a grandchild's slot cannot be attached later (a structural change inside a tick).
+            AppendNested(ref nested, s.SlotKey, childDef, depth: 1);
         }
-        return copy ?? slots;
+        if (nested is null) return copy ?? slots;
+        var all = new List<StatefulSlotInfo>(copy ?? (IEnumerable<StatefulSlotInfo>)slots);
+        all.AddRange(nested);
+        return all;
+    }
+
+    /// <summary>⭐ S5b — the deepest hosting chain provisioning follows. A deeper one is a cycle the registration check missed.</summary>
+    public const int MaxNestingDepth = 16;
+
+    private static void AppendNested(ref List<StatefulSlotInfo>? nested, int parentKey, BehaviorDefinition? def, int depth)
+    {
+        var slots = def?.StatefulWorkingSlots;
+        if (slots is null) return;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var c = slots[i];
+            if (!IsTreeStateSlot(c)) continue;
+            if (depth >= MaxNestingDepth)
+                throw new InvalidOperationException(
+                    $"S5b: behaviour '{def!.Name}' hosts children more than {MaxNestingDepth} levels deep — a hosting cycle. " +
+                    "Registration refuses cycles (S5c); reaching here means one slipped past it.");
+
+            HostedChildren.TryGetDefinition(c.SlotKey, out var gc);
+            int actual = OccurrenceSlots.HostedKeyAt(parentKey, c.SlotKey);
+            (nested ??= new List<StatefulSlotInfo>()).Add(Sized(c, actual, gc));
+            AppendNested(ref nested, actual, gc, depth + 1);
+        }
+    }
+
+    /// <summary>A hosted slot at <paramref name="key"/>, sized from its child and hashed so a reloaded child re-attaches.</summary>
+    private static StatefulSlotInfo Sized(StatefulSlotInfo s, int key, BehaviorDefinition? childDef)
+    {
+        int size = SlotPayloadSizeFor(childDef);
+        uint hash = s.StructureHash;
+        unchecked
+        {
+            hash = (hash ^ (uint)size) * 16777619u;
+            if (childDef?.BlackboardLayoutType is { } t)
+                hash = (hash ^ (uint)t.FullName!.GetHashCode()) * 16777619u;
+        }
+        return s with { SlotKey = key, PayloadSize = size, StructureHash = hash };
     }
 
     private static StatefulSlotInfo[] ToArray(IReadOnlyList<StatefulSlotInfo> slots)
@@ -185,7 +222,9 @@ public static unsafe class HostedSubtree
         var childDef = HostedChildren.RequireDefinition(treeStateSlotKey);
         var runner = childDef.Runner!;
 
-        byte* payload = ResolvePayload(ref ctx, treeStateSlotKey, out int payloadSize);
+        // ⭐⭐ S5b — the slot is the TEMPLATE key nested under the occurrence this host runs as (0 at the root ⇒ unchanged).
+        int occurrenceKey = OccurrenceSlots.HostedKeyAt(ctx._occurrenceKey, treeStateSlotKey);
+        byte* payload = ResolvePayload(ref ctx, occurrenceKey, out int payloadSize);
         int brainBytes = runner.BrainBytes(childDef);
         int blockBytes = RootParamsAccess.RootParamsBytes(childDef);
         int blockOffset = BlockOffsetFor(childDef);
@@ -202,6 +241,7 @@ public static unsafe class HostedSubtree
         if (start == 0)
         {
             runner.Start(childDef, payload, brainBytes);
+            ResetDescendants(ctx.World, ctx.Self, childDef, occurrenceKey, depth: 1);   // ⭐ S5b — a fresh start all the way down
             StartChild(treeStateSlotKey, childDef, payload + blockOffset, blockBytes, ref hostBlock, binding,
                        ctx.World, ctx.Self);
             start = 1;
@@ -212,6 +252,7 @@ public static unsafe class HostedSubtree
         {
             World = ctx.World, Self = ctx.Self, Definition = childDef, InstanceId = ctx._instanceId,
             Ecb = ((Fdp.ModuleHost.Abstractions.ISimulationView)ctx.World).GetCommandBuffer(), DeltaTime = ctx._deltaTime,
+            OccurrenceKey = occurrenceKey,
         };
         var status = runner.Tick(ref run, payload, brainBytes, ref block);
 
@@ -220,6 +261,7 @@ public static unsafe class HostedSubtree
         {
             new Span<byte>(payload, brainBytes).Clear();
             start = 0;
+            ResetDescendants(ctx.World, ctx.Self, childDef, occurrenceKey, depth: 1);   // ⭐ S5b — its children end with it
         }
         return status;
     }
@@ -317,7 +359,7 @@ public static unsafe class HostedSubtree
     /// node whose key has a registered deactivator. ⇒ registering this IS the opt-in.</para>
     /// </summary>
     public static void Reset(ref BTreeContext ctx, int treeStateSlotKey)
-        => Reset(ctx.World, ctx.Self, treeStateSlotKey);
+        => Reset(ctx.World, ctx.Self, treeStateSlotKey, ctx._occurrenceKey);
 
     /// <summary>
     /// ⭐⭐ <b><c>D4</c>, HALF TWO — the EXTERNAL form.</b> Same body, reached without a
@@ -330,23 +372,41 @@ public static unsafe class HostedSubtree
     /// cursor while the host restarts from the root. ⚠ The ingress has <c>(repo, entity)</c> and no
     /// context — hence the split. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §21.2.</para>
     /// </summary>
-    public static void Reset(EntityRepository world, Entity self, int treeStateSlotKey)
+    public static void Reset(EntityRepository world, Entity self, int treeStateSlotKey, int parentOccurrenceKey = 0)
+        => ResetAt(world, self, treeStateSlotKey, parentOccurrenceKey, depth: 0);
+
+    /// <summary>
+    /// ⭐⭐ S5b — the reset is RECURSIVE: a child that is abandoned or restarted takes its own hosted children with it, so a
+    /// grandchild never resumes mid-run under a host that started over (I7).
+    /// </summary>
+    private static void ResetAt(EntityRepository world, Entity self, int templateKey, int parentOccurrenceKey, int depth)
     {
         byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
         if (store == null) return;   // ⚠ torn down already — nothing to reset, and not an error
 
-        if (BlueprintBlackboardPartitions.TryGetSlotIndex(store, treeStateSlotKey, out int index))
+        int key = OccurrenceSlots.HostedKeyAt(parentOccurrenceKey, templateKey);
+        HostedChildren.TryGetDefinition(templateKey, out var childDef);
+        if (BlueprintBlackboardPartitions.TryGetSlotIndex(store, key, out int index))
         {
             ref var entry = ref BlueprintBlackboardPartitions.GetSlot(store, index);
             byte* payload = store + entry.PayloadOffset;
             // ⭐ S5a — zero the CHILD's brain at its own width (a BTree cursor, an HSM instance, a blueprint Exec).
-            HostedChildren.TryGetDefinition(treeStateSlotKey, out var childDef);
             int brainBytes = Math.Min(BrainBytesFor(childDef), entry.PayloadSize);
             new Span<byte>(payload, brainBytes).Clear();
             // ⭐ CE-431 — an abandoned child's next entry is a fresh START.
             if (entry.PayloadSize >= brainBytes + sizeof(int))
                 Unsafe.AsRef<int>(payload + brainBytes) = 0;
         }
+        ResetDescendants(world, self, childDef, key, depth + 1);
+    }
+
+    private static void ResetDescendants(EntityRepository world, Entity self, BehaviorDefinition? def, int occurrenceKey, int depth)
+    {
+        var slots = def?.StatefulWorkingSlots;
+        if (slots is null || depth > MaxNestingDepth) return;
+        for (int i = 0; i < slots.Count; i++)
+            if (IsTreeStateSlot(slots[i]))
+                ResetAt(world, self, slots[i].SlotKey, occurrenceKey, depth);
     }
 
     /// <summary>

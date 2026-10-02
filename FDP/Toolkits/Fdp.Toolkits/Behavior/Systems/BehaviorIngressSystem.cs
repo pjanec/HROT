@@ -304,6 +304,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // S2-2: Synchronously provision stateful working-state partition slots.
             // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
+            // ⭐ CE-431 + S5b — the manifest as provisioned: hosted slots sized from their child, and every nested
+            //   descendant under its own key. The sweep below must see the SAME list, or it detaches the nested slots.
+            var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
             if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
             {
                 // Detach previous behavior's slots to avoid leaking them.
@@ -312,7 +315,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
                     prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
                 {
-                    DetachStatefulSlots(repo, entity, prevDef.StatefulWorkingSlots);
+                    DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots));   // ⭐ S5b — nested slots too
                 }
 
                 // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
@@ -322,7 +325,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                 _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
                 // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
-                ProvisionStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots), KindOf(def),
+                ProvisionStatefulSlots(repo, entity, effectiveSlots!, KindOf(def),
                                        hosted, RootParamsCost(def), RootBrainStateCost(def));
             }
             else
@@ -333,7 +336,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
             // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
-            DetachHostedOccurrenceSlots(repo, entity, def.StatefulWorkingSlots);
+            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots);
 
             // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
             //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
@@ -987,7 +990,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
                 prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
             {
-                DetachStatefulSlots(repo, entity, prevDef.StatefulWorkingSlots);
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(prevDef.StatefulWorkingSlots));   // ⭐ S5b — nested slots too
             }
 
             // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
