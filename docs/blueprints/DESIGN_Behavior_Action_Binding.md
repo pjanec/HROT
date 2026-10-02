@@ -10,6 +10,7 @@ known-rot: none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:
+  - DESIGN_BTree_Node_Call_Shapes.md — owns CE-504: what DelegateShape is FOR; proposes deriving it from the method and one C# node signature for both hosts.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns decision B (one carrier, approved
     2026-09-28) and §5.1b (DelegateShape stays BTree-side). This document only BUILDS B.
   - DESIGN_Parameter_Model.md — §P.3 owns what an action binding MEANS (no copy, no resolver, reads its host
