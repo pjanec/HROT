@@ -177,7 +177,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 - **Ownership group** = a named set of components that move together, defined ONCE as component masks, network-agnostic (Role-Affinity §2.3
   shape). E.g. *brain group* = `BehaviorState`, the channels, `BrainInterrupts`, the blackboard tiers, `NavigationIntent`, `MissionPlanQueue`;
   *kinematic group* = `SimTransform`, `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState` (+ `NavigationStatus`). Members never on the
-  wire are owned only through the grant (R-165). Final lists: build step 1.
+  wire are owned only through the grant (R-165). ⭐ Final lists (incl. a separate PERCEPTION group, R-171): [`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md) §2.
 - **The owner's strategy** decides which node gets which group (per role, shard by load); no grant where the target is the creator.
 - **Each network implementation** maps groups to its wire unit and carries the grant; NED keeps sending descriptor ids in the same message
   (no protocol change, R-158). BDC exempt while unused. Offline: one node, no grants.
@@ -291,7 +291,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 |---|---|---|
 | B1 | one creation composition on every ECS node (adapters + strategy on SimHost/Stride; yield ungated) | `CE-508`, `CE-509` |
 | B2 | ownership GROUPS defined once, network-agnostic; NED maps descriptors to them; brain-only components linked to the brain descriptor | G2, G3, G6, R-165 |
-| B3 | the strategy shards per group: brain group → a Brain node, kinematic group → a Muscle node; group-aware, template-aware (`BrainTier`) | G1, G5, P8 |
+| B3 | the strategy shards per group: brain group → a Brain node, kinematic group → a Muscle node, perception group → a Perception node (R-171); group-aware, template-aware (`BrainTier`) | G1, G5, P8 |
 | B4 | retire the promote-leg claim (`GhostPromotionSystem.cs:313-324`) | ③, R-164 |
 | B5 | record follows claim (R-159), treating descriptors with an unconfirmed outgoing grant as still the creator's | ④, P6 |
 | B6 | parts: gate lookup `(d,i)`→`(d,0)`→primary; part's own claim from its root at creation; per-instance `OwnershipUpdate` sets the PART's claim; drop `PartMetadata.DescriptorOrdinal`; fix `CE-507` | §0.10, R-168 |
