@@ -9,12 +9,17 @@ then
     python3 scripts/ownership-e2e.py move <networkId>...  # MoveToLocation task, then position on every node
     python3 scripts/ownership-e2e.py edit <networkId> <perspective> '<patchJson>'   # E4/E6: patch from a NON-owner,
                                                           # then show the patched state on every node (CE-3003)
+Multi-process launch (one node per process, RUNBOOK §1.2): set HROT_E2E_PORTS, e.g.
+    HROT_E2E_PORTS="SimHost=8102,Scenario=8101,IG=8103" python3 scripts/ownership-e2e.py own <networkId>
+and every call for a perspective goes to that node's own port (E8, the crash run).
 Node ids (measured on --mode all): SimHost 1 · IG 100 · CGF 400 (perspective "Scenario").
 ⚠ Use the hostname localhost: 127.0.0.1 404s every route. The cluster boots PAUSED (POST /sim/play).
 """
-import json, sys, time, urllib.request
+import json, os, sys, time, urllib.request
 
 B = "http://localhost:8111"
+PORTS = dict(kv.split("=") for kv in os.environ.get("HROT_E2E_PORTS", "").split(",") if kv)   # perspective -> port
+_base = [B]
 NODES = {"SimHost": 1, "Scenario": 400, "IG": 100}          # perspective -> node id (measured)
 NAME = {1: "SimHost", 400: "CGF", 100: "IG", -1: "?"}
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -22,15 +27,20 @@ opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 def call(method, path, body=None):
     data = json.dumps(body if body is not None else {}).encode() if method in ("POST", "DELETE", "PUT") else None
-    req = urllib.request.Request(B + path, data=data, method=method, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(_base[0] + path, data=data, method=method, headers={"Content-Type": "application/json"})
     try:
         with opener.open(req, timeout=60) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         return json.loads(e.read() or b"{}")
+    except (urllib.error.URLError, ConnectionError) as e:      # a killed node (E8) answers nothing
+        return {"ok": False, "error": f"unreachable: {e}"}
 
 
 def persp(name):
+    if PORTS:                                   # one node per process: the perspective IS the port
+        _base[0] = f"http://localhost:{PORTS[name]}"
+        return {"ok": True}
     r = call("POST", "/perspective", {"name": name})
     return r
 
