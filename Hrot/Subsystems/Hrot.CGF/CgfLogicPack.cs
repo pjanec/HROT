@@ -68,6 +68,7 @@ namespace Hrot.CGF
         private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
         private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
+        private readonly Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem _squadCoordinationSystem;   // CE-454
         // CE-221: UnitHierarchySystem and EqsResultUpdateSystem are CROSS-ROLE INFRASTRUCTURE and no
         // longer live in this pack. They are contributed once per node by
         // CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability, declared LAST in
@@ -177,6 +178,14 @@ namespace Hrot.CGF
             _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
             _routeContextSystem        = new RouteContextSystem();
 
+            // ⭐⭐ CE-454 (W1/W2) — 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3.
+            //   W1: the Utility input readers (Standard + Squad) are registered by the analyzer-emitted
+            //   [UtilityRegistrar]s, which NOTHING in production ever invoked — so every input read 0. One
+            //   idempotent call, here, because every Brain host builds this pack.
+            Fdp.Toolkit.Utility.UtilityAutoDiscovery.ScanAndRegister();
+            //   W2: the squad layer's one frame driver (perception merge on every owned commander).
+            _squadCoordinationSystem   = new Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(gateOnAuthority);
+
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();
 
@@ -190,6 +199,7 @@ namespace Hrot.CGF
             simList.Add(_healthApplicationSystem);
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
+            simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);

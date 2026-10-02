@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: the whole document (the scorer and its §7 integration surfaces)
+stale-below: none
+known-rot: the runtime bootstrap (input registration via UtilityAutoDiscovery) had no production caller until CE-454 W1 — see DESIGN_Squad_Wiring.md §1
+related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns the runtime bootstrap call site (CgfLogicPack ctor) and why no Utility tick system exists
+  - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — the commander-tier ManeuverSelect recursion (§8.0)
+-->
+
 # Utility AI (Decision Scoring) — Design v1.2
 
 Consolidated design from the brainstorming sessions between the project owner and Claude.

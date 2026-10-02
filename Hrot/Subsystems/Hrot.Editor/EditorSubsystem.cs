@@ -1521,9 +1521,8 @@ namespace Hrot.Editor
             {
                 injectedMuscleCapabilities = MuscleCapabilitiesFactory(new MuscleModuleContext(_world!, entityMap));
             }
-            var mapperRegistry = new TacticalIntentMapperRegistry();
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
-            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
+            // ⭐ CE-454 (W3): the one mapper list both Brain hosts share.
+            var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 scenarioLoadSource,
                 mapperRegistry,

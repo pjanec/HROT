@@ -1,8 +1,18 @@
 # Hrot.SquadCoordination
 
-**Design reference:** `.dev/group-maneuvers/Squad_Coordination_Design_v1_1.md`
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: the API reference below; for WHERE it runs read DESIGN_Squad_Wiring.md
+known-rot: "Fully implemented" was true of the library only — until CE-454 (2026-10-02) no node ran any of it. The code lives in FDP/Toolkits/Fdp.Toolkits/Squad/ (no Hrot.SquadCoordination project exists); SquadInputs is at Fdp.Toolkits/Utility/Inputs/. The .dev/group-maneuvers/ path is now .dev/_DONE/group-maneuvers/
+related-designs:
+  - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — WHAT the layer is
+  - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — WHERE it runs (CE-454) and what is still unwired (CE-507)
+-->
+
+**Design reference:** `docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md` (the `.dev/_DONE/` copy is older)
 **Date:** 2026-05-30
-**Implementation status:** Fully implemented. All phases (P0-P7) complete.
+**Implementation status:** library complete (P0-P7). **Runtime:** perception merge + `ForceManeuver` order wired on every Brain host (`CE-454`); maneuver execution, `ManeuverSelect` and the movement-mode broadcast are NOT run (`CE-507`).
 
 ---
 
