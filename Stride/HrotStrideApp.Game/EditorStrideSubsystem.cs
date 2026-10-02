@@ -109,9 +109,6 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     // ── Constants mirroring EditorSubsystem ───────────────────────────────
     private const int EditorNodeId = 0;
 
-    // ── Network factory (offline — no DDS) ───────────────────────────────
-    private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
-
     // ── Core world / kernel ───────────────────────────────────────────────
 
     /// <summary>The single shared ECS world (simulation layer).</summary>

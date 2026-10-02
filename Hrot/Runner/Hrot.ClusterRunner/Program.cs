@@ -194,8 +194,15 @@ class Program
         // Discover all non-abstract ISubsystem implementations (runner-internal
         // ones are excluded; see ScanForSubsystems).
         var discovered = ScanForSubsystems()
-            .Select(type => 
+            .Select(type =>
             {
+                // ⭐ CE-516 — the composition root chooses each node's network. The editor is an OFFLINE node
+                //   (ruling 66 "the editor is a one-node cluster"; Q26 constraint 2): it gets the offline
+                //   factory and no DDS participant. ⛔ Before, it was handed a live NedNetworkFactory it threw
+                //   away, and built its own offline one.
+                if (type == typeof(Hrot.Editor.EditorSubsystem))
+                    return TryCreateSubsystem(type, new Hrot.Editor.OfflineNetworkFactory());
+
                 // 1. Create isolated memory spaces per subsystem
                 var entityMap    = new NetworkEntityMap();
                 var geoTransform = HrotEnvironment.CreateGeoTransform();

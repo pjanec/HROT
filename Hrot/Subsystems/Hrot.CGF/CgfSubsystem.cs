@@ -1765,6 +1765,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context?.Kernel.Update();
         _debugTimeController?.EndFrame();
 
+        // ⭐⭐ CE-3004 — resolve mission commits, as EditorSubsystem does each frame. ⛔ Without it every
+        //    CommitMissionAsync/SendControlCommandAsync on this host stayed pending forever: the plan was
+        //    applied (MissionControlExecutionSystem, CgfLogicPack) and its MissionControlAckEvent published,
+        //    but nothing read it — so the Mission panel's commit never completed and `/missions/*` timed out.
+        _missionService?.PollAcks();
+
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
