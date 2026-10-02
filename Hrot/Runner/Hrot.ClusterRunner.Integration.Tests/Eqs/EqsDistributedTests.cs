@@ -342,7 +342,12 @@ public sealed class EqsDistributedTests
         Place(sim, SimEntity(harness, hostileB),    80f,  90f, ForceId.Hostile);
         Place(sim, SimEntity(harness, hostileOut), 300f, 300f, ForceId.Hostile);
         Place(sim, SimEntity(harness, friendlyIn),  95f, 105f, ForceId.Friend);
-        Place(sim, SimEntity(harness, wreckIn),    120f,  80f, ForceId.Hostile, health: 0f);
+        Place(sim, SimEntity(harness, wreckIn),    120f,  80f, ForceId.Hostile);
+        // ⭐ S8 (push-only): Health is in the BRAIN group, so on a Muscle-created T72 it is owned by CGF, and the
+        //   Muscle's copy is a replica that follows CGF's dtEntityDamage. Kill the wreck on the node that CLAIMS Health
+        //   — as damage is applied in production. (Writing it on the Muscle only stuck while the Muscle wrongly
+        //   ignored the owner's health — the CE-523 replica bug.) 📄 DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
+        KillOnTheHealthOwner(harness, wreckIn);
         Assert.True(harness.PumpUntil(() => ForceIs(harness, ForceId.Hostile, hostileA, hostileB, hostileOut, wreckIn)
                                           && ForceIs(harness, ForceId.Friend, friendlyIn), timeoutFrames: 2000),
             $"Forces must settle on the Muscle after republishing. {Describe(harness, everything)}");
@@ -744,7 +749,11 @@ public sealed class EqsDistributedTests
         }
 
         public void Put(long net, float x, float y, ForceId force, float? health = null)
-            => Place(Sim, SimEntity(H, net), x, y, force, health);
+        {
+            Place(Sim, SimEntity(H, net), x, y, force);
+            // ⭐ S8: Health is owned by the Brain group's holder — kill on that node, never on a replica.
+            if (health is float h) { Assert.Equal(0f, h); KillOnTheHealthOwner(H, net); }
+        }
 
         public void Delete(long net)
         {
@@ -1281,6 +1290,30 @@ public sealed class EqsDistributedTests
     }
 
     // Sets position, force and (optionally) health on the Muscle, which owns these entities.
+    /// <summary>Sets <see cref="Health"/> to 0 on whichever node claims it (the Brain group's owner); every replica then
+    /// follows through <c>dtEntityDamage</c>.</summary>
+    private static void KillOnTheHealthOwner(HrotRunnerHarness harness, long net)
+    {
+        Assert.True(harness.PumpUntil(() => Owner() != null, timeoutFrames: 2000),
+            $"Some node must claim Health of {net}.");
+        var (world, e) = Owner()!.Value;
+        world.GetComponentRW<Health>(e) = new Health { Current = 0f, Max = world.GetComponent<Health>(e).Max };
+        Assert.True(harness.PumpUntil(() => harness.SimHost.World!.GetComponent<Health>(SimEntity(harness, net)).Current <= 0f,
+                timeoutFrames: 2000),
+            $"The Muscle's replica of {net} must follow its owner's Health to 0.");
+
+        (EntityRepository, Entity)? Owner()
+        {
+            var sim = harness.SimHost.World!;
+            Entity s = SimEntity(harness, net);
+            if (sim.HasComponent<Health>(s) && sim.HasAuthority<Health>(s)) return (sim, s);
+            var cgf = harness.Cgf!.World!;
+            if (harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity c) && cgf.HasComponent<Health>(c) && cgf.HasAuthority<Health>(c))
+                return (cgf, c);
+            return null;
+        }
+    }
+
     private static void Place(EntityRepository world, Entity e, float x, float y, ForceId force, float? health = null)
     {
         var tf = new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity };
