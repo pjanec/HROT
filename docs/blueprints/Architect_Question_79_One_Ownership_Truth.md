@@ -34,7 +34,9 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-164 | *"promoter cannot decide based on role, multiplr nodes have same role"* — the owner shards and pushes (§0.7) |
 | R-165 | *"map brain components onto the brain descriptor. never sent and never updated from the descriptor, but linked to descriptor, just because of the grant. This grant concept must be ensured by any network imple,entation"* |
 | R-162 | *"one node per role is wrong. Map2d is a role on multiple nodes already."* — ⛔ **SUPERSEDES R-157** and its duplicate-role guard (Q79 §8 D4, never built). The design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
-| (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
+| R-168 *(earlier)* | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
+| R-166 *(`2026-10-02`)* | *"external nodes use our SST OwnershipUpdate, it should be the same thing as the one one from the spec"* |
+| R-167 *(`2026-10-02`)* | *"ok as calling the handler internally, not really sending a network message to itself"* — the crash reclaim (§0.11) |
 
 ### 0.2 Measured facts *(code — how it IS)*
 
@@ -85,7 +87,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
 | O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
-| O6 | which ownership topic and node-id scheme do EXTERNAL nodes speak — the spec `OwnershipUpdate` (`hrot-generic-msgs`, `NodeId{AppDomainId, AppInstanceId}`)? | the user; then §0.12 E3 |
+| ~~O6~~ | ✅ answered `2026-10-02` (R-166): external nodes speak `SST_OwnershipUpdate` | — |
 
 ### 0.7 ⭐⭐⭐ PROPOSED SOLUTION — **PUSH-ONLY** *(`2026-10-01`, user-directed; awaiting final approval; UML goes in a DESIGN doc before build)*
 
@@ -214,10 +216,11 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 - **No type-level default.** `DescriptorOwnership.TryGetOwner` is an exact-key lookup (`DescriptorOwnership.cs:25-28`) ⇒ a group record at `(d,0)` does NOT cover instances `1..n`; they fall to the root's `PrimaryOwnerId`.
 - **`CE-507`:** the EQS senders pass the raw ordinal `d` as the key — that is `PackKey(0, d)`, which matches no entry ⇒ every EQS part publishes iff the node is the parent's PRIMARY owner, whatever was granted. Same class as `CE-500` for an entity created off-Brain.
 
-⭐ **Lean (P5 resolved without a protocol change):**
-1. **A part belongs to the group of its descriptor TYPE on its root.** A grant/transfer of that group covers every instance. Gate lookup becomes `(d,i)` → `(d,0)` → `PrimaryOwnerId` — a change in the toolkit gate only, no message change.
-2. **Parts carry no claim of their own**; a claim question on a part resolves to the root, as the record gate already does.
-3. **Per-instance split** (two instances of ONE descriptor type on two nodes) only by `OwnershipUpdate`, which already carries `DescrInstanceId`. ⛔ Not built: the ingress drops the instance (`OwnershipIngressSystem.cs:65`) and sets the claim on the root. ⭐ **Defer** — no production case needs it (EQS config and EQS result are different descriptor TYPES, so the type-level rule covers them).
+⭐ **Lean (P5 resolved without a protocol change; R-168 — per-instance is honoured although unused today):**
+1. **By default a part belongs to the group of its descriptor TYPE on its root.** A grant of that group covers every instance. Gate lookup becomes `(d,i)` → `(d,0)` → `PrimaryOwnerId` — a change in the toolkit gate only, no message change.
+2. **A part carries its OWN claim** (its own entity's mask), set at part creation from its root's claim for that group — not left empty as today.
+3. **Per-instance override** (two instances of ONE descriptor type on two nodes) by `OwnershipUpdate`, which already carries `DescrInstanceId`: the ingress writes `Map[(d,i)]` (already) and sets the claim on the PART entity for `(root, i)`, not on the root. ⛔ Not built: today it drops the instance (`OwnershipIngressSystem.cs:65`). ⚠ Resolving `(root, i)` to a part: `PartMetadata.DescriptorOrdinal` is written `0` by EQS, and `ChildMap` has no production writer — the design session picks the index.
+   ⛔ ~~*"Defer — no production case needs it"*~~ — withdrawn `2026-10-02`: it contradicted R-168.
 
 ### 0.11 ⭐ CRASH = DISPOSE *(the spec's rule; closes P1)*
 
@@ -226,7 +229,10 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | **master owner** | `EntityMaster` instance not alive ⇒ entity deleted on every node; spec: *"must be created anew"* | ✅ `EntityMasterIngressTranslator.cs:72` treats ANY non-alive state (disposed or no-writers) as delete; DER the same (`DdsIngressHandlers.cs:54`) |
 | **partial owner** *(a grantee: Muscle with `dtWorldPos`, Brain with the brain group)* | spec: the master's owner detects the dispose and takes ownership *"as if `UpdateOwnership` was received"*; every other node ignores it | ⛔ not built — non-master ingress translators skip non-valid samples (e.g. `NavigationIntentIngressTranslator.cs:61`) |
 
-⭐ **Lean:** on a non-alive sample of a non-master descriptor, the node whose `PrimaryOwnerId == local` publishes the **existing** bus `OwnershipUpdate{key, NewOwner = local, Origin = local}`. `OwnershipIngressSystem` applies it (claim + record) and `OwnershipUpdateTranslator` sends it, so every node's record converges. No new message. Later re-sharding is a normal transfer by the authority (P7).
+⭐ **Lean (R-167 — a direct handler call, NO network message):** on a non-alive sample of a non-master descriptor, the node **calls the ownership-apply logic of `OwnershipIngressSystem` directly** with `(key, NewOwner = the entity's PrimaryOwnerId)`. That logic is extracted from its bus loop so both paths share it.
+- ⛔ **Not a bus event:** a bus `OwnershipUpdate` with `Origin = local` is forwarded to the wire by `OwnershipUpdateTranslator.ScanAndPublish` (it forwards origin 0 or local) — that is the network message to itself R-167 rules out.
+- ⭐ **Every node applies it, not only the master owner.** All nodes see the same dispose, so all compute the same new owner — records converge with zero messages. Only the master owner gains the claim (`isAuth`); the rest just correct their record. The spec's *"other nodes should ignore this dispose"* means "do not treat it as a deletion", which this keeps.
+- Later re-sharding is a normal transfer by the authority (P7).
 
 | caveat | |
 |---|---|
@@ -240,18 +246,19 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 **Measured today:**
 - Their entity becomes a ghost with `PrimaryOwnerId = -1` ("unknown") (`EntityMasterIngressTranslator.cs:146-152`). Our own LCM still runs locally on that ghost; it needs nothing from them.
 - No grant ever arrives ⇒ under push-only (③, promote-leg claim retired) we claim nothing of it. ✅ correct by construction. Today the promote-leg claim (`GhostPromotionSystem.cs:313-324`) would make our nodes claim role components of an external entity; the send gate still blocks (record falls to `-1`), so it costs local compute, not a wire violation.
-- ⛔ **We do not speak the spec's ownership message.** We read and write only `SST_OwnershipUpdate` (`Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`: int `NewOwner`, plus `Timestamp`, `OriginNodeId`). The spec-shaped `OwnershipUpdate` (topic `"OwnershipUpdate"`, `NodeId{AppDomainId, AppInstanceId}`, `GenericMessages.cs:33-57`) has no reader and no writer. ⇒ an external node can neither hand us a descriptor nor receive one. `DESIGN_Distributed_Scenario_Persistence.md` §6c assumes it can (known-conflict recorded there).
+- ✅ **The ownership message is shared (R-166).** External nodes use our `SST_OwnershipUpdate` (`Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`) — it IS the spec's `OwnershipUpdate`. Our ingress accepts any sender except our own id (`OwnershipUpdateTranslator.PollIngress` drops only `OriginNodeId == local`), and `NewOwner` is a plain int in the shared node-id space. ⇒ an external node can hand us a descriptor and take it back today.
+  ⚠ The second, spec-shaped struct `GenericMessages.OwnershipUpdate` (topic `"OwnershipUpdate"`, `NodeId{…}`, `GenericMessages.cs:33-57`) has no reader or writer — a dormant duplicate shape, not the interop path. Not proposed for deletion here.
 
 ⭐ **Lean:**
 | # | rule |
 |---|---|
 | E1 | **Only the master's owner shards.** External master ⇒ we never grant it; we own only what the external node hands us |
 | E2 | **The external unit is ONE descriptor.** On receipt, the claim of that descriptor's components flips (existing ingress step), and components LINKED to it (R-165) follow ⇒ handed the brain descriptor, our Brain runs the brain; handed `dtWorldPos`, our Muscle simulates. Requires our groups to be whole descriptors (P4) |
-| E3 | **One bridge translator for the spec topic:** ingress maps `NodeId` → our int and publishes the same bus `OwnershipUpdate`; egress mirrors our transfers onto the spec topic. Adds a reader/writer for an existing spec message; deferred takeover and `SST_OwnershipUpdate` stay unchanged (R-158) |
+| E3 | **No bridge needed (R-166).** ~~A bridge translator for a separate spec topic~~ — withdrawn `2026-10-02`: external nodes already speak `SST_OwnershipUpdate` |
 | E4 | **Crashes:** their master crashes ⇒ entity deleted (spec). Their partial owner crashes on OUR entity ⇒ §0.11 reclaims (it keys on dispose, not on our protocol). We crash holding part of THEIR entity ⇒ their master reclaims (their job) |
 | E5 | ⚠ **Confirm-write:** spec says the new owner writes the descriptor to confirm. Not measured whether our egress publishes a newly gained, unchanged descriptor at once or waits for the throttled refresh |
 
-⚠ **Open (O6):** which topic and node-id scheme do the external nodes actually use — the spec `OwnershipUpdate` in `hrot-generic-msgs`? E3 assumes yes.
+✅ **O6 answered (R-166):** `SST_OwnershipUpdate`.
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 

@@ -52,10 +52,9 @@ known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is e
   ABSENCE" (IG registers no save handler). ⭐ THIS design supersedes that enforcement with a
   UNIFORM per-entity GATE (§6): every host runs the same gated save; IG's file is empty by the
   gate, not by a missing handler. §7.1's ABSENCE becomes belt-and-suspenders, not the mechanism.
-  ⚠ (measured 2026-10-02) §6c says an EXTERNAL OwnershipUpdate "is delivered generically". It is not:
-  we read/write only the internal `SST_OwnershipUpdate` (int NewOwner + OriginNodeId); the spec-shaped
-  `OwnershipUpdate` (`GenericMessages.cs:33`, NodeId{AppDomainId,AppInstanceId}) has no reader or
-  writer. The CE-275 mirror works for OUR transfers only. Fix direction: Q79 §0.12 E3.
+  ✅ (2026-10-02, user R-166) §6c's "an EXTERNAL OwnershipUpdate is delivered generically" holds:
+  external nodes use our `SST_OwnershipUpdate`, which IS the spec's message (int node ids, no NodeId
+  mapping needed). The spec-shaped `GenericMessages.OwnershipUpdate` struct is an unused duplicate.
 superseded-by: —
 design-basis:
   - docs/DESIGN_Node_Roles_And_Policies.md §4 (ownership axes), §5 (persistence policy R-140),
