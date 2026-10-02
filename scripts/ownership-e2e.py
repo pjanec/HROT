@@ -7,6 +7,8 @@ then
     python3 scripts/ownership-e2e.py matrix [E1 E2 ...]   # create per §5.7 and check one ownership truth per descriptor
     python3 scripts/ownership-e2e.py own <networkId>      # dump + check one entity's ownership on every node
     python3 scripts/ownership-e2e.py move <networkId>...  # MoveToLocation task, then position on every node
+    python3 scripts/ownership-e2e.py edit <networkId> <perspective> '<patchJson>'   # E4/E6: patch from a NON-owner,
+                                                          # then show the patched state on every node (CE-3003)
 Node ids (measured on --mode all): SimHost 1 · IG 100 · CGF 400 (perspective "Scenario").
 ⚠ Use the hostname localhost: 127.0.0.1 404s every route. The cluster boots PAUSED (POST /sim/play).
 """
@@ -198,5 +200,38 @@ def move_check(ids, persp_name="Scenario", dx=80.0, dy=60.0, secs=10):
                 print(f"   {n:<8} {a} -> {b}")
 
 
+def state(nid):
+    """Position, heading-bearing rotation and name of one entity, from every node."""
+    out = {}
+    for p, node in NODES.items():
+        persp(p)
+        r = call("GET", f"/entities/{nid}")
+        if not r.get("ok"): out[NAME[node]] = "ERR " + str(r.get("error"))[:80]; continue
+        c = r["data"]["Components"]
+        t = c.get("SimTransform") or {}
+        info = c.get("EntityInfo") or {}
+        out[NAME[node]] = {"pos": [round(v, 1) for v in (t.get("Position") or [])[:2]],
+                           "rot": [round(v, 3) for v in (t.get("Rotation") or [])],
+                           "name": info.get("Name")}
+    return out
+
+
+def edit_check(nid, editor_persp, patch_json, secs=3):
+    """CE-3003 / design §5.7 E4, E6: a NON-owner patches; the OWNER applies; every node shows it."""
+    before = state(nid)
+    persp(editor_persp)
+    r = call("POST", f"/entities/{nid}/attribute", {"patchJson": json.loads(patch_json)})
+    print(f" patch from {editor_persp}: ok={r.get('ok')} err={r.get('error')} "
+          f"write={json.dumps((r.get('data') or {}).get('write'))}")
+    wait_sim(secs)
+    after = state(nid)
+    for n in after:
+        print(f"   {n:<8} {before.get(n)} -> {after[n]}")
+    return r.get("ok"), after
+
+
 if __name__ == "__main__" and sys.argv[1] == "move":
     move_check([int(x) for x in sys.argv[2:]])
+
+if __name__ == "__main__" and sys.argv[1] == "edit":
+    edit_check(int(sys.argv[2]), sys.argv[3], sys.argv[4])

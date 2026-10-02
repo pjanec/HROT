@@ -178,9 +178,12 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,
-  patchJson:{...}}` (authority-aware; unregistered keys ignored).
+  patchJson:{...}}` (unregistered keys ignored). ⭐ **Works from ANY perspective** *(`CE-3003`)*: what the
+  active node owns lands here, the rest is sent to its owner — read `write.route` (`direct` · `requested` ·
+  `noMatch`), and for `requested` read the result back from the **owner's** perspective after a tick.
 - Escape hatch (any component field): `edit_component {networkId, componentType, patch:{...}}` (validated;
-  invalid values rejected with 400).
+  invalid values rejected with 400). ⛔ **Owner only** — on a node that does not own the component it refuses
+  with 400 rather than edit a replica the owner overwrites; use `patch_attribute`, or switch perspective.
 
 ### I. Author a scenario
 1. `list_entity_types` → choose a `tkbType`. `get_entity_type {tkbType}` for its components.

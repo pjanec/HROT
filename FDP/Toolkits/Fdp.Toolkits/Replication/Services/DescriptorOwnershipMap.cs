@@ -186,6 +186,29 @@ namespace Fdp.Toolkit.Replication.Services
                 ? ordinals
                 : ReadOnlySpan<long>.Empty;
 
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-3003</c> — the OWNERSHIP question: does any registered descriptor bind
+        /// <paramref name="componentId"/>, so that whoever owns that descriptor owns the component?</b>
+        ///
+        /// <para>⚠⚠ <b>Not the same question as <see cref="GetDescriptorsForComponentId"/></b>, and the difference is
+        /// measured, not stylistic. That reverse index is the REPUBLISH index: it is fed by
+        /// <see cref="RegisterFromTranslator"/> only, and <see cref="BindGroups"/> deliberately keeps a group's
+        /// linked, never-sent members out of it (writing one must not republish the anchor). 📐 On a NED node the
+        /// map is filled through <see cref="RegisterMapping(long, int[])"/>, which writes the FORWARD table only — so
+        /// <c>dtWorldPos</c> listed <c>SimTransform</c> while <c>GetDescriptorsForComponentId(SimTransform)</c> was
+        /// EMPTY on every node, owner included.</para>
+        ///
+        /// <para>⭐ This reads the forward table, which also holds the linked members <see cref="BindGroups"/>
+        /// appended to an anchor — correctly, since a grant of the anchor moves them (D-4, R-165). ⚠ A linear scan
+        /// over the descriptors: fine for a debug or tooling decision, ⛔ not for a per-component hot path.</para>
+        /// </summary>
+        public bool IsBoundToAnyDescriptor(int componentId)
+        {
+            foreach (var ids in _descriptorToComponentIds.Values)
+                if (Array.IndexOf(ids, componentId) >= 0) return true;
+            return false;
+        }
+
         /// <summary>⭐ The component ids any translator declared — for coverage rails and diagnostics.</summary>
         public IEnumerable<int> CoveredComponentIds => _componentIdToDescriptors.Keys;
 

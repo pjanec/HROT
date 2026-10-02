@@ -1704,8 +1704,8 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/attribute")] = new RouteDoc(
             Tool:    "patch_attribute",
             Group:   "L — Mutation / fault injection",
-            Summary: "Apply a JSON attribute patch to an entity.",
-            Returns: "Updated entity dump on success.",
+            Summary: "Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not.",
+            Returns: "Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.",
             Hint:    "Req: networkId (number), patchJson (object {\"Name\":\"Alpha\"} or JSON string). Example: patch_attribute({networkId:1000,patchJson:{Name:\"Alpha\"}})",
             Params: new RouteParam[]
             {
@@ -1714,7 +1714,13 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "Authority-aware; unregistered keys are silently ignored (no error).",
+                "Unregistered keys are silently ignored (no error) — write.route is then noMatch.",
+                "CE-3003: a key on a component this node does NOT own is sent to its owner as an UpdateEntityAttributeRequest "
+              + "(the JSON arm the owner already applies) — write.route is requested, and the change is in the OWNER's world, "
+              + "not yet in this dump: read it back from the owner's perspective after a tick. Components this node owns in "
+              + "the same patch are applied here.",
+                "CE-3003 / CE-191: a key on a component this node does not own and no network descriptor carries (a node-local "
+              + "component, or a networkless host) has no owner to ask — the route REFUSES with 400 instead of answering ok.",
                 "patchJson may be a nested JSON object like {\"Name\":\"Alpha\"} or a JSON string.",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"patchJson\":{\"Name\":\"Alpha\"}}",
@@ -1807,6 +1813,9 @@ namespace Hrot.Editor.DebugApi
             {
                 "Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.",
                 "Invalid values → 400, component unchanged.",
+                "CE-3003: a component another node owns (a network descriptor carries it and this node holds no authority) "
+              + "is REFUSED with 400 — writing it here would change only this node's replica, which the owner overwrites. "
+              + "Use patch_attribute (it asks the owner) or select the owner's perspective (get_entity_ownership names it).",
                 "For fields registered in the attribute schema, prefer patch_attribute.",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"componentType\":\"SimTransform\",\"patch\":{\"Position\":{\"X\":999,\"Y\":0,\"Z\":0}}}",

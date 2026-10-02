@@ -59,6 +59,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// </summary>
     private readonly HashSet<int> _appliedComponentIds = new();
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3003</c> — component type IDs whose write was REFUSED by the authority gate during this
+    /// session: a key matched a route, and this node does not own the component it targets.
+    /// <para>⭐ Recorded at <see cref="CanWrite{T}"/> / <see cref="CanWriteManaged{T}"/>, which is exactly where both
+    /// apply paths gate *(<c>JsonAttributeCompiler</c>'s dispatch, <c>BinaryInterpreterBuilder</c>'s handler)*.
+    /// ⇒ it separates *"nothing landed because another node owns it"* from *"nothing landed because no key
+    /// matched"* — two outcomes <see cref="HasAppliedAny"/> alone cannot tell apart.</para>
+    /// </summary>
+    private readonly HashSet<int> _refusedComponentIds = new();
+
     // ── Standalone factory (no routing table) ────────────────────────────
 
     /// <summary>
@@ -162,7 +172,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// guard and the kernel write-protection boundary.
     /// </remarks>
     public bool CanWrite<T>() where T : struct
-        => _repo.HasAuthority(_entity, ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)));
+        => Gate(ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)));
 
     /// <inheritdoc/>
     /// <remarks>
@@ -171,7 +181,15 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// a managed component slot is protected.
     /// </remarks>
     public bool CanWriteManaged<T>() where T : class
-        => _repo.HasAuthority(_entity, ManagedComponentType<T>.ID);
+        => Gate(ManagedComponentType<T>.ID);
+
+    /// <summary>The authority check both gates share, recording a refusal (<c>CE-3003</c>).</summary>
+    private bool Gate(int componentId)
+    {
+        if (_repo.HasAuthority(_entity, componentId)) return true;
+        _refusedComponentIds.Add(componentId);
+        return false;
+    }
 
     // ── Additional API (used by UpdateEntityAttributeRequestSystem) ──────
 
@@ -187,6 +205,15 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// Used by <see cref="UpdateEntityAttributeRequestSystem"/> to build the 32-byte OpaqueData bitmask.
     /// </summary>
     public IReadOnlyCollection<int> AppliedComponentIds => _appliedComponentIds;
+
+    /// <summary>
+    /// ⭐ <c>CE-3003</c> — true when a matched key targeted a component this node does not own, so part (or all)
+    /// of the patch belongs to another node. See <see cref="RefusedComponentIds"/>.
+    /// </summary>
+    public bool HasRefusedAny => _refusedComponentIds.Count > 0;
+
+    /// <summary>⭐ <c>CE-3003</c> — the component type IDs the authority gate refused during this session.</summary>
+    public IReadOnlyCollection<int> RefusedComponentIds => _refusedComponentIds;
 
     // ── Helpers ──────────────────────────────────────────────
 

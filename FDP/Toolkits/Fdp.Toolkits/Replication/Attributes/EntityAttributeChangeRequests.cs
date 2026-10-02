@@ -73,4 +73,34 @@ public static class EntityAttributeChangeRequests
             });
         };
     }
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-3003</c> — the JSON arm of the same request, for a caller that holds a JSON attribute patch
+    /// rather than binary changes</b> (the debug API's <c>POST /entities/{id}/attribute</c>).
+    ///
+    /// <para>⭐ The owner applies it through its own <c>JsonAttributeCompiler</c>
+    /// (<c>UpdateEntityAttributeRequestSystem</c>), the path <c>ExConOrbatAdapter</c> already uses — ⛔ no new
+    /// message, no new translator (<c>R-158</c>). ⚠ The binary arm is left empty for the reason
+    /// <see cref="PublishOnto"/> leaves the JSON one empty: one change, one compiler.</para>
+    ///
+    /// <para>⚠ The same rule as the binary arm: an entity with no network identity has nobody to ask, so this
+    /// returns <see langword="false"/> and publishes nothing rather than put an unmatchable request on the
+    /// wire.</para>
+    /// </summary>
+    /// <returns><see langword="true"/> when the request was published onto <paramref name="repo"/>'s bus.</returns>
+    public static bool TryPublishJsonPatch(EntityRepository repo, Entity entity, string patchJson)
+    {
+        ArgumentNullException.ThrowIfNull(repo);
+        if (string.IsNullOrWhiteSpace(patchJson)) return false;
+
+        long networkId = NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+        if (networkId <= 0) return false;
+
+        repo.Bus.PublishManaged(new UpdateEntityAttributeCommand
+        {
+            NetworkId          = networkId,
+            AttributePatchJson = patchJson,
+            AttributeChanges   = null,
+        });
+        return true;
+    }
 }

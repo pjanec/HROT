@@ -2959,8 +2959,26 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// POST /entities/{networkId}/attribute {patchJson} — compile JSON attribute patch
         /// onto the entity via <see cref="JsonAttributeCompiler"/>.
-        /// Authority-aware; unregistered keys silently ignored.
+        /// Unregistered keys are silently ignored (a mixed-version sender is not an error).
         /// Must run on the main thread.
+        ///
+        /// <para>⭐⭐⭐ <b><c>CE-3003</c> — a write this node does not own is ASKED of the owner, never dropped.</b>
+        /// 📐 Measured live <c>2026-10-02</c>: on a non-owner the compile skipped every key at the authority gate,
+        /// the route answered with the unchanged dump, and no node sent an <c>UpdateEntityAttributeRequest</c> —
+        /// so §5.7 E4/E6 (an edit on a non-owner applied by the owner) could not be driven.
+        /// ⭐ The rule is the drag gizmo's (<c>AX-007</c>, <see cref="Fdp.Toolkit.Replication.Attributes.EntityWriteRouter"/>):
+        /// apply locally what this node owns, and send the rest to the owner as a request. ⭐ It rides the JSON arm
+        /// of the request the owner already applies (<c>UpdateEntityAttributeRequestSystem</c>) — no new message
+        /// (<c>R-158</c>).</para>
+        ///
+        /// <para>⭐ <b>The response says which happened</b> — <c>write.route</c> is <c>direct</c>, <c>requested</c>
+        /// or <c>noMatch</c> — because <i>"it landed"</i> and <i>"the owner will apply it"</i> are different outcomes
+        /// to whoever called (<see cref="Fdp.Toolkit.Replication.Patching.EntityWriteRoute"/>). ⚠ A <c>requested</c>
+        /// write is not yet in the dump: read it back from the owner, or again after a tick.</para>
+        ///
+        /// <para>⛔ <c>CE-191</c>: a write that cannot be honoured REFUSES. A refused component that no network
+        /// descriptor covers has no remote owner to ask (a networkless host, or a node-local component), and an
+        /// entity with no network identity cannot be addressed — both answer an error, never <c>ok</c>.</para>
         /// </summary>
         public (JsonNode? result, string? error) PatchEntityAttribute(long networkId, string? patchJson)
         {
@@ -2970,9 +2988,10 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(patchJson))
                 return (null, "patchJson is required.");
 
+            EcsPatchContext ctx;
             try
             {
-                var ctx = _attributeCompiler.CreatePatchContext(_world, entity);
+                ctx = _attributeCompiler.CreatePatchContext(_world, entity);
                 _attributeCompiler.Compile(patchJson, ctx);
                 ctx.FlushDirtyMarks();
             }
@@ -2981,10 +3000,58 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Attribute patch failed: {ex.Message}");
             }
 
-            // Return the updated entity dump.
+            string route = ctx.HasRefusedAny ? "requested" : ctx.HasAppliedAny ? "direct" : "noMatch";
+            if (ctx.HasRefusedAny)
+            {
+                var map = OwnershipDescriptorMap();
+                var unaddressable = ctx.RefusedComponentIds.Where(cid => !map.IsBoundToAnyDescriptor(cid)).ToList();
+                if (unaddressable.Count > 0)
+                    return (null,
+                        $"Entity {networkId}: this node does not own component(s) {string.Join(", ", unaddressable.Select(ComponentLabel))} " +
+                        "and no network descriptor carries them, so there is no owner to ask. Nothing was requested." +
+                        (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
+
+                if (!Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(_world, entity, patchJson!))
+                    return (null,
+                        $"Entity {networkId} has no network identity on this node, so its owner cannot be addressed. Nothing was requested." +
+                        (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
+            }
+
+            // Return the updated entity dump, with how the write was routed.
             var node = DumpEntity(networkId);
+            if (node is JsonObject obj)
+            {
+                var applied   = new JsonArray();
+                foreach (var cid in ctx.AppliedComponentIds) applied.Add(ComponentLabel(cid));
+                var requested = new JsonArray();
+                foreach (var cid in ctx.RefusedComponentIds) requested.Add(ComponentLabel(cid));
+                obj["write"] = new JsonObject
+                {
+                    ["route"]               = route,
+                    ["appliedComponents"]   = applied,
+                    ["requestedComponents"] = requested,
+                };
+            }
             return (node, null);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3003</c> — the map that answers <i>"does a network descriptor carry this component, so another
+        /// node can own it?"</i>: the active node's NED ownership map (the one <c>GET …/ownership</c> reads), falling
+        /// back to the world's map on a host with no NED transport.
+        /// <para>📐 ⛔ NOT the world map alone. Measured on the IG: <c>AttributeInterpreterProvider.GetDescriptorMap</c>
+        /// is contributed by <c>CycloneEgressSystem</c> from EGRESS translators only, and a pure IG publishes no
+        /// <c>WorldPos</c> — so the world map says <c>SimTransform</c> is not networked at all, which is right for
+        /// <i>"what do I republish"</i> and wrong for <i>"who owns it"</i>. ⭐ Asked through
+        /// <c>DescriptorOwnershipMap.IsBoundToAnyDescriptor</c>, the forward table, for the same reason.</para>
+        /// </summary>
+        private Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap OwnershipDescriptorMap()
+            => _dispatcher?.DescriptorMap
+               ?? Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(_world);
+
+        /// <summary>A component id rendered as its type name when registered, else the bare id.</summary>
+        private static string ComponentLabel(int componentId)
+            => ComponentTypeRegistry.GetType(componentId)?.Name ?? componentId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>
         /// POST /entities/{networkId}/component {componentType, patch} — StructEdit escape hatch.
@@ -3024,6 +3091,23 @@ namespace Hrot.Editor.DebugApi
 
             if (boxedComponent is null)
                 return (null, $"Entity {networkId} does not have component '{componentType}'.");
+
+            // ⭐⭐ CE-3003 — ⛔ never write another node's component into this node's REPLICA. 📐 That write is
+            //   overwritten by the owner's next sample and reaches nobody, so answering it with the edited dump
+            //   would be CE-191's "ok about work that was discarded". ⭐ A component a network descriptor carries
+            //   and this node does not claim is another node's (one ownership truth: claim == record) ⇒ refuse,
+            //   naming the route that DOES reach the owner. ⚠ A component no descriptor carries is node-local and
+            //   is written here as before — so a networkless host (editor) is unaffected.
+            int componentTypeId = ComponentTypeRegistry.GetId(clrType);
+            var descriptorMap = OwnershipDescriptorMap();
+            if (componentTypeId >= 0
+                && descriptorMap.IsBoundToAnyDescriptor(componentTypeId)
+                && !_world.HasAuthority(entity, componentTypeId))
+                return (null,
+                    $"Entity {networkId}: component '{clrType.Name}' is owned by another node, so editing it here would " +
+                    "change only this node's replica and be overwritten by the owner. Nothing was written. Use " +
+                    "POST /entities/{networkId}/attribute, which asks the owner, or select the owner's perspective " +
+                    "(GET /entities/{networkId}/ownership names it).");
 
             // Open a StructEdit session.
             using var session = _componentEditSvc.Open(boxedComponent, clrType);
