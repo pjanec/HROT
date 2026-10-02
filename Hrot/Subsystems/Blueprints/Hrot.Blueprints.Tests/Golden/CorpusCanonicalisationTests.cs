@@ -302,7 +302,9 @@ public sealed class CorpusCanonicalisationTests
         // ⛔ 42 → 28 (2026-10-01): the 15 `HillAssault2_*` twins retired (user: "retire the old superseded non elegant
         //    blueprint version"); 14 deleted, `_ReverseToBaseline` RENAMED `ChannelMoveAndWaitDemo` — the only production
         //    WaitForChannel asset left (R-137).
-        Assert.Equal(28, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 28 → 29 (CE-503, 2026-10-02): `HsmResolverDemoResolver` — the FIRST resolver asset bound by an HSM
+        //    (Q76 §12.27g); before it only BTrees could bind one.
+        Assert.Equal(29, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }
