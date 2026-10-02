@@ -27,10 +27,10 @@ decision first.
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
-| `RW-L` | 7 | 0 |
-| `RW-M` | 7 | 1 |
-| `RW-H` | 3 | 0 |
-| **Total** | **18** | **1** |
+| `RW-L` | 6 | 1 |
+| `RW-M` | 5 | 3 |
+| `RW-H` | 2 | 1 |
+| **Total** | **14** | **5** |
 
 ⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
 the canvas to a ticking entity, with every stage cited. These rows assume it.
@@ -97,6 +97,39 @@ assemblies, quoted inline, then deleted.
 > **Rule adopted:** every negative claim in this tracker must be backed by (a) a repo-wide search
 > with no directory filter, and (b) a `codebase-memory-mcp` graph query over `CALLS` edges. Both are
 > cited on the rows that make such claims (HSM-007, HSM-009, HSM-012).
+
+> ### ⭐⭐ RE-EVALUATED `2026-10-02`, after merging `origin/ui` (2988 commits, to 2026-10-01)
+>
+> ⚠ **The VM had checked out a pre-session commit.** The branch was fast-forwarded from
+> `origin/claude/hsm-visual-editing-9ngei4` (`17097985e`) first, then `origin/ui` merged — clean, no
+> conflicts. `origin/ui` **already contains** `claude/blueprint-authoring-status-gm0akp` in full (which
+> itself stopped at `2026-09-19`) ⇒ ⭐ **`origin/ui` is now the branch to track.**
+>
+> ⭐ A large HSM programme landed meanwhile: `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md` (1242 lines,
+> items `CE-381`…`CE-401`, *"Stage 1 and Stage 2 complete, all nine acceptance rails closed"*), plus
+> `DESIGN_Hsm_Storage_Model.md`, `RESUME_Hsm_Blueprint_Behaviour.md`, `RESUME_Hsm_Subtree_Authoring.md`
+> and `docs/designs/btree-hsm-unif/DESIGN.md`. **+1333 lines across 20 `Hrot.Hsm.Editor` files.**
+> Suite **619/619 green** (was 554).
+>
+> **Four rows closed, one moved to partial; the six reproduced UX rows reproduce byte-identically.**
+>
+> | row | verdict `2026-10-02` |
+> |---|---|
+> | **HSM-013, 014, 015, 019** | ✅ **CLOSED** — see each row's closure note |
+> | **HSM-009** | ⚠ **PARTIAL** — the Events table is registered and rename works; **create/delete still absent** |
+> | **HSM-001, 002, 004, 005, 006** | ⛔ **reproduce identically** (throwaway probe, deleted after; suite left green) |
+> | **HSM-003, 007, 008, 010, 011, 012** | ⛔ still live — re-greped repo-wide |
+> | **HSM-017, 018** | ⛔ still live |
+>
+> ⭐ **`DEBT-BF-04` moved too, partially:** `StateNodeDto` now carries `ExpressionTargetField`,
+> `ActivityBlueprintAssetId` and `ActivityBlueprintName`, so a **state** can bind a parameterised
+> blueprint. ⚠ **Activity slot only, and one `ExpressionTargetField` per state, not per slot** —
+> `OnEntry`/`OnExit`/`Timer` have no blueprint binding ⇒ Q-1 of the opening prompt is **still open,
+> narrowed**.
+>
+> 📌 **Two independent audits agreed three times now** (HSM-016 Batch 59, HSM-015 `CE-297`,
+> HSM-019). ⭐ That is evidence the method works — but **every one of them was fixed upstream before we
+> looked**, so the real lesson is the same as last time: **re-sync first.**
 
 ---
 
@@ -226,6 +259,18 @@ callers** — the pipe is wired, nothing fills it.
   largest functional hole in the editor. Registering the window is `WIRING`; the authoring
   commands behind it are `RW-M`.
 
+  ---
+  ⚠ **PARTIAL `2026-10-02` — the table arrived, creation did not.**
+  ✅ `HsmEventsDetailsView` is a **new** 131-line view and **is registered in production**
+  (`EditorSubsystem:3366`); `HsmEventsWindow` gained a **rename** modal (`:141-177`) routed through the
+  refactor service. Events are now visible and renameable.
+  ⛔ **Still missing, and it is the blocking half: no create, no delete.** Verified repo-wide —
+  `EventDefinition` is constructed in exactly **three** places, all loaders: `HsmAssetProjector:242`
+  (compiled blob) and `HsmAssetMapper:165,401` (JSON). A machine with no events can never acquire one,
+  so `[HsmEventPicker]` on a transition still has nothing to offer.
+  ⭐ **The remaining work is smaller and better shaped** — table, row model, modal pattern and refactor
+  hook all exist; what is left is an *add/delete command*, not a window.
+  ⚠ `HsmGlobalsStrip` is **still** unregistered (no production caller).
 ---
 
 ## Area E 🎨🔧 — Design contradictions
@@ -267,7 +312,7 @@ The whole path is built: `AiPrimitiveHosting` has `HsmAction` and `HsmGuard`;
 registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction↔HsmAction` and
 `BTreeCondition↔HsmGuard`. Two things break it in practice.
 
-- [ ] **HSM-013** 🔴 · `RW-M` — **The id an AiPrimitive registers under can never equal the id the
+- [x] **HSM-013** 🔴 · `RW-M` — **The id an AiPrimitive registers under can never equal the id the
   machine looks up — two hashes over different inputs.**
   Registration (`CSharpEmitter.cs:354`):
   `HsmActionDispatcher.RegisterAction(unchecked((ushort)ClassName.BlueprintId), &HsmActivity)`, where
@@ -301,6 +346,19 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   ⇒ BTree ships the binding half, HSM does not — exactly the coordinator's own ruling *"on HSM,
   absent NEVER means unwanted — it is behind, not scoped out"* (`2026-08-16`).
 
+  ---
+  ✅ **CLOSED `2026-10-02`.** `HsmEmitCore` gained a **`blueprintIdResolver`** delegate (plus a
+  `blueprintClassNameResolver` overload — `CE-388` / `Q74 D-B1`) so a state whose activity is a
+  blueprint is emitted with **the identity the blueprint emitter registers**; the comment notes it had
+  to be a delegate because the `BlueprintId` lives in the other compiler. ⭐ And
+  `FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/HsmActionKey.cs` now exists with `ForActionName(fqn)`,
+  `ForCompoundKey(key)` and **`CompoundKeyName(fqn, byteOffset)`** ⇒ the `MethodFqn@offset` form
+  `R-88` ruled is **implemented on the HSM side** — which is exactly what this row and the opening
+  prompt's Q-A asked for.
+  ⚠ **Residual, deliberately not re-opened as a new row:** `StateNodeDto` carries
+  `ActivityBlueprintAssetId` / `ActivityBlueprintName` for the **Activity slot only**, and one
+  `ExpressionTargetField` per *state* rather than per slot. That is the **narrowed `DEBT-BF-04`**,
+  tracked as Q-1 of the opening prompt.
 - [x] **HSM-016** ✅ **CLOSED — already fixed upstream, found independently.** · `RW-M` —
   *The `[BlueprintRegistrar]` bridge registered no-op stubs at placeholder ids 100+/200+.*
   ⭐ **Fixed in Batch 59 (`W3`) on the coordinator branch, before this session ever saw it** — this
@@ -315,7 +373,7 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   📌 **Kept as a row, not deleted** — it is the evidence that two independent audits reached the same
   root cause, and the rail is worth knowing about.
 
-- [ ] **HSM-015** 🔴📐 · `RW-H` — **The generated HSM thunk reads its parameters out of the live HSM
+- [x] **HSM-015** 🔴📐 · `RW-H` — **The generated HSM thunk reads its parameters out of the live HSM
   instance memory. There is nowhere else for them to live.**
   `AiPrimitiveEmitter.EmitHsmActivityThunk` / `EmitHsmGuardThunk` both emit:
   ```csharp
@@ -360,7 +418,20 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   argument — but so does the shipped hand-written `ApcHsmActions`, which writes channel components
   directly through the repo. Writer-less actions are the house pattern.
 
-- [ ] **HSM-014** 🔴 · `RW-M` — **The HSM action/guard picker is circular: it can only offer names
+  ---
+  ✅ **CLOSED `2026-10-02` — `CE-297`, which names this exact defect.**
+  `AiPrimitiveEmitter.EmitHsmOccurrenceBody` replaced the bad cast, and its own comment states the
+  diagnosis independently: *"the params were read as `*(Params*)instance`, but the kernel passes the
+  **HSM INSTANCE** there — the sibling generator ignores that pointer and projects from
+  `BrainBlackboard`, which is what this now does, **matching the BTree path**."*
+  ⭐⭐ **It also fixed a defect this session missed** — `BP-297`/`E3`: working state was
+  `GetComponentRW<Blackboard1024>(self)` at a hard-coded `memory + 8`, **one per entity**, so two
+  concurrently-active parallel regions aliased it. Now occurrence-keyed through
+  `HsmOccurrence.ResolveOrAttach`.
+  ⇒ ⭐ **The "no param slot without a ROM change" worry is settled — no ROM change was needed.**
+  Params live in `BrainBlackboard` at a per-site offset; the occurrence holds only working state and
+  the host offset.
+- [x] **HSM-014** 🔴 · `RW-M` — **The HSM action/guard picker is circular: it can only offer names
   the asset already uses.** `HsmActionPickerDrawer.GetItems()` walks `_asset.AllTransitions` /
   `AllStates` / `AllGlobalTransitions` and returns the distinct `OnEntry/OnExit/Activity/Timer/
   ActionFunction` strings **already stored in this machine**. It never queries `HsmActionDispatcher`,
@@ -376,6 +447,13 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   so the catalog side is built and just not consumed here. Likely `WIRING`-sized once HSM-013 settles
   what identity the picker should write.
 
+  ---
+  ✅ **CLOSED `2026-10-02` — `CE-386`.** `HsmActionPickerDrawer` now takes an `IActionSchemaExporter`
+  and iterates `_schema.All` (*"the catalog half"*). `HsmPickerDrawerFactory.BuildDrawers` is reached
+  by the new `AiFacetPickerBinder.Rebuild`, which **both** production hosts call with a real exporter
+  **and** catalogue — `EditorSubsystem:3615` and `CgfSubsystem:2381`. ⭐ The binder exists because the
+  user asked *"why hosts differ in … picker drawer"*: CGF had made **0** such calls against the
+  editor's 13. ⚠ **Checked as flow, not wiring** — the exporter is *passed* at both sites.
 ---
 
 ## Area E2 🔧 — Kernel features the editor exposes but the runtime does not implement
@@ -431,7 +509,7 @@ the two trackers do not drift.
   list in either programme. ⚠ Fix belongs to whoever owns the variable-edit write path, not to us.
   📌 Coordinator ledger `R-52` · `R-65`.
 
-- [ ] **HSM-019** · `RW-L` — **HSM cannot produce a subtree sync binding, and that is by design —
+- [x] **HSM-019** · `RW-L` — **HSM cannot produce a subtree sync binding, and that is by design —
   but the validator still blames a field that exists.** Coordinator `M-24` measured it: `HsmAsset`
   implements `IEditableAsset, IBlackboardManagedAsset, IStitchableAsset` — **not
   `IBTreeSyncableAsset`** — and the Inspector gate is `is BTreeNodeSelection` while HSM emits
@@ -443,6 +521,11 @@ the two trackers do not drift.
   non-existent gap will send the next reader down a dead end.
   📌 Coordinator ledger `M-24`.
 
+  ---
+  ✅ **CLOSED `2026-10-02`.** The comment is corrected in place — `HsmValidator:596` now reads
+  *"…has no counterpart on `StateNodeDto`". ⛔ That is false. 📐 The field exists at …"*. And
+  `SubtreeAssetId` is now actively **used** (`:264-277`) by the new `SubtreeAssetCycle` /
+  `SubtreeReferenceDangling` rules.
 ## Area F 📄 — Documentation accuracy
 
 - [ ] **HSM-011** · `RW-L` — **`BTree_HSM_Editor_State_And_Forward_Plan.md` is materially stale and

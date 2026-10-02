@@ -1,7 +1,8 @@
 # HSM Design Session — RESUME
 
 > **Read this first when resuming.** Written to survive context compaction.
-> **Branch:** `claude/hsm-visual-editing-9ngei4`, based on `claude/blueprint-authoring-status-gm0akp`.
+> **Branch:** `claude/hsm-visual-editing-9ngei4`. ⭐ **Track `origin/ui` from now on** — it contains
+> `claude/blueprint-authoring-status-gm0akp` in full, and that branch stopped at `2026-09-19`.
 > **Mode:** ⭐ **design session — NO CODE.** The user is asking questions, giving their view on how
 > things should work, and we are settling the way forward together. Do not start implementing rows.
 > ⭐ **Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — the end-to-end chain, cited.
@@ -17,15 +18,39 @@
 
 | | |
 |---|---|
-| Tracker | **18 open + 1 closed**, HSM-001…HSM-019 |
+| Tracker | **14 open + 5 closed**, HSM-001…HSM-019 |
 | Build | `IOS-IG-SimHost.sln` — 0 errors (69 pre-existing warnings) |
-| Tests | `Hrot.Hsm.Editor.Tests` **554/554 green** (was 510; the merge added 44) |
+| Tests | `Hrot.Hsm.Editor.Tests` **619/619 green** |
 | Committed | integration map, tracker, concepts primer, opening prompt, 3 hand-authored SVGs, this file |
 | Environment | .NET 8.0.424 at `/root/.dotnet`; `codebase-memory-mcp` 0.10.3 at `/opt/codebase-memory-mcp`, project `home-user-HROT` indexed (166k nodes / 537k edges), warm daemon running |
 
 ⚠ **MCP graph tools flap in and out.** When they are disconnected use the CLI, which always works:
 `/opt/codebase-memory-mcp/codebase-memory-mcp cli <tool> '<json>'`
 (`trace_path` uses `direction: inbound|outbound|both`, **not** `callers`.)
+
+---
+
+## 1a. ⭐⭐⭐ `2026-10-02` — merged `origin/ui` (2988 commits) and re-evaluated every row
+
+⚠ **A fresh VM may check out a pre-session commit.** Fast-forward from
+`origin/claude/hsm-visual-editing-9ngei4` **before** merging anything.
+
+**Closed by upstream work:** `HSM-013` (`blueprintIdResolver` + `HsmActionKey.CompoundKeyName` ⇒ the
+`MethodFqn@offset` form is implemented for HSM) · `HSM-014` (`CE-386`, picker reads the catalog, wired
+on both hosts via the new `AiFacetPickerBinder`) · `HSM-015` (`CE-297`, params now project from
+`BrainBlackboard`; `BP-297`/`E3` also de-aliased per-entity working state) · `HSM-019`.
+**`HSM-009` is partial** — Events table registered + rename works, **create/delete still absent**.
+**Everything else reproduces.**
+
+⭐ **Read before re-deriving anything about HSM params/subtrees:**
+`DESIGN_Hsm_Blueprint_Behaviour_Authoring.md` (the `CE-381…CE-401` programme, Stage 1+2 complete) ·
+`DESIGN_Hsm_Storage_Model.md` · `RESUME_Hsm_Blueprint_Behaviour.md` · `RESUME_Hsm_Subtree_Authoring.md` ·
+`docs/designs/btree-hsm-unif/DESIGN.md`.
+
+⛔ **Do not run `scripts/cloud-bootstrap.sh` expecting MCP graph tools the same session** — the binary
+installs fine but MCP servers spawn at session start. Use the CLI:
+`/opt/codebase-memory-mcp/codebase-memory-mcp cli <tool> '<json>'`. And `dotnet` needs
+`export PATH="/root/.dotnet:$PATH"` in each new shell.
 
 ---
 
