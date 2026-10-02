@@ -36,6 +36,10 @@ namespace Hrot.Hsm.Editor.Tests.Validation;
 /// </summary>
 public sealed class HsmStateParamSeedAuthoringTests
 {
+    /// <summary>⭐ <c>CE-417</c> slice 5 — the seed is authored on a SLOT binding (here the Activity, naming nothing yet, as
+    /// the inspector leaves it when a variable is typed before a method is picked); <c>StateWideTargetField</c> is derived.</summary>
+    private static BehaviorActionBinding Seed(string field) => new() { ExpressionTargetField = field };
+
     private static HsmAsset MakeMachine(out StateNode state)
     {
         var root = new StateNode("__root__");
@@ -85,7 +89,7 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void TheSeedBindingSurvivesSaveAndReopen()
     {
         var hsm = MakeMachine(out var state);
-        state.StateWideTargetField = "Alpha";
+        state.Activity = Seed("Alpha");
 
         string json = HsmJsonServices.Serialize(HsmAssetMapper.ToDto(hsm));
         var    back = HsmAssetMapper.ToModel(HsmJsonServices.Deserialize(json)!, "", true);
@@ -114,7 +118,7 @@ public sealed class HsmStateParamSeedAuthoringTests
         var hsm = MakeMachine(out var state);
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(0);
 
-        state.StateWideTargetField = "Alpha";
+        state.Activity = Seed("Alpha");
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(1);
     }
 
@@ -124,7 +128,7 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void TheCountUsesTheOneSharedCaseInsensitivePredicate()
     {
         var hsm = MakeMachine(out var state);
-        state.StateWideTargetField = "alpha";
+        state.Activity = Seed("alpha");
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(1);
     }
 
@@ -154,8 +158,8 @@ public sealed class HsmStateParamSeedAuthoringTests
         parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0, InitialChild = left });
         parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1, InitialChild = right });
 
-        left.StateWideTargetField  = "Alpha";
-        right.StateWideTargetField = "Alpha";
+        left.Activity  = Seed("Alpha");
+        right.Activity = Seed("Alpha");
 
         var hsm = new HsmAsset(
             Guid.NewGuid(), "Twin", "", false, "",
@@ -202,8 +206,8 @@ public sealed class HsmStateParamSeedAuthoringTests
     {
         // ── ARRANGE: the editor model, as the state inspector leaves it ──────────────────────────
         var root = new StateNode("__root__");
-        var one  = new StateNode("One") { IsInitial = true, Parent = root, StateWideTargetField = "Alpha" };
-        var two  = new StateNode("Two") { Parent = root, StateWideTargetField = "Beta" };
+        var one  = new StateNode("One") { IsInitial = true, Parent = root, Activity = Seed("Alpha") };
+        var two  = new StateNode("Two") { Parent = root, Activity = Seed("Beta") };
         root.Children.Add(one);
         root.Children.Add(two);
 

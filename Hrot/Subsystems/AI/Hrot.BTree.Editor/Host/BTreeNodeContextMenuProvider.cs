@@ -77,18 +77,17 @@ internal sealed class BTreeNodeContextMenuProvider : INodeContextMenuProvider
         if (editorNode is null)
             return null;
 
-        string? methodFqn = editorNode.KernelType switch
+        var binding = editorNode.KernelType switch
         {
             NodeType.Action when (editorNode.Action is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
-                => editorNode.Action.MethodFqn,
+                => editorNode.Action,
             NodeType.Condition when (editorNode.Condition is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
-                => editorNode.Condition.MethodFqn,
+                => editorNode.Condition,
             _ => null,
         };
-        if (methodFqn is null)
-            return null;
 
-        return ComposedBlueprintResolver.Resolve(methodFqn, _assetCatalog);
+        // ⭐ CE-417 B-1 — by the binding's asset id first, a legacy generated FQN second.
+        return ComposedBlueprintResolver.ResolveBinding(binding, _assetCatalog);
     }
 
     public IReadOnlyList<ContextMenuItem> GetItemsFor(NodeId node, IReadOnlyList<NodeId> selection)

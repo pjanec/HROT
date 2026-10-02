@@ -972,36 +972,17 @@ public sealed class StateNode : IContainerNodeModel
     /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4; <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
     ///
     /// <para>⭐ <c>CE-417</c>: DERIVED from the slots — Activity's target, else OnEntry's, OnExit's, Timer's — the SAME rule
-    /// as <c>HsmBridgeEmitCore.StateWideField</c>, so the editor and the emitter cannot disagree about the seed. The setter is
-    /// the v1 shape (one field per state, slice-2 migration rule): it goes to every bound slot, and a state with no slot
-    /// keeps it on an Activity binding that names nothing.</para>
+    /// as <c>HsmBridgeEmitCore.StateWideField</c>, so the editor and the emitter cannot disagree about the seed. ⛔ Read-only
+    /// since slice 5: each slot authors its own variable (B-2), and the v1 "one field to every slot" setter had only test
+    /// writers left after 4b — a second write path for a value the slots own. A variable typed before a method is picked
+    /// lives on an Activity binding that names nothing (CE-401).</para>
     ///
     /// <para>⛔⛔ <b>A state's target field is an INPUT</b> (the variable its occurrence SEEDS FROM); a transition ACTION's is
     /// an OUTPUT (the field that RECEIVES its result), which is why only the latter is in the cross-region WRITER-conflict
     /// rule. ⇒ a state binding must NEVER be added to that rule — concurrent readers are legal.</para>
     /// </summary>
     public string? StateWideTargetField
-    {
-        get => Field(Activity) ?? Field(OnEntry) ?? Field(OnExit) ?? Field(Timer);
-        set
-        {
-            string? v = string.IsNullOrEmpty(value) ? null : value;
-            bool any = false;
-            foreach (var b in Bindings)
-            {
-                if (b.NamesNothing) continue;
-                b.ExpressionTargetField = v;
-                any = true;
-            }
-            if (any)
-            {
-                // an Activity that names nothing only ever existed to carry the field — drop it once a real slot does
-                if (Activity is { NamesNothing: true }) Activity = null;
-                return;
-            }
-            Activity = v is null ? null : new BehaviorActionBinding { ExpressionTargetField = v };
-        }
-    }
+        => Field(Activity) ?? Field(OnEntry) ?? Field(OnExit) ?? Field(Timer);
 
     private static string? Field(BehaviorActionBinding? b)
         => b is null || string.IsNullOrEmpty(b.ExpressionTargetField) ? null : b.ExpressionTargetField;

@@ -49,6 +49,16 @@ public sealed class BTreeGeneratedEmitGoldenTests
 
         foreach (var (hint, source) in parts)
             AiGoldenSnapshot.ReadOrRegenerate($"Golden/Generated/BTree/{hint}.txt", source);
+
+        // ⛔⛔ CE-417 slice 4c — an asset that STOPS generating must fail too. 🔴 Measured: removing the generator's
+        //   blueprint-binding derivation made T32/T33/T39 skip (BTREE0002, unbound leaf), they produced no parts, their
+        //   baselines were never consulted — and this test stayed GREEN. ⇒ the produced set must equal the baselined set.
+        if (Environment.GetEnvironmentVariable(AiGoldenSnapshot.RegenerateVariable) == "1") return;
+        var baselined = Directory.GetFiles(
+                Path.Combine(AiGoldenSnapshot.ResolveSnapshotsDir(), "Golden", "Generated", "BTree"), "*.txt")
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .OrderBy(h => h, StringComparer.Ordinal);
+        Assert.Equal(baselined, parts.Select(p => p.HintName).OrderBy(h => h, StringComparer.Ordinal));
     }
 
     /// <summary>

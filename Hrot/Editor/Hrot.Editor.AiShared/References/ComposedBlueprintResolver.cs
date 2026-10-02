@@ -8,15 +8,18 @@ namespace Hrot.Editor.AiShared.References;
 /// generated it, and builds the canonical reference-catalog key both sides of the BTree↔Blueprint
 /// reference agree on — using ONLY plain-string parsing plus catalog data.
 /// <para>
-/// <b>Identity rule (architect-decided):</b> actions/conditions are identified by their FQN string,
-/// NOT by a persisted <see cref="Guid"/> AssetId. A composed BTree node stores only <c>MethodFqn</c>
-/// (e.g. <c>Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore</c>), whose declaring type is
-/// the generated class <c>{SanitizedName}_{BlueprintId:X8}_Bp</c>.
+/// <b>Identity rule — ⛔ SUPERSEDED by <c>CE-417</c> B-1 (user, <c>2026-10-01</c>).</b> A composed BTree node now names
+/// its blueprint by <c>BlueprintAssetId</c> (+ <c>BlueprintName</c> to heal a rename), exactly as an HSM binding does;
+/// the generated <c>…_Bp.TickCore</c> is DERIVED (<see cref="EffectiveMethodFqn"/>, and <c>BTreeBlueprintBindings</c> on
+/// the build side), never persisted. <see cref="ResolveBinding"/> is the entry point. 📄
+/// <c>DESIGN_Behavior_Action_Binding.md</c> §5.5. <i>(Was: "identified by their FQN string, NOT by a persisted AssetId";
+/// the FQN parse below survives to read a file the editor has not healed yet.)</i>
 /// </para>
 /// <para>
 /// <b>No Roslyn / compiler dependency here (AIE-053):</b> this type lives in the foundational shared
 /// editor layer, which must not take a dependency on <c>Hrot.Blueprints.Compiler</c>/Roslyn. It
-/// therefore never computes the <c>BlueprintId</c> hash or sanitizes a name itself. Instead, the
+/// therefore never calls the compiler to compute a class name — ⚠ <see cref="EffectiveMethodFqn"/>'s fallback uses
+/// <c>BlueprintClassNaming</c>, the persistence mirror the generators already share. Instead, the
 /// blueprint-editor side (which legitimately references the compiler) precomputes each blueprint's
 /// generated class name and publishes it — on the asset via <see cref="IComposedBlueprintIdentity"/>
 /// and as a reference-catalog element keyed by <see cref="ElementKey"/>. Resolution here is a pure
@@ -130,5 +133,36 @@ public static class ComposedBlueprintResolver
                 return asset;
         }
         return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-417</c> B-1 (slice 4c) — the blueprint a BINDING runs: by its asset id first (the identity B-1 persists),
+    /// else by a legacy generated <c>MethodFqn</c> (a file the editor has not healed yet). Null when the binding names no
+    /// blueprint, or the blueprint is not in <paramref name="catalog"/> (dangling).
+    /// </summary>
+    public static IEditableAsset? ResolveBinding(BehaviorActionBinding? binding, IAssetCatalog? catalog)
+    {
+        if (binding is null || catalog is null) return null;
+        if (binding.BlueprintAssetId != Guid.Empty)
+            return catalog.FindByAssetId(binding.BlueprintAssetId) is { Kind: AssetKind.Blueprint } bp ? bp : null;
+        return Resolve(binding.MethodFqn, catalog);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-417</c> B-1 — the method a binding calls: its <c>MethodFqn</c>, or for a blueprint binding the generated
+    /// <c>…_Bp.TickCore</c> DERIVED from the blueprint (B-1: never persisted). The class comes from the catalogue's
+    /// published identity when it has the asset, else from the persisted name — the same fallback the generator uses
+    /// (<c>BTreeBlueprintBindings</c>). Null when the binding names nothing.
+    /// </summary>
+    public static string? EffectiveMethodFqn(BehaviorActionBinding? binding, IAssetCatalog? catalog = null)
+    {
+        if (binding is null) return null;
+        if (!string.IsNullOrEmpty(binding.MethodFqn)) return binding.MethodFqn;
+        if (binding.BlueprintAssetId == Guid.Empty) return null;
+
+        string? cls = (catalog?.FindByAssetId(binding.BlueprintAssetId) as IComposedBlueprintIdentity)?.GeneratedClassName;
+        if (string.IsNullOrEmpty(cls) && !string.IsNullOrEmpty(binding.BlueprintName))
+            cls = Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.ClassName(binding.BlueprintAssetId, binding.BlueprintName!);
+        return string.IsNullOrEmpty(cls) ? null : Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.TickCoreFqn(cls!);
     }
 }

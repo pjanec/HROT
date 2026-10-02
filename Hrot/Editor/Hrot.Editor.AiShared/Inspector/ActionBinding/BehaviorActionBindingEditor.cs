@@ -15,12 +15,16 @@ namespace Hrot.Editor.AiShared.Inspector.ActionBinding;
 /// <c>bpGuardParams</c>); <see langword="null"/> for a slot that cannot bind a blueprint.</param>
 /// <param name="KeepWhenEmpty">⭐ BTree: an action/condition NODE always carries its binding. HSM: an empty slot is unbound
 /// (null) — the same rule as <see cref="BehaviorActionBindingMapping"/>'s.</param>
+/// <param name="WorkingStateBaseName">⭐ <c>CE-417</c> slice 4c — BTree only: a composed BTree node also binds the blueprint's
+/// generated <c>WorkingState</c> (its partition slot, E2), exactly as the palette drop does. Null for HSM, whose working
+/// state lives in the occurrence slot.</param>
 public readonly record struct ActionBindingApplyContext(
     IBlackboardManagedAsset Asset,
     IAssetCatalog? Catalog = null,
     IActionSchemaExporter? Exporter = null,
     string? ComposeBaseName = null,
-    bool KeepWhenEmpty = false);
+    bool KeepWhenEmpty = false,
+    string? WorkingStateBaseName = null);
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>CE-417</c> slice 4b — THE applier: an edited <see cref="BehaviorActionBindingFacet"/> back into the model's
@@ -108,12 +112,25 @@ public static class BehaviorActionBindingEditor
     {
         if (AutoManagedVariables.RemoveIfAutoManaged(ctx.Asset, b.ExpressionTargetField))
             b.ExpressionTargetField = null;
+        // ⭐ slice 4c — the outgoing working-state variable goes the same way (only one the editor owns).
+        if (ctx.WorkingStateBaseName is not null)
+        {
+            if (AutoManagedVariables.RemoveIfAutoManaged(ctx.Asset, b.WorkingStateTargetField))
+                b.WorkingStateTargetField = null;
+            b.WorkingStateTypeId = null;
+        }
 
         if (pickedBlueprint is null) return;
         if (!AiPrimitiveNaming.TryFindAiPrimitiveByName(ctx.Exporter, pickedBlueprint, out var entry)) return;
 
-        b.ExpressionTargetField = AutoManagedVariables.ComposeForAiPrimitive(
-            ctx.Asset, entry, paramsBaseName: ctx.ComposeBaseName!, workingStateBaseName: null).ParamsVariable;
+        var composed = AutoManagedVariables.ComposeForAiPrimitive(
+            ctx.Asset, entry, paramsBaseName: ctx.ComposeBaseName!, workingStateBaseName: ctx.WorkingStateBaseName);
+        b.ExpressionTargetField = composed.ParamsVariable;
+        if (ctx.WorkingStateBaseName is not null)
+        {
+            b.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
+            b.WorkingStateTargetField = composed.WorkingStateVariable;
+        }
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;

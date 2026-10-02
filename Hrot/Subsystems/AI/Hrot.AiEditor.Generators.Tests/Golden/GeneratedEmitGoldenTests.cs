@@ -116,6 +116,16 @@ namespace Fhsm.Kernel
 
         foreach (var (hint, source) in parts)
             AiGoldenSnapshot.ReadOrRegenerate($"Golden/Generated/{hint}.txt", source);
+
+        // ⛔ CE-417 slice 5 — the produced set must equal the baselined set, as BTreeGeneratedEmitGoldenTests does since
+        //   slice 4c. ⚠ With ONE baseline the NotEmpty above already covers a vanished part; a second baselined hint would
+        //   not be — a part that stopped generating would leave its baseline unread and this test green.
+        if (Environment.GetEnvironmentVariable(AiGoldenSnapshot.RegenerateVariable) == "1") return;
+        var baselined = Directory.GetFiles(
+                Path.Combine(AiGoldenSnapshot.ResolveSnapshotsDir(), "Golden", "Generated"), "*.txt")
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .OrderBy(h => h, StringComparer.Ordinal);
+        Assert.Equal(baselined, parts.Select(p => p.HintName).OrderBy(h => h, StringComparer.Ordinal));
     }
 
     /// <summary>

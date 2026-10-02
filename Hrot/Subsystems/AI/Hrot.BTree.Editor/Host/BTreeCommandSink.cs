@@ -31,12 +31,19 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// placing a node from the palette (<see cref="ApplyAddNode"/>). Null in call sites/tests that
     /// don't care about AiPrimitive composition — the non-AiPrimitive placement path is unaffected.
     /// </param>
-    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph, IActionSchemaExporter? actionSchema = null)
+    /// <param name="catalog">⭐ <c>CE-417</c> B-1 — turns a dropped blueprint's generated TickCore into the blueprint's
+    /// asset id + name (B-1: the method is derived, never persisted). ⚠ Optional: without it the node keeps the FQN form,
+    /// which the next open heals (<c>BTreeBlueprintBindingResolver</c>). ⛔ A production host HAS one and passes it.</param>
+    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph, IActionSchemaExporter? actionSchema = null,
+                              Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _asset        = asset;
         _graph        = graph;
         _actionSchema = actionSchema;
+        _catalog      = catalog;
     }
+
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
     // ---- IGraphCommandSink --------------------------------------------------
 
@@ -233,6 +240,15 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         binding.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
         binding.ExpressionTargetField   = composed.ParamsVariable;
         binding.WorkingStateTargetField = composed.WorkingStateVariable;
+
+        // ⭐⭐ CE-417 B-1 — a GENERATED blueprint is named by its asset id + name; its TickCore is derived. ⚠ A
+        //   hand-written AiPrimitive-shaped C# method does not parse as a generated class and stays a method.
+        if (Hrot.Editor.AiShared.References.ComposedBlueprintResolver.Resolve(binding.MethodFqn, _catalog) is { } bp)
+        {
+            binding.BlueprintAssetId = bp.AssetId;
+            binding.BlueprintName    = bp.Name;
+            binding.MethodFqn        = null;
+        }
     }
 
     /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>

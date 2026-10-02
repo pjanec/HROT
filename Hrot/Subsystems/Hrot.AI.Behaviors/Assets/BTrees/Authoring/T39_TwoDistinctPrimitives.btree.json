@@ -82,7 +82,8 @@
     {
       "kind": "Action",
       "Action": {
-        "MethodFqn": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore",
+        "BlueprintAssetId": "00000000-aaaa-0002-0000-0000000000d0",
+        "BlueprintName": "ParamDemo",
         "ExpressionTargetField": "bpParamsC",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState"
       },

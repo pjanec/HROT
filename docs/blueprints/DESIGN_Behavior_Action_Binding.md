@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: READY-TO-BUILD — B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
+build-state: BUILT — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
   F7/F8/F9 were measured; it covers BOTH hosts (F8). The hot-path allocation half (F9) shipped separately as CE-505.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
@@ -170,7 +170,8 @@ sequenceDiagram
 | 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
 | 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
 | 4 | ✅ editor side — designed in §5.4. ✅ 4a (model, no visible change) · ✅ 4b (one facet, one drawer, one applier); as-built boxes in §5.4 | editor rails |
-| 4c | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid. ⚠ *Was numbered "4b" until `2026-10-01`; renamed when slice 4 split into 4a/4b (§5.4)* | BTree goldens unchanged by construction |
+| 4c | ✅ §5.5 (as-built box) — BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid. ⚠ *Was numbered "4b" until `2026-10-01`; renamed when slice 4 split into 4a/4b (§5.4)* | BTree goldens unchanged by construction |
+| 5 | ✅ cleanup (box below): the two §6 rails still owed (one carrier, transition split); `StateNode.StateWideTargetField` read-only; the HSM generated-source golden checks its baselined set | no golden moved |
 
 > ⭐⭐ **Slice 2 AS-BUILT (`2026-10-01`) — where it deviated from the plan above, and why.**
 > | | |
@@ -200,6 +201,15 @@ sequenceDiagram
 > | **F8 fixed + red-proved** | new corpus asset **`BTreeCuratedBindingDemo`** binds the curated `Action_ReadRegionParams` to `varA` (8) and `varB` (16) under a forever repeater; `varC` (0) — the attribute DTO's offset — is bound by nothing. `BrainTickSystemBTreeArmTests.CE417_R4`: each binding counts only its own variable (12/12/0); projecting the call at offset 0 instead makes it fail. `CE417_R5`: 50 ticks, 0 bytes |
 > | **rails moved** | `SharedAiAdapterCompilesTests` (`BP-306`, subject retired) → **`SharedAiBindingCompilesTests`**: a synthetic asset binding an action, a `bool` condition and a `[WritesChannel]` action compiles through BOTH generators, keyed at the host offset, with no analyzer adapter; a wrong-typed variable is a `BTREE0002` skip; the analyzer/bridge one-spelling projection rail is kept |
 > | ⚠ **finding, not fixed** | `BrainTickSystemHsmArmTests.CE417_R3` (zero-alloc) reported **64 B once** in a filtered parallel group run; 5/5 green since (alone ×3, group ×2). Not reproduced, so no fix guessed — recorded here so a recurrence is recognised |
+
+> ⭐⭐ **Slice 5 AS-BUILT (`2026-10-01`) — cleanup.**
+> | | |
+> |---|---|
+> | **§6 rails, all four now exist** | **one carrier** — `ActionBindingTests.OneCarrier_OnlyTheBindingRecordCarriesAMethodAndATargetField` (reflection over the five assemblies that author, persist or emit a binding, each named by an anchor type so a dropped reference fails the compile; allowed: `BehaviorActionBinding`, `BehaviorActionBindingDto`, `BehaviorActionBindingFacet`). **transition split** — `HsmStateParamBindingEmissionTests.TransitionSplit_GuardBlueprintAndCSharpAction_EachUseTheirOwnVariable` (guard blueprint → `Beta` sited at `(source, guard asset)`, C# `[SharedAi*]` action → `Alpha` as `Fqn@0` in both the registrar and the blob; neither borrows the other's, no state-wide entry appears). **F4** — `CE417_R2` (slice 3a). **migrator round-trips** — `ActionBindingMigrationTests` (slice 2) |
+> | **retired** | the `StateNode.StateWideTargetField` setter — the v1 "one field to every slot" write path; after 4b only tests wrote it. The getter (the seed, derived exactly as `HsmBridgeEmitCore.StateWideField`) stays. Tests now author the seed on a slot binding |
+> | **golden** | `GeneratedEmitGoldenTests.TheGeneratedRegistrarIsUnchanged` now requires produced hints == baselined hints, like the BTree tier since 4c. ⚠ Measured: with ONE baseline its `NotEmpty` already covered a vanished part, so it was not blind *today*; it would have been at the second baseline |
+> | ⚠ **found, filed, not fixed: `CE-506`** | a **global** transition's guard and action are authorable (`GlobalTransitionFacet`, 4b) but **dropped at emit**: `HsmEmitCore` emits `builder.GlobalTransition(event, target, visualId)` and `HsmBuilder.GlobalTransition` has no guard/action/priority parameter, although the kernel's `GlobalTransitionDef` carries `GuardId`/`ActionId`/`Priority`. Pre-existing (the 3a box's *"not covered"* row); it is a FastHSM builder + emitter change, not binding cleanup |
+> | **kept on purpose** | `HsmOccurrence.KeyForCurated` (no production caller since 3a) — the 3a box keeps it for the stateful C# HSM action; `CE-504` (BTree call shapes) decides its fate |
 
 ## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 
@@ -393,7 +403,111 @@ graph TD
 - *Reuse the DTO record in the editor*: the design keeps one record per layer (§3 caption), and the persistence assembly is netstandard2.0.
 - *One commit for 4*: a model refactor and a UI change landing together leaves nothing to bisect.
 
-## 6. Rails owed
+## 5.5 Slice 4c — a BTree blueprint binding is named by its asset id *(design, `2026-10-01`; build-state: BUILT — see the as-built box)*
+
+**INVENTORY** *(grep — the codebase-memory MCP was not connected this session; its CLI was not re-run for this slice)*
+
+| query | total | result |
+|---|---|---|
+| `.btree.json` with `AiPrimitiveTickCore` | 6 files | **3 bindings** name a GENERATED blueprint (`*_Bp.TickCore`): T32 → `EnumDemo` (`d06f6a14…`, class `235986DF`), T33 + T39 → `ParamDemo` (`…0000d0`, `CEFE162F`). The other 7 (`DemoAiPrimitiveNodes(B).TickCore`) are hand-written C# methods and stay methods |
+| `MethodFqn` readers in BTree editor + hosts (non-test) | 6 files | reference contributor, context menu ("Open Blueprint"), validator (2 rules), aggregator, command sink (palette drop), projector (runtime blob — keeps FQN) |
+| BTree DTO consumers in the generator | 1 entry | `BTreeJsonGenerator.GenerateOneAsset` — validator, topology emit, bridge emit, deactivator scan all read the deserialized DTO after one point |
+
+**Claim table**
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| sibling generators cannot see the blueprint's generated class; the BTree generator re-derives it from `.bp.json` | ✅ `GeneratedBlueprintSchemaCatalog.cs:10-36`; `GeneratedClassName` from `AssetId` | ✅ B-1 *("BTree's generator already loads that catalog")* |
+| two blueprints may share a NAME | ✅ two `EnumDemo.bp.json` with different ids — `Assets/` (compiled, the one T32 binds) and a `Recipes/` copy | ✅ §11.1a / Q36-B — the Guid is the identity, the name heals |
+| the HSM emitter already resolves a blueprint binding by Guid | ✅ `HsmValidator.cs:310,324`; CE-383 ids baked from `.bp.json` | ✅ `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md` §3.2 |
+| the BTree editor's identity for a composed node is the FQN, "never a persisted AssetId" | ✅ `BTreeValidator.cs:197-200` (AIE-053) | ⛔ **superseded by B-1** (user, `2026-10-01`) |
+
+```mermaid
+classDiagram
+    class BehaviorActionBindingDto {
+        <<EXISTING, persistence>>
+        +string? MethodFqn
+        +Guid BlueprintAssetId
+        +string? BlueprintName
+    }
+    class BlueprintClassNaming {
+        <<EXISTING, persistence>>
+        +ClassName(id, name)
+        +TickCoreFqn(id, name) NEW 4c
+    }
+    class BTreeBlueprintBindings {
+        <<static, persistence, NEW 4c>>
+        +ResolveMethods(dto, classNameById) : fills MethodFqn of every blueprint binding, in memory
+    }
+    class GeneratedBlueprintSchemaCatalog {
+        <<EXISTING, generator>>
+        +FindByAssetId(schemas, id) NEW 4c
+    }
+    class ComposedBlueprintResolver {
+        <<EXISTING, AiShared>>
+        +ResolveBinding(binding, catalog) NEW 4c : Guid first, legacy FQN second
+        +EffectiveMethodFqn(binding, catalog) NEW 4c
+    }
+    class BTreeBlueprintBindingResolver {
+        <<static, BTree editor, NEW 4c>>
+        +Resolve(asset, catalog) : heal FQN to Guid, heal name from Guid
+    }
+    BTreeBlueprintBindings ..> BlueprintClassNaming
+    BTreeBlueprintBindings ..> BehaviorActionBindingDto : derives MethodFqn, never persisted
+    GeneratedBlueprintSchemaCatalog ..> BTreeBlueprintBindings : classNameById
+    BTreeBlueprintBindingResolver ..> ComposedBlueprintResolver
+    BTreeBlueprintBindingResolver ..> SubtreeReferenceResolver : the shared heal rule
+```
+
+> **Caption.** One derivation point per side: the generator fills each blueprint binding's `MethodFqn` from the catalog
+> BY ASSET ID before anything reads the DTO, so every emitter, validator and the golden output are unchanged by
+> construction; the editor asks one resolver (Guid first) instead of parsing an FQN.
+
+```mermaid
+sequenceDiagram
+    participant G as BTreeJsonGenerator
+    participant C as GeneratedBlueprintSchemaCatalog
+    participant B as BTreeBlueprintBindings
+    participant E as validator + emitters (unchanged)
+    G->>G: Deserialize(.btree.json)
+    G->>B: ResolveMethods(dto, id => C.FindByAssetId(id)?.GeneratedClassName)
+    B->>B: each binding with BlueprintAssetId: MethodFqn = Generated.{class}.TickCore (fallback: class from the persisted name)
+    G->>E: Validate / EmitTopology / EmitBridge (read MethodFqn as before)
+```
+
+```mermaid
+graph TD
+    GEN["BTreeJsonGenerator (build, per asset)"] -->|"calls once, before validate"| RES["BTreeBlueprintBindings.ResolveMethods"]
+    DOC["BTreeDocumentFactory (open / hot reload)"] -->|"step 0, beside BTreeSubtreeResolver"| HEAL["BTreeBlueprintBindingResolver.Resolve"]
+    SINK["BTreeCommandSink (palette drop)"] -->|"blueprint by Guid"| CAT["IAssetCatalog"]
+    MAP["BTreeFacetMapper (inspector pick)"] -->|"BehaviorActionBindingEditor.Apply + shape"| CAT
+    REF["reference contributor / validator / context menu / aggregator"] -->|"every frame or on demand"| CRB["ComposedBlueprintResolver.EffectiveMethodFqn"]
+```
+
+> **Caption.** Who calls what: the build resolves once per asset; the editor heals once per open; every editor
+> reader goes through one resolver. Nothing at runtime changes — the blob carries the same method name.
+
+**Decisions (made in-frame, logged)**
+
+| | decision | rejected |
+|---|---|---|
+| ① | the generator derives the class from the catalog BY ID; the persisted name is only a fallback (a `.bp.json` missing from the build) | *derive from the persisted name* — a stale name compiles a wrong class name (CS0234 at best) |
+| ② | the BTree inspector allows a blueprint on an action and a condition; a blueprint pick composes params AND working state (`ComposeForAiPrimitive` with both names, the palette-drop rule) and sets `DelegateShape = AiPrimitiveTickCore`; clearing it drops both editor-owned variables and returns the shape to `ThreeParamReusable` | *params only, as HSM* — a composed BTree node needs its working-state slot (E2) |
+| ③ | an editor load heals a legacy generated FQN to Guid+name when the catalog resolves it, and heals a stale name from the Guid (`SubtreeReferenceResolver`, kind Blueprint) | *migrate only the corpus* — user files outside the repo would keep the FQN form for ever |
+
+**Rejected:** *store both FQN and Guid* — B-1 (one field, two meanings). *A new `schemaVersion`* — the DTO already carries the fields since slice 2; only values move.
+
+> ⭐⭐ **Slice 4c AS-BUILT (`2026-10-01`).**
+> | | |
+> |---|---|
+> | **built** | as the three diagrams above: `BTreeBlueprintBindings.ResolveMethods` (persistence) called once by `BTreeJsonGenerator` after deserializing, with `GeneratedBlueprintSchemaCatalog.FindByAssetId`; `BlueprintClassNaming.TickCoreFqn`; `ComposedBlueprintResolver.ResolveBinding` / `EffectiveMethodFqn`; `BTreeBlueprintBindingResolver` in `BTreeDocumentFactory` step 0; the palette drop (`BTreeCommandSink`, now given the catalogue) and the inspector pick (`BTreeFacetMapper`, now given the exporter) both write id + name; the BTree action/condition slots allow a blueprint. Readers moved: reference contributor, context menu, validator (unbound-leaf rule accepts a blueprint; dangling rule resolves by id), aggregator |
+> | **corpus** | T32, T33, T39 rewritten (3 bindings): `MethodFqn` → `BlueprintAssetId` + `BlueprintName`. ⭐ **Emitted source unchanged** — every emitted-source golden passed without regeneration; only `btree-persistence-shape.txt` moved (3 lines, +13 bytes each) |
+> | ⭐ **deviation: the heal is id-first, not the subtree rule** | `SubtreeReferenceResolver.Resolve` prefers the NAME (§7.1a). B-1 says the id resolves; and `EnumDemo` exists twice, so name-first could rebind silently. The never-erase rule is kept |
+> | **the build-side fallback** | when the `.bp.json` is not part of the build, the class comes from the persisted name (`BlueprintClassNaming`); a wrong name fails the C# compile, never silently. Neither id nor name ⇒ left unbound ⇒ the existing `BTREE0002` skip |
+> | **rails** | `BTreeBlueprintBindingsTests` (5, persistence): the corpus class is the one always emitted; id beats a stale name; name fallback; methods untouched; unresolvable left alone. `BTreeBlueprintBindingByIdTests` (8, BTree editor): legacy FQN healed to id; hand-written AiPrimitive method kept; id-first with two same-named blueprints + rename heal; never-erase; derived method; validator by id; palette drop persists id; inspector pick composes params + working state and clearing restores the plain shape. 🔴 Red-proved by mutation: persisted name preferred over the catalogue id, name-first heal, shape not set, palette drop keeps the FQN — each reddens its rail; removing the generator call reddens `TheGeneratedBTreeSourcesAreUnchanged` — ⚠ **only after fixing that test** (next row) |
+> | 🔴 **finding: the generated-source golden could not see a MISSING asset** | it compared only the parts a run produced, so an asset that stopped generating (here: T32/T33/T39 skipped as BTREE0002 once the derivation was removed) left its baselines unread and the test GREEN. ⭐ Fixed in `BTreeGeneratedEmitGoldenTests`: the produced hint set must equal the baselined set; red-proved. ⚠ **Not fixed, recorded:** `GeneratedEmitGoldenTests` (the HSM generator's tier, `:117`) has the same loop |
+
+## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 
 | rail | |
 |---|---|

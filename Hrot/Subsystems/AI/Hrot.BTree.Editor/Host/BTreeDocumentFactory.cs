@@ -128,6 +128,14 @@ public static class BTreeDocumentFactory
             btAsset.MarkDirty();
         }
 
+        // ⭐⭐ CE-417 B-1 (slice 4c) — and the blueprint bindings: a legacy generated FQN becomes the blueprint's id + name,
+        //   a stale name heals from the id. Same moment and same reason as the subtree heal above.
+        if (assetCatalog is not null &&
+            Hrot.BTree.Editor.Model.BTreeBlueprintBindingResolver.Resolve(btAsset, assetCatalog) > 0)
+        {
+            btAsset.MarkDirty();
+        }
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         var graphModel = new BTreeGraphModel(btAsset);
 
@@ -135,7 +143,7 @@ public static class BTreeDocumentFactory
         var nodeCatalog  = new BTreeNodeCatalog(actionSchema, btAsset.BlackboardTypeName);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
-        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema);
+        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema, assetCatalog);   // CE-417 B-1
 
         // ── 3. Custom renderers (built-in BTree set + caller extras) ──────────
         var store = selectionStore ?? new EditorSelectionStore();

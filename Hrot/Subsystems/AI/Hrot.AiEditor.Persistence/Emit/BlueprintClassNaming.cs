@@ -22,6 +22,13 @@ public static class BlueprintClassNaming
     public static string ClassFqn(Guid assetId, string assetName)
         => "global::" + Namespace + "." + ClassName(assetId, assetName);
 
+    /// <summary>⭐ <c>CE-417</c> B-1 — the generated <c>TickCore</c> a blueprint binding calls, namespace-qualified WITHOUT
+    /// <c>global::</c> (the form BTree assets have always carried in <c>MethodFqn</c>), built from a class name.</summary>
+    public static string TickCoreFqn(string className) => Namespace + "." + className + ".TickCore";
+
+    /// <summary>⭐ <c>CE-417</c> B-1 — the same, from the asset's id and name.</summary>
+    public static string TickCoreFqn(Guid assetId, string assetName) => TickCoreFqn(ClassName(assetId, assetName));
+
     /// <summary>The unqualified class name.</summary>
     public static string ClassName(Guid assetId, string assetName)
         => $"{SanitizeName(assetName)}_{ComputeBlueprintId(assetId):X8}_Bp";
