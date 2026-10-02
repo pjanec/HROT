@@ -233,6 +233,15 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 
 ⇒ ⭐ **the only network part today is the EQS sensor**, and ONE ECS part entity is instance `i` of TWO descriptor types. `PartMetadata.DescriptorOrdinal` (always `0`) therefore cannot name "the" descriptor. ⭐ **Lean:** resolve an incoming `(root, d, i)` to the part with `InstanceId == i` that carries a component mapped to `d` (existing descriptor→component map); set that component's claim. Per-component claims then give the natural split: config claimed on the Brain, result on the Muscle — the same part, two owners.
 
+⭐ **The part link is an ECS component, and it must not depend on the network** *(user `2026-10-02`; measured)*. `PartMetadata` (component id 55, `PartMetadata.cs`) is the ONLY parent–child component in the codebase (graph: no other parent/hierarchy type; `ChildMap` has no production writer). Its readers are ECS-side: teardown (`SubEntityCleanupSystem`), authority resolution to the root, scenario extraction (`StagingEntityExtractor.cs:263-290`), the EQS/combat finders.
+| field | verdict |
+|---|---|
+| `ParentEntity` | keep — the relationship itself |
+| `InstanceId` | keep — a network-agnostic sibling index (weapon mounts use it and never travel); the network layer REUSES it as the descriptor instance id |
+| `DescriptorOrdinal` | ⛔ **remove** — 4 production writers, all write `0` (`EqsChildSensor.cs:66`, `EqsSensorConfigIngressTranslator.cs:224`, `CombatTkbTranslator.cs:120`, + test worlds); **zero readers** |
+
+⇒ mapping `(root, d, i)` to a part is the NETWORK layer's job (instance id + the descriptor→component map), never a field on the ECS link. ⚠ The component still lives in the `Fdp.Toolkit.Replication.Components` namespace; moving it is cosmetic and not proposed now.
+
 ### 0.11 ⭐ CRASH = DISPOSE *(the spec's rule; closes P1)*
 
 | who crashed | what happens | today |
