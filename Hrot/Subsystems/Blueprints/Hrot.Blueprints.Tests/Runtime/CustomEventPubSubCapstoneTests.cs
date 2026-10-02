@@ -122,12 +122,44 @@ public sealed class CustomEventPubSubCapstoneTests
     }
 
     /// <summary>
+    /// ⭐ CE-2011 (<c>DESIGN_Typed_Event_Nodes</c> E1, I4/T-4) — two Event graphs on ONE event type in one Instance BOTH
+    /// run. ⛔ Before: the handler table was an indexer initialiser keyed by the event FQN, so the second handler silently
+    /// replaced the first and <c>First</c> stayed 0.
+    /// </summary>
+    [Fact]
+    public void TwoEventGraphsOnOneEventType_InOneInstance_BothRun()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        string eventFqn = typeof(PingDemoEvent).FullName!;
+        var asset = BlueprintAssetBuilder
+            .Instance("TwoHandlersOneEvent")
+            .WithVariable("First", typeof(int), "0")
+            .WithVariable("Second", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        asset.Graphs.Add(BuildOnPingGraph(eventFqn, asset.Variables[0].Id, name: "OnPingFirst"));
+        asset.Graphs.Add(BuildOnPingGraph(eventFqn, asset.Variables[1].Id, name: "OnPingSecond"));
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity subscriber = harness.SpawnAndAttach(asset);
+
+        fixture.World.Bus.Publish(new PingDemoEvent { Target = subscriber, Value = 42 });
+        harness.Pump(1);
+
+        Assert.Equal(42, harness.ReadIntField(subscriber, asset, "First"));
+        Assert.Equal(42, harness.ReadIntField(subscriber, asset, "Second"));
+    }
+
+    /// <summary>
     /// Builds the <c>OnPing</c> Event graph with explicit pins/links:
     /// <c>EventEntry.Out(exec) → SetVariable.In</c>, <c>EventEntry.Value(data) → SetVariable.Value(data)</c>,
     /// <c>SetVariable.Out(exec) → Return.In</c>. <c>Graph.Inputs=[Value:int]</c> so Stage5 matches the
     /// <c>EventEntry</c> "Value" data-out to payload arg 0.
     /// </summary>
-    private static Graph BuildOnPingGraph(string eventFqn, Guid lastValueId, bool selfFilter = false)
+    internal static Graph BuildOnPingGraph(string eventFqn, Guid lastValueId, bool selfFilter = false, string name = "OnPing")
     {
         var intType = new BlueprintTypeRef { TypeId = "System.Int32" };
 
@@ -168,7 +200,7 @@ public sealed class CustomEventPubSubCapstoneTests
         return new Graph
         {
             Id     = Guid.NewGuid(),
-            Name   = "OnPing",
+            Name   = name,
             Kind   = GraphKind.Event,
             Nodes  = new List<Node> { entry, setVar, ret },
             Links  = links,

@@ -3,6 +3,7 @@ using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Tests.Builders;
 using Xunit;
 
@@ -52,5 +53,27 @@ public sealed class EventGraphEmitTests
         // Thunk reinterprets the payload as the event struct and passes its field.
         Assert.Contains($"global::{fqn}", src);
         Assert.Contains("__ev.Value", src);
+    }
+
+    /// <summary>
+    /// ⭐ CE-2010 (<c>DESIGN_Typed_Event_Nodes</c> E1, I1) — a SECOND event node in one Event graph is a diagnostic on
+    /// that node. ⛔ Before: <c>FindEntryNode</c> took the first one and the second compiled to nothing, with no word.
+    /// </summary>
+    [Fact]
+    public void ASecondEventNodeInOneEventGraph_IsADiagnostic()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("TwoEventNodes")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .WithEventGraph("OnPing", g => g.Entry("Test.Events.PingEvent").Return())
+            .Build();
+        var second = new EventEntryNode { Id = System.Guid.NewGuid(), EventTypeId = "Test.Events.PongEvent" };
+        asset.Graphs.Single(g => g.Name == "OnPing").Nodes.Add(second);
+
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.False(result.Succeeded);
+        var d = Assert.Single(result.Diagnostics, x => x.Code == DiagnosticCodes.BP1682);
+        Assert.Equal(second.Id, d.NodeId);
     }
 }

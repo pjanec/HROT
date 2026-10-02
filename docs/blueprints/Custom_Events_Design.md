@@ -1,5 +1,9 @@
 # Blueprint Custom Events + Pub/Sub — Implementation Design
 
+> ⭐ **Related design (2026-10-02):** [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) reshapes the
+> SUBSCRIBE side (§4.5, build items 4a/4b): any number of typed event nodes in one Event graph, each compiled to its
+> own handler. It owns that shape; this document still owns discovery, publish and dispatch.
+
 > ⚠ **Naming trap — two different things are called "custom event".**
 > This document is about **bus events**: `[BlueprintEvent]` C# structs plus editor-authored event
 > definitions, published with `PublishEvent` and subscribed via an `EventEntry` graph. They are
@@ -89,6 +93,9 @@ flowchart LR
   initializer (pure construction, evaluated once). Make it **editor-addable** (palette entry per event).
 
 ### 4.5 Subscribe — named-event `EventEntryNode` + `Self`/`Any` filter
+
+> ⚠ **Generalised by [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) (2026-10-02):** the entry node stays
+> the subscription primitive, but a graph may hold any number of them, and the payload moves onto the node.
 ```
 ┌─ ◈ On TargetSpotted ───────────┐
 │  Deliver to:  ◉ Self   ○ Any    │   ← shown only if event has a target field

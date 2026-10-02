@@ -388,7 +388,7 @@ Runs 14 `IValidator` implementations in sequence:
 | `V_DispatchKindCompatibility`| Library/AiPrimitive/Instance field/event constraints            |
 | `V_NodeStructure`            | Each node has required pins; no duplicate pin IDs               |
 | `V_LinkStructure`            | Links reference existing nodes/pins; no self-loops              |
-| `V_GraphStructure`           | Each graph has exactly one entry node; no unreachable islands   |
+| `V_GraphStructure`           | Each graph has exactly one entry node; no unreachable islands. ⚠ SUPERSEDED for Event graphs by [`DESIGN_Typed_Event_Nodes.md`](../../blueprints/DESIGN_Typed_Event_Nodes.md) (any number of typed event nodes); the code never enforced "exactly one" (it takes the first) |
 | `V_VariablesAndState`        | Unique IDs; non-empty names                                     |
 | `V_AiPrimitiveIntent`        | Action hostings compatible with intent                          |
 | `V_LatentRules`              | Latent nodes not used in pure (non-latent) graphs               |

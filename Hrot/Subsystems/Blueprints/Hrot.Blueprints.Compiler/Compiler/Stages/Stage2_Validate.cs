@@ -698,6 +698,14 @@ internal sealed class V_LatentRules : IValidator
                         $"Event graph '{graph.Name}': {why}.", asset.AssetId, graph.Id, entry.Id));
             }
 
+        // ⭐ CE-2010 (DESIGN_Typed_Event_Nodes E1, I1) — FindEntryNode takes the FIRST event node of an Event graph, so a
+        //   second one compiled to nothing, silently. Named here, on every extra node, until E2's handler split.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+            foreach (var extra in graph.Nodes.OfType<EventEntryNode>().Skip(1))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1682,
+                    $"Event graph '{graph.Name}' holds more than one event node; only the first would run. Put each " +
+                    "event in its own Event graph.", asset.AssetId, graph.Id, extra.Id));
+
         // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
         //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)
         foreach (var graph in asset.Graphs)

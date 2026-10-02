@@ -22,6 +22,8 @@ related-designs:
   - Architect_Question_27_Local_Variables.md — owns the per-graph local slots of a suspending graph; §4 S6 makes them
     per-fiber.
   - DESIGN_Behavior_Action_Binding.md — owns the C# binding forms; unaffected.
+  - DESIGN_Typed_Event_Nodes.md — owns the AUTHORED shape of Event graphs (any number of typed event nodes, split into
+    one handler each before Stage 5). Each handler is one fiber graph here, unchanged.
 -->
 
 # One way to run a behaviour — any type hosts any type, natively concurrent
