@@ -301,6 +301,57 @@ derived from the path, so the two never meet. Depth 1 is unchanged (the root fol
 | 🔴 **a defect that predated this work, found by the rail:** `BTreeHostedSites` keyed its site table by `blob.StructureHash`, which hashes node TYPES and child COUNTS only. Two trees of one shape (a host `Sequence(Subtree)` and its child `Sequence(Subtree)`) shared ONE map, and the last `Bind` won, so the child's site looked up the HOST's key. ⇒ keyed by the blob INSTANCE now (the interpreter hands the host its own blob; every registrar binds that instance). `HsmHostedSubtrees` got the same instance-keyed table for the runtime | `BTreeHostedSites.cs`, `HsmHostedSubtrees.cs`, `HsmRunner` |
 | rails `HostingMatrixTests.S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences` (red-proved by making `HostedKeyAt` ignore its parent) and `S5b_ResettingAChild_ResetsItsGrandchildToo` (it failed on the site-table collision before the fix) | |
 
+#### S5d design — a blueprint behaviour HOSTS a behaviour *(`2026-10-02`, READY-TO-BUILD)*
+
+📐 **Measured basis.** An inline action (`ChannelCommandNode` with an `ActionFqn`) is already a latent call that returns a
+status each frame: `Stage5_Schedule.ScheduleInlineActionNode` → `ScheduleLatentNode` (Out on Success, `OnFailure` on
+Failure, Q#13) → `WaitLowering_Instance` re-invokes it in the resume check until it is not Running. ⇒ **Run Behaviour
+reuses that whole path; only the call differs.**
+
+```mermaid
+classDiagram
+  class RunBehaviorNode { <<NEW, kind "RunBehavior">> +BehaviorName  pins: In, Out (Success), OnFailure }
+  class IrOp_RunBehavior { <<NEW>> +BehaviorName +SiteId (= node id) }
+  class IrOp_InlineActionCall { <<EXISTS, the model>> }
+  class WaitLowering_Instance { <<EXISTS>> re-invokes either op in the resume check }
+  class InstanceEmitter { <<EXISTS, widened>> static readonly __RunSite_N key per site; Tick(..., occurrenceKey) }
+  class CSharpEmitter { <<EXISTS, widened>> registrar: StatefulWorkingSlots += site slot; HostedChildren.Register after Register }
+  class HostedSubtree { <<EXISTS, widened>> +TickFromBlueprint(ref hostBlock, world, self, dt, instanceId, occurrenceKey, siteKey) +SiteSlot(key, child) }
+  class BlueprintBehaviorTickDelegate { <<EXISTS, widened>> + int occurrenceKey }
+  RunBehaviorNode --> IrOp_RunBehavior : Stage5
+  IrOp_RunBehavior ..> IrOp_InlineActionCall : same suspend/resume shape
+  WaitLowering_Instance --> IrOp_RunBehavior
+  InstanceEmitter --> HostedSubtree : the emitted call
+  CSharpEmitter --> HostedSubtree : SiteSlot + HostedChildren.Register
+```
+*What it shows:* the node adds one op and one runtime entry point. The latent machinery, the hosted slot, nesting and
+the cycle check all already exist.
+
+```mermaid
+sequenceDiagram
+  participant BT as BlueprintRunner
+  participant T as generated Tick (cursor)
+  participant H as HostedSubtree.TickFromBlueprint
+  participant C as child Runner (any tier)
+  BT->>T: BehaviorTick(block, exec, ..., occurrenceKey)
+  T->>T: reach Run Behaviour: ResumeAt = k, return Running
+  loop each frame while the child runs
+    T->>H: TickFromBlueprint(ref block, ..., occurrenceKey, __RunSite_k)
+    H->>C: Start at a fresh start, then Tick(childBrain, childBlock)
+    C-->>H: status
+    H-->>T: Running ⇒ return Running
+  end
+  T->>T: Success ⇒ Out (cursor cleared), Failure ⇒ OnFailure
+```
+
+| decision | lean | why |
+|---|---|---|
+| where the occurrence key comes from | ⭐ a new `int occurrenceKey` parameter on `BehaviorTick` and the behaviour `Tick` | a static or an `Exec` field would be hidden state; the runner already has it (`BehaviorRunContext.OccurrenceKey`) |
+| the site key | a `static readonly int` per node, computed once from `OccurrenceSlots.TreeStateKeyFor(AssetId, nodeId, AssetIdFromName(child))` | the compiler cannot call the internal hash; computing at type init costs nothing per tick |
+| where it may appear | Tick graph of a `Behavior` asset only (a new diagnostic); latent ⇒ already refused in functions, Event graphs, loop bodies | an Instance has no brain tier to host from |
+| input binding | none in this step: the child starts from its own defaults | the host-variable binding (`SiteBinding`) is CE-439's shape and can follow |
+| abandonment | none needed yet: a blueprint leaves the node only when the child ends, or the run ends (clear detaches every slot) | S6 fibers / S7's Abort pin bring a real abandon; the recursive reset is ready for it |
+
 #### S5c as-built — hosting cycles refused at registration *(`2026-10-02`, CE-2003)*
 
 | piece | where |
