@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: §4.1-§4.4 and §4.6-§7 (discovery, publish, dispatch). The SUBSCRIBE side (§4.5) is owned by
+  DESIGN_Typed_Event_Nodes.md, whose §6 is the as-built.
+stale-below: §4.5's "one-out-per-Graph.Inputs" projection and its "TargetFilter" JSON (superseded, see the §4.5 banner).
+known-rot: §4.1 "migrate system events" — built as CE-2016 in the form the layering allows (the catalog keeps identity,
+  fields are reflected), not as [BlueprintEvent] on the system structs.
+known-conflict: none.
+-->
+
 # Blueprint Custom Events + Pub/Sub — Implementation Design
 
 > ⭐ **Related design (2026-10-02):** [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) reshapes the
@@ -96,6 +107,12 @@ flowchart LR
 
 > ⚠ **Generalised by [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) (2026-10-02):** the entry node stays
 > the subscription primitive, but a graph may hold any number of them, and the payload moves onto the node.
+>
+> ✅ **AS BUILT `2026-10-02` (CE-2012…CE-2017)** — ⛔ the bullets below that say *"one-out-per-`Graph.Inputs`"* and the
+> `"TargetFilter"` JSON are SUPERSEDED: the payload is `EventEntryNode.Fields` (baked by the "On: {Event}" palette entry,
+> the mirror of "Publish:"), the pins are those Fields + a whole-event `Event` pin, and the filter is the existing
+> `TargetFilterSelf` bool (edited in the node's Details drawer with its Policy/Capacity). System events come from the
+> same discovery (§4.1, A2 — in the form the layering allows). 📄 [`DESIGN_Typed_Event_Nodes.md`](DESIGN_Typed_Event_Nodes.md) §6.
 ```
 ┌─ ◈ On TargetSpotted ───────────┐
 │  Deliver to:  ◉ Self   ○ Any    │   ← shown only if event has a target field
