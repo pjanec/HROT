@@ -205,7 +205,7 @@ and nesting the same mechanism.
 ⚠ The manifest lists Parameters only, as BTree/HSM manifests list Role=Input only. A blueprint's Variables (`St`) stay
 visible through the blueprint debugger (`CaptureLiveBehaviorState`), not through the params inspector.
 
-### S4 as-built *(`2026-10-02`, CE-512)*
+### S4 as-built *(`2026-10-02`, CE-512 (behaviors))*
 
 ```mermaid
 classDiagram
@@ -264,10 +264,25 @@ at run time, not only nested run-slot keys.
 
 | sub-slice | delivers | key facts |
 |---|---|---|
-| **S5a** any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
+| **S5a** ✅ BUILT (CE-513 (behaviors)) any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
 | **S5b** recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
 | **S5c** cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
 | **S5d** blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; the non-blocking host is S7's Behaviour Task node |
+
+#### S5a as-built *(`2026-10-02`, CE-513 (behaviors))*
+
+| piece | where |
+|---|---|
+| `IBehaviorRunner.BrainBytes(def)` + `Start(def, brain, bytes)`: BTree 64 + zero; HSM `InstanceBytes(blob)` + `HsmInstanceManager.Initialize`; blueprint `BrainStateBytes` + zero. `BehaviorRunContext` now carries `InstanceId` (not the whole `BehaviorState`) | `Runners/*.cs` |
+| the site slot is `[brain][start][block]`, every offset from the CHILD's runner (`BrainBytesFor` / `StartWordOffsetFor` / `BlockOffsetFor` / `SlotPayloadSizeFor`); a BTree child is byte-identical to before | `HostedSubtree.cs` |
+| `TickHosted`: resolve the child's definition, `Start` it at a fresh start, step it through `runner.Tick` under the HOST's `InstanceId` (U-10), clear its brain + start word when it ends. `Reset` zeroes the child's brain at its own width | `HostedSubtree.cs` |
+| `HostedChildren` resolves ANY tier with a runner (`RequireDefinition`); the BTree-interpreter accessors stay for their existing callers | `HostedChildren.cs` |
+| the HSM host's "is the site bound" check asks for the definition, not a BTree interpreter | `HsmRunner.TickHostedChildren` |
+| rails `HostingMatrixTests.S5a_*` (3): a BTree host runs a blueprint child (its `Exec` is the slot's first region, persists, runs under the host's `InstanceId`, its Success ends the node and the host) and an HSM child (started in the slot with its `MachineId`, stepped; a terminating machine succeeds the node). Red-proved by resolving BTree children only | real ingress + `BrainTickSystem`, no hand attach |
+
+⚠ **Not yet:** an HSM-hosts-HSM/blueprint rail (the HSM host's path is the same `TickHosted` call, but the matrix rail over
+all 9 pairs belongs with S5b, when nesting is real). Authoring: the BTree `Subtree` node and HSM state pickers still list
+BTree assets only. Widening them is an editor change, filed with S5d.
 
 ### 4a. What fibers take *(S6, the largest slice — split in three)*
 

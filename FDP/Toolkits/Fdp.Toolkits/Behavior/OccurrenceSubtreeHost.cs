@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Behavior;
 /// the kernel never learns what an occurrence slot is. It is a two-line body: ask
 /// <see cref="BTreeHostedSites"/> which slot this SITE owns, then hand off to
 /// <see cref="HostedSubtree"/> — the same body the HSM host reaches through
-/// <c>BrainTickSystem.TickHostedChildren</c>. ⛔ One hosting mechanism, two entry points.</para>
+/// <c>HsmRunner.TickHostedChildren</c>. ⛔ One hosting mechanism, two entry points.</para>
 ///
 /// <para>⭐ <b>Stateless and shared.</b> Every site's identity arrives in the call, so there is
 /// nothing per-host to keep; <see cref="Instance"/> is handed to every interpreter that can host.</para>

@@ -7,7 +7,7 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// ⛔⛔⛔ <b>RETIRED <c>2026-09-23</c> (<c>CE-333</c>) — <see cref="Emit"/> ALWAYS RETURNS <c>null</c>.</b>
 /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.2.1 / §32.3. ⭐ HSM sub-tree hosting is declared
 /// per <b>STATE</b> now (<c>StateNode.SubtreeName</c> + <c>SubtreeAssetId</c>) and ticked every frame
-/// by <c>BrainTickSystem.TickHostedChildren</c>. ⛔ The reasoning is in <see cref="Emit"/>'s body, at
+/// by <c>HsmRunner.TickHostedChildren</c>. ⛔ The reasoning is in <see cref="Emit"/>'s body, at
 /// length, because it is the kind of removal a future reader will otherwise try to undo.
 /// ⚠ The type and its callers stay: a caller that gets <c>null</c> emits no file, which is exactly
 /// what every shipped asset already did.
@@ -69,7 +69,7 @@ public static class HsmOrchestratorEmitCore
         //
         // ⭐⭐ WHERE THE CAPABILITY WENT — nothing is lost. E5 hosts a child from an HSM STATE:
         //    the state carries {SubtreeAssetId, SubtreeName}, HsmBridgeEmitCore declares the child's
-        //    tree-state slot and binds its interpreter, and BrainTickSystem.TickHostedChildren ticks
+        //    tree-state slot and binds its interpreter, and HsmRunner.TickHostedChildren ticks
         //    it EVERY FRAME while the host state is active — with the real dt it already holds.
         //    🔒 One mechanism for one concept (ruling 9); this arm was the second.
         //

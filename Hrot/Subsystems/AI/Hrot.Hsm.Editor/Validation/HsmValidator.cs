@@ -494,7 +494,7 @@ public sealed class HsmValidator
     /// hosts this asset again.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
     ///
     /// <para>⛔ <b>Why it is an ERROR and not a warning.</b> Hosting is expanded INLINE —
-    /// <c>BrainTickSystem.TickHostedChildren</c> ticks the child in the host's own frame — so a ring
+    /// <c>HsmRunner.TickHostedChildren</c> ticks the child in the host's own frame — so a ring
     /// has no base case: it does not loop forever at a bounded cost, it recurses until the stack dies.
     /// ⚠ There is no runtime guard, and §32.8 item 7 says there should not be one; this is the guard.</para>
     ///

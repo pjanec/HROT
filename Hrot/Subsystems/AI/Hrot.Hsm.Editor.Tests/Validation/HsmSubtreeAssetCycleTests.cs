@@ -77,7 +77,7 @@ public sealed class HsmSubtreeAssetCycleTests
 
     /// <summary>
     /// ⭐⭐⭐ <b>The named case: the HSM hosts a child that hosts the HSM back.</b>
-    /// ⛔ Hosting is expanded inline by <c>BrainTickSystem.TickHostedChildren</c>, so the ring has no
+    /// ⛔ Hosting is expanded inline by <c>HsmRunner.TickHostedChildren</c>, so the ring has no
     /// base case — it recurses until the stack dies. That is why this is an ERROR.
     /// </summary>
     [Fact]

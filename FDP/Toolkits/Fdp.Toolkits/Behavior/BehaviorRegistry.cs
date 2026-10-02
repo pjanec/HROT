@@ -196,6 +196,12 @@ namespace Fdp.Toolkit.Behavior
         public Type? BrainStateLayoutType { get; init; }
 
         /// <summary>
+        /// ⭐ S4 (<c>DESIGN_Unified_Behaviour_Run</c> U-2) — the runner that steps this behaviour: one per tier, derived from
+        /// <see cref="BrainTier"/> (never stored, so it cannot disagree with it). <c>null</c> for a non-brain tier.
+        /// </summary>
+        public Runners.IBehaviorRunner? Runner => Runners.BehaviorRunners.For(BrainTier);
+
+        /// <summary>
         /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>
         /// for HSM-backed behaviors so diagnostic renderers / JSON translators can
         /// resolve raw state, event, and action IDs to human-readable names. May be
