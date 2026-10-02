@@ -56,7 +56,6 @@ public sealed class EqsCombatNodesTests : IDisposable
     public void EqsCombatNodes_MoveToOptimalCover_WritesChannelWithCorrectDestination()
     {
         var p     = new MoveToOptimalCoverParams { Speed = 3f, ArrivalRadius = 0.5f };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Add EqsCognitiveBuffer with one ready candidate
@@ -91,7 +90,6 @@ public sealed class EqsCombatNodesTests : IDisposable
     public void EqsCombatNodes_MoveToOptimalCover_ReturnsFailureWhenBufferNotReady()
     {
         var p     = new MoveToOptimalCoverParams { Speed = 3f, ArrivalRadius = 0.5f };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Add a buffer that is not ready (Count=0, LastUpdateTick=0)
@@ -113,7 +111,6 @@ public sealed class EqsCombatNodesTests : IDisposable
     public void EqsCombatNodes_MoveToOptimalCover_ForwardsSuccessFromChannel()
     {
         var p     = new MoveToOptimalCoverParams { Speed = 3f, ArrivalRadius = 0.5f };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Ready buffer with one candidate
@@ -143,7 +140,6 @@ public sealed class EqsCombatNodesTests : IDisposable
     public void EqsCombatNodes_ConditionHasTarget_SucceedsWithThreatFailsWithout()
     {
         var p     = new MoveToOptimalCoverParams();
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Step 1: no TargetMemory component
@@ -177,7 +173,6 @@ public sealed class EqsCombatNodesTests : IDisposable
     {
         var eqsParams  = new EqsParams { BlueprintId = 1, SearchRadius = 50f };
         var moveParams = new MoveToOptimalCoverParams { Speed = 5f, ArrivalRadius = 1f };
-        var state      = new BehaviorTreeState();
         var ctx        = new BTreeContext { Self = _entity, World = _repo };
 
         // ── Phase A: threat present, buffer ready ──────────────────────────────
@@ -215,7 +210,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         unsafe { memW.ThreatScores[0] = 0f; }
 
         // The ObserverSelector would abort the branch and call the deactivator
-        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ref eqsParams, ref state, ref ctx);
+        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ctx.Self, ctx.World);
 
         Assert.False(_repo.HasComponent<EqsSensor>(_entity),
             "EqsSensor must be removed when the branch is aborted");

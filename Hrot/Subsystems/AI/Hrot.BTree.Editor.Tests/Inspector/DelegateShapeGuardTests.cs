@@ -15,7 +15,7 @@ namespace Hrot.BTree.Editor.Tests.Inspector;
 
 /// <summary>
 /// Fix 1 — DelegateShape guard: headless tests proving that the binding drawer's "no compatible variables" state and
-/// the Promote affordance are suppressed for <see cref="BTreeActionDelegateShape.FourParamFull"/> (whole-blackboard)
+/// the Promote affordance are suppressed for <see cref="BTreeActionDelegateShape.NoParams"/> (whole-blackboard)
 /// actions, and still work normally for <see cref="BTreeActionDelegateShape.ThreeParamReusable"/> actions.
 /// ⭐ <c>CE-417</c> slice 4b: the shape reaches the drawer ON the binding facet (<c>TargetsWholeBlackboard</c>), set by the
 /// mapper — not through the retired <c>BTreeFacetFqnContext</c>.
@@ -118,7 +118,7 @@ public sealed class DelegateShapeGuardTests
             .Should().BeFalse("matching var exists — Promote affordance should not appear");
     }
 
-    // ── HasNoCompatibleVariables suppressed for FourParamFull ────────────────
+    // ── HasNoCompatibleVariables suppressed for a binding with no variable (FourParamFull → NoParams, CE-504) ──
 
     [Fact]
     public void HasNoCompatibleVariables_False_WhenFourParamFull_EvenWithNoMatchingVars()
@@ -151,14 +151,14 @@ public sealed class DelegateShapeGuardTests
     // ── Mapper puts the shape on the binding facet ───────────────────────────
 
     [Fact]
-    public void Mapper_MarksTheBinding_WholeBlackboard_ForFourParamFullAction()
+    public void Mapper_MarksTheBinding_NoVariable_ForAParamLessAction()
     {
-        var asset  = MakeAssetWithAction("Ns.WanderAction", BTreeActionDelegateShape.FourParamFull, out var nodeVisualId);
+        var asset  = MakeAssetWithAction("Ns.WanderAction", BTreeActionDelegateShape.NoParams, out var nodeVisualId);
 
         var facet = (BTreeActionFacet)new BTreeFacetMapper(asset).GetFacet(new BTreeNodeSelection(nodeVisualId))!;
 
         facet.Action.TargetsWholeBlackboard.Should().BeTrue(
-            "mapper must carry the node's FourParamFull shape to the binding the drawer draws");
+            "mapper must carry the node's NoParams shape (CE-504: FourParamFull retired) to the binding the drawer draws");
     }
 
     [Fact]

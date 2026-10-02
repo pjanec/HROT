@@ -195,7 +195,7 @@ public sealed class BlackboardRenameTests
                 {
                     ExpressionTargetField = null,   // no binding
                 },
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
+                DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
             },
         };
         asset.ReplaceAll(nodes, new List<BTreeEditorPill>(), EmptyBlob());

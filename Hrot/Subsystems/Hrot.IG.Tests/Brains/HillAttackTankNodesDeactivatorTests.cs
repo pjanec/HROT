@@ -35,11 +35,9 @@ namespace Hrot.IG.Tests.Brains
             });
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
-            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ctx.Self, ctx.World);
 
             // Assert
             var loco = world.GetComponent<LocomotionChannel>(entity);
@@ -59,11 +57,9 @@ namespace Hrot.IG.Tests.Brains
             // LocomotionChannel is NOT added.
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act + Assert (no exception)
-            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ctx.Self, ctx.World);
         }
 
         // ── T3 ────────────────────────────────────────────────────────────────────
@@ -83,11 +79,9 @@ namespace Hrot.IG.Tests.Brains
             });
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
-            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ctx.Self, ctx.World);
 
             // Assert — channel must be entirely unchanged
             var loco = world.GetComponent<LocomotionChannel>(entity);
@@ -116,11 +110,9 @@ namespace Hrot.IG.Tests.Brains
             });
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
-            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ctx.Self, ctx.World);
 
             // Assert
             var ch = world.GetComponent<WeaponChannel>(entity);
@@ -140,11 +132,9 @@ namespace Hrot.IG.Tests.Brains
             // WeaponChannel is NOT added.
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act + Assert (no exception)
-            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ctx.Self, ctx.World);
         }
 
         // ── T3 ────────────────────────────────────────────────────────────────────
@@ -163,11 +153,9 @@ namespace Hrot.IG.Tests.Brains
             });
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
-            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ctx.Self, ctx.World);
 
             // Assert — ActionInstanceId must remain unchanged
             var ch = world.GetComponent<WeaponChannel>(entity);
@@ -191,11 +179,9 @@ namespace Hrot.IG.Tests.Brains
             });
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
-            byte bb    = 0;   // P4: the node takes `ref byte` — the root params slot base
 
             // Act
-            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ref bb, ref state, ref ctx, 0);
+            HillAttackTankNodes.Deactivate_AimAndFireSpecific(ctx.Self, ctx.World);
 
             // Assert — channel must be entirely unchanged
             var ch = world.GetComponent<WeaponChannel>(entity);

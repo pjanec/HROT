@@ -3,13 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.BTree;
+using Hrot.AiEditor.Persistence.Emit;
 
 namespace Hrot.AiEditor.Generators;
 
 /// <summary>
-/// Validates that every bound Action/Condition leaf in a BTree asset has a method
-/// whose signature is compatible with <c>NodeLogicDelegate&lt;TBB,TCtx&gt;</c>
-/// (i.e. <c>NodeStatus Method(ref TBB, ref BehaviorTreeState, ref TCtx, int)</c>).
+/// Validates that every bound Action/Condition leaf in a BTree asset binds a method the bridge can call.
+///
+/// <para>⭐⭐ <c>CE-504</c> slice 4 — <b>one C# node signature.</b> A C# binding is a <c>[SharedAiAction]</c> /
+/// <c>[SharedAiCondition]</c> method in one of the shared forms — <c>(ref P, Entity, EntityRepository)</c>,
+/// <c>(ref P, ref WS, Entity, EntityRepository)</c>, <c>(Entity, EntityRepository)</c> — the HSM's own signature. ⛔ The
+/// BTree-only <c>(ref P, ref BehaviorTreeState, ref TCtx)</c>, its stateful twin and the whole-block
+/// <c>(ref TBB, ref BehaviorTreeState, ref TCtx, int)</c> are retired as asset bindings: such a method is reported, never
+/// emitted. The blueprint call (<see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/>) is a separate, generated contract.
+/// 📄 <c>docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md</c>.</para>
 ///
 /// An incompatible binding causes the whole asset to be skipped with BTREE0002
 /// instead of breaking the <c>Hrot.AI.Behaviors</c> build.
@@ -22,15 +29,7 @@ namespace Hrot.AiEditor.Generators;
 /// </summary>
 internal static class BTreeMethodCompatibilityValidator
 {
-    private const string NodeStatusFqn         = "Fbt.NodeStatus";
-    private const string BehaviorTreeStateFqn  = "Fbt.BehaviorTreeState";
-
-    /// <summary>
-    /// ⭐⭐ <c>CE-316</c> — the generated registrar's <c>TBB</c>. ⚠ Must stay in lockstep with
-    /// <c>BTreeBridgeEmitCore</c>'s <c>bbShort</c> and <c>BTreeEmitCore</c>'s; <c>BTreeTbbIsByteTests</c>
-    /// pins the three together, because a drift here is a **silent whole-asset skip**, not a build error.
-    /// </summary>
-    private const string ByteFqn = "System.Byte";
+    private const string NodeStatusFqn = "Fbt.NodeStatus";
 
     /// <summary>
     /// Validates all reachable bound Action/Condition leaves in <paramref name="dto"/>.
@@ -48,35 +47,8 @@ internal static class BTreeMethodCompatibilityValidator
         BehaviorTreeAssetDto dto, Compilation compilation,
         IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas = null)
     {
-        // ⭐⭐⭐ CE-316 — TBB IS `byte`, AND IT COMES FROM THE EMITTER, NOT FROM THE ASSET.
-        //   🔴🔴 This line used to read `dto.BlackboardTypeName`, and that was CE-313's unfixed twin.
-        //   CE-313 made the generated registrar emit `ActionRegistry<byte, TCtx>`
-        //   (BTreeBridgeEmitCore.cs:328, `var bbShort = "byte"`), because after P3-C a thunk's
-        //   blackboard argument is the ROOT PARAMS SLOT BASE, not a named component. ⇒ this validator
-        //   kept resolving TBB from the ASSET's declared type and rejecting every method whose param 0
-        //   is `ref byte` — i.e. every method P4-② converted.
-        //   ⛔⛔ And the rejection is not a warning: BTreeJsonGenerator treats an incompatible leaf as a
-        //   WHOLE-ASSET SKIP, so six assets silently stopped generating at P4-② (§30.25 ⑤).
-        // ⭐ The CHECK itself is still real and still wanted — a method whose param 0 is `ref Something`
-        //   would not compile in the emitted registrar. Only its SOURCE OF TRUTH was wrong: it must be
-        //   what the emitter WRITES, never what the asset DECLARES.
-        // ⛔ Deliberately NOT a change to dto.BlackboardTypeName. That field is a PERSISTED input to
-        //   SubtreeSyncIdentity.Derive, which MATCHES SUBTREES (§30.19) — retargeting it renames
-        //   structs across the corpus and breaks matching silently. It keeps its other readers.
-        string bbTypeName  = ByteFqn;
-        string ctxTypeName = dto.ContextTypeName;
-
-        // Resolve BehaviorTreeState once — it is the same across all assets.
-        INamedTypeSymbol? behaviorTreeStateSymbol =
-            compilation.GetTypeByMetadataName(BehaviorTreeStateFqn);
-
-        // Resolve NodeStatus return type.
-        INamedTypeSymbol? nodeStatusSymbol =
-            compilation.GetTypeByMetadataName(NodeStatusFqn);
-
-        // Resolve TBB and TCtx from the asset's declared type names.
-        INamedTypeSymbol? bbSymbol  = ResolveType(compilation, bbTypeName);
-        INamedTypeSymbol? ctxSymbol = ResolveType(compilation, ctxTypeName);
+        INamedTypeSymbol? nodeStatusSymbol = compilation.GetTypeByMetadataName(NodeStatusFqn);
+        var sharedAi = SharedAiMethodResolver.Make(compilation);
 
         // Walk reachable nodes (mirror the emitter's traversal: start from entry).
         var nodeById = new Dictionary<Guid, BTreeNodeDto>(dto.Nodes.Count);
@@ -123,36 +95,19 @@ internal static class BTreeMethodCompatibilityValidator
             if (!visited.Add(node.VisualId))
                 continue; // cycle guard — BT-14 already catches cycles; just don't recurse
 
-            // Check Action/Condition leaves.
-            if (node is BTreeActionNodeDto actNode)
+            var (p, shape, kind) = node switch
             {
-                var p = actNode.Action;
-                if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                {
-                    string? reason = CheckPayload(
-                        p.MethodFqn!, actNode.DelegateShape,
-                        p.ExpressionTargetField, dto.Blackboard,
-                        compilation, bbSymbol, ctxSymbol,
-                        behaviorTreeStateSymbol, nodeStatusSymbol,
-                        bbTypeName, ctxTypeName, blueprintSchemas);
-                    if (reason != null)
-                        return $"Action leaf {node.VisualId:D} binds '{p.MethodFqn}': {reason}";
-                }
-            }
-            else if (node is BTreeConditionNodeDto condNode)
+                BTreeActionNodeDto a    => (a.Action, a.DelegateShape, "Action"),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape, "Condition"),
+                _                       => (null, default(BTreeDelegateShapeDto), ""),
+            };
+            if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
             {
-                var p = condNode.Condition;
-                if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                {
-                    string? reason = CheckPayload(
-                        p.MethodFqn!, condNode.DelegateShape,
-                        p.ExpressionTargetField, dto.Blackboard,
-                        compilation, bbSymbol, ctxSymbol,
-                        behaviorTreeStateSymbol, nodeStatusSymbol,
-                        bbTypeName, ctxTypeName, blueprintSchemas);
-                    if (reason != null)
-                        return $"Condition leaf {node.VisualId:D} binds '{p.MethodFqn}': {reason}";
-                }
+                string? reason = CheckPayload(
+                    p.MethodFqn!, shape, p.ExpressionTargetField, dto.Blackboard,
+                    compilation, sharedAi, nodeStatusSymbol, blueprintSchemas);
+                if (reason != null)
+                    return $"{kind} leaf {node.VisualId:D} binds '{p.MethodFqn}': {reason}";
             }
 
             // Push children for traversal.
@@ -172,138 +127,53 @@ internal static class BTreeMethodCompatibilityValidator
         string? expressionTargetField,
         BlackboardBlockDto blackboard,
         Compilation compilation,
-        INamedTypeSymbol? bbSymbol,
-        INamedTypeSymbol? ctxSymbol,
-        INamedTypeSymbol? behaviorTreeStateSymbol,
+        Func<string, SharedAiMethodInfo?> sharedAi,
         INamedTypeSymbol? nodeStatusSymbol,
-        string bbTypeName,
-        string ctxTypeName,
         IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas)
     {
-        // S1-4: ThreeParamReusable is now validated via the 3-param shape check.
-        // A ThreeParamReusable binding is valid when:
-        //   1. The method resolves to a public static method.
-        //   2. The method has exactly 3 parameters: (ref TDto, ref BehaviorTreeState, ref TCtx)
-        //      and returns NodeStatus.
-        //   3. ExpressionTargetField names a variable in the managed blackboard block
-        //      whose TypeId matches param-0's type FQN.
-        // If any of those conditions fail the binding is skipped (BTREE0002), not hard-errored.
-        if (delegateShape == BTreeDelegateShapeDto.ThreeParamReusable)
+        switch (delegateShape)
         {
-            return CheckThreeParamReusable(
-                methodFqn, expressionTargetField, blackboard,
-                compilation, behaviorTreeStateSymbol, nodeStatusSymbol, ctxSymbol,
-                ctxTypeName);
+            case BTreeDelegateShapeDto.ThreeParamReusable:
+            case BTreeDelegateShapeDto.ThreeParamReusableStateful:
+                return CheckSharedWithParams(methodFqn, delegateShape, expressionTargetField, blackboard, compilation, sharedAi);
+
+            // ⭐⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository): it binds no variable.
+            case BTreeDelegateShapeDto.NoParams:
+                return sharedAi(methodFqn) is { HasParams: false }
+                    ? null
+                    : $"method '{methodFqn}' takes (Entity, EntityRepository) but is not marked [SharedAiAction]/[SharedAiCondition] (CE-504)";
+
+            // I2/I3: AiPrimitiveTickCore composes a blueprint AiPrimitive as a host node — the generated TickCore
+            //   (ref Params, ref WorkingState, Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time).
+            case BTreeDelegateShapeDto.AiPrimitiveTickCore:
+                return CheckAiPrimitiveTickCore(
+                    methodFqn, expressionTargetField, blackboard,
+                    compilation, nodeStatusSymbol, blueprintSchemas);
+
+            default:
+                return $"call shape {delegateShape} is not a bindable shape (CE-504)";
         }
-
-        // S2-1: ThreeParamReusableStateful uses the 4-param stateful shape:
-        //   (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)
-        // This is NOT the FourParamFull shape — param-0 is a DTO (not TBB) and param-1
-        // is a WorkingState struct (not TBB). Validate it via a dedicated check.
-        if (delegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
-        {
-            return CheckThreeParamReusableStateful(
-                methodFqn, expressionTargetField, blackboard,
-                compilation, behaviorTreeStateSymbol, nodeStatusSymbol, ctxSymbol,
-                ctxTypeName);
-        }
-
-        // ⭐⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository): it must be a [SharedAi*] method of that
-        //   form; it binds no variable (an ExpressionTargetField on it is ignored, as for the whole-block shape).
-        if (delegateShape == BTreeDelegateShapeDto.NoParams)
-        {
-            var info = SharedAiMethodResolver.Make(compilation)(methodFqn);
-            return info is { HasParams: false }
-                ? null
-                : $"method '{methodFqn}' takes (Entity, EntityRepository) but is not marked [SharedAiAction]/[SharedAiCondition] (CE-504)";
-        }
-
-        // I2/I3: AiPrimitiveTickCore composes a blueprint AiPrimitive as a host node. The bound method
-        // is the blueprint's generated TickCore with the signature
-        //   (ref Params, ref WorkingState, Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time)
-        // — 5 params, distinct from every other shape. Validate it via a dedicated check.
-        if (delegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
-        {
-            return CheckAiPrimitiveTickCore(
-                methodFqn, expressionTargetField, blackboard,
-                compilation, nodeStatusSymbol, blueprintSchemas);
-        }
-
-        // Resolve the method symbol.
-        IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
-        if (method == null)
-            return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
-
-        // Must be public and static.
-        if (!method.IsStatic)
-            return $"method '{methodFqn}' is not static";
-        if (method.DeclaredAccessibility != Accessibility.Public)
-            return $"method '{methodFqn}' is not public";
-
-        // Return type must be Fbt.NodeStatus.
-        if (nodeStatusSymbol == null)
-            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
-            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but NodeLogicDelegate requires Fbt.NodeStatus";
-
-        // Must have exactly 4 parameters.
-        if (method.Parameters.Length != 4)
-            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but NodeLogicDelegate requires exactly 4";
-
-        // Param 0: ref TBB (the asset's blackboard type).
-        if (bbSymbol == null)
-            return $"blackboard type '{bbTypeName}' could not be resolved; ensure the assembly is referenced";
-        string? p0Err = CheckRefParam(method.Parameters[0], bbSymbol, 0, "blackboard (TBB)", methodFqn);
-        if (p0Err != null) return p0Err;
-
-        // Param 1: ref Fbt.BehaviorTreeState.
-        if (behaviorTreeStateSymbol == null)
-            return "Fbt.BehaviorTreeState could not be resolved; ensure Fbt.Kernel is referenced";
-        string? p1Err = CheckRefParam(method.Parameters[1], behaviorTreeStateSymbol, 1, "BehaviorTreeState", methodFqn);
-        if (p1Err != null) return p1Err;
-
-        // Param 2: ref TCtx (the asset's context type).
-        if (ctxSymbol == null)
-            return $"context type '{ctxTypeName}' could not be resolved; ensure the assembly is referenced";
-        string? p2Err = CheckRefParam(method.Parameters[2], ctxSymbol, 2, "context (TCtx)", methodFqn);
-        if (p2Err != null) return p2Err;
-
-        // Param 3: int paramIndex (no ref).
-        var p3 = method.Parameters[3];
-        if (p3.RefKind != RefKind.None)
-            return $"method '{methodFqn}' param 3 (paramIndex) must not be ref/out/in; got '{p3.RefKind}'";
-        if (p3.Type.SpecialType != SpecialType.System_Int32)
-            return $"method '{methodFqn}' param 3 must be System.Int32; got '{p3.Type.ToDisplayString()}'";
-
-        return null; // valid
     }
 
     /// <summary>
-    /// S1-4: Validates a ThreeParamReusable binding.
-    /// Accepts when:
-    ///   - method resolves, is public static, returns NodeStatus
-    ///   - method has exactly 3 ref parameters: (ref TDto, ref BehaviorTreeState, ref TCtx)
-    ///   - ExpressionTargetField names a variable in the blackboard block
-    ///   - that variable's TypeId matches param-0's type FQN (type-safe binding)
-    /// Returns null on success, reason string on failure.
+    /// ⭐⭐ <c>CE-504</c> slice 4 — a binding with params: the plain <c>(ref P, Entity, EntityRepository)</c> or the stateful
+    /// <c>(ref P, ref WS, Entity, EntityRepository)</c> shared form. Accepts when the method resolves, is public static, is a
+    /// <c>[SharedAi*]</c> method of the form the shape names, and the bound variable IS its params type (the thunk projects the
+    /// variable as that type, so a mismatch would be a silent type-pun). ⛔ The retired BTree-only forms
+    /// (<c>ref BehaviorTreeState, ref TCtx</c>) are reported here by name.
     /// </summary>
-    private static string? CheckThreeParamReusable(
+    private static string? CheckSharedWithParams(
         string methodFqn,
+        BTreeDelegateShapeDto shape,
         string? expressionTargetField,
         BlackboardBlockDto blackboard,
         Compilation compilation,
-        INamedTypeSymbol? behaviorTreeStateSymbol,
-        INamedTypeSymbol? nodeStatusSymbol,
-        INamedTypeSymbol? ctxSymbol,
-        string ctxTypeName)
+        Func<string, SharedAiMethodInfo?> sharedAi)
     {
-        // ExpressionTargetField must be set.
         if (string.IsNullOrEmpty(expressionTargetField))
-            return $"ThreeParamReusable binding has no ExpressionTargetField — set the target variable in the editor";
-
-        // The blackboard block must be managed and contain the variable.
+            return $"{shape} binding has no ExpressionTargetField — set the target variable in the editor";
         if (!blackboard.Managed)
-            return $"ThreeParamReusable binding requires a managed blackboard (Managed=true); got Managed=false";
+            return $"{shape} binding requires a managed blackboard (Managed=true); got Managed=false";
 
         BlackboardVariableDto? targetVar = null;
         foreach (var v in blackboard.Variables)
@@ -315,200 +185,29 @@ internal static class BTreeMethodCompatibilityValidator
             }
         }
         if (targetVar == null)
-            return $"ThreeParamReusable: variable '{expressionTargetField}' not found in the managed blackboard block";
+            return $"{shape}: variable '{expressionTargetField}' not found in the managed blackboard block";
 
-        // Resolve the method.
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)
             return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
-
         if (!method.IsStatic)
             return $"method '{methodFqn}' is not static";
         if (method.DeclaredAccessibility != Accessibility.Public)
             return $"method '{methodFqn}' is not public";
 
-        // ⭐⭐ CE-417 B-2 (a′), F8 — a [SharedAi*] method keeps ITS signature (ref T, Entity, EntityRepository); the bridge
-        //   calls it per binding (BTreeBridgeEmitCore.EmitThreeParamCall). ⛔ The bound variable must BE its ref type —
-        //   the thunk projects the host variable as that type, so a mismatch would be a silent type-pun.
-        var sharedAi = SharedAiMethodResolver.Make(compilation)(methodFqn);
-        if (sharedAi != null)
-        {
-            string want = sharedAi.ParamTypeId.Replace('+', '.');
-            string have = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
-            return string.Equals(want, have, StringComparison.Ordinal)
-                ? null
-                : $"[SharedAi] method '{methodFqn}' takes 'ref {sharedAi.ParamTypeId}' but is bound to variable " +
-                  $"'{expressionTargetField}' of type '{targetVar.Type?.TypeId}'; bind a variable of the method's ref type (CE-417)";
-        }
+        bool stateful = shape == BTreeDelegateShapeDto.ThreeParamReusableStateful;
+        var info = sharedAi(methodFqn);
+        if (info == null || !info.HasParams || (info.WorkingStateTypeFqn != null) != stateful)
+            return $"method '{methodFqn}' is not a [SharedAiAction]/[SharedAiCondition] method of the form " +
+                   (stateful ? "(ref TParams, ref TWorkingState, Entity, EntityRepository)" : "(ref TParams, Entity, EntityRepository)") +
+                   "; the BTree-only (…, ref BehaviorTreeState, ref TCtx) forms were retired (CE-504)";
 
-        // Return type must be NodeStatus.
-        if (nodeStatusSymbol == null)
-            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
-            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but 3-param reusable requires Fbt.NodeStatus";
-
-        // Must have exactly 3 parameters.
-        if (method.Parameters.Length != 3)
-            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but ThreeParamReusable requires exactly 3 (ref TDto, ref BehaviorTreeState, ref TCtx)";
-
-        // Param 0: ref TDto — must be a ref struct matching the variable's TypeId.
-        var param0 = method.Parameters[0];
-        if (param0.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 0 must be 'ref'; got '{param0.RefKind}'";
-
-        // Get the FQN of param0's type and compare with the variable's TypeId.
-        // S1-2b: The symbol display format uses '.' for nested types but the asset
-        // TypeId uses the CLR metadata form with '+' (e.g. "Outer+Inner").
-        // Normalize both sides to use '.' before comparing so a nested-struct DTO
-        // binding validates correctly regardless of which separator was used.
-        string param0TypeFqn = param0.Type.ToDisplayString(
-            new SymbolDisplayFormat(
-                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
-                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
-
-        string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
-
-        // Normalize nested-type separators to '.' on both sides for comparison.
-        string param0TypeNormalized = param0TypeFqn.Replace('+', '.');
-        string varTypeNormalized    = varTypeId.Replace('+', '.');
-
-        if (!string.Equals(param0TypeNormalized, varTypeNormalized, StringComparison.Ordinal))
-            return $"method '{methodFqn}' param 0 type '{param0TypeFqn}' does not match variable '{expressionTargetField}' type '{varTypeId}'; ensure the DTO type and the blackboard variable type are the same";
-
-        // Param 1: ref BehaviorTreeState.
-        var param1 = method.Parameters[1];
-        if (param1.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 1 must be 'ref BehaviorTreeState'; got refkind '{param1.RefKind}'";
-        if (behaviorTreeStateSymbol != null &&
-            !SymbolEqualityComparer.Default.Equals(param1.Type, behaviorTreeStateSymbol))
-            return $"method '{methodFqn}' param 1 must be 'ref Fbt.BehaviorTreeState'; got '{param1.Type.ToDisplayString()}'";
-
-        // Param 2: ref TCtx.
-        var param2 = method.Parameters[2];
-        if (param2.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 2 must be 'ref TCtx'; got refkind '{param2.RefKind}'";
-        if (ctxSymbol != null &&
-            !SymbolEqualityComparer.Default.Equals(param2.Type, ctxSymbol))
-            return $"method '{methodFqn}' param 2 type '{param2.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
-
-        return null; // valid
-    }
-
-    /// <summary>
-    /// S2-1: Validates a ThreeParamReusableStateful binding.
-    /// The stateful shape has 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx).
-    /// Unlike FourParamFull, param-0 is a DTO type (matching the blackboard variable) and
-    /// param-1 is a WorkingState struct (projected from the partition slot).
-    /// Accepts when:
-    ///   - method resolves, is public static, returns NodeStatus
-    ///   - method has exactly 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)
-    ///   - ExpressionTargetField names a variable in the managed blackboard block
-    ///   - that variable's TypeId (normalized) matches param-0's type FQN (type-safe binding)
-    /// Returns null on success, reason string on failure (BTREE0002 skip, not build break).
-    /// </summary>
-    private static string? CheckThreeParamReusableStateful(
-        string methodFqn,
-        string? expressionTargetField,
-        BlackboardBlockDto blackboard,
-        Compilation compilation,
-        INamedTypeSymbol? behaviorTreeStateSymbol,
-        INamedTypeSymbol? nodeStatusSymbol,
-        INamedTypeSymbol? ctxSymbol,
-        string ctxTypeName)
-    {
-        // ExpressionTargetField must be set.
-        if (string.IsNullOrEmpty(expressionTargetField))
-            return $"ThreeParamReusableStateful binding has no ExpressionTargetField — set the target variable in the editor";
-
-        // The blackboard block must be managed and contain the variable.
-        if (!blackboard.Managed)
-            return $"ThreeParamReusableStateful binding requires a managed blackboard (Managed=true); got Managed=false";
-
-        BlackboardVariableDto? targetVar = null;
-        foreach (var v in blackboard.Variables)
-        {
-            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
-            {
-                targetVar = v;
-                break;
-            }
-        }
-        if (targetVar == null)
-            return $"ThreeParamReusableStateful: variable '{expressionTargetField}' not found in the managed blackboard block";
-
-        // Resolve the method.
-        IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
-        if (method == null)
-            return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
-
-        if (!method.IsStatic)
-            return $"method '{methodFqn}' is not static";
-        if (method.DeclaredAccessibility != Accessibility.Public)
-            return $"method '{methodFqn}' is not public";
-
-        // ⭐⭐ CE-504 C-2 — the shared stateful form (ref P, ref WS, Entity, EntityRepository): the bridge calls it with ITS
-        //   signature (EmitStatefulActionThunks); the bound variable must BE its params type, as for the plain form.
-        var sharedAi = SharedAiMethodResolver.Make(compilation)(methodFqn);
-        if (sharedAi is { WorkingStateTypeFqn: not null })
-        {
-            string want = sharedAi.ParamTypeId.Replace('+', '.');
-            string have = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
-            return string.Equals(want, have, StringComparison.Ordinal)
-                ? null
-                : $"[SharedAi] method '{methodFqn}' takes 'ref {sharedAi.ParamTypeId}' but is bound to variable " +
-                  $"'{expressionTargetField}' of type '{targetVar.Type?.TypeId}'; bind a variable of the method's ref type (CE-504)";
-        }
-
-        // Return type must be NodeStatus.
-        if (nodeStatusSymbol == null)
-            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
-            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but ThreeParamReusableStateful requires Fbt.NodeStatus";
-
-        // Must have exactly 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx).
-        if (method.Parameters.Length != 4)
-            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but ThreeParamReusableStateful requires exactly 4 (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)";
-
-        // Param 0: ref TDto — must match the variable's TypeId.
-        var param0 = method.Parameters[0];
-        if (param0.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 0 must be 'ref TDto'; got '{param0.RefKind}'";
-
-        string param0TypeFqn = param0.Type.ToDisplayString(
-            new SymbolDisplayFormat(
-                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
-                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
-
-        string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
-        string param0TypeNormalized = param0TypeFqn.Replace('+', '.');
-        string varTypeNormalized    = varTypeId.Replace('+', '.');
-
-        if (!string.Equals(param0TypeNormalized, varTypeNormalized, StringComparison.Ordinal))
-            return $"method '{methodFqn}' param 0 type '{param0TypeFqn}' does not match variable '{expressionTargetField}' type '{varTypeId}'";
-
-        // Param 1: ref TWorkingState — must be a ref struct (not validated against a specific type
-        // since it comes from the partition slot, not the blackboard). Just check it is a ref param.
-        var param1 = method.Parameters[1];
-        if (param1.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 1 (WorkingState) must be 'ref'; got '{param1.RefKind}'";
-
-        // Param 2: ref BehaviorTreeState.
-        var param2 = method.Parameters[2];
-        if (param2.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 2 must be 'ref BehaviorTreeState'; got refkind '{param2.RefKind}'";
-        if (behaviorTreeStateSymbol != null &&
-            !SymbolEqualityComparer.Default.Equals(param2.Type, behaviorTreeStateSymbol))
-            return $"method '{methodFqn}' param 2 must be 'ref Fbt.BehaviorTreeState'; got '{param2.Type.ToDisplayString()}'";
-
-        // Param 3: ref TCtx.
-        var param3 = method.Parameters[3];
-        if (param3.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param 3 must be 'ref TCtx'; got refkind '{param3.RefKind}'";
-        if (ctxSymbol != null &&
-            !SymbolEqualityComparer.Default.Equals(param3.Type, ctxSymbol))
-            return $"method '{methodFqn}' param 3 type '{param3.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
-
-        return null; // valid
+        string want = info.ParamTypeId.Replace('+', '.');
+        string have = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
+        return string.Equals(want, have, StringComparison.Ordinal)
+            ? null
+            : $"[SharedAi] method '{methodFqn}' takes 'ref {info.ParamTypeId}' but is bound to variable " +
+              $"'{expressionTargetField}' of type '{targetVar.Type?.TypeId}'; bind a variable of the method's ref type (CE-417)";
     }
 
     /// <summary>
@@ -672,20 +371,6 @@ internal static class BTreeMethodCompatibilityValidator
 
         reason = null; // valid — recognized generated-blueprint TickCore binding
         return true;
-    }
-
-    private static string? CheckRefParam(
-        IParameterSymbol param,
-        INamedTypeSymbol expectedType,
-        int index,
-        string role,
-        string methodFqn)
-    {
-        if (param.RefKind != RefKind.Ref)
-            return $"method '{methodFqn}' param {index} ({role}) must be 'ref'; got '{param.RefKind}'";
-        if (!SymbolEqualityComparer.Default.Equals(param.Type, expectedType))
-            return $"method '{methodFqn}' param {index} ({role}) has type '{param.Type.ToDisplayString()}' but expected '{expectedType.ToDisplayString()}'";
-        return null;
     }
 
     /// <summary>

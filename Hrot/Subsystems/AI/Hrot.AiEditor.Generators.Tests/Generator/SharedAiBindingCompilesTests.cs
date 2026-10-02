@@ -135,22 +135,18 @@ namespace Probe
         }
 
         /// <summary>
-        /// The two emitters that still write the params projection — the analyzer (3-param reusable bridge) and the asset
-        /// bridge — must produce the SAME text (<c>BP-306</c>: two spellings of it, and one was wrong). Asserted against
-        /// each other, not against a literal restated here.
+        /// ⭐ <c>CE-504</c> slice 4 — ONE writer of the params projection. <c>BP-306</c> was two spellings of it (the analyzer's
+        /// 3-param reusable bridge and the asset bridge) and one was wrong; this test used to hold them equal. Slice 4 retired the
+        /// analyzer's arm (<c>BHU_022</c>), so the hazard is gone by construction: the analyzer emits NO projection, the asset
+        /// bridge emits it. <para>✅ Red-proof: restore the analyzer's 3-param bridge arm ⇒ the first assertion reddens.</para>
         /// </summary>
         [Fact]
-        public void TheAnalyzerAndTheBridge_EmitTheSameParamsProjection()
+        public void OnlyTheAssetBridge_EmitsTheParamsProjection()
         {
             var (_, generated, _) = Run(ProbeSource, assetJson: null);
-            var fromAnalyzer = ParamsProjections(string.Join("\n", generated.Select(t => t.ToString())));
-            var fromBridge = BridgeProjections();
-
-            fromAnalyzer.Should().NotBeEmpty("the analyzer must emit at least one params projection");
-            fromBridge.Should().NotBeEmpty("the bridge must emit at least one params projection");
-            fromAnalyzer.Select(Normalise).Distinct()
-                .Should().BeEquivalentTo(fromBridge.Select(Normalise).Distinct(),
-                    "one expression, one spelling — BP-306 was two spellings of it, and one was wrong");
+            ParamsProjections(string.Join("\n", generated.Select(t => t.ToString())))
+                .Should().BeEmpty("the analyzer no longer writes a params projection (CE-504 slice 4)");
+            BridgeProjections().Should().NotBeEmpty("the asset bridge is the one writer");
         }
 
         // ---- CE-504 C-2/C-3: the stateful and the param-less shared forms ----------------------
@@ -238,9 +234,6 @@ namespace Probe
 
         private static IReadOnlyList<string> ParamsProjections(string source) =>
             ProjectionRegex.Matches(source).Cast<Match>().Select(m => m.Value).ToList();
-
-        private static string Normalise(string projection) =>
-            Regex.Replace(projection, @"\)\d+\)$", ")N)");
 
         /// <summary>The bridge side, over the REAL corpus (a constant size resolver: only the SHAPE is compared).</summary>
         private static IReadOnlyList<string> BridgeProjections()

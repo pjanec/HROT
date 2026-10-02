@@ -64,7 +64,7 @@ public sealed class DecoratorPillCollapseTests
             {
                 MethodFqn = "Ns.Class.Method",
             },
-            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(seq.VisualId);

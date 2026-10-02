@@ -198,13 +198,12 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         else if (hadBlueprint) node.DelegateShape = BTreeActionDelegateShape.ThreeParamReusable;
     }
 
-    /// <summary>The node's binding as the inspector shows it. ⚠ A <c>FourParamFull</c> method operates on the whole
-    /// blackboard, so the drawer offers no per-binding variable.</summary>
+    /// <summary>The node's binding as the inspector shows it. ⚠ A param-less (<c>NoParams</c>) method binds no variable, so
+    /// the drawer offers none.</summary>
     private static BehaviorActionBindingFacet BindingFacet(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? binding)
         => BehaviorActionBindingEditor.ToFacet(
                binding, node.VisualId.ToString(),
-               targetsWholeBlackboard: binding is not null && node.DelegateShape is BTreeActionDelegateShape.FourParamFull
-                                                                         or BTreeActionDelegateShape.NoParams);
+               targetsWholeBlackboard: binding is not null && node.DelegateShape is BTreeActionDelegateShape.NoParams);
 
     private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node) =>
         new BTreeActionFacet

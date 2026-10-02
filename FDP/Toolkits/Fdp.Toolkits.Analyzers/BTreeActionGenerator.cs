@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor BHU003_UnknownField  = SharedBhuDiagnostics.BHU003_UnknownField;
         private static readonly DiagnosticDescriptor BHU016_DeactivatorMissingTarget = SharedBhuDiagnostics.BHU016_DeactivatorMissingTarget;
         private static readonly DiagnosticDescriptor BHU017_DeactivatorUnknownTarget = SharedBhuDiagnostics.BHU017_DeactivatorUnknownTarget;
+        private static readonly DiagnosticDescriptor BHU022_RetiredReusableForm = SharedBhuDiagnostics.BHU022_RetiredReusableForm;
 
         // ---- Channel kind -> component type (BHU-014) --------------------------
 
@@ -87,18 +88,15 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
             if (hasActionAttr || hasConditionAttr)
             {
+                // ⛔ CE-504 slice 4 — the 3-param (ref P, ref BehaviorTreeState, ref TCtx) form is retired; it is reported
+                //   (BHU_022) instead of being adapted. Its "@0" bridge adapter is gone with it.
                 if (paramCount == 3)
                 {
-                    string tvType    = symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string stateType = symbol.Parameters[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string tcType    = symbol.Parameters[2].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                     return new BTreeMethodInfo
                     {
                         MethodName = symbol.Name,
                         FullQualifiedMethodName = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
-                        TContextType = tcType, TValueType = tvType, StateType = stateType,
-                        IsReusable = true, IsActionKind = hasActionAttr,
-                        WritesChannels = CollectWritesChannels(symbol),
+                        IsReusable = true, Symbol = symbol,
                     };
                 }
                 if (paramCount != 4) return null;
@@ -155,7 +153,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             ImmutableArray<BTreeMethodInfo> methods)
         {
             var registrable    = new List<BTreeMethodInfo>();
-            var reusable       = new List<BTreeMethodInfo>();
             var sharedAiMethods = new List<BTreeMethodInfo>();
             var deactivators   = new List<BTreeMethodInfo>();
 
@@ -164,11 +161,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 if (m == null) continue;
                 if (m.IsDeactivator) { deactivators.Add(m); continue; }
                 if (m.IsSharedAi) sharedAiMethods.Add(m);
-                else if (m.IsReusable) reusable.Add(m);
+                else if (m.IsReusable)
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        BHU022_RetiredReusableForm, m.Symbol?.Locations.FirstOrDefault(), m.FullQualifiedMethodName));
                 else registrable.Add(m);
             }
 
-            if (registrable.Count == 0 && reusable.Count == 0 && sharedAiMethods.Count == 0) return;
+            if (registrable.Count == 0 && sharedAiMethods.Count == 0) return;
 
             string namespaceName = (compilation.AssemblyName ?? "Generated") + ".Generated";
 
@@ -176,18 +175,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 .GroupBy(m => m.TBlackboardType + "|" + m.TContextType)
                 .ToDictionary(g => g.Key);
 
-            var reusableByCtx = reusable
-                .GroupBy(m => m.TContextType)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
             var mergedGroups = new List<GroupEntry>();
             foreach (var kvp in groups4)
             {
                 var first = kvp.Value.First();
                 string tb = first.TBlackboardType!;
                 string tc = first.TContextType!;
-                reusableByCtx.TryGetValue(tc, out var bridgeList);
-                mergedGroups.Add(new GroupEntry(tb, tc, kvp.Value.ToList(), bridgeList ?? new List<BTreeMethodInfo>()));
+                mergedGroups.Add(new GroupEntry(tb, tc, kvp.Value.ToList()));
             }
 
             // ⭐ CE-417: the [SharedAi*] methods are still VALIDATED here (BHU001/002/003) — the asset bridge relies on the
@@ -211,8 +205,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     g => g.TBlackboardType == d.TBlackboardType && g.TContextType == d.TContextType);
                 if (group == null) continue;
 
-                bool knownAction = group.Direct.Any(a => a.FullQualifiedMethodName == d.TargetAction)
-                    || group.Bridges.Any(b => b.FullQualifiedMethodName + "@0" == d.TargetAction);
+                bool knownAction = group.Direct.Any(a => a.FullQualifiedMethodName == d.TargetAction);
                 if (!knownAction)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
@@ -445,8 +438,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("    public static class FbtActionRegistrar");
             sb.AppendLine("    {");
             sb.AppendLine("        // 4-param NodeLogicDelegate methods are registered directly.");
-            sb.AppendLine("        // 3-param ReusableDelegate methods are registered as bridge closures");
-            sb.AppendLine("        // using Unsafe.As to project the runtime blackboard to TValue.");
 
             foreach (var group in groups)
             {
@@ -464,34 +455,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         EmitWrapped4Param(sb, m, tb, tc);
                 }
 
-                // 🔴🔴🔴 CE-304 (2026-09-22) — THE FOURTH PARAMS READER, and P3-C missed it.
-                //   This arm used to emit `Unsafe.As<TBlackboard, TValue>(ref bb)` — the params
-                //   projected out of the BrainBlackboard COMPONENT the kernel hands the tick
-                //   (BTreeTickSystem:123), at offset 0, which is BehaviorParameters[0].
-                //   ⛔ P3-C cut the ingress write into that component, so every 3-param
-                //   [BTreeAction]/[BTreeCondition] in the corpus — 23 of them in Hrot.AI.Behaviors
-                //   alone, including every hill-attack tank node and CgfNodes.Action_WriteMoveTo-
-                //   Channel — silently began reading an ALL-ZERO region. No crash: a tank simply
-                //   drove to (0,0) and never came home.
-                // ⚠ WHY THE INVENTORY MISSED IT (§29.1): that inventory was built by
-                //   `grep BehaviorParameters --include=*.cs`, and this line never contained the
-                //   string. The other three sites in this file spell the region out; this one
-                //   reached it by casting the whole component.
-                // ⭐ The key is already "@0", so the anchor is the ONLY thing that changes — the
-                //   offset arithmetic is identical, exactly as §29.6 says every re-anchoring is.
-                foreach (var m in group.Bridges)
-                {
-                    string stateType = m.StateType ?? "global::Fbt.BehaviorTreeState";
-                    string valueType = m.TValueType!;
-                    string key       = m.FullQualifiedMethodName + "@0";
-                    sb.AppendLine("            registry.Register(\"" + key + "\",");
-                    sb.AppendLine("                (ref " + tb + " bb, ref " + stateType + " st, ref " + tc + " ctx, int _) =>");
-                    sb.AppendLine("                {");
-                    sb.AppendLine("                    ref var p = ref Unsafe.As<byte, " + valueType + ">(");
-                    sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", 0) + ");");
-                    sb.AppendLine("                    return global::" + m.FullQualifiedMethodName + "(ref p, ref st, ref ctx);");
-                    sb.AppendLine("                });");
-                }
+                // ⛔ CE-504 slice 4 — the 3-param [BTreeAction]/[BTreeCondition] "@0" bridge adapters are retired (BHU_022):
+                //   a binding calls the shared C# form, emitted per binding by the asset bridge or curried by SharedNodeBinder.
 
                 // ⛔⛔ CE-417 B-2 (a′) — no per-METHOD [SharedAi*] adapters any more: they were keyed by the attribute DTO's
                 //   field offset, so an asset's binding (Fqn@hostOffset) reached one only when the offsets agreed (F7/F8),
@@ -538,8 +503,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string FullQualifiedMethodName { get; set; } = "";
         public string? TBlackboardType { get; set; }
         public string? TContextType { get; set; }
-        public string? TValueType { get; set; }
-        public string? StateType { get; set; }
         public bool IsReusable { get; set; }
         public bool IsActionKind { get; set; }
         public bool IsSharedAi { get; set; }
@@ -566,13 +529,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string TBlackboardType { get; }
         public string TContextType { get; }
         public List<BTreeMethodInfo> Direct { get; }
-        public List<BTreeMethodInfo> Bridges { get; }
         public List<BTreeMethodInfo> Deactivators { get; } = new List<BTreeMethodInfo>();
 
-        public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct, List<BTreeMethodInfo> bridges)
+        public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct)
         {
             TBlackboardType = tb; TContextType = tc;
-            Direct = direct; Bridges = bridges;
+            Direct = direct;
         }
     }
 }

@@ -566,19 +566,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when the BTree execution pointer leaves the
         /// node via a mission-level abort, so the Muscle stops evaluating it. A null or dead sensor is a no-op.
         ///
-        /// <para>S3-G: five-parameter stateful deactivator. The working state <paramref name="s"/> is
-        /// projected from the behaviour-scoped partition slot by the emitted wrapper (registered under the
-        /// node's full <c>{fqn}@{offset}@{slotKey}</c> key) — no <c>Blackboard1024</c> / <c>Unsafe.As</c>.</para>
+        /// <para>⭐ CE-504 slice 4 — the shared STATEFUL deactivator form <c>(ref P, ref WS, Entity, EntityRepository)</c>. The
+        /// working state <paramref name="s"/> is projected exactly as its action's is (the emitted wrapper is registered under the
+        /// node's full <c>{fqn}@{offset}@{slotKey}</c> key; a curated tree pairs it through <c>SharedNodeBinder</c>).</para>
         /// </summary>
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0")]
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery")]
         public static void Deactivate_RequestAreaQuery(
-            ref PlatoonHillAttackParams p,
-            ref HillAttackMutableState s,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
-            EqsChildSensor.Destroy(ctx.World, InFlightSensor(ref s, ctx.Self, ctx.World));
+            EqsChildSensor.Destroy(world, InFlightSensor(ref s, self, world));
             s.CachedEqsRequestId = -1;
         }
 

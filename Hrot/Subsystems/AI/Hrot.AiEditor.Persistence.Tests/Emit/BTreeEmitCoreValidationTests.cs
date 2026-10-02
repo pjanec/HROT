@@ -94,7 +94,7 @@ public sealed class BTreeEmitCoreValidationTests
                     {
                         MethodFqn = "", // empty string — effectively unbound
                     },
-                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+                    DelegateShape = BTreeDelegateShapeDto.NoParams,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -221,7 +221,7 @@ public sealed class BTreeEmitCoreValidationTests
                     {
                         MethodFqn = "Test.Ns.Methods.MyAction",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+                    DelegateShape = BTreeDelegateShapeDto.NoParams,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -414,7 +414,7 @@ public sealed class BTreeEmitCoreValidationTests
                     {
                         MethodFqn = "Test.Ns.Methods.MyAction",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+                    DelegateShape = BTreeDelegateShapeDto.NoParams,
                 },
             },
             Pills = new List<BTreePillDto>(),

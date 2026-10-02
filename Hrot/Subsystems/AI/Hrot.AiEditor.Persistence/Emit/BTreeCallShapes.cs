@@ -30,23 +30,19 @@ public readonly struct CallParam
 /// </summary>
 public static class BTreeCallShapes
 {
-    private const string BehaviorTreeState = "Fbt.BehaviorTreeState";
     private const string Entity            = "Fdp.Core.Entity";
     private const string EntityRepository  = "Fdp.Core.EntityRepository";
 
     /// <summary>The shape a method's parameter list implies, or null when it matches none (the validator then skips it).</summary>
     public static BTreeDelegateShapeDto? FromSignature(IReadOnlyList<CallParam> ps)
     {
+        // ⭐ CE-504 slice 4 — only the shared forms and the blueprint call classify. The BTree-only (ref P, ref BTS, ref Ctx),
+        //   its stateful twin and the whole-block kernel form were retired as asset bindings: they classify to nothing, keep
+        //   the default shape, and the validator reports them by name (BTREE0002).
         switch (ps.Count)
         {
-            case 3 when ps[0].IsRef && Is(ps[1], BehaviorTreeState, true) && ps[2].IsRef:
-                return BTreeDelegateShapeDto.ThreeParamReusable;                         // (ref P, ref BTS, ref Ctx)
             case 3 when ps[0].IsRef && Is(ps[1], Entity, false) && Is(ps[2], EntityRepository, false):
                 return BTreeDelegateShapeDto.ThreeParamReusable;                         // [SharedAi*] (ref P, Entity, Repo) — CE-417 3b
-            case 4 when ps[0].IsRef && Is(ps[1], BehaviorTreeState, true) && ps[2].IsRef && !ps[3].IsRef && ps[3].TypeFqn == "System.Int32":
-                return BTreeDelegateShapeDto.FourParamFull;                              // the kernel NodeLogicDelegate
-            case 4 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], BehaviorTreeState, true) && ps[3].IsRef:
-                return BTreeDelegateShapeDto.ThreeParamReusableStateful;                 // (ref P, ref WS, ref BTS, ref Ctx)
             case 4 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], Entity, false) && Is(ps[3], EntityRepository, false):
                 return BTreeDelegateShapeDto.ThreeParamReusableStateful;                 // CE-504 shared stateful (ref P, ref WS, Entity, Repo)
             case 2 when Is(ps[0], Entity, false) && Is(ps[1], EntityRepository, false):

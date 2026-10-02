@@ -81,9 +81,17 @@ public static class HullDownAttackRunRegistrar
                 }
             });
 
-        // HAJSON-B: deactivator hooks — fired by the Interpreter on branch abort/exit.
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0", global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot);
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0", global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Deactivate_AimAndFireSpecific);
+        // HAJSON-B / CE-504: deactivator hooks, one per binding — fired by the Interpreter on branch abort/exit.
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot(ctx.Self, ctx.World);
+            });
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Deactivate_AimAndFireSpecific(ctx.Self, ctx.World);
+            });
 
         // 2b. Compile the blob AFTER deactivators are registered → resource-owning baked.
         var blob = HullDownAttackRun.CreateBuilder().Compile("HullDownAttackRun", __k => actionRegistry.TryGetDeactivator(__k, out _));

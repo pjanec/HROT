@@ -110,14 +110,15 @@ namespace Foo.Bar
                 text);
         }
 
-        // ---- T2: 3-param bridge action + deactivator with @0 compound key ----
+        // ---- T2: ⛔ CE-504 slice 4 — the 3-param form is retired: BHU_022, and no "@0" adapter ----
 
         /// <summary>
-        /// T2: A 3-param [BTreeAction] bridge method with a companion [BTreeDeactivator("...@0")]
-        /// causes the compound key to be emitted in registry.RegisterDeactivator.
+        /// T2: a 3-param <c>[BTreeAction]</c> <c>(ref P, ref BehaviorTreeState, ref TCtx)</c> is the retired BTree-only form.
+        /// It is REPORTED (BHU_022, error) — never adapted under a hard-coded <c>"@0"</c> key as it used to be.
+        /// <para>✅ Red-proof: restore the analyzer's 3-param arm ⇒ no BHU_022 and the <c>"…Action_Y@0"</c> adapter returns.</para>
         /// </summary>
         [Fact]
-        public void T2_BridgeAction_WithDeactivatorAtZeroSuffix_EmitsRegisterDeactivatorCall()
+        public void T2_RetiredThreeParamAction_ReportsBHU022_AndGetsNoAdapter()
         {
             const string source = @"
 namespace Foo.Bar
@@ -137,19 +138,18 @@ namespace Foo.Bar
         public static Fbt.NodeStatus Action_Y(
             ref MyValue val, ref Fbt.BehaviorTreeState st, ref MyContext ctx)
             => default;
-
-        [Fbt.BTreeDeactivator(""Foo.Bar.MyNodes.Action_Y@0"")]
-        public static void Deactivate_Y(
-            ref MyBlackboard bb, ref Fbt.BehaviorTreeState st, ref MyContext ctx, int p) { }
     }
 }";
             var (result, _) = RunGenerator(source);
 
-            Assert.Equal(1, result.GeneratedTrees.Length);
-            string text = result.GeneratedTrees[0].GetText().ToString();
-            Assert.Contains(
-                "registry.RegisterDeactivator(\"Foo.Bar.MyNodes.Action_Y@0\", global::Foo.Bar.MyNodes.Deactivate_Y);",
-                text);
+            var diag = result.Diagnostics.FirstOrDefault(d => d.Id == "BHU_022");
+            Assert.NotNull(diag);
+            Assert.Equal(DiagnosticSeverity.Error, diag!.Severity);
+            Assert.Contains("Foo.Bar.MyNodes.Action_Y", diag.GetMessage());
+
+            string text = result.GeneratedTrees.Length > 0 ? result.GeneratedTrees[0].GetText().ToString() : string.Empty;
+            Assert.DoesNotContain("Action_Y@0", text);
+            Assert.Contains("global::Foo.Bar.MyNodes.Action_X", text);   // the 4-param kernel form is still registered
         }
 
         // ---- T3: empty TargetAction -> BHU_016 diagnostic, no emission ----
