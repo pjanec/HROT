@@ -124,6 +124,8 @@ requirement exists — only the owner decides (R-162: any number of nodes per ro
   built only by NED, from its translators plus two hand-written blocks (`NedReplicationModule.cs:605-640`); 📐 **BDC has no grant support at all**
   (no `DeferredTakeOwnership`, `OwnershipUpdate`, `PendingAuthorityGrants` or `DescriptorOwnershipMap` in `Hrot.Network.BDC`); offline = one
   node, owns all, needs none.
+  ⭐ **BDC exempt for now** (user, `2026-10-02`: *"BDC is unfinished and unused (for now), ok that it does [not] honor the grant concept at the moment"*)
+  — the contract binds it when it is brought into use.
 - **G3 mission plans** — `EntityMissionEgressTranslator` declares no component ⇒ declare `MissionPlanQueue` so the brain grant covers it.
 - **G4 late grants** — `DeferredTakeoverSystem` acts only on `Constructing` entities (`:153-155`); after creation a move is a transfer. ⚠ who
   TRIGGERS a move when a Brain/Muscle appears late (`CE-256`) or load shifts is new policy (`CE-506`: the one authority).
