@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — §1 classification, §2 groups, §5 UML drafted; READY-TO-BUILD after the user approves §5.5 (D-4..D-7).
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); step S1 in progress.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -98,11 +98,25 @@ with the creator. LOCAL components are in no group (each node writes its own cop
 | `EditablePolyline`, `MapOverlayStyle` | INIT/EDIT (area tools, vertex gizmo); owner-gated request on SimHost | `dtMapVisualOverlay` |
 | `VisualData`, `PhysicsCollider`, `SimTier`, `FormationController`, `PassengerBuffer` | INIT only (latent/editor-only SIM writers) | — |
 
+### 1.5 Found while building S1 — animation (dormant) and ground clamping
+
+| component | writers | group |
+|---|---|---|
+| `StanceIntent`, `AnimationMontageQueue` (Brain → Muscle intents) | Brain-side animation executors | BRAIN |
+| `StanceStatus`, `AnimationMontageQueueState` (Muscle → Brain statuses) | Muscle animation systems | MUSCLEGROUND |
+| `AnimationChannel`, `LookAtChannel` | intent fields by the Brain AND status fields by the Muscle in ONE component | ⚠ none yet — F-9 |
+| `GroundClampingConfig` | IG ingress of an externally sent `dtGroundClampingOverride` only | LOCAL |
+
+⚠ **Animation replication is dormant:** `AnimationReplicationModule` is constructed by no production host and referenced by no
+host project; its translators are `INetworkTranslator`s outside the descriptor map and gate on ENTITY authority. The tank probe
+never saw these components. ⇒ the intent/status components are placed by their own documented direction; they move only once
+the module is composed.
+
 ### 1.4 Local — in no group
 
 `EgressPublicationState`, `DescriptorOwnership`, `NetworkAckPeerSet`, `ReportLifecycleOnActive`, `MapDisplayComponent`,
 `MissionAdapterState`, `PersonalRouteRef`, `PartMetadata`, `BehaviorOwnedPart`, `NetworkTransform`, `NetworkVelocity`
-(the last two: the ingress replica value and the egress shadow, written on every NED host).
+(the last two: the ingress replica value and the egress shadow, written on every NED host), `GroundClampingConfig` (§1.5).
 
 ## 2. ⭐ The ownership groups
 
@@ -116,12 +130,12 @@ graph TD
     B3["dtSensorConfig: PerceptionReceptor"]
     B4["dtEqsSensorConfig: EqsSensor (all instances)"]
     B5["dtEntityDamage: Health"]
-    BL["linked, never sent: BehaviorState, 3 channels, PreviousCapabilities,<br/>BrainInterrupts, traces, blackboard tiers, TargetMemory,<br/>ActiveSensorTracks, WeaponState, ActorCapabilityState"]
+    BL["linked, never sent: BehaviorState, 3 channels, PreviousCapabilities,<br/>BrainInterrupts, traces, blackboard tiers, TargetMemory,<br/>ActiveSensorTracks, WeaponState, ActorCapabilityState,<br/>StanceIntent, AnimationMontageQueue (dormant)"]
   end
   subgraph KIN["MuscleGround group"]
     K1["dtWorldPos: SimTransform, SimVelocity, VehicleState, VehicleParams, NavState"]
     K2["dtNavigationStatus: NavigationStatus"]
-    KL["linked, never sent: FrustrationTicks"]
+    KL["linked, never sent: FrustrationTicks,<br/>StanceStatus, AnimationMontageQueueState (dormant)"]
   end
   subgraph PER["Perception group"]
     P1["dtEqsResult: EqsCognitiveBuffer (all instances)"]
@@ -167,6 +181,7 @@ graph TD
 | F-5 | Several INGRESS writers do not skip when this node owns the descriptor (`NavigationIntentIngressTranslator.cs:82`, `MapVisualOverlayIngressTranslator.cs:152`, `NavigationStatusIngressTranslator.cs:69`, `PerceptionTranslators.cs:376`, `EqsSensorConfigIngressTranslator`) | per-row gates in the sweep | ⚠ matters once a node can GAIN a descriptor it also ingests (transfer, external hand-in): skip when owned, like `GeoSpatialIngressTranslator.cs:90` |
 | F-6 | Weapon-mount parts never exist in production: `WeaponMountInfo` is never registered, so `CombatTkbTranslator.cs:97` never creates them | no production `RegisterComponent<WeaponMountInfo>` | record only (unreferenced ≠ unintended); Q79 §0.10's table corrected |
 | F-8 | ⚠ **The navigation solver writes the Muscle's component in-process.** `EngineBackedPathResponseSystem` (registered by the `NavigationSolver` capability, `SimHostCapabilities.cs:85-100`) sets `NavState.TrajectoryId/Mode` by a LOCAL entity index taken from the request id and a trajectory pool SHARED with the Muscle (`EngineBackedPathResponseSystem.cs:44-55`). Correct only while both roles share a process; ⇒ when `NavigationSolver` runs on its own node this write must become a response message to the Muscle (the Brain-side path already is one: `PathResponseBrainIngressTranslator` registers into its own pool and publishes an event) | `EngineBackedPathResponseSystem.cs:30-55` | filed `CE-511`; not in this build's scope |
+| F-9 | ⚠ **`AnimationChannel` / `LookAtChannel` mix a Brain-written intent and a Muscle-written status in ONE component** — one component cannot have two owners. Harmless while animation replication is dormant (both writers share a process); must be split (intent/status, like `StanceIntent`/`StanceStatus`) before animation replication is composed across nodes | `ReplicatedComponents.cs:40-90` | record; outside this build |
 | F-7 | Stale comment: `CognitiveComponentRegistry` says SimHost receives mission data; `EntityMissionIngressTranslator` is Brain-only | `CognitiveTranslatorPack.cs:60` | fix the comment in the build |
 
 ## 4. Decisions before the UML *(all resolved `2026-10-02`)*
@@ -175,6 +190,7 @@ graph TD
 |---|---|---|
 | ~~D-1~~ | ✅ R-171: damage application stays on the Brain with `Health` (BRAIN group) | — |
 | ~~D-2~~ | ✅ R-171: a separate PERCEPTION group (§1.2b), not mixed into MuscleGround | — |
+| ✅ | D-4..D-7 approved by the user `2026-10-02` (R-173): *"approved D-4 to D-7, start step 1"* | — |
 | ~~D-3~~ | ✅ R-171: sensor config and every perception INTENT (`PerceptionReceptor`, `EqsSensor`) stay in BRAIN | — |
 
 Nothing open; next step is the UML.
