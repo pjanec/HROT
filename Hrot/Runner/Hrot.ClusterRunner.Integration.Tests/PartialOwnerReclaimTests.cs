@@ -33,6 +33,19 @@ public class PartialOwnerReclaimTests
             NodeId = FakeNode, SubsystemName = "fake-leaver", WallTicksUtc = DateTime.UtcNow.Ticks, SubsystemsJson = "[]",
         });
 
+    /// <summary>Pumps while node 77 keeps heartbeating (and runs <paramref name="alsoEachTick"/>), as a live node does —
+    /// a sample written before discovery has matched the readers is simply lost.</summary>
+    private static bool PumpAlive(HrotRunnerHarness harness, DdsWriter<NodeHeartbeat> hb, Func<bool> condition,
+                                  int timeoutFrames, Action? alsoEachTick = null)
+    {
+        int frame = 0;
+        return harness.PumpUntil(() =>
+        {
+            if (frame++ % 10 == 0) { Heartbeat(hb); alsoEachTick?.Invoke(); }
+            return condition();
+        }, timeoutFrames);
+    }
+
     /// <summary>Q79 P2: CGF grants the kinematic group to a node that never takes over; when that node leaves, CGF
     /// (which yielded the claim at creation) takes the grant back and owns its position again.</summary>
     [Fact(Timeout = 90_000)]
@@ -44,10 +57,12 @@ public class PartialOwnerReclaimTests
         using var hb   = new DdsWriter<NodeHeartbeat>(fake);
         Heartbeat(hb);
 
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
         long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
         var cgf = harness.Cgf!.World!;
         Entity tank = Entity.Null;
-        Assert.True(harness.PumpUntil(() => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
                                          && cgf.HasComponent<SimTransform>(tank)
                                          && cgf.HasManagedComponent<OutgoingGrantsPending>(tank), timeoutFrames: 2000),
             "CGF must create the tank and hold its kinematic grant to node 77 as pending.");
@@ -73,23 +88,25 @@ public class PartialOwnerReclaimTests
         using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
         Heartbeat(hb);
 
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
         long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
         Entity cgfTank = Entity.Null, simTank = Entity.Null;
         long worldPos = Key(EDescriptorType.dtWorldPos);
-        Assert.True(harness.PumpUntil(() => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out cgfTank)
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out cgfTank)
                                          && harness.SimHost.TestHook_EntityMap.TryGetEntity(net, out simTank)
                                          && ((ISimulationView)sim).HasAuthority(simTank, worldPos), timeoutFrames: 3000),
             "SimHost must take over the tank's position (the kinematic grant).");
 
-        // Node 77 is handed the position, as an external node would be.
-        owner.Write(new WireOwnershipUpdate
-        {
-            EntityId = net, DescrTypeId = (long)EDescriptorType.dtWorldPos, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode,
-        });
-        Assert.True(harness.PumpUntil(() => Recorded(cgf, cgfTank, worldPos) == FakeNode
-                                         && Recorded(sim, simTank, worldPos) == FakeNode, timeoutFrames: 2000),
+        // Node 77 is handed the position, as an external node would be (re-sent until both nodes have it).
+        Assert.True(PumpAlive(harness, hb, () => Recorded(cgf, cgfTank, worldPos) == FakeNode
+                                              && Recorded(sim, simTank, worldPos) == FakeNode, timeoutFrames: 2000,
+            alsoEachTick: () => owner.Write(new WireOwnershipUpdate
+            {
+                EntityId = net, DescrTypeId = (long)EDescriptorType.dtWorldPos, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode,
+            })),
             "Both nodes must record node 77 as the position's owner.");
         Assert.False(sim.HasAuthority<SimTransform>(simTank));
 
