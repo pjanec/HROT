@@ -414,6 +414,9 @@ internal sealed class GraphScheduler
             TargetFieldName = _graph.Kind == GraphKind.Event
                 ? (entryNode as EventEntryNode)?.TargetFieldName
                 : null,
+            // ⭐ S6b (U-6): the Event graph's arrival policy, carried from its entry node.
+            FiberPolicy   = (entryNode as EventEntryNode)?.Policy ?? EventFiberPolicy.Parallel,
+            FiberCapacity = (entryNode as EventEntryNode)?.Capacity ?? 0,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),

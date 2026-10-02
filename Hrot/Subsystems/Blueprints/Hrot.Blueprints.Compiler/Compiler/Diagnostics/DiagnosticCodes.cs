@@ -201,6 +201,7 @@ public static class DiagnosticCodes
     // ⭐ CE-472 — a Send Intent / To JSON / From JSON node with no DTO type or (Send Intent) no intent id: there is
     // no type to construct or id to publish, and saying so beats a CS0246 in a generated file.
     public const string BP1680 = "BP1680";  // JSON / intent node missing its DTO type or intent id
+    public const string BP1681 = "BP1681";  // S6b / DESIGN_Unified_Behaviour_Run U-6: an Event graph's policy is out of range (Capacity 1..16, Restart is one handler)
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

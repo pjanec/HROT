@@ -484,10 +484,23 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     private static Fbt.NodeStatus ChildCounts(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
         => ++_childTicks >= 3 ? _childEnds : Fbt.NodeStatus.Running;
 
-    /// <summary>Registers a BTree child that runs three ticks, then ends with <see cref="_childEnds"/>.</summary>
-    private void RegisterCountingChild(string name)
+    /// <summary>⭐ S6b — ticks counted PER OCCURRENCE (the child's slot key rides its context), so two copies of a child
+    /// each need their own three ticks: a rail can tell two slots from one shared slot.</summary>
+    private static readonly System.Collections.Generic.Dictionary<int, int> _ticksByOccurrence = new();
+
+    private static Fbt.NodeStatus ChildCountsPerOccurrence(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
     {
-        var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(ChildCounts));
+        _ticksByOccurrence.TryGetValue(ctx.OccurrenceKey, out int n);
+        if (++n >= 3) { _ticksByOccurrence.Remove(ctx.OccurrenceKey); return Fbt.NodeStatus.Success; }   // a fresh run counts again
+        _ticksByOccurrence[ctx.OccurrenceKey] = n;
+        return Fbt.NodeStatus.Running;
+    }
+
+    /// <summary>Registers a BTree child that runs three ticks, then ends with <see cref="_childEnds"/>.</summary>
+    private void RegisterCountingChild(string name, bool perOccurrence = false)
+    {
+        var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq => seq.Action(perOccurrence ? ChildCountsPerOccurrence : ChildCounts));
         _fixture.BehaviorRegistry.Register(name, new BehaviorDefinition
         {
             Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
@@ -576,7 +589,8 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     /// child, then writes the event's <c>Damage</c> into Variable <c>Got</c>. The read is AFTER the wait, so it only works if
     /// the fiber kept the event it started on.
     /// </summary>
-    private static BlueprintAsset WaitingEventHandler(string name, string child)
+    private static BlueprintAsset WaitingEventHandler(string name, string child,
+        EventFiberPolicy policy = EventFiberPolicy.Parallel, int capacity = 0)
     {
         var asset = BlueprintAssetBuilder.Behavior(name)
             .WithVariable("Got", typeof(float))
@@ -586,6 +600,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
             .Build();
         var graph = asset.Graphs.Single(gr => gr.Kind == GraphKind.Event);
         var entry = graph.Nodes.OfType<EventEntryNode>().Single();
+        entry.Policy = policy; entry.Capacity = capacity;
         var set   = graph.Nodes.OfType<SetVariableNode>().Single();
         set.VariableId = asset.Variables.Single().Id.ToString();
         var dOut = new Pin { Id = Guid.NewGuid(), Name = "Damage", Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
@@ -657,9 +672,206 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     public void S6a_AWaitingEventGraph_GetsItsOwnCursor_TheTickKeepsTheSharedOne()
     {
         var src = new BlueprintCompiler().Compile(WaitingEventHandler("S6aEmit", "AnyChild"), GoldenCorpus.Options()).GeneratedSource!;
-        Assert.Contains("__ex.__fib_OnHit.ResumeAt", src);
-        Assert.Contains("__ex.__fib_OnHit_in_Damage", src);
+        Assert.Contains("__ex.__fib_OnHit_0.Cursor.ResumeAt", src);
+        Assert.Contains("__ex.__fib_OnHit_0.In_Damage", src);
         Assert.Contains("BehaviorFaultCode.EventOverflow", src);
+    }
+
+    // ── S6b (DESIGN_Unified_Behaviour_Run U-6): the event policies ─────────────────────────────────────────────────
+
+    /// <summary>Frames one hit per call (published, made readable, ticked); returns Got after the tick.</summary>
+    private unsafe Func<float?, float> HitFramer(string host, Fdp.Core.Entity e, BehaviorDefinition def, Func<Fbt.NodeStatus?> frame)
+        => damage =>
+        {
+            if (damage is { } d) _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = d });
+            _fixture.World.Bus.SwapBuffers();
+            Assert.Null(frame());
+            return *(float*)(RootParamsAccessRoot(_fixture.World, e) + (int)VarOffset(def, "Got"));
+        };
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6b — Parallel(2): two hits run two handlers at once, each with its own event and its own child.</b> Hit 7
+    /// starts copy 0, hit 9 (one frame later) copy 1; each waits on its OWN child, which counts its own three ticks. So copy
+    /// 0 finishes first (7) and copy 1 one frame later (9) — each copy kept its event and its child, and nothing faulted.
+    /// <para>✅ Red-proofs: one copy only ⇒ the second hit faults; both copies keyed to ONE child slot ⇒ they drive one
+    /// child, copy 1 finishes it first and the writes come out in the wrong order.</para>
+    /// </summary>
+    [Fact]
+    public void S6b_Parallel2_RunsTwoHandlersAtOnce_EachWithItsOwnEvent()
+    {
+        const string Host = "S6bParHost", Child = "S6bParChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Parallel, 2), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // copy 0 starts and waits
+        Assert.Equal(0f, hit(9f));     // copy 0: its child's tick 1 · copy 1 starts and waits
+        Assert.Equal(0f, hit(null));   // copy 0: tick 2 · copy 1: its child's tick 1
+        Assert.Equal(7f, hit(null));   // copy 0: tick 3 ⇒ Success ⇒ Got = 7 · copy 1: tick 2
+        Assert.Equal(9f, hit(null));   // copy 1: tick 3 ⇒ Success ⇒ Got = 9
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S6b — Restart: the newest event wins.</b> Hit 7 starts the handler; hit 9 arrives while it waits, so the
+    /// handler (and the child it hosts) is abandoned and started over on 9. Only 9 is ever written, and nothing faulted.
+    /// <para>✅ Red-proof: Parallel(1) instead and the second hit faults the run.</para>
+    /// </summary>
+    [Fact]
+    public void S6b_Restart_TheNewestEventWins_AndTheOldHandlerNeverWrites()
+    {
+        const string Host = "S6bRstHost", Child = "S6bRstChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Restart), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // starts on 7 and waits
+        Assert.Equal(0f, hit(9f));     // resume: child tick 1 · then 9 arrives ⇒ restart on 9
+        float got = 0f;
+        for (int f = 0; f < 4 && got == 0f; f++) got = hit(null);
+        Assert.Equal(9f, got);
+    }
+
+    /// <summary>⭐ S6b — the policy limits are a blueprint diagnostic (a fixed layout needs a bounded compile-time N).</summary>
+    [Theory]
+    [CoversDiagnosticCode("BP1681")]
+    [InlineData(EventFiberPolicy.Parallel, 17)]
+    [InlineData(EventFiberPolicy.Restart, 2)]
+    [InlineData(EventFiberPolicy.Queue, 17)]
+    public void S6b_APolicyOutOfRange_IsBP1681(EventFiberPolicy policy, int capacity)
+        => Assert.Contains(Diagnose(WaitingEventHandler("S6bBad", "AnyChild", policy, capacity)), d => d.Code == "BP1681");
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6 — a WAITING handler is saved to the recording and restored on replay</b> (user, 2026-10-02: "the blueprint
+    /// state [must be] correctly saved to the recordings and restored on replay"). Through the real Flight Recorder: hit 7
+    /// starts the handler, one child tick later a KEYFRAME is recorded; the run then carries on and writes <c>Got = 7</c>.
+    /// Seeking back to the keyframe restores the mid-wait state — <c>Got</c> is 0 again and the handler is still waiting,
+    /// holding its event — and two more ticks finish it on the restored copy, writing 7 again.
+    /// <para>⚠ The child's tick COUNTER is test scaffolding (a static), not behaviour state, so it is put back by hand.</para>
+    /// <para>✅ Red-proof: mark the blackboard tier components <c>NoReplay</c> and the seek restores nothing (Got stays 7).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void S6_AWaitingHandler_IsSavedToTheRecording_AndResumesAfterReplay()
+    {
+        const string Host = "S6RecHost", Child = "S6RecChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var world = _fixture.World;
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // the handler starts and waits
+        Assert.Equal(0f, hit(null));   // child tick 1 — still waiting
+
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"S6Rec_{Guid.NewGuid():N}.fdp");
+        try
+        {
+            using (var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+                rec.CaptureKeyframe(world, DateTime.UtcNow.Ticks, blocking: true, eventBus: world.Bus);
+            int ticksAtKeyframe = _childTicks;
+
+            Assert.Equal(0f, hit(null));   // child tick 2
+            Assert.Equal(7f, hit(null));   // child tick 3 ⇒ Success ⇒ the handler writes Got = 7 and ends
+
+            using (var playback = new Fdp.Core.FlightRecorder.PlaybackController(path))
+                playback.SeekToFrame(world, 0);
+            _childTicks = ticksAtKeyframe;
+
+            float Got() => *(float*)(RootParamsAccessRoot(world, e) + (int)VarOffset(def!, "Got"));
+            Assert.Equal(0f, Got());       // restored mid-wait: nothing written yet
+            Assert.Equal(0f, hit(null));   // the restored handler resumes: child tick 2
+            Assert.Equal(7f, hit(null));   // child tick 3 ⇒ it writes the event it was holding
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6b-2 — Queue(2): arrivals wait in line and run one after another, in order — and the line survives a
+    /// record + replay.</b> Hits 7, 9, 11 on three consecutive frames: 7 runs (3 child ticks), 9 and 11 wait; each runs when
+    /// the one before finishes, so Got goes 7 → 9 → 11. A keyframe recorded while 9 and 11 wait, sought back to after the
+    /// run, replays the same 7 → 9 → 11.
+    /// <para>✅ Red-proofs: drain the queue newest-first and the order reads 7 → 11 → 9; a capacity of 1 faults on the third hit.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void S6b_Queue2_RunsArrivalsInOrder_AndTheLineSurvivesReplay()
+    {
+        const string Host = "S6bQHost", Child = "S6bQChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Queue, 2), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var world = _fixture.World;
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // 7 starts and waits
+        Assert.Equal(0f, hit(9f));     // child tick 1 · 9 waits in line
+        Assert.Equal(0f, hit(11f));    // child tick 2 · 11 waits in line (the line is full)
+
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"S6bQ_{Guid.NewGuid():N}.fdp");
+        try
+        {
+            using (var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+                rec.CaptureKeyframe(world, DateTime.UtcNow.Ticks, blocking: true, eventBus: world.Bus);
+            var countsAtKeyframe = new System.Collections.Generic.Dictionary<int, int>(_ticksByOccurrence);
+
+            float[] Run()
+            {
+                var seen = new System.Collections.Generic.List<float>();
+                for (int f = 0; f < 8; f++) { float g = hit(null); if (seen.Count == 0 || seen[^1] != g) seen.Add(g); }
+                return seen.ToArray();
+            }
+
+            Assert.Equal(new[] { 7f, 9f, 11f }, Run());
+
+            using (var playback = new Fdp.Core.FlightRecorder.PlaybackController(path))
+                playback.SeekToFrame(world, 0);
+            _ticksByOccurrence.Clear();
+            foreach (var kv in countsAtKeyframe) _ticksByOccurrence[kv.Key] = kv.Value;   // test scaffolding, not state
+
+            Assert.Equal(new[] { 0f, 7f, 9f, 11f }, new[] { 0f }.Concat(Run().Where(v => v != 0f)).ToArray());
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
+    /// <summary>⭐⭐ S6b-2 — a full line is a FAULT, never a silent drop (U-6).</summary>
+    [Fact]
+    public void S6b_AFullQueue_FaultsTheRun()
+    {
+        const string Host = "S6bQFHost", Child = "S6bQFChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Queue, 1), GoldenCorpus.Options());
+        var world = _fixture.World;
+        var (e, _) = AssignAndFramer(Host);
+        var brain = new BrainTickSystem(_fixture.BehaviorRegistry);
+
+        foreach (var d in new[] { 1f, 2f, 3f })
+        {
+            world.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = d });
+            world.Bus.SwapBuffers(); brain.Execute(world, 0.016f);      // 1 runs, 2 waits, 3 finds the line full
+        }
+        world.Bus.SwapBuffers();
+        var finished = world.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(f => f.Entity.Index == e.Index).ToList();
+        Assert.Single(finished);
+        Assert.Equal(BehaviorFaultCode.EventOverflow, finished[0].FaultCode);
     }
 
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)

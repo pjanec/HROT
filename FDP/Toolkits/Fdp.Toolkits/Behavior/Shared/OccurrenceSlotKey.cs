@@ -395,6 +395,14 @@ namespace Fdp.Toolkit.Behavior.Shared
         internal static int ComputeHostedAt(int parentOccurrenceKey, int templateKey)
             => NestOver(parentOccurrenceKey, 0, templateKey);
 
+        /// <summary>
+        /// ⭐ S6b — copy <paramref name="copy"/> of a template key, for a blueprint Event graph that runs several copies at
+        /// once (Parallel(N)). Copy 0 IS the template, so a single-copy graph keeps every key it had. ⚠ The site slot 0 is
+        /// <see cref="ComputeHostedAt"/>'s; a copy index ≥ 1 folds into a disjoint domain.
+        /// </summary>
+        internal static int ComputeFiberKey(int templateKey, int copy)
+            => copy == 0 ? templateKey : NestOver(templateKey, copy, templateKey);
+
         internal static int ComputeNested(
             int hostKey,
             int siteId,

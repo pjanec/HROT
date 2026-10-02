@@ -121,7 +121,7 @@ internal static class InstanceEmitter
         //   Span<byte> handler delegate); the handler-table thunks are an Instance concern.
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
         {
-            EmitEventThunk(e, evtGraph, behaviour: IsBehavior(asset));
+            EmitEventThunk(e, asset, evtGraph, behaviour: IsBehavior(asset));
             e.WriteLine();
         }
 
@@ -237,6 +237,47 @@ internal static class InstanceEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine();
+
+        // ⭐ S6b — one record per fiber graph (its cursor, promoted locals and saved inputs); Exec holds its copies.
+        foreach (var g in asset.Graphs.Where(Lowering.Fibers.IsOwnFiber))
+        {
+            e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+            e.WriteLine($"public struct {Lowering.Fibers.RecordType(g)}");
+            e.WriteLine("{");
+            e.Indent();
+            foreach (var f in g.FiberRecordFields)
+                e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+
+            // ⭐ S6b-2 — Queue(N): one queued arrival's inputs, and a ref accessor over the N fixed entries.
+            int q = Lowering.Fibers.QueueCapacity(g);
+            if (q > 0 && g.Inputs.Count > 0)
+            {
+                e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+                e.WriteLine($"public struct {Lowering.Fibers.QueueEntryType(g)}");
+                e.WriteLine("{");
+                e.Indent();
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"public {CSharpType(f.Type)} {Lowering.Fibers.InputField(f)};");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine();
+                e.WriteLine($"private static ref {Lowering.Fibers.QueueEntryType(g)} {Lowering.Fibers.QueueAt(g)}(ref Exec x, int i)");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine("switch (i)");
+                e.WriteLine("{");
+                for (int k = 0; k < q - 1; k++)
+                    e.WriteLine($"    case {k}: return ref x.{Lowering.Fibers.QueueEntry(g, k)};");
+                e.WriteLine($"    default: return ref x.{Lowering.Fibers.QueueEntry(g, q - 1)};");
+                e.WriteLine("}");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine();
+            }
+        }
 
         e.WriteLine(Layout(explicitLayout));
         e.WriteLine("public struct Exec");
@@ -534,8 +575,12 @@ internal static class InstanceEmitter
         e.WriteLine("global::Fdp.Core.Entity self,");
         // ⭐ S6a — a behaviour's Event graph may be a fiber that waits: it gets the Tick's frame context (deltaTime, the run's
         //   instanceVersion for its cursor, the occurrence for a child it hosts). One shape for every behaviour Event method.
+        // ⭐ S6b — a fiber graph also takes the copy it runs as (its record, and its index for the keys it hosts).
+        var fiberParams = Lowering.Fibers.IsOwnFiber(evtGraph)
+            ? $", ref {Lowering.Fibers.RecordType(evtGraph)} __f, int __fi"
+            : "";
         e.WriteLine(IsBehavior(asset)
-            ? $"float time, float deltaTime, uint instanceVersion, int occurrenceKey{extraParamStr})"
+            ? $"float time, float deltaTime, uint instanceVersion, int occurrenceKey{fiberParams}{extraParamStr})"
             : $"float time{extraParamStr})");
         e.Outdent();
         e.WriteLine("{");
@@ -600,6 +645,21 @@ internal static class InstanceEmitter
 
     /// <summary>⭐ S5d — the generated field holding a Run Behaviour site's hosted-slot key.</summary>
     internal static string RunSiteField(IrOp_RunBehavior op) => $"__RunSite_{op.SiteId:N}";
+
+    /// <summary>⭐ S6b — every Run Behaviour site with the graph it sits in (a fiber graph declares one slot per copy).</summary>
+    internal static IReadOnlyList<(IrOp_RunBehavior Site, IrGraph Graph)> RunBehaviorSitesByGraph(IrAsset asset)
+        => asset.Graphs.SelectMany(g => g.Blocks.SelectMany(b => b.Statements)
+                                          .Select(st => st.Operation).OfType<IrOp_RunBehavior>()
+                                          .Select(op => (Site: op, Graph: g)))
+               .GroupBy(t => t.Site.SiteId).Select(grp => grp.First()).OrderBy(t => t.Site.SiteId).ToList();
+
+    /// <summary>⭐ S6b — the key of copy <paramref name="k"/> of a site: copy 0 is the plain field (byte-identical), the
+    /// rest salt it through the runtime's one function.</summary>
+    internal static string RunSiteKey(string owner, IrOp_RunBehavior site, int k)
+    {
+        var field = owner.Length > 0 ? $"{owner}.{RunSiteField(site)}" : RunSiteField(site);
+        return k == 0 ? field : $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({field}, {k})";
+    }
 
     private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
     {
@@ -692,10 +752,34 @@ internal static class InstanceEmitter
         // ⭐ S6a — resume every waiting Event fiber FIRST, with the inputs it started on: a fiber started below this frame
         //   is then not stepped twice in one frame, and one that finishes here is free for an event arriving this frame.
         foreach (var g in events.Where(Lowering.Fibers.IsOwnFiber))
+            for (int k = 0; k < Lowering.Fibers.Copies(g); k++)
+            {
+                var copy  = Lowering.Fibers.CopyField(g, k);
+                var saved = string.Concat(g.Inputs.Select(f => $", __ex.{copy}.{Lowering.Fibers.InputField(f)}"));
+                e.WriteLine($"if (__ex.{copy}.Cursor.ResumeAt != 0)");
+                e.WriteLine($"    Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.{copy}, {k}{saved});");
+            }
+        // ⭐ S6b-2 — Queue(N): when the one copy is free, the oldest waiting arrival starts it (oldest first, and again if
+        //   it finishes at once). Before this frame's arrivals, so arrival order is kept.
+        foreach (var g in events.Where(gr => Lowering.Fibers.QueueCapacity(gr) > 0))
         {
-            var saved = string.Concat(g.Inputs.Select(f => $", __ex.{Lowering.Fibers.InputSlot(g, f)}"));
-            e.WriteLine($"if (__ex.{Lowering.Fibers.CursorOf(g)}.ResumeAt != 0)");
-            e.WriteLine($"    Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey{saved});");
+            var c0 = Lowering.Fibers.CopyField(g, 0);
+            var head = Lowering.Fibers.QueueHead(g); var count = Lowering.Fibers.QueueCount(g);
+            int q = Lowering.Fibers.QueueCapacity(g);
+            e.WriteLine($"while (__ex.{c0}.Cursor.ResumeAt == 0 && __ex.{count} > 0)");
+            e.WriteLine("{");
+            e.Indent();
+            if (g.Inputs.Count > 0)
+            {
+                e.WriteLine($"ref var __qe = ref {Lowering.Fibers.QueueAt(g)}(ref __ex, __ex.{head});");
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"__ex.{c0}.{Lowering.Fibers.InputField(f)} = __qe.{Lowering.Fibers.InputField(f)};");
+            }
+            e.WriteLine($"__ex.{head} = (__ex.{head} + 1) % {q}; __ex.{count}--;");
+            var saved = string.Concat(g.Inputs.Select(f => $", __ex.{c0}.{Lowering.Fibers.InputField(f)}"));
+            e.WriteLine($"Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.{c0}, 0{saved});");
+            e.Outdent();
+            e.WriteLine("}");
         }
         foreach (var g in events)
         {
@@ -775,7 +859,7 @@ internal static class InstanceEmitter
         e.WriteLine("}");
     }
 
-    private static void EmitEventThunk(CSharpEmitter e, IrGraph evtGraph, bool behaviour = false)
+    private static void EmitEventThunk(CSharpEmitter e, IrAsset asset, IrGraph evtGraph, bool behaviour = false)
     {
         // EventHandlerDelegate signature: (Span<byte>, ISimView, IECB, Entity, float, float, ReadOnlySpan<byte>)
         // ⭐ S2 — a behaviour's thunk takes its two state refs instead (it is called inline by BehaviorTick).
@@ -826,28 +910,94 @@ internal static class InstanceEmitter
         }
         if (behaviour && Lowering.Fibers.IsOwnFiber(evtGraph))
         {
-            // ⭐ S6a — Parallel(1) until S6b (U-6): an arrival while this fiber still waits is a FAULT, never a silent drop.
-            //   Otherwise the inputs are saved in the fiber, so a resume next frame sees the event it started on.
-            e.WriteLine($"if (__ex.{Lowering.Fibers.CursorOf(evtGraph)}.ResumeAt != 0)");
-            e.WriteLine("{");
-            e.WriteLine("    global::Fdp.Toolkit.Behavior.Events.BehaviorFault.Raise(view, self, "
-                      + "global::Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.EventOverflow,");
-            e.WriteLine($"        \"event '{evtGraph.Name}' arrived while its handler was still waiting (one handler at a time).\");");
-            e.WriteLine("    return;");
+            EmitFiberDispatch(e, asset, evtGraph, reinterpret);
+            e.Outdent();
             e.WriteLine("}");
-            if (evtGraph.Inputs.Count > 0)
-            {
-                foreach (var f in evtGraph.Inputs)
-                    e.WriteLine($"__ex.{Lowering.Fibers.InputSlot(evtGraph, f)} = "
-                              + (reinterpret ? $"__ev.{f.Name};" : $"default({CSharpType(f.Type)});"));
-                args = string.Concat(evtGraph.Inputs.Select(f => $", __ex.{Lowering.Fibers.InputSlot(evtGraph, f)}"));
-            }
+            return;
         }
         e.WriteLine(behaviour
             ? $"Event_{evtGraph.Name}(ref __bb, ref __ex, view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey{args});"
             : $"Event_{evtGraph.Name}(ref s, view, ecb, self, time{args});");
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ S6a/S6b (<c>DESIGN_Unified_Behaviour_Run</c> U-6) — an event for a fiber graph, by its policy. Straight-line,
+    /// unrolled over the copies: no loop state, no allocation. ⛔ Never silent: an arrival with no room faults the run.
+    /// </summary>
+    private static void EmitFiberDispatch(CSharpEmitter e, IrAsset asset, IrGraph g, bool reinterpret)
+    {
+        string Start(int k)
+        {
+            var copy = Lowering.Fibers.CopyField(g, k);
+            var sb = new System.Text.StringBuilder();
+            foreach (var f in g.Inputs)
+                sb.Append($"__ex.{copy}.{Lowering.Fibers.InputField(f)} = "
+                          + (reinterpret ? $"__ev.{f.Name}; " : $"default({CSharpType(f.Type)}); "));
+            var saved = string.Concat(g.Inputs.Select(f => $", __ex.{copy}.{Lowering.Fibers.InputField(f)}"));
+            sb.Append($"Event_{g.Name}(ref __bb, ref __ex, view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey, "
+                    + $"ref __ex.{copy}, {k}{saved});");
+            return sb.ToString();
+        }
+        string Fault(string why)
+            => "global::Fdp.Toolkit.Behavior.Events.BehaviorFault.Raise(view, self, "
+             + $"global::Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.EventOverflow, \"event '{g.Name}' {why}\");";
+
+        if (g.FiberPolicy == Hrot.Blueprints.Core.Assets.EventFiberPolicy.Restart)
+        {
+            // Restart — the newest event wins: abandon the waiting handler and every behaviour it hosts, then start over.
+            var c0 = Lowering.Fibers.CopyField(g, 0);
+            e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt != 0)");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"__ex.{c0} = default;");
+            foreach (var (site, _) in RunBehaviorSitesByGraph(asset).Where(t => t.Graph.Name == g.Name))
+                e.WriteLine("global::Fdp.Toolkit.Behavior.HostedSubtree.Reset((global::Fdp.Core.EntityRepository)view, self, "
+                          + $"{RunSiteKey("", site, 0)}, occurrenceKey);");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine(Start(0));
+            return;
+        }
+
+        if (g.FiberPolicy == Hrot.Blueprints.Core.Assets.EventFiberPolicy.Queue)
+        {
+            // Queue(N) — run now if the copy is free and nothing waits; else wait in line; a full line faults.
+            var c0 = Lowering.Fibers.CopyField(g, 0);
+            var head = Lowering.Fibers.QueueHead(g); var count = Lowering.Fibers.QueueCount(g);
+            int q = Lowering.Fibers.QueueCapacity(g);
+            e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt == 0 && __ex.{count} == 0)");
+            e.WriteLine("{ " + Start(0) + " }");
+            e.WriteLine($"else if (__ex.{count} < {q})");
+            e.WriteLine("{");
+            e.Indent();
+            if (g.Inputs.Count > 0)
+            {
+                e.WriteLine($"ref var __qe = ref {Lowering.Fibers.QueueAt(g)}(ref __ex, (__ex.{head} + __ex.{count}) % {q});");
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"__qe.{Lowering.Fibers.InputField(f)} = "
+                              + (reinterpret ? $"__ev.{f.Name};" : $"default({CSharpType(f.Type)});"));
+            }
+            e.WriteLine($"__ex.{count}++;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine("else");
+            e.WriteLine("    " + Fault($"arrived while its queue of {q} was full."));
+            return;
+        }
+
+        // Parallel(N) — the first free copy takes it.
+        int n = Lowering.Fibers.Copies(g);
+        for (int k = 0; k < n; k++)
+        {
+            e.WriteLine($"{(k == 0 ? "if" : "else if")} (__ex.{Lowering.Fibers.CopyField(g, k)}.Cursor.ResumeAt == 0)");
+            e.WriteLine("{ " + Start(k) + " }");
+        }
+        e.WriteLine("else");
+        e.WriteLine("    " + Fault(n == 1
+            ? "arrived while its handler was still waiting (one handler at a time)."
+            : $"arrived while all {n} of its handlers were still waiting."));
     }
 
     private static string CSharpType(IrTypeRef t) => StatementEmitter.TypeRefToCSharp(t);

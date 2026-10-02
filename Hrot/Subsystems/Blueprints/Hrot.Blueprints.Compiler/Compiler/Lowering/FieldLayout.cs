@@ -112,6 +112,13 @@ internal static class FieldLayout
         return result;
     }
 
+    /// <summary>⭐ S6b — the laid-out size of a generated record of <paramref name="fields"/> (8-aligned, never under).</summary>
+    internal static int RecordSize(IReadOnlyList<IrField> fields)
+    {
+        LayoutFields(fields, 0, out int end);
+        return AlignUp(end, 8);
+    }
+
     private static int TypeAlignment(IrTypeRef t)
         => t.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
 

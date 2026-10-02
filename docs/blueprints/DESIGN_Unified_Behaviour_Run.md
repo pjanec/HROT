@@ -503,6 +503,115 @@ one frame, and a fiber that finishes on resume frees itself for an event arrivin
 ⚠ **Residue:** the AI debugger / inspector still show the Tick cursor only (§4a ⑥ — a fiber list is a reader change, with S6b).
 
 
+#### S6b design — the event policies (U-6) *(`2026-10-02`, S6b-1 + S6b-2a BUILT — as-built below; S6b-2b deferred, demand-driven)*
+
+📐 **Measured basis.** S6a's fiber state is flat named slots (`__fib_G`, `__fib_G_in_x`) plus the graph's promoted
+locals (`__loc_G_x`), all addressed through `{ExecVar}.` (`EmissionContext.LocalFieldName`, `Fibers.CursorOf`). A child
+hosted from an Event graph is keyed by a static per-node template (`__RunSite_N`), and an inline action by
+`HostedKeyAt(occurrenceKey, StandaloneStateKeyFor(primitive))` (`InlineActionLowering`). ⇒ **N concurrent copies of one
+graph need (a) N copies of its state and (b) N distinct keys for whatever it hosts.**
+
+```mermaid
+classDiagram
+  class EventEntryNode { <<EXISTS, widened>> +Policy : EventFiberPolicy +Capacity : int }
+  class EventFiberPolicy { <<NEW enum>> Parallel = 0 (default) · Restart · Queue }
+  class IrGraph { <<EXISTS, widened>> +FiberPolicy +FiberCount +FiberRecordType }
+  class Fibers { <<EXISTS, widened>> record type _Fiber_G = Cursor + locals + In_x · N fields __fib_G_k in Exec }
+  class OccurrenceSlots { <<EXISTS, widened>> +FiberKey(template, k) : k = 0 ⇒ template }
+  class InstanceEmitter { <<EXISTS, widened>> Event_G(..., ref _Fiber_G __f, int __fi) · per-policy dispatch, unrolled }
+  class CSharpEmitter { <<EXISTS, widened>> registrar declares + binds FiberKey(site, k) for k < N }
+  EventEntryNode --> EventFiberPolicy
+  IrGraph --> Fibers
+  InstanceEmitter --> OccurrenceSlots : site and inline-action keys per fiber
+  CSharpEmitter --> OccurrenceSlots
+```
+*What it shows that prose hid:* a fiber becomes ONE generated record, so "N copies" is N fields of one type and the
+Event method takes `ref` to whichever copy runs. The key salt is a runtime function both the registrar and the call use,
+so provisioning and resolution cannot disagree.
+
+```mermaid
+sequenceDiagram
+  participant BT as BehaviorTick
+  participant F as Event_G(ref __fib_G_k, k)
+  BT->>F: resume every busy copy k (ResumeAt != 0)
+  Note over BT: an event of type G arrives
+  alt Parallel(N)
+    BT->>F: first free copy k (unrolled) · none free ⇒ EventOverflow fault
+  else Restart
+    BT->>BT: copy 0 busy ⇒ zero it + HostedSubtree.Reset each site it hosts (recursive)
+    BT->>F: start copy 0 with the new event
+  else Queue(N) — S6b-2
+    BT->>BT: busy ⇒ append to the event ring · full ⇒ EventOverflow fault
+    Note over BT: when copy 0 ends, the oldest queued event starts it
+  end
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| where the policy lives | ⭐ on the Event graph's entry node (`Policy`, `Capacity`; both omitted from JSON at their defaults ⇒ every asset unchanged) | a per-asset setting: two handlers of one asset need different policies |
+| default | ⭐ Parallel, Capacity 1 (= S6a's behaviour) | Parallel(4): costs 4× the record on every behaviour that never overlaps |
+| N copies of state | ⭐ one generated record struct per graph, N fields of it in `Exec` | N copies of every flat slot: N× the names, and the method body would need N variants |
+| keys under a copy | ⭐ salt the TEMPLATE: `FiberKey(template, k)` (copy 0 = the template) for hosted sites and inline actions; the registrar declares every copy | salting the occurrence key: provisioning computes nested keys from declared templates, so a salted occurrence is never provisioned |
+| `When` memory inside an Event graph | ⚠ stays per graph (shared by its copies) | per copy: When fields are added before fibers exist; moved with S6c if a case needs it |
+| limits | ⭐ `Capacity` 1..16; Restart is one copy; both checked by `BP1660` | unbounded: a fixed layout needs a compile-time N |
+| **S6b-1** | ⭐ Parallel(N) + Restart | — |
+| **S6b-2** | ⭐ Queue(N) with the ONE byte ring in `Exec` (user ruling above), managed events through `FdpAutoSerializer`, the checkpoint/restore rail | — |
+
+#### S6b-1 as-built *(`2026-10-02`, CE-2006)*
+
+| piece | where |
+|---|---|
+| `EventEntryNode.Policy` (`EventFiberPolicy` Parallel / Restart / Queue) + `Capacity`, both omitted from JSON at default; carried to `IrGraph.FiberPolicy` / `FiberCapacity` | `Assets/Nodes.cs`, `Stage5_Schedule` |
+| ⭐ **S6a's flat fiber slots became ONE record per graph**: `_Fiber__fib_{G}` { `Cursor`, the graph's promoted locals (moved out of the shared slots), `In_{x}` }, and `Exec` holds `Copies(g)` fields `__fib_{G}_{k}`; the record size comes from `FieldLayout.RecordSize` (the same layout function) | `Lowering/Fibers.cs`, `FieldLayout.cs` |
+| a fiber graph's cursor and locals are reached through `Fibers.Container` (`__f` in a fiber, `__ex` elsewhere) — the one switch both `StatementEmitter` and `EmissionContext.LocalFieldName` use | `Fibers.cs`, `StatementEmitter`, `EmissionContext` |
+| the Event method takes `ref _Fiber… __f, int __fi`; Run Behaviour sites and inline actions inside it key by `OccurrenceSlots.FiberKey(template, __fi)` (copy 0 = the template ⇒ byte-identical) | `InstanceEmitter`, `StatementEmitter`, `InlineActionLowering`, `OccurrenceSlots` / `OccurrenceSlotKey.ComputeFiberKey` |
+| the registrar declares and binds one site slot per copy | `CSharpEmitter.EmitBehaviorRegistration` |
+| dispatch per policy, unrolled: Parallel(N) = first free copy, else `EventOverflow`; Restart = zero copy 0 + `HostedSubtree.Reset` each site it hosts, then start | `InstanceEmitter.EmitFiberDispatch` |
+| `BP1681` (BP1660–1667 are reserved for macros): Capacity outside 1..16, Restart with Capacity > 1, Queue until S6b-2 | `Stage2_Validate`, `DiagnosticCodes` |
+| rails `BlueprintBehaviourTests.S6b_*`: Parallel(2) runs two handlers at once, each writing the event it started on (9 then 7); Restart — only the newest event is ever written; `BP1681` ×3. Red-proofs: one copy only ⇒ the second hit faults; Restart as Parallel ⇒ faults; copies sharing one child key ⇒ the handlers interfere | |
+
+✅ **RESOLVED `2026-10-02` — user:** *"i just need the blueprint state to be correctly saved to the recordings and
+restored on replay, you are free to choose performance optimal implementation."* ⇒ ⭐ **the requirement is the
+round-trip, not the storage shape**: in-flight copies keep their inputs in their records (as built); the ring is
+built in S6b-2 only for Queue(N) and managed payloads. 🔒 **Proved by rail**
+`BlueprintBehaviourTests.S6_AWaitingHandler_IsSavedToTheRecording_AndResumesAfterReplay` — a keyframe recorded
+through the real `AsyncRecorder` mid-wait, `PlaybackController.SeekToFrame` back to it, and the restored handler
+finishes and writes the event it held (red-proved by marking the blueprint storage tiers `NoReplay`). ⇒ every later
+storage change (S6b-2's ring included) must keep this rail green.
+
+⚠ *Prior state, kept for the record:* **DEVIATION from the ring ruling, argued — and OPEN for the user** *(the "Recording and replay" block below)*. The
+ruling says ONE byte ring holds every pending event, *including the event a waiting fiber still holds*. As built
+(S6a/S6b-1), a waiting copy keeps its event's **declared inputs** in its own fixed record instead. Why: for unmanaged
+inputs the record is laid out at compile time, sits in the same recorded slot (so replay and checkpoints carry it — the
+ruling's purpose), needs no offsets, free-marking or head advance, and copies only the inputs the graph reads, not the
+whole event. ⭐ **Lean: keep the records for in-flight copies; the ring is still built in S6b-2 for what a record cannot
+hold — Queue(N)'s waiting events and managed payloads.** ⚠ If the ruling meant "literally one storage for everything",
+S6b-2 moves the in-flight inputs into the ring too (a fiber then keeps an offset); the emitted body is unchanged either
+way, since it reads parameters. 📐 Measured for S6b-2: `FdpEventBus.ReadManaged<T>()` / `HasManagedEvent<T>()` exist
+(no Fdp.Core change needed); `FdpAutoSerializer` takes a `BinaryWriter` only (no span API) ⇒ the "small adapter over the
+ring" case.
+
+#### S6b-2a as-built — Queue(N) *(`2026-10-02`, CE-2007)*
+
+| piece | where |
+|---|---|
+| ⭐ **the queue is a fixed circular buffer of the graph's INPUTS in `Exec`** — N entries of a generated `_FiberIn…` record + `_qHead` / `_qCount` ints, laid out by `FieldLayout`, recorded with the rest of the brain state; no serialization, no allocation (user, 2026-10-02: "free to choose performance optimal implementation") | `Lowering/Fibers.cs` |
+| a generated `QueueAt…(ref Exec, i)` ref accessor (a switch over the N fields) | `InstanceEmitter.EmitBehaviorStructs` |
+| arrival: copy free and nothing waiting ⇒ run now; else append; full ⇒ `EventOverflow` fault | `InstanceEmitter.EmitFiberDispatch` |
+| drain: after the resume loop and BEFORE this frame's arrivals (keeps order), `while` the copy is free and the line is not empty | `InstanceEmitter` (`BehaviorTick`) |
+| `BP1681` no longer refuses Queue (Capacity 1..16 still bounds it) | `Stage2_Validate` |
+| rails `BlueprintBehaviourTests.S6b_Queue2_RunsArrivalsInOrder_AndTheLineSurvivesReplay` (7 → 9 → 11, then a keyframe recorded with 9 and 11 waiting replays the same order) and `S6b_AFullQueue_FaultsTheRun`. Red-proofs: newest-first drain ⇒ wrong order; no fault on a full line ⇒ no fault | |
+
+⏸ **S6b-2b deferred — demand-driven (filed as CE-2008).** 📐 Measured: Event graphs exist only on Instance assets today
+(6 corpus files, all `Dispatch: Instance`), and the editor's event picker discovers `[BlueprintEvent]` STRUCTS only
+(`BlueprintEventDiscovery.cs:29`), so no managed event can be authored. ⇒ managed-event handlers, the byte ring for their
+payloads and the `FdpAutoSerializer` span API (user-authorised) wait for the first real case.
+
+⚠ **Residue:** an inline action restarted by Restart keeps its lazily-attached working state (it is not a hosted site, so
+`HostedSubtree.Reset` does not reach it) — the same as a Tick that restarts today; `When` memory in an Event graph is per
+graph, not per copy; the editor does not show `Policy`/`Capacity` yet (no Event-graph authoring surface exists).
+
+
 ⭐⭐ **Recording and replay** *(user, 2026-10-02: "the event queue needs to be saved as part of the blueprint state,
 serializable to recording so that replay reconstructs the queue")*. All of a blueprint's execution state lives in its
 `Exec` record **inside the occurrence store**: every fiber's cursor, locals and `When` memory, every waiting fiber's copy

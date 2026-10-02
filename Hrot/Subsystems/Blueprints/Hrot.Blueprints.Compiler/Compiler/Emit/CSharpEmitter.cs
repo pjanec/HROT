@@ -639,22 +639,26 @@ internal sealed class CSharpEmitter
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
         WriteLine($"BlueprintStructureHash = {className}.StructureHash,");
         // ⭐ S5d — each Run Behaviour site declares its hosted slot (ingress provisions it, recursively, S5b) …
-        var sites = InstanceEmitter.RunBehaviorSites(asset);
-        if (sites.Count > 0)
+        //   S6b — a site inside a fiber graph declares one slot per copy (copy 0 = the plain key).
+        var siteKeys = InstanceEmitter.RunBehaviorSitesByGraph(asset)
+            .SelectMany(t => Enumerable.Range(0, Lowering.Fibers.IsOwnFiber(t.Graph) ? Lowering.Fibers.Copies(t.Graph) : 1)
+                .Select(k => (Key: InstanceEmitter.RunSiteKey(className, t.Site, k), t.Site.BehaviorName)))
+            .ToList();
+        if (siteKeys.Count > 0)
         {
             WriteLine("StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
             WriteLine("{");
             Indent();
-            foreach (var site in sites)
-                WriteLine($"global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot({className}.{InstanceEmitter.RunSiteField(site)}, \"{site.BehaviorName}\"),");
+            foreach (var (key, child) in siteKeys)
+                WriteLine($"global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot({key}, \"{child}\"),");
             Outdent();
             WriteLine("},");
         }
         Outdent();
         WriteLine("});");
         // … and binds its child AFTER Register: resolution is lazy and order-independent (CE-377); a ring is refused (S5c).
-        foreach (var site in sites)
-            WriteLine($"global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {className}.{InstanceEmitter.RunSiteField(site)}, \"{site.BehaviorName}\");");
+        foreach (var (key, child) in siteKeys)
+            WriteLine($"global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {key}, \"{child}\");");
     }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)

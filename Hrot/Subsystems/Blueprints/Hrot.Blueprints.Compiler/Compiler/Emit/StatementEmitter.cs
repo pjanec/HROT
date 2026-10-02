@@ -795,7 +795,11 @@ internal static class StatementEmitter
             case IrOp_RunBehavior rb:
                 e.WriteLine($"var __t{idx} = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint("
                     + "ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), "
-                    + $"{e.Ctx.WorldVar}, self, deltaTime, instanceVersion, occurrenceKey, {InstanceEmitter.RunSiteField(rb)});");
+                    + $"{e.Ctx.WorldVar}, self, deltaTime, instanceVersion, occurrenceKey, "
+                    // ⭐ S6b — inside a fiber graph the site key is the running copy's (copy 0 = the plain key).
+                    + (Lowering.Fibers.IsOwnFiber(e.Ctx.CurrentGraph)
+                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rb)}, __fi));"
+                        : $"{InstanceEmitter.RunSiteField(rb)});"));
                 break;
 
             // ------------------------------------------------------------------
@@ -813,10 +817,10 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_CheckCursorVersion:
-                e.WriteLine($"if ({ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.InstanceVersion != instanceVersion)");
+                e.WriteLine($"if ({Lowering.Fibers.CursorPath(ctx)}.InstanceVersion != instanceVersion)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt = 0;");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.ResumeAt = 0;");
                 // ⭐ CE-446: a stale cursor in a behaviour Tick restarts it next frame — still Running.
                 e.WriteLine(e.Ctx.IsBehaviorTick ? EmissionContext.ReturnRunning : "return;");
                 e.Outdent();
@@ -848,23 +852,23 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_WriteCursorResumeAt op:
-                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt = {op.ResumeAtValue};");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.ResumeAt = {op.ResumeAtValue};");
                 break;
 
             case IrOp_ReadCursorResumeAt:
-                if (idx >= 0) e.WriteLine($"uint __t{idx} = {ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt;");
+                if (idx >= 0) e.WriteLine($"uint __t{idx} = {Lowering.Fibers.CursorPath(ctx)}.ResumeAt;");
                 break;
 
             case IrOp_WriteCursorInstanceVersion:
-                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.InstanceVersion = instanceVersion;");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.InstanceVersion = instanceVersion;");
                 break;
 
             case IrOp_WriteCursorWaitUntilTime op:
-                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.WaitUntilTime = __t{op.Seconds.Index};");
+                e.WriteLine($"{Lowering.Fibers.CursorPath(ctx)}.WaitUntilTime = __t{op.Seconds.Index};");
                 break;
 
             case IrOp_ReadCursorWaitUntilTime:
-                if (idx >= 0) e.WriteLine($"float __t{idx} = {ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.WaitUntilTime;");
+                if (idx >= 0) e.WriteLine($"float __t{idx} = {Lowering.Fibers.CursorPath(ctx)}.WaitUntilTime;");
                 break;
 
             // ------------------------------------------------------------------

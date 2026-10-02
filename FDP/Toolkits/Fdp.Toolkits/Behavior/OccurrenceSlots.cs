@@ -86,4 +86,11 @@ public static class OccurrenceSlots
     /// </summary>
     public static int HostedKeyAt(int parentOccurrenceKey, int templateKey)
         => Shared.OccurrenceSlotKey.ComputeHostedAt(parentOccurrenceKey, templateKey);
+
+    /// <summary>
+    /// ⭐ S6b (<c>DESIGN_Unified_Behaviour_Run</c> §4a) — the key of whatever copy <paramref name="copy"/> of a blueprint
+    /// Event graph hosts (a Run Behaviour site, an inline action), derived from its single-copy template. Copy 0 = the
+    /// template. The registrar declares every copy and the call site resolves through this same function.
+    /// </summary>
+    public static int FiberKey(int templateKey, int copy) => Shared.OccurrenceSlotKey.ComputeFiberKey(templateKey, copy);
 }
