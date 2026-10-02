@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — §1 (classification) and §2 (the groups) are done; the UML (class, sequence, module) is the next step, then READY-TO-BUILD.
-current-answer: §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
+build-state: DESIGN — §1 classification, §2 groups, §5 UML drafted; READY-TO-BUILD after the user approves §5.5 (D-4..D-7).
+current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
@@ -166,7 +166,7 @@ graph TD
 | F-4 | `brainOnly` misses most brain-written components (tiers, `BrainInterrupts`, `WeaponState`, `TargetMemory`, `ActiveMissionPlan`, `EqsSensor`, …) | `HrotRoleComponentSets.cs:126-159` vs §1.1 | superseded by §2 (push-only retires the role tables as ownership) |
 | F-5 | Several INGRESS writers do not skip when this node owns the descriptor (`NavigationIntentIngressTranslator.cs:82`, `MapVisualOverlayIngressTranslator.cs:152`, `NavigationStatusIngressTranslator.cs:69`, `PerceptionTranslators.cs:376`, `EqsSensorConfigIngressTranslator`) | per-row gates in the sweep | ⚠ matters once a node can GAIN a descriptor it also ingests (transfer, external hand-in): skip when owned, like `GeoSpatialIngressTranslator.cs:90` |
 | F-6 | Weapon-mount parts never exist in production: `WeaponMountInfo` is never registered, so `CombatTkbTranslator.cs:97` never creates them | no production `RegisterComponent<WeaponMountInfo>` | record only (unreferenced ≠ unintended); Q79 §0.10's table corrected |
-| F-8 | ⚠ **The navigation solver writes the Muscle's component in-process.** `EngineBackedPathResponseSystem` (registered by the `NavigationSolver` capability, `SimHostCapabilities.cs:85-100`) sets `NavState.TrajectoryId/Mode` by a LOCAL entity index taken from the request id and a trajectory pool SHARED with the Muscle (`EngineBackedPathResponseSystem.cs:44-55`). Correct only while both roles share a process; ⇒ when `NavigationSolver` runs on its own node this write must become a response message to the Muscle (the Brain-side path already is one: `PathResponseBrainIngressTranslator` registers into its own pool and publishes an event) | `EngineBackedPathResponseSystem.cs:30-55` | record; not in this build's scope |
+| F-8 | ⚠ **The navigation solver writes the Muscle's component in-process.** `EngineBackedPathResponseSystem` (registered by the `NavigationSolver` capability, `SimHostCapabilities.cs:85-100`) sets `NavState.TrajectoryId/Mode` by a LOCAL entity index taken from the request id and a trajectory pool SHARED with the Muscle (`EngineBackedPathResponseSystem.cs:44-55`). Correct only while both roles share a process; ⇒ when `NavigationSolver` runs on its own node this write must become a response message to the Muscle (the Brain-side path already is one: `PathResponseBrainIngressTranslator` registers into its own pool and publishes an event) | `EngineBackedPathResponseSystem.cs:30-55` | filed `CE-511`; not in this build's scope |
 | F-7 | Stale comment: `CognitiveComponentRegistry` says SimHost receives mission data; `EntityMissionIngressTranslator` is Brain-only | `CognitiveTranslatorPack.cs:60` | fix the comment in the build |
 
 ## 4. Decisions before the UML *(all resolved `2026-10-02`)*
@@ -178,3 +178,171 @@ graph TD
 | ~~D-3~~ | ✅ R-171: sensor config and every perception INTENT (`PerceptionReceptor`, `EqsSensor`) stay in BRAIN | — |
 
 Nothing open; next step is the UML.
+
+## 5. ⭐⭐ THE DESIGN — UML *(drafted `2026-10-02`, after §1's inventory; awaiting the user's approval)*
+
+### 5.1 Class — what exists, what changes, what is new
+
+```mermaid
+classDiagram
+  direction LR
+  class OwnershipGroup {
+    <<new>>
+    +NodeRole Role
+    +BitMask512 Members
+    +AppliesTo(TkbTemplate) bool
+  }
+  class OwnershipGroupTable {
+    <<new, replaces HrotRoleComponentSets.Owned>>
+    +Groups IReadOnlyDictionary~NodeRole, OwnershipGroup~
+    +GroupOf(componentId) NodeRole?
+  }
+  class DescriptorOwnershipMap {
+    <<existing, changed>>
+    +RegisterFromTranslator(ordinal, ids)
+    +GetComponentIdsForDescriptor(d)
+    +BindGroups(table, anchors) new
+    +DescriptorsOf(NodeRole) new
+  }
+  class IOwnershipDistributionStrategy {
+    <<existing interface, changed>>
+    +GetInitialGrants(GrantRequest) IReadOnlyList~DescriptorGrant~
+  }
+  class RoleGroupOwnershipStrategy {
+    <<new, replaces BrainMuscleOwnershipStrategy>>
+    -IClusterStateCache cache
+    -OwnershipGroupTable groups
+    -DescriptorOwnershipMap map
+  }
+  class IClusterStateCache {
+    <<existing>>
+    +GetLeastLoadedNode(NodeRole) int?
+  }
+  class CreateEntityRequestSystem { <<existing>> }
+  class NetworkSpawningSystem { <<existing, changed: creator claims ALL>> }
+  class LocalAuthorityYieldSystem { <<existing, changed: every NED host + marks pending>> }
+  class OutgoingGrantsPending { <<new LOCAL component>> +Descriptors }
+  class DeferredTakeoverSystem { <<existing>> }
+  class GhostPromotionSystem { <<existing, changed: promote-leg claim removed>> }
+  class OwnershipIngressSystem { <<existing, changed: apply extracted>> }
+  class OwnershipApplier {
+    <<new>>
+    +Apply(repo, entity, packedKey, newOwner)
+  }
+  class OwnershipRecomputeSystem { <<new, R-159>> }
+  class PartialOwnerReclaim { <<new, R-167>> +OnNotAlive(entity, packedKey) }
+  class AuthorityExtensions { <<existing, changed: (d,i) then (d,0) then primary>> }
+  class PartMetadata { <<existing, changed: DescriptorOrdinal removed>> }
+  class HealthApplicationSystem { <<existing, changed: gate = Health claim>> }
+
+  OwnershipGroupTable "1" o-- "5" OwnershipGroup : one per NodeRole
+  DescriptorOwnershipMap ..> OwnershipGroupTable : BindGroups
+  RoleGroupOwnershipStrategy ..|> IOwnershipDistributionStrategy
+  RoleGroupOwnershipStrategy --> IClusterStateCache
+  RoleGroupOwnershipStrategy --> OwnershipGroupTable
+  RoleGroupOwnershipStrategy --> DescriptorOwnershipMap
+  CreateEntityRequestSystem --> IOwnershipDistributionStrategy
+  LocalAuthorityYieldSystem --> DescriptorOwnershipMap
+  LocalAuthorityYieldSystem ..> OutgoingGrantsPending : adds
+  DeferredTakeoverSystem --> DescriptorOwnershipMap
+  OwnershipIngressSystem --> OwnershipApplier
+  PartialOwnerReclaim --> OwnershipApplier
+  OwnershipApplier --> DescriptorOwnershipMap
+  OwnershipApplier ..> PartMetadata : resolves (root, i, d) to a part
+  OwnershipRecomputeSystem ..> OutgoingGrantsPending : reads, clears
+```
+
+*What the picture shows that prose hid:* the new types are small and few (`OwnershipGroup`/`Table`, `RoleGroupOwnershipStrategy`,
+`OwnershipApplier`, `OwnershipRecomputeSystem`, `PartialOwnerReclaim`, `OutgoingGrantsPending`); every
+protocol participant (`DeferredTakeoverSystem`, the DTO translators, `OwnershipUpdateTranslator`) is **unchanged**. The group table
+replaces the role tables in the same `Hrot.Core` home (reuse, not a second table), and the descriptor binding extends the existing
+`DescriptorOwnershipMap` rather than adding a parallel map.
+
+### 5.2 Sequence — SimHost creates a tank (the `CE-500` path, now fixed)
+
+```mermaid
+sequenceDiagram
+  participant SC as SimHost CreateEntityRequestSystem
+  participant ST as RoleGroupOwnershipStrategy
+  participant SY as SimHost LocalAuthorityYieldSystem
+  participant W as DDS
+  participant CG as CGF ghost + DeferredTakeoverSystem
+  participant CO as CGF OwnershipIngress + Recompute
+  participant SO as SimHost OwnershipIngress + Recompute
+  SC->>ST: GetInitialGrants(template, master=SimHost)
+  ST->>ST: Brain group: least-loaded Brain = CGF
+  ST->>ST: MuscleGround, Perception: least-loaded = SimHost = creator, no grant
+  ST-->>SC: brain descriptors to CGF
+  SC->>SY: DeferredTakeOwnershipCommand (local bus)
+  SY->>SY: clear claim of brain group, add OutgoingGrantsPending
+  SC->>W: DeferredTakeOwnership, then EntityMaster
+  W->>CG: grant, then ghost, promotion (no claim)
+  CG->>CG: Constructing: claim brain group, Map = CGF
+  CG->>W: OwnershipUpdate per brain descriptor
+  CG->>CO: same update on local bus, recompute keeps Map = CGF
+  W->>SO: OwnershipUpdate
+  SO->>SO: Map = CGF, clear OutgoingGrantsPending
+  Note over CG: NavigationIntent egress gate true, CGF publishes
+```
+
+*What the picture shows:* the creator's record stays "mine" for the granted descriptors until the confirming `OwnershipUpdate`
+(F7, P6) — `OutgoingGrantsPending` is what lets the recompute leave it alone in that window.
+
+### 5.3 Sequence — a Muscle node crashes (`R-167`, Q79 §0.11)
+
+```mermaid
+sequenceDiagram
+  participant W as DDS
+  participant I as WorldPos ingress (every node)
+  participant R as PartialOwnerReclaim
+  participant A as OwnershipApplier
+  W->>I: dtWorldPos instance not alive
+  I->>R: OnNotAlive(entity, PackKey(dtWorldPos, 0))
+  R->>R: is the record's current owner gone? (P10 guard)
+  R->>A: Apply(entity, key, entity PrimaryOwnerId)
+  A->>A: Map = primary owner, claim set only on the primary owner
+  Note over A: no network message, every node computes the same result
+```
+
+### 5.4 Module — who registers what, and who calls it each frame
+
+```mermaid
+graph TD
+  HOSTS["CGF · SimHost · IG · Stride mode-2"] --> ECP["EntityCreationPack (every host)<br/>CreateEntityRequestSystem · NetworkSpawningSystem<br/>+ network adapters and strategy on EVERY host (CE-509)"]
+  HOSTS --> NED["NedReplicationModule (every NED host)"]
+  NED --> IN["Input phase: OwnershipIngressSystem → OwnershipRecomputeSystem (new, after)<br/>OwnershipTransferInitiationSystem"]
+  NED --> BS["BeforeSync: LocalAuthorityYieldSystem (ungated, CE-508)"]
+  NED --> LG["NetworkLifecycleGroup: GhostCreation · GhostPromotion · DeferredTakeover"]
+  NED -- "Tick() calls ExecuteGroup each frame" --> LG
+  NED --> TR["translators: ingress call PartialOwnerReclaim on not-alive samples"]
+  ED["Editor (OfflineNetworkFactory)"] -. "no NED: one node, owns all, no grants" .-> NED
+  BDC["BDC stack"] -. "no grant support — exempt while unused" .-> NED
+  linkStyle 6 stroke:#c0392b,stroke-dasharray:4
+  linkStyle 7 stroke:#c0392b,stroke-dasharray:4
+```
+
+*What the picture shows that prose hid:* the takeover runs inside `NetworkLifecycleGroup`, whose ONLY executor is
+`NedReplicationModule.Tick` (`NedReplicationModule.cs:654`) — so grants are honoured exactly on NED hosts. The two dashed red edges
+are the hosts where no grant is ever executed: the offline editor (correct — one node) and BDC (exempt, Q79 §0.7 G6).
+
+### 5.5 Design decisions inside the frame
+
+| # | decision | lean / why |
+|---|---|---|
+| D-4 | which descriptor carries a group's never-sent members (R-165) | the group's **anchor**: Brain → `dtNavigationIntent`, MuscleGround → `dtWorldPos`, Perception → `dtEqsResult`. ⭐ A single-descriptor transfer (an external node, Q79 §0.12 E2) then moves exactly that descriptor's components; only the anchor drags the linked members. Rejected: link to every descriptor of the group — an external hand-in of `dtEntityMission` would flip the whole brain |
+| D-5 | where the groups live | `Hrot.Core`, replacing `HrotRoleComponentSets.Owned` in place; `OwnershipGroup` (the shape) in `Fdp.Toolkits/Replication/Abstractions` next to `IOwnershipDistributionStrategy` |
+| D-6 | strategy input | `GrantRequest { DISEntityType, TkbTemplate?, MasterNodeId }` — the template is needed for G-4; the creator already holds it (`CreateEntityRequestSystem.cs:277`) |
+| D-7 | the creator's claim | ALL at create (role policy retired as ownership); the yield removes granted groups. `IRoleAffinityPolicy.RegisterComponentSet` stays (registration is a different concern) |
+
+### 5.6 Build order *(each step green before the next; feature suites first — T-1)*
+
+| step | items (Q79 §0.13) | proven by |
+|---|---|---|
+| S1 | `OwnershipGroup`/`Table`, `DescriptorOwnershipMap.BindGroups` + boot validation (every descriptor in exactly one group or CREATOR); F-2 mappings | `HrotRoleComponentSetsTests` (rewritten), a new table rail |
+| S2 | composition on every host (`CE-509`), yield ungated (`CE-508`) | `SplitAuthoritySpawnTests` |
+| S3 | `RoleGroupOwnershipStrategy` (B3) | strategy rails; `CE-500` rail (SimHost creates, CGF publishes `NavigationIntent`) |
+| S4 | retire the promote-leg claim (B4); creator claims all (D-7) | §10 probe as a rail: no component claimed by two nodes, every creation path |
+| S5 | `OwnershipApplier` extraction + `OwnershipRecomputeSystem` + `OutgoingGrantsPending` (B5) | `MasterOnly` transfer rail; F7 timeline rail |
+| S6 | parts: gate lookup, part claims, per-instance apply, `PartMetadata.DescriptorOrdinal` removed, `CE-507` (B6) | EQS suites |
+| S7 | `PartialOwnerReclaim` (B7) with the P10 guard | crash rail (kill a Muscle process) |
+| S8 | `HealthApplicationSystem` gate (`CE-510`); ingress skip-when-owned for group descriptors (F-5) | damage rail on a SimHost-created entity |
