@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S8 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 ✅ after §5.8 (the brain names each EQS sensor's solver, R-179; live 48/48 results); S8 ✅ (CE-523 damage on SimHost/IG-created entities, F-5 ingress skip incl. the F7 handover race, CE-3001).
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S8 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E4/E6 routed edits ✅ (CE-3003), E7 ✅ after §5.8 (the brain names each EQS sensor's solver, R-179; live 48/48 results); S8 ✅ (CE-523 damage on SimHost/IG-created entities, F-5 ingress skip incl. the F7 handover race, CE-3001).
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -487,9 +487,9 @@ Driven over HTTP only (`create-request`, `/ownership` from SimHost, IG and Scena
 | E1 IG tank | ✅ | Brain → CGF · MuscleGround + Perception → SimHost · rest → IG; a `MoveToLocation` task moved it to its target (+80, +60 m) identically on all three nodes |
 | E2 SimHost tank | ✅ | Brain → CGF · rest SimHost; ⭐ `CE-500` closed live: the CGF brain drove a SimHost-created tank to its target |
 | E3 CGF tank | ✅ | Brain + rest → CGF · MuscleGround + Perception → SimHost; moved |
-| E4 CGF area symbol | ✅ ownership · ⛔ edit not drivable | everything on CGF; the routed edit needs prerequisite 4 |
+| E4 CGF area symbol | ✅ ownership · ✅ routed edit *(after prerequisite 4, `CE-3003`)* | everything on CGF; an IG `POST /entities/201/attribute {"Heading":45}` answered `write.route: requested` (requested `EntityInfo`, `SimTransform`; applied none locally) and the rotation changed to `[0,0,0.383,0.924]` on SimHost, CGF **and** IG |
 | E5 CGF platoon | ✅ | everything on CGF, never granted to a MuscleGround node; position unchanged over 6.6 s sim on all nodes |
-| E6 IG area symbol | ✅ ownership · ⛔ edit not drivable | everything on IG; as E4 |
+| E6 IG area symbol | ✅ ownership · ✅ routed edit *(`CE-3003`)* | everything on IG; a CGF (`Scenario` perspective) patch of entity 101 answered `requested` and the rotation changed to `[0,0,-0.383,0.924]` on all three nodes. ⚠ the state dump showed `Name` as none on every node before and after — the rotation is the evidence, the name readback was not investigated |
 | E7 EQS parts (`hill-attack`, CGF-created) | ✅ *(re-run after §5.8)* · first run 🔴 `CE-3002` | the platoon commander (tkb 303, brain, no vision sensors) runs EQS child sensor 1: config part `(95,1)` → CGF; result part `(96,1)` → SimHost on CGF **and** SimHost (the brain named SimHost as solver; `claimMatchesRecord` true on both; IG holds no EQS part). SimHost `EqsResult` egress **sent 48**, CGF ingress **received 48** over ~20 s sim (first run: **0** — the result part fell back to CGF because G-4 granted no Perception group to a sensorless brain, and S6's gate (F-12) suppressed SimHost's publish) |
 | E8 | not run | needs the multi-process launch |
 
