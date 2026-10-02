@@ -1,14 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — decisions C-1 … C-4 await the user (§4). Nothing is built.
+build-state: BUILDING — C-1 … C-4 APPROVED by the user 2026-10-02 ("Approved"). Slice 1 BUILT (§5 box); slices 2–4 next.
 current-answer: §4 (the four decisions, each with a lean) and §5 (slices).
 stale-below: nothing.
 known-rot: none.
 known-conflict: Architect_Question_41_Blueprint_Driving_BTree_Params.md §6 — "the FourParamFull shape stays; B2 is
   built on it". C-3 proposes retiring FourParamFull as an ASSET-BINDING shape because B2's basis (TryGetShared) was
-  removed by CE-440 and B2 was never built (§2 row S5). ⚠ Q41 is user-approved; this conflict is resolved only if the
-  user approves C-3. The kernel's own NodeLogicDelegate (curated trees) is NOT affected either way.
+  removed by CE-440 and B2 was never built (§2 row S5). ✅ RESOLVED 2026-10-02: the user approved C-3, which
+  supersedes Q41 §6 for asset bindings. The kernel's own NodeLogicDelegate (curated trees) is NOT affected either way.
 related-designs:
   - DESIGN_Behavior_Action_Binding.md — owns the ONE binding record (CE-417) and decision B-5 (DelegateShape stays a
     BTree-side field). This document decides what that field is FOR, and proposes deriving it (C-1).
@@ -129,7 +129,7 @@ graph TD
 *Caption:* the red node is what C-1 removes. The curated subgraph is the blast radius prose kept hiding — the same
 methods are bound a second way, through the fluent builder, so a signature change must land there too (C-4).
 
-## 4. Decisions *(each with a lean; the user decides)*
+## 4. Decisions — ✅ ALL FOUR APPROVED as leaned (user, `2026-10-02`: *"Approved"*)
 
 | | decision | ⚖️ lean | rejected (one line each) |
 |---|---|---|---|
@@ -147,10 +147,19 @@ filed separately when wanted.
 
 | # | slice | moves |
 |---|---|---|
-| 1 | **C-1** classifier (one rule, generator + editor) · validator and emitter dispatch on it · stop writing `DelegateShape` · rail: every corpus binding classifies to its persisted shape *(the equivalence that makes dropping the field safe)* | `btree-persistence-shape.txt`; ⛔ no emitted source |
+| 1 | ✅ **C-1** classifier (one rule, generator + editor) · validator and emitter dispatch on it · stop writing `DelegateShape` · rail: every corpus binding classifies to its persisted shape *(the equivalence that makes dropping the field safe)* | `btree-persistence-shape.txt`; ⛔ no emitted source |
 | 2 | **C-2 accept** — BTree emits the stateful and param-less `(…, Entity, EntityRepository)` calls; `C-4` adapter overloads | additive; no golden |
 | 3 | **C-2/C-3 migrate** — the 30 methods + 12 deactivators + `Action_Wander`; curated sites onto the adapters | BTree goldens (call text); `Hrot.AI.Behaviors` |
 | 4 | **retire** — the 3-param/4-param BTree author paths (`ReusableStatefulActionDelegate`, the registrar's 3-param adapter, the validator's three BTree checks, `BTreeActionDelegateShape`/`BTreeDelegateShapeDto`) | deletions |
+
+> ⭐⭐ **Slice 1 AS-BUILT (`2026-10-02`) — C-1, the shape is derived.**
+> | | |
+> |---|---|
+> | **the rule** | `BTreeCallShapes` (Persistence): `FromSignature(params)` maps each distinct parameter list to its shape — `(ref P, ref BTS, ref Ctx)` and `[SharedAi*]` `(ref P, Entity, Repo)` → plain; `(ref P, ref WS, ref BTS, ref Ctx)` → stateful; `(ref TBB, ref BTS, ref Ctx, int)` → full; `(ref P, ref WS, Entity, Repo, float)` → blueprint call. `Classify` puts a blueprint id first. `Apply(dto, signatureOf)` sets every node; an unclassifiable method keeps the default, so the validator still reports `BTREE0002` |
+> | **two signature sources, one rule** | generator: `RoslynCallSignatures` (a generated `…_Bp.TickCore` the compilation cannot see is recognised by the validator's own naming convention), called once in `BTreeJsonGenerator` after the 4c method derivation. Editor and tests: `BTreeCallShapes.ReflectionSignatures` / `LoadedAssemblySignatures` |
+> | **editor** | `BTreeCallShapeResolver`: on open (`BTreeDocumentFactory`, not a heal — nothing persisted moves), on an inspector pick (`BTreeFacetMapper.ApplyShape`) and on a palette drop (`BTreeCommandSink`). A method this process cannot resolve keeps the node's shape |
+> | **format** | `DelegateShape` is `[JsonIgnore]` on both DTOs; stripped from all 25 corpus files (40 lines); the v1→v2 migrator now drops it. ⭐ Emitted source unchanged (every generated-source golden green without regeneration); only `btree-persistence-shape.txt` moved — 18 files, each smaller by exactly its removed entries |
+> | **rails** | `BTreeCallShapeTests` (Persistence, 4): all 40 corpus bindings classify to the shape their files recorded — the table was captured from the files by a script independent of the classifier, before the field was removed. `BTreeCallShapeEditorTests` (BTree editor, 3): a stateful pick makes the node stateful (S6, red before this slice); open derives; an unresolvable method keeps its shape. `ActionBindingMigrationTests` rule renamed to "the payload's DelegateShape is dropped". 🔴 Red-proved by mutation: classifier maps stateful → plain ⇒ the corpus rail reddens; the pick's derive arm removed ⇒ the editor rail reddens; the generator's `Apply` call removed ⇒ the real `Hrot.AI.Behaviors` build skips every non-plain binding (`BTREE0002`) and fails to compile |
 
 **Rails owed:** classifier = persisted shape for every corpus binding (slice 1, then deleted with the field) · the editor
 authors a stateful binding by a pick (red today, S6) · each migrated method's behaviour unchanged through its feature

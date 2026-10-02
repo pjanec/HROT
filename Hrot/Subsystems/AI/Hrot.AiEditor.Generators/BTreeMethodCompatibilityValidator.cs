@@ -685,7 +685,7 @@ internal static class BTreeMethodCompatibilityValidator
     /// (there should be exactly one for BTree action/condition methods, which are
     /// static and not overloaded).
     /// </summary>
-    private static IMethodSymbol? ResolveMethod(Compilation compilation, string methodFqn)
+    internal static IMethodSymbol? ResolveMethod(Compilation compilation, string methodFqn)
     {
         if (string.IsNullOrEmpty(methodFqn))
             return null;

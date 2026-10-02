@@ -32,7 +32,6 @@
         "ExpressionTargetField": "bpParams",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb320000-0000-0000-0000-000000000002",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedGeneratedBlueprint",

@@ -136,6 +136,11 @@ public static class BTreeDocumentFactory
             btAsset.MarkDirty();
         }
 
+        // ⭐⭐ CE-504 C-1 — the call shape is derived from each bound method (it is no longer in the file). Not a heal:
+        //   nothing persisted changes, so no MarkDirty.
+        Hrot.BTree.Editor.Model.BTreeCallShapeResolver.Resolve(
+            btAsset, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures());
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         var graphModel = new BTreeGraphModel(btAsset);
 

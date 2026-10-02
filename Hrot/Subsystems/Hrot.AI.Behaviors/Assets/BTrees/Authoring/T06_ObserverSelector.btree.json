@@ -45,7 +45,6 @@
 			"Action": {
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"
 			},
-			"DelegateShape": "FourParamFull",
 			"VisualId": "b7030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wander",

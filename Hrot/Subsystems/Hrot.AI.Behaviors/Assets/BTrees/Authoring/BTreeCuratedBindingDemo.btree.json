@@ -46,7 +46,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
         "ExpressionTargetField": "varA"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "bb000417-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "ReadRegionParams (varA)",
@@ -64,7 +63,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
         "ExpressionTargetField": "varB"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "bb000417-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "ReadRegionParams (varB)",

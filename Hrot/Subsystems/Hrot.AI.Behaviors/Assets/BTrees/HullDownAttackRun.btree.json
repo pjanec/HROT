@@ -78,7 +78,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "2b000000-0000-0000-0000-0000000000a1",
 			"ChildVisualIds": [],
 			"DisplayLabel": "CreepToAndBeyondSlot",
@@ -96,7 +95,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "2b000000-0000-0000-0000-0000000000a2",
 			"ChildVisualIds": [],
 			"DisplayLabel": "AimAndFireSpecific",
@@ -114,7 +112,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "2b000000-0000-0000-0000-0000000000a3",
 			"ChildVisualIds": [],
 			"DisplayLabel": "AbortEngagement",
@@ -132,7 +129,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "2b000000-0000-0000-0000-0000000000a4",
 			"ChildVisualIds": [],
 			"DisplayLabel": "ReverseToBaseline",

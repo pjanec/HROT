@@ -46,7 +46,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
 				"ExpressionTargetField": "counter"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "bb030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Action_IncrementCounter (node A)",
@@ -64,7 +63,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
 				"ExpressionTargetField": "counter"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "bb040000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Action_IncrementCounter (node B)",

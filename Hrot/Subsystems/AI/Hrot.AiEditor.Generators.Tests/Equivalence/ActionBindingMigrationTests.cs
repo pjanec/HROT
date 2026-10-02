@@ -57,7 +57,7 @@ public sealed class ActionBindingMigrationTests
     // ── the rules, one each ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public void BTree_DelegateShapeMovesToTheNode_AndThePayloadIsTheBinding()
+    public void BTree_ThePayloadIsTheBinding_AndItsDelegateShapeIsDropped()
     {
         var dto = BTreeJsonServices.Deserialize("""
             { "$meta": { "schemaVersion": 1 }, "Nodes": [
@@ -69,13 +69,15 @@ public sealed class ActionBindingMigrationTests
             """)!;
 
         var act = dto.Nodes.OfType<BTreeActionNodeDto>().Single();
-        act.DelegateShape.Should().Be(BTreeDelegateShapeDto.ThreeParamReusableStateful);
+        // ⭐ CE-504 C-1 — the shape is derived from the method, not carried over from the file.
+        act.DelegateShape.Should().Be(default(BTreeDelegateShapeDto));
+        BTreeJsonServices.Serialize(dto).Should().NotContain("DelegateShape");
         act.Action!.MethodFqn.Should().Be("N.C.M");
         act.Action.ExpressionTargetField.Should().Be("v");
         act.Action.WorkingStateTypeId.Should().Be("N.WS");
 
         var cond = dto.Nodes.OfType<BTreeConditionNodeDto>().Single();
-        cond.DelegateShape.Should().Be(BTreeDelegateShapeDto.AiPrimitiveTickCore);
+        cond.DelegateShape.Should().Be(default(BTreeDelegateShapeDto));
         cond.Condition!.MethodFqn.Should().BeNull("v1 wrote an absent method as \"\"; v2 omits it");
     }
 

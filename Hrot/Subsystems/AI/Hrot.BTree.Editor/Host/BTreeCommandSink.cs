@@ -188,6 +188,14 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                     node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
                 }
             }
+
+            // ⭐⭐ CE-504 C-1 — a dropped C# method takes the shape its signature implies (composed blueprints set theirs
+            //   above; the classifier agrees with them).
+            if (node.DelegateShape != BTreeActionDelegateShape.AiPrimitiveTickCore &&
+                Hrot.BTree.Editor.Model.BTreeCallShapeResolver.ShapeOf(
+                    isCond ? node.Condition : node.Action,
+                    Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures()) is { } shape)
+                node.DelegateShape = shape;
         }
         else
         {

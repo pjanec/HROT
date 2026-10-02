@@ -48,7 +48,6 @@
         "ExpressionTargetField": "cursorA",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
       },
-      "DelegateShape": "ThreeParamReusableStateful",
       "VisualId": "bb200000-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_AdvanceCursor_A",
@@ -67,7 +66,6 @@
         "ExpressionTargetField": "cursorB",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
       },
-      "DelegateShape": "ThreeParamReusableStateful",
       "VisualId": "bb200000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_AdvanceCursor_B",
@@ -85,7 +83,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
         "ExpressionTargetField": "counter"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "bb200000-0000-0000-0000-000000000005",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_IncrementCounter",

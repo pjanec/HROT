@@ -32,7 +32,6 @@
         "ExpressionTargetField": "bpParams",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb330000-0000-0000-0000-000000000011",
       "ChildVisualIds": [],
       "DisplayLabel": "ParamDemo",
