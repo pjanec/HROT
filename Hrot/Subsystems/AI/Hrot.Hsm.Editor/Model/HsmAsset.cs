@@ -32,6 +32,12 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// </summary>
     public string BlackboardTypeName { get; set; }
 
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20/§12.27g), or <c>null</c>: the record a BTree binds
+    /// too. ⚠ Must round-trip through <c>HsmAssetMapper</c>.
+    /// </summary>
+    public BehaviorResolverRef? Resolver { get; set; }
+
     // Kernel-side data (mutable via UpdateBlob for PU-302 stitch; read-only otherwise)
     private HsmDefinitionBlob _blob;
     private MachineMetadata _metadata;

@@ -97,6 +97,7 @@ public sealed class HsmValidator
         CheckSubtreeAssetCycles(asset, diagnostics);
         CheckSubtreeReferenceDangling(asset, diagnostics);
         CheckMethodAndBlueprintBothBound(asset, diagnostics);
+        CheckResolverShape(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -303,6 +304,27 @@ public sealed class HsmValidator
     /// field: <c>CE-385</c> deliberately stopped at <c>TransitionNodeDto</c>, mirroring the DTO the
     /// emitter reads. ⚠ If a global ever gains one, this rule gains a third arm.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — a bound resolver whose recorded shape hash no longer matches this HSM's block (the BTree's
+    /// <c>CheckResolverShape</c>, over the SAME shape: the HSM's <c>BlackboardOwner</c> view). ⚠ A hash of <c>0</c> was never
+    /// recorded (a hand-authored ref) — nothing to compare.
+    /// </summary>
+    private static void CheckResolverShape(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (asset.Resolver is not { ShapeHash: not 0 } r) return;
+        uint now = Hrot.AiEditor.Persistence.Emit.BehaviorResolverShape.Of(
+            Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.BlackboardOwner(
+                global::Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(asset))).ShapeHash;
+        if (now == r.ShapeHash) return;
+
+        out_.Add(new HsmDiagnostic(
+            HsmDiagnosticCode.ResolverOutOfDate,
+            HsmDiagnosticSeverity.Warning,
+            $"Resolver '{r.Name}' was derived for a different blackboard than this behaviour now has. "
+            + "Re-derive it, pick another resolver, or clear the binding.",
+            Array.Empty<Guid>()));
+    }
+
     private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
     {
         foreach (var s in asset.AllStates)

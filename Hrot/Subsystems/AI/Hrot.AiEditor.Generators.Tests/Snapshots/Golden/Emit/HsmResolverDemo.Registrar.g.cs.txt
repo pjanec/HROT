@@ -1,0 +1,102 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000503-0000-0000-0000-000000000001
+
+#nullable enable
+
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[BlueprintRegistrar]
+public static class HsmResolverDemoRegistrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned HSM definition and action/guard thunks.
+    /// HsmActionDispatcher is a static class and is called STATICALLY (§14 item 4).
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging)
+    {
+        // Compile the blob from the topology-core thunk.
+        var blob = HsmResolverDemo.Compile();
+
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
+        global::Fdp.Toolkit.Behavior.ResolveStageDelegate? __resolveStage;
+        global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
+        unsafe
+        {
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
+            {
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<float>("3", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
+            }
+            __bakeDefaults = __BakeDefaults;
+            // CE-443: the resolver asset 'HsmResolverDemoResolver', handed the SOURCE (R-155).
+            static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
+            {
+                if (capacity < sizeof(global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block))
+                    throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than HsmResolverDemo's block — a stale layout.");
+                global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.ParseAuthored(json, out var __authored);
+                global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block>(memory), world, self);
+            }
+            static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
+            {
+                if (capacity < sizeof(global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block))
+                    throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than HsmResolverDemo's block — a stale layout.");
+                global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params __authored;
+                if (source == null) global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.ParseAuthored(null, out __authored);
+                else
+                {
+                    if (sourceBytes != sizeof(global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params))
+                        throw new global::System.InvalidOperationException($"CE-443: the host variable bound to 'HsmResolverDemo' is {sourceBytes} bytes but its resolver's authored Params is {sizeof(global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params)}. The bound variable must be that type.");
+                    __authored = *(global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params*)source;
+                }
+                global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block>(memory), world, self);
+            }
+            __resolveStage = __ResolveStage;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
+
+                // Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).
+                __ResolveRoot(json, memory, capacity, world, self);
+            };
+        }
+
+        // Register the JSON-owned HSM definition.
+        beh.Register(1305886842, "HsmResolverDemo", new BehaviorDefinition
+        {
+            Name          = "HsmResolverDemo",
+            BrainTier     = BehaviorConstants.BrainTierHsm,
+            HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
+            BlueprintStructureHash = 17798118677809526791UL,   // CE-455: the root block's layout
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("Speed", typeof(float), 0),
+            },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Generated.HsmResolverDemoResolver_CCD63EE7_Bp.Params),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block),
+            ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
+            ResolveStage = __resolveStage,
+            ResolverName = "HsmResolverDemoResolver",
+        });
+    }
+}

@@ -483,7 +483,7 @@ public sealed class BTreeMapperRoundTripTests
         var dto = new BehaviorTreeAssetDto
         {
             AssetId = Guid.NewGuid(), Name = "RoundTrip",
-            Resolver = new BTreeResolverRefDto { AssetId = Guid.Parse("00000428-0000-0000-0000-000000000001"), Name = "T40Resolver" },
+            Resolver = new BehaviorResolverRefDto { AssetId = Guid.Parse("00000428-0000-0000-0000-000000000001"), Name = "T40Resolver" },
         };
         dto.Nodes.Add(new BTreeSubtreeNodeDto
         {

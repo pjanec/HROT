@@ -2676,7 +2676,7 @@ its diagrams and the as-built-vs-target table. This section records only what it
 | `Role=State, Scope=Behavior` | ✅ in the block's `St` (`CE-437`; `TryGetBlockStateVariable` drops the side slot) | ⚠ its OWN `EmitStatefulWorkingSlotsArray` — side slots (`E1`, written when BTree did the same) |
 | `JsonParamsDtoType` / `BlackboardLayoutType` / `BakeDefaults` | ✅ | ⛔ none (`CE-235`'s comment: *"no struct to name"*) |
 | `BlueprintStructureHash` | ✅ Inputs + State | ⚠ Inputs only (`CE-455`) |
-| resolver asset (`CE-428`) | ✅ `BehaviorTreeAssetDto.Resolver` | ⛔ no DTO field — ⏭ out of this slice (needs the editor picker); a curated `[BehaviorResolver]` already overlays any tier |
+| resolver asset (`CE-428`) | ✅ `BehaviorTreeAssetDto.Resolver` | ✅ `HsmAssetDto.Resolver` — **`CE-503`, §12.27g** *(was: no DTO field)* |
 
 📐 **Runtime readers of HSM State, measured:** the corpus has exactly two HSM assets with `Role=State` — `HsmOrthogonalRegions`
 (`SharedCursor`) and `HsmVariableShowcase` (`Cursor`, `Ticks`) — and every state that hosts an action runs `CgfHsmNodes.StubIdle`.
@@ -2782,6 +2782,57 @@ choice mirrored the BTree of its day, and the BTree has since moved (`CE-437`).
   runs the shared emission for an HSM) · `HsmGoldenCorpusTests.TheSeededCorpusPutsTheStateBlockInTheBaseline`.
 - ⏭ Not in this slice: the HSM resolver-asset binding (`CE-428`'s shape ③ for HSM — a DTO field + the editor picker).
 
+
+#### 12.27g ✅ `CE-503` — **AN HSM BINDS A RESOLVER ASSET** *(as built `2026-10-02`; closes 12.27a's last row)*
+
+> ⭐ The 12.27a row said *"no DTO field — needs the editor picker"*. 📐 Measured `2026-10-02`: the BTree's *"picker"* (`CE-434`)
+> is a UI-FREE service, `BehaviorResolverAuthoring`, with **no production caller** — no window calls it for a BTree either.
+> ⇒ the HSM needs the SAME pieces the BTree has, not a UI the BTree lacks; the window wiring stays the open UI item it already
+> was (`CE-434`'s "NOT built" row), now for both hosts.
+
+```mermaid
+classDiagram
+    class BehaviorResolverRefDto {
+        <<renamed: was BTreeResolverRefDto>>
+        +AssetId Guid
+        +Name string
+        +ShapeHash uint
+    }
+    class BehaviorResolverRef {
+        <<renamed+moved to AiShared: was BTreeResolverRef>>
+    }
+    class BehaviorTreeAssetDto { +Resolver }
+    class HsmAssetDto { +Resolver NEW }
+    class HsmBridgeEmitCore {
+        +BlackboardOwner(HsmAssetDto) BehaviorTreeAssetDto
+    }
+    class BTreeBridgeEmitCore {
+        <<exists - resolve stage, unchanged>>
+    }
+    class BehaviorResolverShape { +Of(BehaviorTreeAssetDto) }
+    class BehaviorResolverAuthoring {
+        +Create/Rederive/Bind/Clear BTree
+        +Create/Rederive/Bind/Clear HSM NEW
+    }
+    BehaviorTreeAssetDto --> BehaviorResolverRefDto
+    HsmAssetDto --> BehaviorResolverRefDto
+    HsmBridgeEmitCore ..> BehaviorTreeAssetDto : view carries Resolver NEW
+    BTreeBridgeEmitCore ..> BehaviorTreeAssetDto : HasResolver ⇒ __ResolveStage
+    BehaviorResolverAuthoring ..> BehaviorResolverShape
+    BehaviorResolverAuthoring ..> HsmBridgeEmitCore : HSM overloads take the view
+```
+*Caption:* the HSM gains ONE edge — its owner view forwards `Resolver` — and everything right of it (the resolve stage, the
+shape hash, the derivation) is the BTree's own code. ⭐ That is why there is no second implementation to keep in step.
+
+| | |
+|---|---|
+| **file format** | `HsmAssetDto.Resolver` (`BehaviorResolverRefDto`, omitted when null ⇒ every shipped HSM byte-identical) |
+| **one record, two hosts** | `BTreeResolverRefDto` → `BehaviorResolverRefDto` and `BTreeResolverRef` → `BehaviorResolverRef` (renamed by **Roslyn**, 3+3 files, grep 0 after); the model record moved to `Hrot.Editor.AiShared` so the HSM editor can hold it |
+| **emit** | `HsmBridgeEmitCore.BlackboardOwner` forwards `Resolver` — the registrar then emits `__ResolveRoot`/`__ResolveStage` and publishes `ResolveStage` + `ResolverName`, unchanged |
+| **editor** | `HsmAsset.Resolver` + `HsmAssetMapper` both ways · `HsmValidator.CheckResolverShape` → `HsmDiagnosticCode.ResolverOutOfDate` (WARNING; the compile is the backstop) over the SAME shape hash · `BehaviorResolverAuthoring` HSM overloads (Create/Rederive/Bind/Clear) through the owner view |
+| **demo** | `HsmResolverDemo.hsm.json` (Input `Speed` = 3, State `Doubled`) + `HsmResolverDemoResolver.bp.json` (`T40Resolver`'s graph with its own ids; pin ids recomputed with `DeterministicIds.PinId`) |
+| **rails** | `HsmResolverDemo_ProofTests` ×3 (REAL scan + ingress: resolver writes both halves 2.5 → 5/10 · defaults 3/6 · definition names it, a curated one on top throws `R-149`) · `BehaviorResolverAuthoringTests.CE503_*` ×2 (derived subject == the shipped resolver's · bind round-trips through the mapper and goes out of date on a block change). 🔴 Red-proved in the commit |
+| ⏭ **still open** | the window/menu that calls `BehaviorResolverAuthoring` — for BOTH hosts (UI lane, as `CE-434` recorded) |
 
 ### 12.28 ⭐⭐⭐ `CE-439` BUILD DESIGN — **author and emit the hosted-subtree params binding, on both hosts** *(`2026-10-01`)*
 

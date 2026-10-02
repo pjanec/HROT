@@ -192,7 +192,7 @@ public sealed class BTreeWaitPayloadDto
 /// whose one <c>Construction</c> graph refines this behaviour's block after bake + supply. ⭐ The behaviour
 /// names the resolver (<c>R-149</c>); the resolver's <c>ResolverSubject</c> back-reference is derived.
 /// </summary>
-public sealed class BTreeResolverRefDto
+public sealed class BehaviorResolverRefDto
 {
     public Guid AssetId { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -338,7 +338,7 @@ public sealed class BehaviorTreeAssetDto
 
     /// <summary>⭐ <c>CE-428</c> — the bound resolver asset, or <c>null</c> (the common case: no resolve stage).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public BTreeResolverRefDto? Resolver { get; set; }
+    public BehaviorResolverRefDto? Resolver { get; set; }
     public List<BTreePillDto> Pills { get; set; } = new();
 
     // ── Canvas layout ─────────────────────────────────────────────────────────

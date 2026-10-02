@@ -8,6 +8,9 @@ using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.BTree.Editor.Persistence;
 using Hrot.BTree.Editor.Validation;
+using Hrot.AiEditor.Persistence.Hsm;
+using Hrot.Hsm.Editor.Persistence;
+using Hrot.Hsm.Editor.Validation;
 using Hrot.Editor.AiComposition;
 using Xunit;
 
@@ -136,5 +139,56 @@ public sealed class BehaviorResolverAuthoringTests
         var plain = new BlueprintAsset { Name = "Plain", Dispatch = BlueprintDispatchKind.Library };
 
         Assert.Equal(new[] { mine }, BehaviorResolverAuthoring.Candidates(new[] { mine, other, plain }, "Beh"));
+    }
+
+    // ── ⭐ CE-503 — the HSM binds a resolver through the SAME derivation (its BlackboardOwner view) ─────────────────────
+
+    private static HsmAssetDto LoadHsmDemo() => HsmJsonServices.Deserialize(File.ReadAllText(RepoFile(
+        "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "HSMs", "HsmResolverDemo.hsm.json")))!;
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-503 — the strong one, for the HSM: deriving a resolver from the SHIPPED <c>HsmResolverDemo</c> yields exactly the
+    /// subject the shipped <c>HsmResolverDemoResolver</c> declares — and that one compiles against the GENERATED HSM block in
+    /// the real build. ⇒ the HSM overloads derive names the HSM generator actually emits.
+    /// </summary>
+    [Fact]
+    public void CE503_DerivingFromTheShippedHsm_MatchesTheShippedResolversSubject()
+    {
+        var derived = BehaviorResolverAuthoring.Create(LoadHsmDemo(), Guid.NewGuid()).ResolverSubject!;
+        var shipped = BlueprintJsonServices.Deserialize(File.ReadAllText(RepoFile(
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "HsmResolverDemoResolver.bp.json")))!.ResolverSubject!;
+
+        Assert.Equal(shipped.BehaviorName,   derived.BehaviorName);
+        Assert.Equal(shipped.BlockTypeId,    derived.BlockTypeId);
+        Assert.Equal(shipped.StateVariables, derived.StateVariables);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-503 — bind records the hash and survives an editor round-trip (an editor save must not unbind it); a changed
+    /// block raises <see cref="HsmDiagnosticCode.ResolverOutOfDate"/> as a WARNING; clear removes it.
+    /// <para>✅ Red-proof: drop the resolver from <c>HsmAssetMapper.ToDto</c> ⇒ the round-trip assertion reddens.</para>
+    /// </summary>
+    [Fact]
+    public void CE503_AnHsmBinding_RoundTrips_AndGoesOutOfDate_WhenTheBlockChanges()
+    {
+        var dto = LoadHsmDemo();
+        dto.Resolver = null;
+        var model = HsmAssetMapper.FromDto(dto);
+        var bp = BehaviorResolverAuthoring.Create(dto, Guid.NewGuid());
+        BehaviorResolverAuthoring.Bind(model, dto, bp);
+
+        var again = HsmAssetMapper.FromDto(HsmAssetMapper.ToDto(model));
+        Assert.Equal(model.Resolver, again.Resolver);
+        Assert.NotEqual(0u, again.Resolver!.ShapeHash);
+        Assert.DoesNotContain(new HsmValidator().Validate(again), d => d.Code == HsmDiagnosticCode.ResolverOutOfDate);
+
+        var changed = HsmAssetMapper.ToDto(again);
+        changed.Blackboard.Variables[0].Type!.TypeId = "System.Double";
+        var changedModel = HsmAssetMapper.FromDto(changed);
+        var diag = Assert.Single(new HsmValidator().Validate(changedModel), d => d.Code == HsmDiagnosticCode.ResolverOutOfDate);
+        Assert.Equal(HsmDiagnosticSeverity.Warning, diag.Severity);
+
+        BehaviorResolverAuthoring.Clear(changedModel);
+        Assert.DoesNotContain(new HsmValidator().Validate(changedModel), d => d.Code == HsmDiagnosticCode.ResolverOutOfDate);
     }
 }
