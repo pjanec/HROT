@@ -14,6 +14,9 @@ internal static class InstanceLowering
         // graph's CURRENT entry block and WaitLowering repoints Entry at its dispatch block.
         asset = LocalStorage.PromoteSuspendingGraphLocals(asset);
 
+        // ⭐ S6a — a behaviour's suspending Event graph becomes a fiber with its own cursor and saved inputs.
+        asset = Fibers.Assign(asset);
+
         var newGraphs = new List<IrGraph>(asset.Graphs.Count);
         foreach (var graph in asset.Graphs)
             newGraphs.Add(LocalStorage.CanSuspend(graph) ? WaitLowering_Instance.Apply(graph, BehaviorDispatch.IsTickGraph(asset, graph)) : graph);

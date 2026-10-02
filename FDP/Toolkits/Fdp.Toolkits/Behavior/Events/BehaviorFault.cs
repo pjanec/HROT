@@ -31,6 +31,9 @@ namespace Fdp.Toolkit.Behavior.Events
         NoDefinition    = 3,
         /// <summary>A behaviour-owned part could not be given a unique identity.</summary>
         PartIdCollision = 4,
+        /// <summary>⭐ S6a — an event arrived for a blueprint Event graph whose fiber is still waiting. U-6: never dropped
+        /// silently (<c>DESIGN_Unified_Behaviour_Run</c> §4a).</summary>
+        EventOverflow   = 5,
         /// <summary>First code free for behaviour-specific faults.</summary>
         Custom          = 1000,
     }

@@ -70,6 +70,13 @@ public sealed record IrGraph
     /// </summary>
     public string? LocalSlotPrefix { get; init; }
 
+    /// <summary>
+    /// ⭐ S6a (<c>DESIGN_Unified_Behaviour_Run</c> §4a) — the execution-state field holding this graph's OWN latent cursor
+    /// when it is a fiber of its own (a suspending Event graph of a behaviour). ⛔ <c>null</c> = the shared <c>Cursor</c>,
+    /// which the Tick graph keeps, so every existing asset is byte-identical. Read through <c>Fibers.CursorOf</c>.
+    /// </summary>
+    public string? CursorField { get; init; }
+
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
     public IrBlockId Entry { get; init; }
     /// <summary>

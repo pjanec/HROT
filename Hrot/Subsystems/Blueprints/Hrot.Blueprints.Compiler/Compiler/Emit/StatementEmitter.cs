@@ -813,10 +813,10 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_CheckCursorVersion:
-                e.WriteLine($"if ({ctx.ExecVar}.Cursor.InstanceVersion != instanceVersion)");
+                e.WriteLine($"if ({ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.InstanceVersion != instanceVersion)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"{ctx.ExecVar}.Cursor.ResumeAt = 0;");
+                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt = 0;");
                 // ⭐ CE-446: a stale cursor in a behaviour Tick restarts it next frame — still Running.
                 e.WriteLine(e.Ctx.IsBehaviorTick ? EmissionContext.ReturnRunning : "return;");
                 e.Outdent();
@@ -848,23 +848,23 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_WriteCursorResumeAt op:
-                e.WriteLine($"{ctx.ExecVar}.Cursor.ResumeAt = {op.ResumeAtValue};");
+                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt = {op.ResumeAtValue};");
                 break;
 
             case IrOp_ReadCursorResumeAt:
-                if (idx >= 0) e.WriteLine($"uint __t{idx} = {ctx.ExecVar}.Cursor.ResumeAt;");
+                if (idx >= 0) e.WriteLine($"uint __t{idx} = {ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.ResumeAt;");
                 break;
 
             case IrOp_WriteCursorInstanceVersion:
-                e.WriteLine($"{ctx.ExecVar}.Cursor.InstanceVersion = instanceVersion;");
+                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.InstanceVersion = instanceVersion;");
                 break;
 
             case IrOp_WriteCursorWaitUntilTime op:
-                e.WriteLine($"{ctx.ExecVar}.Cursor.WaitUntilTime = __t{op.Seconds.Index};");
+                e.WriteLine($"{ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.WaitUntilTime = __t{op.Seconds.Index};");
                 break;
 
             case IrOp_ReadCursorWaitUntilTime:
-                if (idx >= 0) e.WriteLine($"float __t{idx} = {ctx.ExecVar}.Cursor.WaitUntilTime;");
+                if (idx >= 0) e.WriteLine($"float __t{idx} = {ctx.ExecVar}.{Lowering.Fibers.CursorOf(ctx.CurrentGraph)}.WaitUntilTime;");
                 break;
 
             // ------------------------------------------------------------------
