@@ -68,6 +68,25 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     }
 
     /// <summary>
+    /// ⭐⭐ <b>S3</b> (<c>DESIGN_Unified_Behaviour_Run</c> §4) — a shipped BLUEPRINT behaviour advertises its Parameters
+    /// exactly like a BTree/HSM one: the schema is its <c>Params</c> struct (the block's <c>In</c>), and it joins the
+    /// generated-block set the two rails below sweep. ✅ Red-proof: without S3's registrar lines the schema is empty.
+    /// </summary>
+    [Fact]
+    public void ABlueprintBehaviourAdvertisesItsParameters()
+    {
+        BehaviorDefinition def = Definition(LoadProductionRegistry(), "PlatoonHillAttackBp");
+
+        Assert.True(IsGeneratedBlock(def));
+        Assert.Equal(
+            new[] { "FiringLineStart", "FiringLineEnd", "BaselineStart", "BaselineEnd", "TankSpacing", "TargetAreaNetworkId" },
+            PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+        Assert.Equal(
+            def.ManagedBlackboardVariables!.Select(v => v.Name).ToArray(),
+            PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+    }
+
+    /// <summary>
     /// ⭐ A generated behaviour's layout is its <c>{Asset}_Block</c> and the block's <c>In</c> field is
     /// the published params struct — the shape <c>CE-437</c> emits. Everything that must only look at
     /// the Inputs half filters on this, rather than on the two members being the same type.
