@@ -409,7 +409,7 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "{ networkId, ... } for the created entity, or a 400 on a malformed body.",
     "notes": [
-      "CE-271 seam ⑤: unlike POST /entities/spawn (a raw SpawnEntityCommand), this uses the create-request pipeline, so routing and the auto-takeover grant both run."
+      "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', there 'this node'."
     ],
     "hint": "Req: tkbType (long). Unlike spawn_entity this goes through the create-request pipeline. Example: create_entity_request({tkbType:123, ownerNodeId:1})",
     "manualVerify": false
@@ -1244,13 +1244,13 @@ export const TOOLS_CATALOG = [
         "name": "ownerNodeId",
         "type": "number",
         "required": false,
-        "description": "This node's id ⇒ the host becomes the CREATOR (claims authority); 0 ⇒ no authority"
+        "description": "0 (default) or this node's id ⇒ this node creates and owns it (and grants role groups); another node's id ⇒ routed to that node, which creates it"
       },
       {
         "name": "reliable",
         "type": "boolean",
         "required": false,
-        "description": "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); pair with ownerNodeId=<this node>"
+        "description": "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); the creator is this node unless ownerNodeId names another"
       },
       {
         "name": "reliableTimeoutSeconds",
@@ -1259,10 +1259,12 @@ export const TOOLS_CATALOG = [
         "description": "CE-292: creator's reliable-init abort timeout in seconds (0 ⇒ gateway default)"
       }
     ],
-    "returns": "ok:true envelope. Spawn is processed on the next tick (step to realize it).",
+    "returns": "{ spawned, tkbType, reliable, requestId, ownerNodeId, awaited, reason }. Created through the node's creation pack (request → spawn + ownership grants) on the next ticks — step to realize it.",
     "notes": [
       "Spawn is queued and processed on the next tick — call step to realize it.",
-      "Use list_entity_types to discover valid tkbType values."
+      "CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.",
+      "Use list_entity_types to discover valid tkbType values.",
+      "CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor)."
     ],
     "example": {
       "args": {
