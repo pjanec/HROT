@@ -38,7 +38,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-168 *(earlier)* | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 | R-166 *(`2026-10-02`)* | *"external nodes use our SST OwnershipUpdate, it should be the same thing as the one one from the spec"* |
 | R-167 *(`2026-10-02`)* | *"ok as calling the handler internally, not really sending a network message to itself"* — the crash reclaim (§0.11) |
-| R-170 *(`2026-10-02`)* | *"approved all three, start with the classification pass"* — §0.13 M3 (`dtWorldPos` moves WHOLE as the kinematic group), M5 (`CE-506` is phase 2), and a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md` written by the build's step 1 |
+| R-170 *(`2026-10-02`)* | *"approved all three, start with the classification pass"* — §0.13 M3 (`dtWorldPos` moves WHOLE as the kinematic group), M5 (`CE-520` is phase 2), and a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md` written by the build's step 1 |
 | R-169 *(`2026-10-02`)* | *"Changing a message is ok if necessary."* — amends R-158: a message change is allowed when the design needs it; still minimal. ⇒ P3 (an ordering field in `OwnershipUpdate`) and P5 (an instance id in a grant) are now options, used only if a measured case needs them |
 
 ### 0.2 Measured facts *(code — how it IS)*
@@ -89,7 +89,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? ⚠ **The designs disagree on `SimVelocity`:** Role-Affinity §3.1 (table, line ~343) puts *"spatial / kinematic — `SimTransform`, `SimVelocity`"* under the creator birthright + grant; Node_Roles §4.1 (line ~266) lists `SimVelocity` as non-birth-critical, claimed by role on promote, *"no grant"*; `SimComponents.cs:40` marks it NOT `[BirthCritical]`. The code follows neither: `BrainMuscleOwnershipStrategy.cs:40-55` grants the whole `dtWorldPos` block + `dtNavigationStatus` (per-descriptor transfer) | from O1's result + Transfer design §1 (per-descriptor transfers); reconcile the two docs |
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
-| O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
+| O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-520` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
 | ~~O6~~ | ✅ answered `2026-10-02` (R-166): external nodes speak `SST_OwnershipUpdate` | — |
 
 ### 0.7 ⭐⭐⭐ PROPOSED SOLUTION — **PUSH-ONLY** *(`2026-10-01`, user-directed; awaiting final approval; UML goes in a DESIGN doc before build)*
@@ -134,7 +134,7 @@ requirement exists — only the owner decides (R-162: any number of nodes per ro
   — the contract binds it when it is brought into use.
 - **G3 mission plans** — `EntityMissionEgressTranslator` declares no component ⇒ declare `MissionPlanQueue` so the brain grant covers it.
 - **G4 late grants** — `DeferredTakeoverSystem` acts only on `Constructing` entities (`:153-155`); after creation a move is a transfer. ⚠ who
-  TRIGGERS a move when a Brain/Muscle appears late (`CE-256`) or load shifts is new policy (`CE-506`: the one authority).
+  TRIGGERS a move when a Brain/Muscle appears late (`CE-256`) or load shifts is new policy (`CE-520`: the one authority).
 - **G5** the strategy ignores entity type ⇒ grant brain descriptors only for templates with a brain (`BrainTier != 0`).
 
 **Supersedes:** Role-Affinity §3 promote leg (P3 step 3) and §3.8's per-node shard evaluation; §0a's *"re-grant is a second mechanism"*
@@ -142,7 +142,7 @@ requirement exists — only the owner decides (R-162: any number of nodes per ro
 
 **Build order:** S1 measure (classification of descriptor ↔ component for G2/G3; define the network-agnostic ownership groups, G6) → S2 ① composition → S3 G1-G3, G5 (grants cover the brain)
 → S4 retire the promote-leg claim ③ (only now — CGF's brain on SimHost-created entities depends on it today, `gateOnAuthority`) →
-S5 ④ record recompute → S6 G4 with `CE-506`. Proof: `CE-500` rail; §10's probe as a rail "no component claimed by two nodes, every creation path";
+S5 ④ record recompute → S6 G4 with `CE-520`. Proof: `CE-500` rail; §10's probe as a rail "no component claimed by two nodes, every creation path";
 `SplitAuthoritySpawnTests` (hand-off unchanged).
 
 **Rejected:** promoter claims by role — several nodes share a role (R-164) · all nodes evaluate a shard identically — unnecessary with one decider,
@@ -189,12 +189,12 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | # | gap / flaw | evidence | direction |
 |---|---|---|---|
 | P1 | **No failover.** A grantee that crashes leaves its groups orphaned: the wire spec's *"non-master disposed by partial owner ⇒ ownership returns to the master's owner"* is NOT implemented | searched NED/Cyclone/replication toolkit: dispose only removes components; `DisposalMonitoringSystem` only prunes the entity map | master owner reclaims on partial-owner dispose (spec rule, existing message), then the authority re-grants by transfer — ⭐ worked out in §0.11 |
-| P2 | **A grant can be lost.** Target unknown at creation (`CE-256`) or already dead (1 Hz heartbeat cache) ⇒ no takeover, no `OwnershipUpdate`; `DeferredTakeOwnership` is Volatile and unacknowledged | `BrainMuscleOwnershipStrategy.cs:43-46`; `DeferredTakeOwnership.cs` QoS | the authority detects "granted, never confirmed" and re-decides by transfer (G4/`CE-506`) |
+| P2 | **A grant can be lost.** Target unknown at creation (`CE-256`) or already dead (1 Hz heartbeat cache) ⇒ no takeover, no `OwnershipUpdate`; `DeferredTakeOwnership` is Volatile and unacknowledged | `BrainMuscleOwnershipStrategy.cs:43-46`; `DeferredTakeOwnership.cs` QoS | the authority detects "granted, never confirmed" and re-decides by transfer (G4/`CE-520`) |
 | P3 | **Transfers from TWO initiators can end differently on different nodes.** Each node applies updates sequentially (`OwnershipIngressSystem.cs:57-67`), but DDS orders samples only PER WRITER: A sends `X→B` while C's node sends `X→C` ⇒ one node applies B,C and another C,B. Same for a §0.11 local reclaim racing an authority transfer. `SST_OwnershipUpdate.Timestamp` exists but is never filled (`OwnershipUpdateTranslator.cs:83`) | per-writer ordering is the DDS default | ONE initiator per entity after creation (the authority, P7) + §0.11's guard (reclaim only if the current owner is the departed node) ⇒ every node converges with no message change. If a second initiator ever appears (an external node), fill `Timestamp` and apply newest-wins — no format change. Tracked: `CE-512` |
 | P4 | **A group is not atomic on the wire.** Grants and `OwnershipUpdate` are per descriptor; a group spanning several descriptors can be half-moved; a component may sit in two descriptors (Transfer §1 many-to-many) | `DeferredTakeoverSystem.cs:100-128`; Transfer design §1 | every component in exactly ONE group; a group moves as one command (grants already batch per entity) |
 | P5 | ⛔ **Per-instance ownership cannot be granted.** `DescriptorGrant`/`DescriptorOwnerEntry` carry no instance id; the takeover always keys instance 0 | `DeferredTakeOwnershipCommand.cs:13-19`; `DeferredTakeoverSystem.cs:108` | ⭐ **closed without a grant change:** a grant acts once, while the entity is Constructing; network parts (EQS) are created later by the running Brain, so no grant could name them; local parts never travel. At creation parts follow their root's group; later per-instance moves go by `OwnershipUpdate` (has `DescrInstanceId`). R-169 allows an instance id in the grant — add it only if a part ever exists at creation and must start on a different node |
 | P6 | **Recompute vs an unconfirmed grant.** With the yield on every node (`CE-508`), the creator drops the claim of every granted group at creation; R-159's recompute would then mark its record "not mine" BEFORE the grantee takes over ⇒ nobody publishes in that window (the inverse of F7) | F7 timeline; F11 | the recompute treats EVERY descriptor with an unconfirmed outgoing grant as protocol-owned — not only `SimTransform`'s |
-| P7 | **Who decides after creation is undefined.** "The owner" moves with transfers (a `MasterOnly` transfer moves the entity master); load rebalancing by a separate authority makes two deciders | R-163, R-164 | creator decides ONLY at creation; every later move by the one load authority (`CE-506`) — closes P3 |
+| P7 | **Who decides after creation is undefined.** "The owner" moves with transfers (a `MasterOnly` transfer moves the entity master); load rebalancing by a separate authority makes two deciders | R-163, R-164 | creator decides ONLY at creation; every later move by the one load authority (`CE-520`) — closes P3 |
 | P8 | **The strategy is not group- or entity-aware** — hard-coded descriptor list, ignores entity type | `BrainMuscleOwnershipStrategy.cs:40-55` | drive it from the shared groups (G6) and the template (G5) |
 | P9 | **A group can land where it cannot run.** No Brain node known ⇒ the creator keeps the brain group; a creator that does not register brain components (SimHost) leaves the entity brainless, silently | Role-Affinity §5 ② boot warning (step 3c) NOT built | warn once (3c); the authority grants when a Brain appears (P2) |
 | P10 | ⚠ **A FORMER owner's clean exit can look like a crash.** DDS `autodispose_unregistered_instances` (default true) disposes every instance a deleted writer registered — including ones it already handed away ⇒ the master owner would "reclaim" from a live current owner (§0.11) | ⛔ not measured: our writer QoS, and whether `SampleInfo` exposes the publication handle | reclaim only when the record's current owner for that key is gone (roster) — see §0.11 C2 |
@@ -306,7 +306,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | M2 | ✅ **DONE `2026-10-02`** → [`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md) §1-§2 (groups), §3 findings (`CE-510`), §4 three small leans. ~~the classification pass~~ — every component on a CGF-/SimHost-created entity → which systems write it, on which host → its group (O1, O3, G6) | B2, B3, the UML | do it as step 1 of the build session (§0.6) |
 | M3 | ⚠ **O2 — `dtWorldPos` whole or split**; Role-Affinity §3.1 vs Node_Roles §4.1 disagree on `SimVelocity` | B2 | WHOLE: a group must be whole descriptors (P4, E2), so `SimTransform`, `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState` move together as the kinematic group; reconcile both docs to that |
 | M4 | ⚠ **mostly answered by the classification:** the claim-gated systems (`CarKinematicsSystem`/`BulletReverseSyncSystem` on `SimTransform`; `ChannelArbitration`/`MissionDirector`/`BrainTick` on `BehaviorState`; `CognitiveInterrupt`/`CognitiveCleanup` on `BrainInterrupts`; the attribute compiler) all read components whose group §2 fixes — to be drawn in the sequence diagrams. **O4 — claim readers** that change behaviour when the promote leg goes (attribute changes on IG-created entities, F2) | B4 | list them in M2's table; each gets a rail or a note |
-| M5 | ⚠ **phasing of `CE-506`** (the one authority for moves after creation: late joiners P2/G4, load rebalancing P7) | B3's later half | **phase 2.** Phase 1 = the creator decides at creation only (already how grants work); rails stay green because nothing moves later today |
+| M5 | ⚠ **phasing of `CE-520`** (the one authority for moves after creation: late joiners P2/G4, load rebalancing P7) | B3's later half | **phase 2.** Phase 1 = the creator decides at creation only (already how grants work); rails stay green because nothing moves later today |
 
 **Measure during the build (not blocking):** C1 (which DDS state a hard crash produces) · P10 (writer auto-dispose: the C# wrapper exposes no QoS for it ⇒ Cyclone's default, auto-dispose ON; the runtime does expose a `PublicationHandle`, usable for the guard) · E5 (does a newly gained, unchanged descriptor publish at once).
 **Already in place:** feature suites `SplitAuthoritySpawnTests`, `RoleAffinityPolicyTests`, `HrotRoleComponentSetsTests`; a foreign-process harness `ExternalHostConformanceTests` (opt-in, `DESIGN_Cross_Node_Construction_Barrier.md` §3d) to reuse for the external rails. No `CE-500` rail exists yet.
@@ -680,7 +680,7 @@ descriptor can leave nodes disagreeing (A believes B owns it, B believes A does)
 | **D6** | **Per instance:** the gate derives on the instance's own entity; a part's claim is set at creation from its root's; a per-instance transfer writes the part | §7.2 "per instance" | ⭐ lean *(user: "unused is not unneeded")* |
 | **D7** | An ownership change for components not yet present is **staged** (`PendingAuthorityGrants`), never dropped | L3 | ⭐ lean |
 | **D8** | `DescriptorOwnership.Map` becomes **remote bookkeeping** (never read by the gate); `OwnsDescriptor` / `GetDescriptorOwner` are **routed** into the one gate | L4 · Q79-F | ⭐ lean |
-| **D9** | **N nodes per role is OUT OF SCOPE** — it needs a single decider (an orchestrator-published, per-entity-fixed shard assignment) and is its own design: [`CE-506`](Blueprint_Issues_Tracker.md) | §7.8 | ✅ **RULED out of scope** (`R-157`) |
+| **D9** | **N nodes per role is OUT OF SCOPE** — it needs a single decider (an orchestrator-published, per-entity-fixed shard assignment) and is its own design: [`CE-520`](Blueprint_Issues_Tracker.md) | §7.8 | ✅ **RULED out of scope** (`R-157`) |
 
 ⚠ **What the proofs still assume, stated so nobody over-reads them:** Theorem 2 (the producer sends) was discharged for the
 **descriptor-bound** components only (§7.5); most simulation writers are un-gated (§7.5's audit), so axiom E is a property of
@@ -966,7 +966,7 @@ explicit grant). Open: the full Brain list, and whether Muscle gets a positive s
   (Role-Affinity §3.8, user ruling `2026-09-10`: *"shard provider interface … implemented for single brain and single muscle case we have
   now, but reimplementable later"*). 📐 Graph (`IMPLEMENTS`): ONE production implementation, `SingleNodePerRoleShardProvider`, which
   ignores the key and answers *"do I declare this role?"* ⇒ two nodes declaring a role BOTH claim. `R-157` limited scope to what is
-  built; `CE-506` is the decider a real shard provider needs (§3.8's constraints: identical inputs on every node, stable per entity).
+  built; `CE-520` is the decider a real shard provider needs (§3.8's constraints: identical inputs on every node, stable per entity).
   ⭐ §9c/§11 do not depend on N=1 — only on the provider being correct.
 - **The Map2D set's recorded reason is false.** `HrotRoleComponentSets.cs` says an empty Map2D row would make an IG-created overlay's
   *"MapVisualOverlayEgress HasAuthority gate fail"*. 📐 That egress gates on the RECORD (`MapVisualOverlayEgressTranslator.cs:77`), the
@@ -1021,5 +1021,5 @@ non-birth-critical components (`SimVelocity`, `VehicleState`, `VehicleParams`, `
 classification pending, like the Brain's); only `SimTransform` is meant to travel by grant. Today's grant moves more (`dtWorldPos` block +
 `dtNavigationStatus`) only because a transfer is per DESCRIPTOR and `dtWorldPos` bundles them (Transfer design §1).
 ⚠ **The design overclaims on `CE-256`:** role derivation removes the late-joiner failure for non-birth-critical components only —
-`SimTransform` still waits on the creator's grant, so a Muscle that joins late still moves nothing. ⭐ Observation for `CE-506`: the
+`SimTransform` still waits on the creator's grant, so a Muscle that joins late still moves nothing. ⭐ Observation for `CE-520`: the
 creator's grant (one authority, on the wire, fixed per entity) already has the shape §3.8 asks of a shard assignment.

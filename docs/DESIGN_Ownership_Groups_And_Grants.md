@@ -21,7 +21,7 @@ related-designs:
 **Goal** (Q79 §0.7, push-only): one owner per component. The creator owns everything at birth and **grants whole groups** —
 each role's group to a node serving that role — one group per `NodeRole` (R-172): Brain, MuscleGround, Perception (R-171), NavigationSolver and Map2D (both empty today). A group is a set of **whole descriptors**
 plus the components that are never on the wire but **linked** to one of those descriptors (R-165). Everything else stays with
-the creator. Approvals: R-170 (`dtWorldPos` moves whole; `CE-506` is phase 2; this doc).
+the creator. Approvals: R-170 (`dtWorldPos` moves whole; `CE-520` is phase 2; this doc).
 
 ## INVENTORY *(the classification pass, `2026-10-02`)*
 
@@ -366,7 +366,7 @@ are the hosts where no grant is ever executed: the offline editor (correct — o
 | S4 ✅ | retire the promote-leg claim (B4); creator claims all (D-7) | ✅ `TheClusterAiDebugSurfaceAnswersTests`: SimHost creates (`CreateRequest_creates_on_the_selected_node_and_the_ownership_reads_one_truth`) and CGF creates (`A_CGF_created_tank_reads_one_ownership_truth_on_both_nodes`); on BOTH nodes every descriptor's claim equals its record, i.e. no component is claimed by two nodes. RED after S3 (CGF's ghost claimed `dtEntityMaster` 50/65, `dtEntityInfo` 164, `dtEqsResult` 172, `dtWorldPos` 1/30/31/32/69, `dtNavigationStatus` 68) → GREEN. `RoleAffinitySpawnRails`/`RoleAffinityPromoteRails` converted to the push-only invariants (the creator owns all it materialised; a promoted ghost claims nothing; a grant already on a ghost survives promotion); the rails of the retired role legs and their create/promote partition were removed with the mechanism. As built: the role-affinity block is gone from `NetworkSpawningSystem` (create) and `GhostPromotionSystem` (promote), both lose their `IRoleAffinityPolicy` parameter, `EntityCreationContext.RoleAffinity` is gone and SimHost/IG/CGF no longer pass a policy. The policy TYPE stays (D-7: registration sets). ⚠ The ordering of the yield after the spawn was ALREADY declared (`[UpdateAfter(NetworkSpawningSystem)]` on `LocalAuthorityYieldSystem`); a pending-grant buffer written on the opposite assumption was red-proofed as unnecessary and removed. 📌 `IRoleAffinityPolicy.OwnableMask` now has no production caller; it goes with the D-5 consolidation of `HrotRoleComponentSets` into the groups |
 | S5 | `OwnershipApplier` extraction + `OwnershipRecomputeSystem` + `OutgoingGrantsPending` (B5) | `MasterOnly` transfer rail; F7 timeline rail |
 | S6 | parts: gate lookup, part claims, per-instance apply, `PartMetadata.DescriptorOrdinal` removed, `CE-507` (B6) | EQS suites |
-| S7 | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512` (b)(c); (a) stays with `CE-506`) | crash rail (kill a Muscle process) |
+| S7 | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512` (b)(c); (a) stays with `CE-520`) | crash rail (kill a Muscle process) |
 | S8 | `HealthApplicationSystem` gate (`CE-510`); ingress skip-when-owned for group descriptors (F-5) | damage rail on a SimHost-created entity |
 
 ### 5.7 End-to-end acceptance on `ClusterRunner --mode all` *(user `2026-10-02`)*
