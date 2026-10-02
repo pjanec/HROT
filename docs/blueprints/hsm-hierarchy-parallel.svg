@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" width="940" height="560" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="940" height="560" fill="#f7f8fa"/>
+  <text x="20" y="30" font-size="17" font-weight="600" fill="#1a1d21">What hierarchy, history and parallel each buy you</text>
+
+  <!-- ================= PANEL A : hierarchy + history ================= -->
+  <text x="20" y="62" font-size="14" font-weight="600" fill="#2f4f6f">A · Hierarchy — one transition covers every descendant</text>
+
+  <!-- Alive composite -->
+  <rect x="24" y="76" width="490" height="196" rx="8" fill="#eef2f7" stroke="#4a6a8a" stroke-width="2"/>
+  <text x="40" y="98" font-size="13.5" font-weight="600" fill="#2f4f6f">Alive</text>
+  <text x="40" y="115" font-size="11.5" fill="#5a6270">composite</text>
+
+  <!-- Patrol -->
+  <rect x="48" y="128" width="196" height="122" rx="7" fill="#ffffff" stroke="#7d8899" stroke-width="1.5"/>
+  <text x="62" y="150" font-size="12.5" font-weight="600" fill="#1a1d21">Patrol</text>
+  <circle cx="70" cy="172" r="4.5" fill="#4a6a8a"/>
+  <line x1="75" y1="172" x2="92" y2="172" stroke="#4a6a8a" stroke-width="1.6"/>
+  <rect x="94" y="161" width="72" height="22" rx="4" fill="#dde6f0" stroke="#7d8899"/>
+  <text x="130" y="176" font-size="11.5" fill="#1a1d21" text-anchor="middle">Wander</text>
+  <rect x="94" y="196" width="72" height="22" rx="4" fill="#ffffff" stroke="#7d8899"/>
+  <text x="130" y="211" font-size="11.5" fill="#1a1d21" text-anchor="middle">Scan</text>
+
+  <!-- Engage (history) -->
+  <rect x="278" y="128" width="212" height="122" rx="7" fill="#ffffff" stroke="#7d8899" stroke-width="1.5"/>
+  <text x="292" y="150" font-size="12.5" font-weight="600" fill="#1a1d21">Engage</text>
+  <rect x="356" y="138" width="60" height="17" rx="8" fill="#6b4f8f"/>
+  <text x="386" y="151" font-size="10.5" font-weight="600" fill="#ffffff" text-anchor="middle">History</text>
+  <circle cx="300" cy="172" r="4.5" fill="#4a6a8a"/>
+  <line x1="305" y1="172" x2="322" y2="172" stroke="#4a6a8a" stroke-width="1.6"/>
+  <rect x="324" y="161" width="66" height="22" rx="4" fill="#dde6f0" stroke="#7d8899"/>
+  <text x="357" y="176" font-size="11.5" fill="#1a1d21" text-anchor="middle">Chase</text>
+  <rect x="324" y="196" width="66" height="22" rx="4" fill="#f3e9fa" stroke="#6b4f8f" stroke-width="1.6"/>
+  <text x="357" y="211" font-size="11.5" fill="#1a1d21" text-anchor="middle">Attack</text>
+  <text x="400" y="211" font-size="10.5" fill="#6b4f8f">← was here</text>
+
+  <!-- Dead -->
+  <rect x="548" y="160" width="96" height="40" rx="7" fill="#ffffff" stroke="#8a3b3b" stroke-width="2"/>
+  <text x="596" y="185" font-size="12.5" font-weight="600" fill="#8a3b3b" text-anchor="middle">Dead</text>
+  <text x="596" y="216" font-size="11" fill="#5a6270" text-anchor="middle">final</text>
+
+  <defs>
+    <marker id="a2" markerWidth="9" markerHeight="9" refX="7.5" refY="3.4" orient="auto">
+      <path d="M0,0 L8,3.4 L0,6.8 z" fill="#8a3b3b"/>
+    </marker>
+    <marker id="a3" markerWidth="9" markerHeight="9" refX="7.5" refY="3.4" orient="auto">
+      <path d="M0,0 L8,3.4 L0,6.8 z" fill="#6b4f8f"/>
+    </marker>
+  </defs>
+  <line x1="516" y1="180" x2="542" y2="180" stroke="#8a3b3b" stroke-width="2" marker-end="url(#a2)"/>
+  <text x="529" y="150" font-size="11.5" font-weight="600" fill="#8a3b3b" text-anchor="middle">Die</text>
+
+  <text x="664" y="120" font-size="12" fill="#1a1d21">The <tspan font-weight="600">Die</tspan> transition sits on</text>
+  <text x="664" y="137" font-size="12" fill="#1a1d21"><tspan font-weight="600">Alive</tspan>, so Wander, Scan,</text>
+  <text x="664" y="154" font-size="12" fill="#1a1d21">Chase and Attack all</text>
+  <text x="664" y="171" font-size="12" fill="#1a1d21">inherit it. Without the</text>
+  <text x="664" y="188" font-size="12" fill="#1a1d21">nesting you would write</text>
+  <text x="664" y="205" font-size="12" font-weight="600" fill="#a33a1f">the same edge 4 times.</text>
+  <text x="664" y="232" font-size="12" fill="#6b4f8f">Leaving fires OnExit up</text>
+  <text x="664" y="249" font-size="12" fill="#6b4f8f">the chain; arriving fires</text>
+  <text x="664" y="266" font-size="12" fill="#6b4f8f">OnEntry down it.</text>
+
+  <!-- history callout -->
+  <rect x="24" y="286" width="620" height="52" rx="6" fill="#f3e9fa" stroke="#6b4f8f" stroke-width="1.4"/>
+  <text x="40" y="307" font-size="12.5" fill="#2d1f3d"><tspan font-weight="600">History</tspan> = “when I come back to Engage, resume Attack — do not restart at Chase.”</text>
+  <text x="40" y="326" font-size="12.5" fill="#2d1f3d">In FastHSM it is a flag <tspan font-style="italic">on the composite</tspan>, not a node you draw and transition into.</text>
+
+  <!-- ================= PANEL B : parallel ================= -->
+  <text x="20" y="378" font-size="14" font-weight="600" fill="#2f6f4f">B · Parallel — orthogonal regions kill the combinatorial explosion</text>
+
+  <rect x="24" y="392" width="470" height="146" rx="8" fill="#edf5f0" stroke="#2f6f4f" stroke-width="2"/>
+  <text x="40" y="414" font-size="13.5" font-weight="600" fill="#2f6f4f">Active</text>
+  <text x="40" y="430" font-size="11.5" fill="#5a6270">parallel</text>
+
+  <line x1="258" y1="400" x2="258" y2="530" stroke="#2f6f4f" stroke-width="1.6" stroke-dasharray="6 4"/>
+
+  <text x="112" y="452" font-size="12" font-weight="600" fill="#1a1d21">Locomotion</text>
+  <rect x="52" y="462" width="60" height="21" rx="4" fill="#d6e8de" stroke="#7d8899"/>
+  <text x="82" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Idle</text>
+  <rect x="120" y="462" width="60" height="21" rx="4" fill="#ffffff" stroke="#7d8899"/>
+  <text x="150" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Walk</text>
+  <rect x="186" y="462" width="60" height="21" rx="4" fill="#ffffff" stroke="#7d8899"/>
+  <text x="216" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Sprint</text>
+  <text x="52" y="508" font-size="11" fill="#2f6f4f">lane: <tspan font-weight="600">Navigation</tspan></text>
+
+  <text x="348" y="452" font-size="12" font-weight="600" fill="#1a1d21">Weapon</text>
+  <rect x="272" y="462" width="60" height="21" rx="4" fill="#d6e8de" stroke="#7d8899"/>
+  <text x="302" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Aim</text>
+  <rect x="340" y="462" width="60" height="21" rx="4" fill="#ffffff" stroke="#7d8899"/>
+  <text x="370" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Fire</text>
+  <rect x="406" y="462" width="66" height="21" rx="4" fill="#ffffff" stroke="#7d8899"/>
+  <text x="439" y="477" font-size="11" fill="#1a1d21" text-anchor="middle">Reload</text>
+  <text x="272" y="508" font-size="11" fill="#2f6f4f">lane: <tspan font-weight="600">Animation</tspan></text>
+
+  <text x="516" y="412" font-size="12" fill="#1a1d21">The unit is in <tspan font-weight="600">one state per region</tspan>,</text>
+  <text x="516" y="429" font-size="12" fill="#1a1d21">simultaneously — e.g. Walk + Reload.</text>
+  <text x="516" y="452" font-size="12" fill="#1a1d21">Flattened into one region that is</text>
+  <text x="516" y="469" font-size="12" fill="#1a1d21">3 × 3 = <tspan font-weight="600">9 states</tspan>; as two regions it is</text>
+  <text x="516" y="486" font-size="12" fill="#1a1d21">3 + 3 = <tspan font-weight="600">6</tspan>. The gap widens fast.</text>
+  <text x="516" y="513" font-size="11.5" font-weight="600" fill="#a33a1f">Rule: two regions must never write</text>
+  <text x="516" y="529" font-size="11.5" font-weight="600" fill="#a33a1f">the same lane — first wins, silently.</text>
+</svg>

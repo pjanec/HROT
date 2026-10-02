@@ -205,7 +205,7 @@ and nesting the same mechanism.
 ⚠ The manifest lists Parameters only, as BTree/HSM manifests list Role=Input only. A blueprint's Variables (`St`) stay
 visible through the blueprint debugger (`CaptureLiveBehaviorState`), not through the params inspector.
 
-### S4 as-built *(`2026-10-02`, CE-512)*
+### S4 as-built *(`2026-10-02`, CE-512 (behaviors))*
 
 ```mermaid
 classDiagram
@@ -264,12 +264,12 @@ at run time, not only nested run-slot keys.
 
 | sub-slice | delivers | key facts |
 |---|---|---|
-| **S5a** ✅ BUILT (CE-513) any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
+| **S5a** ✅ BUILT (CE-513 (behaviors)) any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
 | **S5b** recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
 | **S5c** cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
 | **S5d** blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; the non-blocking host is S7's Behaviour Task node |
 
-#### S5a as-built *(`2026-10-02`, CE-513)*
+#### S5a as-built *(`2026-10-02`, CE-513 (behaviors))*
 
 | piece | where |
 |---|---|
