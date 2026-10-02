@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Abstractions;
 
 namespace Fdp.Toolkit.Replication.Services
 {
@@ -192,5 +193,91 @@ namespace Fdp.Toolkit.Replication.Services
         /// by <c>OwnershipTransferInitiationSystem</c> to resolve <c>AllOwnedByThisNode</c> and by the ai-debug
         /// <c>GET /entities/{id}/ownership</c> endpoint to name an entity's descriptors.</summary>
         public IEnumerable<long> RegisteredDescriptors => _descriptorToComponentIds.Keys;
+
+        // -- Ownership groups (DESIGN_Ownership_Groups_And_Grants.md §2, §5.5 D-4) ---------------
+
+        private readonly Dictionary<NodeRole, long[]> _groupDescriptors = new();
+        private readonly List<string> _groupBindingViolations = new();
+
+        /// <summary>
+        /// ⭐⭐ <b>Binds the network-agnostic ownership groups to this network's descriptors.</b> Call once, after every
+        /// descriptor is registered.
+        /// <list type="bullet">
+        ///   <item>A descriptor belongs to a group when all its non-LOCAL components are members of that group; to the
+        ///     creator's remainder when none are; any other mix is a <see cref="GroupBindingViolations"/> entry.</item>
+        ///   <item>⭐ <b>D-4:</b> the members of a group that no descriptor carries (never on the wire, R-165) are appended
+        ///     to the group's ANCHOR descriptor, so granting or transferring the anchor moves them; a single other
+        ///     descriptor moves only its own components.</item>
+        /// </list>
+        /// ⚠ Linked members are NOT added to the reverse index (<see cref="GetDescriptorsForComponentId"/>): they are never
+        /// sent, so writing one must not republish the anchor.
+        /// </summary>
+        /// <param name="table">The groups.</param>
+        /// <param name="anchors">Per role, the descriptor that carries the group's never-sent members.</param>
+        public void BindGroups(OwnershipGroupTable table, IReadOnlyDictionary<NodeRole, long> anchors)
+        {
+            if (table == null) throw new ArgumentNullException(nameof(table));
+            if (anchors == null) throw new ArgumentNullException(nameof(anchors));
+            _groupDescriptors.Clear();
+            _groupBindingViolations.Clear();
+
+            var byRole = new Dictionary<NodeRole, List<long>>();
+            foreach (var kv in _descriptorToComponentIds.OrderBy(k => k.Key))
+            {
+                NodeRole owner = NodeRole.None;
+                bool creatorPart = false, mixed = false;
+                foreach (int id in kv.Value)
+                {
+                    if (table.IsLocal(id)) continue;
+                    var role = table.GroupOf(id);
+                    if (role == NodeRole.None) { creatorPart = true; continue; }
+                    if (owner == NodeRole.None) owner = role;
+                    else if (owner != role) mixed = true;
+                }
+                if (mixed || (owner != NodeRole.None && creatorPart))
+                {
+                    _groupBindingViolations.Add(
+                        $"descriptor {kv.Key} spans several ownership groups or a group and the creator's remainder");
+                    continue;
+                }
+                if (owner == NodeRole.None) continue;
+                if (!byRole.TryGetValue(owner, out var list)) byRole[owner] = list = new List<long>();
+                list.Add(kv.Key);
+            }
+
+            foreach (var group in table.Groups.Values)
+            {
+                byRole.TryGetValue(group.Role, out var descriptors);
+                _groupDescriptors[group.Role] = descriptors?.ToArray() ?? Array.Empty<long>();
+
+                var linked = group.Members;
+                if (descriptors != null)
+                    foreach (long d in descriptors)
+                        foreach (int id in _descriptorToComponentIds[d])
+                            linked.ClearBit(id);
+                if (linked.IsEmpty()) continue;
+
+                if (!anchors.TryGetValue(group.Role, out long anchor) || descriptors == null || !descriptors.Contains(anchor))
+                {
+                    _groupBindingViolations.Add(
+                        $"ownership group {group.Role} has members on no descriptor but no anchor descriptor of its own");
+                    continue;
+                }
+
+                var ids = new List<int>(_descriptorToComponentIds[anchor]);
+                for (int id = 0; id < 512; id++)
+                    if (linked.IsSet(id)) ids.Add(id);
+                _descriptorToComponentIds[anchor] = ids.ToArray();
+            }
+        }
+
+        /// <summary>The descriptors bound to <paramref name="role"/>'s group by <see cref="BindGroups"/>; empty before
+        /// binding or for an empty group.</summary>
+        public IReadOnlyList<long> DescriptorsOf(NodeRole role)
+            => _groupDescriptors.TryGetValue(role, out var d) ? d : Array.Empty<long>();
+
+        /// <summary>What <see cref="BindGroups"/> could not place — must be empty for a correct network binding (the
+        /// contract every network implementation honours, R-165).</summary>
+        public IReadOnlyList<string> GroupBindingViolations => _groupBindingViolations;
     }
 }

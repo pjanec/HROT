@@ -645,6 +645,9 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ownership transfer, which may originate from an EXTERNAL system handing us an entity.
         // 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
         _descriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal = (long)EDescriptorType.dtEntityMaster;
+
+        // ⭐⭐ Ownership groups (DESIGN_Ownership_Groups_And_Grants.md §2, step S1) — LAST, after every mapping.
+        NedOwnershipGroupBinding.Apply(_descriptorOwnershipMap, _localNodeId);
     }
 
     public void Tick(ISimulationView view, float dt)
