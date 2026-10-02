@@ -118,15 +118,11 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             if (aiPrimitive.BlueprintCall)  hosting |= ActionHosting.Shared;
         }
 
-        // BTree attributes
-        if (method.IsDefined(typeof(BTreeActionAttribute), inherit: false))
-            hosting |= ActionHosting.BTree;
-
-        if (method.IsDefined(typeof(BTreeConditionAttribute), inherit: false))
-        {
-            hosting |= ActionHosting.BTree;
-            isCondition = true;
-        }
+        // ⛔ CE-504 residue (2026-10-02) — a BARE [BTreeAction]/[BTreeCondition] is no longer offered. Since CE-504 a
+        //   BTree node binds only the shared forms ([SharedAiAction]/[SharedAiCondition], below) or a blueprint; binding a
+        //   bare-attributed method reports BTREE0002. Listing it in the BTree picker offered a choice the build refuses.
+        //   📐 No production method carries one; the kernel-form registrations (FDP/Examples, the analyzer's 4-param arm)
+        //   register directly and never went through this picker. 📄 DESIGN_BTree_Node_Call_Shapes.md §5 slice 4.
 
         // HSM attributes — CE-386: the role bit beside Hsm, exactly as for the AiPrimitive above.
         if (method.IsDefined(typeof(HsmActionAttribute), inherit: false))
