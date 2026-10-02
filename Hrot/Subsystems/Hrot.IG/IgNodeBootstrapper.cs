@@ -542,6 +542,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    MapCommandController always sees a non-null value. Same arrangement as CgfSubsystem's
         //    _scenarioSource and EditorSubsystem's _scenarioLoadSource.
         LocalEntityCreationRequests = creation.LocalRequests;
+        EntityCreation              = creation;   // CE-515
 
         context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input
         context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation

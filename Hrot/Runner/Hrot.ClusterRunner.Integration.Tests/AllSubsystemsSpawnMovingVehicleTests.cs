@@ -68,7 +68,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
 
         // Extra settle: wait for the first 1 Hz NodeHeartbeat from SimHost to reach CGF.
-        // BrainMuscleOwnershipStrategy delegates WorldPos to SimHost only after SimHost is
+        // RoleGroupOwnershipStrategy delegates WorldPos to SimHost only after SimHost is
         // registered in CGF's cluster cache (populated from DDS NodeHeartbeat).  If the
         // entity is spawned before that, CGF retains WorldPos authority and CarKinematicsSystem
         // never moves it.  We pump with 5 ms sleeps so ClusterSlave.Tick() fires on all

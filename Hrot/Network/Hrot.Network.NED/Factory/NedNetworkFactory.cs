@@ -300,7 +300,11 @@ public sealed class NedNetworkFactory : INetworkFactory
             // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
             // leaves the node instead of being silently dropped by the Level-1 guard.
             requestEgress:      new NedEntityCreationRequestEgress(_participant, _geoTransform),
-            ownershipStrategy:  new BrainMuscleOwnershipStrategy(clusterCache),
+            // ⭐⭐ S3 — push-only: every applicable role group goes to a node serving that role (CE-500).
+            ownershipStrategy:  new RoleGroupOwnershipStrategy(
+                                    clusterCache,
+                                    Hrot.Map.Common.HrotOwnershipGroups.Table,
+                                    Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors),
             jsonCompiler:       AttributeCompilerFactory.Build(_geoTransform),
             clusterCache:       clusterCache,
             heartbeatReader:    heartbeatReader,

@@ -71,7 +71,7 @@ namespace Hrot.Editor.DebugApi
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
-        private readonly Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? _creationRequestEnqueuerGetter;   // CE-271 seam ⑤
+        private readonly Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? _entityCreationGetter;   // CE-515 (was CE-271 seam ⑤)
 
         /// <summary>⭐ Set only in the CLUSTER shape; null in the editor. See the block above.</summary>
         private readonly Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
@@ -577,8 +577,11 @@ namespace Hrot.Editor.DebugApi
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
             Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
             Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null,
-            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null)
+            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null,
+            // ⭐ CE-515 — the editor's pack, the same seam every cluster node exposes (cgf==editor).
+            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null)
         {
+            _entityCreationGetter = entityCreation;
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
             _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));
@@ -648,11 +651,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-169 — a Func, not a value: CGF's registry is built during subsystem boot, which
             //   happens AFTER this service is constructed. See the field comment for the measurement.
             Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null,
-            // ⭐⭐⭐ CE-271 seam ⑤ — a Func for the same boot-order reason: the node's local creation
-            //   source exists only after its subsystem builds the EntityCreationPack. When present, the
-            //   node can create entities THROUGH the request path (routing + auto-takeover grant), which
-            //   the raw /entities/spawn route deliberately bypasses.
-            Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? creationRequestEnqueuer = null,
+            // ⭐⭐⭐ CE-515 (was CE-271 seam ⑤, IG-only) — the entity-creation pack of the subsystem that OWNS the
+            //   ACTIVE perspective's world, so POST /entities/create-request creates on the SELECTED node through the
+            //   request path (routing + grants). A Func for the same boot-order reason: the pack exists only after
+            //   the subsystem builds it.
+            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null,
             // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world. A Func for
             //   the same boot-order reason as behaviorRegistry (CGF composes it during Initialize, after this ctor).
             Func<EntityRepository, Hrot.Editor.AiComposition.AiDebugSurface?>? aiDebugSurface = null)
@@ -660,7 +663,7 @@ namespace Hrot.Editor.DebugApi
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _aiDebugSurfaceGetter = aiDebugSurface;
             _clusterStateGetter = clusterState;
-            _creationRequestEnqueuerGetter = creationRequestEnqueuer;
+            _entityCreationGetter = entityCreation;
 
             // ⭐⭐⭐ CE-110 — ⛔⛔ NO `?? new TkbDatabase()` HERE. That default is what made /tkb/* answer
             //    `[]` on every cluster node: the composition root passes nothing, so the service latched a
@@ -1684,12 +1687,14 @@ namespace Hrot.Editor.DebugApi
             JsonNode? transform      = null,
             string?   attributesJson = null)
         {
-            var enqueue = _creationRequestEnqueuerGetter?.Invoke();
-            if (enqueue == null)
+            var world    = _editorWorld ?? _dispatcher?.World;
+            var creation = world is null ? null : _entityCreationGetter?.Invoke(world);
+            if (creation == null)
                 return (null,
-                    "This node has no local entity-creation request source wired into the debug API. Only a "
-                  + "node that composes EntityCreationPack (IG/CGF/SimHost) exposes one. Use POST /entities/spawn "
-                  + "for a direct SpawnEntityCommand (which bypasses routing and the auto-takeover grant).");
+                    "The active perspective's node has no entity-creation pack wired into the debug API (a node "
+                  + "with no ECS world, or one not yet initialised). Select an ECS node's perspective: every node "
+                  + "that builds EntityCreationPack (SimHost, CGF, IG, Stride, the editor) exposes one.");
+            Action<Hrot.Core.Network.EntityCreationRequest> enqueue = creation.LocalRequests.Enqueue;
 
             List<object>? initialComponents = null;
             if (transform != null)

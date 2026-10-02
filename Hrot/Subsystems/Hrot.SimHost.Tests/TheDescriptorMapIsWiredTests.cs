@@ -281,6 +281,11 @@ public class TheDescriptorMapIsWiredTests
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },
             map.DescriptorsOf(Fdp.Core.NodeRole.Perception).ToArray());
 
+        // ⭐ S3: the lists the creator's grant strategy hands out (NedOwnershipGroupBinding.GroupDescriptors) ARE
+        //   this node's live binding — for every role, so the strategy and the nodes cannot disagree.
+        foreach (var (groupRole, descriptors) in Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors)
+            Assert.Equal(map.DescriptorsOf(groupRole).ToArray(), descriptors.ToArray());
+
         // D-4: the anchors carry the never-sent members — BehaviorState rides dtNavigationIntent, FrustrationTicks
         // rides dtWorldPos, SensorContactList rides dtEqsResult.
         Assert.Contains(Fdp.Core.ComponentType<Fdp.Toolkit.Behavior.Components.BehaviorState>.ID,

@@ -463,9 +463,10 @@ namespace Hrot.Common.Systems
                             //   argument makes double-grant impossible.
                             if (_ownershipStrategy != null)
                             {
-                                var childGrants = _ownershipStrategy.GetInitialGrants(
-                                    new Fdp.Core.DISEntityType { Value = childDisType }, 
-                                    assignedOwner);
+                                var childGrants = _ownershipStrategy.GetInitialGrants(new GrantRequest(
+                                    new Fdp.Core.DISEntityType { Value = childDisType },
+                                    childTemplate,
+                                    assignedOwner));
 
                                 if (childGrants != null && childGrants.Count > 0)
                                 {
@@ -506,8 +507,12 @@ namespace Hrot.Common.Systems
 
             var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
 
+            // ⭐ D-6 — the template decides which role groups apply (G-4); the creator already holds the catalogue.
+            _tkbDb.TryGetByType(pending.TkbType, out var template);
+
             // Delegate fully to the strategy: no network ordinal knowledge in the domain layer.
-            return new List<DescriptorGrant>(_ownershipStrategy.GetInitialGrants(disType, assignedOwner));
+            return new List<DescriptorGrant>(_ownershipStrategy.GetInitialGrants(
+                new GrantRequest(disType, template, assignedOwner)));
         }
 
         // ─── Inner types ─────────────────────────────────────────────────────

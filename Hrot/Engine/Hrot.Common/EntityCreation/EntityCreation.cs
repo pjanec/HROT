@@ -11,6 +11,15 @@ using Hrot.Core.Network;
 namespace Hrot.Common.EntityCreation
 {
     /// <summary>
+    /// ⭐ <c>CE-515</c> — a subsystem that built an <see cref="EntityCreationPack"/> exposes the result, so composition
+    /// code (the cluster debug API) can resolve the pack for a given world. <c>null</c> until the node is initialised.
+    /// </summary>
+    public interface IEntityCreationHost
+    {
+        EntityCreation? EntityCreation { get; }
+    }
+
+    /// <summary>
     /// What <see cref="EntityCreationPack.Build"/> produced. ⛔ Nothing here is scheduled — the host
     /// registers the <b>four</b> systems with its own kernel and then calls
     /// <see cref="Unserviceable"/> so an omission is loud instead of silent.
@@ -28,7 +37,8 @@ namespace Hrot.Common.EntityCreation
             NetworkSpawningSystem spawnSystem,
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
             int nodeId,
-            IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems)
+            IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
+            Fdp.Core.EntityRepository world)
         {
             Translators        = translators;
             Elm                = elm;
@@ -39,7 +49,15 @@ namespace Hrot.Common.EntityCreation
             PromotionSystem    = promotionSystem;
             NodeId             = nodeId;
             NetworkSystems     = networkSystems;
+            World              = world;
         }
+
+        /// <summary>
+        /// ⭐ The world this node creates entities in. 📌 <c>CE-515</c>: lets a multi-node process (<c>--mode all</c>)
+        /// find the pack that belongs to the ACTIVE perspective's world, so the debug API's create-request reaches
+        /// the selected node instead of a hard-wired one.
+        /// </summary>
+        public Fdp.Core.EntityRepository World { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say

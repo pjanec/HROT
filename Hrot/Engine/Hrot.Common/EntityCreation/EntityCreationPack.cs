@@ -242,7 +242,7 @@ namespace Hrot.Common.EntityCreation
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId, networkSystems);
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World);
         }
     }
 }

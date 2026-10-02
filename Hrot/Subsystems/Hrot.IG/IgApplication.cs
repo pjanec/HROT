@@ -315,6 +315,9 @@ public class IgApplication : IDisposable
     /// here would be the duplicate-mechanism trap — the tools would fill a queue nothing drains.</para>
     /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
     /// </summary>
+    /// <summary>⭐ CE-515 — this node's entity-creation pack, for the subsystem to expose.</summary>
+    internal Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _igBootstrapper?.EntityCreation;
+
     internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
         => _igBootstrapper?.LocalEntityCreationRequests;
 

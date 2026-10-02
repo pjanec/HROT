@@ -46,7 +46,7 @@ public sealed class HrotRunnerHarness : IDisposable
     /// <summary>
     /// Extra frames pumped after the standard warmup when CGF is present.
     /// <c>ClusterSlave</c> fires the first <c>NodeHeartbeat</c> after 1 s of real time.
-    /// <c>BrainMuscleOwnershipStrategy</c> needs at least one heartbeat from SimHost before it
+    /// <c>RoleGroupOwnershipStrategy</c> needs at least one heartbeat from SimHost before it
     /// can delegate WorldPos authority to a MuscleGround node on entity creation.
     /// 220 frames × 5 ms sleep = 1 100 ms, which is safely longer than 1 s.
     /// </summary>
@@ -244,7 +244,7 @@ public sealed class HrotRunnerHarness : IDisposable
         // etc.) even when the process starts cold (no DDS participant has run before).
         Thread.Sleep(PostWarmupSettleMs);
 
-        // When CGF is present, BrainMuscleOwnershipStrategy must know about SimHost before any
+        // When CGF is present, RoleGroupOwnershipStrategy must know about SimHost before any
         // entity is created via CreateEntityRequest. SimHost's ClusterSlave fires its first
         // NodeHeartbeat after 1 s of real time. Pump CgfHeartbeatWarmupFrames extra frames
         // (>1100 ms) so the heartbeat is received and the cluster cache is populated before

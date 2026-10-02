@@ -74,8 +74,12 @@ namespace Hrot.CGF;
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
-    Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+    Hrot.Common.EntityCreation.IEntityCreationHost
 {
+    /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
+    public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
+
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
 
@@ -836,7 +840,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐⭐ CGF is where the pack's SHAPE came from — DESIGN §5 records "CGF already composes exactly
         //    this" of the composite-source arrangement — so this is the one host where adoption removes no
         //    decision it had not already made correctly. ⛔ That is exactly why it went LAST: it is the
-        //    broadcast arbiter AND carries BrainMuscleOwnershipStrategy's delegation, so a composition
+        //    broadcast arbiter AND carries RoleGroupOwnershipStrategy's delegation, so a composition
         //    mistake here breaks unowned requests for the WHOLE CLUSTER and every CGF-spawned entity's
         //    kinematics handover. It adopts on three hosts of evidence, not on nerve.
         //
@@ -899,6 +903,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    ghosts would stop accepting the owner's updates.
             RoleAffinity = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(DefaultRole),
         });
+        EntityCreation = creation;   // CE-515
 
         // Shared with the load handlers in Phases 3-4 via CgfLogicPack.ScenarioSource.
         // ⭐ Now the pack's own in-memory source, merged behind CompositeEntityCreationRequestSource with

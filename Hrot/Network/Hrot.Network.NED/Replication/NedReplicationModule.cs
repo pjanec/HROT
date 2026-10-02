@@ -609,29 +609,9 @@ public sealed class NedReplicationModule : INedReplicationModule
             foreach (var t in _cognitiveTranslators)
                 _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
 
-        // Explicit mapping: WorldPos descriptor represents the entire physical/kinematic authority block.
-        // GeoSpatialIngressTranslator writes NetworkTransform (ordinal 10), but the authoritative
-        // components on the Muscle side are SimTransform + SimVelocity (fed by SimTransformBridgeSystem)
-        // plus the CarKinem physics state that CarKinematicsSystem requires write access to.
-        // DeferredTakeoverSystem uses these mappings to SetAuthority(entity, componentId, true)
-        // when the Muscle receives a split-authority WorldPos delegation.
-        // All five IDs are passed in a single call to avoid overwriting the prior entry.
-        _descriptorOwnershipMap.RegisterMapping(
-            (long)EDescriptorType.dtWorldPos,
-            ComponentType<SimTransform>.ID,
-            ComponentType<SimVelocity>.ID,
-            ComponentType<VehicleState>.ID,
-            ComponentType<VehicleParams>.ID,
-            ComponentType<NavState>.ID);
-
-        // Explicit mapping: NavigationStatus descriptor -> NavigationStatus ECS component.
-        // NavigationStatusEgressTranslator (Muscle-only) provides TargetComponentIds for Muscle,
-        // but the Brain's NavigationStatusIngressTranslator has empty TargetComponentIds.
-        // This mapping ensures OwnershipIngressSystem on Brain clears NavigationStatus authority
-        // when SimHost claims dtNavigationStatus via DeferredTakeover.
-        _descriptorOwnershipMap.RegisterMapping(
-            (long)EDescriptorType.dtNavigationStatus,
-            NavigationContractsComponentIds.NavigationStatus);
+        // ⭐ S3 — the explicit dtWorldPos / dtNavigationStatus mappings moved INTO NedOwnershipGroupBinding.Apply
+        //   (below), so the binding is the ONE source of every group descriptor and the grant strategy can read
+        //   the same lists without a module instance. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3.
 
         // ⭐⭐⭐ OQ12 / CE-275 ④ — BDC compliance: the EntityMaster descriptor DEFINES entity /
         // primary (save) ownership. Record its ordinal so the transport-agnostic

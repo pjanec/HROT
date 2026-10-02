@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Behavior.Components;
@@ -11,8 +13,8 @@ namespace Hrot.Network.Replication;
 
 /// <summary>
 /// ⭐⭐ <b>NED's binding of the network-agnostic ownership groups to its descriptors.</b>
-/// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §2, §5.5 D-4, build step S1. The grant is a contract every
-/// network implementation honours (R-165); this is how NED honours it.
+/// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §2, §5.5 D-4, build steps S1 and S3. The grant is a contract
+/// every network implementation honours (R-165); this is how NED honours it.
 /// <list type="bullet">
 ///   <item>⭐ Every descriptor that carries a group member is mapped HERE, role-independently — so every node binds
 ///     the SAME groups whatever translators its role composed (a Muscle node has no NavigationIntent egress, but it
@@ -20,6 +22,8 @@ namespace Hrot.Network.Replication;
 ///   <item>Five of them declared no components before (design §3 F-2): granting or transferring them moved no
 ///     claim.</item>
 ///   <item>The group anchors (D-4) carry each group's never-sent members.</item>
+///   <item>⭐ S3 — this is the ONE source of each role's descriptors: <see cref="GroupDescriptors"/> is what the
+///     creator's grant strategy hands out, and a rail asserts it equals every node's live binding.</item>
 /// </list>
 /// </summary>
 public static class NedOwnershipGroupBinding
@@ -31,6 +35,26 @@ public static class NedOwnershipGroupBinding
         [NodeRole.MuscleGround] = (long)EDescriptorType.dtWorldPos,
         [NodeRole.Perception]   = (long)EDescriptorType.dtEqsResult,
     };
+
+    private static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>>? _groupDescriptors;
+
+    /// <summary>
+    /// ⭐ S3 — per role, the descriptors its group binds to (empty for an empty group). Computed once from
+    /// <see cref="Apply"/> over an empty map; the descriptor-map rails assert it equals the live binding on every
+    /// node role, so the strategy and the nodes cannot disagree.
+    /// </summary>
+    public static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> GroupDescriptors
+        => _groupDescriptors ??= ComputeGroupDescriptors();
+
+    private static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> ComputeGroupDescriptors()
+    {
+        var map = new DescriptorOwnershipMap();
+        Apply(map);
+        var result = new Dictionary<NodeRole, IReadOnlyList<long>>();
+        foreach (var role in HrotOwnershipGroups.Table.Groups.Keys)
+            result[role] = map.DescriptorsOf(role).ToArray();
+        return result;
+    }
 
     /// <summary>
     /// Registers the group descriptors and binds the groups. Call after every translator and explicit mapping is
@@ -50,7 +74,22 @@ public static class NedOwnershipGroupBinding
         // Perception group descriptor.
         map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);
 
-        // MuscleGround: dtWorldPos (whole, R-170) and dtNavigationStatus are registered by the module itself.
+        // MuscleGround group descriptors (moved here from NedReplicationModule in S3).
+        // dtWorldPos is the entire physical/kinematic authority block (R-170: it moves WHOLE). The
+        // GeoSpatialIngressTranslator writes NetworkTransform, but the authoritative components on the Muscle side are
+        // SimTransform + SimVelocity plus the CarKinem state CarKinematicsSystem writes. DeferredTakeoverSystem uses
+        // this mapping to claim them when a Muscle receives the grant. One call: a second would overwrite the first.
+        map.RegisterMapping(
+            (long)EDescriptorType.dtWorldPos,
+            ComponentType<SimTransform>.ID,
+            ComponentType<SimVelocity>.ID,
+            ComponentType<VehicleState>.ID,
+            ComponentType<VehicleParams>.ID,
+            ComponentType<NavState>.ID);
+        // dtNavigationStatus → NavigationStatus. The Brain's NavigationStatusIngressTranslator declares no target
+        // components, so without this OwnershipIngressSystem on the Brain would not clear NavigationStatus authority
+        // when a Muscle takes dtNavigationStatus.
+        map.RegisterMapping((long)EDescriptorType.dtNavigationStatus, NavigationContractsComponentIds.NavigationStatus);
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

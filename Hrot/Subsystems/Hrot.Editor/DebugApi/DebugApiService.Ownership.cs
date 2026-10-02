@@ -19,6 +19,16 @@ namespace Hrot.Editor.DebugApi
     {
         private const string NoNedTransport = "This host wires no NED transport (no descriptor ownership).";
 
+        /// <summary>The role group a descriptor is bound to (design §2), or <c>"creator"</c> when it is in none.</summary>
+        private static string GroupOf(Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap map, long ordinal)
+        {
+            foreach (NodeRole role in new[] { NodeRole.Brain, NodeRole.MuscleGround, NodeRole.Perception,
+                                              NodeRole.NavigationSolver, NodeRole.Map2D })
+                foreach (long d in map.DescriptorsOf(role))
+                    if (d == ordinal) return role.ToString();
+            return "creator";
+        }
+
         /// <summary>
         /// <c>GET /entities/{id}/ownership</c> — the entity's descriptors, each with its owner and the
         /// components it binds, plus the entity-level primary/save owner. Read side + verification surface for
@@ -68,13 +78,31 @@ namespace Hrot.Editor.DebugApi
                 else
                     foreach (int cid in map.GetComponentIdsForDescriptor(ordinal)) components.Add(cid);
 
+                // ⭐⭐ CE-515 — the CLAIM beside the RECORD. The record says who owns the descriptor; the claim is
+                //   whether THIS node holds authority over each of its components. One ownership truth (Q79 §0.7)
+                //   means they agree on every node — `claimMatchesRecord` is that check, per descriptor, so an
+                //   end-to-end run can assert it from every perspective (design §5.7).
+                bool ownedByThisNode = ((ISimulationView)world).HasAuthority(entity, packedKey);
+                var claims = new JsonArray();
+                bool claimMatchesRecord = true;
+                foreach (int cid in map.GetComponentIdsForDescriptor(ordinal))
+                {
+                    if (!world.HasComponentByTypeId(entity, cid)) continue;   // a component this entity does not carry
+                    bool claimed = world.HasAuthority(entity, cid);
+                    claimMatchesRecord &= claimed == ownedByThisNode;
+                    claims.Add(new JsonObject { ["componentId"] = cid, ["claimedByThisNode"] = claimed });
+                }
+
                 descriptors.Add(new JsonObject
                 {
-                    ["descriptorTypeId"] = ordinal,
-                    ["isMaster"]         = masterOrdinal.HasValue && masterOrdinal.Value == ordinal,
-                    ["ownedByThisNode"]  = ((ISimulationView)world).HasAuthority(entity, packedKey),
-                    ["ownerNodeId"]      = explicitOwner.HasValue ? explicitOwner.Value : (JsonNode?)null,
-                    ["components"]       = components,
+                    ["descriptorTypeId"]   = ordinal,
+                    ["isMaster"]           = masterOrdinal.HasValue && masterOrdinal.Value == ordinal,
+                    ["group"]              = GroupOf(map, ordinal),
+                    ["ownedByThisNode"]    = ownedByThisNode,
+                    ["ownerNodeId"]        = explicitOwner.HasValue ? explicitOwner.Value : (JsonNode?)null,
+                    ["components"]         = components,
+                    ["claims"]             = claims,
+                    ["claimMatchesRecord"] = claimMatchesRecord,
                 });
             }
 

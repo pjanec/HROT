@@ -303,7 +303,7 @@ public sealed class StrideNodeBootstrapperTests
         private sealed class NoGrants : Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy
         {
             public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant> GetInitialGrants(
-                DISEntityType entityType, int masterNodeId)
+                in Fdp.Toolkit.Replication.Abstractions.GrantRequest request)
                 => Array.Empty<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant>();
         }
     }

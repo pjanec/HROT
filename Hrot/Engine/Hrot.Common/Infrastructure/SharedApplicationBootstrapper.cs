@@ -454,6 +454,12 @@ public abstract class SharedApplicationBootstrapper
     protected INetworkFactory? ConfiguredNetworkFactory { get; private set; }
 
     /// <summary>
+    /// ⭐ <c>CE-515</c> — what this node's <see cref="RegisterSpawningPipeline"/> built, so the subsystem can expose it
+    /// (<see cref="Hrot.Common.EntityCreation.IEntityCreationHost"/>). Set by every subclass right after it builds the pack.
+    /// </summary>
+    public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; protected set; }
+
+    /// <summary>
     /// Phase 6b: Register domain-specific DDS translators (entity state, combat, etc.).
     /// The <paramref name="configuredFactory"/> is the result of
     /// <c>networkFactory.ConfigureForNode(context...)</c> — NOT the raw input factory.

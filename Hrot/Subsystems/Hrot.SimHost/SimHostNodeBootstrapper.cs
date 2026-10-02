@@ -519,6 +519,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             ExpectedPeers = context.NedReplication?.ExpectedPeers,
         });
 
+        EntityCreation = creation;   // CE-515
         var spawningSystem = creation.SpawnSystem;
 
         // ⭐ S2b — the pack's network systems (cluster-cache poll, delete requests); empty offline.

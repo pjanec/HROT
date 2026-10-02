@@ -145,7 +145,7 @@ namespace Hrot.Common.EntityCreation
         public JsonAttributeCompiler? JsonAttributeCompiler { get; init; }
 
         /// <summary>
-        /// Optional ownership-distribution POLICY, e.g. <c>BrainMuscleOwnershipStrategy</c>. Consulted by
+        /// Optional ownership-distribution POLICY, e.g. <c>RoleGroupOwnershipStrategy</c>. Consulted by
         /// the node that SERVICES a creation — i.e. the entity's owner — to hand off the components its
         /// role does not cover (the birth-critical handoff of <c>DESIGN_Role_Affinity_Ownership.md</c> §3.1).
         ///

@@ -494,6 +494,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
                 IsBroadcastArbiter = false,
             });
 
+            EntityCreation = creation;   // CE-515
+
             // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
             //   exactly as before — composition changed, scheduling did not.
             context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
