@@ -27,6 +27,7 @@ known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
   R-149's selection property, which lands without the editor; the PICKER half stays
   held with the UI lane. See DESIGN_Resolver_World_Reach.md 7.2.
 related-designs:
+  - DESIGN_BTree_Node_Call_Shapes.md — CE-504: proposes (C-3, awaiting the user) retiring FourParamFull as an asset-binding shape; conflicts with §6 "stays" because B2 was never built and CE-440 removed TryGetShared.
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): decides which of
     this question's C-arms survive (behaviour resolver: yes; primitive resolver: no).
   - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - C3' promoted; owns WHAT a
