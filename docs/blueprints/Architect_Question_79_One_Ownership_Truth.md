@@ -234,6 +234,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 ⇒ ⭐ **the only network part today is the EQS sensor**, and ONE ECS part entity is instance `i` of TWO descriptor types. `PartMetadata.DescriptorOrdinal` (always `0`) therefore cannot name "the" descriptor. ⭐ **Lean:** resolve an incoming `(root, d, i)` to the part with `InstanceId == i` that carries a component mapped to `d` (existing descriptor→component map); set that component's claim. Per-component claims then give the natural split: config claimed on the Brain, result on the Muscle — the same part, two owners.
 
 ⭐ **The part link is an ECS component, and it must not depend on the network** *(user `2026-10-02`; measured)*. `PartMetadata` (component id 55, `PartMetadata.cs`) is the ONLY parent–child component in the codebase (graph: no other parent/hierarchy type; `ChildMap` has no production writer). Its readers are ECS-side: teardown (`SubEntityCleanupSystem`), authority resolution to the root, scenario extraction (`StagingEntityExtractor.cs:263-290`), the EQS/combat finders.
+
 | field | verdict |
 |---|---|
 | `ParentEntity` | keep — the relationship itself |
