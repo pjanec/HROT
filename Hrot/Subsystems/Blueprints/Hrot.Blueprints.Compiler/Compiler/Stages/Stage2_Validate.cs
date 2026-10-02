@@ -669,14 +669,16 @@ internal sealed class V_LatentRules : IValidator
         // ⭐ S1 / I11 (DESIGN_Unified_Behaviour_Run §2) — a payload has ONE latent cursor, shared by every graph, and an
         //   Event method has no instanceVersion: a latent node in an Event graph used to fail as a Roslyn CS0103 in
         //   GENERATED code. ⇒ refused here, naming the node, until fibers (S6a) give each graph its own cursor.
+        //   ⭐ S6a — a BEHAVIOUR's Event graph is now a fiber of its own (Lowering.Fibers), so the rule binds Instances only.
         var macrosById = asset.Graphs.Where(g => g.Kind == GraphKind.Macro).ToDictionary(g => g.Id);
-        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event
+                                                     && asset.Dispatch != BlueprintDispatchKind.Behavior))
         {
             var latent = MacroLatency.FindLatentInNodes(graph.Nodes, macrosById);
             if (latent is null) continue;
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1658,
                 $"Event graph '{graph.Name}' contains latent node '{FriendlyNodeName(latent)}'. An Event graph cannot " +
-                $"wait yet: a blueprint has one latent cursor shared by every graph. Move the waiting logic into the " +
+                $"wait in an Instance: an Instance has one latent cursor shared by every graph (a Behaviour's Event graph can). Move the waiting logic into the " +
                 $"Tick graph (for example, set a variable here and react to it there).",
                 asset.AssetId, graph.Id, latent.Id));
         }

@@ -366,7 +366,8 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     [CoversDiagnosticCode("BP1658")]
     public void S1_ALatentNodeInAnEventGraph_IsABlueprintDiagnostic_NotAGeneratedCodeError()
     {
-        var asset = BlueprintAssetBuilder.Behavior("S1EventDelay")
+        // ⭐ S6a: a BEHAVIOUR's Event graph may now wait (its own fiber); the rule binds an Instance only.
+        var asset = BlueprintAssetBuilder.Instance("S1EventDelay")
             .WithGraph("Tick", g => g.Entry())
             .WithEventGraph("OnHit", g => g.Entry(typeof(Runtime.WhenTestHitEvent).FullName!).Delay(1f))
             .Build();
@@ -566,6 +567,99 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         var asset = BlueprintAssetBuilder.Instance("S5dInInstance")
             .WithGraph("Tick", g => g.Entry().RunBehavior("Anything")).Build();
         Assert.Contains(Diagnose(asset), d => d.Code == "BP1659");
+    }
+
+    // ── S6a (DESIGN_Unified_Behaviour_Run §4a): a behaviour's Event graph is a fiber of its own ─────────────────────
+
+    /// <summary>
+    /// A behaviour whose Tick never ends and whose Event graph (<see cref="Runtime.WhenTestHitEvent"/>) runs the counting
+    /// child, then writes the event's <c>Damage</c> into Variable <c>Got</c>. The read is AFTER the wait, so it only works if
+    /// the fiber kept the event it started on.
+    /// </summary>
+    private static BlueprintAsset WaitingEventHandler(string name, string child)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name)
+            .WithVariable("Got", typeof(float))
+            .WithGraph("Tick", g => g.Entry())
+            .WithEventGraph("OnHit", g => g.WithInput("Damage", "System.Single")
+                .Entry(typeof(Runtime.WhenTestHitEvent).FullName!).RunBehavior(child).SetVariable("Got", ""))
+            .Build();
+        var graph = asset.Graphs.Single(gr => gr.Kind == GraphKind.Event);
+        var entry = graph.Nodes.OfType<EventEntryNode>().Single();
+        var set   = graph.Nodes.OfType<SetVariableNode>().Single();
+        set.VariableId = asset.Variables.Single().Id.ToString();
+        var dOut = new Pin { Id = Guid.NewGuid(), Name = "Damage", Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        var vIn  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        entry.Pins.Add(dOut);
+        set.Pins.Add(vIn);
+        graph.Links.Add(new Link { FromNodeId = entry.Id, FromPinId = dOut.Id, ToNodeId = set.Id, ToPinId = vIn.Id });
+        return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6a — an Event graph WAITS across frames and keeps its event.</b> The hit arrives once (frame 1); the handler
+    /// reaches Run Behaviour and suspends on its OWN cursor while the Tick keeps running; the child ticks on frames 2–4; on
+    /// its Success the handler resumes with the saved input and writes <c>Got = 7</c>.
+    /// <para>✅ Red-proof: resume the fiber with <c>default</c> inputs instead of the saved ones and <c>Got</c> stays 0.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void S6a_AnEventGraph_WaitsAcrossFrames_AndKeepsItsEvent()
+    {
+        const string Host = "S6aWaitHost", Child = "S6aWaitChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = WaitingEventHandler(Host, Child);
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var (e, frame) = AssignAndFramer(Host);
+        float Got() => *(float*)(RootParamsAccessRoot(_fixture.World, e) + (int)VarOffset(def!, "Got"));
+
+        _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 7f });
+        _fixture.World.Bus.SwapBuffers();           // readable on the next tick (the framer swaps after it)
+        Assert.Null(frame());                       // f1: the handler reaches Run Behaviour and suspends
+        Assert.Null(frame());                       // f2: child tick 1
+        Assert.Null(frame());                       // f3: child tick 2
+        Assert.Equal(0f, Got());
+        Assert.Null(frame());                       // f4: child tick 3 ⇒ Success ⇒ the handler resumes and writes
+        Assert.Equal(3, _childTicks);
+        Assert.Equal(7f, Got());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S6a — Parallel(1): an event arriving while its handler still waits is a FAULT, never a silent drop</b> (U-6).
+    /// <para>✅ Red-proof: drop the busy check and the second hit restarts the handler silently — no fault.</para>
+    /// </summary>
+    [Fact]
+    public void S6a_AnEventArrivingWhileItsHandlerWaits_FaultsTheRun()
+    {
+        const string Host = "S6aOverflowHost", Child = "S6aOverflowChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child), GoldenCorpus.Options());
+        var world = _fixture.World;
+        var (e, _) = AssignAndFramer(Host);
+        var brain = new BrainTickSystem(_fixture.BehaviorRegistry);
+
+        world.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 1f });
+        world.Bus.SwapBuffers(); brain.Execute(world, 0.016f);          // the handler starts and waits
+        world.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 2f });
+        world.Bus.SwapBuffers(); brain.Execute(world, 0.016f);          // arrives while it waits
+        world.Bus.SwapBuffers();
+
+        var finished = world.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(f => f.Entity.Index == e.Index).ToList();
+        Assert.Single(finished);
+        Assert.Equal(BehaviorFaultCode.EventOverflow, finished[0].FaultCode);
+    }
+
+    /// <summary>⭐ S6a — the Tick graph keeps the shared <c>Cursor</c>; an Event fiber's cursor is its own field.</summary>
+    [Fact]
+    public void S6a_AWaitingEventGraph_GetsItsOwnCursor_TheTickKeepsTheSharedOne()
+    {
+        var src = new BlueprintCompiler().Compile(WaitingEventHandler("S6aEmit", "AnyChild"), GoldenCorpus.Options()).GeneratedSource!;
+        Assert.Contains("__ex.__fib_OnHit.ResumeAt", src);
+        Assert.Contains("__ex.__fib_OnHit_in_Damage", src);
+        Assert.Contains("BehaviorFaultCode.EventOverflow", src);
     }
 
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)

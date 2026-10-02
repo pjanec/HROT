@@ -424,6 +424,85 @@ BTree assets only. Widening them is an editor change, filed with S5d.
 | ⑤ abort | clear a fiber's record + abort the Task sites it started (recursively); `Finish` aborts all | U-8 |
 | ⑥ the readers | debugger / inspector show a fiber list; `StructureHash` covers fiber layout and resume numbering (hot reload) | sweep rows 13, 15 |
 
+#### S6a design — one fiber per suspending graph *(`2026-10-02`, BUILT — as-built below)*
+
+📐 **Measured basis.** Every cursor op is emitted through ONE expression, `{ExecVar}.Cursor` (`StatementEmitter`
+`IrOp_CheckCursorVersion` … `IrOp_ReadCursorWaitUntilTime`). A suspending graph's locals are ALREADY per graph
+(`LocalStorage.PromoteSuspendingGraphLocals`, prefix `__loc_{Graph}_`, in `IrAsset.GraphLocalSlots`, laid out by
+`FieldLayout` after lowering and hashed by `StructureHashComputation`). A behaviour already dispatches its events inline in
+`BehaviorTick`, allocation-free. ⇒ **a fiber is "a suspending graph with its own cursor field"; the cursor and the
+saved event inputs ride `GraphLocalSlots` like the locals do.**
+
+```mermaid
+classDiagram
+  class IrGraph { <<EXISTS, widened>> +LocalSlotPrefix +CursorField (null = "Cursor") }
+  class Fibers { <<NEW, Lowering>> +Assign(asset) : IrAsset +CursorOf(graph) +InputSlot(graph, field) }
+  class LocalStorage { <<EXISTS>> per-graph locals in GraphLocalSlots }
+  class FieldLayout { <<EXISTS>> lays out GraphLocalSlots }
+  class StructureHashComputation { <<EXISTS>> hashes GraphLocalSlots }
+  class StatementEmitter { <<EXISTS, widened>> cursor ops use Fibers.CursorOf(current graph) }
+  class InstanceEmitter { <<EXISTS, widened>> Event_G gets deltaTime, instanceVersion, occurrenceKey; BehaviorTick resumes then dispatches }
+  class BehaviorFault { <<EXISTS>> +Raise(view, self, EventOverflow, msg) }
+  Fibers --> IrGraph : sets CursorField
+  Fibers --> LocalStorage : appends cursor + input slots beside the locals
+  FieldLayout --> Fibers : lays the slots out
+  StatementEmitter --> Fibers
+  InstanceEmitter --> Fibers
+  InstanceEmitter --> BehaviorFault : arrival while the fiber is busy
+```
+*What it shows that prose hid:* nothing new is laid out, hashed or reset by a new mechanism — the fiber's state is three
+more entries in a list three existing passes already walk.
+
+```mermaid
+sequenceDiagram
+  participant R as BlueprintRunner
+  participant BT as BehaviorTick (generated)
+  participant EG as Event_G (fiber G)
+  participant T as Tick (fiber 0, field Cursor)
+  R->>BT: BehaviorTick(block, exec, ..., instanceId, occurrenceKey)
+  loop each suspending Event graph G whose cursor is busy (ResumeAt != 0)
+    BT->>EG: resume with the SAVED inputs (exec.__in_G_*)
+    EG-->>BT: returns (still waiting, or done: cursor cleared)
+  end
+  loop each event of type G on the bus this frame
+    alt fiber G busy
+      BT->>BT: BehaviorFault.Raise(EventOverflow), the event is not lost silently
+    else fiber G free
+      BT->>BT: save the inputs into exec.__in_G_*
+      BT->>EG: run from Entry with them (may suspend)
+    end
+  end
+  BT->>T: Tick(...) — its status ends the behaviour
+```
+*What it shows that prose hid:* resuming BEFORE dispatching means a fiber that started this frame is not stepped twice in
+one frame, and a fiber that finishes on resume frees itself for an event arriving the same frame.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| the Tick graph's cursor | ⭐ keeps the field name `Cursor` ⇒ every existing Instance and behaviour is byte-identical | renaming every cursor `F0`: moves all ~300 goldens for no behaviour change |
+| scope | ⭐ **behaviours only**; `BP1658` stays for an Instance's Event graph | Instances too: their events arrive through `BlueprintEventDispatch`'s handler delegate, which has no `instanceVersion` and no per-frame resume caller — a second scheduler for a tier the programme is retiring toward behaviours |
+| the policy until S6b (U-6) | ⭐ **Parallel(1)**: U-6's default with N = 1. An arrival while busy ⇒ `BehaviorFault` (`EventOverflow`) + log | ignore (U-6 rejects it); restart (a different policy, S6b) |
+| order inside `BehaviorTick` | ⭐ resume busy fibers → dispatch this frame's events → Tick | dispatch first (§4a ④'s wording): a fiber started this frame would be resumed in the same frame, re-invoking a latent action twice |
+| the event payload of a waiting fiber | ⭐ its graph INPUTS are saved as `__in_{G}_{field}` slots and passed back on resume — the body is unchanged (it reads parameters) | copying the whole event struct: needs its size at compile time and the body would change |
+| the Event method's signature (behaviour) | ⭐ every behaviour Event method gains `deltaTime, instanceVersion, occurrenceKey`, as `Tick` has | only suspending ones: two shapes, and `Get Delta Time` in a non-suspending Event graph is already a `CS0103` today |
+| `Finish` with fibers live (U-8) | ⭐ unchanged: the Tick's `Return` finishes the run and CE-449's clear zeroes the whole `Exec`, every fiber with it | — |
+
+⚠ **Not in S6a:** Parallel(N > 1), Restart, Queue(N) and the event ring (S6b); Task-node completion fibers (S6c).
+
+#### S6a as-built *(`2026-10-02`, CE-2005)*
+
+| piece | where |
+|---|---|
+| `IrGraph.CursorField` (null = the shared `Cursor`); `Fibers.Assign` gives each suspending Event graph of a behaviour `__fib_{G}` (a `BlueprintLatentCursor`) and `__fib_{G}_in_{field}` per input, appended to `GraphLocalSlots` | `Ir/IrGraph.cs`, `Lowering/Fibers.cs`, `InstanceLowering` |
+| every cursor op reads `Fibers.CursorOf(current graph)` (7 sites, one expression) | `StatementEmitter` |
+| a behaviour's Event method takes `deltaTime, instanceVersion, occurrenceKey` like `Tick`; its thunk refuses an arrival while busy (`BehaviorFaultCode.EventOverflow`), saves the inputs, then calls with the saved copies; `BehaviorTick` resumes busy fibers first | `InstanceEmitter` |
+| `BP1658` binds an Instance's Event graph only | `Stage2_Validate` (`V_LatentRules`) |
+| `BehaviorFaultCode.EventOverflow = 5` | `BehaviorFault.cs` |
+| rails `BlueprintBehaviourTests.S6a_*` (3): an Event graph runs a child across frames while the Tick keeps running, then writes the event's `Damage` it started on; a second hit while it waits faults the run with `EventOverflow`; the emitted shape. The S1 BP1658 rail now uses an Instance. Red-proofs: resuming with default inputs leaves `Got` = 0; dropping the busy check removes the fault | |
+
+⚠ **Residue:** the AI debugger / inspector still show the Tick cursor only (§4a ⑥ — a fiber list is a reader change, with S6b).
+
+
 ⭐⭐ **Recording and replay** *(user, 2026-10-02: "the event queue needs to be saved as part of the blueprint state,
 serializable to recording so that replay reconstructs the queue")*. All of a blueprint's execution state lives in its
 `Exec` record **inside the occurrence store**: every fiber's cursor, locals and `When` memory, every waiting fiber's copy

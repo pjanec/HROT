@@ -532,7 +532,11 @@ internal static class InstanceEmitter
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
-        e.WriteLine($"float time{extraParamStr})");
+        // ⭐ S6a — a behaviour's Event graph may be a fiber that waits: it gets the Tick's frame context (deltaTime, the run's
+        //   instanceVersion for its cursor, the occurrence for a child it hosts). One shape for every behaviour Event method.
+        e.WriteLine(IsBehavior(asset)
+            ? $"float time, float deltaTime, uint instanceVersion, int occurrenceKey{extraParamStr})"
+            : $"float time{extraParamStr})");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
@@ -685,6 +689,14 @@ internal static class InstanceEmitter
         e.Indent();
         e.WriteLine("ref var __bb = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Block>(ref block);");
         e.WriteLine("ref var __ex = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Exec>(ref exec);");
+        // ⭐ S6a — resume every waiting Event fiber FIRST, with the inputs it started on: a fiber started below this frame
+        //   is then not stepped twice in one frame, and one that finishes here is free for an event arriving this frame.
+        foreach (var g in events.Where(Lowering.Fibers.IsOwnFiber))
+        {
+            var saved = string.Concat(g.Inputs.Select(f => $", __ex.{Lowering.Fibers.InputSlot(g, f)}"));
+            e.WriteLine($"if (__ex.{Lowering.Fibers.CursorOf(g)}.ResumeAt != 0)");
+            e.WriteLine($"    Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey{saved});");
+        }
         foreach (var g in events)
         {
             e.WriteLine($"if (world.Bus.HasEvent(__EvtId_{g.Name}))");
@@ -693,7 +705,7 @@ internal static class InstanceEmitter
             e.WriteLine($"var __raw = world.Bus.ReadRawByTypeId(__EvtId_{g.Name}, out int __size);");
             e.WriteLine("if (__size > 0)");
             e.WriteLine("    for (int __i = 0; __i + __size <= __raw.Length; __i += __size)");
-            e.WriteLine($"        Event_{g.Name}_Thunk(ref __bb, ref __ex, world, ecb, self, time, deltaTime, __raw.Slice(__i, __size));");
+            e.WriteLine($"        Event_{g.Name}_Thunk(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, __raw.Slice(__i, __size));");
             e.Outdent();
             e.WriteLine("}");
         }
@@ -775,6 +787,7 @@ internal static class InstanceEmitter
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine("float deltaTime,");
+        if (behaviour) e.WriteLine("uint instanceVersion, int occurrenceKey,");
         e.WriteLine("global::System.ReadOnlySpan<byte> payload)");
         e.Outdent();
         e.WriteLine("{");
@@ -811,7 +824,28 @@ internal static class InstanceEmitter
                 ? ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"default({CSharpType(f.Type)})"))
                 : "";
         }
-        e.WriteLine($"Event_{evtGraph.Name}({(behaviour ? "ref __bb, ref __ex" : "ref s")}, view, ecb, self, time{args});");
+        if (behaviour && Lowering.Fibers.IsOwnFiber(evtGraph))
+        {
+            // ⭐ S6a — Parallel(1) until S6b (U-6): an arrival while this fiber still waits is a FAULT, never a silent drop.
+            //   Otherwise the inputs are saved in the fiber, so a resume next frame sees the event it started on.
+            e.WriteLine($"if (__ex.{Lowering.Fibers.CursorOf(evtGraph)}.ResumeAt != 0)");
+            e.WriteLine("{");
+            e.WriteLine("    global::Fdp.Toolkit.Behavior.Events.BehaviorFault.Raise(view, self, "
+                      + "global::Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.EventOverflow,");
+            e.WriteLine($"        \"event '{evtGraph.Name}' arrived while its handler was still waiting (one handler at a time).\");");
+            e.WriteLine("    return;");
+            e.WriteLine("}");
+            if (evtGraph.Inputs.Count > 0)
+            {
+                foreach (var f in evtGraph.Inputs)
+                    e.WriteLine($"__ex.{Lowering.Fibers.InputSlot(evtGraph, f)} = "
+                              + (reinterpret ? $"__ev.{f.Name};" : $"default({CSharpType(f.Type)});"));
+                args = string.Concat(evtGraph.Inputs.Select(f => $", __ex.{Lowering.Fibers.InputSlot(evtGraph, f)}"));
+            }
+        }
+        e.WriteLine(behaviour
+            ? $"Event_{evtGraph.Name}(ref __bb, ref __ex, view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey{args});"
+            : $"Event_{evtGraph.Name}(ref s, view, ecb, self, time{args});");
         e.Outdent();
         e.WriteLine("}");
     }
