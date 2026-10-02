@@ -769,7 +769,7 @@ Muscle: ∅; Map2D: ∅ — its two are inside the Brain/Muscle create tables, s
 
 ### 9b. ⭐⭐⭐ RECOMPUTE ON EVERY OWNERSHIP CHANGE — overwrite, not fill *(user rule, `2026-10-01`; CURRENT lean, not built)*
 
-> ✅ **BUILT `2026-10-02` (S5)** — as built in [`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md) §5.6 S5, with two argued deviations: it writes only where claim and record disagree (the "else UNKNOWN" below would wipe a third node's correct record), and the `MasterOnly` change ② is made true by the shared applier's master-move pin, not by this recompute. The F7 window is protected by `OutgoingGrantsPending` (P6).
+> ✅ **BUILT `2026-10-02` (S5)** — as built in [`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md) §5.6 S5, with two argued deviations: it writes only where claim and record disagree (the "else UNKNOWN" below would wipe a third node's correct record), and the `MasterOnly` change ② is made true by the shared applier's master-move pin, not by this recompute. The F7 window is protected by `OutgoingGrantsPending` (P6). ⛔ Corrected in S6: "none claimed, record mine" is NOT turned into "not me" — a component added after birth carries no claim (`AddComponent` sets none), so its claim follows the record instead.
 
 > 🔒 **User, verbatim:** *"network record must be recomputed on every ownership transfer, independently on if it already has an entry"*
 

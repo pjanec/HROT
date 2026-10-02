@@ -158,8 +158,9 @@ namespace Fdp.Toolkit.Replication.Tests
         public void AComponentTheOwnerAddsAfterBirth_TakesTheRecordsClaim_AndTheRecordStaysMine()
         {
             var n = Build(Local, primary: Local);
-            n.Repo.RemoveComponent<TkbIdentity>(n.E);
-            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = 2 });       // added later: no claim
+            // The state a component added after spawn is in: present, unclaimed. (Set directly — RemoveComponent keeps
+            // the claim bit, so a remove + re-add of the same type would not reproduce it.)
+            n.Repo.SetAuthority<TkbIdentity>(n.E, false);
             Assert.False(n.Claims<TkbIdentity>());
 
             n.Update(Kinematic, Remote, Remote);                              // any ownership change for the entity
