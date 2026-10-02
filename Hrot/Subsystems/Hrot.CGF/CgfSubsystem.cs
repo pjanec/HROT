@@ -871,6 +871,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             AckSink              = adapters?.AckSink,
             JsonAttributeCompiler = adapters?.JsonCompiler,
             OwnershipStrategy     = adapters?.OwnershipStrategy,
+            // ⭐ CE-509 / §4.1d — the forwarding half, as on every host: a locally originated request addressed
+            //   to another node leaves this node instead of being dropped by the Level-1 guard.
+            RequestEgress         = adapters?.RequestEgress,
             // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, now sourced UNIFORMLY from the
             //    shared NED replication module (same cluster cache the adapters used, but the module hosts the
             //    membership ingest + provider for EVERY ECS node). 🔒 User ruling 2026-09-16: the prior

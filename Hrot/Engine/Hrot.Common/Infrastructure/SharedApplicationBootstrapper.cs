@@ -110,6 +110,7 @@ public abstract class SharedApplicationBootstrapper
         plan.Step("configured-factory", requires: new[] { "context" }, provides: new[] { "configured-factory" }, run: () =>
         {
             configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
+            ConfiguredNetworkFactory = configuredFactory;
         });
 
         // Phase 2 — Register domain ECS components BEFORE the serializer is built.
@@ -236,7 +237,7 @@ public abstract class SharedApplicationBootstrapper
         // Phase 6a — Register base modules (EntityLifecycleModule + GeographicModule) and
         // the domain spawning pipeline.
         // ⛔ REQUIRES system-groups — see the Phase 4a note (the subclass-field channel).
-        plan.Step("spawning-pipeline", requires: new[] { "system-groups" }, run: () =>
+        plan.Step("spawning-pipeline", requires: new[] { "system-groups", "configured-factory" }, run: () =>
         {
             foreach (IEcsModule m in context.BaseModules)
                 context.Kernel.RegisterModule(m);
@@ -434,6 +435,13 @@ public abstract class SharedApplicationBootstrapper
     /// Called after base modules and before network translators.
     /// </summary>
     protected abstract void RegisterSpawningPipeline(HrotNodeContext context);
+
+    /// <summary>
+    /// ⭐ The node-configured network factory (null offline), available from the <c>configured-factory</c> step on —
+    /// so every host's <see cref="RegisterSpawningPipeline"/> builds the SAME entity-lifecycle network adapters
+    /// (<c>CE-509</c>; <c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1d "UNIFY — pass everywhere").
+    /// </summary>
+    protected INetworkFactory? ConfiguredNetworkFactory { get; private set; }
 
     /// <summary>
     /// Phase 6b: Register domain-specific DDS translators (entity state, combat, etc.).

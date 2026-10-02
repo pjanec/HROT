@@ -471,12 +471,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //    component narrowing is gate 2 (IsComponentTypeRegistered), never the list (§6.5b).
         //
         // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+        // ⭐⭐ CE-509 — the SAME network adapters CGF and IG pass: this node can now be ASKED over the network to
+        //    create, forward a request addressed elsewhere, and GRANT what it creates (push-only ownership,
+        //    docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2; DESIGN_Subsystem_Composition_Unification.md
+        //    §4.1d "UNIFY — pass everywhere"). Null offline / BDC ⇒ a no-op, exactly as on the other hosts.
+        var adapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters();
+
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = context.World,
             EntityMap   = context.EntityMap,
             TkbDb       = context.TkbDb!,
             IdAllocator = context.IdAllocator!,
+
+            NetworkRequestSource  = adapters?.RequestSource,
+            AckSink               = adapters?.AckSink,
+            JsonAttributeCompiler = adapters?.JsonCompiler,
+            OwnershipStrategy     = adapters?.OwnershipStrategy,
+            RequestEgress         = adapters?.RequestEgress,
+
             // BaseModules[0] == EntityLifecycleModule. The pack calls SetTranslators on it, which must
             // precede the kernel's Initialize — it does: this runs during RegisterSpawningPipeline.
             Elm         = (EntityLifecycleModule)context.BaseModules[0],
@@ -515,6 +528,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         });
 
         var spawningSystem = creation.SpawnSystem;
+
+        // ⭐ CE-509 — keep the strategy's cluster cache fed (CGF/IG poll from their app loops; this host has none).
+        if (adapters != null)
+            context.Kernel.RegisterGlobalSystem(new Hrot.Common.Systems.NetworkPollingSystem(adapters.PollNetwork));
 
         // ⭐⭐⭐ CE-147 step 4 — THE onEntitySpawned HOOK IS GONE, and nothing replaced it.
         //

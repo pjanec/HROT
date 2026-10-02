@@ -469,6 +469,10 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             //    entities … not removing capabilities by design". The pack has no opt-out.
             //
             // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+            // ⭐⭐ CE-509 — the SAME network adapters every other ECS host passes (see SimHostNodeBootstrapper):
+            //    asked over the network, forwards, and grants what it creates. Null offline ⇒ no-op.
+            var adapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters();
+
             var creation = EntityCreationPack.Build(new EntityCreationContext
             {
                 World       = context.World,
@@ -477,6 +481,12 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
                 IdAllocator = context.IdAllocator,
                 Elm         = (EntityLifecycleModule)context.BaseModules[0],
                 NodeId      = context.NodeId,
+
+                NetworkRequestSource  = adapters?.RequestSource,
+                AckSink               = adapters?.AckSink,
+                JsonAttributeCompiler = adapters?.JsonCompiler,
+                OwnershipStrategy     = adapters?.OwnershipStrategy,
+                RequestEgress         = adapters?.RequestEgress,
 
                 // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the
                 //    shared NED replication module (which hosts the cluster-membership ingest for every ECS
@@ -493,6 +503,10 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
             //   exactly as before — composition changed, scheduling did not.
             context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
+
+            // ⭐ CE-509 — keep the strategy's cluster cache fed (no app-loop poll on this host).
+            if (adapters != null)
+                context.Kernel.RegisterGlobalSystem(new Hrot.Common.Systems.NetworkPollingSystem(adapters.PollNetwork));
             context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
             context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
             // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).

@@ -163,4 +163,25 @@ public sealed class NedReplicationModuleTests
         Assert.True(module.NetworkLifecycleGroup.Enabled,
             "NetworkLifecycleGroup.Enabled should default to true (gate open for normal operation).");
     }
+
+    // ── CE-508 — the pre-genesis yield runs on EVERY NED host ──────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-508</c> — whichever node creates an entity and grants a group away must give up that group's claim,
+    /// so the yield is registered whatever the role (it was pure-Brain only). 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2. The system is a private nested type, so it is
+    /// matched by name.
+    /// </summary>
+    [Theory]
+    [InlineData(NodeRole.Brain)]
+    [InlineData(NodeRole.MuscleGround)]
+    [InlineData(NodeRole.Map2D)]
+    [InlineData(NodeRole.Brain | NodeRole.MuscleGround)]
+    public void EveryRoleRegistersTheLocalAuthorityYield(NodeRole role)
+    {
+        var registry = new CapturingRegistry();
+        BuildModule(role).RegisterSystems(registry);
+
+        Assert.Contains(registry.RegisteredTypes, t => t.Name == "LocalAuthorityYieldSystem");
+    }
 }

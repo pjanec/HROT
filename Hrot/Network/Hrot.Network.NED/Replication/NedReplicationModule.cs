@@ -501,17 +501,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         // TearDown lifecycle when destroyed. If GhostDestructionSystem ran here too, it would
         // consume the DestroyEntityCommand first and bypass TearDown, skipping EntityMaster
         // DISPOSE publication to DDS (and thus the IG ghost would never be removed).
-        bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
-
-        // ── LocalAuthorityYieldSystem (pure-Brain only) ──────────────────────
-        // (OwnershipIngressSystem was pure-Brain-here + pure-IG-above; it is now registered
-        // role-independently below — CE-276 — so ANY node can APPLY an incoming ownership update,
-        // which is what lets a Muscle receive an EntityMaster transfer. LocalAuthorityYieldSystem
-        // stays pure-Brain: it is the Brain yielding its bits when a Muscle takes over.)
-        if (pureBrainRole)
-        {
-            registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
-        }
+        // ── LocalAuthorityYieldSystem (EVERY NED host) ───────────────────────
+        // ⭐⭐ CE-508 — whichever node creates an entity and grants a group away gives up that group's claim the
+        //    same way (push-only ownership, docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2). It used to be
+        //    pure-Brain only, with no recorded reason (Q79 §0.2 F15). It acts only on grants addressed to OTHER
+        //    nodes, so a node that grants nothing is unaffected. (OwnershipIngressSystem is role-independent
+        //    too — CE-276.)
+        registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
 
 
