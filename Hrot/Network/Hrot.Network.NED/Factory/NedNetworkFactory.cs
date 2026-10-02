@@ -442,7 +442,8 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             foreach (var sample in capLoan)
             {
                 // ⭐ S7 — a departed node leaves the strategy's cache (the reliable half of the signal, see
-                //   ClusterCapabilityIngestSystem). State first: a clean exit's dispose can ride on a VALID sample.
+                //   ClusterCapabilityIngestSystem). State first: when a data sample is still unread as the dispose arrives, take reports the not-alive state on that
+                //   data sample and adds no invalid one (see ClusterCapabilityIngestSystem).
                 if (IsNotAlive(sample.Info.InstanceState))
                 {
                     _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId);

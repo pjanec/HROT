@@ -223,8 +223,8 @@ public class EntityMasterTranslatorTests
     [Fact]
     public void RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater()
     {
-        // Measured: a sample written before the identity handshake has no sender on take; its publication handle
-        // resolves a few ms later. The resolver stands in for the sender registry (a live participant cannot force it).
+        // Measured: under thread-pool starvation a sample can be delivered before the library has looked up its writer's
+        // identity (an async loop); the handle resolves once it has. The resolver stands in for the sender registry.
         const long handle = 7;
         var (repo, entityMap, _, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
@@ -441,8 +441,8 @@ public class EntityMasterTranslatorTests
 
     /// <summary>
     /// ⭐ CE-517, end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
-    /// <c>EntityMaster</c> (sender identity). Written ONCE, right after the writer's participant starts. ⚠ Whether that
-    /// sample's sender resolves on take or only later depends on timing (measured: both happen) — the late path is
+    /// <c>EntityMaster</c> (sender identity). Written ONCE. ⚠ Whether that sample's sender resolves on take or only later
+    /// depends on the thread pool (the library looks identities up from an async loop; measured: both happen) — the late path is
     /// railed deterministically by <see cref="RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater"/>.
     /// </summary>
     [Fact]

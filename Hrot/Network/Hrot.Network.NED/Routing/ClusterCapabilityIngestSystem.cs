@@ -54,8 +54,10 @@ namespace Hrot.Network.Routing
                     // ⭐ S7 — the durable capabilities instance is the RELIABLE half of the departure signal: every node
                     //   writes it once at join (Reliable + TransientLocal), so every reader holds the instance and its
                     //   writer's end always arrives. The BestEffort heartbeat alone was measured to miss it (1 run in 10).
-                    //   ⚠ The STATE is tested before IsValid: measured, a clean exit's NotAliveDisposed can ride on a
-                    //   VALID data sample (the last one, unread), not only on an invalid one.
+                    //   ⚠ The STATE is tested before IsValid: a dispose carries no data, but when a data sample is still
+                    //   UNREAD as it arrives, DDS adds no invalid sample — take reports the instance's not-alive state on
+                    //   that data sample (measured: an exit while the reader was idle). Taking every frame narrows it to
+                    //   a heartbeat written just before the exit; it does not close it.
                     if (IsNotAlive(sample.Info.InstanceState))
                     {
                         Departed(view, DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId,

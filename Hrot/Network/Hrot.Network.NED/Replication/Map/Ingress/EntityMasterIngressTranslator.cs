@@ -30,9 +30,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// ⭐ <b>CE-517 — the primary owner is the sample's WRITER.</b> Spec (<c>BDC_NED_SST_Descriptor_Rules.md</c>):
     /// <i>"Ownership is determined by the most recent writer"</i>; <c>EntityMaster</c> carries no owner field. Every
     /// production participant enables CycloneDDS sender tracking with <c>AppInstanceId</c> = its node id
-    /// (<c>BUG2-DESIGN.md</c> §1.2), so the reader resolves the writer of each sample to a node. Measured: a sample
-    /// written before the identity handshake completes resolves to no sender on take, and its writer's publication handle
-    /// resolves a few ms later — such a ghost keeps the unknown-owner sentinel (-1) until a later poll resolves it.
+    /// (<c>BUG2-DESIGN.md</c> §1.2), so the reader resolves the writer of each sample to a node.
+    /// ⚠ <b>Why a retry by publication handle exists:</b> CycloneDDS.NET 0.3.2 maps a writer's handle to its participant
+    /// synchronously (subscription-matched listener), but moves an arrived identity sample into its lookup only from an
+    /// async loop (<c>SenderRegistry.MonitorIdentitiesAsync</c>, a thread-pool continuation). Under thread-pool starvation
+    /// an identity that has ARRIVED is not yet LOOKED UP, so a sample delivered in that window has no sender — measured:
+    /// once in four full <c>Hrot.IG.Tests</c> runs, and in a starved-pool probe. Such a ghost keeps -1 and is resolved by
+    /// its writer's handle on a later poll. ⭐ Remove the retry once the library drains pending identities on a miss.
     /// A KNOWN owner is never overwritten here: a master move reaches every node as an <c>OwnershipUpdate</c> through
     /// <c>OwnershipApplier</c>, and an old writer's late sample must not flip it back.
     ///
