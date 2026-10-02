@@ -57,7 +57,24 @@ namespace Hrot.Network.Routing
             using var loan = _heartbeatReader.Take();
             foreach (var sample in loan)
             {
-                if (!sample.IsValid) continue;
+                if (!sample.IsValid)
+                {
+                    // ⭐ S7 — the node LEFT: its heartbeat instance has one writer, so not-alive means that node crashed
+                    //   (lease expiry) or exited (dispose). Forget it, and tell the ownership reclaim (R-167: every node
+                    //   sees the same departure and takes back the same keys, no message). The managed .Data throws on
+                    //   a not-alive sample, so the key is read from the native buffer. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
+                    if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed ||
+                        sample.Info.InstanceState == DdsInstanceState.NotAliveNoWriters)
+                    {
+                        int departed = DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId;
+                        _cache.RemoveNode(departed);
+                        // Raised even for a node the cache never knew: a record can name a node no grant strategy chose
+                        // (a test hook, an external hand-in). A repeat (disposed, then no-writers) moves nothing.
+                        if (view is EntityRepository repo)
+                            repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = departed });
+                    }
+                    continue;
+                }
                 var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : Array.Empty<string>();
                 _cache.UpdateNode(new NodeCapability
                 {

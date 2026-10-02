@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1, S2, S2b, S3, S4, S5, S6 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts); S7 next.
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); S8 next.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -253,7 +253,8 @@ classDiagram
   }
   class OwnershipTransferInitiationSystem { <<existing, changed S5: apply via applier>> }
   class OwnershipRecomputeSystem { <<new, R-159>> }
-  class PartialOwnerReclaim { <<new, R-167>> +OnNotAlive(entity, packedKey) }
+  class PartialOwnerReclaimSystem { <<new, built S7, R-167>> +on NodeDeparted(nodeId) }
+  class ClusterCapabilityIngestSystem { <<existing, changed S7: heartbeat not alive raises NodeDeparted>> }
   class AuthorityExtensions { <<existing, changed S6: (d,i) then (d,0) then primary>> }
   class PartMetadata { <<existing, changed S6: DescriptorOrdinal removed>> }
   class HealthApplicationSystem { <<existing, changed: gate = Health claim>> }
@@ -270,14 +271,15 @@ classDiagram
   DeferredTakeoverSystem --> DescriptorOwnershipMap
   OwnershipIngressSystem --> OwnershipApplier
   OwnershipTransferInitiationSystem --> OwnershipApplier
-  PartialOwnerReclaim --> OwnershipApplier
+  PartialOwnerReclaimSystem --> OwnershipApplier
+  ClusterCapabilityIngestSystem ..> PartialOwnerReclaimSystem : NodeDeparted
   OwnershipApplier --> DescriptorOwnershipMap
   OwnershipApplier ..> PartMetadata : resolves (root, i, d) to a part
   OwnershipRecomputeSystem ..> OutgoingGrantsPending : reads, clears
 ```
 
 *What the picture shows that prose hid:* the new types are small and few (`OwnershipGroup`/`Table`, `RoleGroupOwnershipStrategy`,
-`OwnershipApplier`, `OwnershipRecomputeSystem`, `PartialOwnerReclaim`, `OutgoingGrantsPending`); every
+`OwnershipApplier`, `OwnershipRecomputeSystem`, `PartialOwnerReclaimSystem`, `OutgoingGrantsPending`); every
 protocol participant (`DeferredTakeoverSystem`, the DTO translators, `OwnershipUpdateTranslator`) is **unchanged**. The group table
 replaces the role tables in the same `Hrot.Core` home (reuse, not a second table), and the descriptor binding extends the existing
 `DescriptorOwnershipMap` rather than adding a parallel map.
@@ -312,21 +314,30 @@ sequenceDiagram
 *What the picture shows:* the creator's record stays "mine" for the granted descriptors until the confirming `OwnershipUpdate`
 (F7, P6) — `OutgoingGrantsPending` is what lets the recompute leave it alone in that window.
 
-### 5.3 Sequence — a Muscle node crashes (`R-167`, Q79 §0.11)
+### 5.3 Sequence — a Muscle node crashes (`R-167`, Q79 §0.11) *(as built in S7)*
 
 ```mermaid
 sequenceDiagram
   participant W as DDS
-  participant I as WorldPos ingress (every node)
-  participant R as PartialOwnerReclaim
+  participant I as ClusterCapabilityIngestSystem (every node)
+  participant R as PartialOwnerReclaimSystem
   participant A as OwnershipApplier
-  W->>I: dtWorldPos instance not alive
-  I->>R: OnNotAlive(entity, PackKey(dtWorldPos, 0))
-  R->>R: is the record's current owner gone? (P10 guard)
+  W->>I: NodeHeartbeat instance of node N not alive
+  I->>I: forget N in the cluster cache
+  I->>R: NodeDeparted(N) on the local bus
+  R->>R: keys whose record names N (P10 guard by construction)
   R->>A: Apply(entity, key, entity PrimaryOwnerId)
-  A->>A: Map = primary owner, claim set only on the primary owner
+  A->>A: record = primary owner, claim only on the primary owner
+  R->>A: creator only: grants still pending to N, Apply(entity, key, self)
   Note over A: no network message, every node computes the same result
 ```
+
+*What the picture shows that prose hid:* the trigger is the node LEAVING, not a not-alive sample of the crashed owner's
+descriptor (the §0.11 wording, SUPERSEDED). ⚠ The creator writes a granted descriptor until the grantee confirms (F7), so its
+writer has that instance registered too; DDS reports an instance not-alive only when no writer is left, so a grantee's
+crash would never surface on `dtWorldPos` (DDS instance-liveliness semantics; ⛔ not measured in a real multi-process
+crash yet — §5.7 E8). A node's heartbeat instance has one writer, so it goes not-alive on a crash (lease expiry) and on a
+clean exit alike. Only keys whose record STILL names the departed node move, which is the P10 guard.
 
 ### 5.4 Module — who registers what, and who calls it each frame
 
@@ -338,7 +349,7 @@ graph TD
   NED --> BS["BeforeSync: LocalAuthorityYieldSystem (ungated, CE-508)"]
   NED --> LG["NetworkLifecycleGroup: GhostCreation · GhostPromotion · DeferredTakeover"]
   NED -- "Tick() calls ExecuteGroup each frame" --> LG
-  NED --> TR["translators: ingress call PartialOwnerReclaim on not-alive samples"]
+  NED --> CI["Input: ClusterCapabilityIngestSystem raises NodeDeparted → PartialOwnerReclaimSystem (S7)"]
   ED["Editor (OfflineNetworkFactory)"] -. "no NED: one node, owns all, no grants" .-> NED
   BDC["BDC stack"] -. "no grant support — exempt while unused" .-> NED
   linkStyle 6 stroke:#c0392b,stroke-dasharray:4
@@ -369,7 +380,7 @@ are the hosts where no grant is ever executed: the offline editor (correct — o
 | S4 ✅ | retire the promote-leg claim (B4); creator claims all (D-7) | ✅ `TheClusterAiDebugSurfaceAnswersTests`: SimHost creates (`CreateRequest_creates_on_the_selected_node_and_the_ownership_reads_one_truth`) and CGF creates (`A_CGF_created_tank_reads_one_ownership_truth_on_both_nodes`); on BOTH nodes every descriptor's claim equals its record, i.e. no component is claimed by two nodes. RED after S3 (CGF's ghost claimed `dtEntityMaster` 50/65, `dtEntityInfo` 164, `dtEqsResult` 172, `dtWorldPos` 1/30/31/32/69, `dtNavigationStatus` 68) → GREEN. `RoleAffinitySpawnRails`/`RoleAffinityPromoteRails` converted to the push-only invariants (the creator owns all it materialised; a promoted ghost claims nothing; a grant already on a ghost survives promotion); the rails of the retired role legs and their create/promote partition were removed with the mechanism. As built: the role-affinity block is gone from `NetworkSpawningSystem` (create) and `GhostPromotionSystem` (promote), both lose their `IRoleAffinityPolicy` parameter, `EntityCreationContext.RoleAffinity` is gone and SimHost/IG/CGF no longer pass a policy. The policy TYPE stays (D-7: registration sets). ⚠ The ordering of the yield after the spawn was ALREADY declared (`[UpdateAfter(NetworkSpawningSystem)]` on `LocalAuthorityYieldSystem`); a pending-grant buffer written on the opposite assumption was red-proofed as unnecessary and removed. 📌 `IRoleAffinityPolicy.OwnableMask` now has no production caller; it goes with the D-5 consolidation of `HrotRoleComponentSets` into the groups |
 | S5 ✅ | `OwnershipApplier` extraction + `OwnershipRecomputeSystem` + `OutgoingGrantsPending` (B5) | ✅ `OwnershipRecomputeTests` (F7 timeline: the creator's record of a granted descriptor stays "mine" with its claim gone until the grantee's update, then follows it and the pending mark is removed; claimed-but-recorded-elsewhere ⇒ mine; ~~unclaimed-but-recorded-mine ⇒ not mine~~ ⛔ SUPERSEDED in S6, see below; agreement writes nothing; a split descriptor recorded elsewhere is left alone; a master move keeps every other descriptor with the old owner on the giver, the receiver and a third node), `OwnershipTransferInitiationTests.MasterOnly_TheGiverKeepsPublishingEveryOtherDescriptorItStillWrites`, `NedReplicationModuleTests.EveryRoleRegistersTheRecordRecompute_AfterTheIngress`, `TheDescriptorMapIsWiredTests.NoComponentIsSharedByDescriptorsWithDifferentOwners`. As built: `OwnershipApplier` (`Fdp.Toolkits/Replication/Services`) is the one apply path — `OwnershipIngressSystem` and `OwnershipTransferInitiationSystem` both call it (S7's reclaim will). `LocalAuthorityYieldSystem` marks each granted descriptor in `OutgoingGrantsPending` (component id 159, LOCAL, Transient). `OwnershipRecomputeSystem` runs on every NED host after the ingress, on every entity named by an `OwnershipUpdate` or a `ConstructionOrder`. ⛔ **Corrected in S6:** the first rule wrote "not me" when the record said mine and a component was unclaimed; `EntityRepository.AddComponent` sets no claim, so a component the owner adds after birth (e.g. a legacy `EqsSensor` on the root) made the owner stop publishing a descriptor it owns — 9 EQS cluster rails red once S6 made the senders honour the record (green at S5 `be4b85ca9`, measured in a worktree). Since S5 every path that clears a claim writes the record or marks the handover pending, so "unclaimed, recorded mine" is always a late component: **its claim now follows the record** (`OwnershipRecomputeTests.AComponentTheOwnerAddsAfterBirth_TakesTheRecordsClaim_AndTheRecordStaysMine`). ⚠ Two deviations from §9b, both argued here: ① it writes only where claim and record DISAGREE (a record that already names the right remote owner keeps it — §9b's "else UNKNOWN" would have wiped a third node's correct record to -1); ② the `MasterOnly` row is made true by the APPLIER, not the recompute: on a master move every descriptor without a record entry is first pinned to the OLD primary owner, on every node, so the giver keeps publishing what it writes and every node records the same owner (the recompute alone would fix the giver and receiver but leave a third node naming the new master). A descriptor whose present components are partly claimed is skipped and counted, never guessed. Not covered: part entities (S6) |
 | S6 ✅ | parts: gate lookup, part claims, per-instance apply, `PartMetadata.DescriptorOrdinal` removed, `CE-507` (B6) | ✅ EQS suites; `AuthorityExtensionsTests.HasAuthority_InstanceKey_FallsBackToTheDescriptorType_ThenToThePrimaryOwner`; `OwnershipRecomputeTests.ANewPart_TakesTheClaimOfItsRootsGroups`, `…APerInstanceUpdate_MovesOnlyThatPart_AndNeverTheRoot`; ⭐ the CE-507 rail `EqsDistributedTests.EqsSensor_OnAMuscleCreatedCommander_ReachesTheMuscle_AndAnswersTheBrain` (a SimHost-created commander, so CGF holds the brain group by GRANT, not as primary owner). As built: ① the gate (`AuthorityExtensions`) resolves `(d,i)` → `(d,0)` → primary; ② a part's claim FOLLOWS its record — a parts pass in `OwnershipRecomputeSystem` runs every frame (parts are created later by the running logic, never by the creator's spawn, so there is no birth claim to follow); it gives a new part its root group's claim at once and splits one EQS part naturally (config claimed on the Brain, result on the Perception node); ③ `OwnershipApplier` writes an instance key `(d,i≠0)` to the record only — it never touches the root's claim (it used to, by dropping the instance), and the parts pass moves that one part; ④ `PartMetadata.DescriptorOrdinal` removed (4 writers, all 0, no reader); ⑤ CE-507: `SensorConfigEgressTranslator` and the three gates of `EqsSensorConfigEgressTranslator` key on `PackKey(d, instance)`. ⭐ Found and fixed (F-12): `EqsResultEventEgressTranslator` published every local solver result UNGATED, so two Muscle nodes would both publish a sensor's result; it now publishes only where this node owns `(dtEqsResult, part)`. ⚠ Every Muscle still builds carriers and solves (wasted work on a non-owner) — the ingress skip is S8's F-5. Debug API: `GET /entities/{id}/ownership` now lists `parts[]` with each instance's record and claim (CE-515 ② complete). ⚠ `CgfSubsystem.TestHook_SpawnEntityWithSplitAuthority` (used by ~20 EQS cluster rails) granted only `dtWorldPos`/`dtNavigationStatus`; it now grants the whole MuscleGround and Perception groups from the bound descriptor map, as the strategy does — 11 rails were red until then |
-| S7 | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512` (b)(c); (a) stays with `CE-520`) | crash rail (kill a Muscle process) |
+| S7 ✅ | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512` (b)(c); (a) stays with `CE-520`) | ✅ `PartialOwnerReclaimTests` (toolkit: the departed grantee's keys, a part instance included, return to the primary owner on the primary and on a bystander; a former owner's exit moves nothing it handed on (P10); an entity whose master owner left is not reclaimed; a grant whose target left before taking over is taken back) and `Hrot.ClusterRunner.Integration.Tests.PartialOwnerReclaimTests` (a foreign participant, node 77, heartbeats then disposes its heartbeat: ① CGF takes back the kinematic grant it had pending to 77; ② after 77 was handed `dtWorldPos` by an external `OwnershipUpdate`, CGF and SimHost both record CGF again and only CGF claims it). As built: ⛔ the trigger is the node LEAVING (`NodeHeartbeat` instance not alive → `NodeDeparted`, raised by `ClusterCapabilityIngestSystem` on every NED host), not a not-alive descriptor sample — §5.3 says why. `PartialOwnerReclaimSystem` (toolkit, every NED host) applies each key whose record names the departed node to the entity's primary owner through `OwnershipApplier` (R-167: a direct call, no message); entities whose primary owner left are skipped (the master's departure deletes them). ⭐ Q79 P2 partly closed: `OutgoingGrantsPending` now records each grant's TARGET, and a grant whose target left before taking over is taken back by its creator. Both cluster caches forget a departed node (`SimpleClusterStateCache.RemoveNode`; nothing ever pruned before — measured: `PruneStale` had no caller), so the grant strategy no longer picks it. ⚠ Not built: a real multi-process crash run (§5.7 E8); `CE-512` (a), two initiators, stays with `CE-520` |
 | S8 | `HealthApplicationSystem` gate (`CE-510`); ingress skip-when-owned for group descriptors (F-5) | damage rail on a SimHost-created entity |
 
 ### 5.7 End-to-end acceptance on `ClusterRunner --mode all` *(user `2026-10-02`)*

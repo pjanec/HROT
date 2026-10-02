@@ -488,6 +488,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         // (OutgoingGrantsPending). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S5.
         registry.RegisterSystem(new OwnershipRecomputeSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
+        // ── Partial-owner reclaim — EVERY node (R-167, ownership build S7) ───
+        // When a node leaves (ClusterCapabilityIngestSystem raises NodeDeparted from its heartbeat going not-alive),
+        // every key whose record names it returns to the entity's primary owner, and a grant whose target left before
+        // taking over is taken back by its creator — a direct call on every node, no message.
+        // 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.3, §5.6 S7.
+        registry.RegisterSystem(new PartialOwnerReclaimSystem(_localNodeId, _descriptorOwnershipMap));
+
         // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
         // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity
         // (or a subset of its descriptors) it owns to another node; the system is a no-op on a
@@ -743,7 +750,7 @@ public sealed class NedReplicationModule : INedReplicationModule
                     pending ??= repo.HasManagedComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
                         ? repo.GetComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
                         : new Fdp.Toolkit.Replication.Components.OutgoingGrantsPending();
-                    pending.Descriptors.Add(grant.DescriptorTypeId);
+                    pending.Descriptors[grant.DescriptorTypeId] = grant.NodeId;
                 }
                 if (pending != null)
                     repo.SetManagedComponent(entity, pending);

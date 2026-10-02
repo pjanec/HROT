@@ -448,7 +448,16 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         using var loan = _heartbeatReader.Take();
         foreach (var sample in loan)
         {
-            if (!sample.IsValid) continue;
+            if (!sample.IsValid)
+            {
+                // ⭐ S7 — a departed node leaves the strategy's cache too, so no grant targets it. (The departure EVENT
+                //   comes from ClusterCapabilityIngestSystem, which every NED host registers; this cache feeds the
+                //   grant strategy only.)
+                if (sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
+                    sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters)
+                    _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId);
+                continue;
+            }
             var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
             _clusterCache.UpdateNode(new NodeCapability
             {

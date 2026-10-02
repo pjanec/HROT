@@ -21,7 +21,9 @@ namespace Fdp.Toolkit.Replication.Components
     [DataPolicy(DataPolicy.Transient)]
     public class OutgoingGrantsPending
     {
-        /// <summary>Descriptor type ids granted away and not yet confirmed.</summary>
-        public HashSet<long> Descriptors { get; } = new();
+        /// <summary>Descriptor type id → the node it was granted to, for each grant not yet confirmed. ⭐ S7: the target
+        /// is kept so a grant whose target LEAVES before taking over is taken back (<c>PartialOwnerReclaimSystem</c>) —
+        /// otherwise the creator, having yielded the claim, would never publish that descriptor again (Q79 P2).</summary>
+        public Dictionary<long, int> Descriptors { get; } = new();
     }
 }

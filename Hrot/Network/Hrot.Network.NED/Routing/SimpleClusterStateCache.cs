@@ -82,6 +82,16 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
+        /// <summary>
+        /// ⭐ S7 — forgets a node the moment its heartbeat instance goes not-alive (crash: lease expiry; exit: dispose),
+        /// so the grant strategy stops choosing it and the reliable-init wait-set stops waiting for it. Returns whether
+        /// the node was known. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
+        /// </summary>
+        public bool RemoveNode(int nodeId)
+        {
+            lock (_lock) return _nodes.Remove(nodeId);
+        }
+
         public void PruneStale(double nowUtcSeconds, double maxSilenceSeconds = 10.0)
         {
             lock (_lock)

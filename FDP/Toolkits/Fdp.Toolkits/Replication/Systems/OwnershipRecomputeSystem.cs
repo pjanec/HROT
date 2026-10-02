@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Replication.Systems
             foreach (long ordinal in _descriptorMap.RegisteredDescriptors)
             {
                 if (master.HasValue && ordinal == master.Value) continue;
-                if (pending != null && pending.Descriptors.Contains(ordinal)) continue;
+                if (pending != null && pending.Descriptors.ContainsKey(ordinal)) continue;
 
                 int present = 0, claimed = 0;
                 foreach (int componentId in _descriptorMap.GetComponentIdsForDescriptor(ordinal))

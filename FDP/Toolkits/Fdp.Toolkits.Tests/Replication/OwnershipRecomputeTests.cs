@@ -104,7 +104,7 @@ namespace Fdp.Toolkit.Replication.Tests
             foreach (int cid in n.Descriptors.GetComponentIdsForDescriptor(d))
                 n.Repo.SetAuthority(n.E, cid, false);
             var pending = new OutgoingGrantsPending();
-            pending.Descriptors.Add(d);
+            pending.Descriptors[d] = Remote;
             n.Repo.SetManagedComponent(n.E, pending);
         }
 
