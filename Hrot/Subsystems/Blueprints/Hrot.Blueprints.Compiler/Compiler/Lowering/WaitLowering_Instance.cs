@@ -168,7 +168,10 @@ internal static class WaitLowering_Instance
                                     new[] { resumeAtV, constKV }, BoolType)),
             };
 
-            IrBlockId elseOfChain = resumeCheckBlockId[k + 1];
+            // ⭐ CE-2018 — the else goes to the NEXT LINK of the chain, and only the last link falls to the last check.
+            //   🔴 It went to check[k+1] for every link, so with three or more waits ResumeAt == 3 resumed the SECOND
+            //   wait (the third re-entered itself forever). Two waits — every golden — are byte-identical.
+            IrBlockId elseOfChain = k + 1 <= n - 1 ? chainBlockId[k + 1] : resumeCheckBlockId[k + 1];
 
             synthesizedBlocks.Add(new IrBlock
             {

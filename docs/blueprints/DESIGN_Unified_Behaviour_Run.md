@@ -670,6 +670,7 @@ completion fibers (lands with S7).
 | T3 | ⛔ the editor has NO palette entry and NO drawer for it (the S5d residue) | `grep RunBehavior Hrot.Blueprints.Editor` empty |
 | T4 | both production hosts own a `BehaviorRegistry` (`GetRegisteredNames()`), and both build the drawers through ONE binder | `EditorSubsystem.cs:1819`, `CgfSubsystem.cs:1518`, `AiBlueprintNodeAuthoringBinder.CreateDrawers` |
 | T5 | an exec link lands on a PIN, but the scheduler walks node to node (`GetSingleExecSuccessor` returns a node) ⇒ a second exec INPUT (Abort) is invisible to it | `Stage5_Schedule` |
+| T6 | 🔴 **found + FIXED (CE-2018):** both resume lowerings chained the dispatch wrongly for 3+ waits in one graph (each link's else went to `check[k+1]`), so the third wait re-entered itself forever. ⇒ S7's extra (aborted) resume labels are safe only on the fixed chain | `WaitLowering_Instance`, `WaitLowering_AiPrimitive`; rails `CE2018_*`, `AiPrimitive_ThreeWaits_*` |
 
 **Claim table** *(the rows the leans rest on)*
 

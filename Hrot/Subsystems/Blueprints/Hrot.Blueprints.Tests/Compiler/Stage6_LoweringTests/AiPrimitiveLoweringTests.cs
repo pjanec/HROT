@@ -113,6 +113,29 @@ public sealed class AiPrimitiveLoweringTests
         Assert.Equal(success.Id, Assert.IsType<IrTerm_Branch>(notRunning.Terminator).IfFalse);
     }
 
+    /// <summary>
+    /// ⭐ CE-2018 — with THREE waits the phase dispatch is a real chain: phase ≠ 1 goes to the NEXT link (phase == 2?), not
+    /// straight to the second wait's check. 🔴 Every link's else went to <c>check[k+1]</c>, so phase 3 resumed wait 2.
+    /// ✅ Red-proof: the old else target ⇒ <c>dispatch_chain_2</c> is dead and filtered out.
+    /// </summary>
+    [Fact]
+    public void AiPrimitive_ThreeWaits_TheDispatchIsAChain()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("Action")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Delay(1f).Delay(1f).Delay(1f).Return())
+            .Build();
+
+        var sink  = new DiagnosticSink();
+        var graph = Assert.Single(RunLower(asset, sink).Graphs);
+        Assert.False(sink.HasErrors);
+
+        var chain1 = Assert.Single(graph.Blocks, b => b.Label == "dispatch_chain_1");
+        var chain2 = Assert.Single(graph.Blocks, b => b.Label == "dispatch_chain_2");
+        Assert.Equal(chain2.Id, Assert.IsType<IrTerm_Branch>(chain1.Terminator).IfFalse);
+    }
+
     [Fact]
     public void AiPrimitive_NoSuspendAfterLowering()
     {

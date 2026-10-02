@@ -306,6 +306,40 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.False(RootParamsAccess.TryGetRootBytes(world, e, out _), "the block is freed by the clear");
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>CE-2018 — THREE waits in one graph resume in order.</b> Tick: Delay(1) → Delay(1) → Delay(1) → Return(Success).
+    /// 🔴 Measured 2026-10-02: the resume dispatch chain sent <c>ResumeAt == 3</c> to the SECOND wait's check (each chain
+    /// link's else went to <c>check[k+1]</c>, not <c>chain[k+1]</c>), so the third wait re-entered itself forever and the
+    /// behaviour never finished. Two waits — every golden — were unaffected.
+    /// <para>✅ Red-proof: the old else target ⇒ <c>finished</c> stays 0.</para>
+    /// </summary>
+    [Fact]
+    public void CE2018_ThreeWaitsInOneGraph_ResumeInOrder_AndFinish()
+    {
+        const string Name = "CE2018ThreeWaits";
+        var (e, brain) = AssignBehaviour(BlueprintAssetBuilder.Behavior(Name)
+            .WithGraph("Tick", g => g.Entry().Delay(1f).Delay(1f).Delay(1f).Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success))
+            .Build());
+        var world = _fixture.World;
+        int finished = 0;
+        void Frame(float t)
+        {
+            world.SetSimulationTime(t);
+            brain.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
+                if (evt.Entity.Index == e.Index && evt.Result == Fbt.NodeStatus.Success) finished++;
+        }
+
+        Frame(10.0f);   // wait 1 (until 11)
+        Frame(11.5f);   // wait 2 (until 12.5)
+        Frame(13.0f);   // wait 3 (until 14)
+        Assert.Equal(0, finished);
+        Frame(14.5f);   // done ⇒ Return(Success)
+        Frame(16.0f);
+        Assert.Equal(1, finished);
+    }
+
     // ── S1 (DESIGN_Unified_Behaviour_Run §2 I11–I12): latent correctness, measured before fibers ──
 
     private const string LocomotionChannelFqn = "LocomotionChannel";   // a wait target is named by its short type name (BP1402)

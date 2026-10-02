@@ -180,7 +180,8 @@ internal static class WaitLowering_AiPrimitive
             };
 
             // If phase != k, go to checkBlockId[k+1] (last chain goes directly to last check).
-            IrBlockId elseOfChain = checkBlockId[k + 1];
+            // ⭐ CE-2018 — the next LINK (the comment above always said so); only the last link falls to the last check.
+            IrBlockId elseOfChain = k + 1 <= n - 1 ? chainBlockId[k + 1] : checkBlockId[k + 1];
 
             synthesizedBlocks.Add(new IrBlock
             {
