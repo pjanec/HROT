@@ -107,6 +107,9 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
                 foreach (var entity in _emptied)
                     repo.RemoveManagedComponent<OutgoingGrantsPending>(entity);
+
+                Fdp.Core.Logging.FdpLog<PartialOwnerReclaimSystem>.Info(
+                    "[Node-{0}] node {1} left: {2} ownership key(s) returned to the primary owner.", _localNodeId, gone, _moves.Count);
             }
         }
     }

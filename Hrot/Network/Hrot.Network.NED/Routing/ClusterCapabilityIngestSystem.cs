@@ -68,6 +68,8 @@ namespace Hrot.Network.Routing
                     {
                         int departed = DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId;
                         _cache.RemoveNode(departed);
+                        Fdp.Core.Logging.FdpLog<ClusterCapabilityIngestSystem>.Info(
+                            "[ClusterCapabilityIngest] node {0} left ({1}).", departed, sample.Info.InstanceState);
                         // Raised even for a node the cache never knew: a record can name a node no grant strategy chose
                         // (a test hook, an external hand-in). A repeat (disposed, then no-writers) moves nothing.
                         if (view is EntityRepository repo)
