@@ -627,6 +627,35 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-416</c> ② — <b>the block exists iff it has a WIDTH, parser or not.</b> 🔴 The attach was gated on
+        /// <c>ParseParams != null</c> while <c>BrainTickSystem</c> gates on <c>RootParamsBytes &gt; 0</c> — a layout with no
+        /// parser got no block and the tick threw. ⭐ Without a parser the block holds the BAKED defaults.
+        /// ✅ Red-proof: gate the attach on <c>ParseParams</c> again ⇒ no root slot.
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_ALayoutWithNoParser_StillGetsItsBlock_HoldingTheBakedDefaults()
+        {
+            var (world, sys, registry) = CreateFixture();
+            registry.Register(0x0C_E4_16_02, "LayoutNoParser", new BehaviorDefinition
+            {
+                Name                 = "LayoutNoParser",
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(Block24),
+                BakeDefaults         = static (byte* mem, int capacity) => mem[0] = 0x5E,
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            Assign(world, sys, e, "LayoutNoParser");
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out int len));
+            Assert.Equal(24, len);
+            Assert.Equal(0x5E, root[0]);
+            Assert.Equal(0, root[1]);
+            world.Dispose();
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>CE-429</c> — <b>the root slot is sized to the BLOCK, not to the manifest extent.</b>
         /// ⛔ Before it, this definition got 8 bytes and its State half did not exist.
         /// </summary>

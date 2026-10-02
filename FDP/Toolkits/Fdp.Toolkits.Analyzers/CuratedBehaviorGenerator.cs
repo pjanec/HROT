@@ -261,7 +261,21 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("                StatefulWorkingSlots = __plan" + safe + ".Slots,");
                 }
                 if (t.ParamsType != null)
+                {
                     sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
+                    // ⭐⭐ CE-416 ② / Q75 decision D, state ② — a curated behaviour whose JSON contract IS its layout
+                    //   needs no resolver: the IDENTITY parse is generated. ⛔ Decided HERE, at generation time, and
+                    //   only when no [BehaviorResolver] names this behaviour (Q75 D.1, R-132/R-149) — never by
+                    //   "whoever registers ParseParams last", the shape R-132 was filed against.
+                    bool hasResolver = false;
+                    foreach (var r in res) if (r.Name == t.Name) { hasResolver = true; break; }
+                    if (!hasResolver)
+                    {
+                        string P = "global::" + t.ParamsType;
+                        sb.AppendLine("                ParseParams = global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolver<" + P + ", " + P + ">(");
+                        sb.AppendLine("                    static (in " + P + " authored, ref " + P + " block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => block = authored),");
+                    }
+                }
                 sb.AppendLine("            });");
                 // E6 / CE-364 -- bind AFTER Register, because HostedChildren resolves the CHILD
                 // through the registry and registrars run in an arbitrary order. An unresolvable

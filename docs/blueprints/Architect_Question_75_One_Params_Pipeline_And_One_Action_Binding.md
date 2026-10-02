@@ -527,6 +527,16 @@ that is per-variable.**
 
 ### D — a behaviour with no resolver ⚖️ **LEAN REVISED — the first lean was wrong**
 
+> ✅ **BUILT `2026-10-02` (`CE-416` ②), and measuring it found the state was a CRASH, not a silent drop.** Through the real
+> curated registrar → ingress → `BrainTickSystem`: `JoinFormation` (state ④) assigned, got NO root block because the ingress
+> gated the attach on `ParseParams != null`, and the next tick THREW *"no ROOT PARAMS slot"* — `BrainTickSystem` gates on
+> `RootParamsBytes(def) > 0`. ⇒ **one predicate** now: the block exists iff it has a width (ingress attach, `RootParamsCost`,
+> tick); without a parser it holds the baked defaults. ⭐ State ② for curated behaviours: `CuratedBehaviorGenerator` emits the
+> identity parse (`FromBlockResolver<P,P>`) when no `[BehaviorResolver]` names the behaviour — decided at GENERATION time (D.1).
+> ⇒ `JoinFormation` now parses its reserved fields from JSON instead of the build-warning this section proposed; ⚠ that
+> warning (*"layout declares members the contract does not"*) is NOT built — with the identity parse nothing is lost, so it
+> became a contract-hygiene nicety rather than a guard.
+
 > 🔒 **User, `2026-09-28`:** *"there are behaviors having no parameters. There are also behavior not
 > requiring any special resolver (their behavior parameter DTO == the parameter DTO in the blackboard,
 > automatically convertible from json). both needs to be supported."*
