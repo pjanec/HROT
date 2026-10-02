@@ -80,6 +80,11 @@ internal static class WhenLowering_Instance
 
         // Append synthesized fields after declared variables; deterministic order by name.
         toAdd.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a blueprint BEHAVIOUR keeps its When memory in its brain state
+        //   (`Exec`), never in its blackboard block: it is execution state no resolver or reader should see. It joins
+        //   the name-addressed execution-state slots. An Instance keeps it in its one payload, as before.
+        if (asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior)
+            return asset with { GraphLocalSlots = asset.GraphLocalSlots.Concat(toAdd).ToList() };
         var newVariables = asset.Variables.Concat(toAdd).ToList();
         return asset with { Variables = newVariables };
     }

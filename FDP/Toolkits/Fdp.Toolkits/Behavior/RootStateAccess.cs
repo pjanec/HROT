@@ -148,7 +148,7 @@ public static unsafe class RootStateAccess
     /// </summary>
     public static byte* ResolveOrAttachRoot(
         EntityRepository world, Entity self, int behaviourHash,
-        OccurrenceKind kind, out bool freshlyAttached)
+        OccurrenceKind kind, out bool freshlyAttached, int bytes = 0)
     {
         freshlyAttached = false;
 
@@ -158,7 +158,8 @@ public static unsafe class RootStateAccess
         byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
         if (store == null) return null;
 
-        int   bytes = StateBytes;
+        // ⭐ S2 — the width comes from the definition (RootStateBytes); 0 keeps the BTree cursor's constant.
+        if (bytes <= 0) bytes = StateBytes;
         ulong guard = unchecked((ulong)bytes);
 
         if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint existing))
@@ -261,9 +262,73 @@ public static unsafe class RootStateAccess
     /// </summary>
     public static bool ResetState(EntityRepository world, Entity self)
     {
-        if (!TryGetState(world, self, out BehaviorTreeState* ptr)) return false;
-        *ptr = default;
+        // ⭐ S2 — zero the WHOLE slot, whatever its width: a BTree cursor or a blueprint behaviour's Exec.
+        if (!TryGetRootBytes(world, self, out byte* ptr, out int length)) return false;
+        new Span<byte>(ptr, length).Clear();
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ S2 (<c>DESIGN_Unified_Behaviour_Run</c> U-1) — the root state slot as raw bytes and its width, for a brain state
+    /// that is not a <see cref="BehaviorTreeState"/> (a blueprint behaviour's generated <c>Exec</c>). ⛔ Does not attach.
+    /// The width is the slot's own guard, which <see cref="ResolveOrAttachRoot"/> stores as the byte count.
+    /// </summary>
+    public static bool TryGetRootBytes(EntityRepository world, Entity self, out byte* ptr, out int length)
+    {
+        ptr = null; length = 0;
+
+        int key = KeyFor(world, self);
+        if (key == 0) return false;
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (store == null) return false;
+
+        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+            return false;
+
+        ptr = store + offset;
+        length = (int)guard;
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ S2 — the read-only <see cref="Fdp.ModuleHost.Abstractions.ISimulationView"/> form of <see cref="TryGetRootBytes"/>,
+    /// for debug surfaces (the same shape as <see cref="RootParamsAccess.TryGetRootBytesInView"/>).
+    /// </summary>
+    public static bool TryGetRootBytesInView(
+        Fdp.ModuleHost.Abstractions.ISimulationView view, Entity self, out byte* ptr, out int length)
+    {
+        ptr = null; length = 0;
+
+        if (!view.HasComponent<Components.BehaviorState>(self)) return false;
+        int key = KeyForBehaviour(view.GetComponentRO<Components.BehaviorState>(self).ActiveBehaviorHash);
+        if (key == 0) return false;
+
+        byte* store = OccurrenceStoreAccess.TryGetStoreInView(view, self, out _);
+        if (store == null) return false;
+
+        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+            return false;
+
+        ptr = store + offset;
+        length = (int)guard;
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ S2 — the EXECUTION form of <see cref="TryGetRootBytes"/>: a <c>ref byte</c> to the brain state. ⛔ Throws rather
+    /// than handing back a scratch byte — the same reason as <see cref="RequireStateRef"/>: a zeroed stand-in reads as
+    /// "the behaviour is at its start", every frame, silently.
+    /// </summary>
+    public static ref byte RequireRootBytesRef(EntityRepository world, Entity self, int expectedBytes)
+    {
+        if (TryGetRootBytes(world, self, out byte* ptr, out int length) && length >= expectedBytes)
+            return ref Unsafe.AsRef<byte>(ptr);
+
+        throw new InvalidOperationException(
+            $"Entity {self.Index} has no ROOT STATE slot of {expectedBytes} bytes for its blueprint behaviour's brain state " +
+            "(cursor, When memory, suspended locals). Ingress attaches it on assign (RootStateBytes); if it is missing, the " +
+            "behaviour was never assigned through BehaviorIngressSystem or the store had no room.");
     }
 
     /// <summary>
@@ -298,5 +363,9 @@ public static unsafe class RootStateAccess
     /// behaviour has no tree" from "the slot should exist and does not".</para>
     /// </summary>
     public static int RootStateBytes(BehaviorDefinition? def)
-        => def is not null && def.BrainTier == BehaviorConstants.BrainTierBTree ? StateBytes : 0;
+        => def is null ? 0
+         : def.BrainTier == BehaviorConstants.BrainTierBTree ? StateBytes
+         // ⭐ S2 — a blueprint behaviour's brain state (its Exec) lives in the same root STATE slot, at its own width.
+         : def.BrainTier == BehaviorConstants.BrainTierBlueprint ? def.BrainStateBytes
+         : 0;
 }

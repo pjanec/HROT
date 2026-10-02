@@ -1,51 +1,51 @@
-StructureHash: 0x0860D74D2696E233
+StructureHash: 0x6CDFBB390B45FD59
 Parameters:
-  FiringLineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @16 size=4
-  FiringLineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @20 size=4
-  BaselineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @24 size=4
-  BaselineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @28 size=4
-  TankSpacing : System.Single @32 size=4
-  TargetAreaNetworkId : System.Int64 @40 size=8
+  FiringLineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @0 size=4
+  FiringLineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @4 size=4
+  BaselineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @8 size=4
+  BaselineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @12 size=4
+  TankSpacing : System.Single @16 size=4
+  TargetAreaNetworkId : System.Int64 @24 size=8
 WorkingState:
   (empty)
 Variables:
-  StartX : System.Single @48 size=4
-  StartY : System.Single @52 size=4
-  EndX : System.Single @56 size=4
-  EndY : System.Single @60 size=4
-  BaseSX : System.Single @64 size=4
-  BaseSY : System.Single @68 size=4
-  BaseEX : System.Single @72 size=4
-  BaseEY : System.Single @76 size=4
-  DirX : System.Single @80 size=4
-  DirY : System.Single @84 size=4
-  Spacing : System.Single @88 size=4
-  RequestTime : System.Single @92 size=4
-  BestD : System.Single @96 size=4
-  CurFx : System.Single @100 size=4
-  CurFy : System.Single @104 size=4
-  CurBx : System.Single @108 size=4
-  CurBy : System.Single @112 size=4
-  TargetArea : Fdp.Core.Entity @120 size=8
-  Phase : Hrot.AI.Behaviors.Brains.HillAttackPhase @128 size=4
-  TotalSlots : System.Int32 @132 size=4
-  Wave : System.Int32 @136 size=4
-  TargetCount : System.Int32 @140 size=4
-  WaveIndex : System.Int32 @144 size=4
-  Avail : System.Int32 @148 size=4
-  K : System.Int32 @152 size=4
-  Seen : System.Int32 @156 size=4
-  Pick : System.Int32 @160 size=4
-  Best : System.Int32 @164 size=4
-  CurSlot : System.Int32 @168 size=4
-  CurBase : System.Int32 @172 size=4
-  Sensor : FDP.Eqs.EqsSensorHandle @176 size=8
-  CurNet : System.Int64 @184 size=8
-  AllArrived : System.Boolean @192 size=1
-  FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @200 size=68
-  BaselineReserved : __List_System_Boolean_16 @272 size=20
-  Runners : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @296 size=36
-  Kept : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @336 size=36
+  StartX : System.Single @32 size=4
+  StartY : System.Single @36 size=4
+  EndX : System.Single @40 size=4
+  EndY : System.Single @44 size=4
+  BaseSX : System.Single @48 size=4
+  BaseSY : System.Single @52 size=4
+  BaseEX : System.Single @56 size=4
+  BaseEY : System.Single @60 size=4
+  DirX : System.Single @64 size=4
+  DirY : System.Single @68 size=4
+  Spacing : System.Single @72 size=4
+  RequestTime : System.Single @76 size=4
+  BestD : System.Single @80 size=4
+  CurFx : System.Single @84 size=4
+  CurFy : System.Single @88 size=4
+  CurBx : System.Single @92 size=4
+  CurBy : System.Single @96 size=4
+  TargetArea : Fdp.Core.Entity @104 size=8
+  Phase : Hrot.AI.Behaviors.Brains.HillAttackPhase @112 size=4
+  TotalSlots : System.Int32 @116 size=4
+  Wave : System.Int32 @120 size=4
+  TargetCount : System.Int32 @124 size=4
+  WaveIndex : System.Int32 @128 size=4
+  Avail : System.Int32 @132 size=4
+  K : System.Int32 @136 size=4
+  Seen : System.Int32 @140 size=4
+  Pick : System.Int32 @144 size=4
+  Best : System.Int32 @148 size=4
+  CurSlot : System.Int32 @152 size=4
+  CurBase : System.Int32 @156 size=4
+  Sensor : FDP.Eqs.EqsSensorHandle @160 size=8
+  CurNet : System.Int64 @168 size=8
+  AllArrived : System.Boolean @176 size=1
+  FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @184 size=68
+  BaselineReserved : __List_System_Boolean_16 @256 size=20
+  Runners : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @280 size=36
+  Kept : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @320 size=36
 GraphLocalSlots:
   (empty)
 Diagnostics:

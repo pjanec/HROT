@@ -85,7 +85,9 @@ internal sealed class CSharpEmitter
         {
             // ⚠ The container is the emitted local the expression must name — `ws` for TickCore's
             //   working state, `s` for an Instance's State. Same split as EmissionContext.StateVar.
-            var container = asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
+            var container = asset.Dispatch == AssetDispatch.AiPrimitive ? "ws"
+                          : asset.Dispatch == AssetDispatch.Behavior ? "__bb.St"   // ⭐ S2 — block-relative offsets
+                          : "s";
 
             // 🔴🔴 "Do not emit metadata you cannot trust." The debug map is a COMPILE-TIME artefact:
             //    unlike the registrar it cannot emit `Marshal.OffsetOf<…>`, so when the baked offsets
@@ -622,7 +624,11 @@ internal sealed class CSharpEmitter
         Indent();
         WriteLine($"Name = \"{asset.Name}\",");
         WriteLine("BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,");
-        WriteLine($"BlackboardLayoutType = typeof({className}.State),");
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — the BLOCK is the root params slot; the brain state (cursor, When
+        //   memory, suspended locals) is the root STATE slot, sized by the definition like a BTree cursor.
+        WriteLine($"BlackboardLayoutType = typeof({className}.Block),");
+        WriteLine($"BrainStateLayoutType = typeof({className}.Exec),");
+        WriteLine($"BrainStateBytes = {className}.ExecSize,");
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
         WriteLine($"BlueprintStructureHash = {className}.StructureHash,");

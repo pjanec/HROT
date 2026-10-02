@@ -408,7 +408,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             //      already there. ⛔ The component version reset unconditionally; so does this.
             if (RootStateAccess.RootStateBytes(def) > 0)
             {
-                RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _);
+                RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _,
+                    RootStateAccess.RootStateBytes(def));   // ⭐ S2 — a blueprint's Exec is not a 64-byte tree cursor
                 RootStateAccess.ResetState(repo, entity);
             }
             ResetHostedTreeStates(repo, entity, def);

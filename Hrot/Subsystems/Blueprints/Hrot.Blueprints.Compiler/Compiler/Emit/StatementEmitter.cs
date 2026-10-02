@@ -414,7 +414,7 @@ internal static class StatementEmitter
                 // shape unconditionally produced four CS0103s on top of the missing helper.
                 var contextArgs = ctx.Asset.Dispatch == BlueprintDispatchKind.AiPrimitive
                     ? new[] { $"ref {sv}", "self", "world", "time" }
-                    : new[] { $"ref {sv}", "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+                    : new[] { ctx.StateArgs, "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
 
                 var dataArgs = op.Args.Select(a => $"__t{a.Index}");
                 var allArgs = string.Join(", ", contextArgs.Concat(dataArgs));
@@ -443,7 +443,7 @@ internal static class StatementEmitter
                 var evtName = ctx.CustomEventName(op.CustomEventIndex);
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var extraArgs = argList.Length > 0 ? $", {argList}" : "";
-                e.WriteLine($"Event_{evtName}(ref {sv}, view, ecb, self, time{extraArgs});");
+                e.WriteLine($"Event_{evtName}({ctx.StateArgs}, view, ecb, self, time{extraArgs});");
                 break;
             }
 
@@ -469,7 +469,7 @@ internal static class StatementEmitter
                 var payloadArgs = op.PayloadFields.Count > 0
                     ? ", " + string.Join(", ", op.PayloadFields.Select(f => $"__e_{n}.{f.Name}"))
                     : "";
-                e.WriteLine($"Event_{graphName}(ref s, view, ecb, self, time{payloadArgs});");
+                e.WriteLine($"Event_{graphName}({ctx.StateArgs}, view, ecb, self, time{payloadArgs});");
                 e.Outdent();
                 e.WriteLine("}");
                 break;
@@ -806,10 +806,10 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_CheckCursorVersion:
-                e.WriteLine("if (s.Cursor.InstanceVersion != instanceVersion)");
+                e.WriteLine($"if ({ctx.ExecVar}.Cursor.InstanceVersion != instanceVersion)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine("s.Cursor.ResumeAt = 0;");
+                e.WriteLine($"{ctx.ExecVar}.Cursor.ResumeAt = 0;");
                 // ⭐ CE-446: a stale cursor in a behaviour Tick restarts it next frame — still Running.
                 e.WriteLine(e.Ctx.IsBehaviorTick ? EmissionContext.ReturnRunning : "return;");
                 e.Outdent();
@@ -841,23 +841,23 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_WriteCursorResumeAt op:
-                e.WriteLine($"s.Cursor.ResumeAt = {op.ResumeAtValue};");
+                e.WriteLine($"{ctx.ExecVar}.Cursor.ResumeAt = {op.ResumeAtValue};");
                 break;
 
             case IrOp_ReadCursorResumeAt:
-                if (idx >= 0) e.WriteLine($"uint __t{idx} = s.Cursor.ResumeAt;");
+                if (idx >= 0) e.WriteLine($"uint __t{idx} = {ctx.ExecVar}.Cursor.ResumeAt;");
                 break;
 
             case IrOp_WriteCursorInstanceVersion:
-                e.WriteLine("s.Cursor.InstanceVersion = instanceVersion;");
+                e.WriteLine($"{ctx.ExecVar}.Cursor.InstanceVersion = instanceVersion;");
                 break;
 
             case IrOp_WriteCursorWaitUntilTime op:
-                e.WriteLine($"s.Cursor.WaitUntilTime = __t{op.Seconds.Index};");
+                e.WriteLine($"{ctx.ExecVar}.Cursor.WaitUntilTime = __t{op.Seconds.Index};");
                 break;
 
             case IrOp_ReadCursorWaitUntilTime:
-                if (idx >= 0) e.WriteLine($"float __t{idx} = s.Cursor.WaitUntilTime;");
+                if (idx >= 0) e.WriteLine($"float __t{idx} = {ctx.ExecVar}.Cursor.WaitUntilTime;");
                 break;
 
             // ------------------------------------------------------------------
@@ -1085,7 +1085,7 @@ internal static class StatementEmitter
                 if (op.Epsilon == 0f)
                 {
                     // Direct equality (bool, int, enum)
-                    e.WriteLine($"bool __t{idx}_changed = __t{idx}_cur != {sv}.{op.SynthFieldName};");
+                    e.WriteLine($"bool __t{idx}_changed = __t{idx}_cur != {ctx.ExecVar}.{op.SynthFieldName};");
                 }
                 else
                 {
@@ -1095,13 +1095,13 @@ internal static class StatementEmitter
                     if (isVector2 || isVector3)
                     {
                         e.WriteLine($"bool __t{idx}_changed = " +
-                            $"(__t{idx}_cur - {sv}.{op.SynthFieldName}).LengthSquared() > " +
+                            $"(__t{idx}_cur - {ctx.ExecVar}.{op.SynthFieldName}).LengthSquared() > " +
                             $"({op.Epsilon}f * {op.Epsilon}f);");
                     }
                     else
                     {
                         e.WriteLine($"bool __t{idx}_changed = " +
-                            $"global::System.MathF.Abs(__t{idx}_cur - {sv}.{op.SynthFieldName}) > " +
+                            $"global::System.MathF.Abs(__t{idx}_cur - {ctx.ExecVar}.{op.SynthFieldName}) > " +
                             $"{op.Epsilon}f;");
                     }
                 }
@@ -1117,7 +1117,7 @@ internal static class StatementEmitter
                 e.WriteLine($"{{");
                 e.Indent();
                 e.WriteLine($"ref readonly var __storePrev_comp = ref {wv}.GetComponentRO<global::{op.ComponentFqn}>(self);");
-                e.WriteLine($"{sv}.{op.SynthFieldName} = __storePrev_comp.{op.PropertyPath};");
+                e.WriteLine($"{ctx.ExecVar}.{op.SynthFieldName} = __storePrev_comp.{op.PropertyPath};");
                 e.Outdent();
                 e.WriteLine($"}}");
                 break;
@@ -1183,8 +1183,8 @@ internal static class StatementEmitter
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"bool __cur_{id8} = _whenCondPred_{id8}({wv}, self);");
-                e.WriteLine($"bool __prev_{id8} = {sv}.{op.SynthFieldName};");
-                e.WriteLine($"{sv}.{op.SynthFieldName} = __cur_{id8};");
+                e.WriteLine($"bool __prev_{id8} = {ctx.ExecVar}.{op.SynthFieldName};");
+                e.WriteLine($"{ctx.ExecVar}.{op.SynthFieldName} = __cur_{id8};");
 
                 if (op.OnFiredBlock.HasValue)
                     e.WriteLine($"if (__cur_{id8} && !__prev_{id8}) goto __block_{ctx.LabelForBlock(op.OnFiredBlock.Value)};");
@@ -1207,7 +1207,7 @@ internal static class StatementEmitter
                 e.WriteLine("{");
                 e.Indent();
 
-                e.WriteLine($"ref var prev = ref {sv}.{op.SynthFieldName};");
+                e.WriteLine($"ref var prev = ref {ctx.ExecVar}.{op.SynthFieldName};");
                 e.WriteLine($"ref readonly var handle = ref {sv}.{op.SensorVariableName};");
                 e.WriteLine();
                 e.WriteLine($"if (!{wv}.IsAlive(handle.ChildId))");
@@ -1245,7 +1245,7 @@ internal static class StatementEmitter
                 // Emit the helper method call; result is cached in a local struct variable.
                 // Downstream IrOp_FieldRead ops access individual fields.
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}(ref {sv}, {wv}, __t{op.ResultIndexValue.Index});");
+                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}({ctx.StateArgs}, {wv}, __t{op.ResultIndexValue.Index});");
                 break;
             }
 

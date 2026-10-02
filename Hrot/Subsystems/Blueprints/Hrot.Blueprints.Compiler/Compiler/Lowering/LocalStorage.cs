@@ -103,7 +103,8 @@ internal static class LocalStorage
 
         return slots.Count == 0
             ? asset
-            : asset with { Graphs = newGraphs, GraphLocalSlots = slots };
+            // ⭐ S2 — APPEND: a behaviour's When memory already sits in this list (WhenLowering_Instance runs first).
+            : asset with { Graphs = newGraphs, GraphLocalSlots = asset.GraphLocalSlots.Concat(slots).ToList() };
     }
 
     /// <summary>

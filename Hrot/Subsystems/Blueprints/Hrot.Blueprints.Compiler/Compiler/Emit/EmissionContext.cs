@@ -168,7 +168,9 @@ internal sealed class EmissionContext
     /// </summary>
     public string ParamsVar =>
         Asset.ResolverSubject is not null ? "authored"          // ⭐ CE-443: a resolver's Parameters are its authored source
-        : Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
+        : Asset.Dispatch == AssetDispatch.AiPrimitive ? "p"
+        : Asset.Dispatch == AssetDispatch.Behavior ? "__bb.In"     // ⭐ S2 — the block's Input prefix
+        : $"{StateVar}.Params";
 
 
     /// <summary>
@@ -200,7 +202,7 @@ internal sealed class EmissionContext
         var prefix = CurrentGraph!.LocalSlotPrefix;
         return prefix is null
             ? LocalName(locals[index].Name)
-            : $"{StateVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";
+            : $"{ExecVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";   // ⭐ S2 — execution state
     }
 
     /// <summary>C# field name for a Parameters entry by index.</summary>
@@ -257,7 +259,21 @@ internal sealed class EmissionContext
 
     /// <summary>State struct local variable name based on dispatch kind.</summary>
     public string StateVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
+        Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws"
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a behaviour's Variables are its block's St half.
+        : Asset.Dispatch == AssetDispatch.Behavior ? "__bb.St"
+        : "s";
+
+    /// <summary>⭐ S2 — true for a blueprint BEHAVIOUR: its state is TWO structs, the blackboard block <c>__bb</c> and the
+    /// brain state <c>__ex</c> (cursor, When memory, suspended locals), never one payload.</summary>
+    public bool IsBehavior => Asset.Dispatch == AssetDispatch.Behavior;
+
+    /// <summary>⭐ S2 — where the cursor, When memory and suspended-graph locals live: the behaviour's <c>Exec</c>
+    /// (<c>__ex</c>), or the one payload for every other kind.</summary>
+    public string ExecVar => IsBehavior ? "__ex" : StateVar;
+
+    /// <summary>⭐ S2 — the state argument(s) a generated helper is called with.</summary>
+    public string StateArgs => IsBehavior ? "ref __bb, ref __ex" : $"ref {StateVar}";
 
     /// <summary>
     /// P7 -- read-only <c>ISimulationView</c> expression for the in-scope view, used when

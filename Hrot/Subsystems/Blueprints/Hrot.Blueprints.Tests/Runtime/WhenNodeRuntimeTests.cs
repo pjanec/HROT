@@ -639,7 +639,7 @@ public sealed class WhenNodeRuntimeTests
         Assert.True(fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
         Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(fixture.World, entity, out byte* root),
             "the behaviour's block must be attached");
-        return *(T*)(root + (int)Marshal.OffsetOf(def!.BlackboardLayoutType!, field));
+        return *(T*)(root + Hrot.Blueprints.Tests.Compiler.BlueprintBehaviourTests.VarOffset(def!, field));
     }
 
     /// <summary>

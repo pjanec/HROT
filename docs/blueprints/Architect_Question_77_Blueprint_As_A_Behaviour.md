@@ -5,7 +5,7 @@ build-state: BUILDING (compiler + runtime built 2026-09-30, §5.9) — ✅ APPRO
   A–E adopted as written.
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). ⛔ §3 C (cursor in the root block) is SUPERSEDED by DESIGN_Unified_Behaviour_Run.md (brain state out of the block, any tier hosts any tier); §5.14 is history. §1 is the inventory, §2 the claim table.
 stale-below: nothing.
-known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
+known-rot: ⚠ BUILT 2026-10-02 (S2, DESIGN_Unified_Behaviour_Run): the block is now `Block { In; St }` and the cursor/When memory/suspended locals are the root STATE slot (`Exec`) — every `[Cursor][Params][State]` sentence below (§3 C, §5.8, §5.9, §5.11) is history. ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
   shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (approved 2026-09-30); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:

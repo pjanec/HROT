@@ -27,6 +27,15 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     private readonly BlueprintTestFixture _fixture = new();
     public void Dispose() => _fixture.Dispose();
 
+    /// <summary>⭐ S2 — a Variable's byte offset in a blueprint behaviour's block <c>{ Params In; Vars St }</c>.</summary>
+    internal static int VarOffset(BehaviorDefinition def, string name)
+    {
+        var block = def.BlackboardLayoutType!;
+        var st = block.GetField("St")!;
+        return (int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St")
+             + (int)System.Runtime.InteropServices.Marshal.OffsetOf(st.FieldType, name);
+    }
+
     /// <summary>Tick: wait one second (latent), then Return(Success).</summary>
     private static BlueprintAsset WaitThenSucceed(string name) => BlueprintAssetBuilder
         .Behavior(name)
@@ -136,7 +145,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         bool WasHit()
         {
             Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
-            return *(bool*)(root + (int)System.Runtime.InteropServices.Marshal.OffsetOf(def!.BlackboardLayoutType!, "WasHit"));
+            return *(bool*)(root + (int)VarOffset(def!, "WasHit"));
         }
 
         world.Bus.SwapBuffers();
@@ -203,7 +212,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         world.Bus.SwapBuffers();
         new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
         Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
-        return *(float*)(root + (int)System.Runtime.InteropServices.Marshal.OffsetOf(def!.BlackboardLayoutType!, "Mirrored"));
+        return *(float*)(root + (int)VarOffset(def!, "Mirrored"));
     }
 
     /// <summary>
@@ -369,5 +378,63 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
 
         Assert.True(roslyn == null, "generated code failed to compile: " + roslyn?.Message);
         Assert.Contains(result.Diagnostics, d => d.IsError && d.Code == "BP1658");
+    }
+
+    // ── S2 (DESIGN_Unified_Behaviour_Run U-1): the block is the blackboard; the brain state is its own slot ──
+
+    private static bool HasCursor(Type t, int depth = 0)
+        => depth < 4 && t.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+               .Any(f => f.FieldType == typeof(Fdp.Toolkit.Blueprints.BlueprintLatentCursor)
+                      || (f.FieldType.IsValueType && !f.FieldType.IsPrimitive && HasCursor(f.FieldType, depth + 1)));
+
+    /// <summary>
+    /// ⭐⭐ <b>S2 — the block holds the blackboard only; the cursor and When memory are the brain state.</b>
+    /// A latent behaviour with a Parameter, a Variable and a resolver: its block (<c>BlackboardLayoutType</c>) is
+    /// <c>{ In; St }</c> with the Parameters at offset 0 and NO cursor anywhere in it; its brain state
+    /// (<c>BrainStateLayoutType</c>) starts with the cursor and its width is <c>BrainStateBytes</c>; its resolver takes the
+    /// block only. After assign the root STATE slot exists at exactly that width.
+    /// ✅ Red-proof: before S2 the block was <c>[Cursor][Params][State]</c> (cursor at 0, no brain-state slot).
+    /// </summary>
+    [Fact]
+    public void S2_TheBlockIsTheBlackboard_AndTheCursorIsTheBrainState()
+    {
+        const string Name = "S2Split";
+        var asset = BehaviourWithResolver(Name);
+        var withDelay = BlueprintAssetBuilder.Behavior(Name)
+            .WithGraph("Tick", g => g.Entry().Delay(1f).Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build();
+        asset.Graphs.RemoveAll(g => g.Name == "Tick");
+        asset.Graphs.AddRange(withDelay.Graphs);
+
+        var src = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options()).GeneratedSource!;
+        Assert.Contains("private static void Resolve_Resolve(ref Block __bb, ", src);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+
+        var block = def!.BlackboardLayoutType!;
+        Assert.False(HasCursor(block), "the blackboard block must not contain the latent cursor");
+        Assert.Equal(0, (int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "In"));
+        var exec = def.BrainStateLayoutType!;
+        Assert.Equal(typeof(Fdp.Toolkit.Blueprints.BlueprintLatentCursor), exec.GetField("Cursor")!.FieldType);
+        Assert.Equal(0, (int)System.Runtime.InteropServices.Marshal.OffsetOf(exec, "Cursor"));
+        Assert.True(def.BrainStateBytes >= 16);
+
+        var world = _fixture.World;
+        var e = _fixture.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = Name, JsonParams = "{\"Speed\": 7}" });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
+
+        Assert.True(RootStateAccess.TryGetRootBytes(world, e, out byte* brain, out int brainBytes));
+        Assert.Equal(def.BrainStateBytes, brainBytes);
+        Assert.Equal(7f, *(float*)(RootParamsAccessRoot(world, e) + VarOffset(def, "Mirrored")));
+    }
+
+    private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)
+    {
+        Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
+        return root;
     }
 }

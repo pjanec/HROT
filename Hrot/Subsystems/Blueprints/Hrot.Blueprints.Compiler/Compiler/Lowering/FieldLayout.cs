@@ -13,7 +13,10 @@ internal static class FieldLayout
     /// <c>16 + N</c> rather than a constant. See <see cref="ParamsStructBase"/>.
     /// </summary>
     private static int StateStructBase(IrAsset asset, int afterParams)
-        => asset.Dispatch == BlueprintDispatchKind.AiPrimitive ? 8 : afterParams;
+        => asset.Dispatch == BlueprintDispatchKind.AiPrimitive ? 8
+         // ⭐ S2 — a behaviour's block is { Params In; Vars St }: St starts 8-aligned after In.
+         : asset.Dispatch == BlueprintDispatchKind.Behavior ? (afterParams + 7) & ~7
+         : afterParams;
 
     /// <summary>
     /// ⭐⭐⭐ Batch 70 / <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>where an asset's params begin.</b>
@@ -33,7 +36,14 @@ internal static class FieldLayout
     /// </para>
     /// </summary>
     internal static int ParamsStructBase(IrAsset asset)
-        => asset.Dispatch == BlueprintDispatchKind.AiPrimitive ? 0 : BlueprintLatentCursorSize;
+        => asset.Dispatch is BlueprintDispatchKind.AiPrimitive
+                          // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a behaviour's cursor is NOT in its block, so its
+                          //   Params are the block's Input prefix at 0, exactly like a BTree/HSM block's In.
+                          or BlueprintDispatchKind.Behavior ? 0 : BlueprintLatentCursorSize;
+
+    /// <summary>⭐ S2 — where a behaviour's execution-state slots (When memory, suspended locals) begin in its
+    /// <c>Exec</c> struct: right after its own <c>BlueprintLatentCursor</c>.</summary>
+    internal static int ExecSlotsBase => BlueprintLatentCursorSize;
 
     /// <summary>The 16 bytes an Instance payload opens with. ⭐ This constant has ONE home.</summary>
     internal const int BlueprintLatentCursorSize = 16;
@@ -71,7 +81,9 @@ internal static class FieldLayout
         {
             Parameters      = parameters,
             Variables       = variables,
-            GraphLocalSlots = LayoutFields(asset.GraphLocalSlots, afterState, out _),
+            // ⭐ S2 — a behaviour lays these in its separate Exec struct, after the cursor; an Instance continues its one payload.
+            GraphLocalSlots = LayoutFields(asset.GraphLocalSlots,
+                asset.Dispatch == BlueprintDispatchKind.Behavior ? ExecSlotsBase : afterState, out _),
         };
     }
 
