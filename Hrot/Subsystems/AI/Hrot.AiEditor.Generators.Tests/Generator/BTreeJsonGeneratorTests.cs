@@ -1063,7 +1063,7 @@ namespace Stub
                         MethodFqn = conditionFqn,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
@@ -1075,7 +1075,7 @@ namespace Stub
                         MethodFqn = actionFqn,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1167,7 +1167,7 @@ namespace Stub
                         MethodFqn = conditionFqn,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
@@ -1179,7 +1179,7 @@ namespace Stub
                         MethodFqn = actionFqn,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1404,7 +1404,7 @@ namespace Stub
         result.Diagnostics.Should().BeEmpty("no diagnostics for a valid managed asset");
     }
 
-    // ── BATCH-02 S1-4: ThreeParamReusable validator unblock ────────────────────
+    // ── BATCH-02 S1-4: Plain validator unblock ────────────────────
 
     // Stubs for S1-4 tests: DemoCounterParams DTO + 3-param action/condition.
     private const string ThreeParamStubs = @"
@@ -1481,7 +1481,7 @@ namespace Stub
                     MethodFqn = methodFqn,
                     ExpressionTargetField = expressionTargetField,
                 },
-                DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                DelegateShape = BTreeDelegateShapeDto.Plain,
             });
         }
         else
@@ -1496,7 +1496,7 @@ namespace Stub
                     MethodFqn = methodFqn,
                     ExpressionTargetField = expressionTargetField,
                 },
-                DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                DelegateShape = BTreeDelegateShapeDto.Plain,
             });
         }
 
@@ -1588,7 +1588,7 @@ namespace Stub
                         MethodFqn = "Stub.DemoCounterNodes.Action_IncrementCounter",
                         ExpressionTargetField = null, // MISSING
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2032,7 +2032,7 @@ namespace Stub
                         MethodFqn = actionFqn1,
                         ExpressionTargetField = "Params1",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
                 new BTreeActionNodeDto
                 {
@@ -2044,7 +2044,7 @@ namespace Stub
                         MethodFqn = actionFqn2,
                         ExpressionTargetField = "Params2",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2081,7 +2081,7 @@ namespace Stub
     // ── Test 4: NestedStructDto_TypeMatch_Validates ───────────────────────────
 
     /// <summary>
-    /// S1-2b: A ThreeParamReusable binding whose variable TypeId uses the '+' nested-type
+    /// S1-2b: A Plain binding whose variable TypeId uses the '+' nested-type
     /// separator must validate when the param-0 type is the same struct (the validator
     /// normalizes '+' → '.' before comparing, so the separator never causes a false rejection).
     /// </summary>
@@ -2113,7 +2113,7 @@ namespace Stub
                         MethodFqn = actionFqn,
                         ExpressionTargetField = "NestedParam",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2460,7 +2460,7 @@ namespace Stub
                         MethodFqn             = methodFqn,
                         ExpressionTargetField = "Value",
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    DelegateShape = BTreeDelegateShapeDto.Plain,
                 },
             },
             Pills = new List<BTreePillDto>(),

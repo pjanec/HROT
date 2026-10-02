@@ -868,7 +868,7 @@ public static class BTreeEmitCore
 
 
         string? actionTargetField = p.ExpressionTargetField;
-        if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.Plain &&
             !string.IsNullOrEmpty(actionTargetField))
         {
             // S1-2: when variableOffsets is populated (managed blackboard), use the
@@ -892,7 +892,7 @@ public static class BTreeEmitCore
                     "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
-        else if ((node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
+        else if ((node.DelegateShape == BTreeDelegateShapeDto.Stateful ||
                   node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(actionTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
@@ -966,7 +966,7 @@ public static class BTreeEmitCore
 
 
         string? condTargetField = p.ExpressionTargetField;
-        if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.Plain &&
             !string.IsNullOrEmpty(condTargetField))
         {
             // S1-2: same offset-key logic as EmitAction.

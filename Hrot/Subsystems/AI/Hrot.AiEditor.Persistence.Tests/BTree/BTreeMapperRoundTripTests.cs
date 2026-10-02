@@ -216,7 +216,7 @@ public sealed class BTreeMapperRoundTripTests
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Action_Test",
                 ExpressionTargetField = "ActiveTarget",
             },
-            DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.Plain,   // CE-417: the shape sits on the node
         };
         var condition = new BTreeEditorNode
         {

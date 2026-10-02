@@ -152,7 +152,7 @@ public sealed class NodeEditorMetadataDto
 public enum BTreeDelegateShapeDto
 {
     /// <summary>The plain shared C# node <c>(ref TParams, Entity, EntityRepository)</c> (<c>CE-504</c> C-2).</summary>
-    ThreeParamReusable,
+    Plain,
 
     // ⛔ CE-504 slice 4 — value 1 was FourParamFull (the whole-block kernel method). Retired as an asset-binding shape (C-3);
     //   the value is left unused rather than renumbering the others. The shape is derived, never persisted (C-1).
@@ -162,7 +162,7 @@ public enum BTreeDelegateShapeDto
     /// The WorkingState is projected from the entity's active BlueprintBlackboard* partition slot,
     /// keyed by FNV-1a-32(assetGuid, nodeVisualId).
     /// </summary>
-    ThreeParamReusableStateful = 2,
+    Stateful = 2,
 
     /// <summary>
     /// I2/I3: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host owns

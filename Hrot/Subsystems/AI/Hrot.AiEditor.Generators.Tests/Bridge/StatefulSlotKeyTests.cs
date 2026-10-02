@@ -16,7 +16,7 @@ namespace Hrot.AiEditor.Generators.Tests.Bridge;
 /// 1. <c>SlotKey_KnownGuidPair_ProducesKnownInt</c> — locks the FNV-1a-32 algorithm
 ///    with a known pair of GUIDs → known int (algorithm stability gate).
 /// 2. <c>StatefulEmitter_EmitsBridge_WithTryGetSlotOffset_AndSlotKeyLiteral</c> —
-///    runs the real emitter on a fixture DTO with a ThreeParamReusableStateful action node
+///    runs the real emitter on a fixture DTO with a Stateful action node
 ///    and asserts the emitted bridge source contains:
 ///    (a) the baked SlotKey literal matching the independently-computed FNV-1a value,
 ///    (b) "TryGetSlotOffset",
@@ -76,7 +76,7 @@ public sealed class StatefulSlotKeyTests
 
     /// <summary>
     /// Runs the real <see cref="BTreeBridgeEmitCore.EmitBridge"/> on a fixture DTO containing
-    /// one ThreeParamReusableStateful action node and asserts the emitted bridge:
+    /// one Stateful action node and asserts the emitted bridge:
     /// (a) contains the baked SlotKey literal equal to the independently-computed FNV-1a value,
     /// (b) calls TryGetSlotOffset,
     /// (c) projects WorkingState at the returned offset,
@@ -134,7 +134,7 @@ public sealed class StatefulSlotKeyTests
                         ExpressionTargetField = "cursor",
                         WorkingStateTypeId = CursorStateTypeId,
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful
+                    DelegateShape = BTreeDelegateShapeDto.Stateful
                 }
             }
         };
@@ -316,7 +316,7 @@ public sealed class StatefulSlotKeyTests
                         WorkingStateTargetField = "shared",
                         WorkingStateTypeId = StateTypeId,
                     },
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful
+                    DelegateShape = BTreeDelegateShapeDto.Stateful
                 }
             }
         };

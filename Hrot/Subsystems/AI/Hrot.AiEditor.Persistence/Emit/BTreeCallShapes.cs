@@ -21,7 +21,7 @@ public readonly struct CallParam
 /// 📄 <c>docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md</c> §4 C-1, §5 slice 1.
 ///
 /// <para>🔴 <b>Why.</b> The shape was a second, hand-maintained fact about the method: the editor never set the stateful or
-/// whole-blackboard value (a C# pick left it <c>ThreeParamReusable</c>), so a stateful method picked in the inspector was
+/// whole-blackboard value (a C# pick left it <c>Plain</c>), so a stateful method picked in the inspector was
 /// silently skipped by the generator (<c>BTREE0002</c>). Each shape is a distinct parameter list, so the method says it.</para>
 ///
 /// <para>⭐ <b>ONE rule, two signature sources:</b> the generator hands it the Roslyn signature
@@ -42,9 +42,9 @@ public static class BTreeCallShapes
         switch (ps.Count)
         {
             case 3 when ps[0].IsRef && Is(ps[1], Entity, false) && Is(ps[2], EntityRepository, false):
-                return BTreeDelegateShapeDto.ThreeParamReusable;                         // [SharedAi*] (ref P, Entity, Repo) — CE-417 3b
+                return BTreeDelegateShapeDto.Plain;                         // [SharedAi*] (ref P, Entity, Repo) — CE-417 3b
             case 4 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], Entity, false) && Is(ps[3], EntityRepository, false):
-                return BTreeDelegateShapeDto.ThreeParamReusableStateful;                 // CE-504 shared stateful (ref P, ref WS, Entity, Repo)
+                return BTreeDelegateShapeDto.Stateful;                 // CE-504 shared stateful (ref P, ref WS, Entity, Repo)
             case 2 when Is(ps[0], Entity, false) && Is(ps[1], EntityRepository, false):
                 return BTreeDelegateShapeDto.NoParams;                                   // CE-504 shared param-less (Entity, Repo): binds no variable
             case 5 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], Entity, false) && Is(ps[3], EntityRepository, false)
@@ -71,7 +71,7 @@ public static class BTreeCallShapes
 
     /// <summary>
     /// Sets every Action/Condition node's in-memory <c>DelegateShape</c> from its binding. An unclassifiable binding keeps
-    /// the default (<c>ThreeParamReusable</c>), which the validator then reports as <c>BTREE0002</c> — the same outcome a
+    /// the default (<c>Plain</c>), which the validator then reports as <c>BTREE0002</c> — the same outcome a
     /// mismatched persisted shape had. <returns>How many nodes were classified.</returns>
     /// </summary>
     public static int Apply(BehaviorTreeAssetDto dto, Func<string, IReadOnlyList<CallParam>?> signatureOf)

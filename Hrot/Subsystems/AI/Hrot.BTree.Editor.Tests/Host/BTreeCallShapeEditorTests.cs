@@ -47,7 +47,7 @@ public sealed class BTreeCallShapeEditorTests
 
     /// <summary>
     /// 🔴🔴 <b>The defect C-1 fixes (S6).</b> A pick never moved the shape, so a stateful method picked in the inspector stayed
-    /// <c>ThreeParamReusable</c> and the generator skipped the node (<c>BTREE0002</c>).
+    /// <c>Plain</c> and the generator skipped the node (<c>BTREE0002</c>).
     /// <para>✅ Red-proof: drop the derive arm from <c>BTreeFacetMapper.ApplyShape</c> ⇒ this rail reddens.</para>
     /// </summary>
     [Fact]
@@ -61,14 +61,14 @@ public sealed class BTreeCallShapeEditorTests
         facet.Action.MethodFqn = Stateful;
         mapper.ApplyFacet(sel, facet);
 
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusableStateful);
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Stateful);
     }
 
     [Fact]
     public void Open_DerivesEachShapeFromItsMethod()
     {
         var asset = AssetWith(Wander, out var node);
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable, "the default a file now loads with");
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Plain, "the default a file now loads with");
 
         BTreeCallShapeResolver.Resolve(asset, BTreeCallShapes.LoadedAssemblySignatures()).Should().Be(1);
 
@@ -80,11 +80,11 @@ public sealed class BTreeCallShapeEditorTests
     public void Open_KeepsTheShape_OfAMethodItCannotResolve()
     {
         var asset = AssetWith("No.Such.Type.Method", out var node);
-        node.DelegateShape = BTreeActionDelegateShape.ThreeParamReusableStateful;
+        node.DelegateShape = BTreeActionDelegateShape.Stateful;
 
         BTreeCallShapeResolver.Resolve(asset, BTreeCallShapes.LoadedAssemblySignatures()).Should().Be(0);
 
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusableStateful,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Stateful,
             "an editor without the method loaded must not reset the shape to a guess");
     }
 }

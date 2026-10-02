@@ -70,7 +70,7 @@ public sealed class PromoteBindTests
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
         // ⚠ A blob carries no delegate shape, so the projector says FourParamFull (whole blackboard) — which has no
         //   per-binding variable to promote (DelegateShapeGuardTests). A promotable action binds ONE variable.
-        actionNode.DelegateShape = BTreeActionDelegateShape.ThreeParamReusable;
+        actionNode.DelegateShape = BTreeActionDelegateShape.Plain;
         return (asset, actionNode.VisualId);
     }
 

@@ -99,7 +99,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
             WorkingStateTargetField = stateField,
             WorkingStateTypeId = WorkingStateTypeId,
         },
-        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
+        DelegateShape = BTreeDelegateShapeDto.Stateful,
     };
 
     private static BehaviorTreeAssetDto BuildAsset(

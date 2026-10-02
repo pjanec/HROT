@@ -161,7 +161,7 @@ public sealed class BlackboardRenameTests
                     MethodFqn            = "Combat.Actions.AimAndFire",
                     ExpressionTargetField = "speed",
                 },
-                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
+                DelegateShape = BTreeActionDelegateShape.Plain,   // CE-417: the shape sits on the node
             },
         };
         asset.ReplaceAll(nodes, new List<BTreeEditorPill>(), EmptyBlob());

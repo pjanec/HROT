@@ -127,7 +127,7 @@ public sealed class BTreeComposedBlueprintReferenceContributorTests
                 {
                     MethodFqn     = "Hrot.Game.Combat.CombatActions.AimAndFire",
                 },
-                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
+                DelegateShape = BTreeActionDelegateShape.Plain,   // CE-417: the shape sits on the node
             },
         });
 

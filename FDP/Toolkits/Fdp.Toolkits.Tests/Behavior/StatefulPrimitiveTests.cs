@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Behavior.Tests;
 /// distinct VisualIds occupy independent slots.
 ///
 /// These tests manually reproduce the adapter thunk that BTreeBridgeEmitCore would emit
-/// for a ThreeParamReusableStateful binding.
+/// for a Stateful binding.
 /// </summary>
 public sealed unsafe class StatefulPrimitiveTests
 {

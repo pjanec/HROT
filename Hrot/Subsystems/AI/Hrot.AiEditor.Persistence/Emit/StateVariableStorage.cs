@@ -73,5 +73,5 @@ public static class StateVariableStorage
     }
 
     private static bool IsStateful(BTreeDelegateShapeDto shape)
-        => shape is BTreeDelegateShapeDto.ThreeParamReusableStateful or BTreeDelegateShapeDto.AiPrimitiveTickCore;
+        => shape is BTreeDelegateShapeDto.Stateful or BTreeDelegateShapeDto.AiPrimitiveTickCore;
 }

@@ -16,7 +16,7 @@ namespace Hrot.BTree.Editor.Tests.Inspector;
 /// <summary>
 /// Fix 1 — DelegateShape guard: headless tests proving that the binding drawer's "no compatible variables" state and
 /// the Promote affordance are suppressed for <see cref="BTreeActionDelegateShape.NoParams"/> (whole-blackboard)
-/// actions, and still work normally for <see cref="BTreeActionDelegateShape.ThreeParamReusable"/> actions.
+/// actions, and still work normally for <see cref="BTreeActionDelegateShape.Plain"/> actions.
 /// ⭐ <c>CE-417</c> slice 4b: the shape reaches the drawer ON the binding facet (<c>TargetsWholeBlackboard</c>), set by the
 /// mapper — not through the retired <c>BTreeFacetFqnContext</c>.
 /// </summary>
@@ -98,7 +98,7 @@ public sealed class DelegateShapeGuardTests
     private static readonly ActionSchemaEntry WanderAction =
         new("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
 
-    // ── HasNoCompatibleVariables for ThreeParamReusable ───────────────────────
+    // ── HasNoCompatibleVariables for Plain ───────────────────────
 
     [Fact]
     public void HasNoCompatibleVariables_True_WhenThreeParamReusable_AndNoMatchingVars()
@@ -164,7 +164,7 @@ public sealed class DelegateShapeGuardTests
     [Fact]
     public void Mapper_DoesNotMarkTheBinding_ForThreeParamReusableAction()
     {
-        var asset  = MakeAssetWithAction("Ns.FloatAction", BTreeActionDelegateShape.ThreeParamReusable, out var nodeVisualId);
+        var asset  = MakeAssetWithAction("Ns.FloatAction", BTreeActionDelegateShape.Plain, out var nodeVisualId);
 
         var facet = (BTreeActionFacet)new BTreeFacetMapper(asset).GetFacet(new BTreeNodeSelection(nodeVisualId))!;
 

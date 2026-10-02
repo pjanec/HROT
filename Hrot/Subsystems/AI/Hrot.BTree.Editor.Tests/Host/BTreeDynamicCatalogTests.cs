@@ -442,7 +442,7 @@ public sealed class BTreeDynamicCatalogTests
 
         var node = asset.FindNode(nodeId.Value);
         node!.Action!.MethodFqn.Should().Be(fqn);
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Plain,
             "default enum value; non-AiPrimitive placement must stay unaffected by E2");
         node.Action.WorkingStateTypeId.Should().BeNull();
         node.Action.ExpressionTargetField.Should().BeNull();

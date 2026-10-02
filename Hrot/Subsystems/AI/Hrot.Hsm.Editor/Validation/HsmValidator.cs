@@ -21,7 +21,7 @@ public sealed class HsmValidator
     /// i.e. it contains at least one stateful node that maintains per-instance WorkingState.
     /// Defaults to <c>_ => false</c> (all Subtrees treated as stateless) so existing callers
     /// compile and run unchanged.  Production should wire this to check the referenced
-    /// BTree/HSM asset for any <c>ThreeParamReusableStateful</c> action (or WorkingState).
+    /// BTree/HSM asset for any <c>Stateful</c> action (or WorkingState).
     /// </summary>
     private readonly Func<Guid, bool> _isStatefulSubtree;
 

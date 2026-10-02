@@ -107,7 +107,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
             WorkingStateTargetField = stateField,     // working-state variable — drives scope/key
             WorkingStateTypeId = WorkingStateTypeId,
         },
-        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
+        DelegateShape = BTreeDelegateShapeDto.Stateful,
     };
 
     /// <summary>Builds a Root → Sequence → (one Action per binding) asset with the given blackboard variables.</summary>
