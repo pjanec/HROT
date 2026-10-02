@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.8 the GRANT definition · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
+current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -177,6 +177,20 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
   (no protocol change, R-158). BDC exempt while unused. Offline: one node, no grants.
 - Today the group ↔ descriptor binding lives inside NED's map (translators + two hand-written blocks, `NedReplicationModule.cs:605-640`);
   build step 1 moves the GROUPS into the shared definition.
+
+### 0.9 ⚠ GAPS AND FLAWS OF PUSH-ONLY *(self-review `2026-10-02`, each measured or marked)*
+
+| # | gap / flaw | evidence | direction |
+|---|---|---|---|
+| P1 | **No failover.** A grantee that crashes leaves its groups orphaned: the wire spec's *"non-master disposed by partial owner ⇒ ownership returns to the master's owner"* is NOT implemented | searched NED/Cyclone/replication toolkit: dispose only removes components; `DisposalMonitoringSystem` only prunes the entity map | master owner reclaims on partial-owner dispose (spec rule, existing message), then the authority re-grants by transfer |
+| P2 | **A grant can be lost.** Target unknown at creation (`CE-256`) or already dead (1 Hz heartbeat cache) ⇒ no takeover, no `OwnershipUpdate`; `DeferredTakeOwnership` is Volatile and unacknowledged | `BrainMuscleOwnershipStrategy.cs:43-46`; `DeferredTakeOwnership.cs` QoS | the authority detects "granted, never confirmed" and re-decides by transfer (G4/`CE-506`) |
+| P3 | **Concurrent transfers race.** `OwnershipIngressSystem` applies updates last-write-wins in arrival order, no epoch | `OwnershipIngressSystem.cs:57-67` | ONE initiator per entity after creation (rule, not protocol — an epoch would change the message, R-158) |
+| P4 | **A group is not atomic on the wire.** Grants and `OwnershipUpdate` are per descriptor; a group spanning several descriptors can be half-moved; a component may sit in two descriptors (Transfer §1 many-to-many) | `DeferredTakeoverSystem.cs:100-128`; Transfer design §1 | every component in exactly ONE group; a group moves as one command (grants already batch per entity) |
+| P5 | ⛔ **Per-instance ownership cannot be granted.** `DescriptorGrant`/`DescriptorOwnerEntry` carry no instance id; the takeover always keys instance 0 | `DeferredTakeOwnershipCommand.cs:13-19`; `DeferredTakeoverSystem.cs:108` | at creation, parts follow their root's group; per-instance moves only by transfer (`OwnershipUpdate` HAS `DescrInstanceId`). ⚠ an instance field in the grant would change the message (R-158) — needs a ruling if parts must be granted to different nodes |
+| P6 | **Recompute vs an unconfirmed grant.** With the yield on every node (`CE-508`), the creator drops the claim of every granted group at creation; R-159's recompute would then mark its record "not mine" BEFORE the grantee takes over ⇒ nobody publishes in that window (the inverse of F7) | F7 timeline; F11 | the recompute treats EVERY descriptor with an unconfirmed outgoing grant as protocol-owned — not only `SimTransform`'s |
+| P7 | **Who decides after creation is undefined.** "The owner" moves with transfers (a `MasterOnly` transfer moves the entity master); load rebalancing by a separate authority makes two deciders | R-163, R-164 | creator decides ONLY at creation; every later move by the one load authority (`CE-506`) — closes P3 |
+| P8 | **The strategy is not group- or entity-aware** — hard-coded descriptor list, ignores entity type | `BrainMuscleOwnershipStrategy.cs:40-55` | drive it from the shared groups (G6) and the template (G5) |
+| P9 | **A group can land where it cannot run.** No Brain node known ⇒ the creator keeps the brain group; a creator that does not register brain components (SimHost) leaves the entity brainless, silently | Role-Affinity §5 ② boot warning (step 3c) NOT built | warn once (3c); the authority grants when a Brain appears (P2) |
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
