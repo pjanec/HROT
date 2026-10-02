@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
+current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.8 the GRANT definition · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -142,6 +142,41 @@ S5 ④ record recompute → S6 G4 with `CE-506`. Proof: `CE-500` rail; §10's pr
 **Rejected:** promoter claims by role — several nodes share a role (R-164) · all nodes evaluate a shard identically — unnecessary with one decider,
 and impossible with live load (R-163) · re-gate every sender on the claim (§8) · patch only `NavigationIntent` (§9) — workaround · promoter sends
 `OwnershipUpdate` — protocol change (R-158).
+
+### 0.8 ⭐⭐ THE GRANT — definition *(`2026-10-02`)*
+
+**A grant is the owner's instruction "node N, you will own this part of entity E once E is constructed on your side."** It is HROT's own
+addition — the external wire spec has no grant, only `OwnershipUpdate`. Design basis: `HROT architecture.md` §IV "Pre-Genesis Routing";
+Role-Affinity §3.1 (why the position needs it) and §3.4 (explicit grants win).
+
+**As built (NED), three forms of one grant:**
+
+| stage | form | where |
+|---|---|---|
+| creator, local bus | `DeferredTakeOwnershipCommand { NetworkId, Grants: [DescriptorGrant { DescriptorTypeId, NodeId }] }` — one per entity, each grant with its own target | `DeferredTakeOwnershipCommand.cs:13-48`, produced at `CreateEntityRequestSystem.cs:361-370` |
+| wire | DDS `DeferredTakeOwnership { EntityId, [DescriptorOwnerEntry { DescriptorTypeId, NodeId }] }`, Reliable/Volatile, sent BEFORE `EntityMaster` | `Hrot.Network.NED/Messages/DeferredTakeOwnership.cs` |
+| receiver, on the ghost | `PendingAuthorityGrants { GrantsByDescriptor, CreatorNodeId }` — only entries naming this node | `PendingAuthorityGrants.cs:20-35`, attached by `DeferredTakeOwnershipIngressTranslator` |
+
+**Execution:** when the ghost is `Constructing`, `DeferredTakeoverSystem` (`:94-136`), per granted descriptor: claims the descriptor's
+components (descriptor→component map), writes itself into the record, publishes `OwnershipUpdate` (the creator steps down), removes the
+pending grant. **Used once.** The creator meanwhile keeps publishing the granted descriptor until that `OwnershipUpdate` arrives (F7).
+
+| | grant | transfer |
+|---|---|---|
+| when | only at creation, before the entity exists elsewhere | any time later |
+| message | `DeferredTakeOwnership` — pending until promotion | `OwnershipUpdate` — applied on receipt |
+| who sends | the creator | the current owner (wire spec: any node) |
+
+**As proposed (push-only, R-164/R-165) — the definition:** a grant is **(entity, ownership GROUP, target node)**.
+- **Ownership group** = a named set of components that move together, defined ONCE as component masks, network-agnostic (Role-Affinity §2.3
+  shape). E.g. *brain group* = `BehaviorState`, the channels, `BrainInterrupts`, the blackboard tiers, `NavigationIntent`, `MissionPlanQueue`;
+  *kinematic group* = `SimTransform`, `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState` (+ `NavigationStatus`). Members never on the
+  wire are owned only through the grant (R-165). Final lists: build step 1.
+- **The owner's strategy** decides which node gets which group (per role, shard by load); no grant where the target is the creator.
+- **Each network implementation** maps groups to its wire unit and carries the grant; NED keeps sending descriptor ids in the same message
+  (no protocol change, R-158). BDC exempt while unused. Offline: one node, no grants.
+- Today the group ↔ descriptor binding lives inside NED's map (translators + two hand-written blocks, `NedReplicationModule.cs:605-640`);
+  build step 1 moves the GROUPS into the shared definition.
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
