@@ -921,3 +921,28 @@ demo children, so the demos exercise the production paths.
 
 ⚠ Demo_MissionPlan demonstrates the CONCEPT only. Replacing `MissionDirectorSystem` / the networked mission plan is the
 separate design in §6.
+
+### §7 as-built — Demo_TaskChain + Demo_MissionPlan *(`2026-10-02`, CE-2021)*
+
+⭐ Shipped as corpus assets in `Hrot.AI.Behaviors/Assets/Blueprints/`, compiled by the production generator (goldens
+regenerated, purely additive), each with a rail through the real `BrainTickSystem` in the feature's own suite
+(`BlueprintBehaviourTests.Demo_*`).
+
+| asset | what it shows |
+|---|---|
+| `Demo_Advance` · `Demo_Engage` · `Demo_Retreat` · `Demo_TakeCover` | tiny blueprint behaviour children: Tick = Delay (1 · 2 · 0.5 · 1 s) → Success |
+| `Demo_TaskChain` | Advance ─Succeeded→ Stage 1 → Engage ─Succeeded→ Stage 2 → Success; either Failed → ONE shared Retreat → Failure; Engage's **While Running** aborts it when `CallOff` is set |
+| `Demo_MissionPlan` *(concept)* | Advance → Defend (Engage; While Running: `Health < 30` ⇒ **Abort**) → Return ⇒ Success; any Failed ⇒ Retreat ⇒ Failure. **OnHit** (`HitEvent` on self, a typed event node): Health −= 10, then Take Cover **runs alongside** (Started), restarting on each hit |
+
+⚠ **Deviation from the §7 table, and why:** the table names the curated children (`MoveToLocation`, `FireAtTarget`, …).
+⛔ A Behaviour Task has no PARAMETERS input yet, so a curated child would run on its defaults (no destination, no target).
+⇒ the demos host small blueprint children; ⭐ hosting a curated child with parameters is a filed follow-up (CE-2022).
+⚠ The cluster run of the capstone (`scenarios/mission-demo-bp`, `--mode all`) is NOT done here — it needs the scenario
+asset and a node run; filed with the same row.
+
+📐 **Two facts the rails had to respect** *(measured building them)*: ① a Delay reads `repo.SimulationTime`
+(`BlueprintRunner.Tick`), which the plain test framer never advances — the demo rails advance it 16 ms a frame;
+② a behaviour's LAST variable write and its end share one frame, and the block is cleared at the end — so the rails
+pin the end by its RESULT and its TIMING (e.g. Failure 0.5 s after the abort = the Retreat ran), not by reading the
+final write.
+

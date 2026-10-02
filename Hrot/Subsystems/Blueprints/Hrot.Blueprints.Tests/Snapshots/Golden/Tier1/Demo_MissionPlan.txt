@@ -1,0 +1,13 @@
+StructureHash: 0x298AC20B6CDB2A3E
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Health : System.Int32 @0 size=4
+  Phase : System.Int32 @4 size=4
+  CoverTaken : System.Int32 @8 size=4
+GraphLocalSlots:
+  __fib_OnHitTask0_0 : _Fiber__fib_OnHitTask0 @16 size=16
+Diagnostics:
+  (none)

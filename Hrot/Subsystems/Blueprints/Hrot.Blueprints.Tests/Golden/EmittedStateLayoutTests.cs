@@ -351,9 +351,12 @@ public sealed class EmittedStateLayoutTests
             foreach (var (_, def) in fixture.Registry.GetAll())
                 loaded.Add((def.Name, def));
 
-            Assert.True(loaded.Count >= byId.Count - 2,
-                $"only {loaded.Count} of {byId.Count} corpus assets registered — the sweep would be "
-                + "measuring a fraction of the corpus and reporting green.");
+            // ⚠ A blueprint BEHAVIOUR registers as a BehaviorDefinition, not here (its state is the behaviour block — out of
+            //   this sweep's scope), so it counts as registered by name. ⭐ CE-2021 grew the corpus by six behaviours.
+            int behaviours = fixture.BehaviorRegistry.GetRegisteredNames().Count(n => byId.ContainsKey(n));
+            Assert.True(loaded.Count + behaviours >= byId.Count - 2,
+                $"only {loaded.Count} of {byId.Count} corpus assets registered (+ {behaviours} behaviours) — the sweep "
+                + "would be measuring a fraction of the corpus and reporting green.");
 
             return _corpus = loaded;
         }

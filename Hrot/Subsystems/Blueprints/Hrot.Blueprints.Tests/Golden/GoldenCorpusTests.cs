@@ -94,7 +94,10 @@ public sealed class GoldenCorpusTests
         //    WaitForChannel asset left (R-137).
         // ⭐ 28 → 29 (CE-503, 2026-10-02): `HsmResolverDemoResolver` — the FIRST resolver asset bound by an HSM
         //    (Q76 §12.27g); before it only BTrees could bind one.
-        Assert.Equal(29, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 29 → 35 (CE-2021, 2026-10-02): the §7 demos of DESIGN_Unified_Behaviour_Run — `Demo_TaskChain` and
+        //    `Demo_MissionPlan` (Behaviour Task chains, While Running abort, a task run ALONGSIDE) and their four step
+        //    children `Demo_Advance` · `Demo_Engage` · `Demo_Retreat` · `Demo_TakeCover`.
+        Assert.Equal(35, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

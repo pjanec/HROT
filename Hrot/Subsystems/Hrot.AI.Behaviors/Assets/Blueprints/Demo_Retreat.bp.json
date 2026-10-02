@@ -1,0 +1,157 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "83ea0ed5-1e62-419b-87b0-f2d5c2422055",
+  "Name": "Demo_Retreat",
+  "Dispatch": "Behavior",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c1fe9c4e-5e3b-4578-b45b-d359bbde0636",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "618b168c-3616-40f2-8f37-847bda41b8db",
+          "Pins": [
+            {
+              "Id": "05c1587a-b273-47de-96bf-e3924bafa2a6",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Delay",
+          "Id": "9aec20d2-52a9-4ffe-a994-8ef5615c5098",
+          "Pins": [
+            {
+              "Id": "57f47230-4c22-4685-9a42-3cc724d59e3b",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bebe009f-ca82-40be-8b9b-ae43b4f38e39",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "a80fa3b8-48a7-4ae9-a266-16bb98d44008",
+              "Name": "Duration",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 240,
+            "Y": 0,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "Duration": "0.5"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "6fe0206c-621a-497d-a6a2-f052f9490696",
+          "Pins": [
+            {
+              "Id": "100fa68d-14b0-4ffd-8f0b-2e66168fceea",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 480,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "618b168c-3616-40f2-8f37-847bda41b8db",
+          "FromPinId": "05c1587a-b273-47de-96bf-e3924bafa2a6",
+          "ToNodeId": "9aec20d2-52a9-4ffe-a994-8ef5615c5098",
+          "ToPinId": "57f47230-4c22-4685-9a42-3cc724d59e3b"
+        },
+        {
+          "FromNodeId": "9aec20d2-52a9-4ffe-a994-8ef5615c5098",
+          "FromPinId": "bebe009f-ca82-40be-8b9b-ae43b4f38e39",
+          "ToNodeId": "6fe0206c-621a-497d-a6a2-f052f9490696",
+          "ToPinId": "100fa68d-14b0-4ffd-8f0b-2e66168fceea"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}

@@ -4,7 +4,7 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ENTITY BEHAVIOUR, WITH BLUEPRINT ACTIONS AND GUARDS**. ⚠ A STATE doc, not canon: every
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-10-02 (current-answer: the unified behaviour run, S7 + demos)
 build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE, and the
   RUNTIME is PROVED END TO END live (§8.4): the demo scenario drives to a seeded destination and
   destroys a target. Built: CE-402/403/388(D-A2,D-B1,D-D1,D-F)/404(D-E WITHDRAWN)/405/406/407/
@@ -12,7 +12,12 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **NEXT (2026-09-30): the design-ready parameter switch** — DESIGN_Parameter_Model.md §P
+current-answer: ⭐⭐⭐⭐ **NOW (2026-10-02): the unified behaviour run** — DESIGN_Unified_Behaviour_Run.md is the
+  owning design and its §4 per-slice "design"/"as-built" sections are the build record: S1–S6b + S7a/S7b (the
+  Behaviour Task node, CE-2019/CE-2020) BUILT, §7 demos Demo_TaskChain + Demo_MissionPlan shipped (CE-2021).
+  NEXT: CE-2022 (a task passes parameters to its child), S6b-2b (deferred, demand-driven). Typed event nodes
+  (DESIGN_Typed_Event_Nodes, CE-2010..2017) are BUILT. ⛔ Everything below this paragraph is the 2026-09-30 state.
+  — was: ⭐⭐⭐ **NEXT (2026-09-30): the design-ready parameter switch** — DESIGN_Parameter_Model.md §P
   (R-155: behaviours take inputs once, actions read the host live, only behaviours have a resolver).
   CE-443 BUILT 2026-09-30 (§P.8). NEXT: CE-444, CE-445 (+ retire IHostVariableAccess, user-approved §P.6),
   then CE-446 (= O9). CE-447 (duplicate authored DTOs) filed. ⭐ History of what led here:
