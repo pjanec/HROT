@@ -674,6 +674,39 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>S8</c> — <b>a shared STATEFUL C# method on an HSM keeps its working state in the HSM's own block <c>St</c></b>,
+        /// and a PARAM-LESS one runs on entry. The REAL <c>HsmStatefulBindingDemo</c> through the real registrar scan, ingress
+        /// and <see cref="BrainTickSystem"/>. 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.3b.
+        /// <para>🔴 Before S8 both bindings were <c>HSM0003</c> errors, so this asset could not be built. ✅ Red-proof: project
+        /// <c>__ws</c> from a local copy instead of the block ⇒ <c>St.steps</c> stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void S8_R1_AStatefulSharedMethodOnAnHsm_KeepsItsWorkingStateInTheBlock()
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var behaviours = ScanTheRealBehavioursAssembly();
+            Assert.True(behaviours.TryGetId("HsmStatefulBindingDemo", out int hash), "the generated registrar must register it");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "HsmStatefulBindingDemo", JsonParams = string.Empty });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+            var sys = new BrainTickSystem(behaviours);
+
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+            Assert.True(RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Machines.HsmStatefulBindingDemo_Block>(
+                world, e, hash, out var blk));
+            int after12 = blk->St.steps.Steps;
+            Assert.True(after12 > 0, "the stateful activity never advanced its working state in the block");
+
+            for (int i = 0; i < 5; i++) sys.Execute(world, 0.016f);
+            Assert.Equal(after12 + 5, blk->St.steps.Steps);   // one call per tick, the state PERSISTS between calls
+            world.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-417</c> + <c>CE-505</c> — the per-binding C# calls allocate nothing (F9: the old curated thunk
         /// built a string and searched the occurrence store on every call).</summary>
         [Fact]

@@ -291,7 +291,7 @@ public static class HsmEmitCore
         //    the whole asset. An unbound transition never touches this map, so an asset with no
         //    ExpressionTargetField emits byte-identically.
         var paramOffsets = HsmParamOffsets(dto, sizeResolver);
-        var namer = new BindingNamer(paramOffsets, sharedAi);   // ⭐ CE-417: ONE naming rule for every binding
+        var namer = new BindingNamer(paramOffsets, sharedAi, dto.AssetId);   // ⭐ CE-417: ONE naming rule for every binding (S8: stateful keys are per asset)
 
         sb.AppendLine($"{Indent}public static HsmBuilder CreateBuilder()");
         sb.AppendLine($"{Indent}{{");

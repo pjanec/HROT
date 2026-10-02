@@ -1,0 +1,47 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 00000508-0000-0000-0000-000000000001
+
+#nullable enable
+
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[BlueprintRegistrar]
+public static class HsmStatefulBindingDemoRegistrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned HSM definition and action/guard thunks.
+    /// HsmActionDispatcher is a static class and is called STATICALLY (§14 item 4).
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging)
+    {
+        // Compile the blob from the topology-core thunk.
+        var blob = HsmStatefulBindingDemo.Compile();
+
+        // Register the JSON-owned HSM definition.
+        beh.Register(1546880473, "HsmStatefulBindingDemo", new BehaviorDefinition
+        {
+            Name          = "HsmStatefulBindingDemo",
+            BrainTier     = BehaviorConstants.BrainTierHsm,
+            HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
+            BlueprintStructureHash = 4499027199497400620UL,   // CE-455: the root block's layout
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1929956752, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>(), unchecked(905393697u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>()), typeof(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState), "steps", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
+            },
+        });
+    }
+}

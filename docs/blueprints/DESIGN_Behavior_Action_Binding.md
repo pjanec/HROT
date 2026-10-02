@@ -190,7 +190,7 @@ sequenceDiagram
 > | **F7 in the corpus, corrected** | 📐 `HsmVariableShowcase` bound `AlertNearbyUnits` (`ref DemoSharedActionParams`, 12 B) to `Threshold` (`float`, 4 B), and `AlertNearbyUnits` had **no registered thunk at all** (it lives in `Fdp.Toolkits`, which runs no `HsmActionGenerator`). ⭐ Unbound there, with a comment; the correctly typed bound action lives in `HsmCuratedBindingDemo` |
 > | **rails moved** | rail ㊳ (`O7_R38`) → `CE417_R1`; `HsmOccurrenceCollisionTests.TheGeneratedThunk_…_Yet` retired with its subject; `HsmActionIdAgreementTests` now also runs the HSM asset registrars (a third id producer); `HsmExpressionTargetTests.TheAssetsIdIsTheRegistrarsId_ForABoundAction` compares the asset's own topology and registrar |
 > | **zero allocation** | `CE417_R3`: two per-binding C# activities, 50 ticks, 0 bytes |
-> | ⚠ **not covered** | global transitions' guards/actions are **not emitted by `HsmEmitCore` at all** (pre-existing; recorded here, not widened into this slice). `HsmOccurrence.KeyForCurated` has no production caller now — kept for the stateful C# HSM action (working memory) the carrier enables |
+> | ⚠ **not covered** | global transitions' guards/actions are **not emitted by `HsmEmitCore` at all** (pre-existing; recorded here, not widened into this slice). `HsmOccurrence.KeyForCurated` has no production caller now — kept for the stateful C# HSM action (working memory) the carrier enables. ⛔ **SUPERSEDED `2026-10-02` by §5.3b (`S8`)**: the HSM's stateful WS lives in the block `St`; `KeyForCurated` deleted. *(The global-transition gap is closed by §5.3a, `CE-506`.)* |
 > | **gates** | Generators 321/0 · Toolkits 2398/0 · Hsm.Editor 623/0 · Blueprints 4019/0 (9 known skips) · ClusterRunner HSM 2/0 · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`) |
 
 > ⭐⭐ **Slice 3b AS-BUILT (`2026-10-01`) — the BTree half of B-2 (a′) (F8).**
@@ -210,7 +210,7 @@ sequenceDiagram
 > | **retired** | the `StateNode.StateWideTargetField` setter — the v1 "one field to every slot" write path; after 4b only tests wrote it. The getter (the seed, derived exactly as `HsmBridgeEmitCore.StateWideField`) stays. Tests now author the seed on a slot binding |
 > | **golden** | `GeneratedEmitGoldenTests.TheGeneratedRegistrarIsUnchanged` now requires produced hints == baselined hints, like the BTree tier since 4c. ⚠ Measured: with ONE baseline its `NotEmpty` already covered a vanished part, so it was not blind *today*; it would have been at the second baseline |
 > | ✅ **found, filed — FIXED by `CE-506` (§5.3a)** | a **global** transition's guard and action are authorable (`GlobalTransitionFacet`, 4b) but **dropped at emit**: `HsmEmitCore` emits `builder.GlobalTransition(event, target, visualId)` and `HsmBuilder.GlobalTransition` has no guard/action/priority parameter, although the kernel's `GlobalTransitionDef` carries `GuardId`/`ActionId`/`Priority`. Pre-existing (the 3a box's *"not covered"* row); it is a FastHSM builder + emitter change, not binding cleanup |
-> | **kept on purpose** | `HsmOccurrence.KeyForCurated` (no production caller since 3a) — the 3a box keeps it for the stateful C# HSM action; `CE-504` (BTree call shapes) decides its fate |
+> | **kept on purpose** | ~~`HsmOccurrence.KeyForCurated`~~ ⛔ **SUPERSEDED `2026-10-02`**: deleted by §5.3b (`S8`) — the stateful C# HSM action keeps its WS in the block `St`, not an occurrence slot |
 
 ## 5.3a `CE-506` — a global transition's guard and action reach the kernel *(build-state: BUILT `2026-10-02`)*
 
@@ -249,6 +249,89 @@ the flattener's priority ORDER — the kernel takes the first match, so priority
 | **emitter** | the guard and action named by the SAME `BindingNamer` call `CollectGuards`/`CollectActions` register under (the global action now uses `legacyCompound`, as a transition's does — the two used to differ); `priority:` only when non-zero, as for a transition |
 | **refused** | a BLUEPRINT on a global guard/action is `HSM0004` (asset not emitted): a global has no source state, so there is no `(state, site)` to seed the blueprint's params from (§28.6c). The facet never offered one (`[ActionBinding(Guard)]` without `allowsBlueprint`) — this catches a hand-edited file |
 | **rails** | `Fhsm.Tests` `GlobalTransitionGuardActionTests` (a REAL machine through the builder): R1 the ids are compiled; R2 the guard gates and the action runs once; R3 the higher priority wins when declared second. `HsmJsonGeneratorTests` `CE506_*`: emitted with the registered names; a blueprint global is `HSM0004`. 🔴 Red-proved: the builder dropping guard/action ⇒ R1/R2 redden; the flattener ignoring priority ⇒ R3; the emitter dropping the guard ⇒ the emitter rail |
+
+## 5.3b `S8` — the HSM binds every shared C# form, as the BTree does *(design `2026-10-02`, build-state: BUILT `2026-10-02` — diagrams are the AS-BUILT)*
+
+> **Why.** `CE-504` gave both hosts ONE C# node signature, in three forms: param-less `(Entity, EntityRepository)`, plain
+> `(ref P, Entity, EntityRepository)` and stateful `(ref P, ref WS, Entity, EntityRepository)`. The BTree binds all three.
+> The HSM binds only plain, and reports the other two as `HSM0003` (`SharedAiBindings.NonPlainBindings`). So one method
+> can be a BTree node but not an HSM state. This was the last BTree/HSM asymmetry in C# binding (call-shapes §4, S8).
+
+**INVENTORY** (grep + reads, `2026-10-02`): `SharedAiBindings.Collect` skips `!IsPlain` (`SharedAiBindings.cs:85`). Its
+emitted call projects only `ref P` (`:162-184`). The BTree's stateful working state is a block `St` member when the
+variable is Behavior-scoped `Role=State` (`BTreeBridgeEmitCore.cs:822-828`, `TryGetBlockStateVariable:850`). The key is
+`Fqn@paramOffset@slotKey` (`:658`). The HSM already owns that block shape, because `HsmBridgeEmitCore.BlackboardOwner` is
+the BTree-shaped view (`CE-416`). `HsmOccurrence.KeyForCurated` has no production caller; it was kept only "for the
+stateful C# HSM action" (slice 3a and slice 5 boxes).
+
+```mermaid
+classDiagram
+  class SharedAiMethodInfo { <<existing>> +HasParams +WorkingStateTypeFqn +IsPlain }
+  class SharedAiBindings {
+    <<existing, widened>>
+    +Collect(dto, packed, sharedAi, sizeResolver) Entry[]
+    +UnbindableBindings(dto, sharedAi, sizeResolver)
+    +NameFor(binding, offsets, sharedAi, assetId)
+    +FormOf(info) Form
+    +StatefulSlotKey(assetId, wsVariable) int
+    +EmitThunk(sb, entry, name, pad)
+  }
+  class Entry { Key; Form; Offset; WsVariable; BlockFqn }
+  class Form { <<enum>> NoParams; Plain; Stateful }
+  class BindingNamer { <<existing, widened>> +BindingNamer(offsets, sharedAi, assetId) }
+  class BTreeBridgeEmitCore { <<existing>> +TryGetBlockStateVariable() +ComputeStatefulSlotKey() +BlockStructFqn() }
+  class HsmBridgeEmitCore { <<existing>> +BlackboardOwner(dto) }
+  class HsmOccurrence { <<existing>> -KeyForCurated() DELETED }
+  SharedAiBindings ..> SharedAiMethodInfo
+  SharedAiBindings ..> BTreeBridgeEmitCore : SAME slot key, SAME block lookup
+  SharedAiBindings ..> HsmBridgeEmitCore : the HSM as a BTree-shaped owner
+  SharedAiBindings *-- Entry
+  Entry --> Form
+  BindingNamer ..> SharedAiBindings : NameFor
+```
+*What the picture shows that the prose hid:* no new type and no new key function. The HSM reuses the BTree's slot-key
+and block-lookup functions through the view that already exists. `KeyForCurated` loses its only stated purpose.
+
+```mermaid
+sequenceDiagram
+  participant K as HSM kernel
+  participant T as generated thunk (per binding)
+  participant R as RootParamsAccess
+  participant M as shared C# method
+  K->>T: dispatch(instance, bridge, writer)
+  T->>R: RequireRootBytes(world, self) gives root, len
+  alt param-less
+    T->>M: M(self, world)
+  else plain
+    T->>M: M(ref P at offset, self, world)
+  else stateful
+    T->>M: M(ref P at offset, ref block.St.ws, self, world)
+  end
+```
+
+| # | decision | lean (approved order, `2026-10-02`) | rejected |
+|---|---|---|---|
+| S8-1 | where an HSM stateful method's `WS` lives | ⭐ **in the HSM's block `St`**: the Behavior-scoped `Role=State` variable named by `WorkingStateTargetField` (fallback `ExpressionTargetField`, the BTree rule `:241`). Its type must equal the method's `WS`. Otherwise `HSM0003` | an occurrence slot keyed by `KeyForCurated`: a second home for state the block already holds (`CE-437`: one home) |
+| S8-2 | addressing | ⭐ **BTree's spelling exactly**: stateful `Fqn@paramOffset@slotKey`, param-less bare `Fqn`, plain unchanged | an HSM-only spelling: two rules for one binding |
+| S8-3 | `HsmOccurrence.KeyForCurated` / `OccurrenceSlotKey.ComputeHsmStateKeyForCurated` | ⭐ **delete**. The stated reason is void; their only callers are two parity rails | keep "in case": an unreferenced API whose design reason is gone (no-rush-removal check done: the record names this item) |
+| S8-4 | `NonPlainBindings` | ⭐ Roslyn-rename to **`UnbindableBindings`**: it reports only a stateful binding with no usable block `WS`. Param-less and plain are bindable | keep the name: it would lie |
+
+**Rails:** the compile rail (`SharedAiBindingCompilesTests`) gets an HSM asset with a stateful binding, a param-less
+binding and an unbindable stateful binding (`HSM0003`). The runtime rail is a stateful method on an HSM whose `ws`
+counter advances in the block across ticks, red-proved by projecting `ws` at the wrong offset.
+
+> **As-built (`2026-10-02`).** Built as drawn; the deviations are small:
+> - `Collect`/`UnbindableBindings` take a `sizeResolver` (the generator's not-yet-visible Params sizes, as `CE-414` F),
+>   not `owner`/`owned` — the block state is read through `BlockState(dto, sizeResolver)`, which reuses
+>   `HsmBridgeEmitCore.BlackboardOwner` + `BTreeBridgeEmitCore.TryGetBlockStateVariable`.
+> - The stateful thunk asserts the root slot is at least `sizeof(Block)` before projecting `St` (no silent overrun).
+> - Corpus proof: `HsmStatefulBindingDemo.hsm.json` (state `Counting`: param-less `Action_EnterCounting` on entry,
+>   stateful `Action_CountSteps` on `limit` with working state `steps`); key `Action_CountSteps@0@<slotKey>`.
+> - Rails: `SharedAiBindingCompilesTests.S8_*` (compile + `HSM0003`) and
+>   `BrainTickSystemHsmArmTests.S8_R1_AStatefulSharedMethodOnAnHsm_KeepsItsWorkingStateInTheBlock` (runtime;
+>   red-proved by projecting `__ws` from a local copy ⇒ the block's counter stays 0).
+> - Deleted per S8-3: `HsmOccurrence.KeyForCurated` (both overloads), `OccurrenceSlotKey.CuratedVariableId` /
+>   `ComputeHsmStateKeyForCurated`, and their parity asserts.
 
 ## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 

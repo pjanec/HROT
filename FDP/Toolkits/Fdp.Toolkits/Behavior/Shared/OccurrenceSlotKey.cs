@@ -300,27 +300,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             return new System.Guid(behaviourHash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
-        internal static string CuratedVariableId(string compoundKey)
-            => ReservedPrefix + "curated." + (compoundKey ?? string.Empty);
-
-        internal static int ComputeHsmStateKeyForCurated(
-            uint hostMachineId, int regionSlotIndex, ushort stateId, string compoundKey)
-        {
-            // ⭐ CE-505: the variable id is CuratedVariableId(compoundKey), folded in its three pieces
-            //   rather than concatenated — FNV over a concatenation IS the fold of its parts in order, so
-            //   the key is unchanged and the per-call string allocation is gone.
-            unchecked
-            {
-                uint hash = FnvOffsetBasis;
-                hash = FoldGuid(hash, System.Guid.Empty);
-                hash = FoldUtf8(hash, ReservedPrefix);
-                hash = FoldUtf8(hash, "curated.");
-                hash = FoldUtf8(hash, compoundKey ?? string.Empty);
-                return NestOver(ComputeHsmHostIdentity(hostMachineId),
-                                ComputeHsmSiteId(regionSlotIndex, stateId),
-                                Mask(hash));
-            }
-        }
+        // ⛔ S8 (2026-10-02) — CuratedVariableId / ComputeHsmStateKeyForCurated DELETED with HsmOccurrence.KeyForCurated.
 
         internal static int ComputeHsmStateKey(
             uint hostMachineId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
