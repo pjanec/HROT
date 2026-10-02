@@ -9,7 +9,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// ⭐⭐ <c>CE-504</c> C-4 — a curated <c>[BTreeDefinition]</c> tree binds a shared C# node method
     /// (<c>(ref P, Entity, EntityRepository)</c>, its stateful and param-less forms) exactly as it binds the old 3-param one:
     /// <c>.Action(bb =&gt; bb.Params, Nodes.Action_X)</c>. The currying is <see cref="SharedNodeBinder"/> (runtime toolkit,
-    /// <c>Fbt.Kernel</c> only); this adds the leaf, which needs <c>Fbt.Compiler</c> — the <see cref="StatefulTreeBuilderExtensions"/>
+    /// <c>Fbt.Kernel</c> only); this adds the leaf, which needs <c>Fbt.Compiler</c> — the former <c>StatefulTreeBuilderExtensions</c>
     /// split. 📄 <c>docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md</c> §4 C-4.
     ///
     /// <para>⚠ These are extension methods with the builder's own names. C# picks an instance method first, but the builder's

@@ -204,6 +204,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // HAJSON-B / ⭐ CE-504 slice 4: the paired [BTreeDeactivator]s, scanned BEFORE anything is emitted — a retired
+        //   deactivator form, or one a binding cannot feed, skips the whole asset (never a deactivator that silently stops
+        //   firing, never a partial emit).
+        System.Collections.Generic.List<BTreeBridgeEmitCore.DeactivatorEntry> deactivators;
+        try
+        {
+            deactivators = BTreeDeactivatorScanner.Scan(compilation, dto, out string? deactivatorError);
+            if (deactivatorError != null)
+            {
+                spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path, deactivatorError));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "Exception during deactivator scanning: " + ex.Message));
+            return;
+        }
+
         // S1-2b: Build a Roslyn-backed struct-size resolver for this compilation.
         // The resolver handles struct-DTO types not in BTreeBlackboardPackHelper.KnownSizes.
         // Guarded by Managed flag — non-managed assets get a null resolver (no change).
@@ -324,27 +344,10 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
 
         // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
-        // HAJSON-B: scan for [BTreeDeactivator] hooks and pass them to the bridge emitter.
+        // HAJSON-B: the deactivators scanned above go to the bridge emitter (one registration per binding).
         string bridge;
         try
         {
-            // Build the set of action keys that will be registered by this bridge so the
-            // scanner can match against them without needing to re-derive offsets.
-            System.Func<string, int?>? resolverForDeactivator = structSizeResolver;
-            System.Collections.Generic.IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packed = null;
-            if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0 && resolverForDeactivator != null)
-            {
-                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, resolverForDeactivator, out _); }
-                catch { packed = null; }
-            }
-            else if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
-            {
-                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, null, out _); }
-                catch { packed = null; }
-            }
-
-            var registeredKeys = BTreeBridgeEmitCore.CollectRegisteredActionKeys(dto, packed);
-            var deactivators   = BTreeDeactivatorScanner.Scan(compilation, registeredKeys);
             // ⭐ CE-417 B-2 (a′), F8 — a bound [SharedAi*] method is called per binding with its own signature.
             bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators,
                 SharedAiMethodResolver.Make(compilation));

@@ -866,7 +866,7 @@ public static class BTreeEmitCore
                 $"Action node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn ?? string.Empty);
+
         string? actionTargetField = p.ExpressionTargetField;
         if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
             !string.IsNullOrEmpty(actionTargetField))
@@ -884,9 +884,12 @@ public static class BTreeEmitCore
             }
             else
             {
-                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
-                sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{actionTargetField}, {methodRef},");
-                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+                // ⛔ CE-504 slice 4 — the unmanaged field-selector form bound the retired (ref P, ref BTS, ref TCtx) method
+                //   group; the validator requires a managed blackboard for a binding with params, so this is unreachable
+                //   from a valid asset. Fail loud rather than emit an uncompilable bind.
+                throw new InvalidOperationException(
+                    $"Action node {node.VisualId:D} binds '{p.MethodFqn}' to '{actionTargetField}' but the variable has no packed offset " +
+                    "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
         else if ((node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
@@ -937,8 +940,11 @@ public static class BTreeEmitCore
         }
         else
         {
-            sb.AppendLine($"{pad}{methodPrefix}Action({methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // ⛔ CE-504 slice 4 — the method-group form bound the retired whole-block (ref TBB, ref BTS, ref TCtx, int)
+            //   shape (FourParamFull). No asset binds it; fail loud rather than emit a bind nothing registers.
+            throw new InvalidOperationException(
+                $"Action node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape={node.DelegateShape}, which has no " +
+                "call form — bind a [SharedAi*] method (CE-504).");
         }
     }
 
@@ -958,7 +964,7 @@ public static class BTreeEmitCore
                 $"Condition node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn ?? string.Empty);
+
         string? condTargetField = p.ExpressionTargetField;
         if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
             !string.IsNullOrEmpty(condTargetField))
@@ -973,9 +979,12 @@ public static class BTreeEmitCore
             }
             else
             {
-                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
-                sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{condTargetField}, {methodRef},");
-                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+                // ⛔ CE-504 slice 4 — the unmanaged field-selector form bound the retired (ref P, ref BTS, ref TCtx) method
+                //   group; the validator requires a managed blackboard for a binding with params, so this is unreachable
+                //   from a valid asset. Fail loud rather than emit an uncompilable bind.
+                throw new InvalidOperationException(
+                    $"Condition node {node.VisualId:D} binds '{p.MethodFqn}' to '{condTargetField}' but the variable has no packed offset " +
+                    "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
         else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
@@ -1020,8 +1029,11 @@ public static class BTreeEmitCore
         }
         else
         {
-            sb.AppendLine($"{pad}{methodPrefix}Condition({methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // ⛔ CE-504 slice 4 — the method-group form bound the retired whole-block (ref TBB, ref BTS, ref TCtx, int)
+            //   shape (FourParamFull). No asset binds it; fail loud rather than emit a bind nothing registers.
+            throw new InvalidOperationException(
+                $"Condition node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape={node.DelegateShape}, which has no " +
+                "call form — bind a [SharedAi*] method (CE-504).");
         }
     }
 

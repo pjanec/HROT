@@ -231,6 +231,59 @@ public sealed class HsmJsonGeneratorTests
             "full emit must include [HsmDefinition]");
     }
 
+    // ── ⭐ CE-506 — a global transition's guard, action and priority are emitted, never dropped ─────────────
+
+    private static HsmAssetDto WithGlobal(Hrot.AiEditor.Persistence.BehaviorActionBindingDto? guard,
+                                          Hrot.AiEditor.Persistence.BehaviorActionBindingDto? action, byte priority)
+    {
+        var dto = HsmAssetMapper.ToDto(LoadSampleGuard());
+        if (dto.Events.Count == 0) dto.Events.Add(new EventDefinitionDto { Name = "Ce506Go" });
+        dto.GlobalTransitions.Add(new GlobalTransitionNodeDto
+        {
+            VisualId       = new Guid("50600000-0000-0000-0000-000000000001"),
+            TargetStableId = dto.States[0].StableId,
+            EventName      = dto.Events[0].Name,
+            Guard          = guard,
+            Action         = action,
+            Priority       = priority,
+        });
+        return dto;
+    }
+
+    /// <summary>
+    /// 🔴 CE-506 — RED before: the emitter wrote <c>builder.GlobalTransition(event, target, visualId)</c> and nothing else,
+    /// so a bound global guard/action was saved and never ran. ⭐ Now both, and the priority, reach the builder — named by
+    /// the SAME rule <c>CollectGuards</c>/<c>CollectActions</c> register them under.
+    /// </summary>
+    [Fact]
+    public void CE506_AGlobalTransitionsGuardActionAndPriority_AreEmitted()
+    {
+        var dto = WithGlobal(new Hrot.AiEditor.Persistence.BehaviorActionBindingDto { MethodFqn = "Ce506.Nodes.CanGo" },
+                             new Hrot.AiEditor.Persistence.BehaviorActionBindingDto { MethodFqn = "Ce506.Nodes.OnGo" }, 7);
+
+        string core = HsmEmitCore.EmitTopologyCore(dto);
+
+        core.Should().Contain("guard: \"Ce506.Nodes.CanGo\"")
+            .And.Contain("action: \"Ce506.Nodes.OnGo\"")
+            .And.Contain("priority: 7");
+        core.Should().Contain("RegisterGuard(\"Ce506.Nodes.CanGo\")", "the guard name the global uses is registered");
+        core.Should().Contain("RegisterAction(\"Ce506.Nodes.OnGo\")", "the action name the global uses is registered");
+    }
+
+    /// <summary>⛔ CE-506 — a global transition has no source state to seed a blueprint from: a blueprint on it is HSM0004,
+    /// and the asset is not emitted (never a silently dropped binding).</summary>
+    [Fact]
+    public void CE506_AGlobalTransitionBindingABlueprint_IsHsm0004()
+    {
+        var dto = WithGlobal(new Hrot.AiEditor.Persistence.BehaviorActionBindingDto
+                             { BlueprintAssetId = new Guid("50600000-0000-0000-0000-0000000000bb") }, null, 0);
+
+        var result = RunGenerator(MakeAdditionalText("/p/Ce506.hsm.json", HsmJsonServices.Serialize(dto)));
+
+        result.Diagnostics.Should().Contain(d => d.Id == HsmJsonGenerator.GlobalBlueprintErrorId);
+        result.GeneratedTrees.Should().BeEmpty();
+    }
+
     // ── ⭐ CE-423 — a State variable that would get NO storage is an error, never a silent skip ─────────────
 
     /// <summary>

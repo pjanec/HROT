@@ -55,7 +55,7 @@ public sealed class SaveBTreeEmitTests
             {
                 MethodFqn     = "Hrot.AI.Behaviors.Trees.Actions.Patrol",
             },
-            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(seq.VisualId);

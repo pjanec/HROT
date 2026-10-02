@@ -49,7 +49,6 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_WaitForSensor_ReturnsSuccessWhenReady()
     {
         var p     = new EqsParams { BlueprintId = 1, SearchRadius = 50f };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // No buffer yet -> Running
@@ -79,7 +78,6 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_Deactivator_RemovesComponentsOnAbort()
     {
         var p     = new EqsParams { BlueprintId = 2, SearchRadius = 75f, FactionFilter = 1 };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // First tick adds EqsSensor
@@ -91,7 +89,7 @@ public sealed class EqsLifecycleNodesTests : IDisposable
         _repo.AddComponent(_entity, new EqsCognitiveBuffer { LastUpdateTick = 1 });
 
         // Deactivator fires (branch abort)
-        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ctx.Self, ctx.World);
 
         Assert.False(_repo.HasComponent<EqsSensor>(_entity),
             "EqsSensor must be removed by deactivator");
@@ -110,7 +108,6 @@ public sealed class EqsLifecycleNodesTests : IDisposable
     public void EqsLifecycleNodes_MaintainSensor_EpochIncrementsOnlyOnParamChange()
     {
         var p     = new EqsParams { BlueprintId = 3, SearchRadius = 100f, FactionFilter = 2 };
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _entity, World = _repo };
 
         // Tick 1: sensor added, Epoch=1

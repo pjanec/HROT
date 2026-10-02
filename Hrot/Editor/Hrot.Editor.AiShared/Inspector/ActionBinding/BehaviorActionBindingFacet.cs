@@ -32,8 +32,9 @@ public struct BehaviorActionBindingFacet
     /// binding. Names a promoted variable <c>_auto_{id}_{slot}</c> so two bindings of one node never share it (B-2).</summary>
     public string? SiteSlot;
 
-    /// <summary>Read-only for the drawer: a BTree <c>FourParamFull</c> method operates on the whole blackboard, so the
-    /// binding has no per-binding variable to pick or promote.</summary>
+    /// <summary>Read-only for the drawer: the bound method takes no variable (a BTree param-less <c>NoParams</c> node,
+    /// <c>CE-504</c>), so the binding has none to pick or promote. ⚠ The name predates CE-504's retirement of the
+    /// whole-blackboard shape it was first written for.</summary>
     public bool TargetsWholeBlackboard;
 
     /// <summary>What the inspector shows when the drawer is not registered (plain text fallback, headless dumps).</summary>

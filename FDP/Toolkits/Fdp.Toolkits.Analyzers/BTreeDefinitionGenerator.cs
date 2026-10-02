@@ -149,9 +149,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         sb.AppendLine("            global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> runtimeActions)");
                         sb.AppendLine("        {");
                         sb.AppendLine("            var __b = global::" + m.FullyQualifiedTypeName + "." + m.MethodName + "();");
-                        sb.AppendLine("            var __blob = __b.Compile(\"" + m.TreeName + "\", isResourceOwning);");
+                        // ⭐ slice 4: COPY FIRST — the thunks include paired deactivators, and the caller's resource-owning
+                        //   predicate reads runtimeActions, so compiling first would bake every deactivated node as non-owning.
                         sb.AppendLine("            global::Fdp.Toolkit.Behavior.SharedNodeBinder.CopyRuntimeThunks(__b.GetRegistry(), runtimeActions);");
-                        sb.AppendLine("            return __blob;");
+                        sb.AppendLine("            return __b.Compile(\"" + m.TreeName + "\", isResourceOwning);");
                         sb.AppendLine("        }");
                     }
                 }

@@ -46,7 +46,7 @@ public static class BehaviorActionBindingEditor
     /// <summary>The facet the inspector shows for <paramref name="binding"/>.</summary>
     /// <param name="siteId">The site's Guid (node / transition / state id), used to name a promoted variable.</param>
     /// <param name="siteSlot">Which binding of the site this is when it has several; null for the primary one.</param>
-    /// <param name="targetsWholeBlackboard">A BTree <c>FourParamFull</c> binding — no per-binding variable.</param>
+    /// <param name="targetsWholeBlackboard">A BTree binding that takes no variable (the param-less <c>NoParams</c> shape, <c>CE-504</c>).</param>
     public static BehaviorActionBindingFacet ToFacet(
         BehaviorActionBinding? binding, string? siteId, string? siteSlot = null, bool targetsWholeBlackboard = false)
         => new()

@@ -47,7 +47,7 @@ public sealed class BTreeJsonServicesTests
             {
                 MethodFqn     = "Hrot.AI.Brains.TestAction",
             },
-            DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+            DelegateShape = BTreeDelegateShapeDto.NoParams,
         });
         dto.Pills.Add(new BTreePillDto
         {

@@ -451,9 +451,16 @@ public static class HsmEmitCore
                 string evRef     = gt.EventName ?? "";
                 string targetName = stableIdToState.TryGetValue(gt.TargetStableId, out var tgt)
                     ? tgt.Name : "???";
+                // ⭐⭐ CE-506 — the guard, the effect action and the priority. ⛔ They used to be dropped here: the facet drew
+                //   them and the DTO saved them, and nothing ran them. Named by the SAME BindingNamer a transition uses, so
+                //   CollectGuards/CollectActions register exactly what the global transition addresses.
+                string extra = "";
+                if (namer.Name(gt.Guard) is string gName) extra += $", guard: {QuoteStr(gName)}";
+                if (namer.Name(gt.Action, legacyCompound: true) is string aName) extra += $", action: {QuoteStr(aName)}";
+                if (gt.Priority != 0) extra += $", priority: {gt.Priority}";
                 sb.AppendLine(
                     $"{pad}builder.GlobalTransition({QuoteStr(evRef)}, {QuoteStr(targetName)}," +
-                    $" visualId: new Guid({QuoteStr(gt.VisualId.ToString("D"))}));");
+                    $" visualId: new Guid({QuoteStr(gt.VisualId.ToString("D"))}){extra});");
             }
         }
 
@@ -900,7 +907,7 @@ public static class HsmEmitCore
         foreach (var t in dto.Transitions)
             Add(namer.Name(t.Action, legacyCompound: true));
         foreach (var gt in dto.GlobalTransitions)
-            Add(namer.Name(gt.Action));
+            Add(namer.Name(gt.Action, legacyCompound: true));   // CE-506: the same name the global transition now emits
         return new List<string>(set);
     }
 

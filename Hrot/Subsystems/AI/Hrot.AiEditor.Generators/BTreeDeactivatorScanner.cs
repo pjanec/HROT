@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.BTree;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.Emit;
 
 namespace Hrot.AiEditor.Generators;
@@ -9,188 +10,182 @@ namespace Hrot.AiEditor.Generators;
 /// <summary>
 /// HAJSON-B: Roslyn-based scanner for <c>[BTreeDeactivatorAttribute]</c>-annotated methods.
 ///
-/// Scans all named types in the compilation for methods that carry
-/// <c>[Fbt.BTreeDeactivatorAttribute]</c> whose <c>TargetAction</c> key matches a key
-/// already registered by the bridge (as reported by
-/// <see cref="BTreeBridgeEmitCore.CollectRegisteredActionKeys"/>).
+/// <para>⭐⭐ <c>CE-504</c> slice 4 — <b>a deactivator pairs with its action by METHOD, and is registered per BINDING.</b>
+/// 📄 <c>docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md</c> §5 slice 4.</para>
+/// <list type="bullet">
+///   <item>⭐ it is declared BESIDE its action (same type) and its <c>TargetAction</c> is the action's method FQN; a legacy
+///     <c>@offset</c> suffix is tolerated and ignored. ⛔ It used to be matched against a hard-coded <c>"…@0"</c> key, so it
+///     paired only with a binding whose variable happened to sit at offset 0.</item>
+///   <item>⭐ it takes one of the shared forms — <c>(Entity, EntityRepository)</c>, <c>(ref P, Entity, EntityRepository)</c>,
+///     <c>(ref P, ref WS, Entity, EntityRepository)</c> — and the bridge feeds it with the binding's own projection
+///     (<see cref="BTreeBridgeEmitCore"/>). The curated route pairs by the same rule (<c>SharedNodeBinder.FindDeactivator</c>).</item>
+///   <item>⛔ a retired form, or one its binding cannot feed, is an ERROR (the asset is skipped with <c>BTREE0002</c>) —
+///     never a deactivator that silently stops firing.</item>
+/// </list>
 ///
-/// Lives in <c>Hrot.AiEditor.Generators</c> (not in <c>Hrot.AiEditor.Persistence</c>)
-/// because it depends on Roslyn — the persistence project is netstandard2.0 with no
-/// Roslyn reference; the generators project already depends on Microsoft.CodeAnalysis.CSharp.
+/// <para>Lives in <c>Hrot.AiEditor.Generators</c> (not in <c>Hrot.AiEditor.Persistence</c>) because it depends on Roslyn —
+/// the persistence project is netstandard2.0 with no Roslyn reference.</para>
 /// </summary>
 internal static class BTreeDeactivatorScanner
 {
+    private const string EntityFqn = "Fdp.Core.Entity";
+    private const string WorldFqn  = "Fdp.Core.EntityRepository";
+
     /// <summary>
-    /// Scans <paramref name="compilation"/> for all methods annotated with
-    /// <c>[Fbt.BTreeDeactivatorAttribute]</c> whose <c>TargetAction</c> matches one of the
-    /// keys in <paramref name="registeredActionKeys"/>.
-    ///
-    /// Returns a list of <see cref="BTreeBridgeEmitCore.DeactivatorEntry"/> records, one
-    /// per unique matching deactivator, deduped by <c>ActionKey</c> (first-match-wins).
-    ///
-    /// For 4-param deactivators <c>(ref TBB, ref BehaviorTreeState, ref TCtx, int)</c>: the
-    /// emitter registers the method directly as a <c>NodeDeactivatorDelegate</c>.
-    ///
-    /// For 3-param deactivators <c>(ref TDto, ref BehaviorTreeState, ref TCtx)</c>: the
-    /// emitter generates a wrapper lambda that projects <c>TDto</c> at the byte offset
-    /// encoded in the key suffix after the last <c>@</c>, mirroring the managed action thunk.
-    ///
-    /// Methods with any other param count are silently skipped (forward-compat guard).
+    /// The deactivators paired with the methods <paramref name="dto"/> binds, one per action method. <paramref name="error"/>
+    /// is non-null (and the result empty) when a paired deactivator uses a retired form or cannot be fed by a binding.
     /// </summary>
     internal static List<BTreeBridgeEmitCore.DeactivatorEntry> Scan(
-        Compilation compilation,
-        HashSet<string> registeredActionKeys)
+        Compilation compilation, BehaviorTreeAssetDto dto, out string? error)
     {
+        error = null;
         var result = new List<BTreeBridgeEmitCore.DeactivatorEntry>();
-        if (registeredActionKeys.Count == 0) return result;
 
-        var seen = new HashSet<string>(StringComparer.Ordinal); // by ActionKey, first-wins
+        INamedTypeSymbol? attrSymbol = compilation.GetTypeByMetadataName("Fbt.BTreeDeactivatorAttribute");
+        if (attrSymbol == null) return result;
 
-        // Resolve Fbt.BTreeDeactivatorAttribute once — if not present, nothing to do.
-        INamedTypeSymbol? deactivatorAttrSymbol =
-            compilation.GetTypeByMetadataName("Fbt.BTreeDeactivatorAttribute");
-        if (deactivatorAttrSymbol == null) return result;
-
-        // Walk all named types in the compilation (source + referenced assemblies).
-        foreach (var typeSymbol in EnumerateAllNamedTypes(compilation))
+        var bindings = Bindings(dto);
+        var done     = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (node, binding, shape) in bindings)
         {
-            foreach (var member in typeSymbol.GetMembers())
+            string fqn = binding.MethodFqn!;
+            if (!done.Add(fqn)) continue;
+
+            var action = BTreeMethodCompatibilityValidator.ResolveMethod(compilation, fqn);
+            if (action == null) continue; // the compatibility validator already reports an unresolvable method
+
+            IMethodSymbol? deactivator = FindBeside(action, fqn, attrSymbol);
+            if (deactivator == null) continue;
+
+            var entry = Classify(deactivator, out string? formError);
+            if (entry == null)
             {
-                if (member is not IMethodSymbol method) continue;
-                if (!method.IsStatic) continue;
-                if (!method.ReturnsVoid) continue; // deactivators must return void
-
-                // Find [BTreeDeactivatorAttribute] on this method.
-                AttributeData? deactivatorAttr = null;
-                foreach (var attr in method.GetAttributes())
-                {
-                    if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, deactivatorAttrSymbol))
-                    {
-                        deactivatorAttr = attr;
-                        break;
-                    }
-                }
-                if (deactivatorAttr == null) continue;
-
-                // Extract TargetAction from the constructor argument.
-                if (deactivatorAttr.ConstructorArguments.Length == 0) continue;
-                string? targetAction = deactivatorAttr.ConstructorArguments[0].Value as string;
-                if (string.IsNullOrEmpty(targetAction)) continue;
-
-                // Does this TargetAction match a key registered by this asset?
-                if (!registeredActionKeys.Contains(targetAction!)) continue;
-
-                // Dedup: first match wins.
-                if (!seen.Add(targetAction!)) continue;
-
-                string methodFqn = method.ContainingType.ToDisplayString() + "." + method.Name;
-                int paramCount = method.Parameters.Length;
-
-                if (paramCount == 4)
-                {
-                    // 4-param FourParamFull: (ref TBB, ref BehaviorTreeState, ref TCtx, int)
-                    // Matches NodeDeactivatorDelegate<TBB,TCtx> directly — register directly.
-                    result.Add(new BTreeBridgeEmitCore.DeactivatorEntry
-                    {
-                        ActionKey      = targetAction!,
-                        DeactivatorFqn = methodFqn,
-                        ParamCount     = 4,
-                        DtoTypeFqn     = null,
-                        DtoByteOffset  = 0,
-                    });
-                }
-                else if (paramCount == 3)
-                {
-                    // 3-param ThreeParamReusable: (ref TDto, ref BehaviorTreeState, ref TCtx)
-                    // The bridge emits a wrapper lambda projecting TDto at the offset encoded in
-                    // the key suffix (e.g. "...Action_MaintainEqsSensor@0" → offset 0).
-                    int atPos = targetAction!.LastIndexOf('@');
-                    if (atPos < 0) continue; // no offset suffix — unexpected shape, skip
-                    string offsetStr = targetAction.Substring(atPos + 1);
-                    if (!int.TryParse(offsetStr,
-                            System.Globalization.NumberStyles.None,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out int dtoOffset)) continue;
-
-                    // Param-0 type provides the TDto for the Unsafe.As cast in the wrapper.
-                    var param0 = method.Parameters[0];
-                    string dtoTypeFqn = "global::" + param0.Type.ToDisplayString(
-                        new SymbolDisplayFormat(
-                            globalNamespaceStyle:  SymbolDisplayGlobalNamespaceStyle.Omitted,
-                            typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces))
-                        .Replace('+', '.');
-
-                    result.Add(new BTreeBridgeEmitCore.DeactivatorEntry
-                    {
-                        ActionKey      = targetAction!,
-                        DeactivatorFqn = methodFqn,
-                        ParamCount     = 3,
-                        DtoTypeFqn     = dtoTypeFqn,
-                        DtoByteOffset  = dtoOffset,
-                    });
-                }
-                else if (paramCount == 5)
-                {
-                    // S3-G: 5-param ThreeParamReusableStateful deactivator:
-                    //   (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TCtx, int)
-                    // The bridge emits a wrapper that projects TParams at the offset encoded in the key
-                    // suffix AND the working state from the paired node's partition slot, then registers it
-                    // under the node's full {fqn}@{offset}@{slotKey} key (slot key resolved in the emitter).
-                    int atPos = targetAction!.LastIndexOf('@');
-                    if (atPos < 0) continue; // no offset suffix — unexpected shape, skip
-                    string offsetStr = targetAction.Substring(atPos + 1);
-                    if (!int.TryParse(offsetStr,
-                            System.Globalization.NumberStyles.None,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out int paramOffset)) continue;
-
-                    var displayFmt = new SymbolDisplayFormat(
-                        globalNamespaceStyle:  SymbolDisplayGlobalNamespaceStyle.Omitted,
-                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
-                    string paramsTypeFqn = "global::" + method.Parameters[0].Type.ToDisplayString(displayFmt).Replace('+', '.');
-                    string wsTypeFqn     = "global::" + method.Parameters[1].Type.ToDisplayString(displayFmt).Replace('+', '.');
-
-                    result.Add(new BTreeBridgeEmitCore.DeactivatorEntry
-                    {
-                        ActionKey           = targetAction!,
-                        DeactivatorFqn      = methodFqn,
-                        ParamCount          = 5,
-                        DtoTypeFqn          = paramsTypeFqn,
-                        DtoByteOffset       = paramOffset,
-                        WorkingStateTypeFqn = wsTypeFqn,
-                    });
-                }
-                // else: unexpected param count — forward-compat guard, skip silently.
+                error = formError;
+                return new List<BTreeBridgeEmitCore.DeactivatorEntry>();
             }
-        }
+            entry.TargetMethodFqn = fqn;
 
+            // Every binding of this method must be able to feed the deactivator.
+            foreach (var (otherNode, otherBinding, otherShape) in bindings)
+            {
+                if (!string.Equals(otherBinding.MethodFqn, fqn, StringComparison.Ordinal)) continue;
+                string? feedError = CheckFeed(entry, otherBinding, otherShape, dto, compilation);
+                if (feedError != null)
+                {
+                    error = $"leaf {otherNode.VisualId:D}: {feedError}";
+                    return new List<BTreeBridgeEmitCore.DeactivatorEntry>();
+                }
+            }
+            result.Add(entry);
+        }
         return result;
     }
 
-    /// <summary>
-    /// Enumerates all named types in the compilation (source types + referenced assembly types)
-    /// using a DFS traversal of the global namespace tree.
-    /// </summary>
-    private static System.Collections.Generic.IEnumerable<INamedTypeSymbol> EnumerateAllNamedTypes(
-        Compilation compilation)
+    private static List<(BTreeNodeDto Node, BehaviorActionBindingDto Binding, BTreeDelegateShapeDto Shape)> Bindings(
+        BehaviorTreeAssetDto dto)
     {
-        var stack = new Stack<INamespaceOrTypeSymbol>();
-        stack.Push(compilation.GlobalNamespace);
-
-        while (stack.Count > 0)
+        var list = new List<(BTreeNodeDto, BehaviorActionBindingDto, BTreeDelegateShapeDto)>();
+        foreach (var n in dto.Nodes)
         {
-            var current = stack.Pop();
-            if (current is INamedTypeSymbol named)
+            var (b, shape) = n switch
             {
-                yield return named;
-                foreach (var nested in named.GetTypeMembers())
-                    stack.Push(nested);
-            }
-            else if (current is INamespaceSymbol ns)
+                BTreeActionNodeDto a    => (a.Action, a.DelegateShape),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape),
+                _                       => (null, default(BTreeDelegateShapeDto)),
+            };
+            if (b != null && !string.IsNullOrEmpty(b.MethodFqn)) list.Add((n, b, shape));
+        }
+        return list;
+    }
+
+    private static IMethodSymbol? FindBeside(IMethodSymbol action, string actionFqn, INamedTypeSymbol attrSymbol)
+    {
+        foreach (var member in action.ContainingType.GetMembers())
+        {
+            if (member is not IMethodSymbol m || !m.IsStatic) continue;
+            foreach (var attr in m.GetAttributes())
             {
-                foreach (var member in ns.GetMembers())
-                    stack.Push(member);
+                if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attrSymbol)) continue;
+                if (attr.ConstructorArguments.Length == 0 || attr.ConstructorArguments[0].Value is not string target) continue;
+                if (string.Equals(TargetMethod(target), actionFqn.Replace('+', '.'), StringComparison.Ordinal)) return m;
             }
         }
+        return null;
     }
+
+    /// <summary>The method a target names — the same rule as <c>SharedNodeBinder.DeactivatorTargetMethod</c>.</summary>
+    internal static string TargetMethod(string target)
+    {
+        int at = target.IndexOf('@');
+        return (at < 0 ? target : target.Substring(0, at)).Replace('+', '.');
+    }
+
+    private static BTreeBridgeEmitCore.DeactivatorEntry? Classify(IMethodSymbol d, out string? error)
+    {
+        error = null;
+        string fqn = d.ContainingType.ToDisplayString() + "." + d.Name;
+        var ps = d.Parameters;
+        int n = ps.Length;
+        bool tail = n >= 2 && d.ReturnsVoid
+                    && ps[n - 2].RefKind == RefKind.None && ps[n - 2].Type.ToDisplayString() == EntityFqn
+                    && ps[n - 1].RefKind == RefKind.None && ps[n - 1].Type.ToDisplayString() == WorldFqn;
+        if (tail && n == 2)
+            return new BTreeBridgeEmitCore.DeactivatorEntry
+                { DeactivatorFqn = fqn, Form = BTreeBridgeEmitCore.DeactivatorForm.NoParams };
+        if (tail && n == 3 && ps[0].RefKind == RefKind.Ref)
+            return new BTreeBridgeEmitCore.DeactivatorEntry
+            {
+                DeactivatorFqn = fqn, Form = BTreeBridgeEmitCore.DeactivatorForm.Plain, ParamsTypeFqn = TypeFqn(ps[0].Type),
+            };
+        if (tail && n == 4 && ps[0].RefKind == RefKind.Ref && ps[1].RefKind == RefKind.Ref)
+            return new BTreeBridgeEmitCore.DeactivatorEntry
+            {
+                DeactivatorFqn = fqn, Form = BTreeBridgeEmitCore.DeactivatorForm.Stateful,
+                ParamsTypeFqn = TypeFqn(ps[0].Type), WorkingStateTypeFqn = TypeFqn(ps[1].Type),
+            };
+
+        error = $"deactivator '{fqn}' uses a retired form; a deactivator takes (Entity, EntityRepository), " +
+                "(ref TParams, Entity, EntityRepository) or (ref TParams, ref TWorkingState, Entity, EntityRepository) " +
+                "and returns void (CE-504)";
+        return null;
+    }
+
+    private static string? CheckFeed(
+        BTreeBridgeEmitCore.DeactivatorEntry d, BehaviorActionBindingDto b, BTreeDelegateShapeDto shape,
+        BehaviorTreeAssetDto dto, Compilation compilation)
+    {
+        if (d.Form == BTreeBridgeEmitCore.DeactivatorForm.NoParams) return null;
+
+        bool hasParams = shape == BTreeDelegateShapeDto.ThreeParamReusable || shape == BTreeDelegateShapeDto.ThreeParamReusableStateful;
+        if (!hasParams)
+            return $"deactivator '{d.DeactivatorFqn}' takes params, but '{b.MethodFqn}' is bound as {shape}; use (Entity, EntityRepository) (CE-504)";
+
+        string varType = string.Empty;
+        foreach (var v in dto.Blackboard.Variables)
+            if (string.Equals(v.Name, b.ExpressionTargetField, StringComparison.Ordinal)) { varType = v.Type?.TypeId ?? string.Empty; break; }
+        if (!SameType(d.ParamsTypeFqn, varType))
+            return $"deactivator '{d.DeactivatorFqn}' takes 'ref {d.ParamsTypeFqn}' but '{b.MethodFqn}' is bound to '{b.ExpressionTargetField}' of type '{varType}' (CE-504)";
+
+        if (d.Form == BTreeBridgeEmitCore.DeactivatorForm.Stateful)
+        {
+            if (shape != BTreeDelegateShapeDto.ThreeParamReusableStateful)
+                return $"deactivator '{d.DeactivatorFqn}' takes a working state, but '{b.MethodFqn}' is not stateful (CE-504)";
+            var info = SharedAiMethodResolver.Make(compilation)(b.MethodFqn!);
+            if (info?.WorkingStateTypeFqn != null && !SameType(d.WorkingStateTypeFqn, info.WorkingStateTypeFqn))
+                return $"deactivator '{d.DeactivatorFqn}' takes 'ref {d.WorkingStateTypeFqn}' but '{b.MethodFqn}' works on '{info.WorkingStateTypeFqn}' (CE-504)";
+        }
+        return null;
+    }
+
+    private static bool SameType(string? a, string? b)
+        => string.Equals(Norm(a), Norm(b), StringComparison.Ordinal);
+
+    private static string Norm(string? t)
+        => (t ?? string.Empty).Replace("global::", string.Empty).Replace('+', '.');
+
+    private static string TypeFqn(ITypeSymbol t)
+        => t.ToDisplayString(new SymbolDisplayFormat(
+               globalNamespaceStyle:   SymbolDisplayGlobalNamespaceStyle.Omitted,
+               typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces))
+           .Replace('+', '.');
 }

@@ -13,10 +13,12 @@ namespace Hrot.BTree.Editor.Model;
 /// <summary>Describes which delegate overload an Action or Condition node uses.</summary>
 public enum BTreeActionDelegateShape
 {
-    /// <summary>Three-parameter reusable delegate with an expression-target field selector.</summary>
+    /// <summary>The plain shared C# node <c>(ref P, Entity, EntityRepository)</c>, bound to one variable (the name predates
+    /// <c>CE-504</c>, which made the signature the shared one).</summary>
     ThreeParamReusable,
-    /// <summary>Four-parameter delegate with full blackboard access.</summary>
-    FourParamFull,
+
+    // ⛔ CE-504 slice 4 — value 1 was FourParamFull (the whole-block kernel method). Retired as an asset-binding shape (C-3);
+    //   the value is left unused rather than renumbering the others.
 
     /// <summary>
     /// Stateful three-parameter shape: the bound variable plus the node's own working memory.

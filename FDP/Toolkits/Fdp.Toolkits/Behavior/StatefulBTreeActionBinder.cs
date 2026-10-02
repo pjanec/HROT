@@ -12,12 +12,10 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
-    /// The code-built stateful-node seam plus the occurrence slot-key algorithms.
+    /// The occurrence slot-key algorithms.
     ///
-    /// <para>⭐ <see cref="RegisterBlockThunk{TBB,TParams,TWorkingState}"/> (<c>CE-430</c>) curries a four-parameter
-    /// stateful node method over the behaviour's OWN block — params and working state are both fields of the
-    /// code builder's <c>TBlackboard</c>. This runtime toolkit only touches <c>Fbt.Kernel</c> types; the
-    /// authoring-side <c>StatefulAction</c> extension (which needs <c>Fbt.Compiler</c>) wraps it.</para>
+    /// <para>⛔ <c>CE-504</c> slice 4: the code-built stateful-node seam (<c>RegisterBlockThunk</c>) moved to
+    /// <see cref="SharedNodeBinder.RegisterStatefulAction{TBB,TParams,TWorkingState}"/>, which curries the shared form.</para>
     ///
     /// <para>The key helpers (<see cref="ComputeStatefulSlotKey"/>, <see cref="ComputeOccurrenceSlotKey"/>,
     /// <see cref="ComputeTypeNameHash"/>) still serve the generated and HSM occurrence paths.</para>
@@ -93,65 +91,8 @@ namespace Fdp.Toolkit.Behavior
             }
         }
 
-        /// <summary>
-        /// ⭐⭐ <c>CE-430</c> — curries a four-parameter stateful node method over the behaviour's OWN block:
-        /// both the params and the working state are FIELDS of <typeparamref name="TBB"/>, projected from
-        /// <c>ref bb</c> at offsets baked once here. Registers the thunk under
-        /// <c>{MethodFqn}@{paramOffset}@{stateOffset}</c> and returns that key; the caller adds the leaf through
-        /// FastBTree's generic <c>BTreeBuilder.Action(string methodKey)</c> seam (the authoring-side
-        /// <c>StatefulAction</c> extension does exactly this, keeping <c>Fbt.Compiler</c> out of this toolkit).
-        ///
-        /// <para>⭐ Two nodes that project the SAME state field share it; two that project DIFFERENT fields keep
-        /// independent state — the block expresses sharing with no slot key, scope or manifest.</para>
-        ///
-        /// <para>⛔⛔ HISTORY — <c>RegisterStatefulThunk</c> + <c>StatefulSlotManifestBuilder</c> (S3-G) put the
-        /// state in a partition slot keyed by (scope, asset, variable) and needed the ingress to provision it
-        /// from a manifest. Deleted by <c>CE-430</c> once the one production author (the hand-written
-        /// PlatoonHillAttack tree) moved its state into its blackboard. 📄 <c>Q76</c> §12.23.</para>
-        /// </summary>
-        /// <param name="registry">The tree builder's action registry (<c>builder.GetRegistry()</c>).</param>
-        /// <param name="paramSelector">Direct field access selecting the params, e.g. <c>bb =&gt; bb.Params</c>.</param>
-        /// <param name="stateSelector">Direct field access selecting the working state, e.g. <c>bb =&gt; bb.State</c>.</param>
-        /// <param name="logic">The four-parameter stateful node method.</param>
-        /// <returns>The registry key the caller must pass to <c>BTreeBuilder.Action(string)</c>.</returns>
-        public static string RegisterBlockThunk<TBB, TParams, TWorkingState>(
-            ActionRegistry<TBB, BTreeContext> registry,
-            Expression<Func<TBB, TParams>> paramSelector,
-            Expression<Func<TBB, TWorkingState>> stateSelector,
-            ReusableStatefulActionDelegate<TParams, TWorkingState, BTreeContext> logic)
-            where TBB : struct
-            where TParams : unmanaged
-            where TWorkingState : unmanaged
-        {
-            if (registry == null) throw new ArgumentNullException(nameof(registry));
-            if (logic == null) throw new ArgumentNullException(nameof(logic));
-
-            nint paramOffset = ExtractFieldOffset(paramSelector);
-            nint stateOffset = ExtractFieldOffset(stateSelector);
-
-            NodeLogicDelegate<TBB, BTreeContext> thunk =
-                (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                {
-                    ref TParams p = ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, paramOffset));
-                    ref TWorkingState ws = ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, stateOffset));
-                    return logic(ref p, ref ws, ref st, ref ctx);
-                };
-
-            string key = $"{logic.Method.DeclaringType!.FullName}.{logic.Method.Name}@{paramOffset}@{stateOffset}";
-            registry.Register(key, thunk);
-            return key;
-        }
-
-        private static nint ExtractFieldOffset<TBB, TValue>(Expression<Func<TBB, TValue>> selector)
-        {
-            MemberExpression? memberExpr = selector.Body as MemberExpression;
-            if (memberExpr == null && selector.Body is UnaryExpression unary)
-                memberExpr = unary.Operand as MemberExpression;
-            if (memberExpr == null)
-                throw new ArgumentException(
-                    "The selector must be a direct field access (e.g. bb => bb.Params).",
-                    nameof(selector));
-            return (nint)Marshal.OffsetOf<TBB>(memberExpr.Member.Name);
-        }
+        // ⛔ CE-504 slice 4 — RegisterBlockThunk (CE-430: curried the BTree-only (ref P, ref WS, ref BTS, ref Ctx) form over the
+        //   block) is RETIRED with that form: SharedNodeBinder.RegisterStatefulAction curries the shared stateful form the
+        //   same way, with the same {fqn}@{paramOffset}@{stateOffset} key.
     }
 }

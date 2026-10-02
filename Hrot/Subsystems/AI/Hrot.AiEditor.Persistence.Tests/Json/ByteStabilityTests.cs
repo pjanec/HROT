@@ -65,7 +65,7 @@ public sealed class ByteStabilityTests
             {
                 MethodFqn     = "Test.TestAction",
             },
-            DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+            DelegateShape = BTreeDelegateShapeDto.NoParams,
         });
         richDto.Blackboard.Variables.Add(new BlackboardVariableDto
         {

@@ -26,8 +26,13 @@ namespace Fhsm.Compiler
 
         /// <summary>
         /// Adds a global transition that fires for any active state when <paramref name="eventName"/> is raised.
+        /// ⭐ <c>CE-506</c>: an optional <paramref name="guard"/>, effect <paramref name="action"/> and <paramref name="priority"/>
+        /// — the kernel's <c>GlobalTransitionDef</c> always had the slots; this overload never filled them, so an authored
+        /// global guard/action was silently dropped. The guard is evaluated against the ACTIVE leaf (region 0), as before.
+        /// Among global transitions on one event the highest priority is tried first (ties keep declaration order).
         /// </summary>
-        public HsmBuilder GlobalTransition(string eventName, string targetStateName, Guid visualId = default)
+        public HsmBuilder GlobalTransition(string eventName, string targetStateName, Guid visualId = default,
+            string? guard = null, string? action = null, byte? priority = null)
         {
             if (!_graph.EventNameToId.TryGetValue(eventName, out ushort eventId))
                 throw new InvalidOperationException($"Event '{eventName}' not registered");
@@ -40,8 +45,11 @@ namespace Fhsm.Compiler
                 Source = null,  // global transitions have no source state
                 Target = target,
                 EventId = eventId,
-                VisualId = visualId == default ? Guid.NewGuid() : visualId
+                VisualId = visualId == default ? Guid.NewGuid() : visualId,
+                GuardFunction = guard,
+                ActionFunction = action,
             };
+            if (priority.HasValue) t.Priority = priority.Value;
             _graph.GlobalTransitions.Add(t);
             return this;
         }

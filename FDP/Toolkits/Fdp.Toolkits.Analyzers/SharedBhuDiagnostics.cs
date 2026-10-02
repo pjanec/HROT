@@ -69,6 +69,16 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             isEnabledByDefault: true,
             customTags: WellKnownDiagnosticTags.CompilationEnd);
 
+        // ⭐ CE-504 slice 4 — the BTree-only 3-param node form is retired: the shared C# signature replaced it.
+        internal static readonly DiagnosticDescriptor BHU022_RetiredReusableForm = new DiagnosticDescriptor(
+            id: "BHU_022",
+            title: "Retired BTree node signature",
+            messageFormat: "Method ''{0}'' uses the retired (ref TParams, ref BehaviorTreeState, ref TContext) node form; "
+                         + "mark it [SharedAiAction]/[SharedAiCondition] with (ref TParams, Entity self, EntityRepository world) (CE-504)",
+            category: "BTreeActionGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         internal static readonly DiagnosticDescriptor BHU016_DeactivatorMissingTarget = new DiagnosticDescriptor(
             id: "BHU_016",
             title: "BTreeDeactivator missing or empty TargetAction",

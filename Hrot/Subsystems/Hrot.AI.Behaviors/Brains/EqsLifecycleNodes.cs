@@ -136,17 +136,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// Removes both <see cref="EqsSensor"/> and <see cref="EqsCognitiveBuffer"/> when
         /// the owning sub-tree is aborted so that stale results cannot accumulate.
         /// </summary>
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsLifecycleNodes.Action_MaintainEqsSensor@0")]
-        public static void Deactivate_MaintainEqsSensor(
-            ref EqsParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        // ⭐ CE-504 slice 4 — the shared param-less deactivator form; paired with its action by method FQN, per binding.
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsLifecycleNodes.Action_MaintainEqsSensor")]
+        public static void Deactivate_MaintainEqsSensor(Entity self, EntityRepository world)
         {
-            if (ctx.World.HasComponent<EqsSensor>(ctx.Self))
-                ctx.World.RemoveComponent<EqsSensor>(ctx.Self);
+            if (world.HasComponent<EqsSensor>(self))
+                world.RemoveComponent<EqsSensor>(self);
 
-            if (ctx.World.HasComponent<EqsCognitiveBuffer>(ctx.Self))
-                ctx.World.RemoveComponent<EqsCognitiveBuffer>(ctx.Self);
+            if (world.HasComponent<EqsCognitiveBuffer>(self))
+                world.RemoveComponent<EqsCognitiveBuffer>(self);
         }
 
         // ── Action_WaitForSensor ──────────────────────────────────────────────
@@ -213,15 +211,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// Deactivator for <see cref="Action_SpawnEqsSensorChild"/>.
         /// Destroys the child entity via ECB when the owning sub-tree is aborted.
         /// </summary>
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsLifecycleNodes.Action_SpawnEqsSensorChild@0")]
-        public static void Deactivate_SpawnEqsSensorChild(
-            ref EqsSpawnParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        // ⭐ CE-504 slice 4 — the shared plain deactivator form: projected at the same offset as its action's binding.
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsLifecycleNodes.Action_SpawnEqsSensorChild")]
+        public static void Deactivate_SpawnEqsSensorChild(ref EqsSpawnParams p, Entity self, EntityRepository world)
         {
-            if (p.SpawnedHandle.IsValid && ctx.World.IsAlive(p.SpawnedHandle.ChildId))
+            if (p.SpawnedHandle.IsValid && world.IsAlive(p.SpawnedHandle.ChildId))
             {
-                var ecb = ((ISimulationView)ctx.World).GetCommandBuffer();
+                var ecb = ((ISimulationView)world).GetCommandBuffer();
                 ecb.DestroyEntity(p.SpawnedHandle.ChildId);
             }
             p.SpawnedHandle = default;

@@ -156,7 +156,9 @@ internal static class BehaviorTreeAssetProjector
         {
             case NodeType.Action:
                 editorNode.Action        = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };
-                editorNode.DelegateShape = BTreeActionDelegateShape.FourParamFull;
+                // ⭐ CE-504 slice 4 — a compiled blob carries the node's key, not its variable binding, so the projection
+                //   binds no variable (it was FourParamFull, the retired whole-block shape, for the same reason).
+                editorNode.DelegateShape = BTreeActionDelegateShape.NoParams;
                 break;
             case NodeType.Condition:
                 editorNode.Condition = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };

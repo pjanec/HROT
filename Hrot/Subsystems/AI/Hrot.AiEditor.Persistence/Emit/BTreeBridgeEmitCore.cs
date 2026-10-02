@@ -37,47 +37,36 @@ public static class BTreeBridgeEmitCore
 {
     private const string Indent = "    ";
 
-    /// <summary>Describes a deactivator discovered in the compilation for this asset.</summary>
+    /// <summary>⭐ <c>CE-504</c> slice 4 — the shared deactivator forms (they mirror the action forms).</summary>
+    public enum DeactivatorForm
+    {
+        /// <summary><c>(Entity self, EntityRepository world)</c> — pairs with any binding.</summary>
+        NoParams,
+        /// <summary><c>(ref TParams p, Entity self, EntityRepository world)</c> — projected as its action's binding is.</summary>
+        Plain,
+        /// <summary><c>(ref TParams p, ref TWorkingState ws, Entity self, EntityRepository world)</c> — a stateful binding only.</summary>
+        Stateful,
+    }
+
+    /// <summary>
+    /// A deactivator paired with an action METHOD this asset binds (<c>CE-504</c> slice 4). The bridge registers it under
+    /// EVERY key that method is bound at, fed by that binding's own projection — ⛔ it used to carry one hard-coded
+    /// <c>"…@0"</c> key and paired only with a binding at offset 0.
+    /// </summary>
     public sealed class DeactivatorEntry
     {
-        /// <summary>The exact key the action is registered under (e.g. "Ns.Class.Method@8").</summary>
-        public string ActionKey { get; set; } = string.Empty;
+        /// <summary>The paired action method (e.g. "Ns.Class.Action_X").</summary>
+        public string TargetMethodFqn { get; set; } = string.Empty;
 
-        /// <summary>FQN of the deactivator method (e.g. "Ns.Class.Deactivate_Method").</summary>
+        /// <summary>FQN of the deactivator method (e.g. "Ns.Class.Deactivate_X").</summary>
         public string DeactivatorFqn { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Number of parameters on the deactivator method.
-        ///   4 → FourParamFull shape: (ref TBB, ref BehaviorTreeState, ref TCtx, int)
-        ///       → registered directly as NodeDeactivatorDelegate.
-        ///   3 → ThreeParamReusable shape: (ref TDto, ref BehaviorTreeState, ref TCtx)
-        ///       → bridge emits a wrapper lambda projecting TDto at <see cref="DtoByteOffset"/>.
-        ///   5 → ThreeParamReusableStateful shape (S3-G):
-        ///       (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TCtx, int)
-        ///       → bridge emits a wrapper that projects TParams at <see cref="DtoByteOffset"/> AND the
-        ///         working state from the paired stateful node's partition slot, then registers under the
-        ///         node's full stateful key {fqn}@{offset}@{slotKey} (so the interpreter's
-        ///         deactivator lookup by node MethodName resolves it).
-        /// </summary>
-        public int ParamCount { get; set; }
+        public DeactivatorForm Form { get; set; }
 
-        /// <summary>
-        /// Global C# type name of param-0 for 3-param deactivators (e.g. "global::Ns.EqsParams") and the
-        /// params DTO for 5-param stateful deactivators. Null for 4-param deactivators (full blackboard).
-        /// </summary>
-        public string? DtoTypeFqn { get; set; }
+        /// <summary>The params type (Plain/Stateful), e.g. "Ns.EqsParams".</summary>
+        public string? ParamsTypeFqn { get; set; }
 
-        /// <summary>
-        /// Byte offset of the DTO within the blackboard for 3-param and 5-param deactivators.
-        /// Extracted from the suffix of <see cref="ActionKey"/> after the last '@'.
-        /// Zero for 4-param deactivators (not used).
-        /// </summary>
-        public int DtoByteOffset { get; set; }
-
-        /// <summary>
-        /// (S3-G) Global C# type name of the working-state param (param-1) for 5-param stateful
-        /// deactivators, e.g. "global::Ns.HillAttackMutableState". Null for 3-/4-param deactivators.
-        /// </summary>
+        /// <summary>The working-state type (Stateful), e.g. "Ns.HillAttackMutableState".</summary>
         public string? WorkingStateTypeFqn { get; set; }
     }
 
@@ -598,10 +587,12 @@ public static class BTreeBridgeEmitCore
     private static void EmitThreeParamCall(StringBuilder sb, string ind, string methodFqn, string methodRef,
         Func<string, SharedAiMethodInfo?>? sharedAi)
     {
+        // ⭐ CE-504 slice 4 — the shared call is the ONLY call: the old (ref dto, ref st, ref ctx) arm is retired (the validator
+        //   reports such a method). With no resolver (a direct emitter caller), the call is the NodeStatus form, no channels.
         var info = sharedAi?.Invoke(methodFqn);
         if (info == null)
         {
-            sb.AppendLine($"{ind}return {methodRef}(ref dto, ref st, ref ctx);");
+            sb.AppendLine($"{ind}return {methodRef}(ref dto, ctx.Self, ctx.World);");
             return;
         }
         sb.AppendLine(info.ReturnsBool
@@ -681,12 +672,11 @@ public static class BTreeBridgeEmitCore
             string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
             string methodRef  = GlobalMethodRef(methodFqn);
             // ⭐ CE-504 C-2 — the shared stateful form takes (ref P, ref WS, Entity, EntityRepository).
+            //   ⭐ slice 4 — the only stateful call; the (ref dto, ref ws, ref st, ref ctx) arm is retired.
             var shared = sharedAi?.Invoke(methodFqn);
-            string call = shared is { WorkingStateTypeFqn: not null }
-                ? (shared.ReturnsBool
-                    ? $"({methodRef}(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure)"
-                    : $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World)")
-                : $"{methodRef}(ref dto, ref ws, ref st, ref ctx)";
+            string call = shared is { ReturnsBool: true }
+                ? $"({methodRef}(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure)"
+                : $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World)";
             AppendReusableStatefulThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 call);
         }
@@ -1861,9 +1851,8 @@ public static class BTreeBridgeEmitCore
             set.Add("System.Text.Json");
         }
 
-        // HAJSON-B: 3-param deactivator wrappers use Unsafe.As + Unsafe.AddByteOffset.
-        // Add System.Runtime.CompilerServices if any 3-param deactivator wrappers are present.
-        if (deactivators != null && deactivators.Any(d => d.ParamCount == 3))
+        // HAJSON-B / CE-504: a deactivator that takes params projects them with Unsafe.As + Unsafe.AddByteOffset.
+        if (deactivators != null && deactivators.Any(d => d.Form != DeactivatorForm.NoParams))
         {
             set.Add("System.Runtime.CompilerServices");
         }
@@ -1874,102 +1863,11 @@ public static class BTreeBridgeEmitCore
     // ── HAJSON-B: Deactivator scanning and emission ────────────────────────────
 
     /// <summary>
-    /// Collects all action/condition keys that will be registered into <c>actionRegistry</c>
-    /// for this asset. These are the keys that deactivators can pair with.
-    ///
-    /// For managed ThreeParamReusable/ThreeParamReusableStateful nodes: key = <c>{MethodFqn}@{offset}</c>.
-    /// For non-managed FourParamFull nodes: key = <c>{MethodFqn}</c> (no offset suffix).
-    /// Called by the generator before deactivator scanning to build the match set.
-    /// </summary>
-    public static HashSet<string> CollectRegisteredActionKeys(
-        BehaviorTreeAssetDto dto,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
-    {
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-
-        bool isManaged = dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0 && packedFields != null;
-
-        if (isManaged)
-        {
-            var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-            foreach (var f in packedFields!)
-                offsetMap[f.Name] = f;
-
-            foreach (var node in dto.Nodes)
-            {
-                if (node is BTreeActionNodeDto actNode)
-                {
-                    var p = actNode.Action;
-                    if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-                    if (actNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable ||
-                        actNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
-                    {
-                        string? targetField = p.ExpressionTargetField;
-                        if (!string.IsNullOrEmpty(targetField) && offsetMap.TryGetValue(targetField!, out var field))
-                        {
-                            // For stateful, key is {fqn}@{offset}@{slotKey} — but deactivators pair with
-                            // the base key {fqn}@{offset}, so we add both forms.
-                            keys.Add($"{p.MethodFqn}@{field.ByteOffset}");
-                        }
-                    }
-                }
-                else if (node is BTreeConditionNodeDto condNode)
-                {
-                    var p = condNode.Condition;
-                    if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-                    if (condNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable)
-                    {
-                        string? targetField = p.ExpressionTargetField;
-                        if (!string.IsNullOrEmpty(targetField) && offsetMap.TryGetValue(targetField!, out var field))
-                        {
-                            keys.Add($"{p.MethodFqn}@{field.ByteOffset}");
-                        }
-                    }
-                }
-            }
-        }
-
-        // Non-managed (FourParamFull) actions: key is bare MethodFqn (no @offset suffix).
-        // These are the stub-thunk keys registered under beh.RegisterAction (legacy path).
-        // Deactivators for these use the FourParamFull shape (4-param) with key = {methodFqn}.
-        // However, per the problem statement the FourParamFull deactivators are already
-        // handled by FbtActionRegistrar (source-gen). We include them here so the bridge
-        // does not double-register — the scanner filters by signature (4-param vs 3-param).
-        // For non-managed assets we DO include the bare key so 4-param deactivators register
-        // correctly in the bridge's own actionRegistry (even though FbtActionRegistrar also
-        // registers them into the shared registry, the bridge builds a SEPARATE ActionRegistry
-        // for its Interpreter, so it must register them itself).
-        if (!isManaged)
-        {
-            foreach (var node in dto.Nodes)
-            {
-                if (node is BTreeActionNodeDto actNode)
-                {
-                    var p = actNode.Action;
-                    if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                        keys.Add(p.MethodFqn ?? string.Empty);
-                }
-                else if (node is BTreeConditionNodeDto condNode)
-                {
-                    var p = condNode.Condition;
-                    if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                        keys.Add(p.MethodFqn ?? string.Empty);
-                }
-            }
-        }
-
-        return keys;
-    }
-
-    /// <summary>
-    /// Emits <c>actionRegistry.RegisterDeactivator(…)</c> calls for the given deactivator entries.
-    /// Must be called BEFORE Interpreter construction (same ordering rule as thunk registration).
-    ///
-    /// For 4-param deactivators: registers the method directly.
-    /// For 3-param deactivators: emits a wrapper lambda that projects the DTO at the baked offset
-    /// and forwards to the 3-param method, mirroring the action-thunk pattern.
-    /// For 5-param stateful deactivators (S3-G): emits a wrapper that projects params + the paired
-    /// stateful node's partition slot, registered under the node's full {fqn}@{offset}@{slotKey} key.
+    /// ⭐⭐ <c>CE-504</c> slice 4 — emits <c>actionRegistry.RegisterDeactivator(…)</c> per BINDING: for every action/condition
+    /// node whose method has a paired deactivator, under the very key that node's thunk is registered at (the interpreter
+    /// looks a deactivator up by the node's blob key), fed with that binding's own projection — the params at the binding's
+    /// offset, the working state from the node's slot. ⛔ It used to emit one registration per deactivator under a hard-coded
+    /// <c>"…@0"</c> key, which paired only with a binding at offset 0. Must run BEFORE Interpreter construction.
     /// </summary>
     private static void EmitDeactivatorRegistrations(
         StringBuilder sb,
@@ -1982,92 +1880,72 @@ public static class BTreeBridgeEmitCore
     {
         if (deactivators.Count == 0) return;
 
+        var byMethod = new Dictionary<string, DeactivatorEntry>(StringComparer.Ordinal);
+        foreach (var d in deactivators) byMethod[d.TargetMethodFqn] = d;
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        if (packedFields != null) foreach (var f in packedFields) offsetMap[f.Name] = f;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         sb.AppendLine();
-        sb.AppendLine($"{pad2}// HAJSON-B: deactivator hooks — fired by the Interpreter on branch abort/exit.");
-        foreach (var d in deactivators)
+        sb.AppendLine($"{pad2}// HAJSON-B / CE-504: deactivator hooks, one per binding — fired by the Interpreter on branch abort/exit.");
+        foreach (var node in dto.Nodes)
         {
-            string methodRef = $"global::{d.DeactivatorFqn}";
-
-            if (d.ParamCount == 4)
+            var (b, shape) = node switch
             {
-                // 4-param: matches NodeDeactivatorDelegate<TBB,TCtx> directly.
-                sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{d.ActionKey}\", {methodRef});");
+                BTreeActionNodeDto a    => (a.Action, a.DelegateShape),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape),
+                _                       => (null, default(BTreeDelegateShapeDto)),
+            };
+            if (b == null || string.IsNullOrEmpty(b.MethodFqn) || !byMethod.TryGetValue(b.MethodFqn!, out var d)) continue;
+
+            string key;
+            int offset = 0, slotKey = 0;
+            if (shape == BTreeDelegateShapeDto.NoParams)
+                key = b.MethodFqn!;
+            else if ((shape == BTreeDelegateShapeDto.ThreeParamReusable || shape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+                     && !string.IsNullOrEmpty(b.ExpressionTargetField) && offsetMap.TryGetValue(b.ExpressionTargetField!, out var field))
+            {
+                offset = field.ByteOffset;
+                key = $"{b.MethodFqn}@{offset}";
+                if (shape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+                {
+                    slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(b), node.VisualId);
+                    key += $"@{slotKey}";
+                }
             }
-            else if (d.ParamCount == 5)
-            {
-                // S3-G: stateful deactivator. Resolve the paired stateful node's slot key so the wrapper
-                // is registered under the node's full key {fqn}@{offset}@{slotKey} — the interpreter looks
-                // up deactivators by the node's blob MethodName, which is the full stateful key.
-                int? slotKey = ResolveStatefulDeactivatorSlotKey(dto, packedFields, d.ActionKey);
-                if (slotKey == null)
-                    continue; // paired stateful node not found — skip (should not happen for a matched key)
+            else continue; // no thunk is registered for this binding, so there is nothing to pair with
+            if (!seen.Add(key)) continue;
 
-                string fullKey = $"{d.ActionKey}@{slotKey.Value}";
-                sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{fullKey}\",");
-                sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                sb.AppendLine($"{pad2}{Indent}{{");
-                sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{{");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", d.DtoByteOffset)});");
-                // ⭐ A2b — the THIRD emitted ladder, and the one my own A2 census MISSED because it is
-                //   PARAMETERISED PER TIER (three calls to one helper) rather than written out inline.
-                //   ⚠ Same collapse, same seam; the deactivator returns void, so a miss just returns.
-                AppendWorkingStateResolve(sb, pad2 + Indent + Indent + Indent, dto, packedFields, slotKey.Value, d.WorkingStateTypeFqn ?? string.Empty,
-                    "S3-G", "deactivator ", "return;");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref ws, ref st, ref ctx, pi);");
-                sb.AppendLine($"{pad2}{Indent}{Indent}}}");
-                sb.AppendLine($"{pad2}{Indent}}});");
+            string methodRef = $"global::{d.DeactivatorFqn}";
+            string ind = $"{pad2}{Indent}{Indent}{Indent}";
+            sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{key}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            if (d.Form == DeactivatorForm.NoParams)
+            {
+                sb.AppendLine($"{pad2}{Indent}{Indent}{methodRef}(ctx.Self, ctx.World);");
             }
             else
             {
-                // 3-param: emit a wrapper lambda that projects TDto at the baked byte offset,
-                // mirroring the managed action thunk pattern (EmitManagedActionThunks).
-                sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{d.ActionKey}\",");
-                sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                sb.AppendLine($"{pad2}{Indent}{{");
                 sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{{");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", d.DtoByteOffset)});");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref st, ref ctx);");
+                sb.AppendLine($"{ind}ref var dto = ref Unsafe.As<byte, {DtoTypeToGlobal(d.ParamsTypeFqn!)}>(");
+                sb.AppendLine($"{ind}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
+                if (d.Form == DeactivatorForm.Stateful)
+                {
+                    // ⭐ A2b / CE-437 — the same working-state resolve as the action's thunk; a miss just returns.
+                    AppendWorkingStateResolve(sb, ind, dto, packedFields, slotKey, DtoTypeToGlobal(d.WorkingStateTypeFqn!),
+                        "S3-G", "deactivator ", "return;");
+                    sb.AppendLine($"{ind}{methodRef}(ref dto, ref ws, ctx.Self, ctx.World);");
+                }
+                else
+                {
+                    sb.AppendLine($"{ind}{methodRef}(ref dto, ctx.Self, ctx.World);");
+                }
                 sb.AppendLine($"{pad2}{Indent}{Indent}}}");
-                sb.AppendLine($"{pad2}{Indent}}});");
             }
+            sb.AppendLine($"{pad2}{Indent}}});");
         }
-    }
-
-    /// <summary>
-    /// S3-G: resolves the FNV-1a slot key of the stateful node whose base action key
-    /// (<c>{MethodFqn}@{offset}</c>) equals <paramref name="actionKey"/>, so a 5-param deactivator can be
-    /// registered under the node's full <c>{MethodFqn}@{offset}@{slotKey}</c> key. Returns null if no
-    /// matching stateful node is present.
-    /// </summary>
-    private static int? ResolveStatefulDeactivatorSlotKey(
-        BehaviorTreeAssetDto dto,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
-        string actionKey)
-    {
-        if (packedFields == null) return null;
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
-
-        foreach (var node in dto.Nodes)
-        {
-            if (node is not BTreeActionNodeDto actNode) continue;
-            var p = actNode.Action;
-            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
-            string? targetField = p.ExpressionTargetField;
-            if (string.IsNullOrEmpty(targetField)) continue;
-            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
-
-            if (string.Equals($"{p.MethodFqn}@{field.ByteOffset}", actionKey, StringComparison.Ordinal))
-                return ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
-        }
-        return null;
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

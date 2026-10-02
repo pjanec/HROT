@@ -151,10 +151,14 @@ public sealed class NodeEditorMetadataDto
 /// <summary>Delegate shape for Action/Condition nodes. Matches BTreeActionDelegateShape in the editor.</summary>
 public enum BTreeDelegateShapeDto
 {
+    /// <summary>The plain shared C# node <c>(ref TParams, Entity, EntityRepository)</c> (<c>CE-504</c> C-2).</summary>
     ThreeParamReusable,
-    FourParamFull,
+
+    // ⛔ CE-504 slice 4 — value 1 was FourParamFull (the whole-block kernel method). Retired as an asset-binding shape (C-3);
+    //   the value is left unused rather than renumbering the others. The shape is derived, never persisted (C-1).
+
     /// <summary>
-    /// S2-1: stateful 4-param shape: (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref BTreeContext).
+    /// S2-1 / CE-504: the stateful shared shape (ref TParams, ref TWorkingState, Entity, EntityRepository).
     /// The WorkingState is projected from the entity's active BlueprintBlackboard* partition slot,
     /// keyed by FNV-1a-32(assetGuid, nodeVisualId).
     /// </summary>

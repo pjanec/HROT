@@ -9,8 +9,8 @@ namespace Hrot.IG.Tests.Brains
     // ============================================================================
     // TASK-EQL-008 / S3-G: Unit tests for HillAttackCommanderNodes.Deactivate_RequestAreaQuery
     //
-    // S3-G: the deactivator is now the five-parameter stateful shape
-    //   (ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState, ref BTreeContext, int).
+    // CE-504 slice 4: the deactivator takes the shared stateful form
+    //   (ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world).
     // It operates on the working state by ref (the emitted wrapper projects it from the Behavior-scoped
     // partition slot) and frees the cached EQS request slot — no Blackboard1024 / Unsafe.As projection.
     // These unit tests exercise the method logic directly with a local working-state value.
@@ -28,12 +28,11 @@ namespace Hrot.IG.Tests.Brains
             var entity = world.CreateEntity();
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
             var p     = new PlatoonHillAttackParams();
             var s     = new HillAttackMutableState { CachedEqsRequestId = 42 };
 
             // Act
-            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ref state, ref ctx, 0);
+            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World);
 
             // Assert — the in-flight request id is cleared.
             Assert.Equal(-1L, s.CachedEqsRequestId);
@@ -49,12 +48,11 @@ namespace Hrot.IG.Tests.Brains
             var entity = world.CreateEntity();
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
             var p     = new PlatoonHillAttackParams();
             var s     = new HillAttackMutableState { CachedEqsRequestId = 42 };
 
             // Act + Assert (no exception) — and the id is still cleared.
-            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ref state, ref ctx, 0);
+            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World);
             Assert.Equal(-1L, s.CachedEqsRequestId);
         }
 
@@ -68,12 +66,11 @@ namespace Hrot.IG.Tests.Brains
             var entity = world.CreateEntity();
 
             var ctx   = new BTreeContext { Self = entity, World = world };
-            var state = new BehaviorTreeState();
             var p     = new PlatoonHillAttackParams();
             var s     = new HillAttackMutableState { CachedEqsRequestId = -1 };
 
             // Act
-            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ref state, ref ctx, 0);
+            HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World);
 
             // Assert — value is still -1, no exception.
             Assert.Equal(-1L, s.CachedEqsRequestId);

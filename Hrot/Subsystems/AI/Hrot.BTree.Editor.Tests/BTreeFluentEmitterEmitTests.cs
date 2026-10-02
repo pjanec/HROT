@@ -46,7 +46,7 @@ public sealed class BTreeFluentEmitterEmitTests
             {
                 MethodFqn = fqn,
             },
-            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
         };
 
     // ── BPF-018: EmitSubtree ──────────────────────────────────────────────────

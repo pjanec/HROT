@@ -227,7 +227,7 @@ public sealed class BTreeMapperRoundTripTests
             {
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Condition_HasTarget",
             },
-            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.NoParams,   // CE-417: the shape sits on the node
         };
         var subtree = new BTreeEditorNode
         {

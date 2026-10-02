@@ -116,7 +116,6 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: queues CreateEntity + AddComponent via ECB.
@@ -152,7 +151,6 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: spawn via ECB.
@@ -185,7 +183,6 @@ public sealed class EqsChildSensorActionTests : IDisposable
     [Fact]
     public void SpawnAction_TwoDifferentSlots_TwoDistinctChildren()
     {
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Slot 0.
@@ -222,7 +219,6 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.
@@ -236,7 +232,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         p.SpawnedHandle = new EqsSensorHandle(child);
 
         // Deactivate: queues DestroyEntity via ECB, clears handle.
-        EqsLifecycleNodes.Deactivate_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Deactivate_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
 
         Assert.False(p.SpawnedHandle.IsValid, "SpawnedHandle must be cleared to default.");
 
@@ -258,7 +254,6 @@ public sealed class EqsChildSensorActionTests : IDisposable
         int  expectedInstanceId = LocalChildIndex(_parent, slot);
 
         var p     = MakeParams(slot);
-        var state = new BehaviorTreeState();
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.

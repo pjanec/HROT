@@ -136,19 +136,18 @@ public static class PlatoonHillAttackRegistrar
                 }
             });
 
-        // HAJSON-B: deactivator hooks — fired by the Interpreter on branch abort/exit.
+        // HAJSON-B / CE-504: deactivator hooks, one per binding — fired by the Interpreter on branch abort/exit.
         actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@1299152117",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
-                    // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
+                    global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
 

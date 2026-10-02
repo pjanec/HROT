@@ -543,15 +543,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// leaves the node via an abort or branch switch (the Failure path already clears
         /// the channel explicitly; this covers the abort path).
         /// </summary>
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0")]
-        public static void Deactivate_CreepToAndBeyondSlot(
-            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+        // ⭐ CE-504 slice 4 — the shared param-less deactivator form (was the whole-block kernel form; it read nothing of it).
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot")]
+        public static void Deactivate_CreepToAndBeyondSlot(Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self)) return;
-            ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            if (!world.HasComponent<LocomotionChannel>(self)) return;
+            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
             if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
             loco.ActiveAction = 0;
             unchecked { loco.ActionInstanceId++; }
@@ -563,15 +560,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// the node via a branch abort (the MaxRounds path calls
         /// <c>ClearWeaponActionIfActive</c> explicitly; this covers the abort path only).
         /// </summary>
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0")]
-        public static void Deactivate_AimAndFireSpecific(
-            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+        // ⭐ CE-504 slice 4 — the shared param-less deactivator form.
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific")]
+        public static void Deactivate_AimAndFireSpecific(Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self)) return;
-            ref var weapon = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            if (!world.HasComponent<WeaponChannel>(self)) return;
+            ref var weapon = ref world.GetComponentRW<WeaponChannel>(self);
             if (weapon.ActiveAction != CombatConstants.ActionIdAimAndFire) return;
             weapon.ActiveAction = 0;
             unchecked { weapon.ActionInstanceId++; }

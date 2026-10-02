@@ -672,6 +672,12 @@ public sealed class BTreeJsonGeneratorTests
     // plus a valid method (CompatAction) and several invalid ones.
     private const string ValidMethodStubs = @"
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -686,12 +692,9 @@ namespace Stub
         //   never from the asset's declared type. ⛔ These stubs used to take `ref StubBb`, which is
         //   the rule P4-② retired — and the validator kept enforcing it, silently skipping six real
         //   assets (§30.25 ⑤).
-        // VALID: matches NodeLogicDelegate<byte, StubCtx> exactly.
-        public static NodeStatus CompatAction(
-            ref byte blackboard,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx,
-            int paramIndex) => NodeStatus.Running;
+        // VALID: ⭐ CE-504 slice 4 — the shared param-less form (the whole-block kernel form it used to take is retired).
+        [SharedAiAction]
+        public static NodeStatus CompatAction(Entity self, EntityRepository world) => NodeStatus.Running;
 
         // INVALID: param 0 is a DTO struct, not the slot base. ⭐ The NEGATIVE CONTROL — it proves the
         //   check still has teeth, and that CE-316 moved its source of truth rather than removing it.
@@ -719,7 +722,7 @@ namespace Stub
 ";
 
     private static string BuildBoundActionJson(string methodFqn,
-        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.NoParams)
     {
         var actionId = new Guid("BB170000-0000-0000-0000-000000000001");
         var dto = new BehaviorTreeAssetDto
@@ -752,7 +755,7 @@ namespace Stub
     }
 
     private static string BuildBoundConditionJson(string methodFqn,
-        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.NoParams)
     {
         var condId = new Guid("BB170000-0000-0000-0000-000000000002");
         var dto = new BehaviorTreeAssetDto
@@ -1407,6 +1410,12 @@ namespace Stub
     private const string ThreeParamStubs = @"
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -1421,22 +1430,27 @@ namespace Stub
 
     public static class DemoCounterNodes
     {
+        // ⭐ CE-504 slice 4 — the shared forms (the BTree-only (ref P, ref BTS, ref Ctx) form is retired).
+        [SharedAiAction]
         public static NodeStatus Action_IncrementCounter(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx) => NodeStatus.Success;
+            ref DemoCounterParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiCondition]
         public static NodeStatus Condition_CounterBelowThreshold(
-            ref DemoCounterParams p,
-            ref BehaviorTreeState state,
-            ref StubCtx ctx) => p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
+            ref DemoCounterParams p, Entity self, EntityRepository world)
+            => p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
 
         // WRONG: type mismatch — takes StubBb, not DemoCounterParams.
         public struct StubBb { }
+        [SharedAiAction]
         public static NodeStatus WrongTypeAction(
-            ref StubBb bb,
+            ref StubBb bb, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        // WRONG: the retired BTree-only 3-param form.
+        public static NodeStatus RetiredFormAction(
+            ref DemoCounterParams p,
             ref BehaviorTreeState state,
-            ref StubCtx ctx) => NodeStatus.Running;
+            ref StubCtx ctx) => NodeStatus.Success;
 
         // WRONG: 4 params instead of 3.
         public static NodeStatus FourParamAction(
@@ -1654,15 +1668,18 @@ namespace Stub
     ///   - Stub.VecParams         {int A; Vector3 B}                              → 24 bytes (A@0 size4, B@8 size12, AlignUp(20,8)=24)
     ///   - Stub.StubCtx2          (context type for this fixture)
     ///   Actions:
-    ///   - Action_TwoInt(ref TwoIntParams, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_ThreeField(ref ThreeFieldParams, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_Nested(ref ContainerParams.NestedDto, ref BehaviorTreeState, ref StubCtx2)
-    ///   - Action_Vec(ref VecParams, ref BehaviorTreeState, ref StubCtx2)
+    ///   - Action_TwoInt / Action_ThreeField / Action_Nested / Action_Vec — [SharedAiAction] (ref P, Entity, EntityRepository)
     /// </summary>
     private const string StructDtoStubs = @"
 using System.Runtime.InteropServices;
 using System.Numerics;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+// ⭐ CE-504 slice 4 — the shared node signature names Fdp.Core.Entity / EntityRepository; the stub compilation does not
+//   reference Fdp.Core, so it declares look-alikes (the resolver matches the types by name).
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
@@ -1685,17 +1702,21 @@ namespace Stub
 
     public static class StructDtoNodes
     {
+        [SharedAiAction]
         public static NodeStatus Action_TwoInt(
-            ref TwoIntParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref TwoIntParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_ThreeField(
-            ref ThreeFieldParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref ThreeFieldParams p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_Nested(
-            ref ContainerParams.NestedDto p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref ContainerParams.NestedDto p, Entity self, EntityRepository world) => NodeStatus.Success;
 
+        [SharedAiAction]
         public static NodeStatus Action_Vec(
-            ref VecParams p, ref BehaviorTreeState st, ref StubCtx2 ctx) => NodeStatus.Success;
+            ref VecParams p, Entity self, EntityRepository world) => NodeStatus.Success;
     }
 }
 ";
@@ -2316,26 +2337,27 @@ namespace Stub
     // ── HAJSON-B: [BTreeDeactivator] deactivator registration ─────────────────
 
     /// <summary>
-    /// Stub source for HAJSON-B tests.
+    /// Stub source for HAJSON-B tests. ⭐ <c>CE-504</c> slice 4: every node and deactivator takes a SHARED form, and a
+    /// deactivator names its action by method FQN (it is registered per BINDING, under the binding's own key).
     ///
     /// Defines:
-    ///   - Stub.HajsonBb (blackboard — FourParamFull shape)
-    ///   - Stub.HajsonCtx (context)
-    ///   - Stub.HajsonDto (DTO struct for ThreeParamReusable)
-    ///   - Stub.HajsonNodes.Action_Full      — 4-param action (FourParamFull)
-    ///   - Stub.HajsonNodes.Deactivate_Full  — 4-param deactivator paired with Action_Full
-    ///   - Stub.HajsonNodes.Action_Dto       — 3-param action (ThreeParamReusable)
-    ///   - Stub.HajsonNodes.Deactivate_Dto   — 3-param deactivator paired with Action_Dto@0
-    ///   - Stub.HajsonNodes.Action_NoDe      — 4-param action with NO paired deactivator
+    ///   - Stub.HajsonCtx (context), Stub.HajsonDto (params struct)
+    ///   - Stub.HajsonNodes.Action_Full / Deactivate_Full — param-less (Entity, EntityRepository) pair
+    ///   - Stub.HajsonNodes.Action_Dto  / Deactivate_Dto  — plain (ref HajsonDto, Entity, EntityRepository) pair
+    ///   - Stub.HajsonNodes.Action_Legacy / Deactivate_Legacy — a target still spelled with the pre-slice-4 "@0" suffix
+    ///   - Stub.HajsonNodes.Action_NoDe — no paired deactivator
+    ///   - Stub.HajsonNodes.Action_Retired / Deactivate_Retired — a deactivator in the RETIRED (ref, ref BTS, ref Ctx) form
     /// </summary>
     private const string DeactivatorStubs = @"
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
 
 namespace Stub
 {
-    // ⭐ CE-316: HajsonBb is kept but no longer bound as TBB — the 4-param shape's param 0 is
-    //   `ref byte` (the root params slot base) after CE-313 made the registrar ActionRegistry<byte,_>.
     public struct HajsonBb { }
     public struct HajsonCtx { }
 
@@ -2344,40 +2366,37 @@ namespace Stub
 
     public static class HajsonNodes
     {
-        // 4-param action (FourParamFull)
-        public static NodeStatus Action_Full(
-            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Full(Entity self, EntityRepository world) => NodeStatus.Running;
 
-        // 4-param deactivator paired with Action_Full (key = bare FQN)
         [BTreeDeactivator(""Stub.HajsonNodes.Action_Full"")]
-        public static void Deactivate_Full(
-            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-        { }
+        public static void Deactivate_Full(Entity self, EntityRepository world) { }
 
-        // 3-param action (ThreeParamReusable), DTO = HajsonDto at offset 0
-        public static NodeStatus Action_Dto(
-            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Dto(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
 
-        // 3-param deactivator paired with Action_Dto at offset 0
-        [BTreeDeactivator(""Stub.HajsonNodes.Action_Dto@0"")]
-        public static void Deactivate_Dto(
-            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
-        { }
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Dto"")]
+        public static void Deactivate_Dto(ref HajsonDto dto, Entity self, EntityRepository world) { }
 
-        // 4-param action with NO paired deactivator
-        public static NodeStatus Action_NoDe(
-            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
-            => NodeStatus.Running;
+        [SharedAiAction]
+        public static NodeStatus Action_Legacy(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Legacy@0"")]
+        public static void Deactivate_Legacy(Entity self, EntityRepository world) { }
+
+        [SharedAiAction]
+        public static NodeStatus Action_NoDe(Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [SharedAiAction]
+        public static NodeStatus Action_Retired(ref HajsonDto dto, Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Retired"")]
+        public static void Deactivate_Retired(ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx) { }
     }
 }
 ";
 
-    /// <summary>
-    /// Builds a non-managed FourParamFull DTO that binds a single Action node to a given method FQN.
-    /// Used for the bare-key (4-param) deactivator tests.
-    /// </summary>
+    /// <summary>A non-managed asset binding one param-less Action node.</summary>
     private static BehaviorTreeAssetDto BuildNonManagedActionDto(string methodFqn, string assetName = "HajsonFullAsset")
     {
         var actionId = new Guid("AA100000-0000-0000-0000-000000000001");
@@ -2399,7 +2418,7 @@ namespace Stub
                     {
                         MethodFqn     = methodFqn,
                     },
-                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+                    DelegateShape = BTreeDelegateShapeDto.NoParams,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2410,12 +2429,18 @@ namespace Stub
     }
 
     /// <summary>
-    /// Builds a managed ThreeParamReusable DTO that binds a single Action node to a given method FQN
-    /// targeting the "Value" field (offset 0) of HajsonDto.
+    /// A managed asset binding one Action node to <paramref name="methodFqn"/> at the HajsonDto variable "Value".
+    /// ⭐ <paramref name="padBefore"/> puts an <c>int</c> variable FIRST, so "Value" packs at a NON-ZERO offset — the case
+    /// the pre-slice-4 hard-coded <c>"…@0"</c> pairing could not reach.
     /// </summary>
-    private static BehaviorTreeAssetDto BuildManagedThreeParamDeactivatorDto(string methodFqn, string assetName = "HajsonDtoAsset")
+    private static BehaviorTreeAssetDto BuildManagedThreeParamDeactivatorDto(
+        string methodFqn, string assetName = "HajsonDtoAsset", bool padBefore = false)
     {
         var actionId = new Guid("AB100000-0000-0000-0000-000000000001");
+        var vars = new List<BlackboardVariableDto>();
+        if (padBefore)
+            vars.Add(new BlackboardVariableDto { Name = "Pad", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } });
+        vars.Add(new BlackboardVariableDto { Name = "Value", Type = new BlackboardTypeRefDto { TypeId = "Stub.HajsonDto" } });
         return new BehaviorTreeAssetDto
         {
             AssetId = new Guid("AB100000-0000-0000-0000-AABBCCDD0001"),
@@ -2446,81 +2471,97 @@ namespace Stub
             {
                 Managed  = true,
                 TypeName = "HajsonDtoBlackboard",
-                Variables = new List<BlackboardVariableDto>
-                {
-                    new BlackboardVariableDto
-                    {
-                        Name = "Value",
-                        Type = new BlackboardTypeRefDto { TypeId = "Stub.HajsonDto" },
-                    },
-                },
+                Variables = vars,
             },
         };
     }
 
-    /// <summary>
-    /// HAJSON-B: A 4-param FourParamFull action bound in a non-managed asset, where
-    /// the compilation contains a [BTreeDeactivator] companion, must emit
-    /// <c>actionRegistry.RegisterDeactivator("Stub.HajsonNodes.Action_Full", ...)</c>
-    /// in the generated registrar.
-    /// </summary>
+    private static string BridgeOf(GeneratorDriverRunResult result)
+        => result.GeneratedTrees.First(t => t.FilePath.EndsWith("Registrar.g.cs")).ToString();
+
+    /// <summary>HAJSON-B / CE-504: a param-less action's param-less deactivator is registered under the bare-FQN key.</summary>
     [Fact]
-    public void Deactivator_FourParam_Action_EmitsRegisterDeactivatorCall()
+    public void Deactivator_NoParams_Action_EmitsRegisterDeactivatorCall()
     {
         var dto  = BuildNonManagedActionDto("Stub.HajsonNodes.Action_Full");
-        string json = BTreeJsonServices.Serialize(dto);
-
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonFull.btree.json", json));
+            MakeAdditionalText("/p/HajsonFull.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        // Asset must emit 2 files (non-managed: topology + bridge, no blackboard struct)
-        result.GeneratedTrees.Should().HaveCount(2,
-            "non-managed asset with FourParamFull action must emit topology core + bridge");
         result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
-            "valid bound action must not trigger BTREE0002");
-
-        // Bridge file must contain the RegisterDeactivator call.
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
-
+            "a valid param-less binding and deactivator must not trigger BTREE0002");
+        var bridge = BridgeOf(result);
         bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Full\"",
-            "bridge must call RegisterDeactivator with the action's bare FQN key");
-        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Full",
-            "bridge must reference the deactivator method directly (4-param = no wrapper)");
+            "the deactivator is registered under the node's bare-FQN key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Full(ctx.Self, ctx.World)",
+            "the param-less deactivator is called with the shared (Entity, EntityRepository) arguments");
+    }
+
+    /// <summary>HAJSON-B / CE-504: a plain deactivator is projected at its binding's offset — offset 0 here.</summary>
+    [Fact]
+    public void Deactivator_Plain_Action_EmitsWrapperLambda_WithBakedOffset()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto");
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonDto.btree.json", BTreeJsonServices.Serialize(dto)));
+
+        result.GeneratedTrees.Should().HaveCount(3,
+            "managed asset must emit topology core + blackboard struct + bridge");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        var bridge = BridgeOf(result);
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
+            "the deactivator is registered under the binding's {methodFqn}@{offset} key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Dto(ref dto, ctx.Self, ctx.World)");
+        bridge.Should().Contain("(nint)0", "the wrapper projects the params at the binding's offset");
     }
 
     /// <summary>
-    /// HAJSON-B: A 3-param ThreeParamReusable action in a managed asset, where
-    /// the compilation contains a [BTreeDeactivator] companion, must emit a
-    /// RegisterDeactivator call with a wrapper lambda that projects the DTO at offset 0.
+    /// ⭐⭐ CE-504 slice 4 — the rail for the "@0" coincidence: a binding whose variable packs at a NON-ZERO offset still
+    /// gets its deactivator, under ITS key and projected at ITS offset. 🔴 Before slice 4 the deactivator carried a
+    /// hard-coded <c>"…@0"</c> key and silently never paired with this binding.
     /// </summary>
     [Fact]
-    public void Deactivator_ThreeParam_Action_EmitsWrapperLambda_WithBakedOffset()
+    public void Deactivator_PairsPerBinding_AtANonZeroOffset()
     {
-        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto");
-        string json = BTreeJsonServices.Serialize(dto);
-
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto", "HajsonOffsetAsset", padBefore: true);
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonDto.btree.json", json));
+            MakeAdditionalText("/p/HajsonOffset.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        // Managed asset must emit 3 files (topology + blackboard struct + bridge).
-        result.GeneratedTrees.Should().HaveCount(3,
-            "managed asset must emit topology core + blackboard struct + bridge");
-        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
-            "valid bound action must not trigger BTREE0002");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        var bridge = BridgeOf(result);
+        bridge.Should().Contain("actionRegistry.Register(\"Stub.HajsonNodes.Action_Dto@4\"",
+            "precondition: the int variable packs first, so the bound HajsonDto lands at offset 4");
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@4\"",
+            "the deactivator pairs with the binding at offset 4, under the binding's own key");
+        bridge.Should().NotContain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
+            "no registration under a key no node uses");
+    }
 
-        // Bridge file must contain the RegisterDeactivator call with wrapper lambda.
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
+    /// <summary>CE-504: a target still spelled with the pre-slice-4 <c>"@0"</c> suffix pairs by method, so it keeps working.</summary>
+    [Fact]
+    public void Deactivator_LegacyOffsetSuffixInTheTarget_StillPairsByMethod()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Legacy", "HajsonLegacyAsset", padBefore: true);
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonLegacy.btree.json", BTreeJsonServices.Serialize(dto)));
 
-        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
-            "bridge must call RegisterDeactivator with the {methodFqn}@{offset} key");
-        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Dto",
-            "bridge must reference the 3-param deactivator method in the wrapper");
-        bridge.Should().Contain("(nint)0",
-            "wrapper lambda must bake in byte offset 0 for the DTO projection");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId);
+        BridgeOf(result).Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Legacy@4\"");
+    }
+
+    /// <summary>
+    /// ⛔ CE-504 slice 4 — a deactivator in the retired (ref, ref BehaviorTreeState, ref TCtx) form skips the WHOLE asset with
+    /// BTREE0002 — never a deactivator that silently stops firing.
+    /// </summary>
+    [Fact]
+    public void Deactivator_RetiredForm_SkipsTheAssetWithBtree0002()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Retired", "HajsonRetiredAsset");
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonRetired.btree.json", BTreeJsonServices.Serialize(dto)));
+
+        result.GeneratedTrees.Should().BeEmpty("the asset is skipped whole, never partially emitted");
+        result.Diagnostics.Should().ContainSingle(d => d.Id == BTreeJsonGenerator.CodegenWarningId)
+            .Which.GetMessage().Should().Contain("Deactivate_Retired").And.Contain("retired form");
     }
 
     /// <summary>
@@ -2530,23 +2571,15 @@ namespace Stub
     [Fact]
     public void Deactivator_NoCompanion_DoesNotEmitRegisterDeactivatorCall()
     {
-        // Action_NoDe has no [BTreeDeactivator] annotation in the stubs.
         var dto = BuildNonManagedActionDto("Stub.HajsonNodes.Action_NoDe", "HajsonNoDeAsset");
-        string json = BTreeJsonServices.Serialize(dto);
-
         var result = RunGeneratorWithStubs(DeactivatorStubs,
-            MakeAdditionalText("/p/HajsonNoDe.btree.json", json));
+            MakeAdditionalText("/p/HajsonNoDe.btree.json", BTreeJsonServices.Serialize(dto)));
 
         result.GeneratedTrees.Should().HaveCount(2,
             "valid non-managed asset without deactivator must still emit topology + bridge");
         result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
             "absence of a deactivator is not an error");
-
-        var bridge = result.GeneratedTrees
-            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
-            .ToString();
-
-        bridge.Should().NotContain("RegisterDeactivator",
+        BridgeOf(result).Should().NotContain("RegisterDeactivator",
             "bridge must NOT emit RegisterDeactivator when no companion exists");
     }
 
