@@ -37,6 +37,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-168 *(earlier)* | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 | R-166 *(`2026-10-02`)* | *"external nodes use our SST OwnershipUpdate, it should be the same thing as the one one from the spec"* |
 | R-167 *(`2026-10-02`)* | *"ok as calling the handler internally, not really sending a network message to itself"* — the crash reclaim (§0.11) |
+| R-170 *(`2026-10-02`)* | *"approved all three, start with the classification pass"* — §0.13 M3 (`dtWorldPos` moves WHOLE as the kinematic group), M5 (`CE-506` is phase 2), and a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md` written by the build's step 1 |
 | R-169 *(`2026-10-02`)* | *"Changing a message is ok if necessary."* — amends R-158: a message change is allowed when the design needs it; still minimal. ⇒ P3 (an ordering field in `OwnershipUpdate`) and P5 (an instance id in a grant) are now options, used only if a measured case needs them |
 
 ### 0.2 Measured facts *(code — how it IS)*
@@ -296,7 +297,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | B7 | crash reclaim: on a non-master non-alive sample, every node calls the ownership-apply logic directly (no message), guarded by "current owner is the departed node" | §0.11, R-167, P10 |
 | B8 | rails: `CE-500` (SimHost-created entity, CGF brain publishes); "no component claimed by two nodes" on every creation path (§10 probe as a rail); partial-owner crash; external `OwnershipUpdate` hand-in/hand-back | — |
 
-**Missing before code can start:**
+**Missing before code can start:** *(M3, M5 and the new DESIGN doc APPROVED by the user `2026-10-02`: "approved all three, start with the classification pass" — R-170)*
 
 | # | what | blocks | lean |
 |---|---|---|---|
