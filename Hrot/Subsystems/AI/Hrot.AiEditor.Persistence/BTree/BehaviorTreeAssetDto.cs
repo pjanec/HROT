@@ -270,12 +270,16 @@ public sealed class BTreeCooldownNodeDto : BTreeNodeDto
 public sealed class BTreeActionNodeDto : BTreeNodeDto
 {
     public BehaviorActionBindingDto? Action { get; set; }
+    // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
+    [JsonIgnore]
     public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 
 public sealed class BTreeConditionNodeDto : BTreeNodeDto
 {
     public BehaviorActionBindingDto? Condition { get; set; }
+    // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
+    [JsonIgnore]
     public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 

@@ -33,7 +33,7 @@ public static class ActionBindingMigrator
 
     // ── BTree ─────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>v1 → v2 for a BTree: <c>DelegateShape</c> moves from the payload to the node; the payload IS the binding.</summary>
+    /// <summary>v1 → v2 for a BTree: the payload IS the binding; its <c>DelegateShape</c> is dropped (derived since CE-504).</summary>
     public static void UpgradeBTree(JsonObject root)
     {
         if (SchemaVersionOf(root) >= CurrentSchemaVersion) return;
@@ -46,11 +46,9 @@ public static class ActionBindingMigrator
             string? slot = kind == "Action" ? "Action" : kind == "Condition" ? "Condition" : null;
             if (slot == null || node[slot] is not JsonObject payload) continue;
 
-            if (payload.TryGetPropertyValue("DelegateShape", out var shape))
-            {
-                payload.Remove("DelegateShape");
-                node["DelegateShape"] = shape?.DeepClone();
-            }
+            // ⭐ CE-504 C-1 — the v1 payload's DelegateShape is DROPPED: the shape is derived from the bound method now
+            //   (BTreeCallShapes). (Slice 2 moved it onto the node; that node field is no longer read either.)
+            payload.Remove("DelegateShape");
             // v1 always wrote MethodFqn (default ""); v2 omits an absent method.
             if (payload["MethodFqn"] is JsonValue m && m.TryGetValue(out string? fqn) && string.IsNullOrEmpty(fqn))
                 payload.Remove("MethodFqn");

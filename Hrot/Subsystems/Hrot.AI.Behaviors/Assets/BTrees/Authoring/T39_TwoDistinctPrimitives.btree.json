@@ -48,7 +48,6 @@
         "ExpressionTargetField": "bpParamsA",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb390000-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "PrimitiveA_Ticks",
@@ -67,7 +66,6 @@
         "ExpressionTargetField": "bpParamsB",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb390000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "PrimitiveB_Accumulator",
@@ -87,7 +85,6 @@
         "ExpressionTargetField": "bpParamsC",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb390000-0000-0000-0000-000000000005",
       "ChildVisualIds": [],
       "DisplayLabel": "PrimitiveC_RealGeneratedBlueprint",

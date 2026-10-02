@@ -47,7 +47,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold",
         "ExpressionTargetField": "counter"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "ba030000-0000-0000-0000-000000000001",
       "ChildVisualIds": [],
       "DisplayLabel": "Condition_CounterBelowThreshold",
@@ -65,7 +64,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
         "ExpressionTargetField": "counter"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "ba040000-0000-0000-0000-000000000001",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_IncrementCounter",
@@ -83,7 +81,6 @@
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum",
         "ExpressionTargetField": "accum"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "ba050000-0000-0000-0000-000000000001",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_AddStepToSum",

@@ -49,7 +49,6 @@
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
         "WorkingStateTargetField": "bpSharedWorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_SharedA",
@@ -69,7 +68,6 @@
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
         "WorkingStateTargetField": "bpSharedWorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_SharedB",
@@ -88,7 +86,6 @@
         "ExpressionTargetField": "bpParamsControl",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000005",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_Control",

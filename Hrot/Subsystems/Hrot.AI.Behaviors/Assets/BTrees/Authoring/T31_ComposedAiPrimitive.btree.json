@@ -31,7 +31,6 @@
         "ExpressionTargetField": "bpParams",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb310000-0000-0000-0000-000000000002",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive",

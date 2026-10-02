@@ -190,7 +190,11 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// </summary>
     private static void ApplyShape(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? b, bool hadBlueprint)
     {
-        if (NamesBlueprint(b)) node.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        // ⭐⭐ CE-504 C-1 — a C# pick takes the shape its method's signature implies (a stateful method becomes stateful).
+        if (!NamesBlueprint(b) && BTreeCallShapeResolver.ShapeOf(
+                b, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures()) is { } derived)
+            node.DelegateShape = derived;
+        else if (NamesBlueprint(b)) node.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
         else if (hadBlueprint) node.DelegateShape = BTreeActionDelegateShape.ThreeParamReusable;
     }
 

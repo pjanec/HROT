@@ -139,6 +139,10 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         Hrot.AiEditor.Persistence.Emit.BTreeBlueprintBindings.ResolveMethods(
             dto, id => GeneratedBlueprintSchemaCatalog.FindByAssetId(blueprintSchemas, id)?.GeneratedClassName);
 
+        // ⭐⭐⭐ CE-504 C-1 — the call shape is DERIVED from the bound method's signature (or the blueprint id), never read
+        //   from the file. Every reader below — validator, emitters, deactivator scan — sees the derived value.
+        Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.Apply(dto, RoslynCallSignatures.Make(compilation));
+
         // ⭐⭐ CE-423 — a State variable that would get NO storage is an ERROR, not a silent skip.
         foreach (var unstored in Hrot.AiEditor.Persistence.Emit.StateVariableStorage.UnstoredStateVariables(dto))
             spc.ReportDiagnostic(MakeStateStorageDiagnostic(path, unstored));

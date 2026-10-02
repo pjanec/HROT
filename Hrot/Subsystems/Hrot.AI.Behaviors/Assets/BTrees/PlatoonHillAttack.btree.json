@@ -52,7 +52,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000a1",
 			"ChildVisualIds": [],
 			"DisplayLabel": "CalculateSegments",
@@ -72,7 +71,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000a2",
 			"ChildVisualIds": [],
 			"DisplayLabel": "DispatchAllToBaseline",
@@ -90,7 +88,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "1a000000-0000-0000-0000-0000000000a3",
 			"ChildVisualIds": [],
 			"DisplayLabel": "AreAllAtBaseline",
@@ -128,7 +125,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000b1",
 			"ChildVisualIds": [],
 			"DisplayLabel": "RequestAreaQuery",
@@ -148,7 +144,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000b2",
 			"ChildVisualIds": [],
 			"DisplayLabel": "IsAreaQueryResolved",
@@ -168,7 +163,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000b3",
 			"ChildVisualIds": [],
 			"DisplayLabel": "DispatchWaveWithTargets",
@@ -188,7 +182,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000b4",
 			"ChildVisualIds": [],
 			"DisplayLabel": "IsWaveCompleted",
@@ -208,7 +201,6 @@
 				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState",
 				"WorkingStateTargetField": "State"
 			},
-			"DelegateShape": "ThreeParamReusableStateful",
 			"VisualId": "1a000000-0000-0000-0000-0000000000a4",
 			"ChildVisualIds": [],
 			"DisplayLabel": "ReturnToBaseline",
@@ -226,7 +218,6 @@
 				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline",
 				"ExpressionTargetField": "Params"
 			},
-			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "1a000000-0000-0000-0000-0000000000a5",
 			"ChildVisualIds": [],
 			"DisplayLabel": "AreAllBackAtBaseline",
