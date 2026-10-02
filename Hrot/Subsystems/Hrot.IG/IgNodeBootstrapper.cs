@@ -511,16 +511,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    factory, which carries no node id or role.
             NetworkAdapters       = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
 
-            // ⭐⭐⭐ CE-271 seam ② — the ROLE-AFFINITY policy for Map2D. WITHOUT it IG ran a null policy
-            //    and kept every component it materialised, so a Muscle promoting a Map2D-created tank
-            //    fought it for authority (two owners). WITH it, IG's create-leg intersects its authority
-            //    with Map2D's OWNED set: a Map2D-created tank keeps only its SimTransform birthright and
-            //    declines combat/muscle/brain, which the Brain/Muscle then claim on promotion; a
-            //    Map2D-created overlay keeps its EditablePolyline/RoutePlan so IG's own egress publishes
-            //    it. Same instance reaches NetworkSpawningSystem (create) and GhostPromotionSystem
-            //    (promote) via the pack. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
-            RoleAffinity          = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(NodeRole.Map2D),
-
             // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
             //    NED replication module. 🔒 User ruling 2026-09-16: no node-centric gating — IG is a symmetric
             //    reliable creator. (IG already had the cache via adapters but never passed ExpectedPeers.)

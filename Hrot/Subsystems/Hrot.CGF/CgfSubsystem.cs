@@ -890,18 +890,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             },
 
             IsBroadcastArbiter = true,
-
-            // ⭐⭐⭐ P3 step 4 — ROLE AFFINITY, the Brain half. 📄 docs/DESIGN_Role_Affinity_Ownership.md
-            //    §3.9a, §6i. This is what makes SimHost's decline (the other half of step 4) safe: the
-            //    brain components a Muscle node stops owning are CLAIMED HERE on the promote leg, so they
-            //    end up owned by exactly one node instead of by whoever spawned first.
-            //
-            //    ⭐ The CREATE leg is unchanged by this: the Brain's owned set is the full mask minus the
-            //    birth-critical components, and the creator's birthright adds those straight back.
-            //    ⛔ SimTransform must stay OUT of the role table — a promoting node that claimed it would
-            //    tell GeoSpatialIngressTranslator.cs:90 it owns a position it does not simulate, and its
-            //    ghosts would stop accepting the owner's updates.
-            RoleAffinity = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(DefaultRole),
         });
         EntityCreation = creation;   // CE-515
 

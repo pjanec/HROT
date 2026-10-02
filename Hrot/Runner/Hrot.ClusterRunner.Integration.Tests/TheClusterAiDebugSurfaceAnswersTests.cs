@@ -240,9 +240,48 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         var cgfIntent = cgfOwners!["descriptors"]!.AsArray()
             .Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent);
         Assert.Equal(true, (bool?)cgfIntent!["ownedByThisNode"]);
-        Assert.Equal(true, (bool?)cgfIntent["claimMatchesRecord"]);
-        // ⚠ S4 extends this to EVERY descriptor on CGF. Measured after S3: the ghost's PROMOTION still claims the
-        //   master/info components and the MuscleGround and Perception ones it does not own (the role policy's
-        //   "everything but birth-critical"), which S4 retires (design §5.6 S4, D-7).
+        // ⭐ S4 — and on EVERY descriptor on CGF too: after S3 the ghost's promotion still claimed the master/info,
+        //   MuscleGround and Perception components it did not own; S4 retired the promote-leg claim (design §5.6 S4).
+        var cgfMismatch = cgfOwners["descriptors"]!.AsArray().Where(d => (bool?)d!["claimMatchesRecord"] != true).Select(d => d!.ToJsonString()).ToList();
+        Assert.True(cgfMismatch.Count == 0, "CGF record != claim: " + string.Join(" | ", cgfMismatch));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S4</c> — the other creation path: CGF creates the tank, keeps the brain and grants kinematics and perception to
+    /// SimHost; both nodes read one ownership truth on every descriptor. 📄 design §5.7 row E3.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void A_CGF_created_tank_reads_one_ownership_truth_on_both_nodes()
+    {
+        string perspective = "Scenario";   // CGF
+        using var rig = Boot(() => perspective);
+        var cgf    = rig.H.Cgf!.EntityCreation!;
+        var before = rig.H.Cgf!.GhostEntityMap!.Entries.Keys.ToHashSet();
+
+        var (_, error) = rig.Api.CreateEntityViaRequestPath(TkbEntityTypes.Tank_M1Abrams, cgf.NodeId);
+        Assert.Null(error);
+
+        long id = 0;
+        Assert.True(rig.H.PumpUntil(() =>
+        {
+            id = rig.H.Cgf!.GhostEntityMap!.Entries.Keys.FirstOrDefault(k => !before.Contains(k));
+            return id != 0 && rig.H.SimHost.TestHook_EntityMap.TryGetEntity(id, out _);
+        }, timeoutFrames: 600), "the create-request did not produce an entity on both nodes");
+        rig.H.PumpFrames(120);
+
+        foreach (var node in new[] { "Scenario", "SimHost" })
+        {
+            perspective = node;
+            var (owners, ownErr) = rig.Api.GetEntityOwnership(id);
+            Assert.Null(ownErr);
+            var all = owners!["descriptors"]!.AsArray();
+            var mismatch = all.Where(d => (bool?)d!["claimMatchesRecord"] != true).Select(d => d!.ToJsonString()).ToList();
+            Assert.True(mismatch.Count == 0, $"{node} record != claim: " + string.Join(" | ", mismatch));
+
+            bool ownsWorldPos = (bool)all.Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos)!["ownedByThisNode"]!;
+            bool ownsIntent   = (bool)all.Single(d => (long)d!["descriptorTypeId"]! == (long)Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent)!["ownedByThisNode"]!;
+            Assert.Equal(node == "SimHost", ownsWorldPos);   // MuscleGround granted to SimHost
+            Assert.Equal(node == "Scenario", ownsIntent);    // Brain kept by the CGF creator
+        }
     }
 }
