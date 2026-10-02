@@ -396,4 +396,55 @@ public sealed unsafe class HostingMatrixTests : IDisposable
             Assert.Equal(3, *(int*)(store + off));
         }
     }
+
+    // ══ S5c — hosting cycles are refused at registration (U-9) ════════════════════════════════════
+
+    /// <summary>Registers <paramref name="name"/> as a BTree hosting <paramref name="child"/>, in the generated order:
+    /// the definition (with its planned slot) first, then the site binding.</summary>
+    private static void RegisterHostOf(BehaviorRegistry beh, string name, string child, Guid site)
+    {
+        var b = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Subtree(child, visualId: site));
+        var blob = b.Compile(name);
+        var plan = BTreeHostedSites.PlanFor(blob, name);
+        beh.Register(name, new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(blob, b.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, blob, plan);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S5c — A hosts B hosts A is refused when the ring closes, and the message names it.</b> The second binding
+    /// closes the cycle, whichever order the registrars run in.
+    /// <para>✅ Red-proof: remove the edge-side check in <c>HostedChildren.Register</c> and this registers silently.</para>
+    /// </summary>
+    [Fact]
+    public void S5c_ARingOfTwoBehaviours_IsRefusedAtRegistration()
+    {
+        var beh = new BehaviorRegistry();
+        RegisterHostOf(beh, "S5c_A", "S5c_B", SiteA);
+        var ex = Assert.Throws<InvalidOperationException>(() => RegisterHostOf(beh, "S5c_B", "S5c_A", SiteB));
+        Assert.Contains("hosting cycle", ex.Message);
+        Assert.Contains("S5c_A", ex.Message);
+        Assert.Contains("S5c_B", ex.Message);
+    }
+
+    /// <summary>⭐ S5c — a behaviour that hosts itself is the smallest ring.</summary>
+    [Fact]
+    public void S5c_ABehaviourHostingItself_IsRefused()
+    {
+        var beh = new BehaviorRegistry();
+        Assert.Throws<InvalidOperationException>(() => RegisterHostOf(beh, "S5c_Self", "S5c_Self", SiteA));
+    }
+
+    /// <summary>⭐ S5c — a chain is not a ring: A hosts B, B hosts C registers cleanly.</summary>
+    [Fact]
+    public void S5c_AChain_IsNotARing()
+    {
+        var beh = new BehaviorRegistry();
+        RegisterHostOf(beh, "S5c_C1", "S5c_C2", SiteA);
+        RegisterHostOf(beh, "S5c_C2", "S5c_C3", SiteB);
+    }
 }
