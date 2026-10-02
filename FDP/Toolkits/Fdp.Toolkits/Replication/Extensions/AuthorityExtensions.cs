@@ -55,5 +55,24 @@ namespace Fdp.Toolkit.Replication.Extensions
             // 3. Fallback to Primary Entity Authority
             return netAuth.HasAuthority;
         }
+
+        /// <summary>
+        /// ⭐ The INGRESS form of <see cref="HasAuthority(ISimulationView, Entity, long)"/>: true only when this node's
+        /// ownership of the entity is RECORDED (a <see cref="NetworkAuthority"/> exists, resolved through
+        /// <see cref="PartMetadata"/> like the gate) and says this node owns <paramref name="packedKey"/>.
+        /// <para>⚠ <see cref="HasAuthority(ISimulationView, Entity, long)"/> treats an entity with no
+        /// <see cref="NetworkAuthority"/> as locally owned, which is right for a node with no network. For a translator
+        /// applying a received sample it is wrong: an entity without a record there is a replica still being built
+        /// from the wire (a ghost created by this very sample), and treating it as owned drops the sample. 📌 Measured
+        /// on <c>EntityDamageIngressTranslator</c> (the first health of an unknown entity was dropped) and
+        /// <c>EntityInfoIngressTranslator</c> (a ghost's commander assignment was dropped).</para>
+        /// </summary>
+        public static bool IsRecordedOwner(this ISimulationView view, Entity entity, long packedKey = 0)
+        {
+            if (!view.IsAlive(entity)) return false;
+            Entity root = view.HasComponent<PartMetadata>(entity) ? view.GetComponentRO<PartMetadata>(entity).ParentEntity : entity;
+            if (!view.IsAlive(root) || !view.HasComponent<NetworkAuthority>(root)) return false;
+            return HasAuthority(view, entity, packedKey);
+        }
     }
 }

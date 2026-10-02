@@ -173,7 +173,6 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 // Check if the local node owns the EntityInfo descriptor
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-                hasAuthority = repo.HasAuthority(entity, packedKey);
 
                 // ⭐ The owner is the source of truth (see "Loopback Prevention" below): it must not take
                 // its OWN samples back. It used to set the component first and check authority after, so
@@ -184,9 +183,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                 // ⚠ Only when authority is actually TRACKED: HasAuthority answers true for an entity with no
                 // NetworkAuthority yet, which includes a ghost still being created — and a ghost must take
                 // its EntityInfo from this sample or it never promotes (MiniExConIntegrationTests).
-                bool ownsIt = hasAuthority
-                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(entity);
-                if (!ownsIt)
+                hasAuthority = Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(repo, entity, packedKey);
+                if (!hasAuthority)
                     repo.SetComponent(entity, igData);
             }
             else
@@ -203,6 +201,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             // If this node owns the EntityInfo descriptor, it is the absolute source of truth.
             // We must drop incoming hierarchy payloads to prevent loopback packets 
             // from destroying the local ECS hierarchy.
+            // ⚠ RECORDED ownership only (IsRecordedOwner above): a ghost still being built has no
+            //   NetworkAuthority and must take its commander from this sample, exactly as it takes its
+            //   EntityInfo. An earlier version used the raw gate here and dropped it.
             if (hasAuthority)
                 return;
 

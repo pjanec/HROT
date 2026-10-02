@@ -102,6 +102,34 @@ namespace Hrot.IG.Tests
             Assert.Equal(ForceId.Hostile, data.ForceId);
         }
 
+        // ── Loopback prevention: RECORDED ownership only ──────────────────────
+
+        /// <summary>
+        /// ⭐ The recorded owner of EntityInfo is the source of the hierarchy and drops its own loopback sample.
+        /// The CS011 tests below cover the other half: an entity with no ownership record yet (a ghost being
+        /// built) takes the commander from the sample. An earlier version used the raw gate, which treats "no
+        /// record" as owned, and dropped it.
+        /// </summary>
+        [Fact]
+        public void TheRecordedOwner_DropsItsOwnHierarchyLoopback()
+        {
+            var (repo, entityMap, eventBus, translator) = CreateFixture();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            var cmdEntity = repo.CreateEntity();
+            var subEntity = repo.CreateEntity();
+            repo.AddComponent(subEntity, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 0, localNodeId: 0));
+            entityMap.Register(10, cmdEntity);
+            entityMap.Register(20, subEntity);
+
+            translator.ProcessSample(new Hrot.NED.Descriptors.EntityInfo
+            {
+                EntityId = 20, CommanderId = 10, TacticalDesignation = eTacticalDesignation.Wingman,
+            }, netId: 20, repo: repo);
+
+            eventBus.SwapBuffers();
+            Assert.Equal(0, eventBus.Read<CmdAssignSubordinate>().Length);
+        }
+
         // ── CS011 ingress tests ───────────────────────────────────────────────
 
         /// <summary>

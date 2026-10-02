@@ -98,15 +98,14 @@ namespace Hrot.Map.Common.Replication.Ingress
         }
 
         /// <summary>
-        /// True when this node holds ENTITY-level authority for <paramref name="entity"/> — the same test
-        /// HealthApplicationSystem uses to decide it may write Health. No <c>NetworkAuthority</c> component
-        /// means single-node / AllInOne, treated as owner (nothing to replicate in).
+        /// True when this node holds RECORDED entity-level authority for <paramref name="entity"/> — the same test
+        /// HealthApplicationSystem uses to decide it may write Health.
+        /// <para>⚠ An entity with no <c>NetworkAuthority</c> is NOT the owner here: on this path it is a replica
+        /// still being built from the wire — a ghost this very sample created — and its health must be taken.
+        /// An earlier version treated it as the owner ("single-node / AllInOne"), which dropped the first health
+        /// of every entity first seen through this topic; a node with no network never reaches an ingress.</para>
         /// </summary>
         private static bool IsEntityOwner(EntityRepository repo, Entity entity)
-        {
-            if (!repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(entity))
-                return true;
-            return repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(entity).HasAuthority;
-        }
+            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(repo, entity);
     }
 }

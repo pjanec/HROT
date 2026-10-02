@@ -318,23 +318,26 @@ public class EntityMasterTranslatorTests
         using var reader = new DdsReader<EntityMaster>(receiverParticipant);
         reader.EnableSenderTracking(receiverParticipant.SenderRegistry!);
 
-        Thread.Sleep(500); // discovery
-
-        writer.Write(new EntityMaster { EntityId = 77 });
-
-        Thread.Sleep(500); // let sample propagate
-
+        // ⭐ Poll, never a fixed sleep: under a full-suite run discovery and the sender-identity handshake
+        //   took longer than the 500 ms + 500 ms this test used to sleep, so it failed in the suite and passed
+        //   alone. Re-write each round (a sample written before discovery completes is lost).
         SenderIdentity? senderIdentity = null;
-        using var loan = reader.Take();
-        int sampleIdx = 0;
-        foreach (var sample in loan)
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (senderIdentity == null && DateTime.UtcNow < deadline)
         {
-            if (sample.Info.InstanceState == DdsInstanceState.Alive)
+            writer.Write(new EntityMaster { EntityId = 77 });
+            Thread.Sleep(100);
+            using var loan = reader.Take();
+            int sampleIdx = 0;
+            foreach (var sample in loan)
             {
-                senderIdentity = loan.GetSender(sampleIdx);
-                break;
+                if (sample.Info.InstanceState == DdsInstanceState.Alive)
+                {
+                    senderIdentity = loan.GetSender(sampleIdx);
+                    if (senderIdentity != null) break;
+                }
+                sampleIdx++;
             }
-            sampleIdx++;
         }
 
         Assert.NotNull(senderIdentity);

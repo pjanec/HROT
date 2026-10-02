@@ -75,6 +75,48 @@ namespace Hrot.IG.Tests
             Assert.Equal(100f, cmd.LastHealth?.Max);
         }
 
+        /// <summary>
+        /// ⭐ The other half of CE-272's guard: the node that RECORDS entity-level ownership is the source of
+        /// health and must not take its own loopback sample back. Paired with the two tests above, which
+        /// prove a replica (with or without an ownership record yet) does take it.
+        /// </summary>
+        [Fact]
+        public void Decode_OnTheRecordedOwner_DoesNotWriteHealth()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkAuthority>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 3));
+            entityMap.Register(KnownId, entity);
+
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.False(cmd.SetComponentCalled, "the recorded owner must not take its own health back");
+        }
+
+        /// <summary>⭐ A replica with a RECORDED ownership elsewhere takes the owner's health.</summary>
+        [Fact]
+        public void Decode_OnARecordedReplica_WritesHealth()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkAuthority>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 4));
+            entityMap.Register(KnownId, entity);
+
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.Equal(1f, cmd.LastHealth?.Current);
+        }
+
         private sealed class TestEntityDamageIngressTranslator : EntityDamageIngressTranslator
         {
             public TestEntityDamageIngressTranslator(
