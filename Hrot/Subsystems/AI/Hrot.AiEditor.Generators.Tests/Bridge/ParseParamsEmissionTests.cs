@@ -453,7 +453,7 @@ public sealed class ParseParamsEmissionTests
     /// ⛔ <b>Malformed json THROWS, deliberately.</b> <c>BehaviorIngressSystem</c> parses into a stack
     /// shadow and commits only on success, so a throw is what leaves the entity on its old behaviour.
     /// ⚠ Swallowing would hand it a successful-looking all-zero params region — the same reasoning
-    /// <c>BehaviorParams.FromJson</c> records for <c>G1</c>.
+    /// <c>BehaviorParams.FromBlockResolver</c> records.
     /// </summary>
     [Fact]
     public void MalformedJson_IsNotSwallowed()

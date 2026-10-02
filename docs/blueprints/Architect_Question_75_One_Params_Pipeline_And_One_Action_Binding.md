@@ -10,6 +10,9 @@ build-state: ⛔ DESIGN — SUBSUMED 2026-09-29 BY Q76 §12, WHICH IS APPROVED A
     · C / S2 (one whole-behaviour BehaviorParams.FromJson replacing the two emitted lambdas) is
       SUBSUMED by Q76's CE-426 — one bake→supply→resolve helper. CE-419 (three claimants on two
       emit sites) is RESOLVED: E8c is WITHDRAWN by R-152 and CE-426 is the survivor.
+    · ⛔ 2026-10-02 (CE-416 ③): BehaviorParams.FromJson<TDto> + ResolveParams<TDto> are DELETED — zero
+      production callers; its rails were re-homed onto FromBlockResolver (identity resolver = the identity case).
+      Every mention of FromJson below is HISTORY.
     · A / B / D still stand as this document's own decisions and are NOT re-litigated by Q76.
   ⛔ DO NOT START ANY SLICE FROM THIS DOCUMENT. Its live work now has tracker rows under Q76 §12.6.
   (Historic: DESIGN — REVISED 2026-09-28 BY A SECOND MEASUREMENT PASS, AND S1/S2 ARE BLOCKED.)

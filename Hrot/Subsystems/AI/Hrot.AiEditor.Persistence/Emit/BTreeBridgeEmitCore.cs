@@ -1453,7 +1453,7 @@ public static class BTreeBridgeEmitCore
     ///   <c>BehaviorIngressSystem</c> parses into a stack shadow and commits only on success, so a
     ///   throw is exactly what leaves the entity on its old behaviour. ⚠ Swallowing would look tidier
     ///   and hand it a successful-looking all-zero params region — the same reasoning as
-    ///   <c>BehaviorParams.FromJson</c> (<c>G1</c>)</description></item>
+    ///   <c>BehaviorParams.FromBlockResolver</c></description></item>
     /// </list>
     ///
     /// <para>
