@@ -12,6 +12,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Hrot.AI.Behaviors.Logging;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -253,32 +254,27 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         // -- Action / Condition delegates --
-        // Three-param ReusableActionDelegate<TValue, BTreeContext> signatures.
-        // The [BTreeAction] / [BTreeCondition] attributes cause Fbt.SourceGen to
-        // emit bridge closures in FbtActionRegistrar.g.cs that project the runtime
-        // BrainBlackboard to TValue using Unsafe.As at byte offset 0.
-        // No 'unsafe' keyword or 'fixed' blocks appear in any of these methods.
+        // ⭐ CE-504 C-2 — the shared C# node signature (ref P, Entity self, EntityRepository world), the same one the HSM
+        //   binds. A JSON asset calls each per binding at its baked host offset (BTreeBridgeEmitCore); a curated tree binds
+        //   it through SharedNodeBuilderExtensions. 📄 docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md.
 
         /// <summary>
         /// BTree action node for the MoveToLocation behavior.
         /// Writes the parsed destination into the <see cref="LocomotionChannel"/> every tick.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteMoveToChannel(
-            ref MoveToLocationParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteMoveToChannel(ref MoveToLocationParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -311,22 +307,19 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>BTree action node for the FollowRoute behavior.</summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteFollowRouteChannel(
-            ref FollowRouteParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteFollowRouteChannel(ref FollowRouteParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -347,22 +340,19 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>BTree action node for the JoinFormation behavior.</summary>
-        [BTreeAction]
-        public static NodeStatus Action_WriteJoinFormationChannel(
-            ref JoinFormationParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WriteJoinFormationChannel(ref JoinFormationParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -402,17 +392,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <para><b>Return value:</b> always <see cref="NodeStatus.Running"/> so the
         /// BTree root keeps ticking every frame indefinitely.</para>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_Wander(
-            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+        [SharedAiAction]
+        public static NodeStatus Action_Wander(Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
                 return NodeStatus.Failure;
 
-            ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
 
             // Determine if we need a new destination:
             //   * No active MoveTo action yet
@@ -431,15 +417,15 @@ namespace Hrot.AI.Behaviors.Brains
                 //   x == y and sent every wanderer down the diagonal; SimRng advances per draw.
                 //   The salt (1) distinguishes this call site from the firing-slot pick, which is
                 //   seeded from the same entity and tick.
-                var wanderRng = SimRng.FromSim((int)ctx.Self.Index, 1, ctx.World.SimulationTime);
+                var wanderRng = SimRng.FromSim((int)self.Index, 1, world.SimulationTime);
                 float x = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
                 float y = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
 
                 // Propagate behavior instance id so ChannelArbitrationSystem does not
                 // clear the channel on the same frame we pick a new target.
-                if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+                if (world.HasComponent<BehaviorState>(self))
                 {
-                    var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                    var behavior = world.GetComponent<BehaviorState>(self);
                     channel.BehaviorInstanceId = behavior.InstanceId;
                 }
 
@@ -483,23 +469,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// Return Failure when the target is dead.
         /// Return Running while the target is alive but out of sight.
         /// </summary>
-        [BTreeCondition]
-        public static NodeStatus Condition_TargetAliveAndVisible(
-            ref FireAtTargetParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiCondition]
+        public static NodeStatus Condition_TargetAliveAndVisible(ref FireAtTargetParams p, Entity self, EntityRepository world)
         {
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // 1. If the target is definitively dead, fail the node so the behavior finishes cleanly.
-            if (!ctx.World.IsAlive(target))
+            if (!world.IsAlive(target))
                 return NodeStatus.Failure;
 
             // 2. Wait for the perception pipeline to initialize/catch up.
-            if (!ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+            if (!world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self))
                 return NodeStatus.Running; // FIX: Was Failure
 
-            ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+            ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
 
             // 3. Target is visible! Proceed to the next node in the Sequence.
             if (IsTargetVisible(in mem, p.TargetPacked))
@@ -520,22 +503,19 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item>Returns Running while actively firing.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_FireAtTarget(
-            ref FireAtTargetParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_FireAtTarget(ref FireAtTargetParams p, Entity self, EntityRepository world)
         {
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // Target destroyed = mission accomplished.
-            if (!ctx.World.IsAlive(target))
+            if (!world.IsAlive(target))
                 return NodeStatus.Success;
 
             // Target out of sensor range = mission aborted.
-            if (ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+            if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self))
             {
-                ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+                ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
                 if (!IsTargetVisible(in mem, p.TargetPacked)) return NodeStatus.Failure;
             }
 
@@ -543,15 +523,15 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
                 return NodeStatus.Success;
 
-            if (!ctx.World.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self))
+            if (!world.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self))
                 return NodeStatus.Failure;
 
-            ref var channel = ref ctx.World.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self);
+            ref var channel = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
 
             // Sync BehaviorInstanceId so ChannelArbitrationSystem does not clear the channel every frame
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behavior = world.GetComponent<BehaviorState>(self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
@@ -581,9 +561,9 @@ namespace Hrot.AI.Behaviors.Brains
             // Only increment RoundsFired exactly when the weapon is ready to shoot this tick.
             // Writing back through the ref parameter updates the blackboard in-place -- no
             // pointer arithmetic required.
-            if (ctx.World.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self))
+            if (world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(self))
             {
-                var weapon = ctx.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self);
+                var weapon = world.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(self);
                 if (weapon.CooldownSecondsRemaining <= 0f)
                     p.RoundsFired = p.RoundsFired + 1;
             }

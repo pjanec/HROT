@@ -293,12 +293,11 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         mem.Count = 1;
         _repo.AddComponent(_parent, mem);
 
-        var condResult = EqsCombatNodes.Condition_HasTarget(ref bb.MoveConfig, ref state, ref ctx);
+        var condResult = EqsCombatNodes.Condition_HasTarget(ref bb.MoveConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, condResult);
 
         // Step 2: Action_SpawnEqsSensorChild -- queues CreateEntity + AddComponents via ECB.
-        var spawnResult = EqsLifecycleNodes.Action_SpawnEqsSensorChild(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var spawnResult = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, spawnResult);
 
         // Step 3: Playback ECB -- child entity materialised.
@@ -312,8 +311,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         bb.SpawnConfig.SpawnedHandle = new EqsSensorHandle(child);
 
         // Step 4: Action_WaitForChildSensor -- no buffer yet -> Running.
-        var waitResult1 = EqsLifecycleNodes.Action_WaitForChildSensor(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var waitResult1 = EqsLifecycleNodes.Action_WaitForChildSensor(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, waitResult1);
 
         // Step 5: Pre-populate EqsCognitiveBuffer (simulates EqsSolverSystem output).
@@ -322,8 +320,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         _repo.AddComponent(child, buf);
 
         // Step 6: Action_WaitForChildSensor -- buffer ready -> Success.
-        var waitResult2 = EqsLifecycleNodes.Action_WaitForChildSensor(
-            ref bb.SpawnConfig, ref state, ref ctx);
+        var waitResult2 = EqsLifecycleNodes.Action_WaitForChildSensor(ref bb.SpawnConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, waitResult2);
 
         // Step 7: BindSensorHandle -- copies SpawnedHandle to MoveConfig.SensorHandle.
@@ -335,7 +332,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
 
         // Step 8: Action_MoveToOptimalCover -- reads from child buffer, activates locomotion.
         _repo.AddComponent(_parent, new LocomotionChannel());
-        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref bb.MoveConfig, ref state, ref ctx);
+        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref bb.MoveConfig, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, moveResult);
 
         ref readonly var channel = ref _repo.GetComponentRO<LocomotionChannel>(_parent);

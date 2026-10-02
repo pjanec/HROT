@@ -19,6 +19,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors.Logging;
 using Hrot.Map.Definitions.Behavior;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -71,12 +72,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The sensor whose answer is awaited, or <see cref="Entity.Null"/>. While it is being created it is FOUND
         /// (an ECB handle is not an entity) and cached once it exists.</summary>
-        private static Entity InFlightSensor(ref HillAttackMutableState s, ref BTreeContext ctx)
+        private static Entity InFlightSensor(ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             if (s.CachedEqsRequestId == -1) return Entity.Null;
             if (s.CachedEqsRequestId == SensorBeingCreated)
             {
-                var found = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
+                var found = EqsChildSensor.Find(world, self, AreaSensorInstanceId);
                 if (!found.IsNull) s.CachedEqsRequestId = (long)found.PackedValue;
                 return found;
             }
@@ -89,10 +90,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// Computes firing-line slot count and zeroes all mutable bitmasks.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        // S3-G: no [BTreeAction] — stateful (4-param) nodes are bound by the JSON emitter's stateful
-        // thunk / the code builder's StatefulAction helper, not FbtActionRegistrar's generic path.
-        public static NodeStatus Action_CalculateSegments(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        // ⭐ CE-504 C-2 — the shared stateful form (ref P, ref WS, Entity, EntityRepository), bound by the JSON emitter's
+        //   stateful thunk and the code builder's StatefulAction.
+        [SharedAiAction]
+        public static NodeStatus Action_CalculateSegments(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             var start = new Vector2(p.StartX, p.StartY);
             var end   = new Vector2(p.EndX,   p.EndY);
@@ -110,7 +111,7 @@ namespace Hrot.AI.Behaviors.Brains
             s.CachedEqsRequestId  = -1;
             s.EqsRequestTime      = 0f;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
+                BehaviorLog.Debug(self, world, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
             return NodeStatus.Success;
         }
 
@@ -120,25 +121,25 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>IntentId = "MoveToLocation"</c>.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        public static NodeStatus Action_DispatchAllToBaseline(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_DispatchAllToBaseline(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
+            if (!world.HasComponent<UnitRoster>(self))
                 return NodeStatus.Success;
 
-            ref readonly var roster = ref ctx.World.GetComponentRO<UnitRoster>(ctx.Self);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
 
             s.BaselineReservedMask = 0;
             int count = roster.Count;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Dispatching baseline move intents. Subordinates=" + count + ".");
+                BehaviorLog.Debug(self, world, "Dispatching baseline move intents. Subordinates=" + count + ".");
 
             for (int i = 0; i < count; i++)
             {
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
+                if (!CombatLife.IsAlive(world, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Interpolate baseline position for this tank.
                 float t  = count > 1 ? (float)i / (count - 1) : 0.5f;
@@ -157,7 +158,7 @@ namespace Hrot.AI.Behaviors.Brains
                     dto,
                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
-                ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
+                world.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
                     Entity     = sub,
                     IntentId   = "MoveToLocation",
@@ -167,7 +168,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (i < 16) s.BaselineReservedMask |= (ushort)(1 << i);
             }
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Baseline dispatch complete. ReservedMask=" + s.BaselineReservedMask + ".");
+                BehaviorLog.Debug(self, world, "Baseline dispatch complete. ReservedMask=" + s.BaselineReservedMask + ".");
             return NodeStatus.Success;
         }
 
@@ -178,14 +179,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// Dead subordinates count as arrived.
         /// Returns <see cref="NodeStatus.Running"/> if any alive subordinate has not yet arrived.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Condition_AreAllAtBaseline(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Condition_AreAllAtBaseline(ref PlatoonHillAttackParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
+            if (!world.HasComponent<UnitRoster>(self))
                 return NodeStatus.Success;
 
-            ref readonly var roster = ref ctx.World.GetComponentRO<UnitRoster>(ctx.Self);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
             int count = roster.Count;
             int arrivedCount = 0;
 
@@ -194,30 +194,30 @@ namespace Hrot.AI.Behaviors.Brains
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!CombatLife.IsAlive(ctx.World, sub)) continue;  // dead (knocked out or gone) = counts as arrived
+                if (!CombatLife.IsAlive(world, sub)) continue;  // dead (knocked out or gone) = counts as arrived
 
-                if (!ctx.World.HasComponent<NavigationStatus>(sub))
+                if (!world.HasComponent<NavigationStatus>(sub))
                 {
                     if (BehaviorLog.IsTraceEnabled)
-                        BehaviorLog.Trace(ref ctx, "Baseline wait: subordinate=" + sub.Index + " missing NavigationStatus.");
+                        BehaviorLog.Trace(self, world, "Baseline wait: subordinate=" + sub.Index + " missing NavigationStatus.");
                     return NodeStatus.Running;
                 }
 
-                ref readonly var nav = ref ctx.World.GetComponentRO<NavigationStatus>(sub);
+                ref readonly var nav = ref world.GetComponentRO<NavigationStatus>(sub);
 
                 // Treat Arrived, FailedBlocked, and FailedUnreachable as completion.
                 // Only block the sequence if the tank is actively still trying to move.
                 if (nav.Result == NavigationResult.InProgress)
                 {
                     if (BehaviorLog.IsTraceEnabled)
-                        BehaviorLog.Trace(ref ctx, "Baseline wait: arrived=" + arrivedCount + "/" + count + " blockingSub=" + sub.Index + ".");
+                        BehaviorLog.Trace(self, world, "Baseline wait: arrived=" + arrivedCount + "/" + count + " blockingSub=" + sub.Index + ".");
                     return NodeStatus.Running;
                 }
                 arrivedCount++;
 
             }
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "All subordinates at baseline. Arrived=" + arrivedCount + "/" + count + ".");
+                BehaviorLog.Debug(self, world, "All subordinates at baseline. Arrived=" + arrivedCount + "/" + count + ".");
             return NodeStatus.Success;
         }
 
@@ -229,21 +229,21 @@ namespace Hrot.AI.Behaviors.Brains
         /// Returns <see cref="NodeStatus.Running"/> while the sensor is being created or a refreshed answer is still in flight,
         /// <see cref="NodeStatus.Success"/> once the question is asked, <see cref="NodeStatus.Failure"/> without a live area.
         /// </summary>
-        public static NodeStatus Action_RequestAreaQuery(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_RequestAreaQuery(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             // Guard: a question already in flight is not asked twice.
-            var inFlight = InFlightSensor(ref s, ref ctx);
+            var inFlight = InFlightSensor(ref s, self, world);
             if (inFlight.IsNull && s.CachedEqsRequestId == SensorBeingCreated)
                 return NodeStatus.Running;       // still being created
             if (!inFlight.IsNull)
             {
-                if (ctx.World.IsAlive(inFlight) && ctx.World.HasComponent<EqsCognitiveBuffer>(inFlight))
+                if (world.IsAlive(inFlight) && world.HasComponent<EqsCognitiveBuffer>(inFlight))
                 {
-                    if (!ctx.World.GetComponentRO<EqsCognitiveBuffer>(inFlight).IsReady)
+                    if (!world.GetComponentRO<EqsCognitiveBuffer>(inFlight).IsReady)
                     {
                         if (BehaviorLog.IsTraceEnabled)
-                            BehaviorLog.Trace(ref ctx, "EQS area query in flight. Sensor=" + inFlight.Index + ".");
+                            BehaviorLog.Trace(self, world, "EQS area query in flight. Sensor=" + inFlight.Index + ".");
                         return NodeStatus.Running;
                     }
                     return NodeStatus.Success;   // answered; the next node consumes it
@@ -252,32 +252,32 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Guard: TargetAreaEntity must be alive before submitting a query.
-            if (p.TargetAreaEntity.IsNull || !ctx.World.IsAlive(p.TargetAreaEntity))
+            if (p.TargetAreaEntity.IsNull || !world.IsAlive(p.TargetAreaEntity))
             {
-                BehaviorLog.Error(ref ctx, "TargetAreaEntity is null or dead. Cannot execute area query.");
+                BehaviorLog.Error(self, world, "TargetAreaEntity is null or dead. Cannot execute area query.");
                 // ⭐ CE-482 — FAIL LOUD: no area means the attack cannot be planned; the run ends Faulted, the plan halts.
-                BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.MissingInput,
+                BehaviorFault.Raise(world, self, BehaviorFaultCode.MissingInput,
                     "Hill attack: the target area entity is missing or dead.");
                 return NodeStatus.Failure;
             }
 
             var config = AreaSensor(p.TargetAreaEntity);
-            var sensor = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
+            var sensor = EqsChildSensor.Find(world, self, AreaSensorInstanceId);
             if (sensor.IsNull)
             {
                 // ⭐ The creation IS the question. CE-485: on the live world the sensor exists at once; only a deferred view
                 //   (Null) leaves it to be found after playback.
-                sensor = EqsChildSensor.Ensure(ctx.World, ctx.Self, AreaSensorInstanceId, config);
+                sensor = EqsChildSensor.Ensure(world, self, AreaSensorInstanceId, config);
                 s.CachedEqsRequestId = sensor.IsNull ? SensorBeingCreated : (long)sensor.PackedValue;
             }
             else
             {
-                EqsChildSensor.Refresh(ctx.World, sensor, config);   // ask again: a new epoch, the old answer cleared
+                EqsChildSensor.Refresh(world, sensor, config);   // ask again: a new epoch, the old answer cleared
                 s.CachedEqsRequestId = (long)sensor.PackedValue;
             }
-            s.EqsRequestTime = ctx.World.SimulationTime;
+            s.EqsRequestTime = world.SimulationTime;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Asked the EQS area query. Sensor=" + (sensor.IsNull ? "creating" : sensor.Index.ToString()) + ".");
+                BehaviorLog.Debug(self, world, "Asked the EQS area query. Sensor=" + (sensor.IsNull ? "creating" : sensor.Index.ToString()) + ".");
             return NodeStatus.Success;
         }
 
@@ -289,49 +289,49 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="NodeStatus.Success"/> when targets are present. ⭐ <c>CachedEqsRequestId</c> is NOT cleared on Success
         /// (SC-HA011-5): the dispatch reads the answer from the same sensor.
         /// </summary>
-        public static NodeStatus Condition_IsAreaQueryResolved(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Condition_IsAreaQueryResolved(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             if (s.CachedEqsRequestId == -1)
                 return NodeStatus.Failure;  // guard; should not occur in correct topology
-            var sensor = InFlightSensor(ref s, ref ctx);
+            var sensor = InFlightSensor(ref s, self, world);
 
-            bool ready = ctx.World.IsAlive(sensor)
-                && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor)
-                && ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady;
+            bool ready = world.IsAlive(sensor)
+                && world.HasComponent<EqsCognitiveBuffer>(sensor)
+                && world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady;
             if (!ready)
             {
-                if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
+                if (world.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
-                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s.");
+                    BehaviorLog.Error(self, world, "EQS area query timed out after 5.0s.");
                     // ⭐ CE-482 — FAIL LOUD: with no area on the Muscle the sensor answers NOTHING (EQS §17.5), so silence
                     //   means the question cannot be answered — never a quiet "area clear".
-                    BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.NoAnswerTimeout,
+                    BehaviorFault.Raise(world, self, BehaviorFaultCode.NoAnswerTimeout,
                         "Hill attack: the EQS area sensor did not answer within 5 s.");
-                    EqsChildSensor.Destroy(ctx.World, sensor);
+                    EqsChildSensor.Destroy(world, sensor);
                     s.CachedEqsRequestId = -1;
                     return NodeStatus.Failure;
                 }
                 if (BehaviorLog.IsTraceEnabled)
-                    BehaviorLog.Trace(ref ctx, "Waiting EQS result.");
+                    BehaviorLog.Trace(self, world, "Waiting EQS result.");
                 return NodeStatus.Running;
             }
 
-            int count = ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
+            int count = world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
             if (count == 0)
             {
                 // Area cleared: break out of the Repeater so the BTree can finish; the sensor is no longer needed.
-                EqsChildSensor.Destroy(ctx.World, sensor);
+                EqsChildSensor.Destroy(world, sensor);
                 s.CachedEqsRequestId = -1;
                 s.EqsRequestTime     = 0f;
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. targets=0.");
+                    BehaviorLog.Debug(self, world, "EQS resolved clear area. targets=0.");
                 return NodeStatus.Failure;
             }
 
             s.EqsRequestTime = 0f;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "EQS resolved targets. targets=" + count + ".");
+                BehaviorLog.Debug(self, world, "EQS resolved targets. targets=" + count + ".");
             return NodeStatus.Success;
         }
 
@@ -342,8 +342,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// then publishes <see cref="AssignTacticalIntentEvent"/> for each selected tank.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        public static NodeStatus Action_DispatchWaveWithTargets(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_DispatchWaveWithTargets(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             s.WaveUsedSlotsMask   = 0;
             s.ActiveAttackerCount = 0;
@@ -352,10 +352,10 @@ namespace Hrot.AI.Behaviors.Brains
             // The answer: Brain-local target entities from the area sensor's buffer (copied — the loop below publishes).
             long* targets = stackalloc long[EqsResultPool.MaxTopK];
             int targetCount = 0;
-            var sensor = InFlightSensor(ref s, ref ctx);
-            if (!sensor.IsNull && ctx.World.IsAlive(sensor) && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor))
+            var sensor = InFlightSensor(ref s, self, world);
+            if (!sensor.IsNull && world.IsAlive(sensor) && world.HasComponent<EqsCognitiveBuffer>(sensor))
             {
-                ref readonly var answer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor);
+                ref readonly var answer = ref world.GetComponentRO<EqsCognitiveBuffer>(sensor);
                 if (answer.IsReady)
                 {
                     var results = answer.GetSpanRO();
@@ -365,7 +365,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             int targetModulus = targetCount == 0 ? 1 : targetCount;  // avoid divide-by-zero
 
-            if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
+            if (!world.HasComponent<UnitRoster>(self))
             {
                 s.CachedEqsRequestId      = -1;
                 s.EqsRequestTime          = 0f;
@@ -373,7 +373,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Success;
             }
 
-            ref readonly var roster = ref ctx.World.GetComponentRO<UnitRoster>(ctx.Self);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
             int rosterCount  = roster.Count;
             bool allParticipate = rosterCount <= 3;
             int* avail = stackalloc int[16];
@@ -385,7 +385,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
+                if (!CombatLife.IsAlive(world, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
@@ -399,7 +399,7 @@ namespace Hrot.AI.Behaviors.Brains
 
                 if (availCount == 0)
                 {
-                    BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
+                    BehaviorLog.Warn(self, world, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
                     continue;  // no slots left; skip tank
                 }
                 // ⭐⭐ CE-202 — REPRODUCIBLE, not fixed. This drew from Random.Shared, so two runs of the
@@ -409,7 +409,7 @@ namespace Hrot.AI.Behaviors.Brains
                 //    ⛔ SlotOps.PickRandomFreeSlot — the curated twin of this very line — has carried
                 //    the deterministic form since architect Q#8-C mandated it. This is the oracle
                 //    adopting it, not a new invention.
-                var slotRng = SimRng.FromSim((int)sub.Index, s.CurrentWave, ctx.World.SimulationTime);
+                var slotRng = SimRng.FromSim((int)sub.Index, s.CurrentWave, world.SimulationTime);
                 int firingSlot = avail[slotRng.NextInt(0, availCount)];
 
                 // Interpolate firing-slot world position.
@@ -427,10 +427,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);
-                    if (CombatLife.IsAlive(ctx.World, targetEntity)   // CE-466: never aim at a knocked-out target
-                        && ctx.World.HasComponent<NetworkIdentity>(targetEntity))
+                    if (CombatLife.IsAlive(world, targetEntity)   // CE-466: never aim at a knocked-out target
+                        && world.HasComponent<NetworkIdentity>(targetEntity))
                     {
-                        targetNetId = ctx.World.GetComponentRO<NetworkIdentity>(targetEntity).Value;
+                        targetNetId = world.GetComponentRO<NetworkIdentity>(targetEntity).Value;
                     }
                 }
 
@@ -452,7 +452,7 @@ namespace Hrot.AI.Behaviors.Brains
 
                 if (BehaviorLog.IsDebugEnabled)
                 {
-                    BehaviorLog.Debug(ref ctx, "Dispatched subordinate Entity:" + sub.Index
+                    BehaviorLog.Debug(self, world, "Dispatched subordinate Entity:" + sub.Index
                         + " to FiringSlot=" + firingSlot + " BaselineSlot=" + baselineSlot
                         + " TargetNetworkId=" + targetNetId + ".");
                 }
@@ -477,7 +477,7 @@ namespace Hrot.AI.Behaviors.Brains
                     dto,
                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
-                ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
+                world.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
                     Entity     = sub,
                     IntentId   = "HullDownAttack",
@@ -489,7 +489,7 @@ namespace Hrot.AI.Behaviors.Brains
             s.EqsRequestTime          = 0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");
+                BehaviorLog.Debug(self, world, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");
             return NodeStatus.Success;
         }
 
@@ -501,8 +501,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// to baseline (or were killed).
         /// Returns <see cref="NodeStatus.Running"/> while any attacker is still active.
         /// </summary>
-        public static NodeStatus Condition_IsWaveCompleted(
-            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Condition_IsWaveCompleted(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, Entity self, EntityRepository world)
         {
             if (s.ActiveAttackerCount == 0) return NodeStatus.Success;
 
@@ -511,7 +511,7 @@ namespace Hrot.AI.Behaviors.Brains
                 long packed    = s.ActiveEntityPacked[i];
                 var attacker   = new Entity((ulong)packed);
 
-                if (!CombatLife.IsAlive(ctx.World, attacker))   // CE-466: knocked out (Health <= 0) or gone
+                if (!CombatLife.IsAlive(world, attacker))   // CE-466: knocked out (Health <= 0) or gone
                 {
                     // Tank died: permanently burn the slot it was assigned.
                     s.BurnedSlotsMask     |= (ushort)(1 << s.ActiveSlotIndex[i]);
@@ -522,9 +522,9 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     // Intent is still propagating through the ingress pipeline.
                     // Once we see the HullDownAttackRun hash, mark as started.
-                    if (ctx.World.HasComponent<BehaviorState>(attacker))
+                    if (world.HasComponent<BehaviorState>(attacker))
                     {
-                        var beh = ctx.World.GetComponent<BehaviorState>(attacker);
+                        var beh = world.GetComponent<BehaviorState>(attacker);
                         if (beh.ActiveBehaviorHash == HullDownAttackRunBehaviorId)
                             s.HasStartedRun[i] = 1;
                     }
@@ -533,9 +533,9 @@ namespace Hrot.AI.Behaviors.Brains
                 else
                 {
                     // HasStartedRun == 1: check whether the run has finished.
-                    if (ctx.World.HasComponent<BehaviorState>(attacker))
+                    if (world.HasComponent<BehaviorState>(attacker))
                     {
-                        var beh = ctx.World.GetComponent<BehaviorState>(attacker);
+                        var beh = world.GetComponent<BehaviorState>(attacker);
                         if (beh.ActiveBehaviorHash != HullDownAttackRunBehaviorId)
                         {
                             // Run complete (returned to baseline or abort path).
@@ -550,12 +550,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (s.ActiveAttackerCount == 0)
             {
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "Wave completed.");
+                    BehaviorLog.Debug(self, world, "Wave completed.");
                 return NodeStatus.Success;
             }
 
             if (BehaviorLog.IsTraceEnabled)
-                BehaviorLog.Trace(ref ctx, "Waiting wave completion. ActiveAttackers=" + s.ActiveAttackerCount + ".");
+                BehaviorLog.Trace(self, world, "Waiting wave completion. ActiveAttackers=" + s.ActiveAttackerCount + ".");
             return NodeStatus.Running;
         }
 
@@ -578,7 +578,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx,
             int paramIndex)
         {
-            EqsChildSensor.Destroy(ctx.World, InFlightSensor(ref s, ref ctx));
+            EqsChildSensor.Destroy(ctx.World, InFlightSensor(ref s, ctx.Self, ctx.World));
             s.CachedEqsRequestId = -1;
         }
 

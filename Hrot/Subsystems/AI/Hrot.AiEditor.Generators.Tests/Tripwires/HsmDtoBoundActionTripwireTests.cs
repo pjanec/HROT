@@ -230,7 +230,11 @@ namespace Synthetic
             var simple = name.Contains('.') ? name[(name.LastIndexOf('.') + 1)..] : name;
             if (simple.EndsWith("Attribute", StringComparison.Ordinal))
                 simple = simple[..^"Attribute".Length];
-            return DtoBindingAttributes.Contains(simple, StringComparer.Ordinal);
+            // ⭐ CE-504 C-2 — only the LEGACY (Type, field) form names a DTO. The parameterless form is the shared C# node
+            //   signature (DESIGN_BTree_Node_Call_Shapes.md §4): it binds no DTO at a baked offset — the asset binding says
+            //   where the variable lives, one generated call per binding (CE-417 B-2) — so it is not this tripwire's subject.
+            return DtoBindingAttributes.Contains(simple, StringComparer.Ordinal)
+                && attr.ArgumentList is { Arguments.Count: > 0 };
         }
 
         private static bool IsBuildOutput(string path)

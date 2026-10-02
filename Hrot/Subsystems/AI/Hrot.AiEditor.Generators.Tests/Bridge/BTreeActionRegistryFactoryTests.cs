@@ -26,10 +26,20 @@ public sealed class BTreeActionRegistryFactoryTests
     private static readonly System.Reflection.Assembly BehaviorsAssembly =
         typeof(Hrot.AI.Behaviors.Trees.SampleScout).Assembly;
 
+    /// <summary>⭐ <c>CE-504</c> slice 3: these methods are shared C# nodes now, so the per-method <c>[FbtRegistrar]</c> adapters
+    /// are gone and the curated registrar supplies the runtime thunks (<c>SharedNodeBinder.CopyRuntimeThunks</c>) into the
+    /// registry it is handed — the same registry hot reload hands it. The claim is unchanged: the keys resolve.</summary>
+    private static Fbt.Runtime.ActionRegistry<byte, Fdp.Toolkit.Behavior.BTreeContext> RuntimeRegistry()
+    {
+        var registry = BTreeActionRegistryFactory.BuildFromAssembly(BehaviorsAssembly);
+        Hrot.AI.Behaviors.Generated.CuratedBehaviorRegistrar.Register(new BehaviorRegistry(), registry);
+        return registry;
+    }
+
     [Fact]
     public void BuildFromAssembly_PopulatesRegistry_WithRealBoundActions()
     {
-        var registry = BTreeActionRegistryFactory.BuildFromAssembly(BehaviorsAssembly);
+        var registry = RuntimeRegistry();
 
         // The method name baked into CombatShowcase's blob; if the registry is empty the
         // interpreter would silently substitute the Failure fallback at Tick time.
@@ -43,7 +53,7 @@ public sealed class BTreeActionRegistryFactoryTests
     [Fact]
     public void BuildFromAssembly_ResolvesTypedConditionBridge_AtOffsetZero()
     {
-        var registry = BTreeActionRegistryFactory.BuildFromAssembly(BehaviorsAssembly);
+        var registry = RuntimeRegistry();
 
         // A DTO-param condition is registered by FbtActionRegistrar as an @0 bridge closure
         // (Unsafe.As projection of the blackboard's first bytes) — the VE-DEBT-002 mechanism.

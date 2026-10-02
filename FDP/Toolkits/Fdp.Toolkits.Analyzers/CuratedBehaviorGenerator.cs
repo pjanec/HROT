@@ -237,7 +237,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     // and the resulting Slots must be on the definition before it is constructed
                     // (StatefulWorkingSlots is `init`). HostedSubtree.Tick THROWS on a slot the
                     // manifest never declared, so the plan and the Bind ship together or neither.
-                    sb.AppendLine("            var __blob" + safe + " = " + catalogNs + "FbtTreeCatalog.Get" + safe + "(isResourceOwning);");
+                    // ⭐ CE-504 slice 3 — the runtime overload: the shared-node verbs' byte thunks land in actionRegistry.
+                    sb.AppendLine("            var __blob" + safe + " = " + catalogNs + "FbtTreeCatalog.Get" + safe + "(isResourceOwning, actionRegistry);");
                     sb.AppendLine("            var __plan" + safe + " = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(__blob" + safe + ", " + Q(t.Name) + ");");
                     sb.AppendLine("            var __interp" + safe + " = new global::Fbt.Runtime.Interpreter<byte, global::Fdp.Toolkit.Behavior.BTreeContext>(__blob" + safe + ", actionRegistry);");
                     // Hosting is opt-in per interpreter; without this a Subtree node returns Failure.

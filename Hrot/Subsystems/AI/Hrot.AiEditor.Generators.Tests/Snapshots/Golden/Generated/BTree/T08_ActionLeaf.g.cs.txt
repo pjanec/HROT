@@ -16,7 +16,7 @@ public static class T08_ActionLeaf
 {
     public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
         new BTreeBuilder<byte, BTreeContext>()
-            .Action(CgfNodes.Action_Wander,
+            .Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                 visualId: new Guid("b9020000-0000-0000-0000-000000000001"));
 
     [BTreeDefinition("T08_ActionLeaf", AssetId = "bb000009-0000-0000-0000-000000000000")]

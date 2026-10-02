@@ -45,7 +45,8 @@ public static class T10_MultiActionRegistrar
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ref st, ref ctx);
+                    var status = global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ctx.Self, ctx.World);
+                    return status;
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum@8",
@@ -55,7 +56,8 @@ public static class T10_MultiActionRegistrar
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum(ref dto, ref st, ref ctx);
+                    var status = global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum(ref dto, ctx.Self, ctx.World);
+                    return status;
                 }
             });
 
@@ -67,7 +69,8 @@ public static class T10_MultiActionRegistrar
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold(ref dto, ref st, ref ctx);
+                    var status = global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold(ref dto, ctx.Self, ctx.World);
+                    return status;
                 }
             });
 

@@ -22,7 +22,7 @@ public static class BTreeRenderShowcase
                 {
                     seq.Repeater(3, d5 => d5
                         .Inverter(d6 => d6
-                            .Action(CgfNodes.Action_Wander,
+                            .Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                                 visualId: new Guid("bb060000-0000-0000-0000-000000000001")),
                             visualId: new Guid("bb110000-0000-0000-0000-000000000001")),
                         visualId: new Guid("bb120000-0000-0000-0000-000000000001"));
@@ -35,7 +35,7 @@ public static class BTreeRenderShowcase
                 sel.Parallel(0, par =>
                 {
                     par.ForceSuccess(d5 => d5
-                        .Action(CgfNodes.Action_Wander,
+                        .Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                             visualId: new Guid("bb080000-0000-0000-0000-000000000001")),
                         visualId: new Guid("bb140000-0000-0000-0000-000000000001"));
                     par.ForceFailure(d5 => d5

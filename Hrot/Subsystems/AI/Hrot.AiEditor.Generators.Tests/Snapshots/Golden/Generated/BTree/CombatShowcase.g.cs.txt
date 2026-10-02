@@ -22,7 +22,7 @@ public static class CombatShowcase
                 {
                     seq.Cooldown(2f, d5 => d5
                         .Repeater(3, d6 => d6
-                            .Action(CgfNodes.Action_Wander,
+                            .Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                                 visualId: new Guid("50000000-0000-0000-0000-000000000001")),
                             visualId: new Guid("51000000-0000-0000-0000-000000000001")),
                         visualId: new Guid("52000000-0000-0000-0000-000000000001"));
