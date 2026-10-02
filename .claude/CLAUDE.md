@@ -419,50 +419,22 @@ validator **two lines above** the window it did not hand it to.
 ⇒ ⭐ **The control: a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED OBJECT** — not on the
 registrar's source. ⚠ **A silent default is only a defect when the caller could have done better.**
 
-## ⛔⛔ WHO DESIGNS — **AMENDED `2026-08-26`: coordinator FRAMES, sessions design the DETAILS at scale**
+## ⭐⭐ WHO DESIGNS — **ANY LANE** *(user, `2026-10-02` — SUPERSEDES the coordinator-frames rule)*
 
-### ⭐⭐⭐ AMENDMENT `2026-08-26` — **FRAME-DELEGATION** *(user ruling — SUPERSEDES the blanket form below)*
-> ⭐⭐⭐ **User, verbatim:** *"you are coordinating 3 sessions already. that is too much to design everything
-> for everyone, you need to delegate. Let the session do it. give them just a frame and let the details on
-> them, they can focus… you are coordinator, but you do not be a designer for all 3 sessions at once."*
+> 🔒 **User, verbatim:** *"each branch is handling its own design of (usually) its own topics, although many times
+> the designs are naturally cross-lane. So there is no longer any restrictions of who writes designs."*
 
-⛔⛔ **At multi-lane scale the coordinator does NOT author the full design *(inventory + UML + exact seams)*
-for every lane** — that made the coordinator the bottleneck. ⭐⭐ **Instead the coordinator writes a FRAME and
-the implementation session designs the details WITHIN it, as step 1 of its batch.**
-
-| ⭐ the coordinator OWNS *(the FRAME)* | ⭐ the session OWNS *(the DETAIL, within the frame)* |
+| ⭐ the rule | |
 |---|---|
-| the **goal** + why · the **lane fences / cross-lane touch-points** · the **key decisions with a lean** · the **design basis to read** *(docs + prior art)* · the **acceptance shape** | the **inventory** *(its own `search_graph`)* · the **class + sequence UML** *(authored in the design doc)* · the exact seams · the item breakdown |
-| ⭐⭐ **large-blast-radius decisions still get an architect question resolved WITH the user** *(e.g. a serialization/engine contract)* — ⛔ those are NOT delegated | ⭐ ordinary design calls inside the frame — decide-and-log |
+| ⭐⭐ **the lane that owns a topic designs it** — investigation, `INVENTORY`, UML, the design doc in `docs/` | ⭐ a design that crosses lanes is written by whichever lane needs it; ⛔ it still links every neighbouring design **both ways** *(`related-designs`)* |
+| ⭐⭐ **when one lane hands work to another, it may send a FRAME** *(goal, fences, key decisions with leans, design basis, acceptance)* and let the receiver design the details as step 1 | ⭐ the receiver authors the UML in `docs/`, builds against it, folds the as-built; ⭐ the dispatcher verifies the design exists on return |
+| ⭐⭐ **large-blast-radius decisions still go to the USER** — an architect question with a lean per sub-question | ⛔ never decided silently by whichever lane happens to touch it |
+| ⭐ **when a premise fails mid-build: STOP THAT ITEM, NEVER THE BATCH** *(`R-106`)* | ⭐ do every item that is not blocked; only a genuine dependency may cascade, named in the report |
+| ⭐ **subagents are the instrument for corpus sweeps** — parallel read-only `Explore` agents over `docs/` and `.dev/`, one per topic | ⛔ do not spend a build batch on a question one subagent pass answers |
 
-⭐⭐ **Interaction with NO-IMPLEMENTATION-WITHOUT-UML:** the UML still exists before the build — but the
-**SESSION authors it** *(design doc, step 1)*, then builds against it, then folds the as-built *(obligations ③+⑤)*.
-⭐ **The coordinator VERIFIES the design+UML exists and matches on RETURN** *(obligation ④ becomes verify-on-merge)*
-— ⛔ a returned batch with no design/UML is incomplete, send it back.
-⭐ **A frame-handoff says: "investigate → write the design (with UML) in `docs/` → build → fold as-built."**
-
-⚠ **The blanket `2026-08-15` rule below still holds for a SINGLE lane / when the coordinator has bandwidth**,
-and the coordinator still does its OWN corpus sweep to SET the frame's intent *(R-129)*. ⛔ What changed: the
-coordinator no longer draws every lane's UML — it frames and verifies.
-
-### ⛔ HISTORY — the original blanket rule *(`2026-08-15`; SUPERSEDED at scale by the amendment above)*
-
-> ⭐⭐⭐ **User, verbatim:** *"you are doing the designs, not them. if you need info, do your own subagent
-> scan."*
-
-📌 **The case that produced this rule:** the coordinator put a `.dev/` design-record sweep into a batch
-as *"item one"*. ⛔ **That is research feeding a design decision — coordinator work.** ⭐ **The
-implementation session builds; it does not source the design it builds from.**
-
-| ⭐ **coordinator** | ⛔ **implementation session** |
-|---|---|
-| sweeps `.dev/`, reads the design corpus, **runs its own subagent scans** | writes code, tests, gates |
-| decides what the design IS, and revises the plan | reports what the code MEASURES |
-| takes contradictions to the user | ⭐ **STOPs and reports** when a premise fails — ⛔⛔ **but STOPS THAT ITEM, NEVER THE BATCH** *(`R-106`, user `2026-08-19`)*: ⭐ **do every item that is not blocked**, and ⛔ **only a genuine DEPENDENCY may cascade, named in the report** |
-
-⭐ **Subagents are the coordinator's instrument for this** — parallel read-only `Explore` agents over
-`.dev/`, one per topic, each asked for *record → confirms/refines/contradicts → what it did not cover*.
-⛔ **Do not spend an implementation batch on a question a subagent can answer in one pass.**
+⛔ **HISTORY — superseded `2026-10-02`:** `2026-08-15` *"you are doing the designs, not them"* (the coordinator
+designs, implementation builds) → `2026-08-26` FRAME-DELEGATION (the coordinator frames, sessions design details).
+⭐ What survives: the frame-handoff shape (row 2), R-106 (row 4), subagent sweeps (row 5).
 
 ## ⛔⛔⛔ NO LEAN WITHOUT A CLAIM TABLE — **and STAYING QUIET LONGER IS THE POINT** *(user, `2026-09-01`)*
 
@@ -953,83 +925,77 @@ different owning component** *(round-trips → `ScenarioSerializer.Deserialize`,
 symbol in TEST assemblies too and classify: mechanical `s/old/new/` *(minutes)* vs re-home-each-claim
 *(real work)*.** ⛔ **A re-home reroute is NOT a "1-minute deletion" — do not estimate it as one.**
 
-## Two-session protocol (coordinator ⇄ implementation) — **binding on both sessions**
+## Lane protocol — **PEER LANES, any lane may coordinate** *(user, `2026-10-02` — SUPERSEDES the coordinator ⇄ implementation protocol)*
 
-Both sessions share this repo, so **both load this file**. A *coordinator* session owns the tracker,
-writes handoffs and verifies returned diffs; an *implementation* session writes the code. Neither writes
-in the other's lane.
+> 🔒 **User, verbatim:** *"i started using individual branches instead of coordinator; each branch is handling its
+> own design of (usually) its own topics, although many times the designs are naturally cross-lane. So there is no
+> longer any restrictions of who writes designs. Sometimes i do coordination myself, sometimes one of the lanes
+> coordinate some other, as needed. basically every lane can be a coordinator."* · *"currently no dedicated
+> integration trunk, depends what lane is the most modern."*
 
-### ⭐ The lanes — **roles, not names**
+⭐⭐ **ROLE NAMES IN THE RULES BELOW.** Older rules say *coordinator* and *implementation session*. ⭐ Read them as
+ROLES IN ONE EXCHANGE, never as fixed lanes: **coordinator = the lane (or the user) that DISPATCHES, reviews or
+merges a piece of work; implementation session = the lane that RECEIVES and builds it.** ⇒ any lane can be either,
+and often both on different work in the same day. ⛔ No lane is "the coordinator" by name.
 
-⛔⛔ **THIS FILE NAMES NO *VOLATILE* BRANCH.** 📌 Every RANDOM-POSTFIXED name it ever carried went stale —
-one was recorded as *"retired"* while it was the live coordinator, two were re-pointed by the user in a
-single day, and one kept a name from a programme three months dead. ⇒ 🔒 **a postfixed session branch is
-told to it at dispatch, or found by ancestry — never read from here.**
+### ⭐ The lanes
 
-> ⭐⭐ **`2026-09-19` amendment — LANES RUN ON STABLE ROLE-NAMED BRANCHES; ANCESTRY STILL VERIFIES**
-> *(user)*. 🔒 **The enabling fact, verbatim:** *"the web harness adds a postfix but the session can be
-> switched to any concrete branch"* ⇒ a **role**-named branch does not rot the way a random suffix does.
-> The lanes below run on the STABLE names in the table; the harness may still mint a `…-<postfix>`
-> default, so **switch the session onto the bare name** at start. ⛔ **This does NOT reinstate "trust a
-> name":** the stable name says where a lane *runs*; `git merge-base` still says what a commit *descends
-> from*, and remains the only proof when confirming another lane's work or a session that has not
-> switched *(the ancestry recipe below is unchanged)*. ⭐⭐ **All lanes derive from `coordinator`** *(the
-> integration trunk)*, re-syncing from it at every run *(rule 7)*. ⭐ `session-design-brief.sh` keys the
-> coordinator brief on the name `coordinator` *(or `HROT_LANE=coordinator`)*. *(Indexed as `R-148`.)*
+⛔⛔ **THIS FILE NAMES NO *VOLATILE* BRANCH** — a random-postfixed session branch is told to a session, or found by
+ancestry. ⭐ **LANES RUN ON STABLE ROLE-NAMED BRANCHES** *(`R-148`)*; switch the session onto the bare name at start.
 
-| Lane | ⭐ stable branch | owns | typically |
-|---|---|---|---|
-| ⭐ **Coordinator** | **`coordinator`** | handoffs · design · the tracker · verify + merge — the trunk | ⛔ does NOT write code |
-| ⭐ **behaviors lane** | **`behaviors`** | BTree · HSM · Blueprint + behavior **infrastructure** — the unify/fix/develop work | implementation |
-| ⭐ **BACKEND lane** | **`backend`** | engine / orchestrator / project structure · test-suite reliability and harness — **any other backend** | implementation |
-| ⭐ **UI lane** | **`ui`** | the editor and **any** UI-facing surface — ⚠ not just CGF | implementation |
-| ⭐ **WINDOWS session** | *(none)* | what only a real Windows host can do — run the editor, drive the MCP surface, observe the live cluster | ⛔ **not a branch — a place to RUN things** |
+| Lane | ⭐ stable branch | owns *(its own topics — designs often cross lanes)* |
+|---|---|---|
+| ⭐ **behaviors lane** | **`behaviors`** | BTree · HSM · Blueprint + behaviour **infrastructure** |
+| ⭐ **BACKEND lane** | **`backend`** | engine / orchestrator / project structure · test-suite reliability and harness — any other backend |
+| ⭐ **UI lane** | **`ui`** | the editor and **any** UI-facing surface |
+| ⭐ **WINDOWS session** | *(none)* | what only a real Windows host can do — ⛔ **not a branch, a place to RUN things** |
+| *(`coordinator`)* | *(legacy)* | ⚠ the former trunk — still exists, **no longer special** |
 
-⚠ **More lanes may exist at any time** *(a programme-specific one is normal)*. ⭐ The rules below are
-written per-ROLE and hold however many there are. ⚠ **A NEW lane still starts by deriving from
-`coordinator`.**
+⚠ **More lanes may exist at any time.** ⭐ A new lane takes the next free **id block** *(below)* and starts from
+whichever lane carries what it builds on.
 
-> ⛔⛔ **THE THREE RULES THAT KEEP CONCURRENT IMPLEMENTATION LANES APART**
-> | ⭐ | |
-> |---|---|
-> | ⭐⭐⭐ **ONE ID PREFIX PER LANE** | ⛔ **Structural, not coordination** — 📌 id collisions have bitten this repo **three times**. ⭐ The prefixes in use are a PROGRAMME fact: read them from the tracker and the live handoffs, ⛔ never from this file |
-> | ⭐⭐ **TRACKER PARTITION** | each lane writes only its own tracker AREA ⇒ different regions of one file **merge cleanly** |
-> | ⭐ **NO CROSS-LANE FILES** | ⚠ **A cross-lane edit is a STOP-and-report**, not a judgement call |
+### ⭐⭐⭐ The rules that keep peer lanes apart
 
-⭐⭐ **Locate another lane's branch BY ANCESTRY, never by name** — the implementation branch is the one
-whose first commit of that run descends from a coordinator commit:
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **ONE ID BLOCK PER LANE** | 🔒 *User, `2026-10-02`: "assign item number base to each lane so no collisions are possible — renumbering is bad as number often gets written to sources as comments and might not be fixed on renumbering."* ⭐ Each lane allocates tracker ids ONLY from its own block of `CE-` numbers; the **block table lives in the tracker header** *(`Blueprint_Issues_Tracker.md`, "ID blocks")* — ⛔ never in this file, lanes change. ⭐ Inside a block: plain incrementing numbers *(rule 3a-id)*. ⛔⛔ **Never renumber an id** — collisions are prevented, not repaired. ⭐ Ids allocated before the blocks that collide are DISAMBIGUATED by a lane tag in the row *(e.g. `CE-459 (ui)`)*, never renumbered |
+| ⭐⭐ **TRACKER PARTITION** | each lane writes rows in its own tracker AREA ⇒ different regions of one file **merge cleanly**. ⚠ A convention for merges, not a fence |
+| ⭐⭐ **ANY LANE MAY WRITE OR EXTEND ANY DESIGN** | ⭐ the lane owning the topic writes it; a cross-lane design is written by whoever needs it. ⛔ The obligations do not relax: `R-129` read-first, UML, `related-designs` links **in both directions**, as-built fold-back |
+| ⭐ **A CROSS-LANE EDIT IS ALLOWED — AND SAID** | ⭐ name it in the commit message and the report *(which lane's file, why)*. ⛔ No longer a STOP. ⚠ The one exception is a user-declared **freeze** *(below)* |
 
+### ⭐⭐ Syncing — **no trunk; merge what you build on**
+
+⭐ There is **no integration trunk**. ⇒ **Before starting a piece of work, merge the lane(s) that carry what it
+builds on** — usually the most recent one — and **name them in the started note** *(rule 1b)*:
+*"started X at `<sha>`, merged `behaviors@<sha>`"*. ⭐ Prefer **merge over rebase** for a pushed branch — commit ids
+are cited in docs *(handoff "Dispatched at" stamps)* and a rebase breaks them. ⭐ **Before your final commit, merge
+again** if the lane you depend on moved *(rule 4)*.
+
+⭐⭐ **Locate another lane's work BY ANCESTRY** when it matters what a commit descends from:
 ```bash
-git branch -r | grep claude/                       # the candidates
-git log --oneline -1 <candidate>                   # and rule 1b's started-marker names the dispatch sha
-git merge-base --is-ancestor <coordinator-sha> <candidate>
+git fetch origin <lane>
+git merge-base --is-ancestor <sha> origin/<lane>
 ```
 
-⭐ **The implementation session ALWAYS branches from, and updates from, the coordinator branch.** Never
-from `main`, never from a previous implementation head that has drifted. Start every run with:
-
-```bash
-git fetch origin <coordinator-branch>              # told to you at dispatch
-git merge --ff-only origin/<coordinator-branch>    # or branch fresh from it
-```
-
-⭐ **The mechanic that causes every failure so far:** the implementation session does **not merge** the
-coordinator branch — it **builds linearly on top of whatever exists when it starts**. Anything the
-coordinator pushes after that moment is invisible for that whole run. Two ID collisions and one wasted
-document came from ignoring this.
+### ⭐ The exchange rules — **when ONE lane hands work to ANOTHER**
 
 | # | Rule | Owner |
 |---|---|---|
-| 1 | ⭐ **Never amend a handoff after dispatch.** New findings go in the *next* handoff, never back into the live one. This is the root cause of both collisions | coordinator |
-| 2 | **Stamp `Dispatched at <sha>` in every handoff header**, so an edit after that point is visibly illegal | coordinator |
-| 3a-id | ⛔⛔ **IDS ARE PLAIN INCREMENTING NUMBERS — NO LETTER SUFFIXES** *(user, `2026-09-12`: "why are you using `CE-259{xy}`, can't we incrementing the number?")*. 📐 Measured: **63** rows were spelled `CE-259a`…`CE-259bm` while `CE-259` itself is an unrelated tool-arbiter item and `CE-260`–`CE-262` were already in use ⇒ **the suffix encoded nothing and the space was never exhausted**. ⭐ **Allocate the next free plain number**; ⛔ never renumber existing ids *(they are cited from designs, commits and reports)*; ⭐ grouping goes in the row's PROSE, never in the number | both |
-| 3 | ⭐ **The coordinator allocates NO ids.** `BP-200+` failed too — both sessions reached into the same block (three collisions now). Describe findings; **the implementation session numbers them** when it creates the rows. Any number in a handoff is a placeholder the implementation session may change | coordinator |
-| 4 | ⭐ **Before your final commit, pull the coordinator branch again** and read any handoff/design file that changed. This is the cheap half of the fix — it catches late additions rule 1 cannot prevent | implementation |
-| 5 | **State the IDs you allocated** in your report, so a collision is caught at merge, not three batches later | implementation |
-| 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
-| 7 | ⭐ **Branch from the coordinator branch, and re-sync from it at the START of every run** (lane table above). This is the *other* half of rule 4: rule 4 catches what landed **during** your run, rule 7 catches what landed **before** it. Together they close the mechanic described above | implementation |
+| 1 | ⭐ **Never amend a handoff after dispatch.** New findings go in the *next* handoff | dispatching lane |
+| 2 | **Stamp `Dispatched at <sha>` in every handoff header** | dispatching lane |
+| 3a-id | ⛔⛔ **IDS ARE PLAIN INCREMENTING NUMBERS — NO LETTER SUFFIXES** *(user, `2026-09-12`)*, ⭐ allocated from your lane's block; grouping goes in the row's PROSE | every lane |
+| 3 | ⭐ **The lane that CREATES a row numbers it, from ITS block.** A number in a handoff is a placeholder | every lane |
+| 4 | ⭐ **Before your final commit, re-merge the lane(s) you depend on** and read any handoff/design file that changed | receiving lane |
+| 5 | **State the ids you allocated** in your report | every lane |
+| 6 | ⭐ **The tracker rows of a dispatched batch belong to the receiving lane for its duration** | both |
+| 7 | ⭐ **At the START of every run, merge what you build on** *(Syncing, above)* | every lane |
 
-### ⭐⭐⭐ Rule 8 — **the coordinator does NOT re-run the gates** *(user, `2026-08-17` — SUPERSEDES the `2026-08-16` version)*
+⛔ **HISTORY — superseded `2026-10-02`:** the protocol was *coordinator ⇄ implementation*: one `coordinator` trunk
+that wrote no code, every lane branching and re-syncing from it, one id PREFIX per lane, cross-lane edits a STOP,
+and *"the coordinator allocates no ids"*. ⚠ The id-prefix rule had already drifted into one shared `CE-` space,
+which is how `CE-459`/`460`/`507`/`508` came to mean two things each.
+
+### ⭐⭐⭐ Rule 8 — **the reviewing / merging lane does NOT re-run the gates** *(user, `2026-08-17`; roles per the lane protocol)*
 
 > ⭐⭐⭐ **User, verbatim:** *"you seem to run the same gates as the implementation session has already
 > done before reporting to you, this is an enormous waste of time; pls rather ask the implementation
@@ -1495,13 +1461,13 @@ checking — *the design for intent, the code for fact.*
 ⚠ **On `2026-08-17` I had READ documents and still missed their supersession banners four times** —
 ⭐ **reading is necessary and not sufficient; the step that fails is JOINING the canon to the work.**
 
-⛔⛔ **THE BRIEF IS A COORDINATOR OBLIGATION ONLY** *(`2026-08-18`)*. ⚠ **Once, an implementation session
-wrote a brief instead of starting its batch** — ⭐ **correctly following a rule written for the other
-lane.** ⇒ ⭐ **the hook detects the branch and tells an implementation lane to skip it**; ⛔ **if you are
-NOT the coordinator, your first move is rule 7 then rule 1b's started-marker, NOT a brief.**
+⭐⭐ **THE BRIEF IS PER LANE** *(user, `2026-10-02`: "keep design brief, but per lane")* — ⭐ **every lane writes it**,
+scoped to ITS OWN work: `in flight` and `moved lately` come from **this lane's** resume doc and branch, never another
+lane's. ⛔ SUPERSEDED: `2026-08-18` made it a coordinator-only obligation and had the hook tell every other lane to
+skip it — written when one lane did all the design; now every lane designs.
 
-⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, OPENS with
-this block — ⭐ and then ANSWERS THE USER'S QUESTION IN THE SAME REPLY.**
+⇒ ⭐⭐⭐ **The FIRST reply of every session, and the first after every compaction, OPENS with this block — ⭐ and
+then ANSWERS THE USER'S QUESTION IN THE SAME REPLY.**
 
 ⚠⚠ **`/compact` ends with NO assistant turn**, so a genuinely automatic post-compaction brief is **not
 achievable** — it can only land on the next thing the user types. ⛔⛔ **Therefore it must NEVER displace
@@ -1512,7 +1478,7 @@ was rejected, rightly: it made the user pay a round-trip for a check that is my 
 ⇒ ⭐ **The brief is a HEADER on the reply, ⛔ never a replacement for it.**
 
 ```
-DESIGN BRIEF (post-compaction)
+DESIGN BRIEF (post-compaction) -- lane: <lane>
   ledger      : N rulings, N/N probes verifying, staleness warnings on <files|none>
   in flight   : <batch + the sha its scope is frozen at, or "nothing">
   constrains  : <ruling ids that BIND what I am about to do>
@@ -1550,7 +1516,7 @@ three RANDOM ruling ids)*, plus a fresh look at both branches and the in-flight 
 ⛔ **It is NOT a promise to re-read everything** — ⭐ it is the same grounding pass the post-compaction
 hook forces, on demand.
 
-⚠ **On the implementation branch it is a no-op by design** — the brief is a coordinator obligation.
+⭐ **It works on every lane** and is scoped to that lane *(`2026-10-02`)*.
 
 ### ⚠ What this does NOT prove — **stated so nobody over-trusts it**
 
