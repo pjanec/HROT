@@ -1,16 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: READY-TO-BUILD — §5 decisions T-1..T-8 and slices E1-E6 APPROVED by the user 2026-10-02 ("approved").
-  Dispatched to a separate session: batches/HANDOFF_Typed_Event_Nodes.md.
-current-answer: §3 (diagrams) and §5 (decisions, each with a lean). §2 is the measured inventory.
-stale-below: nothing yet.
+build-state: BUILT — E1-E6 built 2026-10-02 (CE-2010…CE-2017; batches/REPORT_Typed_Event_Nodes.md). §5 decisions
+  T-1..T-8 APPROVED by the user 2026-10-02 ("approved").
+current-answer: §6 (AS BUILT — the classes, the sequence, and every deviation from §3/§4). §5 is the approved decisions
+  (still true). §2 is the measured inventory (its 🔴 rows I1/I4 are FIXED, §6).
+stale-below: §3's class diagram is the PRE-BUILD target: superseded by §6.1 (it named no EventPayload, no Stage 2.6,
+  no debug-id remap, and put the split "before Stage 5" without saying where).
 known-rot: none.
 known-conflict: docs/projects/relationships/Blueprint-Scripting-System.md:391 says "Each graph has exactly one entry
   node" — SUPERSEDED for Event graphs by this document (and the code never enforced it: §2 row I1).
 related-designs:
   - Custom_Events_Design.md — owns bus-event pub/sub (discovery, PublishEvent, dispatch §4.6, §7). This document
-    reshapes its SUBSCRIBE side (§4.5, open build items 4a/4b) from "one entry per Event graph" to typed event nodes.
+    reshapes its SUBSCRIBE side (§4.5, build items 4a/4b, now closed) from "one entry per Event graph" to typed event nodes.
   - Architect_Question_14_Custom_Events_PubSub.md — owns the approved rulings (A: reflection discovery, A2: migrate
     system events, C: the entry node IS the subscription primitive, D: dispatch). Honoured; C is generalised.
   - DESIGN_Unified_Behaviour_Run.md — owns fibers and the U-6 event policies (§4a S6a/S6b). Every typed event node
@@ -56,7 +58,7 @@ one entry node"* (a validator description the code does not enforce, I1). Q14-C 
 per graph. No doc rules on two subscribers to one event inside one asset. ⛔ searched `docs/`+`.dev/` for an Unreal-style
 multi-event graph: none found.
 
-## 3. The target
+## 3. The target *(pre-build — ⛔ the class diagram is superseded by §6.1)*
 
 ```mermaid
 classDiagram
@@ -130,3 +132,66 @@ thunk per event type that calls every handler of that type (I4), never two entri
 | T-6 | event data | ⭐ keep the per-field pins AND add one whole-event struct pin (`BreakStructNode` splits it) | struct pin only: every read needs an extra node |
 | T-7 | which graphs may hold event nodes | ⭐ Event graphs (any number). Function / custom-event / Macro graphs keep their one empty entry indicator (I10) | the Tick graph too ("Event Tick" as a node): sound later, but it changes the behaviour's finish contract (U-8) — its own question |
 | T-8 | order | ⭐ E1 now (stops two silent drops), then E2–E6; before S7 (Behaviour Task node), since it changes what an Event graph is | after S7: S7's completion fibers would be built on the old shape |
+
+## 6. AS BUILT *(2026-10-02, CE-2010…CE-2017)*
+
+### 6.1 Classes
+
+```mermaid
+classDiagram
+  class EventEntryNode { <<EXISTS, widened>> +EventTypeId +TargetFilterSelf +TargetFieldName +Policy +Capacity +Fields +MaxCapacity }
+  class EventPayload { <<NEW, static>> +IsTyped() +FieldsOf() +WholeEventPinName() +WholeEventInput +MigrateLegacyInputs() }
+  class Stage2_6_SplitEventHandlers { <<NEW>> one handler graph per typed event node }
+  class GraphFragmentCloner { <<EXISTS, widened>> +Clone(nodes, links, freshId) }
+  class Graph { <<EXISTS, widened>> +HandlerDebugIds (compile-time) }
+  class HandlerDebugIdentity { <<NEW>> rewrites a handler's debug ids }
+  class InstanceEmitter { <<EXISTS, widened>> +EventHandlerGroups() +EventTableThunk() }
+  class BlueprintEventPaletteEntries { <<EXISTS, widened>> +SubscribeEntries() }
+  class UnifiedEventDiscovery { <<EXISTS, widened>> + system events }
+  class EventEntryNodeDrawer { <<NEW>> Policy · Capacity · Self/Any }
+  class BlueprintDebugSession { <<EXISTS, widened>> +EntriesReaching() }
+  Stage2_6_SplitEventHandlers --> EventPayload : payload + whole-event input
+  Stage2_6_SplitEventHandlers --> GraphFragmentCloner : shared tail, deterministic ids
+  Stage2_6_SplitEventHandlers --> Graph : handler graphs + HandlerDebugIds
+  HandlerDebugIdentity --> Graph : reads HandlerDebugIds
+  BlueprintEventPaletteEntries --> UnifiedEventDiscovery
+  BlueprintEventPaletteEntries --> EventEntryNode : On X bakes Fields
+  EventEntryNodeDrawer --> EventEntryNode
+```
+
+### 6.2 Sequence — one authored graph to handlers, and back to the debugger
+
+```mermaid
+sequenceDiagram
+  participant D as JSON load
+  participant S0 as Stage 0
+  participant S26 as Stage 2.6 split
+  participant S5 as Stage 5
+  participant E as emit
+  participant DBG as debugger
+  D->>D: legacy typed graph: Graph.Inputs → node Fields (MigrateLegacyInputs)
+  S0->>S0: event pins from EventPayload.FieldsOf (+ Event pin)
+  S26->>S26: per typed node, its exec chain + the data it pulls, a shared tail cloned
+  S26-->>S5: handler graphs (first keeps id+name), HandlerDebugIds
+  S5->>S5: schedule each handler (state keys from the clones' own ids)
+  S5->>S5: HandlerDebugIdentity: debug ids → authored ids
+  S5-->>E: one Event_<handler> each · Instance: one table entry per event type
+  E-->>DBG: probes carry authored node ids
+  DBG->>DBG: next iteration starts at the event node(s) reaching the paused node
+```
+
+### 6.3 What was built, and where it deviates *(⭐ each a finding, argued in the report)*
+
+| slice | built | ⚠ deviation from §3/§4 — and why |
+|---|---|---|
+| E1 | `BP1682` on an extra event node; Instance: one handler-table entry per event key, a `EventGroup_<first>_Thunk` for 2+ handlers | none |
+| E2 | `EventEntryNode.Fields`; `EventPayload` owns "which payload" for Stage 0 + `NodePinSchema`; load-time `MigrateLegacyInputs` (not for custom-event bodies, paired by name, BP1408); `Stage2_6_SplitEventHandlers`; `BP1683` (a handler reading another event's pin) | ⭐ the split runs at **Stage 2.6** — after macro expansion (a macro may sit in a shared tail), before Stage 3 (so the orphan pass, literal synthesis and Stage 4 typing run per handler, clones included). §4 said only "before Stage 5" |
+| E2 | `BP1682` kept only where one entry is the rule | ⚠ narrowed: it does NOT bind a second entry in a Function graph — a loose extra entry there was already an orphan (an existing rail relies on it); T-7 adds no rule for them |
+| E3 | `Event` data-out typed `global::<FQN>` (`WholeEvent` if a field is named Event); wired ⇒ reserved handler input `__event`, the thunk passes `__ev`; size marked unreliable (runtime layout) | none — `BreakStructNode` splits it, as T-6 said |
+| E4 | "On: {Event}" palette; `EventEntryNodeDrawer`; `GraphSignatureWindow` "n/a" for typed graphs; `BP1682` for a typed node outside an Event graph; `EventEntryNode.MaxCapacity` is the one home of 16 | none |
+| E5 | `DiscoverSystemEvents`: catalog identity + reflected fields into `UnifiedEventDiscovery` (blittable, brain-visible, loaded) | ⚠⚠ **A2's full form is blocked by layering:** `[BlueprintEvent]` lives in `Hrot.Editor.AiShared`, which the FDP toolkit assemblies owning the system structs cannot reference. ⇒ the catalog stays the source of identity; the fields are no longer hand-listed. The When node keeps the catalog (a rail proves the two agree) |
+| E6 | `Graph.HandlerDebugIds` + `HandlerDebugIdentity`: debug ids → authored; `EntriesReaching` for the next-iteration step | ⚠ the clones' back-reference is NOT `OriginNodeId` (E2's first cut): nothing in the editor reads `OriginNodeId`, and the macro precedent deliberately keeps the clone id on probes — a per-graph map applied to debug identities only gives authored probes without touching state keys |
+
+⚠ **Found, not fixed:** some `DebugMapEntry.GraphId` are empty for every graph (`Stage5_Schedule.DebugOf` sets `default`) —
+pre-existing, not this batch's.
+

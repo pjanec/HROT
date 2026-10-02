@@ -129,32 +129,7 @@
       "Id": "c5100002-0000-0000-0000-0000000000b2",
       "Name": "OnPing",
       "Kind": "Event",
-      "Inputs": [
-        {
-          "Id": "c5100002-0000-0000-0000-0000000000a2",
-          "Name": "Value",
-          "Type": {
-            "TypeId": "System.Int32",
-            "IsArray": false,
-            "GenericArgs": []
-          },
-          "DefaultValueJson": null,
-          "Tooltip": null,
-          "Comment": null
-        },
-        {
-          "Id": "c5100002-0000-0000-0000-0000000000a4",
-          "Name": "Strength",
-          "Type": {
-            "TypeId": "System.Single",
-            "IsArray": false,
-            "GenericArgs": []
-          },
-          "DefaultValueJson": null,
-          "Tooltip": null,
-          "Comment": null
-        }
-      ],
+      "Inputs": [],
       "Outputs": [],
       "ExecOutputs": [],
       "ExecInputs": [],
@@ -162,6 +137,16 @@
         {
           "kind": "EventEntry",
           "EventTypeId": "Hrot.AI.Behaviors.PingEvent",
+          "Fields": [
+            {
+              "Name": "Value",
+              "TypeId": "System.Int32"
+            },
+            {
+              "Name": "Strength",
+              "TypeId": "System.Single"
+            }
+          ],
           "Id": "c5100002-0000-0000-0000-0000000000e1",
           "Pins": [
             {

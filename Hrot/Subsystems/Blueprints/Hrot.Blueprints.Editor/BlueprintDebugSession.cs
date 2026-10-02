@@ -1398,15 +1398,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
         // (b) End-of-tick path (all successors terminal): target the first executable node(s)
         // of the next iteration = exec-successors of the graph's EventEntryNode.
-        var entryNode = graph.Nodes.OfType<EventEntryNode>().FirstOrDefault();
-        if (entryNode == null)
+        // ⭐ CE-2017 (DESIGN_Typed_Event_Nodes E6, I11) — an Event graph may hold several event nodes, one handler each:
+        //   the next iteration starts at the handler(s) whose chain reaches the node we stopped on (a shared tail is
+        //   reached by several), never just the graph's first event node.
+        var entryNodes = EntriesReaching(graph, lastAuthoredId);
+        if (entryNodes.Count == 0)
         {
             // Degenerate: no EventEntryNode in the graph. Fall back to Continue().
             Continue();
             return;
         }
 
-        var entrySuccessors = ExecSuccessors.GetSuccessors(graph, entryNode.Id);
+        var entrySuccessors = entryNodes.SelectMany(en => ExecSuccessors.GetSuccessors(graph, en.Id)).Distinct().ToList();
         var firstNodes = entrySuccessors
             .Where(s => ExecSuccessors.GetSuccessors(graph, s).Count > 0)
             .ToList();
@@ -1433,6 +1436,32 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         // Resume — the temp BP handles re-pause at the first node of the next iteration.
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐ CE-2017 (E6) — the event nodes of <paramref name="graph"/> whose exec chain reaches <paramref name="nodeId"/>;
+    /// when none does (the node is unreachable, or the graph's single entry is untyped), every event node — for a
+    /// one-entry graph that is exactly the old "the graph's EventEntryNode".
+    /// </summary>
+    internal static IReadOnlyList<EventEntryNode> EntriesReaching(Hrot.Blueprints.Core.Assets.Graph graph, Guid nodeId)
+    {
+        var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+        if (entries.Count <= 1) return entries;
+        var reaching = entries.Where(e =>
+        {
+            var seen = new HashSet<Guid> { e.Id };
+            var work = new Stack<Guid>();
+            work.Push(e.Id);
+            while (work.Count > 0)
+            {
+                var at = work.Pop();
+                if (at == nodeId) return true;
+                foreach (var next in ExecSuccessors.GetSuccessors(graph, at))
+                    if (seen.Add(next)) work.Push(next);
+            }
+            return false;
+        }).ToList();
+        return reaching.Count > 0 ? reaching : entries;
     }
 
     /// <summary>

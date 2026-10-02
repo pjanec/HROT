@@ -133,7 +133,18 @@ public sealed class Graph
         EditorMetadata = EditorMetadata,
         Nodes          = nodes,
         Links          = links,
+        HandlerDebugIds = HandlerDebugIds,
     };
+
+    /// <summary>
+    /// ⭐ CE-2017 (<c>DESIGN_Typed_Event_Nodes</c> E6, T-3) — compile-time only: for a HANDLER graph split from an
+    /// authored Event graph, the clone/derived id → authored id map (shared-tail clone nodes and pins, and the handler
+    /// graph's own id). Stage 5 rewrites the handler's DEBUG identities through it, so probes, breakpoints and the debug
+    /// map name the node the designer sees — while the clones' own ids still key their per-handler state.
+    /// ⛔ Never serialized.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyDictionary<Guid, Guid>? HandlerDebugIds { get; set; }
 
     /// <summary>
     /// Unreal-style comment boxes ("Add Comment" on the canvas). Pure editor annotation —

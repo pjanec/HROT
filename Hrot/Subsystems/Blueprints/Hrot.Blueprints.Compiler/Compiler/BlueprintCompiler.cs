@@ -131,6 +131,11 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         asset = Stage2_5_ExpandMacros.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);
 
+        // Stage 2.6 -- one handler graph per typed event node (CE-2013, DESIGN_Typed_Event_Nodes T-2). After macro
+        // expansion (a macro body may sit in a shared tail), before Stage 3 (which then normalizes each handler).
+        asset = Stage2_6_SplitEventHandlers.Run(asset, ctx);
+        if (sink.HasErrors) return FailResult(sink, asset);
+
         // Stage 3 -- Normalize
         asset = Stage3_Normalize.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);

@@ -945,7 +945,7 @@ internal static class InstanceEmitter
             if (selfFilter)
                 e.WriteLine($"if (__ev.{evtGraph.TargetFieldName} != self) return;");
             args = evtGraph.Inputs.Count > 0
-                ? ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"__ev.{f.Name}"))
+                ? ", " + string.Join(", ", evtGraph.Inputs.Select(EventArg))
                 : "";
         }
         else
@@ -968,6 +968,10 @@ internal static class InstanceEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>⭐ CE-2014 (T-6) — what the thunk passes for one handler input: a payload field, or the whole event.</summary>
+    private static string EventArg(IrField f)
+        => f.Name == Hrot.Blueprints.Core.Assets.EventPayload.WholeEventInput ? "__ev" : $"__ev.{f.Name}";
+
     /// <summary>
     /// ⭐⭐ S6a/S6b (<c>DESIGN_Unified_Behaviour_Run</c> U-6) — an event for a fiber graph, by its policy. Straight-line,
     /// unrolled over the copies: no loop state, no allocation. ⛔ Never silent: an arrival with no room faults the run.
@@ -980,7 +984,7 @@ internal static class InstanceEmitter
             var sb = new System.Text.StringBuilder();
             foreach (var f in g.Inputs)
                 sb.Append($"__ex.{copy}.{Lowering.Fibers.InputField(f)} = "
-                          + (reinterpret ? $"__ev.{f.Name}; " : $"default({CSharpType(f.Type)}); "));
+                          + (reinterpret ? $"{EventArg(f)}; " : $"default({CSharpType(f.Type)}); "));
             var saved = string.Concat(g.Inputs.Select(f => $", __ex.{copy}.{Lowering.Fibers.InputField(f)}"));
             sb.Append($"Event_{g.Name}(ref __bb, ref __ex, view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey, "
                     + $"ref __ex.{copy}, {k}{saved});");
@@ -1023,7 +1027,7 @@ internal static class InstanceEmitter
                 e.WriteLine($"ref var __qe = ref {Lowering.Fibers.QueueAt(g)}(ref __ex, (__ex.{head} + __ex.{count}) % {q});");
                 foreach (var f in g.Inputs)
                     e.WriteLine($"__qe.{Lowering.Fibers.InputField(f)} = "
-                              + (reinterpret ? $"__ev.{f.Name};" : $"default({CSharpType(f.Type)});"));
+                              + (reinterpret ? $"{EventArg(f)};" : $"default({CSharpType(f.Type)});"));
             }
             e.WriteLine($"__ex.{count}++;");
             e.Outdent();
