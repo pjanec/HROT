@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 🔴 CE-3002 → fixed by §5.8 (the brain names each EQS sensor's solver); S8 next.
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 ✅ after §5.8 (the brain names each EQS sensor's solver, R-179; live 48/48 results); S8 next.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -488,7 +488,7 @@ Driven over HTTP only (`create-request`, `/ownership` from SimHost, IG and Scena
 | E4 CGF area symbol | ✅ ownership · ⛔ edit not drivable | everything on CGF; the routed edit needs prerequisite 4 |
 | E5 CGF platoon | ✅ | everything on CGF, never granted to a MuscleGround node; position unchanged over 6.6 s sim on all nodes |
 | E6 IG area symbol | ✅ ownership · ⛔ edit not drivable | everything on IG; as E4 |
-| E7 EQS parts (`hill-attack`, CGF-created) | 🔴 **`CE-3002`** | the platoon commander (tkb 303, brain, no sensors) runs an EQS sensor: config part → CGF and the config reaches SimHost (2 samples), but its PERCEPTION group was never granted (G-4 keys on `VisionRange > 0`), so the result part falls back to CGF and SimHost's result egress — gated on the part since S6 (F-12) — publishes **0** results |
+| E7 EQS parts (`hill-attack`, CGF-created) | ✅ *(re-run after §5.8)* · first run 🔴 `CE-3002` | the platoon commander (tkb 303, brain, no vision sensors) runs EQS child sensor 1: config part `(95,1)` → CGF; result part `(96,1)` → SimHost on CGF **and** SimHost (the brain named SimHost as solver; `claimMatchesRecord` true on both; IG holds no EQS part). SimHost `EqsResult` egress **sent 48**, CGF ingress **received 48** over ~20 s sim (first run: **0** — the result part fell back to CGF because G-4 granted no Perception group to a sensorless brain, and S6's gate (F-12) suppressed SimHost's publish) |
 | E8 | not run | needs the multi-process launch |
 
 ⚠ Found on the way: `CE-3001` — a component added after birth to a descriptor this node already owns (a blueprint's `BlueprintBlackboard256`) stays UNCLAIMED on its owner: S5's late-component rule runs only on ownership/construction events (every hill-attack tank, entity 1000 of `test-move`). Latent today (nothing gates on those claims; egress gates on the record), not after S8's ingress skip. `CE-3005` (fixed): replicas of a neutral entity held `(ForceId)3` — ingress cast the wire enum, which numbers differently — and the debug API could not serialize them. `CE-3004`: mission edits over HTTP apply but the route reports "not acknowledged within 15 s" on `--mode all`.
