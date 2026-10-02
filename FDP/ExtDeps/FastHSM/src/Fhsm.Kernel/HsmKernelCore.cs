@@ -688,7 +688,8 @@ namespace Fhsm.Kernel
                             GuardId = gt.GuardId,
                             ActionId = gt.ActionId,
                             Flags = gt.Flags,
-                            Cost = 0
+                            Cost = 0,
+                            Priority = gt.Priority,
                         };
                     }
                 }
@@ -718,8 +719,8 @@ namespace Fhsm.Kernel
                             // Match event
                             if (trans.EventId == eventId)
                             {
-                                // Priority is top 4 bits (12-15) of Flags
-                                byte priority = (byte)((ushort)(trans.Flags) >> 12);
+                                // ⭐ CE-395 — a full byte, the same field a global transition carries
+                                byte priority = trans.Priority;
 
                                 if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, r, current))
                                 {

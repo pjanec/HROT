@@ -127,7 +127,7 @@ internal static class HsmAssetProjector
                 VisualId  = Guid.NewGuid(),  // replaced from layout below
                 EventId   = def.EventId,
                 SyncGroupId = def.SyncGroupId,
-                Priority  = ExtractPriority(def.Flags),
+                Priority  = def.Priority,   // ⭐ CE-395 — the field, not a decoded nibble
                 Kind      = ExtractKind(def.Flags),
             };
 
@@ -290,13 +290,6 @@ internal static class HsmAssetProjector
             HsmAutoLayout.Layout(asset);
 
         return asset;
-    }
-
-    private static byte ExtractPriority(TransitionFlags flags)
-    {
-        // Priority is stored in bits 8-11 of TransitionFlags
-        // (per HsmFlattener.BuildTransitionFlags which uses (priority & 0x0F) << 8)
-        return (byte)(((ushort)flags >> 8) & 0x0F);
     }
 
     private static TransitionKind ExtractKind(TransitionFlags flags)

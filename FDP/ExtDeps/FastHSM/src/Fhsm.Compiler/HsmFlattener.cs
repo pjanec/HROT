@@ -270,8 +270,8 @@ namespace Fhsm.Compiler
                     ? node.ActionId
                     : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 
-                // Flags (include priority)
                 def.Flags = BuildTransitionFlags(node);
+                def.Priority = node.Priority;   // ⭐ CE-395 — the full byte, as a global transition carries it
                 
                 // Cost: ARCHITECT Q6 - structural only (LCA distance)
                 def.Cost = ComputeTransitionCost(node.Source, node.Target);
@@ -293,21 +293,6 @@ namespace Fhsm.Compiler
             //   from the same source property rather than authored separately.
             if (node.IsPolled) flags |= TransitionFlags.IsPolled;
 
-            // 🔴 CE-395 — THE PRIORITY ENCODING BELOW IS WRONG AND IS FILED, NOT FIXED HERE.
-            //   It writes bits 8-11 (<< 8) while Enums.cs declares Priority_Mask = 0xF000 and
-            //   HsmKernelCore.cs:631 reads (ushort)Flags >> 12 ⇒ every priority reads ZERO and
-            //   SelectTransition degenerates to first-match-wins. A second bug compounds it:
-            //   node.Priority defaults to 128 and `& 0x0F` truncates that to 0.
-            // ⛔ Not repaired inside CE-381: fixing it CHANGES WHICH TRANSITION WINS for any asset
-            //   that authors a priority, which is a behaviour change and deserves its own rail.
-            //   (Blast radius on shipped content is zero — all four assets author Priority 0.)
-
-            // Encode priority (4 bits)
-            // Priority is a byte (0-255). 
-            // Assuming bits 8-11 usage: (priority & 0x0F) << 8.
-            // Wait, TransitionFlags is ushort usually? Let's check kernel def.
-            // Assuming it is.
-            flags |= (TransitionFlags)((node.Priority & 0x0F) << 8);  
             
             return flags;
         }

@@ -17,7 +17,9 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   ⭐⭐⭐ ALL NINE §9 ACCEPTANCE RAILS ARE CLOSED as of 2026-09-28. §9's table carries the rail name
   per row. ⚠ An earlier version of this block said ⑥ and ⑨ were "NOT railed" and ⑦ was "covered by
   two rails either side of the DTO" — all three are now closed and that sentence is SUPERSEDED.
-  ⏭ WHAT IS LEFT: CE-388; the §11 call-cost thread CE-389..CE-392; and CE-395 (priority bits).
+  ⏭ WHAT IS LEFT: CE-388; the §11 call-cost thread CE-390..CE-392. ✅ CE-395 FIXED 2026-10-02 — priority is a
+  full-byte TransitionDef.Priority (the GlobalTransitionDef representation), the flag nibble is gone, default 0.
+  ⛔ CE-389 SUPERSEDED by CE-444 (params are read live, so RequireRootBytes is used every call) — §11.2 is history.
 stale-below: nothing yet.
 known-rot: ⚠ 2026-09-30 (R-155) — the blueprint activity/guard thunk SEEDS its params from
   the host at activation (AiPrimitiveEmitter.EmitParamSeed) and then runs its own resolver. Target:
@@ -594,7 +596,7 @@ fields *(`BlueprintTierSpec.cs:45,164,167`)*, and beneath them `HasComponent<T>`
 `UnsafeShim.UnmanagedAccessor<T>`, whose members are delegates built by `Delegate.CreateDelegate` over
 `MakeGenericMethod` *(`UnsafeShim.cs:168-198`)*. ⛔ **None of it inlines.**
 
-### 11.2 🔴 `CE-389` — **`RequireRootBytes` IS COMPUTED EVERY CALL AND READ ONLY ON THE FIRST**
+### 11.2 ⛔ SUPERSEDED (`CE-444` made the read live, `2026-09-30`; closed `2026-10-02`) — `CE-389` — **`RequireRootBytes` IS COMPUTED EVERY CALL AND READ ONLY ON THE FIRST**
 
 📐 `AiPrimitiveEmitter.EmitHsmOccurrenceBody` emits `byte* __hostParams = RequireRootBytes(...)`
 **unconditionally**; its only consumer is `HsmHostVariableAccess.For(...)`, which `EmitParamSeed` emits
@@ -798,6 +800,8 @@ which is §8a ③'s no-churn prediction met rather than assumed.
 POSITIONS are asserted *(`1 << 6`, `1 << 9`)*, and `IsPolled` is asserted clear of **both** priority
 spellings — the declared `Priority_Mask = 0xF000` and the bits 8-11 the flattener actually writes. ⇒
 fixing `CE-395` cannot silently land on top of polling.
+⭐ **`2026-10-02` — `CE-395` landed by REMOVING the nibble:** priority is `TransitionDef.Priority` (offset 15), the
+flag bits 12-15 are `Reserved12..15`, and the collision rail became *"no priority bits remain in the flags."*
 
 ⛔ **NOT done here, deliberately:** global transitions cannot be polled. `SelectTransition` scans them
 before the active-state walk and they are source-agnostic, so "polled global" needs its own decision

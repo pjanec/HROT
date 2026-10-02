@@ -62,16 +62,14 @@ namespace Fhsm.Tests.Compiler
         }
 
         /// <summary>
-        /// ⭐⭐ <b><c>IsPolled</c> must not collide with the priority field — under EITHER spelling.</b>
-        /// ⛔ The declared one is <c>Priority_Mask = 0xF000</c>; the one the flattener actually writes
-        /// is bits 8-11 (<c>CE-395</c>). Bit 6 must be clear of both, and this says so explicitly so
-        /// that fixing <c>CE-395</c> cannot quietly land on top of polling.
+        /// ⭐ <c>CE-395</c> — priority left the flags for its own <c>TransitionDef.Priority</c> byte, so no priority bits
+        /// remain for the polled bit to collide with: the bits the old nibble used (both spellings) are all reserved.
         /// </summary>
         [Fact]
-        public void TheePolledBitCollidesWithNeitherPrioritySpelling()
+        public void NoPriorityBitsRemainInTheFlags()
         {
-            Assert.Equal(0, (ushort)TransitionFlags.IsPolled & (ushort)TransitionFlags.Priority_Mask);
-            Assert.Equal(0, (ushort)TransitionFlags.IsPolled & 0x0F00);   // CE-395's as-written bits
+            foreach (var name in System.Enum.GetNames(typeof(TransitionFlags)))
+                Assert.DoesNotContain("Priority", name);
         }
 
         // ── 2. Authoring ──────────────────────────────────────────────────────────────────

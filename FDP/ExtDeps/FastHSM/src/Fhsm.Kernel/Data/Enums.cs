@@ -109,8 +109,12 @@ namespace Fhsm.Kernel.Data
         Reserved10 = 1 << 10,
         Reserved11 = 1 << 11,
         
-        // Priority (bits 12-15): 0 = lowest, 15 = highest
-        Priority_Mask = 0xF000,     // Bits 12-15
+        // ⛔ CE-395 — bits 12-15 USED to declare a priority nibble (Priority_Mask) that the flattener never wrote there.
+        //   Priority is now TransitionDef.Priority, a full byte; these bits are free.
+        Reserved12 = 1 << 12,
+        Reserved13 = 1 << 13,
+        Reserved14 = 1 << 14,
+        Reserved15 = 1 << 15,
     }
 
     /// <summary>

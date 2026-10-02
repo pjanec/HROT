@@ -214,6 +214,10 @@ sequenceDiagram
 
 ## 5.3a `CE-506` — a global transition's guard and action reach the kernel *(build-state: BUILT `2026-10-02`)*
 
+> ⚠ **`CE-395` follow-on (`2026-10-02`):** `TransitionNode.Priority` defaulted to **128** while the editor, the DTO and the
+> emitter's *"omit when 0"* mean **0** ⇒ an authored 0 global reached the flattener's ordering as 128. The default is now 0,
+> and ordinary transitions carry the same full-byte priority (`TransitionDef.Priority`) as globals.
+
 > 🔴 Filed from the slice-5 box above: the facet drew a global transition's guard/action, the DTO saved them, and
 > `HsmEmitCore` emitted `builder.GlobalTransition(event, target, visualId)` and nothing else — while the kernel's
 > `GlobalTransitionDef` always had `GuardId`/`ActionId`/`Priority` and `HsmKernelCore.SelectTransition` already evaluates the
