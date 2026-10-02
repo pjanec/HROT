@@ -172,6 +172,39 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Equal(1, n.Recompute.LateComponentsClaimed);
         }
 
+        /// <summary>⭐ <c>CE-3001</c> (S8) — the same late component with NO ownership or construction event: it is claimed
+        /// in the next frame anyway. 📌 Found live: a blueprint's <c>BlueprintBlackboard256</c>, added after spawn, stayed
+        /// unclaimed on its owner on every hill-attack tank, because the claim was only fixed when an event next touched the
+        /// entity. 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</summary>
+        [Fact]
+        public void AComponentTheOwnerAddsAfterBirth_IsClaimedNextFrame_WithNoOwnershipEvent()
+        {
+            var n = Build(Local, primary: Local);
+            n.Repo.SetAuthority<TkbIdentity>(n.E, false);                     // present, unclaimed: added after spawn
+
+            n.Frame();                                                         // no event at all
+
+            Assert.True(n.Claims<TkbIdentity>());
+            Assert.Equal(1, n.Recompute.LateComponentsClaimed);
+            Assert.Null(n.Recorded(Info));                                     // the record is not written
+        }
+
+        /// <summary>⭐ <c>CE-3001</c> — the per-frame pass claims only what the RECORD gives this node: a replica's late
+        /// component stays unclaimed, and a descriptor still handing over (the creator's F7 window) is not re-claimed.</summary>
+        [Fact]
+        public void TheLateClaimPass_NeverClaimsForAReplica_NorDuringAPendingHandover()
+        {
+            var replica = Build(Local, primary: Remote);
+            replica.Frame();
+            Assert.False(replica.Claims<TkbIdentity>());
+
+            var creator = Build(Local, primary: Local);
+            YieldGrant(creator, Kinematic);                                    // claim cleared, handover pending
+            creator.Frame();
+            Assert.False(creator.Claims<NetworkTransform>());
+            Assert.Equal(0, creator.Recompute.LateComponentsClaimed);
+        }
+
         [Fact]
         public void WhereClaimAndRecordAgree_NothingIsWritten()
         {

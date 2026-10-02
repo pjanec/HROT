@@ -68,16 +68,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            // Guard: do NOT overwrite Health on an entity this node OWNS at the ENTITY level.
-            // ⚠ CE-272 — the guard is ENTITY-level NetworkAuthority, NOT per-component
-            //   HasAuthority<Health>. HealthApplicationSystem (the ONLY writer of combat damage) gates
-            //   on NetworkAuthority.HasAuthority, so the node that WRITES health is the entity-authority
-            //   node. A Muscle claims per-component Health authority via role-affinity (Health is in
-            //   muscleOwned), so a per-component guard would make the Muscle SKIP the ingress and keep a
-            //   stale value — which is exactly the bug measured: Brain Health 0, Muscle Health 50. Keying
-            //   on entity-level authority makes the Muscle (a ghost, not the entity owner) ACCEPT the
-            //   replicated health, so its EQS reads Health<=0 and stops re-engaging a dead target.
-            if (view is EntityRepository ownerCheck && IsEntityOwner(ownerCheck, entity))
+            // Guard: do NOT overwrite Health on an entity whose dtEntityDamage this node OWNS (its own sample looping back).
+            // ⭐ S8 / F-5 — the DESCRIPTOR's recorded owner, the node HealthApplicationSystem lets write Health (it gates on
+            //   the Health claim, which follows the same record — CE-523). ⛔ It was the ENTITY's primary owner (CE-272),
+            //   which matched the writer only while the writer was always the primary owner. With push-only grants SimHost
+            //   creates a tank and CGF holds its Brain group: keyed on the entity, SimHost (the primary owner) skipped
+            //   CGF's health and kept a stale full value — CE-272's measured bug (its EQS kept re-engaging a dead target)
+            //   on every SimHost- or IG-created entity. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
+            if (view is EntityRepository ownerCheck && OwnsTheDamageDescriptor(ownerCheck, entity))
                 return;
 
             cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max });
@@ -90,22 +88,23 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (data is not EntityDamage health)
                 return;
 
-            // Same entity-level owner guard as Decode.
-            if (IsEntityOwner(repo, entity))
+            // Same owner guard as Decode.
+            if (OwnsTheDamageDescriptor(repo, entity))
                 return;
 
             repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max });
         }
 
         /// <summary>
-        /// True when this node holds RECORDED entity-level authority for <paramref name="entity"/> — the same test
-        /// HealthApplicationSystem uses to decide it may write Health.
+        /// True when this node holds the RECORDED ownership of <c>dtEntityDamage</c> for <paramref name="entity"/> — the
+        /// node that writes Health (<c>HealthApplicationSystem</c> gates on the Health claim, which follows this record).
         /// <para>⚠ An entity with no <c>NetworkAuthority</c> is NOT the owner here: on this path it is a replica
         /// still being built from the wire — a ghost this very sample created — and its health must be taken.
         /// An earlier version treated it as the owner ("single-node / AllInOne"), which dropped the first health
         /// of every entity first seen through this topic; a node with no network never reaches an ingress.</para>
         /// </summary>
-        private static bool IsEntityOwner(EntityRepository repo, Entity entity)
-            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(repo, entity);
+        private static bool OwnsTheDamageDescriptor(EntityRepository repo, Entity entity)
+            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                repo, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEntityDamage, 0));
     }
 }

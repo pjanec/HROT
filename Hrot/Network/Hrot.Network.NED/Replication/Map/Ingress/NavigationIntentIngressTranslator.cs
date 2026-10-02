@@ -72,6 +72,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                     continue;
                 }
 
+                // ⭐ S8 / F-5 — skip our OWN sample looping back: the descriptor's RECORDED owner writes this state, so the
+                //   last value it published must not overwrite the one it holds now. ⛔ Recorded owner only (IsRecordedOwner):
+                //   a ghost still being built has no record and takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8.
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                    continue;
+
                 // Convert wire GeoPosition back to 3D Cartesian (Sim Z-up); ToCartesian already
                 // returns the altitude, so the destination Z survives the round-trip (P3D-304).
                 var cartesian = _geoTransform.ToCartesian(

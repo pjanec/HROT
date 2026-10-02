@@ -88,5 +88,21 @@ namespace Hrot.Map.Common.Tests
             Assert.True(T.Groups[NodeRole.MuscleGround].AppliesTo(tank));
             Assert.True(T.Groups[NodeRole.Perception].AppliesTo(tank));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-523</c> (S8) rests on this: Health is in the BRAIN group, and only the Brain node runs
+        /// <c>HealthApplicationSystem</c> (gated on the Health claim). A template that provisions Health
+        /// (<see cref="CombatPlatformDefDto"/>) but no brain would keep Health with its creator — a SimHost or IG that
+        /// applies no damage — so every production combat template must carry a brain. A new brainless combat template
+        /// breaks this, and with it the damage path: run <c>HealthApplicationSystem</c> on every host before adding one.
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.
+        /// </summary>
+        [Fact]
+        public void EveryProductionTemplateWithHealth_HasABrain_SoTheBrainNodeAppliesItsDamage_CE523()
+        {
+            var combat = HrotEnvironment.CreateTkb().GetAll().Where(t => t.GetDescriptor<CombatPlatformDefDto>() != null).ToList();
+            Assert.NotEmpty(combat);
+            Assert.All(combat, t => Assert.True(T.Groups[NodeRole.Brain].AppliesTo(t), $"{t.Name} has Health but no brain"));
+        }
     }
 }

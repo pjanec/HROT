@@ -76,13 +76,26 @@ namespace Fdp.Toolkit.Replication.Extensions
         /// from the wire (a ghost created by this very sample), and treating it as owned drops the sample. 📌 Measured
         /// on <c>EntityDamageIngressTranslator</c> (the first health of an unknown entity was dropped) and
         /// <c>EntityInfoIngressTranslator</c> (a ghost's commander assignment was dropped).</para>
+        /// <para>⚠⚠ <b>S8 — a descriptor this node is HANDING OVER is not owned here.</b> The creator's record of a granted
+        /// descriptor stays "mine" until the grantee's confirming update arrives (F7, <see cref="OutgoingGrantsPending"/>),
+        /// but its claim is already gone and the grantee is already writing. Skipping a sample in that window drops the
+        /// grantee's FIRST value for good — nothing republishes an unchanged one. 📌 Measured: a SimHost-created tank,
+        /// CGF applies the first hit (3000 → 2975) and publishes it inside SimHost's window; SimHost skipped it as its
+        /// own loopback and held 3000 forever. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</para>
         /// </summary>
         public static bool IsRecordedOwner(this ISimulationView view, Entity entity, long packedKey = 0)
         {
             if (!view.IsAlive(entity)) return false;
             Entity root = view.HasComponent<PartMetadata>(entity) ? view.GetComponentRO<PartMetadata>(entity).ParentEntity : entity;
             if (!view.IsAlive(root) || !view.HasComponent<NetworkAuthority>(root)) return false;
-            return HasAuthority(view, entity, packedKey);
+            if (!HasAuthority(view, entity, packedKey)) return false;
+
+            if (packedKey != 0 && view.HasManagedComponent<OutgoingGrantsPending>(root))
+            {
+                var (typeId, _) = OwnershipExtensions.UnpackKey(packedKey);
+                if (view.GetManagedComponentRO<OutgoingGrantsPending>(root).Descriptors.ContainsKey(typeId)) return false;
+            }
+            return true;
         }
     }
 }

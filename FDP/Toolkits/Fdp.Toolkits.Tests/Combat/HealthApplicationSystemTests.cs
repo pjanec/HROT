@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
             // CE-267 — the destroy path addresses the entity by NETWORK id, so every target needs one.
             _world.AddComponent(entity, new NetworkIdentity(9000 + entity.Index));
+            // ⭐ CE-523 (S8): the gate is the Health CLAIM — the owner holds it (the spawn sets it at birth; a grant moves it).
+            if (authoritative) _world.SetAuthority<Health>(entity, true);
 
             if (addCapabilities)
                 _world.AddComponent(entity, new ActorCapabilityState
@@ -155,6 +157,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             _world.AddComponent(entity, new ActorCapabilityState
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
@@ -186,6 +189,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             _world.AddComponent(entity, new ActorCapabilityState
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
@@ -216,6 +220,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new Health { Current = 200f, Max = 200f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(entity, true);   // CE-523: the owner claims Health
             // No ActorCapabilityState registered.
 
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 50f });
@@ -226,6 +231,50 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(150f, health.Current);
+        }
+
+        // ── CE-523 (S8): the gate is the Health CLAIM, not the entity's primary owner ─────────────────────
+
+        /// <summary>⭐ <c>CE-523</c> — SimHost created the entity (primary owner 2) and its Brain group, Health with it,
+        /// was granted to this node: this node claims Health and applies the damage. The old entity-level gate dropped
+        /// it (primary owner ≠ me) and no node applied it. 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</summary>
+        [Fact]
+        public void TheNodeThatClaimsHealth_AppliesTheDamage_EvenWhenAnotherNodeIsThePrimaryOwner()
+        {
+            var entity = SpawnTarget(currentHealth: 100f, authoritative: false);   // primary owner: node 2
+            _world.SetAuthority<Health>(entity, true);                              // the Brain group was granted here
+
+            PublishEvent(entity, 30f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(70f, _world.GetComponent<Health>(entity).Current);
+        }
+
+        /// <summary>⭐ <c>CE-523</c> — the converse: this node is the primary owner (it created the entity) but granted
+        /// the Brain group away, so it no longer claims Health and must not apply the damage (the grantee does).</summary>
+        [Fact]
+        public void ThePrimaryOwnerThatGrantedHealthAway_DoesNotApplyTheDamage()
+        {
+            var entity = SpawnTarget(currentHealth: 100f, authoritative: true);
+            _world.SetAuthority<Health>(entity, false);                             // the Brain group moved away
+
+            PublishEvent(entity, 30f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(100f, _world.GetComponent<Health>(entity).Current);
+        }
+
+        /// <summary>A world with no network (no <see cref="NetworkAuthority"/>) owns everything: damage applies.</summary>
+        [Fact]
+        public void WithNoNetwork_TheDamageApplies()
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
+
+            PublishEvent(entity, 25f);
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Equal(75f, _world.GetComponent<Health>(entity).Current);
         }
 
         // ── CE-267: the KILL must DESTROY, and it must replicate ──────────────────────────────

@@ -67,6 +67,7 @@ namespace Fdp.Toolkit.Replication.Systems
         // Parts pass: every non-master descriptor with its components (translator targets + group links), built once.
         private (long Ordinal, int[] Components)[]? _descriptorComponents;
         private EntityQuery? _parts;
+        private EntityQuery? _roots;
 
         public OwnershipRecomputeSystem(NetworkEntityMap entityMap, int localNodeId, DescriptorOwnershipMap descriptorMap)
         {
@@ -114,23 +115,13 @@ namespace Fdp.Toolkit.Replication.Systems
                 Recompute(repo, entity);
 
             SyncPartClaims(repo);
+            ClaimLateRootComponents(repo);
         }
 
         /// <summary>S6 — every part's claim follows its record (see the class remarks).</summary>
         private void SyncPartClaims(EntityRepository repo)
         {
-            if (_descriptorComponents == null)
-            {
-                long? master = _descriptorMap.PrimaryOwnerDescriptorOrdinal;
-                var list = new List<(long, int[])>();
-                foreach (long ordinal in _descriptorMap.RegisteredDescriptors)
-                {
-                    if (master.HasValue && ordinal == master.Value) continue;
-                    var ids = _descriptorMap.GetComponentIdsForDescriptor(ordinal).ToArray();
-                    if (ids.Length > 0) list.Add((ordinal, ids));
-                }
-                _descriptorComponents = list.ToArray();
-            }
+            EnsureDescriptorComponents();
             _parts ??= repo.Query().With<PartMetadata>().Build();
 
             foreach (var part in _parts)
@@ -140,7 +131,7 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (!repo.IsAlive(root) || !repo.HasComponent<NetworkAuthority>(root)) continue;
                 int instance = meta.InstanceId;
 
-                foreach (var (ordinal, components) in _descriptorComponents)
+                foreach (var (ordinal, components) in _descriptorComponents!)
                 {
                     bool known = false, desired = false;
                     foreach (int componentId in components)
@@ -157,6 +148,70 @@ namespace Fdp.Toolkit.Replication.Systems
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3001</c> (S8) — a component added to a ROOT after birth takes the record's "mine" in the frame it
+        /// appears, not only when an ownership or construction event next touches the entity. <c>AddComponent</c> sets no
+        /// claim, and the running logic adds components late (a blueprint's <c>BlueprintBlackboard256</c> on every
+        /// hill-attack tank): the owner held them UNCLAIMED, so anything gated on the claim — the ingress skip
+        /// (F-5), the <c>WithOwned</c> queries — treated the owner as a replica. 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c>
+        /// §5.6 S8.
+        /// <para>⚠ Only the "record mine ⇒ claim" half of <see cref="Recompute"/>: it never clears a claim and never
+        /// writes the record, so it cannot fight a handover — and a descriptor whose handover is still pending
+        /// (<see cref="OutgoingGrantsPending"/>, the creator's F7 window) is skipped exactly as there.</para>
+        /// </summary>
+        private void ClaimLateRootComponents(EntityRepository repo)
+        {
+            EnsureDescriptorComponents();
+            _roots ??= repo.Query().With<NetworkAuthority>().Without<PartMetadata>().Build();
+
+            foreach (var entity in _roots)
+            {
+                OutgoingGrantsPending? pending = null;
+                bool pendingRead = false;
+
+                foreach (var (ordinal, components) in _descriptorComponents!)
+                {
+                    // Cheap first: is any component of d present and unclaimed? Only then read the record.
+                    bool unclaimed = false;
+                    foreach (int componentId in components)
+                        if (repo.HasComponentByTypeId(entity, componentId) && !repo.HasAuthority(entity, componentId))
+                        { unclaimed = true; break; }
+                    if (!unclaimed) continue;
+
+                    if (!pendingRead)
+                    {
+                        pending = repo.HasManagedComponent<OutgoingGrantsPending>(entity)
+                            ? repo.GetComponent<OutgoingGrantsPending>(entity) : null;
+                        pendingRead = true;
+                    }
+                    if (pending != null && pending.Descriptors.ContainsKey(ordinal)) continue;
+                    if (!((ISimulationView)repo).HasAuthority(entity, OwnershipExtensions.PackKey(ordinal, 0))) continue;
+
+                    foreach (int componentId in components)
+                        if (repo.HasComponentByTypeId(entity, componentId) && !repo.HasAuthority(entity, componentId))
+                        {
+                            repo.SetAuthority(entity, componentId, true);
+                            LateComponentsClaimed++;
+                        }
+                }
+            }
+        }
+
+        /// <summary>Every non-master descriptor with its components (translator targets + group links), built once.</summary>
+        private void EnsureDescriptorComponents()
+        {
+            if (_descriptorComponents != null) return;
+            long? master = _descriptorMap.PrimaryOwnerDescriptorOrdinal;
+            var list = new List<(long, int[])>();
+            foreach (long ordinal in _descriptorMap.RegisteredDescriptors)
+            {
+                if (master.HasValue && ordinal == master.Value) continue;
+                var ids = _descriptorMap.GetComponentIdsForDescriptor(ordinal).ToArray();
+                if (ids.Length > 0) list.Add((ordinal, ids));
+            }
+            _descriptorComponents = list.ToArray();
         }
 
         private void Touch(Entity entity)

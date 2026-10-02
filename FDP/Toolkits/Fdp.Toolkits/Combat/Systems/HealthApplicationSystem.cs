@@ -70,12 +70,14 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!repo.IsAlive(targetEntity))
                     continue;
 
-                // Authority gate: only the owning node applies health changes.
-                if (repo.HasComponent<NetworkAuthority>(targetEntity))
-                {
-                    ref readonly var auth = ref repo.GetComponentRO<NetworkAuthority>(targetEntity);
-                    if (!auth.HasAuthority) continue;
-                }
+                // Authority gate: only the node that CLAIMS Health applies it. ⭐ CE-523 (S8): Health is in the Brain
+                //   group, so its claim follows the group's grant — an entity SimHost or IG created has its Brain group
+                //   (Health with it) on CGF while the ENTITY's primary owner stays the creator. The old entity-level
+                //   test (NetworkAuthority.HasAuthority) was false there and the damage was dropped on every node.
+                //   With no NetworkAuthority (no network) this node owns everything.
+                //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
+                if (repo.HasComponent<NetworkAuthority>(targetEntity) && !repo.HasAuthority<Health>(targetEntity))
+                    continue;
 
                 // Require a Health component to be present.
                 if (!repo.HasComponent<Health>(targetEntity))

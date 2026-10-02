@@ -152,6 +152,29 @@ namespace Fdp.Toolkit.Replication.Tests
         /// A destroyed entity must never be treated as authoritative regardless of
         /// the absence of <see cref="NetworkAuthority"/>.
         /// </summary>
+        /// <summary>⭐ S8 — the INGRESS form treats a descriptor this node is HANDING OVER as not owned: the creator's record
+        /// stays "mine" until the grantee confirms (F7), but the grantee is already writing, and skipping its first sample
+        /// loses it for good (nothing republishes an unchanged value). Once the handover settles the record decides again.
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</summary>
+        [Fact]
+        public void IsRecordedOwner_IsFalse_WhileThisNodeIsHandingTheDescriptorOver()
+        {
+            _world.RegisterManagedComponent<OutgoingGrantsPending>();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));   // the creator
+            long damage = OwnershipExtensions.PackKey(30, 0), info = OwnershipExtensions.PackKey(2, 0);
+
+            Assert.True(_world.IsRecordedOwner(entity, damage));
+
+            var pending = new OutgoingGrantsPending();
+            pending.Descriptors[30] = 400;                                // granted to node 400, not yet confirmed
+            _world.SetManagedComponent(entity, pending);
+
+            Assert.False(_world.IsRecordedOwner(entity, damage));         // take the grantee's samples
+            Assert.True(_world.IsRecordedOwner(entity, info));            // a descriptor it keeps is still its own
+            Assert.True(((ISimulationView)_world).HasAuthority(entity, damage));   // the EGRESS gate is unchanged (F7)
+        }
+
         [Fact]
         public void HasAuthority_ReturnsFalseForDeadEntity()
         {

@@ -69,7 +69,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 var resolved = new List<Entity>(_pendingOverlays.Count);
                 foreach (var (entity, overlay) in _pendingOverlays)
                 {
-                    if (!repo.IsAlive(entity)) { resolved.Add(entity); continue; }
+                    if (!repo.IsAlive(entity) || IsOwnedHere(repo, entity)) { resolved.Add(entity); continue; }   // S8 / F-5
                     if (!repo.HasComponent<SimTransform>(entity)) continue;
                     ref readonly var t = ref repo.GetComponentRO<SimTransform>(entity);
                     cmd.SetManagedComponent(entity, BuildPolyline(overlay, t.Position));
@@ -116,6 +116,10 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void Dispose(long networkEntityId) { }
 
+        private static bool IsOwnedHere(EntityRepository repo, Entity entity)
+            => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                repo, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0));
+
         internal void ProcessSample(in MapVisualOverlay data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
             long netId = data.EntityId;
@@ -130,6 +134,12 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
+
+            // ⭐ S8 / F-5 — skip our OWN sample looping back: the recorded owner of this descriptor (the creator — CREATOR
+            //   group) edits it, and the value it last published must not overwrite a newer local edit. ⛔ Recorded owner
+            //   only: a ghost still being built takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5, §5.6 S8.
+            if (repo != null && IsOwnedHere(repo, entity))
+                return;
 
             // Pass the entity's Cartesian position so BuildPolyline can correctly
             // reconstruct absolute Cartesian from relative geodetic offsets.
