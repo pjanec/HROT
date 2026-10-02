@@ -192,7 +192,7 @@ graph TD
 | ~~D-1~~ | ✅ R-171: damage application stays on the Brain with `Health` (BRAIN group) | — |
 | ~~D-2~~ | ✅ R-171: a separate PERCEPTION group (§1.2b), not mixed into MuscleGround | — |
 | ✅ | D-4..D-7 approved by the user `2026-10-02` (R-173): *"approved D-4 to D-7, start step 1"* | — |
-| D-8 | who owns the position of a map symbol / overlay / route (no kinematics) | ⭐ the CREATOR, by G-4 (no `VehicleParametersDto` ⇒ no MuscleGround grant). A Map2D node that moves it does not write it: it sends an edit request to the owner, which applies and publishes (BDC spec "descriptor change requests"). Needs F-10 fixed. ⚠ Open, user `2026-10-02`: *"needs some thinking"* |
+| D-8 | who owns the position of a map symbol / overlay / route (no kinematics) | ⭐ the CREATOR, by G-4 (no `VehicleParametersDto` ⇒ no MuscleGround grant). A Map2D node that moves it does not write it: it sends an edit request to the owner, which applies and publishes (BDC spec "descriptor change requests"). Needs F-10 fixed. ⚠ Open, user `2026-10-02`: *"needs some thinking"*. 📐 Measured which templates G-4 grants the MuscleGround group to (`VehicleParametersDto`, added by `NedTkbBuilder.WithPhysics`, `BdcTkbBuilder.cs:130`): tanks, IFV, truck, infantry rifleman (`BdcTkbCatalog.cs:26-168`), the `UrbanCombatTkbCatalog` entities — YES; `TacGraphic_Area`/`TacGraphic_Route` (`BdcTkbCatalog.cs:238-247`, no descriptors) and the composite units `Unit_TankPlatoon`/`Unit_InfantrySquad` (no `WithPhysics`) — NO, the creator keeps their position |
 | ~~D-3~~ | ✅ R-171: sensor config and every perception INTENT (`PerceptionReceptor`, `EqsSensor`) stay in BRAIN | — |
 
 Nothing open; next step is the UML.
