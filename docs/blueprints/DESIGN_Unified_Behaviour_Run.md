@@ -198,18 +198,26 @@ every queued event.
   2026-10-02** (user: *"the events might be managed objects"*). The bus has a managed channel (`PublishManaged`). Today a
   blueprint Event graph receives **unmanaged events only** (`BlueprintEventDispatch.cs:47`, `ReadRawByTypeId`), so a
   managed event handler is new capability that S6b must add. The rule is therefore:
-  - **unmanaged event** ⇒ its copy sits in the blittable `Exec` record (zero allocation), as above;
-  - **managed event** ⇒ the waiting fiber / queue slot holds the **reference** the bus already allocated, in a generated
-    **managed component** on the same entity (`{Asset}_PendingEvents`: one fixed-capacity typed array per managed event
-    type, together with its own ring indexes, so a restore can never split slots from indexes). ⭐ The recorder already
-    serializes managed components (`RecorderSystem.cs:223-234, 603-645`, `FdpAutoSerializer`) and checkpoints them ⇒
-    **no new serialization handler**. Hot path: storing a reference allocates nothing.
-  - ⛔ rejected: serializing each managed event into bytes at enqueue (an allocation + a serializer call per event, a
-    byte budget per slot, and a new object on dequeue anyway); a custom serializer hook on the blackboard slot (a second
-    mechanism where the managed-component one exists).
-  - ⚠ to check in S6b: `FdpAutoSerializer` handles a typed `TEvent[]` (it handles polymorphic elements only for a
-    registered interface/abstract base, `FdpAutoSerializer.cs:684-693`), and the managed component's `DataPolicy` keeps
-    it recorded (no `NoReplay`).
+  - ⭐⭐ **ONE BYTE RING inside the blueprint's brain-state slot holds EVERY pending event** *(user ruling 2026-10-02:
+    "serialize to a ring byte buffer within the blackboard slot" — supersedes a per-event-type generated managed
+    component, rejected by the user)*. Each record is `[eventTypeId][length][bytes][state]`:
+    - an **unmanaged** event is copied in raw (a memcpy, no allocation);
+    - a **managed** event is serialized into the ring by the same serializer the recorder uses for managed state
+      (`FdpAutoSerializer`), written straight into the ring span; it is deserialized when its handler runs.
+  - **One ring, two users:** a Queue(N) handler's waiting events, AND the event a waiting fiber is still holding (a
+    fiber keeps the offset of its record). A record is marked free when its fiber ends; the ring's head advances over
+    freed records, so out-of-order completion (Parallel(N)) needs no compaction.
+  - **Capacity** is fixed per blueprint at compile time (derived from the declared policies, author-adjustable).
+    Overflow ⇒ `BehaviorFault` + log, never a silent drop.
+  - ⭐ The ring is ordinary bytes in the recorded store ⇒ **replay and checkpoints reconstruct it with no special
+    handler**, managed events included.
+  - ⚠ **Cost, stated honestly:** a managed event allocates when its handler deserializes it. A managed event already
+    allocates when it is published, so this adds one object per handled managed event, not a per-frame cost.
+    Unmanaged events stay allocation-free.
+  - ⛔ rejected: holding managed references in a generated per-event-type managed component (a component per type,
+    per-type fixed capacities: user, 2026-10-02 *"Come on"*); a custom serializer hook on the slot.
+  - ⚠ to check in S6b: `FdpAutoSerializer` can write into a caller-supplied span without an intermediate
+    `MemoryStream` (otherwise a small adapter over the ring).
 - the queue layout is part of `StructureHash`.
 
 📋 **Rail (S6b):** fill a queue, checkpoint, restore into a fresh world, tick; the same events are handled in the same order.
