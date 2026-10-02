@@ -3,12 +3,14 @@ state: LIVE
 updated: 2026-10-02 (§5.14 — one block-shape rule for all tiers, PROPOSED, awaiting the user)
 build-state: BUILDING (compiler + runtime built 2026-09-30, §5.9) — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
   A–E adopted as written.
-current-answer: §3 (the decisions, each with a lean) and §4 (the UML); §5.14 is the open block-shape proposal. §1 is the inventory, §2 the claim table.
+current-answer: §3 (the decisions, each with a lean) and §4 (the UML). ⛔ §3 C (cursor in the root block) is SUPERSEDED by DESIGN_Unified_Behaviour_Run.md (brain state out of the block, any tier hosts any tier); §5.14 is history. §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
   shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (approved 2026-09-30); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:
+  - DESIGN_Unified_Behaviour_Run.md — owns where a blueprint behaviour's brain state lives (out of the block), the one run
+    contract for all tiers, hosting any tier from any tier, and native blueprint concurrency (fibers). Supersedes §3 C.
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns the three settled rulings (blueprint IS a brain tier; latent ≠
     ended; tiers compose) and §1.5.1's "discriminant, not bitmask". This document is its build design.
   - DESIGN_Occurrence_Scoped_Storage.md — §12 lists O9's four gaps; §31.14.2 is why BlueprintTickSystem stays out of
@@ -414,7 +416,11 @@ Filed as `CE-452` and replaced.
 | New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ✅ `CE-460` + `CE-461` (UI lane, `2026-09-30`): File / New Behaviour… · New Action… · New Condition…, product first, technology second, plus the blueprint Behavior / Action / Condition blank templates. 📄 [`DESIGN_Product_First_Authoring.md`](DESIGN_Product_First_Authoring.md). Still open: C# as a technology (`CE-459`, design slice) and the stale method name (`CE-457`) |
 | the editor panels agree with the compiler about a behaviour | ✅ `CE-496` (`2026-10-01`): the Return-node panel shows Status for the behaviour's `Tick` (Outputs for its helper functions) by calling `BehaviorDispatch.IsTickGraph` — the rule Stage 5 uses; the EQS-spawn panel's dispatch guard mirrors `BP2030` |
 
-### 5.14 ⚖️ PROPOSED `2026-10-02` — ONE block-shape rule for all three tiers *(build-state: DESIGN — awaiting the user)*
+### 5.14 ⛔ SUPERSEDED `2026-10-02` by [`DESIGN_Unified_Behaviour_Run.md`](DESIGN_Unified_Behaviour_Run.md) — ONE block-shape rule for all three tiers
+
+> ⛔ **SUPERSEDED the same day.** The user required that no resolver sees the cursor and that a blueprint behaviour
+> can host and be hosted. Both need the brain state OUT of the block (R-151 literal), so the lean below (cursor kept in
+> the block, BS-1) was replaced. The inventory and the manifest half (BS-2) survive there as slices S2/S3. Kept below as history.
 
 > **Why.** A running behaviour owns one root block (`R-151`), but it has two shapes. BTree and HSM use
 > `{Asset}_Block { In; St }`: the `Role=Input` part is a **prefix at offset 0**, described by a manifest

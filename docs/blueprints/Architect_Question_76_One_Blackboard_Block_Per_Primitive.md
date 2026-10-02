@@ -34,6 +34,8 @@ known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the oppo
   design's own status note already defers cross-entity WRITE to "a deferred-event bus", so it is
   half-conceded there.
 related-designs:
+  - DESIGN_Unified_Behaviour_Run.md — applies R-151 to the blueprint behaviour and generalises §12.1's hosted child slot to
+    any tier (`[brain state][start][block]`).
   - DESIGN_Occurrence_Scoped_Storage.md — owns the slot model this simplifies. Its §3 thesis ("an
     occurrence is a running instance of an asset; identity is (assetId, hostPath)") IS this
     proposal; its O3 row is the unfinished key unification this completes.

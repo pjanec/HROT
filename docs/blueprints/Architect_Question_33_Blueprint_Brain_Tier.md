@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-02 (STATUS block added; content unchanged)
+current-answer: the dated banners at the top, then §1.5.4 (hosted subtree under an HSM is NON-BLOCKING) and §1.5.5.
+stale-below: the storage model below the 2026-09-19 banner is SUPERSEDED by DESIGN_Occurrence_Scoped_Storage.md.
+known-rot: §1.5.3's "[Cursor][Params][State] slot shape" for composition is overtaken by DESIGN_Unified_Behaviour_Run.md
+  (brain state out of the block).
+related-designs:
+  - DESIGN_Unified_Behaviour_Run.md — builds the cross-tier hosting matrix; keeps §1.5.4 (HSM-hosted = non-blocking) and
+    does §1.5.5's convergence of the two suspension mechanisms (slice S8).
+  - Architect_Question_77_Blueprint_As_A_Behaviour.md — the build design of this question's blueprint brain tier.
+  - DESIGN_Occurrence_Scoped_Storage.md — supersedes the storage model here.
+-->
 # Architect Question #33 — blueprint as a brain tier, and suspendable sub-behaviours
 
 > ## ⭐ `2026-09-30` — TRACKED AS `CE-446`; ITS PARAMETERS FOLLOW `DESIGN_Parameter_Model` §P
