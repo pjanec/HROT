@@ -124,6 +124,10 @@ public sealed class NodeCoverageTests
             [typeof(BindEventDispatcherNode)] =
                 "No Stage5_Schedule case for BindEventDispatcherNode -- falls through to the " +
                 "generic `default:` branch (BP4004 warning), no IR emitted.",
+            [typeof(BehaviorTaskAbortNode)] =
+                "Compile-time only BY DESIGN (S7a, DESIGN_Unified_Behaviour_Run \"S7 design\" D4) -- never authored: " +
+                "Stage2_6_SplitEventHandlers.RetargetAborts makes one per Behaviour Task whose Abort pin is wired. " +
+                "Compiled and run by BlueprintBehaviourTests.S7a_AbortFromWhileRunning_* and S7a_ATaskInATickGraph_*.",
             [typeof(MacroCallNode)] =
                 "No compiling fixture BY DESIGN, not a gap -- a MacroCallNode's pins are derived " +
                 "ENTIRELY by projection from its target macro graph (NodePinSchema.MacroCallPins / " +
@@ -179,9 +183,12 @@ public sealed class NodeCoverageTests
     //   - MacroCallNode             -> MacroSurfaceTests (BP-80; BP1668 error via its OWN Stage5 arm,
     //                                   so -- like the two Array kinds -- the compile FAILS and never
     //                                   falls into the generic default: branch that emits BP4004)
+    //   - BehaviorTaskAbortNode     -> BlueprintBehaviourTests.S7a_* (compile-time only: it LOWERS, via its own
+    //                                   Stage5 arm, and is never authored, so it has no fixture to compile)
     private static readonly HashSet<Type> SeparatelyCharacterizedExceptions = new()
     {
         typeof(WaitForEventNode),
+        typeof(BehaviorTaskAbortNode),
         typeof(ArrayMakeNode),
         typeof(ArrayGetNode),
         typeof(MacroCallNode),

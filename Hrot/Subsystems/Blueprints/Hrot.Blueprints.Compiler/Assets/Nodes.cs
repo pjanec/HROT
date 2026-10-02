@@ -61,7 +61,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
 [JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
-[JsonDerivedType(typeof(RunBehaviorNode),        "RunBehavior")]
+[JsonDerivedType(typeof(RunBehaviorNode),        "BehaviorTask")]   // ⭐ S7a — was "RunBehavior" (still read, BehaviorTaskMigration)
+[JsonDerivedType(typeof(BehaviorTaskAbortNode),  "BehaviorTaskAbort")]   // compile-time only (Stage 2.6); never authored
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -473,6 +474,70 @@ public sealed class RunBehaviorNode : Node
 {
     /// <summary>The child behaviour's REGISTRY name.</summary>
     public string BehaviorName { get; set; } = "";
+
+    // ⭐⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design", U-11) — the BEHAVIOUR TASK node's pins. "Run and wait" is only
+    //   Start + the completion pins wired. ⚠ The S5d names (In / Out / OnFailure) still route, so a graph built against
+    //   them is read the same (BehaviorTaskMigration renames them on load).
+    public const string StartPin        = "Start";
+    public const string AbortPin        = "Abort";
+    public const string StartedPin      = "Started";
+    public const string WhileRunningPin = "WhileRunning";
+    public const string SucceededPin    = "Succeeded";
+    public const string FailedPin       = "Failed";
+
+    /// <summary>True for the pin that continues on the child's Failure (its S5d name included).</summary>
+    public static bool IsFailedPin(string name) => name is FailedPin or "OnFailure";
+
+    /// <summary>True for an exec-OUT pin that is NOT the success continuation.</summary>
+    public static bool IsNonSuccessOut(string name) => IsFailedPin(name) || name is StartedPin or WhileRunningPin;
+}
+
+/// <summary>
+/// ⭐ S7a — compile-time only: Stage 2.6 retargets every exec link into a Behaviour Task's <c>Abort</c> pin to one of
+/// these (the scheduler walks node to node and cannot see which input pin was entered). Lowers to
+/// <c>IrOp_AbortTask</c>. Never authored, never saved.
+/// </summary>
+public sealed class BehaviorTaskAbortNode : Node
+{
+    /// <summary>The id of the Behaviour Task node this aborts (in the same graph).</summary>
+    public Guid TaskNodeId { get; set; }
+}
+
+/// <summary>⭐ S7a — the load-time migration of a pre-S7 Run Behaviour node: the kind and the three S5d pin names.</summary>
+public static class BehaviorTaskMigration
+{
+    private static readonly (string Old, string New, string Dir)[] Renames =
+    {
+        ("In", RunBehaviorNode.StartPin, "In"), ("Out", RunBehaviorNode.SucceededPin, "Out"), ("OnFailure", RunBehaviorNode.FailedPin, "Out"),
+    };
+
+    /// <summary>Rewrites the retired kind name in raw JSON (before it is deserialized).</summary>
+    public static string MigrateKind(string json)
+        => json.IndexOf("\"RunBehavior\"", StringComparison.Ordinal) < 0
+            ? json
+            : System.Text.RegularExpressions.Regex.Replace(json, "(\"kind\"\\s*:\\s*)\"RunBehavior\"", "$1\"BehaviorTask\"");
+
+    /// <summary>Renames a migrated node's S5d pins (stored pins, and the link ends that name them by deterministic id).</summary>
+    public static void MigratePins(BlueprintAsset asset)
+    {
+        foreach (var graph in asset.Graphs)
+            foreach (var node in graph.Nodes.OfType<RunBehaviorNode>())
+                foreach (var (oldName, newName, dir) in Renames)
+                {
+                    var oldId = Compiler.DeterministicIds.PinId(node.Id, oldName, dir);
+                    var newId = Compiler.DeterministicIds.PinId(node.Id, newName, dir);
+                    foreach (var pin in node.Pins.Where(p => p.Name == oldName && p.Direction == dir))
+                    {
+                        if (pin.Id == oldId) pin.Id = newId;
+                        pin.Name = newName;
+                    }
+                    foreach (var link in graph.Links)
+                    {
+                        if (link.FromNodeId == node.Id && link.FromPinId == oldId) link.FromPinId = newId;
+                        if (link.ToNodeId == node.Id && link.ToPinId == oldId) link.ToPinId = newId;
+                    }
+                }
+    }
 }
 
 public sealed class CallEventDispatcherNode : Node

@@ -33,6 +33,11 @@ public sealed class TheEqsBrainStartupIsSharedTests
         Assert.Contains("BlueprintNodeAuthoring = _blueprintNodeAuthoring", text);
         Assert.DoesNotContain("BlueprintEditorBootstrap.CreateAttachmentProviders(", text);
         Assert.DoesNotContain("BlueprintEditorBootstrap.CreateCanvasRenderers(", text);
+
+        // ⭐ S7a — the Behaviour Task picker lists the host's registered behaviours: a host that HAS a behaviour
+        //   registry must hand it to the binder (the silent-default rule; the registry→drawer leg is
+        //   BehaviorTaskNodeDrawerTests.TheRegistry_ForwardsTheBehaviourNames_ToTheDrawerItBuilds).
+        Assert.Matches(@"BehaviourNames\s*=\s*\(\)\s*=>\s*_behaviorRegistry", text);
     }
 
     [Theory]

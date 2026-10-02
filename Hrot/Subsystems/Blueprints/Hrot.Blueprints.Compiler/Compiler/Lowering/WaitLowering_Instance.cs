@@ -32,6 +32,30 @@ internal static class WaitLowering_Instance
 
         int n = suspendBlocks.Count;
 
+        // ⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design" D5) — every Behaviour Task this graph aborts gets a second
+        //   resume label, n + j: the dispatch routes it to a block that clears the cursor and continues on Failed. The
+        //   task is found by its suspend block (its node id, or its site id before the debug-id rewrite).
+        var taskOfK = new Dictionary<int, IrOp_RunBehavior>();
+        for (int k = 1; k <= n; k++)
+            if (suspendBlocks[k - 1].Statements.Select(st => st.Operation).FirstOrDefault(SuspendOps.Is) is IrOp_RunBehavior rbk)
+                taskOfK[k] = rbk;
+        int TaskK(Guid taskNodeId)
+        {
+            for (int k = 1; k <= n; k++)
+                if (taskOfK.TryGetValue(k, out var rbk) && (rbk.SiteId == taskNodeId || suspendBlocks[k - 1].SourceNodeId == taskNodeId))
+                    return k;
+            throw new InvalidOperationException(
+                $"Abort of Behaviour Task {taskNodeId:N} found no waiting task in graph '{graph.Name}' (BP1685 should have refused it).");
+        }
+        var abortedTasks = new List<int>();   // k of each aborted task, in label order
+        foreach (var op in AllOps(graph.Blocks).OfType<IrOp_AbortTask>())
+        {
+            int k = TaskK(op.TaskNodeId);
+            if (!abortedTasks.Contains(k)) abortedTasks.Add(k);
+        }
+        int m = abortedTasks.Count;
+        int total = n + m;
+
         int nextVal = MaxValueIdx(graph) + 1;
         int nextBlkId = graph.Blocks.Max(b => b.Id.Value) + 1;
 
@@ -59,9 +83,9 @@ internal static class WaitLowering_Instance
             failureBlockId[k]     = NewBlk();
         }
 
-        // Chain blocks for dispatch (when N > 1).
-        var chainBlockId = new IrBlockId[n]; // chainBlockId[k] checks ResumeAt==k (1-indexed)
-        for (int k = 1; k <= n - 1; k++)
+        // Chain blocks for dispatch (when N > 1). ⭐ S7a — over every label, the aborted ones included (m = 0 ⇒ unchanged).
+        var chainBlockId = new IrBlockId[Math.Max(total, 1)]; // chainBlockId[k] checks ResumeAt==k (1-indexed)
+        for (int k = 1; k <= total - 1; k++)
             chainBlockId[k] = NewBlk();
 
         // ⭐ S1 / I12 (DESIGN_Unified_Behaviour_Run §2) — a SUCCESS resume clears the cursor before it continues, exactly as
@@ -71,6 +95,12 @@ internal static class WaitLowering_Instance
         var successBlockId = new IrBlockId[n + 1];
         for (int k = 1; k <= n; k++)
             successBlockId[k] = NewBlk();
+
+        // ⭐ S7a — one "aborted" block per aborted task (label n + j).
+        var abortedBlockId = new IrBlockId[m + 1];
+        for (int j = 1; j <= m; j++)
+            abortedBlockId[j] = NewBlk();
+        IrBlockId Target(int label) => label <= n ? resumeCheckBlockId[label] : abortedBlockId[label - n];
 
         // ---------------------------------------------------------------
         // Modify each suspend block to become the "initial" block:
@@ -140,7 +170,7 @@ internal static class WaitLowering_Instance
                                      new[] { resumeAtV, constZeroV }, BoolType)),
             };
 
-            IrBlockId elseTarget = n == 1 ? resumeCheckBlockId[1] : chainBlockId[1];
+            IrBlockId elseTarget = total == 1 ? Target(1) : chainBlockId[1];
 
             synthesizedBlocks.Add(new IrBlock
             {
@@ -154,7 +184,7 @@ internal static class WaitLowering_Instance
         }
 
         // --- Chain blocks (N > 1) ---
-        for (int k = 1; k <= n - 1; k++)
+        for (int k = 1; k <= total - 1; k++)
         {
             var resumeAtV  = Alloc(UInt32Type);
             var constKV    = Alloc(UInt32Type);
@@ -171,7 +201,7 @@ internal static class WaitLowering_Instance
             // ⭐ CE-2018 — the else goes to the NEXT LINK of the chain, and only the last link falls to the last check.
             //   🔴 It went to check[k+1] for every link, so with three or more waits ResumeAt == 3 resumed the SECOND
             //   wait (the third re-entered itself forever). Two waits — every golden — are byte-identical.
-            IrBlockId elseOfChain = k + 1 <= n - 1 ? chainBlockId[k + 1] : resumeCheckBlockId[k + 1];
+            IrBlockId elseOfChain = k + 1 <= total - 1 ? chainBlockId[k + 1] : Target(k + 1);
 
             synthesizedBlocks.Add(new IrBlock
             {
@@ -179,7 +209,22 @@ internal static class WaitLowering_Instance
                 Label      = $"cursor_dispatch_chain_{k}",
                 Statements = stmts,
                 Terminator = new IrTerm_Branch(isKV,
-                    resumeCheckBlockId[k], elseOfChain) { Debug = Synth() },
+                    Target(k), elseOfChain) { Debug = Synth() },
+            });
+        }
+
+        // --- ⭐ S7a — aborted blocks: the task was aborted from its While Running chain ⇒ continue on Failed ---
+        for (int j = 1; j <= m; j++)
+        {
+            var suspend = (IrTerm_Suspend)suspendBlocks[abortedTasks[j - 1] - 1].Terminator;
+            synthesizedBlocks.Add(new IrBlock
+            {
+                Id         = abortedBlockId[j],
+                Label      = $"resume_{abortedTasks[j - 1]}_aborted",
+                Statements = new[] { Stmt(null, new IrOp_CheckCursorVersion()), Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
+                Terminator = suspend.FailureBlock is { } onFailBlk
+                    ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
+                    : UnwiredFailure(behaviorTick, Synth()),
             });
         }
 
@@ -227,7 +272,10 @@ internal static class WaitLowering_Instance
                     Id         = retReturnBlockId[k],
                     Label      = $"resume_{k}_ret_void",
                     Statements = Array.Empty<IrStatement>(),
-                    Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                    // ⭐ S7a — a Behaviour Task's While Running chain runs each frame the child is still Running.
+                    Terminator = suspend.WhileRunningBlock is { } wr
+                        ? new IrTerm_Goto(wr) { Debug = Synth() }
+                        : new IrTerm_Return(null) { Debug = Synth() },
                 });
 
                 // Not-running: distinguish Success from Failure using statusV (same C# local).
@@ -426,7 +474,7 @@ internal static class WaitLowering_Instance
             allCandidateBlocks.Add(modifiedBlocks.TryGetValue(b.Id.Value, out var mod) ? mod : b);
 
         // 3. Append chain blocks (in chain order).
-        for (int k = 1; k <= n - 1; k++)
+        for (int k = 1; k <= total - 1; k++)
             allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == chainBlockId[k].Value));
 
         // 4. Append check/retReturn/notRunning/failure blocks (in phase order).
@@ -445,11 +493,57 @@ internal static class WaitLowering_Instance
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == successBlockId[k].Value));
         }
 
+        // 5. ⭐ S7a — the aborted blocks, then every Abort becomes: reset the child + cursor to its aborted label.
+        for (int j = 1; j <= m; j++)
+            allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == abortedBlockId[j].Value));
+        if (m > 0)
+            allCandidateBlocks = allCandidateBlocks.Select(b => b with { Statements = RewriteAborts(b.Statements) }).ToList();
+
+        IReadOnlyList<IrStatement> RewriteAborts(IReadOnlyList<IrStatement> list)
+        {
+            var result = new List<IrStatement>(list.Count);
+            foreach (var st in list)
+                switch (st.Operation)
+                {
+                    case IrOp_AbortTask at:
+                    {
+                        int k = TaskK(at.TaskNodeId);
+                        result.Add(st with { Operation = new IrOp_ResetHostedSite(taskOfK[k].SiteId) });
+                        result.Add(new IrStatement { Operation = new IrOp_WriteCursorResumeAt(n + abortedTasks.IndexOf(k) + 1), Debug = Synth() });
+                        break;
+                    }
+                    case IrOp_ForEach fe: result.Add(st with { Operation = fe with { Body = RewriteAborts(fe.Body) } }); break;
+                    case IrOp_If br:      result.Add(st with { Operation = br with { Then = RewriteAborts(br.Then), Else = RewriteAborts(br.Else) } }); break;
+                    default: result.Add(st); break;
+                }
+            return result;
+        }
+
         // Filter dead blocks (e.g. _unused blocks from LatentDelay path)
         // to prevent CS0162/CS0164.
         var finalBlocks = FilterDeadBlocks(allCandidateBlocks, dispatchBlockId);
 
         return graph with { Blocks = finalBlocks, Entry = dispatchBlockId };
+    }
+
+    /// <summary>Every operation of every block, nested loop / branch bodies included.</summary>
+    private static IEnumerable<IrOperation> AllOps(IEnumerable<IrBlock> blocks)
+    {
+        static IEnumerable<IrOperation> Of(IEnumerable<IrStatement> list)
+        {
+            foreach (var st in list)
+            {
+                yield return st.Operation;
+                var nested = st.Operation switch
+                {
+                    IrOp_ForEach fe => Of(fe.Body),
+                    IrOp_If br      => Of(br.Then).Concat(Of(br.Else)),
+                    _               => Enumerable.Empty<IrOperation>(),
+                };
+                foreach (var op in nested) yield return op;
+            }
+        }
+        return blocks.SelectMany(b => Of(b.Statements));
     }
 
     private static int MaxValueIdx(IrGraph graph)

@@ -802,6 +802,18 @@ internal static class StatementEmitter
                         : $"{InstanceEmitter.RunSiteField(rb)});"));
                 break;
 
+            // ⭐ S7a — a Behaviour Task's Abort: reset the child at that site (recursively), as Restart does.
+            case IrOp_ResetHostedSite rs:
+                e.WriteLine($"global::Fdp.Toolkit.Behavior.HostedSubtree.Reset({e.Ctx.WorldVar}, self, "
+                    + (Lowering.Fibers.IsOwnFiber(e.Ctx.CurrentGraph)
+                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rs.SiteId)}, __fi)"
+                        : InstanceEmitter.RunSiteField(rs.SiteId))
+                    + ", occurrenceKey);");
+                break;
+
+            case IrOp_AbortTask:
+                throw new InvalidOperationException("IrOp_AbortTask reached Emit stage — WaitLowering_Instance replaces it (S7a).");
+
             // ------------------------------------------------------------------
             // Wait primitives -- should not reach Stage 7
             // ------------------------------------------------------------------

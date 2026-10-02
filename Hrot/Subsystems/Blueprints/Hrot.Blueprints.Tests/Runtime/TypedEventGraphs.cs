@@ -83,12 +83,25 @@ internal sealed class TypedEventGraph
         => Add(new BinaryOpNode { Operator = ArithmeticOperator.Add },
                P("A", "In", "System.Int32"), P("B", "In", "System.Int32"), P("Result", "Out", "System.Int32"));
 
+    /// <summary>A Behaviour Task (S7a) with its canonical pins: Start · Abort in; Started · While Running · Succeeded · Failed out.</summary>
     public RunBehaviorNode RunBehavior(string child)
-        => Add(new RunBehaviorNode { BehaviorName = child }, P("In", "In"), P("Out", "Out"), P("OnFailure", "Out"));
+        => Add(new RunBehaviorNode { BehaviorName = child },
+               P(RunBehaviorNode.StartPin, "In"), P(RunBehaviorNode.AbortPin, "In"),
+               P(RunBehaviorNode.StartedPin, "Out"), P(RunBehaviorNode.WhileRunningPin, "Out"),
+               P(RunBehaviorNode.SucceededPin, "Out"), P(RunBehaviorNode.FailedPin, "Out"));
+
+    /// <summary>A Delay (latent) with exec in/out — for the "nothing latent in While Running" rail.</summary>
+    public LatentDelayNode Delay() => Add(new LatentDelayNode(), P("In", "In"), P("Out", "Out"));
+
+    /// <summary>Exec wire into a NAMED exec-in (e.g. a Behaviour Task's Abort).</summary>
+    public TypedEventGraph ThenInto(Node from, string fromPin, Node to, string toPin)
+        => Wire(from.Pins.First(p => p.IsExec && p.Direction == "Out" && p.Name == fromPin),
+                to.Pins.First(p => p.IsExec && p.Direction == "In" && p.Name == toPin), from, to);
 
     /// <summary>Exec wire: <paramref name="from"/>'s exec-out <paramref name="pin"/> (default "Out") → <paramref name="to"/>'s exec-in.</summary>
     public TypedEventGraph Then(Node from, Node to, string pin = "Out")
-        => Wire(from.Pins.First(p => p.IsExec && p.Direction == "Out" && p.Name == pin),
+        => Wire(from.Pins.First(p => p.IsExec && p.Direction == "Out"
+                                   && (p.Name == pin || (pin == "Out" && from is RunBehaviorNode && p.Name == RunBehaviorNode.SucceededPin))),
                 to.Pins.First(p => p.IsExec && p.Direction == "In"), from, to);
 
     /// <summary>Data wire: <paramref name="from"/>'s data-out <paramref name="outPin"/> → <paramref name="to"/>'s data-in <paramref name="inPin"/>.</summary>

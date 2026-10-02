@@ -117,6 +117,11 @@ public static class BlueprintNodePaletteEntries
         yield return Make<WaitForEventNode>(
             "WaitForEvent", "Wait For Event", Categories.Event,
             "Latent: suspend until a matching event fires.");
+        // ⭐ S7a (DESIGN_Unified_Behaviour_Run U-11) — host a behaviour of any tier and wait for it. ⚠ Behaviour assets only
+        //   (BP1659); its child is picked in the node's Details.
+        yield return Make<RunBehaviorNode>(
+            "BehaviorTask", "Behaviour Task", Categories.Latent,
+            "Latent: run a behaviour (BTree, HSM or blueprint) here and wait — Succeeded / Failed when it ends, While Running each frame.");
 
         // ── Variables ──────────────────────────────────────────────────────
         yield return Make<GetVariableNode>(

@@ -367,6 +367,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ArrayGetNode             => "Get Array",
         Hrot.Blueprints.Core.Assets.WaitForChannelNode wfc   => $"Wait: {wfc.ChannelType}",
         Hrot.Blueprints.Core.Assets.WaitForEventNode wfe     => $"Wait Event: {ShortEventName(wfe.EventTypeId)}",
+        Hrot.Blueprints.Core.Assets.RunBehaviorNode task     => string.IsNullOrWhiteSpace(task.BehaviorName) ? "Behaviour Task" : $"Task: {task.BehaviorName}",
         // Custom events bake the FQN in EventTypeFqn and leave EventId empty; show the short event name
         // either way so the node never reads "Publish:" with a blank identity.
         Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {ShortEventName(!string.IsNullOrEmpty(pev.EventTypeFqn) ? pev.EventTypeFqn : pev.EventId)}",

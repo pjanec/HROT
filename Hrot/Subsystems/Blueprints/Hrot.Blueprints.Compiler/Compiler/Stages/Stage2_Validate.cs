@@ -722,6 +722,11 @@ internal sealed class V_LatentRules : IValidator
                     asset.AssetId, graph.Id, extra.Id));
         }
 
+        // ⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design" D3/D6/D7) — the Behaviour Task's While Running and Abort pins.
+        foreach (var graph in asset.Graphs)
+            foreach (var task in graph.Nodes.OfType<RunBehaviorNode>())
+                BehaviorTaskRules.Validate(asset, graph, task, ctx);
+
         // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
         //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)
         foreach (var graph in asset.Graphs)
@@ -2710,5 +2715,59 @@ internal sealed class V_FormatStringRules : IValidator
                 }
             }
         }
+    }
+}
+
+/// <summary>
+/// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design") — the Behaviour Task's own rules: its While Running chain runs
+/// inside one frame of the waiting fiber, so it may hold no latent node (<c>BP1684</c>); in S7a it is also the only place
+/// an Abort may come from (<c>BP1685</c>, D3); and <c>Started</c> (running alongside) arrives with S7b (<c>BP1686</c>, D7).
+/// </summary>
+internal static class BehaviorTaskRules
+{
+    public static void Validate(BlueprintAsset asset, Graph graph, RunBehaviorNode task, ValidationContext ctx)
+    {
+        Pin? Exec(string name, string dir) => task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == dir && p.Name == name);
+        bool Wired(Pin? outPin) => outPin is not null && graph.Links.Any(l => l.FromNodeId == task.Id && l.FromPinId == outPin.Id);
+
+        if (Wired(Exec(RunBehaviorNode.StartedPin, "Out")))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1686,
+                $"Behaviour Task '{task.BehaviorName}': 'Started' runs the task ALONGSIDE the graph, which is not built yet " +
+                "(S7b). Leave it unwired to run the task and wait for it.", asset.AssetId, graph.Id, task.Id));
+
+        var abort = Exec(RunBehaviorNode.AbortPin, "In");
+        var pinById = new Dictionary<Guid, Pin>();
+        foreach (var n in graph.Nodes) foreach (var p in n.Pins) pinById[p.Id] = p;
+        bool IsExecLink(Link l) => pinById.TryGetValue(l.FromPinId, out var fp) ? fp.IsExec : false;
+
+        // The While Running chain: exec-forward from its pin. ⚠ An exec link into this task's Abort ENDS there — it is
+        //   the abort, not a re-entry of the task.
+        bool IntoAbort(Link l) => abort is not null && l.ToNodeId == task.Id && l.ToPinId == abort.Id;
+        var reach = new HashSet<Guid>();
+        var wr = Exec(RunBehaviorNode.WhileRunningPin, "Out");
+        var work = new Stack<Guid>();
+        if (wr is not null)
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == task.Id && l.FromPinId == wr.Id && !IntoAbort(l)))
+                work.Push(l.ToNodeId);
+        while (work.Count > 0)
+        {
+            var at = work.Pop();
+            if (!reach.Add(at)) continue;
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == at && IsExecLink(l)))
+                if (!IntoAbort(l))
+                    work.Push(l.ToNodeId);
+        }
+        foreach (var latent in graph.Nodes.Where(n => reach.Contains(n.Id) && MacroLatency.IsLatent(n)))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1684,
+                $"Behaviour Task '{task.BehaviorName}': its While Running chain reaches latent node '{latent.GetType().Name}'. " +
+                "While Running runs inside one frame; set a variable there and wait elsewhere.", asset.AssetId, graph.Id, latent.Id));
+
+        if (abort is null) return;
+        foreach (var l in graph.Links.Where(l => l.ToNodeId == task.Id && l.ToPinId == abort.Id))
+            if (!reach.Contains(l.FromNodeId) && !(wr is not null && l.FromNodeId == task.Id && l.FromPinId == wr.Id))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1685,
+                    $"Behaviour Task '{task.BehaviorName}' is aborted from outside its own While Running chain. A task can be " +
+                    "aborted only from its While Running pin for now (an abort from another chain is not built).",
+                    asset.AssetId, graph.Id, task.Id));
     }
 }

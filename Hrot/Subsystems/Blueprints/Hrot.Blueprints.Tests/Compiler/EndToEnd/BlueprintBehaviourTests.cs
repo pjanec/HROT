@@ -888,6 +888,201 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(7f, Got());
     }
 
+    // ── S7a (DESIGN_Unified_Behaviour_Run "S7 design"): the Behaviour Task node — While Running · Abort ⇒ Failed ─────────
+
+    /// <summary>
+    /// A behaviour whose Event graph runs a Behaviour Task on <see cref="Runtime.WhenTestHitEvent"/>; <paramref name="wire"/>
+    /// wires the task's outputs. Variables <c>Ticks</c> · <c>Done</c> · <c>Failed</c> are the counters the rails read.
+    /// </summary>
+    private static BlueprintAsset TaskHost(string name, string child,
+        Action<Runtime.TypedEventGraph, RunBehaviorNode, Func<string, VariableDecl>> wire)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name)
+            .WithVariable("Ticks", typeof(int)).WithVariable("Done", typeof(int)).WithVariable("Failed", typeof(int))
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        var t = new Runtime.TypedEventGraph();
+        var hit = t.Event(typeof(Runtime.WhenTestHitEvent).FullName!);
+        var task = t.RunBehavior(child);
+        t.Then(hit, task);
+        wire(t, task, n => asset.Variables.Single(v => v.Name == n));
+        asset.Graphs.Add(t.Graph);
+        return asset;
+    }
+
+    private unsafe Func<string, int> IntReader(string host, Fdp.Core.Entity e)
+    {
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        return n => *(int*)(RootParamsAccessRoot(_fixture.World, e) + VarOffset(def!, n));
+    }
+
+    private void Hit()
+    {
+        _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 1f });
+        _fixture.World.Bus.SwapBuffers();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S7a (D3) — While Running runs on every frame the child is still running, then Succeeded.</b> The child runs
+    /// three ticks: frames 2 and 3 return Running (While Running counts each), frame 4 succeeds (Succeeded counts once).
+    /// <para>✅ Red-proof: lower the Running arm to <c>ret_void</c> (drop <c>WhileRunningBlock</c>) and <c>Ticks</c> stays 0.</para>
+    /// </summary>
+    [Fact]
+    public void S7a_WhileRunning_RunsEachFrameTheChildRuns_ThenSucceeded()
+    {
+        const string Host = "S7aWrHost", Child = "S7aWrChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = TaskHost(Host, Child, (t, task, v) =>
+        {
+            t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.WhileRunningPin);
+            t.Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+        });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        Hit();
+        Assert.Null(frame());                               // f1: reaches the task and suspends
+        Assert.Equal((0, 0), (read("Ticks"), read("Done")));
+        Assert.Null(frame());                               // f2: child Running ⇒ While Running
+        Assert.Equal((1, 0), (read("Ticks"), read("Done")));
+        Assert.Null(frame());                               // f3: child Running ⇒ While Running
+        Assert.Equal((2, 0), (read("Ticks"), read("Done")));
+        Assert.Null(frame());                               // f4: child Success ⇒ Succeeded (While Running does not run)
+        Assert.Equal((2, 1), (read("Ticks"), read("Done")));
+        Assert.Equal(3, _childTicks);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S7a (D4/D5) — an Abort from the task's own While Running stops the child and continues on Failed.</b> The
+    /// child would succeed on its third tick; While Running aborts on the first, so the child ticks ONCE, its hosted site
+    /// is reset, and the next frame takes Failed — never Succeeded.
+    /// <para>✅ Red-proof: drop the aborted arm from the dispatch chain (<c>WaitLowering_Instance</c>) and the next frame
+    /// resumes the child instead — it ticks again and Failed stays 0.</para>
+    /// </summary>
+    [Fact]
+    public void S7a_AbortFromWhileRunning_StopsTheChild_AndContinuesOnFailed()
+    {
+        const string Host = "S7aAbortHost", Child = "S7aAbortChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = TaskHost(Host, Child, (t, task, v) =>
+        {
+            var tick = t.Increment(v("Ticks"));
+            t.Then(task, tick, RunBehaviorNode.WhileRunningPin).ThenInto(tick, "Out", task, RunBehaviorNode.AbortPin);
+            t.Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+            t.Then(task, t.Increment(v("Failed")), RunBehaviorNode.FailedPin);
+        });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        Assert.Contains("HostedSubtree.Reset(", compiled.GeneratedSource!);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        Hit();
+        Assert.Null(frame());                               // f1: suspends
+        Assert.Null(frame());                               // f2: child Running ⇒ While Running ⇒ Abort
+        Assert.Equal(1, read("Ticks"));
+        Assert.Null(frame());                               // f3: the aborted arm ⇒ Failed
+        Assert.Equal((0, 1), (read("Done"), read("Failed")));
+        for (int f = 0; f < 3; f++) Assert.Null(frame());   // nothing more runs: the child is gone
+        Assert.Equal(1, _childTicks);
+        Assert.Equal((1, 0, 1), (read("Ticks"), read("Done"), read("Failed")));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S7a — a Behaviour Task in a Tick graph aborts the same way</b> (the AiPrimitive-free instance path, no fiber):
+    /// Tick: Task(child) — While Running → Abort, Failed → Return(Success). The behaviour finishes Success on frame 3.
+    /// </summary>
+    [Fact]
+    public void S7a_ATaskInATickGraph_AbortsToFailed()
+    {
+        const string Host = "S7aTickHost", Child = "S7aTickChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = BlueprintAssetBuilder.Behavior(Host)
+            .WithGraph("Tick", g => g.Entry().RunBehaviorWithFailure(Child, f => f.Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success))
+                                    .Return(Hrot.Blueprints.Core.Assets.NodeStatus.Failure))
+            .Build();
+        var tick = asset.Graphs.Single(gr => gr.Name == "Tick");
+        var task = tick.Nodes.OfType<RunBehaviorNode>().Single();
+        var wr = new Pin { Id = Guid.NewGuid(), Name = RunBehaviorNode.WhileRunningPin, Direction = "Out", IsExec = true, TypeRef = new() };
+        var abort = new Pin { Id = Guid.NewGuid(), Name = RunBehaviorNode.AbortPin, Direction = "In", IsExec = true, TypeRef = new() };
+        task.Pins.Add(wr); task.Pins.Add(abort);
+        tick.Links.Add(new Link { FromNodeId = task.Id, FromPinId = wr.Id, ToNodeId = task.Id, ToPinId = abort.Id });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (_, frame) = AssignAndFramer(Host);
+        Assert.Null(frame());                                  // f1: suspends
+        Assert.Null(frame());                                  // f2: Running ⇒ While Running ⇒ Abort
+        Assert.Equal(Fbt.NodeStatus.Success, frame());         // f3: aborted ⇒ Failed ⇒ Return(Success)
+        Assert.Equal(1, _childTicks);
+    }
+
+    /// <summary>⛔ S7a (D3) — While Running is a per-frame chain: a latent node in it is BP1684.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1684")]
+    public void S7a_ALatentNodeInWhileRunning_IsBP1684()
+        => Assert.Contains(Diagnose(TaskHost("S7aWrLatent", "AnyChild", (t, task, _) =>
+               t.Then(task, t.Delay(), RunBehaviorNode.WhileRunningPin))), d => d.Code == "BP1684");
+
+    /// <summary>⛔ S7a (D5) — until S7b, Abort is reachable only from the task's OWN While Running: from Succeeded it is BP1685.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1685")]
+    public void S7a_AnAbortFromOutsideItsWhileRunning_IsBP1685()
+        => Assert.Contains(Diagnose(TaskHost("S7aAbortOutside", "AnyChild", (t, task, v) =>
+           {
+               var done = t.Increment(v("Done"));
+               t.Then(task, done, RunBehaviorNode.SucceededPin).ThenInto(done, "Out", task, RunBehaviorNode.AbortPin);
+           })), d => d.Code == "BP1685");
+
+    /// <summary>⛔ S7a — Started (run alongside) is S7b: wiring it now is BP1686, never a silent no-op.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1686")]
+    public void S7a_WiringStarted_IsBP1686_UntilS7b()
+        => Assert.Contains(Diagnose(TaskHost("S7aStarted", "AnyChild", (t, task, v) =>
+               t.Then(task, t.Increment(v("Done")), RunBehaviorNode.StartedPin))), d => d.Code == "BP1686");
+
+    /// <summary>
+    /// ⭐⭐ <b>S7a (D1) — an S5d asset still loads.</b> The retired kind <c>"RunBehavior"</c> reads as a Behaviour Task, and
+    /// its <c>In</c>/<c>Out</c>/<c>OnFailure</c> pins (and the links that name them by deterministic id) become
+    /// <c>Start</c>/<c>Succeeded</c>/<c>Failed</c>.
+    /// </summary>
+    [Fact]
+    public void S7a_AnS5dRunBehaviourAsset_MigratesToABehaviourTask()
+    {
+        var asset = BlueprintAssetBuilder.Behavior("S7aMigrate").WithGraph("Tick", g => g.Entry()).Build();
+        var graph = asset.Graphs.Single();
+        var entry = graph.Nodes.Single();
+        var node = new RunBehaviorNode { Id = Guid.NewGuid(), BehaviorName = "Child" };
+        graph.Nodes.Add(node);
+        var entryOut = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        Guid Old(string n, string d) => Hrot.Blueprints.Core.Compiler.DeterministicIds.PinId(node.Id, n, d);
+        graph.Links.Add(new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = node.Id, ToPinId = Old("In", "In") });
+        graph.Links.Add(new Link { FromNodeId = node.Id, FromPinId = Old("OnFailure", "Out"), ToNodeId = entry.Id, ToPinId = Guid.NewGuid() });
+
+        var json = Hrot.Blueprints.Core.BlueprintJsonServices.Serialize(asset);
+        Assert.Contains("\"BehaviorTask\"", json);
+        var legacy = json.Replace("\"BehaviorTask\"", "\"RunBehavior\"");
+
+        var loaded = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(legacy)!;
+        var task = loaded.Graphs.Single().Nodes.OfType<RunBehaviorNode>().Single();
+        Assert.Equal("Child", task.BehaviorName);
+        var links = loaded.Graphs.Single().Links;
+        Assert.Contains(links, l => l.ToNodeId == task.Id && l.ToPinId == Old(RunBehaviorNode.StartPin, "In"));
+        Assert.Contains(links, l => l.FromNodeId == task.Id && l.FromPinId == Old(RunBehaviorNode.FailedPin, "Out"));
+        Assert.DoesNotContain(links, l => l.ToPinId == Old("In", "In") || l.FromPinId == Old("OnFailure", "Out"));
+    }
+
     /// <summary>⭐ S6b — the policy limits are a blueprint diagnostic (a fixed layout needs a bounded compile-time N).</summary>
     [Theory]
     [CoversDiagnosticCode("BP1681")]

@@ -1520,6 +1520,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 EditService       = _blueprintEditService,
                 PredicateCompiler = bpPredicateCompiler,
                 PeerProvider      = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(_blueprintPeerCatalog),
+                // ⭐ S7a — the Behaviour Task picker lists what this host's registry can actually run.
+                BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
             });
         var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
         _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);

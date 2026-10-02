@@ -30,6 +30,10 @@ public sealed record AiBlueprintNodeAuthoringServices
 
     /// <summary>The CallPeerBlueprint picker's source.</summary>
     public IBlueprintPeerProvider? PeerProvider { get; init; }
+
+    /// <summary>⭐ S7a — the Behaviour Task picker's source: the host's registered behaviour names (read when drawn, so a
+    /// behaviour registered later appears). ⛔ A host with a <c>BehaviorRegistry</c> must pass it.</summary>
+    public Func<IReadOnlyList<string>>? BehaviourNames { get; init; }
 }
 
 /// <summary>
@@ -93,7 +97,7 @@ public static class AiBlueprintNodeAuthoringBinder
         var eqsTemplates = CreateEqsTemplates();
         var drawers = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
             BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, edit, predicate, eqsTemplates,
-            peerProvider: services.PeerProvider);
+            peerProvider: services.PeerProvider, behaviourNames: services.BehaviourNames);
         var attachments = BlueprintEditorBootstrap.CreateAttachmentProviders(
             eqsTemplates, new PeerNameCache(services.PeerProvider).Resolve);
         return new AiBlueprintNodeAuthoring(drawers, eqsTemplates, attachments);

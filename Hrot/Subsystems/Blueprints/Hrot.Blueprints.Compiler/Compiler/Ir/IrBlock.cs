@@ -66,7 +66,10 @@ public sealed record IrTerm_ReturnStatus(NodeStatus Status, IrValue? Condition =
 // FailureBlock (Q#13): when set, the WaitForChannel latent lowering routes a channel-Failure
 // resume to this block (the wired OnFailure exec chain) instead of returning NodeStatus.Failure.
 // Null for LatentDelay / WaitForEvent / WaitForChannel-with-unwired-OnFailure (unchanged behavior).
-public sealed record IrTerm_Suspend(IrValue ResumePoint, IrValue? WaitUntilTime, IrBlockId ResumeBlock, IrBlockId? FailureBlock = null) : IrTerminator;
+/// <param name="WhileRunningBlock">⭐ S7a — a Behaviour Task's While Running chain: each frame the child is still Running,
+/// the resume check runs this block instead of returning (its end returns, still suspended). Null ⇒ unchanged.</param>
+public sealed record IrTerm_Suspend(IrValue ResumePoint, IrValue? WaitUntilTime, IrBlockId ResumeBlock, IrBlockId? FailureBlock = null,
+                                    IrBlockId? WhileRunningBlock = null) : IrTerminator;
 public sealed record IrTerm_FallThrough : IrTerminator;
 
 public sealed record IrBlock

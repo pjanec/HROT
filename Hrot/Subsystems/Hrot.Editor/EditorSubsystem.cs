@@ -1821,6 +1821,8 @@ namespace Hrot.Editor
                     EditService       = blueprintEditService,
                     PredicateCompiler = bpPredicateCompiler,
                     PeerProvider      = blueprintPeerProvider,
+                    // ⭐ S7a — the Behaviour Task picker lists what this host's registry can actually run.
+                    BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
                 });
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action

@@ -414,6 +414,17 @@ public sealed record IrOp_InlineActionCall(
 /// </summary>
 public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation;
 
+/// <summary>
+/// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design" D2/D5) — abort the Behaviour Task <paramref name="TaskNodeId"/> of
+/// this graph. Stage 6 (<c>WaitLowering_Instance</c>) replaces it with <see cref="IrOp_ResetHostedSite"/> + a cursor write
+/// to that task's ABORTED resume label, so the waiting fiber continues on Failed next frame.
+/// </summary>
+public sealed record IrOp_AbortTask(Guid TaskNodeId) : IrOperation;
+
+/// <summary>⭐ S7a — <c>HostedSubtree.Reset</c> the child hosted at <paramref name="SiteId"/> (the Behaviour Task's node id),
+/// recursively; inside a fiber graph, the running copy's site.</summary>
+public sealed record IrOp_ResetHostedSite(Guid SiteId) : IrOperation;
+
 // Channel command (lowered from ChannelCommandNode in Stage 6)
 public sealed record IrOp_ChannelCommand(
     string ChannelComponentTypeFqn,

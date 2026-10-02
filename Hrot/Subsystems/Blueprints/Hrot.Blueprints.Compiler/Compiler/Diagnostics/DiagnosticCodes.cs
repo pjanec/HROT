@@ -210,6 +210,10 @@ public static class DiagnosticCodes
     public const string BP1682 = "BP1682";  // an event node where the graph cannot run it
     // ⭐ CE-2013 (T-3) — a node run by one event reads another event node's pin: that payload does not exist then.
     public const string BP1683 = "BP1683";  // a handler reads data from another event node
+    // ⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design") — the Behaviour Task node.
+    public const string BP1684 = "BP1684";  // a latent node in a Behaviour Task's While Running chain (it runs inside one frame)
+    public const string BP1685 = "BP1685";  // a Behaviour Task's Abort driven from outside its own While Running chain (D3)
+    public const string BP1686 = "BP1686";  // a Behaviour Task's Started wired — running alongside arrives in S7b (D7)
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

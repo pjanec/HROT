@@ -48,7 +48,20 @@ internal static class HandlerDebugIdentity
                 Statements   = Statements(b.Statements),
                 Terminator   = b.Terminator is null ? null! : b.Terminator with { Debug = Debug(b.Terminator.Debug)! },
             }).ToList(),
-            BreakpointTargets = graph.BreakpointTargets.ToDictionary(kv => Map(kv.Key), kv => Map(kv.Value)),
+            BreakpointTargets = Targets(),
         };
+
+        // ⚠ Two ids can map to one authored node (a Behaviour Task and its compile-time abort node, S7a): the node's own
+        //   entry wins, so a breakpoint on the task pauses where the TASK runs.
+        IReadOnlyDictionary<Guid, Guid> Targets()
+        {
+            var result = new Dictionary<Guid, Guid>();
+            foreach (var kv in graph.BreakpointTargets.OrderBy(kv => ids.ContainsKey(kv.Key) ? 1 : 0))
+            {
+                var key = Map(kv.Key);
+                if (!result.ContainsKey(key)) result[key] = Map(kv.Value);   // netstandard2.0: no TryAdd
+            }
+            return result;
+        }
     }
 }

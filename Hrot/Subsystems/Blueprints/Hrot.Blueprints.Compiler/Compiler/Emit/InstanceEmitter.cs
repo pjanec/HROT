@@ -692,6 +692,9 @@ internal static class InstanceEmitter
     /// <summary>⭐ S5d — the generated field holding a Run Behaviour site's hosted-slot key.</summary>
     internal static string RunSiteField(IrOp_RunBehavior op) => $"__RunSite_{op.SiteId:N}";
 
+    /// <summary>⭐ S7a — the same field, by site (node) id.</summary>
+    internal static string RunSiteField(Guid siteId) => $"__RunSite_{siteId:N}";
+
     /// <summary>⭐ S6b — every Run Behaviour site with the graph it sits in (a fiber graph declares one slot per copy).</summary>
     internal static IReadOnlyList<(IrOp_RunBehavior Site, IrGraph Graph)> RunBehaviorSitesByGraph(IrAsset asset)
         => asset.Graphs.SelectMany(g => g.Blocks.SelectMany(b => b.Statements)

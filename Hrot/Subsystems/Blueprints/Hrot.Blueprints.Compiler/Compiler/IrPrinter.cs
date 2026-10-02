@@ -51,6 +51,8 @@ internal static class IrPrinter
         IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
         IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
         IrOp_RunBehavior rb      => $"run_behavior {rb.BehaviorName}",
+        IrOp_AbortTask at        => $"abort_task {at.TaskNodeId:N}",
+        IrOp_ResetHostedSite rs  => $"reset_hosted_site {rs.SiteId:N}",
         _                        => op.GetType().Name,
     };
 

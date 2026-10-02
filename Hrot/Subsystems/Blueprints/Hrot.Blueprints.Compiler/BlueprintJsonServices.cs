@@ -149,6 +149,7 @@ public static class BlueprintJsonServices
     public static BlueprintAsset? Deserialize(string json)
     {
         if (json is null) return null;
+        json = BehaviorTaskMigration.MigrateKind(json);   // ⭐ S7a — "RunBehavior" → "BehaviorTask"
 
         if (json.IndexOf("\"" + BlueprintSchemaV2.DeclarationsProperty + "\"", StringComparison.Ordinal) >= 0)
         {
@@ -167,7 +168,11 @@ public static class BlueprintJsonServices
     /// </summary>
     private static BlueprintAsset? Migrated(BlueprintAsset? asset)
     {
-        if (asset is not null) EventPayload.MigrateLegacyInputs(asset);
+        if (asset is not null)
+        {
+            EventPayload.MigrateLegacyInputs(asset);
+            BehaviorTaskMigration.MigratePins(asset);   // ⭐ S7a — the S5d pin names
+        }
         return asset;
     }
 }

@@ -523,12 +523,35 @@ internal sealed class GraphScheduler
                     ScheduleWhenNode(wn, bb);
                     return;
 
-                // ⭐ S5d — Run Behaviour: latent like an inline action; Out on the child's Success, OnFailure on its Failure.
+                // ⭐ S5d / S7a — the Behaviour Task (run and wait): latent like an inline action; Succeeded on the child's
+                //   Success, Failed on its Failure, and — each frame it is still Running — its While Running chain.
                 case RunBehaviorNode rb:
                     ScheduleLatentNode(rb, bb, new IrOp_RunBehavior(rb.BehaviorName.Trim(), rb.Id),
-                        successSuccessor: GetExecSuccessorExcludingPinName(rb, "OnFailure"),
-                        failureSuccessor: GetExecSuccessorByPinName(rb, "OnFailure"));
+                        successSuccessor: GetExecSuccessorWhere(rb, n => !RunBehaviorNode.IsNonSuccessOut(n)),
+                        failureSuccessor: GetExecSuccessorWhere(rb, RunBehaviorNode.IsFailedPin),
+                        whileRunningSuccessor: GetExecSuccessorWhere(rb, n => n == RunBehaviorNode.WhileRunningPin));
                     return;
+
+                // ⭐ S7a — an Abort of a Behaviour Task (Stage 2.6 retargeted the link here); WaitLowering resolves it.
+                case BehaviorTaskAbortNode abortNode:
+                {
+                    _execNodeToBlockId[abortNode.Id] = blockId;
+                    int before = bb.Statements.Count;
+                    bb.Statements.Add(new IrStatement
+                    {
+                        Operation = new IrOp_AbortTask(abortNode.TaskNodeId),
+                        Debug     = DebugOf(abortNode),
+                    });
+                    TagFirstNewStatement(bb.Statements, before, abortNode.Id);
+                    var abortNext = GetSingleExecSuccessor(abortNode);
+                    if (abortNext is null)
+                    {
+                        SealFallThrough(blockId, bb, DebugOf(abortNode));
+                        return;
+                    }
+                    node = abortNext;
+                    continue;
+                }
 
                 // AN8: non-channel action node (ActionFqn set) — inline-latent invocation.
                 case ChannelCommandNode { ActionFqn: { } fqn } cc when !string.IsNullOrEmpty(fqn):
@@ -640,7 +663,7 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
 
     private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp,
-        Node? successSuccessor = null, Node? failureSuccessor = null)
+        Node? successSuccessor = null, Node? failureSuccessor = null, Node? whileRunningSuccessor = null)
     {
         // The pre-suspend block now represents this latent node.
         bb.SourceNodeId = node.Id;
@@ -693,11 +716,29 @@ internal sealed class GraphScheduler
                 _bfsQueue.Enqueue((failBlockId.Value, failureSuccessor));
         }
 
+        // ⭐ S7a — a Behaviour Task's While Running chain: its own block, run by the resume check each frame the child is
+        //   still Running. Its end returns (the fiber stays suspended on this node).
+        IrBlockId? whileRunningBlockId = null;
+        if (whileRunningSuccessor is not null)
+        {
+            var wrBlockId = AllocBlock($"wait_running_{_resumeCounter - 1}");
+            whileRunningBlockId = wrBlockId;
+            if (IsMergePoint(whileRunningSuccessor.Id))
+            {
+                _blockBuilders[wrBlockId.Value].Terminator =
+                    new IrTerm_Goto(GetOrAllocMergeBlock(whileRunningSuccessor)) { Debug = DebugOf(node) };
+                _scheduledBlocks.Add(wrBlockId.Value);
+            }
+            else
+                _bfsQueue.Enqueue((wrBlockId.Value, whileRunningSuccessor));
+        }
+
         bb.Terminator = new IrTerm_Suspend(
             ResumePoint  : resumePointValue,
             WaitUntilTime: null,
             ResumeBlock  : resumeBlockId,
-            FailureBlock : failureResumeBlockId)
+            FailureBlock : failureResumeBlockId,
+            WhileRunningBlock: whileRunningBlockId)
         {
             Debug = DebugOf(node),
         };
@@ -4667,6 +4708,16 @@ internal sealed class GraphScheduler
             .Where(p => p.IsExec && p.Direction == "Out"
                      && !string.Equals(p.Name, excludedName, StringComparison.OrdinalIgnoreCase))
             .ToList();
+        if (pins.Count != 1) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pins[0].Id);
+        return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
+    }
+
+    /// <summary>⭐ S7a — the exec successor of the ONE exec-out pin whose name matches; null when none or several match, or
+    /// it is unwired.</summary>
+    private Node? GetExecSuccessorWhere(Node node, Func<string, bool> pinName)
+    {
+        var pins = node.Pins.Where(p => p.IsExec && p.Direction == "Out" && pinName(p.Name)).ToList();
         if (pins.Count != 1) return null;
         var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pins[0].Id);
         return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;

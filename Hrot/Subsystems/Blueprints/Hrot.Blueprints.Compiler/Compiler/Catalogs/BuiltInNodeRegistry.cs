@@ -30,6 +30,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         CastNode ca     => CastPins(ca),
         LatentDelayNode => LatentDelayPins(),
         RunBehaviorNode => RunBehaviorPins(),
+        BehaviorTaskAbortNode => new[] { ExecIn() },   // ⭐ S7a — compile-time only
 
         // Dynamic: return known static skeleton; Stage0_Rehydrate enriches from asset state.
         EventEntryNode  => new[] { ExecOut() },
@@ -294,13 +295,17 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
                 string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
         };
 
-    /// <summary>⭐ S5d — Run Behaviour: exec In, exec Out (the child's Success), exec OnFailure (its Failure).</summary>
+    /// <summary>⭐ S7a (U-11) — the Behaviour Task: in Start / Abort; out Started, While Running, Succeeded, Failed.
+    /// (S5d's Run Behaviour was In / Out / OnFailure — the same node, grown.)</summary>
     private static IReadOnlyList<PinSchema> RunBehaviorPins()
         => new[]
         {
-            new PinSchema("In",        "In",  true, ""),
-            new PinSchema("Out",       "Out", true, ""),
-            new PinSchema("OnFailure", "Out", true, ""),
+            new PinSchema(RunBehaviorNode.StartPin,        "In",  true, ""),
+            new PinSchema(RunBehaviorNode.AbortPin,        "In",  true, ""),
+            new PinSchema(RunBehaviorNode.StartedPin,      "Out", true, ""),
+            new PinSchema(RunBehaviorNode.WhileRunningPin, "Out", true, ""),
+            new PinSchema(RunBehaviorNode.SucceededPin,    "Out", true, ""),
+            new PinSchema(RunBehaviorNode.FailedPin,       "Out", true, ""),
         };
 
     /// <summary>LatentDelay: exec In/Out + data-In "Duration"/System.Single.</summary>

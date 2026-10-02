@@ -738,6 +738,110 @@ sequenceDiagram
 task driver in `BehaviorTick` (tick every running task site, fire While Running, start a completion FIBER for Succeeded /
 Failed), Start-while-running ⇒ Restart, and Abort from any graph. ⭐ S7b is S6c.
 
+#### S7a as-built *(`2026-10-02`, CE-2019)*
+
+⭐ Built as D1–D8 above; the classDiagram and sequenceDiagram are true as drawn. What the build added:
+
+| # | as-built fact | where |
+|---|---|---|
+| A1 | the success continuation is **any exec-out that is not Failed / Started / While Running** — so a builder node with S5d-style pin names (`ExecOut`, `OnFailure`) still compiles (`IsNonSuccessOut`, `IsFailedPin` accept `OnFailure`) | `Nodes.cs` `RunBehaviorNode`, `Stage5_Schedule` task case |
+| A2 | `RetargetAborts` runs on EVERY graph (a Tick graph's task aborts the same way), after the handler split | `Stage2_6_SplitEventHandlers.Run` |
+| A3 | a While Running pin wired **straight into its own Abort** is the abort — the validator's walk does not re-enter the task through it (it would have pulled Succeeded's chain into "While Running") | `Stage2_Validate` `BehaviorTaskRules` |
+| A4 | a task and its abort node map to ONE authored node; the debugger's breakpoint target keeps the task's own entry | `HandlerDebugIdentity.Targets` |
+| A5 | `BehaviorTaskAbortNode` is classified side-effecting (resolver purity) and is a documented compile-time-only coverage exception | `V_ResolverPurity`, `NodeCoverageTests` |
+| A6 | the palette entry is "Behaviour Task" (Latent); the drawer is registered by `CreateNodeDrawerRegistry(behaviourNames:)`, fed by BOTH hosts through `AiBlueprintNodeAuthoringBinder` services `BehaviourNames` | `BehaviorTaskNodeDrawer`, `EditorSubsystem`, `CgfSubsystem` |
+
+Rails: `BlueprintBehaviourTests.S7a_WhileRunning_RunsEachFrameTheChildRuns_ThenSucceeded`, `…S7a_AbortFromWhileRunning_StopsTheChild_AndContinuesOnFailed`,
+`…S7a_ATaskInATickGraph_AbortsToFailed`, `…S7a_ALatentNodeInWhileRunning_IsBP1684`, `…S7a_AnAbortFromOutsideItsWhileRunning_IsBP1685`,
+`…S7a_WiringStarted_IsBP1686_UntilS7b`, `…S7a_AnS5dRunBehaviourAsset_MigratesToABehaviourTask`; `BehaviorTaskNodeDrawerTests` (5, incl. the
+registry→drawer forwarding rail); `TheEqsBrainStartupIsSharedTests` (both hosts pass `BehaviourNames`).
+
+#### S7b design — `Started`: a task that runs ALONGSIDE *(`2026-10-02`, CE-2020; decided-and-logged by the behaviours lane)*
+
+📐 **Measured basis** — what already exists that a running-alongside task needs:
+
+| # | fact | where |
+|---|---|---|
+| B-T1 | an Event fiber with policy **Restart** already does "start; if still running, reset every site it hosts and start over" | `InstanceEmitter.EmitFiberDispatch` (Restart arm) |
+| B-T2 | `BehaviorTick` resumes every waiting fiber FIRST each frame, before arrivals and the Tick | `InstanceEmitter.EmitBehaviorEntryPoints` |
+| B-T3 | every behaviour graph body has the frame context a fiber start needs (`view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey`, `__bb`, `__ex`) | `InstanceEmitter.EmitEventMethod` / `EmitTickMethod` |
+| B-T4 | deterministic deep-clone of a node set (ids derived from the original) and debug-id remap per clone already exist | `GraphFragmentCloner.Clone(…, freshId)`, `HandlerDebugIdentity` (E6) |
+| B-T5 | ⇒ "per-frame task driver + completion fibers" (the S7 frame) would be a SECOND scheduler for what a fiber already is: a cursor that waits on a task, runs While Running each frame, and continues on Succeeded / Failed | S7a lowering = exactly that, inside one fiber |
+
+```mermaid
+classDiagram
+  class Stage2_6_SplitEventHandlers { <<EXISTS, widened>> +LiftStartedTasks() before RetargetAborts }
+  class TaskFiberGraph { <<NEW, compile-time Graph>> Kind Event · entry → task clone · LiftedTaskSite · Policy Restart }
+  class BehaviorTaskStartNode { <<NEW, compile-time only>> +FiberGraph  pins Start in · Started out }
+  class BehaviorTaskAbortNode { <<EXISTS, widened>> +FiberGraph (set ⇒ abort a STARTED task) }
+  class IrOp_StartTask { <<NEW>> +FiberGraph }
+  class IrOp_AbortStartedTask { <<NEW>> +FiberGraph +SiteId }
+  class IrGraph { <<EXISTS, widened>> +LiftedTaskSite +TaskLabels(wait, aborted) }
+  class WaitLowering_Instance { <<EXISTS, widened>> the lifted task always gets an aborted label · records TaskLabels }
+  class InstanceEmitter { <<EXISTS>> Restart start = ONE helper for the arrival AND IrOp_StartTask · task fibers resume first · no bus dispatch for them }
+  Stage2_6_SplitEventHandlers --> TaskFiberGraph : clones task + While Running/Succeeded/Failed chains
+  Stage2_6_SplitEventHandlers --> BehaviorTaskStartNode : replaces the task in the starting graph
+  BehaviorTaskStartNode --> IrOp_StartTask : Stage 5
+  BehaviorTaskAbortNode --> IrOp_AbortStartedTask : Stage 5, when FiberGraph is set
+  TaskFiberGraph --> IrGraph
+  WaitLowering_Instance --> IrGraph : TaskLabels
+  InstanceEmitter --> IrOp_StartTask
+  InstanceEmitter --> IrOp_AbortStartedTask : reads the fiber graph TaskLabels
+```
+
+*What the picture shows that prose hid: there is no new runtime piece — the task fiber is an ordinary S6 fiber, and the
+two new ops are emitted from labels the existing lowering already computes.*
+
+```mermaid
+sequenceDiagram
+  participant G as the starting graph (Tick or an Event fiber)
+  participant T as the task fiber (lifted graph)
+  participant C as the child (any tier)
+  G->>T: IrOp_StartTask — if T waits: reset its site, clear it (Restart)
+  G->>T: Event_T(…) — reaches the task, suspends
+  G->>G: continue on Started (same frame)
+  loop each later frame — BehaviorTick resumes task fibers FIRST
+    T->>C: tick (TickFromBlueprint)
+    alt Running
+      T->>T: While Running chain (latent-free)
+    else Success
+      T->>T: Succeeded chain (may wait — it is a fiber)
+    else Failure
+      T->>T: Failed chain
+    end
+  end
+  opt G's Started chain reaches Abort
+    G->>T: if T waits on the task: reset site, cursor = aborted label
+    T->>T: next frame: Failed chain
+  end
+```
+
+```mermaid
+graph TD
+  BTS[BrainTickSystem] -->|each frame| BT[BehaviorTick]
+  BT -->|1 resume| TF[task fibers, innermost first]
+  BT -->|2 resume| EF[event fibers]
+  BT -->|3 arrivals| BUS[bus dispatch per Event graph]
+  BT -->|4| TICK[Tick]
+  BUS -. never .-> TF
+  style TF fill:#e8f4e8
+  linkStyle 5 stroke:#c00,stroke-dasharray:4
+```
+
+*The dead edge (red, dashed) is load-bearing: a task fiber is an Event-kind graph with NO event — it must get no
+`__EvtId`, no bus dispatch and no thunk, or the generated `ResolveTypeId` would look up a type that does not exist.*
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| B1 | how a Started task runs | ⭐ **LIFT** it (Stage 2.6): the task + its While Running / Succeeded / Failed chains become a compile-time task-fiber graph; in the starting graph the task becomes a start node (Start in, Started out) | a per-frame task driver + completion fibers: a second scheduler for what one fiber already does (B-T5) |
+| B2 | Start while it runs | ⭐ **Restart** — the start op IS the Restart arrival (one emitter helper) | fault: a re-entered task is the normal case for an event-driven start; ignore: the newest Start would silently not happen |
+| B3 | where an Abort of a Started task may come from | ⭐ its own While Running (S7a, unchanged) **and the chain after its Started pin** — the timeout shape (Started → Delay → Abort). The op aborts only while the fiber waits ON THE TASK (a task already done is not aborted). Others stay `BP1685` | any graph: a task cloned per handler has no shared identity yet — demand-driven |
+| B4 | data the lifted chains read | ⭐ a pure upstream closure (no exec pins, no event node) is cloned along; any other source is **`BP1687`** ("store it in a Variable before Start") | capture the values as the fiber's inputs at Start: types are unresolved before Stage 4 — demand-driven |
+| B5 | resume order | ⭐ task fibers resume FIRST, innermost first ⇒ a task started this frame first ticks its child NEXT frame, exactly as run-and-wait | after the event fibers: a task started by an event fiber this frame would also be stepped this frame |
+| B6 | `BP1686` | ⭐ **retired** (number kept, `[retired]`), its rail becomes the Started rail | keep it for "Started and Succeeded both wired": that is the main use |
+| B7 | the lifted originals in the starting graph | ⭐ removed by the lift (they would only be Stage 3 orphans, one `BP3010` warning each) | leave them to Stage 3: warning noise for an authored, valid graph |
+| B8 | the debugger | ⭐ the task fiber's clones map to the authored ids (E6 `HandlerDebugIds`); the start node keeps the task's id | — |
+
 ## 5. Decisions — each with a lean
 
 | # | decision | lean | rejected |

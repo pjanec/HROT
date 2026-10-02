@@ -41,8 +41,60 @@ internal static class Stage2_6_SplitEventHandlers
             else
                 graphs.AddRange(Split(asset, graph, entries, taken, ctx));
         }
-        asset.Graphs = graphs;
+        // ⭐ S7a — after the split, so each handler's links point at its own task (a shared tail's clone included).
+        asset.Graphs = graphs.Select(RetargetAborts).ToList();
         return asset;
+    }
+
+    /// <summary>
+    /// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design" D4) — every exec link into a Behaviour Task's <c>Abort</c> pin
+    /// is retargeted to a compile-time <see cref="BehaviorTaskAbortNode"/> (one per task), because the scheduler walks
+    /// node to node: entering the task node through Abort would read as entering it through Start. ⭐ A graph with no
+    /// Abort link is returned as the same object.
+    /// </summary>
+    private static Graph RetargetAborts(Graph graph)
+    {
+        var abortPins = new Dictionary<Guid, RunBehaviorNode>();
+        foreach (var task in graph.Nodes.OfType<RunBehaviorNode>())
+            foreach (var pin in task.Pins.Where(p => p.IsExec && p.Direction == "In" && p.Name == RunBehaviorNode.AbortPin))
+                abortPins[pin.Id] = task;
+        if (abortPins.Count == 0 || !graph.Links.Any(l => abortPins.ContainsKey(l.ToPinId))) return graph;
+
+        var nodes = new List<Node>(graph.Nodes);
+        var abortNodeOf = new Dictionary<Guid, BehaviorTaskAbortNode>();
+        var links = graph.Links.Select(l =>
+        {
+            if (!abortPins.TryGetValue(l.ToPinId, out var task) || l.ToNodeId != task.Id) return l;
+            if (!abortNodeOf.TryGetValue(task.Id, out var abortNode))
+            {
+                abortNode = new BehaviorTaskAbortNode
+                {
+                    Id = DeterministicIds.FromString($"task-abort:{task.Id:N}"), TaskNodeId = task.Id,
+                    OriginNodeId = task.OriginNodeId, OriginGraphId = task.OriginGraphId,
+                };
+                abortNode.Pins.Add(new Pin
+                {
+                    Id = DeterministicIds.PinId(abortNode.Id, "In", "In"), Name = "In", Direction = "In", IsExec = true,
+                    TypeRef = new BlueprintTypeRef(),
+                });
+                abortNodeOf[task.Id] = abortNode;
+                nodes.Add(abortNode);
+            }
+            return new Link
+            {
+                FromNodeId = l.FromNodeId, FromPinId = l.FromPinId,
+                ToNodeId = abortNode.Id, ToPinId = abortNode.Pins[0].Id, Waypoints = l.Waypoints,
+            };
+        }).ToList();
+
+        var copy = graph.WithNodesAndLinks(nodes, links);
+        // ⭐ E6 — the debugger names the TASK when an Abort fires (the abort node is not on the canvas).
+        var ids = new Dictionary<Guid, Guid>();
+        if (graph.HandlerDebugIds is { } h) foreach (var kv in h) ids[kv.Key] = kv.Value;
+        foreach (var kv in abortNodeOf)   // netstandard2.0: no KeyValuePair deconstruction
+            ids[kv.Value.Id] = graph.HandlerDebugIds is { } hm && hm.TryGetValue(kv.Key, out var authored) ? authored : kv.Key;
+        copy.HandlerDebugIds = ids;
+        return copy;
     }
 
     /// <summary>One event node: the graph is already one handler; only a node-carried payload becomes its inputs.

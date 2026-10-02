@@ -37,7 +37,8 @@ public static class BlueprintEditorBootstrap
         ISharedStructTypeProvider? sharedStructTypeProvider = null,
         IComponentTypeProvider? componentTypeProvider = null,
         IComponentTypeProvider? writableComponentTypeProvider = null,
-        IBlueprintPeerProvider? peerProvider = null)
+        IBlueprintPeerProvider? peerProvider = null,
+        Func<IReadOnlyList<string>>? behaviourNames = null)
     {
         sharedStructTypeProvider     ??= new ReflectionSharedStructTypeProvider();
         componentTypeProvider        ??= new ReflectionComponentTypeProvider();
@@ -81,6 +82,8 @@ public static class BlueprintEditorBootstrap
         registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
         // ⭐ CE-2015 — an event node's own policy / capacity / Self-filter (DESIGN_Typed_Event_Nodes E4).
         registry.Register(typeof(EventEntryNode),       new EventEntryNodeDrawer(editService));
+        // ⭐ S7a — the Behaviour Task's child picker, over the host's registered behaviour names.
+        registry.Register(typeof(RunBehaviorNode),      new BehaviorTaskNodeDrawer(editService, behaviourNames));
         registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
 
         // BP-108: Print String / Format String -- Format (text) + Level/ResultTypeId (combo).
