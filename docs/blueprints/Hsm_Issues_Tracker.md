@@ -27,10 +27,10 @@ decision first.
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
-| `RW-L` | 6 | 1 |
-| `RW-M` | 5 | 3 |
+| `RW-L` | 5 | 2 |
+| `RW-M` | 4 | 4 |
 | `RW-H` | 2 | 1 |
-| **Total** | **14** | **5** |
+| **Total** | **12** | **7** |
 
 ⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
 the canvas to a ticking entity, with every stage cited. These rows assume it.
@@ -48,8 +48,9 @@ Reconciliation — all three must agree (checkbox tally, column sum, per-tag cou
 grep -c '^- \[ \]' Hsm_Issues_Tracker.md   # open -> Total row
 grep -c '^- \[x\]' Hsm_Issues_Tracker.md   # done -> Total row
 # per-complexity: take the FIRST tag on each row — rows discuss other classes in their prose
-grep '^- \[ \]' Hsm_Issues_Tracker.md \
-  | grep -oPm1 '(?<=`)(WIRING|RW-L|RW-M|RW-H)(?=`)' | sort | uniq -c
+grep '^- \[ \]' Hsm_Issues_Tracker.md | while read -r l; do
+  echo "$l" | grep -oP '(?<=`)(WIRING|RW-L|RW-M|RW-H)(?=`)' | head -1; done | sort | uniq -c
+# ⚠ (was `grep -oPm1` over the whole pipe — -m1 stops after the FIRST ROW, so it printed one tag)
 ```
 ⚠ `grep -c` over the whole row over-counts — HSM-009 names both `WIRING` and `RW-M`. First tag wins;
 this is the same trap the blueprint tracker documents at its Batch 27 note.
@@ -131,6 +132,24 @@ assemblies, quoted inline, then deleted.
 > HSM-019). ⭐ That is evidence the method works — but **every one of them was fixed upstream before we
 > looked**, so the real lesson is the same as last time: **re-sync first.**
 
+> ### ⭐⭐ RE-EVALUATED `2026-10-02` (later), on `ui` after fast-forwarding `origin/behaviors` (+44 commits, `CE-417` one action binding · `CE-503` HSM resolver · `CE-504` · `CE-506` global-transition guard/action reach the kernel)
+>
+> ⚠ **Two rows the earlier passes kept "live" were already fixed upstream — BEFORE this tracker first
+> recorded them as reproduced.** Both were closed by reading the current write path, not by re-running
+> the old probe — ⛔ the old probe evidently exercised the legacy fallback, not the save path.
+>
+> | row | verdict |
+> |---|---|
+> | **HSM-004** | ✅ **CLOSED — `BP-299` (`267897ebb`, 2026-08-17).** `RegionNodeDto.OwnerStableId` is written by `ToDto` and is authoritative on load; `InitialChild.Parent` survives only as the pre-field fallback. Railed by `HsmSubtreeAssetIdPersistenceTests.ARegionWithNoInitialChild_KeepsItsOwner_AndTheRuleFires` |
+> | **HSM-018** | ✅ **CLOSED — ruling 14 (`a801dccae`, 2026-08-16).** The live variable write is field-surgical: `BlueprintLiveValueWriter.TryWrite` → `BlueprintDebugSession.TryWriteWorkingStateField` → `DataBreakpointManager.StageFieldMutation` → `SetComponentFieldRaw` at the component-absolute offset. ⚠ **The coordinator ledger's `R-52` (and the comment at `CgfSubsystem.cs:2124`) still describe the defect as live** — a stale STATE claim, reported to the coordinator, not edited here |
+> | **HSM-013 residue (`DEBT-BF-04`)** | ⭐ **narrowed again by `CE-417`:** every one of the **eight** sites now carries its own `BehaviorActionBinding` with its own `ExpressionTargetField` ⇒ **per-slot ETF exists.** A blueprint pick is offered on **Activity and transition Guard only**, by design ([`DESIGN_Behavior_Action_Binding.md`](DESIGN_Behavior_Action_Binding.md) §9 ③) |
+> | **HSM-014** | ✅ still closed — the two drawers are now one `HsmBindingMethods.For` (`CE-417` 4b), still unioning `IActionSchemaExporter.All` with the asset's own names |
+> | **HSM-001, 002, 005, 006, 007, 008, 009 (partial), 010, 011, 012, 017** | ⛔ **still live** — current sites below each row's text; `HsmValidator.CheckInitialChildren` (`:114`), `HsmCommandSink.ApplyRemoveRegion` (`:359`) and `ApplyAddNode` (`:148`) are unchanged by the merge |
+>
+> 📐 **Method:** grep + `codebase-memory` `search_code` (re-indexed after the merge) for every "no caller / no
+> producer" claim (HSM-007, 009). ⚠ `check_index_coverage` is not reachable through the CLI, so those
+> negative claims carry grep + graph agreement, not a coverage proof.
+
 ---
 
 ## Area A 🎨 — The initial-state model
@@ -176,7 +195,13 @@ validator can disagree about the same machine.
 
 ## Area B 🎨 — Region persistence and editing
 
-- [ ] **HSM-004** 🔴 · `RW-M` — **A region with no initial child is silently destroyed on reload.**
+- [x] **HSM-004** 🔴 · `RW-M` — **A region with no initial child is silently destroyed on reload.**
+  ✅ **CLOSED `2026-10-02` — already fixed by `BP-299` on 2026-08-17** (before this row was first
+  re-verified). The "fix direction" below is exactly what shipped: `RegionNodeDto.OwnerStableId`,
+  written by `HsmAssetMapper.ToDto` (`:107`), authoritative on load (`:324`); the
+  `InitialChild?.Parent` derivation is kept only as the fallback for files saved before the field
+  (`:326`). Railed: `ARegionWithNoInitialChild_KeepsItsOwner_AndTheRuleFires` +
+  `APreFieldAsset_StillLoads_ViaTheInitialChildFallback`. ⚠ The original text below is history.
   `RegionNodeDto` carries **no owner-state reference** (`StableId, RegionIndex, Name, Priority,
   InitialChildStableId, Comment, ColorOverride`). `HsmAssetMapper` recovers the owner via
   `region.InitialChild?.Parent`, and the code comment calls this *"the unambiguous owner"* — it is
@@ -271,6 +296,11 @@ callers** — the pipe is wired, nothing fills it.
   ⭐ **The remaining work is smaller and better shaped** — table, row model, modal pattern and refactor
   hook all exist; what is left is an *add/delete command*, not a window.
   ⚠ `HsmGlobalsStrip` is **still** unregistered (no production caller).
+  📐 **Re-checked after `origin/behaviors` (`2026-10-02`, later):** unchanged. `EventDefinition` is now
+  constructed in **two** Hrot places, both loaders — `HsmAssetProjector:243`, `HsmAssetMapper:393`
+  (plus FastHSM's own `HsmBuilder:60`); `HsmAsset.AllEvents` is read-only and no
+  `Add/Remove/Delete/CreateEvent` exists anywhere in the editor or CGF (grep + graph `search_code`).
+  `HsmGlobalsStrip` is still referenced only by its own file and a doc-comment.
 ---
 
 ## Area E 🎨🔧 — Design contradictions
@@ -359,6 +389,12 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   `ActivityBlueprintAssetId` / `ActivityBlueprintName` for the **Activity slot only**, and one
   `ExpressionTargetField` per *state* rather than per slot. That is the **narrowed `DEBT-BF-04`**,
   tracked as Q-1 of the opening prompt.
+  ⭐ **SUPERSEDED in part by `CE-417` (2026-10-01):** the flat fields are gone; each of the **eight**
+  sites (state OnEntry/OnExit/Activity/Timer, transition Guard/Action, global Guard/Action) holds its
+  own `BehaviorActionBinding` (`Hrot.Editor.AiShared`) with its **own** `ExpressionTargetField` ⇒
+  per-slot ETF now exists. A blueprint is pickable on **Activity and transition Guard only** — a
+  design decision, not a gap ([`DESIGN_Behavior_Action_Binding.md`](DESIGN_Behavior_Action_Binding.md)
+  §9 ③). `StateNode.StateWideTargetField` is derived (Activity, else OnEntry, OnExit, Timer).
 - [x] **HSM-016** ✅ **CLOSED — already fixed upstream, found independently.** · `RW-M` —
   *The `[BlueprintRegistrar]` bridge registered no-op stubs at placeholder ids 100+/200+.*
   ⭐ **Fixed in Batch 59 (`W3`) on the coordinator branch, before this session ever saw it** — this
@@ -499,7 +535,15 @@ the two trackers do not drift.
   produces a **silently wrong machine**, where on BTree it produces a build warning.
   📌 Coordinator ledger `M-15` · `M-16` · `R-88`.
 
-- [ ] **HSM-018** 🔴 · `RW-L` — **Editing one blueprint variable reverts a tick of HSM state.**
+- [x] **HSM-018** 🔴 · `RW-L` — **Editing one blueprint variable reverts a tick of HSM state.**
+  ✅ **CLOSED `2026-10-02` — already fixed by ruling 14 (`a801dccae`, 2026-08-16)**, four days
+  before this row copied `R-52` from the ledger. The path today: `BlueprintLiveValueWriter.TryWrite`
+  (`:196`) → `BlueprintDebugSession.TryWriteWorkingStateField` (`:1009`, offset arrives fully
+  resolved) → `DataBreakpointManager.StageFieldMutation` → drain calls **`SetComponentFieldRaw`** with
+  that offset (`DataBreakpointManager.cs:920`). Only the changed bytes are written; the rest of
+  `Blackboard1024` survives. ⚠ **`R-52` in `RULINGS.md` is the stale half** — it is a state claim the
+  code has overtaken (and `CgfSubsystem.cs:2124` repeats it as a reason). Reported, not edited here.
+  ⚠ The original text below is history.
   The coordinator's `R-52`, recorded verbatim as *"A LIVE DATA-CORRUPTION DEFECT ON NO WORK LIST"*:
   the staged variable write takes a **whole component** and writes it with `SetComponentRaw` (no
   offset), and `Blackboard1024` is **one component shared by BTree, HSM and Blueprint at disjoint
@@ -561,3 +605,4 @@ Stated so no one mistakes silence for a clean bill:
 | Date | Change |
 |---|---|
 | 2026-08-14 | Created. HSM-001…HSM-011 from the first docs-vs-code audit. Five rows reproduced with throwaway probes; probes deleted, suite left green at 510/510. |
+| 2026-10-02 | Re-evaluated after `origin/behaviors` (+44). **HSM-004 and HSM-018 closed** — both were already fixed upstream (`BP-299` 2026-08-17, ruling 14 2026-08-16) before earlier passes called them live. HSM-013's `DEBT-BF-04` residue narrowed by `CE-417` (per-slot ETF). Reconciliation recipe fixed. `Hrot.Hsm.Editor.Tests` 622/622. |
