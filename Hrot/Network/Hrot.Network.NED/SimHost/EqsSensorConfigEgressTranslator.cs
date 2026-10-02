@@ -85,7 +85,9 @@ namespace Hrot.Network.NED.SimHost
                 if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
                 _liveKeys.Add((parentNetworkId, localChildIndex));
 
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                // ⭐ CE-507 (S6): the key is (descriptor, part instance) — the raw ordinal matched no record entry, so the
+                //   gate always fell to the parent's PRIMARY owner, whatever the brain group's grant said.
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, localChildIndex))) continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
                 if (kind == EqsSensorKeyKind.Child) _parentOf[entity] = parent;
@@ -177,7 +179,7 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (var entity in removalQuery)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
                 if (!view.HasManagedComponent<EgressPublicationState>(entity)) continue;
 
                 var state = view.GetManagedComponentRO<EgressPublicationState>(entity);
@@ -233,7 +235,7 @@ namespace Hrot.Network.NED.SimHost
                 if (key.LocalChildIndex == 0 || last.Suspended) continue;     // legacy, or already ended
                 if (_liveKeys.Contains(key) || _suspendedByUs.Contains(key)) continue;
                 if (!_entityMap.TryGetEntity(key.ParentNetworkId, out var parent) || !view.IsAlive(parent)) continue;
-                if (!view.HasAuthority(parent, DescriptorOrdinal)) continue;    // another node's sensor
+                if (!view.HasAuthority(parent, OwnershipExtensions.PackKey(DescriptorOrdinal, key.LocalChildIndex))) continue;    // another node's sensor
                 _orphans.Add(key);
             }
 

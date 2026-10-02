@@ -116,6 +116,36 @@ namespace Fdp.Toolkit.Replication.Tests
                 "a child part of a locally-owned parent must be authoritative.");
         }
 
+        // ── S6: an instance key falls back to its descriptor type, then to the primary owner ─────────────────
+
+        /// <summary>
+        /// ⭐ S6 (Q79 §0.10 ①): the record of <c>(d, 0)</c> — a group grant — covers every instance <c>(d, i)</c> that has no
+        /// entry of its own; an instance moved on its own keeps its entry; with neither, the primary owner answers.
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S6.
+        /// </summary>
+        [Fact]
+        public void HasAuthority_InstanceKey_FallsBackToTheDescriptorType_ThenToThePrimaryOwner()
+        {
+            _world.RegisterComponent<PartMetadata>();
+            _world.RegisterManagedComponent<DescriptorOwnership>();
+            const long d = 95, other = 96;
+
+            var root = _world.CreateEntity();
+            _world.AddComponent(root, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // root owned by node 2
+            var record = new DescriptorOwnership();
+            record.SetOwner(OwnershipExtensions.PackKey(d, 0), 1);                                // group (d) granted to us
+            record.SetOwner(OwnershipExtensions.PackKey(d, 3), 2);                                // instance 3 moved back alone
+            _world.SetManagedComponent(root, record);
+            var part = _world.CreateEntity();
+            _world.AddComponent(part, new PartMetadata { ParentEntity = root, InstanceId = 2 });
+
+            var view = (ISimulationView)_world;
+            Assert.True(view.HasAuthority(part, OwnershipExtensions.PackKey(d, 2)));       // (d,2) → (d,0) = us
+            Assert.False(view.HasAuthority(part, OwnershipExtensions.PackKey(d, 3)));      // its own entry wins
+            Assert.False(view.HasAuthority(part, OwnershipExtensions.PackKey(other, 2)));  // no entry at all → primary (2)
+            Assert.False(view.HasAuthority(part, other));   // ⛔ CE-507: the raw ordinal is (0, d) and matches nothing
+        }
+
         // ── Dead entity ───────────────────────────────────────────────────────
 
         /// <summary>

@@ -221,7 +221,6 @@ namespace Hrot.Network.NED.SimHost
             {
                 ParentEntity      = parentGhost,
                 InstanceId        = key.ChildIndex,
-                DescriptorOrdinal = 0,
             });
             cmd.AddComponent(child, sensor);
             cmd.AddComponent(child, default(EqsCognitiveBuffer));

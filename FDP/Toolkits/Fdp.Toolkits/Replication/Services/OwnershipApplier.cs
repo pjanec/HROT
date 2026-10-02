@@ -52,8 +52,9 @@ namespace Fdp.Toolkit.Replication.Services
                 repo.SetManagedComponent(entity, ownership);
             }
 
-            var (typeId, _) = OwnershipExtensions.UnpackKey(packedKey);
-            bool isMaster = _descriptorMap?.PrimaryOwnerDescriptorOrdinal is long masterOrdinal && masterOrdinal == typeId;
+            var (typeId, instanceId) = OwnershipExtensions.UnpackKey(packedKey);
+            bool isMaster = instanceId == 0 &&
+                            _descriptorMap?.PrimaryOwnerDescriptorOrdinal is long masterOrdinal && masterOrdinal == typeId;
 
             // ── 3a. A master move first pins every un-recorded descriptor to the OLD primary owner ──────
             if (isMaster && _descriptorMap != null && repo.HasComponent<NetworkAuthority>(entity))
@@ -76,8 +77,11 @@ namespace Fdp.Toolkit.Replication.Services
 
             // ── 2. The claim, on the exact component ids the descriptor maps to (translator targets + group links).
             //    No map ⇒ the claim is not touched (safe default).
+            //    ⭐ S6: an INSTANCE key (d,i), i ≠ 0, names a part, never the root — the root's components are not
+            //    touched. The part's own claim follows its record in OwnershipRecomputeSystem's parts pass, which runs
+            //    after this on every frame (Q79 §0.10 ③). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
             bool isAuth = _localNodeId != 0 && newOwnerNodeId == _localNodeId;
-            if (_descriptorMap != null)
+            if (_descriptorMap != null && instanceId == 0)
             {
                 foreach (int componentId in _descriptorMap.GetComponentIdsForDescriptor(typeId))
                 {

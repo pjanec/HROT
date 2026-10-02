@@ -6,6 +6,7 @@ using System.Threading;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
@@ -444,6 +445,58 @@ public sealed class EqsDistributedTests
             $"muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)} (areaTwo={SimEntity(harness, areaTwo)}, " +
             $"epoch={MuscleCarrierEpoch(harness, commanderNet)}); brain answer=[{string.Join(",", EqsTargets(harness, sensor))}] " +
             $"brain epoch={cgf.GetComponentRO<EqsSensor>(sensor).Epoch}");
+    }
+
+    /// <summary>
+    /// ⭐ S6 / <c>CE-507</c>: the commander is created by the MUSCLE (SimHost), so the Brain holds its brain group only
+    /// by GRANT — the sensor config's record names CGF while the primary owner stays SimHost. The config sender used
+    /// to gate on the raw descriptor ordinal, which matches no record entry and fell to the primary owner, so CGF never
+    /// published the sensor and EQS never answered for a Muscle-created entity (the CE-500 class, for EQS). 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S6, §5.7 E7.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void EqsSensor_OnAMuscleCreatedCommander_ReachesTheMuscle_AndAnswersTheBrain()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+
+        long area         = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        long inside       = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        long commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // ⭐ created by SimHost
+
+        long[] everything = { area, inside, commanderNet };
+        Assert.True(harness.PumpUntil(() => everything.All(n =>
+                harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
+            "All entities must exist on both nodes.");
+
+        var square = new List<Vector2> { new(-20, -20), new(20, -20), new(20, 20), new(-20, 20) };
+        Place(sim, SimEntity(harness, area), 100f, 100f, ForceId.Neutral);
+        sim.SetManagedComponent(SimEntity(harness, area), new EditablePolyline { Points = new List<Vector2>(square) });
+        Place(sim, SimEntity(harness, inside), 105f, 95f, ForceId.Hostile);
+        Assert.True(harness.PumpUntil(() => ForceIs(harness, ForceId.Hostile, inside), timeoutFrames: 2000),
+            "Forces must settle on the Muscle after republishing.");
+
+        var cgf = harness.Cgf!.World!;
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(area, out Entity cgfArea);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(commanderNet, out Entity cgfCommander);
+
+        // The Brain holds the commander's brain group by grant, not as its primary owner.
+        long sensorKey = OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig, 0);
+        Assert.True(harness.PumpUntil(() => ((ISimulationView)cgf).HasAuthority(cgfCommander, sensorKey), timeoutFrames: 3000),
+            "CGF must hold the commander's sensor-config descriptor by the brain-group grant.");
+        Assert.NotEqual(cgf.GetComponentRO<NetworkAuthority>(cgfCommander).LocalNodeId,
+                        cgf.GetComponentRO<NetworkAuthority>(cgfCommander).PrimaryOwnerId);
+
+        Entity sensor = cgf.CreateEntity();
+        cgf.AddComponent(sensor, new PartMetadata { ParentEntity = cgfCommander, InstanceId = AreaChildIndex });
+        cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfArea, ForceId.Hostile, epoch: 1u));
+        cgf.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<long> { inside }), timeoutFrames: 3000),
+            $"EQS must answer for a sensor on a Muscle-created commander. muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)}; " +
+            $"brain answer=[{string.Join(",", EqsTargets(harness, sensor))}]");
     }
 
     // ── T-DIS6..10: the SCENARIO MATRIX ─────────────────────────────────────────────────

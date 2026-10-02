@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             int partId  = AllocatePartId(view, parent);
             var config  = sensor;
             config.Epoch = StampOwner(config.Epoch, owner);
-            var meta    = new PartMetadata { ParentEntity = parent, InstanceId = partId, DescriptorOrdinal = 0 };
+            var meta    = new PartMetadata { ParentEntity = parent, InstanceId = partId };
             var stamp   = new BehaviorOwnedPart { OwnerInstanceId = owner, SiteId = siteId, Key = key };
 
             if (view is EntityRepository repo)

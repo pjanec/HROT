@@ -68,6 +68,7 @@ namespace Fdp.Toolkit.Replication.Tests
             n.Repo.RegisterComponent<NetworkVelocity>();
             n.Repo.RegisterManagedComponent<DescriptorOwnership>();
             n.Repo.RegisterManagedComponent<OutgoingGrantsPending>();
+            n.Repo.RegisterComponent<PartMetadata>();
             n.Repo.RegisterEvent<OwnershipUpdate>();
             n.Repo.RegisterEvent<ConstructionOrder>();
             n.Repo.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
@@ -199,6 +200,53 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Equal(Local, n.Recorded(Kinematic));
             Assert.Equal(node == Local, n.RecordMine(Info));       // the giver still publishes what it still writes
             Assert.Equal(node == Local, n.Claims<TkbIdentity>());  // and the claim agrees: one truth
+        }
+
+        // ── S6: a part's claim follows its record — the group's, unless its instance was moved on its own ────────
+
+        private static Entity AddPart(Node n, int instance)
+        {
+            var part = n.Repo.CreateEntity();
+            n.Repo.AddComponent(part, new PartMetadata { ParentEntity = n.E, InstanceId = instance });
+            n.Repo.AddComponent(part, new TkbIdentity { TkbType = 1 });   // carries Info
+            n.Repo.AddComponent(part, new NetworkTransform());           // carries Kinematic (one of its two components)
+            return part;
+        }
+
+        [Fact]
+        public void ANewPart_TakesTheClaimOfItsRootsGroups()
+        {
+            var creator = Build(Local, primary: Local);
+            EnsureRecord(creator);
+            creator.Repo.GetComponent<DescriptorOwnership>(creator.E).SetOwner(Key(Kinematic), Remote);   // granted away
+            var part = AddPart(creator, instance: 2);
+
+            creator.Frame();   // no event needed: the parts pass runs every frame
+
+            Assert.True(creator.Repo.HasAuthority<TkbIdentity>(part));        // (Info,2) → (Info,0) none → primary: us
+            Assert.False(creator.Repo.HasAuthority<NetworkTransform>(part));  // (Kinematic,2) → (Kinematic,0): Remote
+        }
+
+        [Fact]
+        public void APerInstanceUpdate_MovesOnlyThatPart_AndNeverTheRoot()
+        {
+            var n = Build(Local, primary: Local);
+            var two   = AddPart(n, instance: 2);
+            var three = AddPart(n, instance: 3);
+            n.Frame();
+            Assert.True(n.Repo.HasAuthority<NetworkTransform>(three));
+
+            n.Repo.Bus.Publish(new OwnershipUpdate
+            {
+                NetworkId = new NetworkIdentity(NetId), PackedKey = OwnershipExtensions.PackKey(Kinematic, 3),
+                NewOwnerNodeId = Remote, OriginNodeId = Remote,
+            });
+            n.Frame();
+
+            Assert.False(n.Repo.HasAuthority<NetworkTransform>(three));   // that instance moved
+            Assert.True(n.Repo.HasAuthority<NetworkTransform>(two));      // its sibling did not
+            Assert.True(n.Claims<NetworkTransform>());                    // nor did the root (Q79 §0.10 ③)
+            Assert.True(n.RecordMine(Kinematic));
         }
 
         private static Entity EnsureRecord(Node n)

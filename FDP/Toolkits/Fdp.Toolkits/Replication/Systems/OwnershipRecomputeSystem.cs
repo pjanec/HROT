@@ -34,9 +34,18 @@ namespace Fdp.Toolkit.Replication.Systems
     ///     them here;</item>
     ///   <item>a descriptor whose present components are partly claimed — one descriptor split across nodes has no
     ///     single owner to record; counted in <see cref="SplitDescriptorsSkipped"/>;</item>
-    ///   <item>entities with no <see cref="NetworkAuthority"/> (a node with no network owns everything) and part
-    ///     entities (their record is the root's — build step S6).</item>
+    ///   <item>entities with no <see cref="NetworkAuthority"/> (a node with no network owns everything).</item>
     /// </list>
+    ///
+    /// <para>⭐⭐ <b>Parts (S6) go the other way: their CLAIM follows their RECORD, every frame.</b> A part
+    /// (<see cref="PartMetadata"/>) has no record of its own — the root's record answers for it, per instance
+    /// <c>(d, i)</c>, falling back to the descriptor type <c>(d, 0)</c> and then the root's primary owner — and nothing
+    /// claims it at birth: parts are created later by the running logic (an EQS sensor by the Brain, its carrier by the
+    /// Muscle), never by the creator's spawn. So each frame every part's components are claimed iff the record says
+    /// this node owns that part's instance of their descriptor. That gives a new part the claim of its root's group at
+    /// once (Q79 §0.10 ②), makes a per-instance <see cref="OwnershipUpdate"/> move only that part (③), and splits one
+    /// EQS part naturally: its config claimed on the Brain, its result on the Perception node.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S6.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateAfter(typeof(OwnershipIngressSystem))]
@@ -52,6 +61,10 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly HashSet<Entity> _touched = new();
         private readonly List<Entity>    _order   = new();
 
+        // Parts pass: every non-master descriptor with its components (translator targets + group links), built once.
+        private (long Ordinal, int[] Components)[]? _descriptorComponents;
+        private EntityQuery? _parts;
+
         public OwnershipRecomputeSystem(NetworkEntityMap entityMap, int localNodeId, DescriptorOwnershipMap descriptorMap)
         {
             _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
@@ -61,6 +74,9 @@ namespace Fdp.Toolkit.Replication.Systems
 
         /// <summary>Diagnostics: descriptors skipped because their present components were only partly claimed.</summary>
         public int SplitDescriptorsSkipped { get; private set; }
+
+        /// <summary>Diagnostics: part component claims the parts pass changed.</summary>
+        public int PartClaimsChanged { get; private set; }
 
         public void Execute(ISimulationView view, float dt)
         {
@@ -90,6 +106,51 @@ namespace Fdp.Toolkit.Replication.Systems
 
             foreach (var entity in _order)
                 Recompute(repo, entity);
+
+            SyncPartClaims(repo);
+        }
+
+        /// <summary>S6 — every part's claim follows its record (see the class remarks).</summary>
+        private void SyncPartClaims(EntityRepository repo)
+        {
+            if (_descriptorComponents == null)
+            {
+                long? master = _descriptorMap.PrimaryOwnerDescriptorOrdinal;
+                var list = new List<(long, int[])>();
+                foreach (long ordinal in _descriptorMap.RegisteredDescriptors)
+                {
+                    if (master.HasValue && ordinal == master.Value) continue;
+                    var ids = _descriptorMap.GetComponentIdsForDescriptor(ordinal).ToArray();
+                    if (ids.Length > 0) list.Add((ordinal, ids));
+                }
+                _descriptorComponents = list.ToArray();
+            }
+            _parts ??= repo.Query().With<PartMetadata>().Build();
+
+            foreach (var part in _parts)
+            {
+                ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(part);
+                Entity root = meta.ParentEntity;
+                if (!repo.IsAlive(root) || !repo.HasComponent<NetworkAuthority>(root)) continue;
+                int instance = meta.InstanceId;
+
+                foreach (var (ordinal, components) in _descriptorComponents)
+                {
+                    bool known = false, desired = false;
+                    foreach (int componentId in components)
+                    {
+                        if (!repo.HasComponentByTypeId(part, componentId)) continue;
+                        if (!known)
+                        {
+                            desired = ((ISimulationView)repo).HasAuthority(part, OwnershipExtensions.PackKey(ordinal, instance));
+                            known   = true;
+                        }
+                        if (repo.HasAuthority(part, componentId) == desired) continue;
+                        repo.SetAuthority(part, componentId, desired);
+                        PartClaimsChanged++;
+                    }
+                }
+            }
         }
 
         private void Touch(Entity entity)

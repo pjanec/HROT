@@ -59,7 +59,9 @@ namespace Hrot.Network.NED.SimHost
             foreach (var entity in query)
             {
                 // Authority gate: only publish for entities this node owns.
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                // ⭐ CE-507 (S6): the descriptor key, not the raw ordinal (which matched no record entry, so the brain
+                //   that holds the granted brain group never published this).
+                if (!view.HasAuthority(entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
 
                 // SmartEgress dirty-tracking: skip entities whose config hasn't changed.
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))

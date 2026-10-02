@@ -43,12 +43,22 @@ namespace Fdp.Toolkit.Replication.Extensions
 
             // 2. Specific Descriptor Ownership Override (Granular Authority)
             // Fix: HasManagedComponent now handles BitMask overflow internally (via Fallback).
+            // ⭐ S6 (Q79 §0.10, R-168): an instance key (d,i) with no entry of its own falls back to the descriptor
+            //   type's entry (d,0) — the group's record covers every instance unless one was moved on its own — and only
+            //   then to the primary owner. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
             if (packedKey != 0 && view.HasManagedComponent<DescriptorOwnership>(rootEntity))
             {
                 var ownership = view.GetManagedComponentRO<DescriptorOwnership>(rootEntity);
                 if (ownership.TryGetOwner(packedKey, out int specificOwner))
                 {
                     return specificOwner == netAuth.LocalNodeId;
+                }
+
+                var (typeId, instanceId) = OwnershipExtensions.UnpackKey(packedKey);
+                if (instanceId != 0 && typeId != 0 &&
+                    ownership.TryGetOwner(OwnershipExtensions.PackKey(typeId, 0), out int typeOwner))
+                {
+                    return typeOwner == netAuth.LocalNodeId;
                 }
             }
 

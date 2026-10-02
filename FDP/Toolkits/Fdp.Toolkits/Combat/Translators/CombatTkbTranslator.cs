@@ -117,7 +117,6 @@ namespace Fdp.Toolkit.Combat.Translators
                         {
                             ParentEntity      = entity,
                             InstanceId        = i,
-                            DescriptorOrdinal = 0,
                         });
                     }
                 }
