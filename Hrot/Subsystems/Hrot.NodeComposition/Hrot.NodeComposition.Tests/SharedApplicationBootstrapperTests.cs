@@ -155,6 +155,9 @@ public sealed class SharedApplicationBootstrapperTests
 
         public MockNedFactory(MockNedReplicationModule ned) => _ned = ned;
 
+        /// <summary>S2b — what <see cref="CreateSimHostAttributeUpdateSystems"/> returns; null delegates to the base.</summary>
+        public IReadOnlyList<IEcsModuleSystem>? EditHandlers { get; init; }
+
         public CycloneDDS.Runtime.DdsParticipant? Participant         => _base.Participant;
         public long WorldPosDescriptorId         => _base.WorldPosDescriptorId;
         public long NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
@@ -179,7 +182,7 @@ public sealed class SharedApplicationBootstrapperTests
         public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
-        public IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
+        public IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => EditHandlers ?? _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
         public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => _base.CreateCgfEntityLifecycleAdapters();
@@ -446,6 +449,33 @@ public sealed class SharedApplicationBootstrapperTests
         timeCtrl.Update();
 
         Assert.Equal(TimeMode.Deterministic, timeCtrl.GetMode());
+    }
+
+    // ── S2b / F-10 ────────────────────────────────────────────────────────────
+
+    private sealed class CountingSystem : IEcsModuleSystem
+    {
+        public int Runs;
+        public void Execute(ISimulationView view, float dt) => Runs++;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S2b / F-10 — every host built on this base applies another node's edit request.</b> The
+    /// owner-side handlers come from the CONFIGURED factory and run every frame. Before S2b only SimHost
+    /// registered them, so an edit addressed to an entity IG or Stride owned was lost.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §3 F-10, §5.6 S2b.
+    /// </summary>
+    [Fact]
+    public void TheBaseRegistersTheConfiguredFactorysEditRequestHandlers_ForEveryHost()
+    {
+        var handler = new CountingSystem();
+        var factory = new MockNedFactory(new MockNedReplicationModule()) { EditHandlers = new IEcsModuleSystem[] { handler } };
+        var bootstrapper = new TestBootstrapper(factory);
+
+        var context = bootstrapper.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        context.Kernel.Update();
+
+        Assert.Equal(1, handler.Runs);
     }
 
     // ── SC_SM002_8 ────────────────────────────────────────────────────────────

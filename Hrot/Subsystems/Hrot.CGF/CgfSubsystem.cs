@@ -141,7 +141,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// composition scope. ⛔ <c>null</c> on a toolbar-less host.
     /// </summary>
     private Fdp.Presentation.WindowManager.PerspectiveToolbarSection? _perspectiveToolbarSection;
-    private Action?           _cgfNetworkPolling;
 
     // ── Headless + behavior registry ──────────────────────────────────────────
     private bool               _headless;    private ClusterTimeTransportAdapter? _clusterTimeAdapter;    private BehaviorRegistry?  _behaviorRegistry;
@@ -851,12 +850,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    regardless. It only decides who intercepts `Owner == 0` broadcasts from non-ECS clients like
         //    ExCon. 🔒 Exactly one node in a cluster may set it, and CGF is that node.
         //
-        // ⭐ Every optional input is the value this host already passed, threaded from the SAME
-        //    `adapters` object — the pack substitutes NullEntityAckSink when offline, as this code did.
+        // ⭐ Every optional network input comes from ONE adapters object (NetworkAdapters, S2b) —
+        //    the pack substitutes NullEntityAckSink when offline, as this code did.
         // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §5.1 row d ·
         //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §1.
-        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
-
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = _context.World,
@@ -867,13 +864,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                               .First(m => m is EntityLifecycleModule),
             NodeId      = _context.NodeId,
 
-            NetworkRequestSource = adapters?.RequestSource,
-            AckSink              = adapters?.AckSink,
-            JsonAttributeCompiler = adapters?.JsonCompiler,
-            OwnershipStrategy     = adapters?.OwnershipStrategy,
-            // ⭐ CE-509 / §4.1d — the forwarding half, as on every host: a locally originated request addressed
-            //   to another node leaves this node instead of being dropped by the Level-1 guard.
-            RequestEgress         = adapters?.RequestEgress,
+            // ⭐⭐ S2b — the SAME network adapters every ECS host passes. The pack takes the request source, ack
+            //   sink, JSON compiler, ownership strategy and forwarding egress (CE-509 / §4.1d) from this one
+            //   object, and builds the delete and poll systems this host used to build itself. Null offline.
+            //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2b.
+            NetworkAdapters       = nodeFactory?.CreateCgfEntityLifecycleAdapters(),
             // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, now sourced UNIFORMLY from the
             //    shared NED replication module (same cluster cache the adapters used, but the module hosts the
             //    membership ingest + provider for EVERY ECS node). 🔒 User ruling 2026-09-16: the prior
@@ -967,6 +962,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfSimSystems     = new List<IEcsModuleSystem>();
         var cgfPostSimSystems = new List<IEcsModuleSystem>();
 
+        // ⭐⭐ S2b / F-10 — the owner-side edit-request handlers, so this node applies another node's edit to an
+        //   entity it OWNS (a Map2D drag of a symbol CGF created). The input group because replay disables it.
+        //   ⚠ The other hosts get these from SharedApplicationBootstrapper; CGF composes inline (§4.1).
+        //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-10, §5.6 S2b.
+        if (nodeFactory != null)
+            cgfInputSystems.AddRange(nodeFactory.CreateSimHostAttributeUpdateSystems());
+
         foreach (INodeCapability capability in _capabilities)
             capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
 
@@ -1033,7 +1035,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
             creation.PromotionSystem,
-        });
+        }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
 
@@ -1041,24 +1043,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
 
-        // 4. Network-dependent deletion routing: only when a live adapter exists.
-        if (adapters != null)
-        {
-            var deleteSystem = new DeleteEntityRequestSystem(
-                adapters.DeleteSource,
-                adapters.AckSink,
-                _entityMap!,
-                // ⭐ The SAME finalization instance the create side uses — the pack's. ⛔ Constructing a
-                //   second one here would give delete its own ACK bookkeeping, which is precisely the
-                //   class of split this pack exists to make unrepresentable.
-                creation.FinalizationSystem,
-                _context.NodeId);
-
-            _context.Kernel.RegisterGlobalSystem(deleteSystem);
-
-            // Store polling action for heartbeat updates in Update().
-            _cgfNetworkPolling = adapters.PollNetwork;
-        }
+        // 4. ⭐ S2b — the pack's network systems: the delete-request system (sharing the pack's finalization
+        //    instance) and the cluster-cache poll, which this host used to call from Update(). Empty offline.
+        foreach (var sys in creation.NetworkSystems)
+            _context.Kernel.RegisterGlobalSystem(sys);
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
@@ -1741,10 +1729,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
-        // Poll network state (e.g. DDS NodeHeartbeat) to keep the cluster cache up-to-date
-        // so that BrainMuscleOwnershipStrategy can find the least-loaded Muscle node.
-        _cgfNetworkPolling?.Invoke();
-
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
         _clusterTimeAdapter?.Update();
@@ -3215,7 +3199,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Shutdown()
     {
-        _cgfNetworkPolling = null;
         _toggleInput = null;
         _toggleSim = null;
         // QA-001: dispose the whole node context — kernel THEN world. This used to be

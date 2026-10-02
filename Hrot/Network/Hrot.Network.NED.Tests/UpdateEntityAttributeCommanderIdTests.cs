@@ -240,4 +240,41 @@ public sealed class UpdateEntityAttributeCommanderIdTests
         Assert.False(sink.WasErrorWritten, "WriteErrorAck should NOT have been called");
         Assert.Equal(reqId, sink.LastAckRequestId);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>S2b — a non-owner is a silent bystander for a CommanderId patch.</b> Since S2b every host runs this
+    /// handler, and the request reaches all of them. A node that does not own the entity must neither assign the
+    /// subordinate nor send a Success ack for a change it did not make. Before the fix it set
+    /// <c>intercepted</c> before the authority check and acked. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
+    /// </summary>
+    [Fact]
+    public void CommanderIdPatch_OnANonOwner_PublishesNothing_AndSendsNoAck()
+    {
+        var repo = CreateRepo();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        var target    = repo.CreateEntity();
+        var commander = repo.CreateEntity();
+        repo.AddComponent(target, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 5));
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(netId: 3,  entity: target);
+        entityMap.Register(netId: 42, entity: commander);
+
+        var source = new QueuedRequestSource();
+        var sink   = new RecordingAckSink();
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            EntityId           = 3,
+            AttributePatchJson = "{\"CommanderId\":42}",
+            RequireAck         = true,
+        });
+
+        CreateSystem(source, sink, entityMap).Execute(repo, 0f);
+
+        repo.Bus.SwapBuffers();
+        Assert.Empty(repo.Bus.Read<CmdAssignSubordinate>().ToArray());
+        Assert.False(sink.WasAckWritten,   "a bystander must not ack a patch it did not apply");
+        Assert.False(sink.WasErrorWritten, "nor error-ack it: the owner answers");
+    }
 }

@@ -62,14 +62,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     public ScenarioEntityCreationRequestSource? LocalEntityCreationRequests { get; private set; }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-271</c> seam ④ — the DDS <c>NodeHeartbeat</c> pump that keeps the cluster cache the
-    /// <c>BrainMuscleOwnershipStrategy</c> reads from up to date. Invoked once per frame by
-    /// <c>IgApplication.Update</c>, mirroring <c>CgfSubsystem</c>'s <c>_cgfNetworkPolling</c>. Null when
-    /// the node is offline / has no participant.
-    /// </summary>
-    public System.Action? NetworkPolling { get; private set; }
-
-    /// <summary>
     /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
     /// It owns every published <c>RoadNetworkBlob</c> and is what makes a terrain reload safe against a
     /// background reader.
@@ -501,10 +493,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
-        // ⭐ Every optional input is threaded from the SAME adapters object, exactly as CgfSubsystem
-        //    does — the pack substitutes NullEntityAckSink when offline.
-        var adapters = _networkFactory?.CreateCgfEntityLifecycleAdapters();
-
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = context.World,
@@ -515,10 +503,13 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                               .First(m => m is EntityLifecycleModule),
             NodeId      = context.NodeId,
 
-            NetworkRequestSource  = adapters?.RequestSource,
-            AckSink               = adapters?.AckSink,
-            JsonAttributeCompiler = adapters?.JsonCompiler,
-            OwnershipStrategy     = adapters?.OwnershipStrategy,
+            // ⭐⭐ S2b — the SAME network adapters every ECS host passes. The pack takes the request source,
+            //    ack sink, JSON compiler, ownership strategy AND the forwarding egress (D1: without it a
+            //    request addressed elsewhere is silently dropped by the Level-1 guard) from this one object,
+            //    and builds the delete and poll systems. Null offline. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.6.
+            //    ⚠ From the NODE-CONFIGURED factory, as on SimHost and Stride — IG used to take them from the raw
+            //    factory, which carries no node id or role.
+            NetworkAdapters       = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
 
             // ⭐⭐⭐ CE-271 seam ② — the ROLE-AFFINITY policy for Map2D. WITHOUT it IG ran a null policy
             //    and kept every component it materialised, so a Muscle promoting a Map2D-created tank
@@ -530,10 +521,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    (promote) via the pack. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
             RoleAffinity          = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(NodeRole.Map2D),
 
-            // ⭐⭐⭐ D1: the forwarding half. Without it a request addressed elsewhere is silently
-            //    dropped by the Level-1 guard, which is the other half of the level mismatch.
-            RequestEgress         = adapters?.RequestEgress,
-
             // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
             //    NED replication module. 🔒 User ruling 2026-09-16: no node-centric gating — IG is a symmetric
             //    reliable creator. (IG already had the cache via adapters but never passed ExpectedPeers.)
@@ -544,12 +531,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             IsBroadcastArbiter = false,
         });
 
-        // ⭐⭐⭐ CE-271 seam ④ — pump the cluster cache from DDS NodeHeartbeat, exactly as
-        //    CgfSubsystem:982 does. WITHOUT this the BrainMuscleOwnershipStrategy IG carries has an
-        //    empty cache, GetLeastLoadedNode(MuscleGround) returns null, and seam ①'s grant path
-        //    produces an EMPTY grant set — so a Map2D-created tank's SimTransform never reaches a Muscle.
-        //    IG constructs the adapters (reader + cache) but was the one host that never pumped them.
-        NetworkPolling = adapters != null ? adapters.PollNetwork : (System.Action?)null;
+        // ⭐⭐⭐ CE-271 seam ④ / S2b — the cluster-cache pump (DDS NodeHeartbeat) is one of the pack's
+        //    NetworkSystems now, registered below like on every host. WITHOUT it the ownership strategy has
+        //    an empty cache and a Map2D-created tank's grant set is EMPTY. ⛔ IgApplication no longer polls.
+        foreach (var sys in creation.NetworkSystems)
+            context.Kernel.RegisterGlobalSystem(sys);
 
         // ⭐ The tools' sink. RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems
         //    (SharedApplicationBootstrapper.cs:111 vs :139), so the registrar callback that constructs
@@ -590,7 +576,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         {
             creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
             creation.PromotionSystem,
-        });
+        }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(
                 "[IG] entity-creation pieces not scheduled: {0}", unserviceable);

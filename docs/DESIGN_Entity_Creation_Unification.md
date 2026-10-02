@@ -97,6 +97,7 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - DESIGN_Ownership_Groups_And_Grants.md — owns WHICH components a created entity grants to which role (push-only groups) and S2b, which made `NetworkAdapters` the pack's one network input
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
     routes back to its owner, including this one. Read it FIRST if you do not already know where in
@@ -1653,6 +1654,8 @@ deliver path 2 §3.4, which is the whole point of the unification. ⭐ Prior sta
 drawn beside a proposed one makes a duplicate visible. 📐 Two of them were found only by measuring
 `2026-08-31` and are why this section changed.
 
+⭐ **As built, `S2b` (`2026-10-02`, [`DESIGN_Ownership_Groups_And_Grants.md`](DESIGN_Ownership_Groups_And_Grants.md) §5.6):** a production host passes ONE network input, `NetworkAdapters`; the per-seam fields (`NetworkRequestSource`, `AckSink`, …) are for tests and are exclusive with it. `EntityCreation.NetworkSystems` carries the cluster-cache poll and the delete-request system, which every host now schedules (before: delete on CGF only, poll from CGF/IG app loops).
+
 ```mermaid
 classDiagram
     class EntityCreationContext {
@@ -1660,6 +1663,7 @@ classDiagram
         +NetworkEntityMap EntityMap
         +ITkbDatabase TkbDb
         +INetworkIdAllocator IdAllocator
+        +ICgfEntityLifecycleAdapters NetworkAdapters
         +IEntityCreationRequestSource NetworkRequestSource
         +IEntityAckSink AckSink
         +int NodeId
@@ -1675,6 +1679,7 @@ classDiagram
         +CreateEntityRequestSystem RequestSystem
         +NetworkSpawningSystem SpawnSystem
         +ScenarioEntityCreationRequestSource LocalRequests
+        +IReadOnlyList NetworkSystems
         +Unserviceable(scheduled)
     }
     class TkbTranslatorSet {

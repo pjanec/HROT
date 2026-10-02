@@ -126,16 +126,24 @@ namespace Hrot.Common.EntityCreation
             //   "this host does not forward", which is true of every host that materialises entities
             //   itself. ⭐ The rail EntityCreationPack_WiresTheForwarder_WhenAnEgressIsSupplied is the
             //   control that a host which HAS an egress actually gets one.
-            IEntityCreationRequestSource localTier = ctx.RequestEgress == null
+            // ⭐⭐⭐ S2b — every network seam comes from ONE place: the adapters object a production host passes,
+            //   or the per-seam fields a test fakes (Validate forbids both). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6.
+            var adapters             = ctx.NetworkAdapters;
+            var requestEgress        = adapters != null ? adapters.RequestEgress     : ctx.RequestEgress;
+            var networkRequestSource = adapters != null ? adapters.RequestSource     : ctx.NetworkRequestSource;
+            var jsonCompiler         = adapters != null ? adapters.JsonCompiler      : ctx.JsonAttributeCompiler;
+            var ownershipStrategy    = adapters != null ? adapters.OwnershipStrategy : ctx.OwnershipStrategy;
+
+            IEntityCreationRequestSource localTier = requestEgress == null
                 ? localRequests
                 : new ForwardingEntityCreationRequestSource(
-                    localRequests, ctx.RequestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
+                    localRequests, requestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
 
             var sources = new List<IEntityCreationRequestSource> { localTier };
-            if (ctx.NetworkRequestSource != null) sources.Add(ctx.NetworkRequestSource);
+            if (networkRequestSource != null) sources.Add(networkRequestSource);
             var requestSource = new CompositeEntityCreationRequestSource(sources);
 
-            IEntityAckSink ackSink = ctx.AckSink ?? new NullEntityAckSink();
+            IEntityAckSink ackSink = (adapters != null ? adapters.AckSink : ctx.AckSink) ?? new NullEntityAckSink();
 
             var finalization = new EntityRequestFinalizationSystem(ackSink, ctx.EntityMap);
 
@@ -150,10 +158,10 @@ namespace Hrot.Common.EntityCreation
                 tkbDb:                 ctx.TkbDb,
                 idAllocator:           ctx.IdAllocator,
                 localNodeId:           ctx.NodeId,
-                jsonAttributeCompiler: ctx.JsonAttributeCompiler,
+                jsonAttributeCompiler: jsonCompiler,
                 finalizationSystem:    finalization,
                 isDefaultProcessor:    ctx.IsBroadcastArbiter,
-                ownershipStrategy:     ctx.OwnershipStrategy);
+                ownershipStrategy:     ownershipStrategy);
 
             var spawnSystem = new NetworkSpawningSystem(
                 ctx.TkbDb,
@@ -218,9 +226,23 @@ namespace Hrot.Common.EntityCreation
             IsReplayActive = () => ctx.Elm.IsReplayActive?.Invoke() ?? false,
         };
 
+            // ⭐⭐ S2b — the systems that only exist with a live network, built ONCE here for every host.
+            //   ⚠ Before S2b only CGF built the delete system, and only SimHost/Stride registered the poll
+            //   (CGF and IG called PollNetwork from their app loops). Every host ticks its kernel every frame,
+            //   so the Input-phase poll runs exactly as often as those loops did.
+            var networkSystems = adapters == null
+                ? Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>()
+                : new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+                {
+                    new NetworkPollingSystem(adapters.PollNetwork),
+                    // ⭐ The SAME finalization instance the create side uses — a second one would give delete
+                    //   its own ACK bookkeeping, the class of split this pack exists to prevent.
+                    new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
+                };
+
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId);
+                promotionSystem, ctx.NodeId, networkSystems);
         }
     }
 }

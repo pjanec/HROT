@@ -292,11 +292,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // systems' lookups address the same memory by construction (CE-180).
         CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork, TrajectoryPool.Pool);
 
-        // Configure factory for this node and create attribute update systems
-        var nodeFactory = _networkFactory?.ConfigureForNode(context, _role, GetBehaviorRegistry());
-        foreach (var sys in nodeFactory?.CreateSimHostAttributeUpdateSystems()
-                             ?? System.Linq.Enumerable.Empty<IEcsModuleSystem>())
-            input.Add(sys);
+        // ⭐ S2b — the owner-side edit-request handlers moved to the base bootstrapper's input group, so
+        //   every host applies another node's edit (F-10). ⛔ This host used to call ConfigureForNode a
+        //   SECOND time here just to build them — a second factory with its own cluster cache.
 
         // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
         // ⚠ The plan is built HERE because this is the first step where the context and the loaded road
@@ -471,12 +469,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //    component narrowing is gate 2 (IsComponentTypeRegistered), never the list (§6.5b).
         //
         // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
-        // ⭐⭐ CE-509 — the SAME network adapters CGF and IG pass: this node can now be ASKED over the network to
-        //    create, forward a request addressed elsewhere, and GRANT what it creates (push-only ownership,
-        //    docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2; DESIGN_Subsystem_Composition_Unification.md
-        //    §4.1d "UNIFY — pass everywhere"). Null offline / BDC ⇒ a no-op, exactly as on the other hosts.
-        var adapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters();
-
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = context.World,
@@ -484,11 +476,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             TkbDb       = context.TkbDb!,
             IdAllocator = context.IdAllocator!,
 
-            NetworkRequestSource  = adapters?.RequestSource,
-            AckSink               = adapters?.AckSink,
-            JsonAttributeCompiler = adapters?.JsonCompiler,
-            OwnershipStrategy     = adapters?.OwnershipStrategy,
-            RequestEgress         = adapters?.RequestEgress,
+            // ⭐⭐ CE-509 / S2b — the SAME network adapters every ECS host passes: this node can be ASKED over the
+            //    network to create or delete, forward a request addressed elsewhere, and GRANT what it creates
+            //    (push-only ownership). The pack builds the delete and poll systems from it. Null offline / BDC.
+            //    📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2, S2b.
+            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
 
             // BaseModules[0] == EntityLifecycleModule. The pack calls SetTranslators on it, which must
             // precede the kernel's Initialize — it does: this runs during RegisterSpawningPipeline.
@@ -529,9 +521,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         var spawningSystem = creation.SpawnSystem;
 
-        // ⭐ CE-509 — keep the strategy's cluster cache fed (CGF/IG poll from their app loops; this host has none).
-        if (adapters != null)
-            context.Kernel.RegisterGlobalSystem(new Hrot.Common.Systems.NetworkPollingSystem(adapters.PollNetwork));
+        // ⭐ S2b — the pack's network systems (cluster-cache poll, delete requests); empty offline.
+        foreach (var sys in creation.NetworkSystems)
+            context.Kernel.RegisterGlobalSystem(sys);
 
         // ⭐⭐⭐ CE-147 step 4 — THE onEntitySpawned HOOK IS GONE, and nothing replaced it.
         //
@@ -563,14 +555,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
             creation.PromotionSystem,
-        });
+        }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);
 
-        // ⚠ FOLLOW-UP, not a regression: no DDS ingress request source or ACK sink is passed here, so
-        //   this node serves LOCAL requests only — same position host (a) is in. Wiring the network half
-        //   needs lifecycle adapters on HrotNodeContext, which is a separate change. Strictly better than
-        //   before, when this node had no request tier at all.
         // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
         //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →
         //    EngineBackedNavigationModule → CognitiveSpatialModule (an AreaQueryResultMaterializationSystem

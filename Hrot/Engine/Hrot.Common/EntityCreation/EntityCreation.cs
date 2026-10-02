@@ -27,7 +27,8 @@ namespace Hrot.Common.EntityCreation
             EntityRequestFinalizationSystem finalizationSystem,
             NetworkSpawningSystem spawnSystem,
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
-            int nodeId)
+            int nodeId,
+            IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems)
         {
             Translators        = translators;
             Elm                = elm;
@@ -37,6 +38,7 @@ namespace Hrot.Common.EntityCreation
             SpawnSystem        = spawnSystem;
             PromotionSystem    = promotionSystem;
             NodeId             = nodeId;
+            NetworkSystems     = networkSystems;
         }
 
         /// <summary>
@@ -223,6 +225,14 @@ namespace Hrot.Common.EntityCreation
         public Fdp.Toolkit.Replication.Systems.GhostPromotionSystem PromotionSystem { get; }
 
         /// <summary>
+        /// ⭐⭐ <b><c>S2b</c> — the systems that exist only with a live network. Schedule each one
+        /// (<c>RegisterGlobalSystem</c>).</b> Empty offline. Today: the per-frame network poll that feeds the
+        /// ownership strategy's cluster cache, and the delete-request system. 📄
+        /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
+        /// </summary>
+        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> NetworkSystems { get; }
+
+        /// <summary>
         /// ⭐⭐ <b>The <c>S2b</c> diagnostic habit: report what the pack built and the host did NOT
         /// schedule.</b> 📌 Every one of the five entity-creation defects that produced this design was a
         /// SILENT omission — this is the mechanism that makes the next one loud.
@@ -262,6 +272,13 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");
+
+            foreach (var sys in NetworkSystems)
+                if (!seen.Contains(sys))
+                    missing.Add($"{nameof(NetworkSystems)} ({sys.GetType().Name}) — " +
+                                (sys is NetworkPollingSystem
+                                    ? "the ownership strategy's cluster cache is never fed, so created entities grant nothing"
+                                    : "delete requests addressed to this node are never processed"));
 
             if (missing.Count == 0) return string.Empty;
 

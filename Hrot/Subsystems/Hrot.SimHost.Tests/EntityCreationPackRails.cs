@@ -479,6 +479,128 @@ namespace Hrot.SimHost.Tests
             "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
         };
 
+        // ── S2b — the network adapters are ONE input, and the pack builds the network systems ──────────
+
+        private sealed class FakeAdapters : ICgfEntityLifecycleAdapters
+        {
+            public int Polls;
+            public RecordingEgress Egress { get; } = new();
+            public IEntityCreationRequestSource RequestSource { get; } = new NoRequests();
+            public IEntityDeletionRequestSource DeleteSource  { get; } = new NoRequests();
+            public IEntityAckSink AckSink                     { get; } = new NoAcks();
+            public IEntityCreationRequestEgress? RequestEgress => Egress;
+            public Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy? OwnershipStrategy => null;
+            public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonCompiler => null;
+            public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => null;
+            public void PollNetwork() => Polls++;
+
+            private sealed class NoRequests : IEntityCreationRequestSource, IEntityDeletionRequestSource
+            {
+                public void ProcessRequests(Action<EntityCreationRequest> handler) { }
+                public void ProcessRequests(Action<EntityDeletionRequest> handler) { }
+            }
+            private sealed class NoAcks : IEntityAckSink
+            {
+                public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status) { }
+            }
+        }
+
+        private static EntityCreationContext WithAdapters(EntityCreationContext ctx, ICgfEntityLifecycleAdapters adapters)
+            => new()
+            {
+                World = ctx.World, EntityMap = ctx.EntityMap, TkbDb = ctx.TkbDb, IdAllocator = ctx.IdAllocator,
+                Elm = ctx.Elm, NodeId = ctx.NodeId, NetworkAdapters = adapters,
+            };
+
+        /// <summary>
+        /// ⭐⭐ <b>S2b — the pack builds the poll and the delete-request system from the adapters</b>, so every
+        /// host gets both. Before S2b only CGF built the delete system, and CGF/IG polled from their app loops
+        /// while SimHost/Stride registered a system. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
+        /// </summary>
+        [Fact]
+        public void Build_WithNetworkAdapters_YieldsThePollAndTheDeleteSystem()
+        {
+            var adapters = new FakeAdapters();
+            var creation = EntityCreationPack.Build(WithAdapters(MinimalContext(out var world), adapters));
+
+            Assert.Equal(2, creation.NetworkSystems.Count);
+            Assert.Contains(creation.NetworkSystems, s => s is Hrot.Common.Systems.DeleteEntityRequestSystem);
+            var poll = Assert.Single(creation.NetworkSystems.OfType<Hrot.Common.Systems.NetworkPollingSystem>());
+
+            poll.Execute(world, 0f);
+            Assert.Equal(1, adapters.Polls);
+        }
+
+        [Fact]
+        public void Build_Offline_HasNoNetworkSystems()
+        {
+            var creation = EntityCreationPack.Build(MinimalContext(out _));
+            Assert.Empty(creation.NetworkSystems);
+        }
+
+        /// <summary>⭐ The adapters' egress is the one the pack wires: a request for another node leaves.</summary>
+        [Fact]
+        public void Build_TakesTheForwardingEgressFromTheAdapters()
+        {
+            var adapters = new FakeAdapters();
+            var ctx      = WithAdapters(MinimalContext(out var world), adapters);
+            var creation = EntityCreationPack.Build(ctx);
+
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = 99,              // NOT this node (NodeId = 7)
+                TkbType            = ctx.TkbDb.GetAll().First().TkbType,
+            });
+            creation.RequestSystem.Execute(world, 0f);
+
+            Assert.Equal(99, Assert.Single(adapters.Egress.Sent).OwnerAppInstanceId);
+        }
+
+        [Fact]
+        public void NetworkAdaptersAndPerSeamFields_CannotBothBeSet()
+        {
+            var ctx = MinimalContext(out _, egress: new RecordingEgress());
+            var both = new EntityCreationContext
+            {
+                World = ctx.World, EntityMap = ctx.EntityMap, TkbDb = ctx.TkbDb, IdAllocator = ctx.IdAllocator,
+                Elm = ctx.Elm, NodeId = ctx.NodeId, RequestEgress = ctx.RequestEgress, NetworkAdapters = new FakeAdapters(),
+            };
+            Assert.Throws<ArgumentException>(() => EntityCreationPack.Build(both));
+        }
+
+        [Fact]
+        public void Unserviceable_NamesANetworkSystemTheHostDidNotSchedule()
+        {
+            var creation = EntityCreationPack.Build(WithAdapters(MinimalContext(out _), new FakeAdapters()));
+            var missing = creation.Unserviceable(new object[]
+            {
+                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem, creation.PromotionSystem,
+            });
+            Assert.Contains("NetworkPollingSystem", missing);
+            Assert.Contains("DeleteEntityRequestSystem", missing);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>R-174 — no networked host builds the network systems or copies the seams itself.</b> Source-based,
+        /// like the promotion rail below: what matters is what each composition root WIRES.
+        /// </summary>
+        [Theory]
+        [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
+        public void EveryNetworkedRoot_PassesTheAdaptersAndSchedulesTheNetworkSystems(string rootPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+
+            Assert.True(src.Contains("NetworkAdapters"), $"{rootPath} does not pass NetworkAdapters to the pack.");
+            Assert.True(src.Contains("creation.NetworkSystems"), $"{rootPath} does not schedule creation.NetworkSystems.");
+            foreach (var copied in new[] { "new DeleteEntityRequestSystem", "NetworkPollingSystem(", ".PollNetwork", "adapters?.RequestSource" })
+                Assert.False(src.Contains(copied),
+                    $"{rootPath} builds or copies '{copied}' itself; the pack owns it since S2b (R-174).");
+        }
+
         [Theory]
         [MemberData(nameof(RootsThatBuildThePack))]
         public void EveryRootThatBuildsThePack_SchedulesGhostPromotion(string rootPath)

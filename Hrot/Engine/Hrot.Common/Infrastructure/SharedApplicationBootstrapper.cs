@@ -189,13 +189,23 @@ public abstract class SharedApplicationBootstrapper
         // ⭐ REQUIRES the declared resource keys, so PopulateSystems may legally read an allocated
         //    resource out of BootValues — the read is checked against this step's own declaration.
         plan.Step("system-groups",
-            requires: new[] { "context" }.Concat(declaredResourceKeys).ToArray(),
+            requires: new[] { "context", "configured-factory" }.Concat(declaredResourceKeys).ToArray(),
             provides: new[] { "system-groups" },
             run: () =>
         {
             var inputSystems   = new List<IEcsModuleSystem>();
             var simSystems     = new List<IEcsModuleSystem>();
             var postSimSystems = new List<IEcsModuleSystem>();
+
+            // ⭐⭐ S2b / F-10 — the owner-side edit-request handlers on EVERY host, not only SimHost: a node
+            //   that is not an entity's owner sends its edit as a request (EntityWriteRouter), and the owner
+            //   applies it. Push-only ownership leaves positions without kinematics with their creator (R-175),
+            //   which may be IG or Stride, so each of them must be able to apply. ⭐ In the input group because
+            //   replay disables that group, and network edits must not touch replayed state.
+            //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-10, §5.6 S2b.
+            if (configuredFactory != null)
+                inputSystems.AddRange(configuredFactory.CreateSimHostAttributeUpdateSystems());
+
             PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);

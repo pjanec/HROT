@@ -70,6 +70,28 @@ namespace Hrot.Common.EntityCreation
         // ── Optional ────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
+        /// ⭐⭐⭐ <b>The network's entity-lifecycle adapters — the ONE network input a production host passes.</b>
+        /// <c>INetworkFactory.CreateCgfEntityLifecycleAdapters()</c> on the node-configured factory; <c>null</c>
+        /// offline or on a stack without them (BDC).
+        ///
+        /// <para>The pack takes every network seam from here: the request source, the ack sink, the JSON
+        /// compiler, the ownership strategy and the forwarding egress. It also BUILDS the two systems that
+        /// only make sense with a live network, <see cref="EntityCreation.NetworkSystems"/>: the delete-request
+        /// system and the per-frame poll that feeds the ownership strategy's cluster cache.</para>
+        ///
+        /// <para>📌 <c>R-174</c> (unify and share, especially in node bootstrap code). Before <c>S2b</c> every
+        /// host copied the five fields by hand, and only CGF built the delete system, so a delete request
+        /// addressed to an entity another host created was lost. 📄
+        /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.</para>
+        ///
+        /// <para>⛔ Set this OR the per-seam fields below (<see cref="NetworkRequestSource"/>,
+        /// <see cref="AckSink"/>, <see cref="JsonAttributeCompiler"/>, <see cref="OwnershipStrategy"/>,
+        /// <see cref="RequestEgress"/>), never both — the pack throws. The per-seam fields are for tests and
+        /// harnesses that fake one seam at a time.</para>
+        /// </summary>
+        public ICgfEntityLifecycleAdapters? NetworkAdapters { get; init; }
+
+        /// <summary>
         /// The DDS ingress source, when this node is networked. ⭐ The pack always composes its own
         /// in-memory source and merges this one behind <c>CompositeEntityCreationRequestSource</c>, so an
         /// offline node still has a working local path.
@@ -181,6 +203,14 @@ namespace Hrot.Common.EntityCreation
             if (TkbDb       == null) throw new ArgumentException("EntityCreationContext.TkbDb is required.");
             if (IdAllocator == null) throw new ArgumentException("EntityCreationContext.IdAllocator is required.");
             if (Elm         == null) throw new ArgumentException("EntityCreationContext.Elm is required.");
+
+            // ⛔ Two ways to say one thing (S2b): the adapters object OR the per-seam fields.
+            if (NetworkAdapters != null &&
+                (NetworkRequestSource != null || AckSink != null || JsonAttributeCompiler != null ||
+                 OwnershipStrategy != null || RequestEgress != null))
+                throw new ArgumentException(
+                    "EntityCreationContext: set NetworkAdapters OR the per-seam network fields " +
+                    "(NetworkRequestSource, AckSink, JsonAttributeCompiler, OwnershipStrategy, RequestEgress), not both.");
         }
     }
 }

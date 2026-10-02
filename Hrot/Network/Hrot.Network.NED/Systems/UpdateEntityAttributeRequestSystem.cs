@@ -341,16 +341,21 @@ namespace Hrot.Map.Common.Systems
                 if (!root.TryGetProperty("CommanderId", out var cmdIdProp))
                     return json;
 
-                intercepted = true;
                 long commanderNetId = cmdIdProp.GetInt64();
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(1L, 0);
                 if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(view, entity, packedKey))
                 {
-                    FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
-                        "[UpdAttrReq] Unauthorized hierarchy patch attempt on entity {0}. Dropping change.",
+                    // ⭐⭐ S2b — a BYSTANDER, not an attack. Every host runs this handler since S2b, and the request
+                    //   topic reaches all of them; only the owner applies. ⛔ `intercepted` stays false here, so the
+                    //   silent-bystander rule holds: a non-owner never sends a (false) Success ack for a patch it
+                    //   did not apply. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2b.
+                    FdpLog<UpdateEntityAttributeRequestSystem>.Debug(
+                        "[UpdAttrReq] Not authoritative for the hierarchy of entity {0}; bystander, ignoring CommanderId.",
                         entityNetId);
                     return RebuildJsonWithout(root, "CommanderId");
                 }
+
+                intercepted = true;
 
                 if (commanderNetId != 0)
                 {
