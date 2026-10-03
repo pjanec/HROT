@@ -16,7 +16,7 @@ related-designs:
 - Branch **`backend`**. Last batch: [`HANDOFF_Ownership_Remaining_Work.md`](batches/HANDOFF_Ownership_Remaining_Work.md) → report [`REPORT_Ownership_Remaining_Work.md`](batches/REPORT_Ownership_Remaining_Work.md).
 - Ownership programme: S1–S8 built; live matrix §5.7.1 **E1–E8 all ✅** (E8 = the multi-process crash reclaim, +10.2 s, no message).
 - Done this batch: `CE-3003` (debug writes ask the owner), `CE-3004` (CGF polls mission acks), `CE-516` (editor uses the injected offline factory), `CE-518`'s 11 unit reds (all stale tests).
-- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3015`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
+- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3016`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
 
 ## 2. Waiting on the user
 

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — Q81 §0 APPROVED (R-181); §7 W2–W8 RULED by the user 2026-10-03 (R-182); W1, W9, W10 carry leans awaiting the nod, then READY-TO-BUILD.
+build-state: BUILDING — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
 updated: 2026-10-03
-current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings + the three open leans, §8 the slice plan.
+current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: nothing yet.
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. docs/designs/navig-2/Navigation_Design_v2_0.md and INavmeshProvider document a Y-up contract; W7 makes every navigation API Z-up. Both must be updated when the slice lands.
@@ -341,7 +341,7 @@ NavigationSolver (`EditorCapabilities.cs:60-61`) but registers its load chain wi
 | **W7** | **every navigation/terrain API is Z-up; conversion only inside implementations** (DotRecast, the Stride boundary) | flip `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon`/`NavTestMap` to Z-up; `DotRecastNavmeshProvider` swizzles inside; remove the caller-side swizzles. 📐 Blast radius: **7 production files**, ~66 test call sites in ~46 files, **10 JSON navmaps**. Fixes the 4 mixed sites for free (`CE-3011`) |
 | **W8** | **no ground clamp**; the movement model sets Z to ground / roof / floor as it computes the position | `CarKinematicsSystem` and `LinearKinematicsSystem` write `Z = TerrainWorld.SurfaceZ(x, y, zHint = current Z)`; spawns at Z=0 settle on the first movement tick. `LinearKinematics` does this only for entities marked **`GroundFollow`** (set by the TKB translators from the entity's mobility) — ⛔ never for bullets |
 
-### 7.2 ⏳ still open — leans for the nod
+### 7.2 ✅ APPROVED `2026-10-03` (`R-183`: *"Approved. Document and go autonomously."*)
 
 | # | question | ⭐ lean | rejected (one fact each) |
 |---|---|---|---|
@@ -349,6 +349,16 @@ NavigationSolver (`EditorCapabilities.cs:60-61`) but registers its load chain wi
 | **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside [0,1000) / [-750,750) |
 | **W10** | infantry motion on SimHost | v1 follows the trajectory on the existing bicycle model (they carry `VehicleState` on SimHost); DotRecast crowd later | crowd in slice 1: a second motion model at once |
 | **W11** | the stance runtime (for W5) | compose `StanceTransitionSystem` on the Muscle (SimHost, Editor=CGF) in slice step 3, so posture is real when LOS reads it | leave it out: W5 would read Standing forever |
+
+### 7.3 ⭐ TERRAIN DELIVERY + THE PICKER *(user, `2026-10-03`: "Scenario needs editor picker fir terrain i guess"; decided by the backend lane)*
+
+📐 Measured: ① **saving drops the terrain** — every host's `HrotScenarioSaveHandler` builds `new ScenarioHeader(type, TkbName: …)` with no `TerrainName` (`HrotScenarioSaveHandler.cs:100`, `ScenarioFileService.cs:106`), and the merge keeps a terrain name only when a slice carries one (`ScenarioMergeCore.cs:121`) ⇒ a saved scenario loses its terrain (`CE-3015`). ② **nothing stages a terrain** to a node (`BP-557`): the gateway copies only `{nas}/tkb/<name>.zip` (`StorageGatewayModule.cs:412-475`). ③ **no editor UI** sets the terrain name; only a recipe seed carries one.
+
+| # | decision | rejected (one line each) |
+|---|---|---|
+| **W12** | **a terrain is a FOLDER** `terrain/<name>/` holding `terrain.json` (the definition) + the files it names (world, roads). ONE resolver, **`TerrainCatalog`**, searches in order: node staging `{node}/Terrain/` → the NAS stand-in `{shared}/terrain/` → the terrains shipped with the build (`Recipes/Terrain/`, copied to output like the scenario seeds). The gateway's prefetch copies the named folder to every node beside the TKB (closes `BP-557`), with the same skip-if-current rule | one file per terrain (`Terrain/<name>.json`): sibling files of two terrains collide in one folder · a second loader per host: two mechanisms for one lookup |
+| **W13** | **the picker**: a *Terrain…* entry in the scenario menu lists `TerrainCatalog.List()`; choosing one calls the existing `TerrainResidency.EnsureTerrain(world, name)` on the local node and marks the scenario dirty. On the editor (a one-node cluster) it loads at once; on CGF it loads locally and reaches the other nodes at the next scenario load (the staged header carries it) | a cluster op to swap terrain live: a new 2PC for a rare authoring action |
+| **W14** | **save stamps the RESIDENT terrain** — `HrotScenarioSaveHandler` and `ScenarioFileService` write `TerrainName` from the node's `TerrainDefinition` singleton, exactly as `TkbName` comes from `ITkbDatabase.ActiveTkbName` (`CE-3015`) | a scenario-level editable field: a second copy of a fact the loaded world already holds |
 
 ### ⛔ HISTORY — first-draft leans the user overturned (do not quote)
 
@@ -359,8 +369,8 @@ Y-up provider contract"* · W8 *"move the IG ground-clamp pipeline to SimHost"* 
 
 | step | builds | acceptance |
 |---|---|---|
-| **0** | `CE-3013` — the live route axis swap (one line + a rail with Z-up waypoints) | a SimHost route with north ≠ 0 is driven where it was drawn |
-| **1a** | `TerrainWorld` + parser + definition v2 + universal world part + `CE-3012` | a hand-written `test-town` loads on SimHost, Editor, CGF, IG; `SurfaceZ` rails incl. a slab picked by Z hint |
+| **0** | `CE-3013` — the live route axis swap (one line + a rail with Z-up waypoints); `CE-3015` — save stamps the resident terrain | a SimHost route with north ≠ 0 is driven where it was drawn; a save keeps `TerrainName` |
+| **1a** | `TerrainWorld` + parser + definition v2 + universal world part + `CE-3012` + W12 `TerrainCatalog` + folder staging (`BP-557`) + W13 picker | a shipped `test-town` loads on SimHost, Editor, CGF, IG; `SurfaceZ` rails incl. a slab picked by Z hint; the picker switches the editor's terrain |
 | **1b** | `FilledTriangle` + `TerrainWorldGizmo` (filled footprints shaded by height, labels) + `CE-3014` | the world draws on every map; an area overlay shows its fill |
 | **2** | W7 Z-up flip, the Recast project (move), geometry source, factory, solver composition, W8 movement Z | a CGF tank given MoveTo drives **around** a building to the goal, and its Z follows a ramp; closes `CE-3006` + `CE-3011`, unblocks `CE-524` |
 | **3** | `ILosStrategy` seam (default = today's sweep), `TerrainWorldLosStrategy`, `SensorMount`, `PhysicsCollider.Height`, stance runtime (W11) | a soldier behind a 12 m building does not see a target; a standing one sees over a 0.5 m wall, a prone one does not |
