@@ -15,6 +15,27 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
     public class Rgba32Tests
     {
+        /// <summary>
+        /// docs/DESIGN_Terrain_World.md §7.1 W2 — a filled triangle fits the fixed 64-byte primitive slot and
+        /// keeps its three corners, colour and layer through the buffer.
+        /// </summary>
+        [Fact]
+        public void DrawFilledTriangle_AppendsAFilledTrianglePrimitive_InTheFixedSlot()
+        {
+            Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            var color = new Rgba32(10, 20, 30, 40);
+            buffer.DrawFilledTriangle(new Vector2(1, 2), new Vector2(3, 4), new Vector2(5, 6), color, layer: 2);
+
+            var prim = buffer.GetFrame()[0];
+            Assert.Equal(DebugPrimitiveShape.FilledTriangle, prim.Shape);
+            Assert.Equal(new Vector2(1, 2), prim.TriA);
+            Assert.Equal(new Vector2(3, 4), prim.TriB);
+            Assert.Equal(new Vector2(5, 6), prim.TriC);
+            Assert.Equal(color, prim.Color);
+            Assert.Equal(2, prim.DebugLayer);
+        }
+
         [Fact]
         public void Rgba32_HasSize4()
         {

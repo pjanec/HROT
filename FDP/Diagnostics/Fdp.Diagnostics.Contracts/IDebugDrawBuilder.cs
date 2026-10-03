@@ -51,6 +51,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
         }
 
+        /// <summary>
+        /// A filled triangle on the map plane, world metres — the primitive a filled polygon is made of
+        /// (triangulate once, emit per triangle). 📄 docs/DESIGN_Terrain_World.md §7.1 W2.
+        /// </summary>
+        void DrawFilledTriangle(
+            Vector2 a, Vector2 b, Vector2 c, Rgba32 color,
+            byte layer = 0,
+            PipelineTarget target = PipelineTarget.All)
+        {
+        }
+
         void DrawArrow(
             Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f,

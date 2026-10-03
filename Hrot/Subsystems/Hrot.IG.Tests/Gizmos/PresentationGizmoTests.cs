@@ -199,6 +199,61 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.Equal(2, draw.LineCalls.Count);
         }
 
+        // CE-3014: a closed area with a visible fill colour is FILLED (it carried the colour and was never drawn).
+        [Fact]
+        public void CE3014_MapOverlayGizmo_FillsAClosedAreaWithAFillColour_AndNotOtherwise()
+        {
+            var (entity, _) = MakeOverlay(isClosed: true);
+            var style = _repo.GetComponent<MapOverlayStyle>(entity);
+
+            var unfilled = new FullCapturingDrawBuilder();
+            new MapOverlayGizmo().Draw(_repo, entity, unfilled);
+            Assert.Empty(unfilled.TriangleCalls);                  // FillColor.A == 0 → border only
+
+            style.FillColor = new Color32 { R = 255, A = 80 };
+            _repo.SetComponent(entity, style);
+            var filled = new FullCapturingDrawBuilder();
+            new MapOverlayGizmo().Draw(_repo, entity, filled);
+
+            var tri = Assert.Single(filled.TriangleCalls);         // 3 points → 1 triangle
+            Assert.Equal(80, tri.Color.A);
+            Assert.Contains(new Vector2(110f, 120f), new[] { tri.A, tri.B, tri.C });   // origin (10,20) + (100,100)
+        }
+
+        // Terrain world map layer (docs/DESIGN_Terrain_World.md §7.1 W2): fills every footprint, labels buildings.
+        [Fact]
+        public void TerrainWorldGizmo_FillsTheWorld_OnTheBottomLayer_AndLabelsBuildings()
+        {
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"kind":"building","height":12,"floors":3},
+                   "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}},
+                  {"type":"Feature","properties":{"kind":"surface","surface":"forest"},
+                   "geometry":{"type":"Polygon","coordinates":[[[20,0],[30,0],[30,10],[20,10],[20,0]]]}},
+                  {"type":"Feature","properties":{"kind":"surface","surface":"open"},
+                   "geometry":{"type":"Polygon","coordinates":[[[40,0],[50,0],[50,10],[40,10],[40,0]]]}}]}
+                """);
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            _repo.SetSingletonManaged(world);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainWorldGizmo().Draw(_repo, draw);
+
+            Assert.Equal(4, draw.TriangleCalls.Count);             // building 2 + forest 2; open ground is not drawn
+            Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainWorldGizmo.TerrainLayer, t.Layer));
+            Assert.Single(draw.TextCalls);                         // one building label
+            Assert.Equal(4, draw.LineCalls.Count);                 // the building outline
+        }
+
+        [Fact]
+        public void TerrainWorldGizmo_DrawsNothing_WhenNoTerrainIsLoaded()
+        {
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainWorldGizmo().Draw(_repo, draw);
+            Assert.Empty(draw.TriangleCalls);
+            Assert.Empty(draw.LineCalls);
+        }
+
         // =====================================================================
         // CE-259ae — polygon areas and routes are selectable / right-clickable BY THEIR LINES
         // 🔒 User, 2026-09-11: "polygon areas and routes entities should be selectable by clicking on

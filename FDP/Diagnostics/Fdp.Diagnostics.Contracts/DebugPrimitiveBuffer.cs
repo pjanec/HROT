@@ -198,6 +198,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(DebugPrimitive.MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, anchorId, subElementId));
         }
 
+        public void DrawFilledTriangle(
+            Vector2 a, Vector2 b, Vector2 c, Rgba32 color,
+            byte layer = 0,
+            PipelineTarget target = PipelineTarget.All)
+        {
+            Append(DebugPrimitive.MakeFilledTriangle(a, b, c, color, target, layer));
+        }
+
         public void DrawArrow(
             Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f,

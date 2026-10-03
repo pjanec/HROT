@@ -172,15 +172,27 @@ namespace GizmoMap.Presentation
                 sortBuffer.Add(prim);
             }
 
-            // Stable painter's-algorithm sort: DebugLayer ascending, ZIndex ascending.
-            sortBuffer.Sort(static (a, b) =>
+            // Painter's-algorithm sort: DebugLayer ascending, ZIndex ascending, then EMISSION ORDER.
+            // ⛔ 2026-10-03: List.Sort is NOT stable (introsort), so equal-key primitives — most of them, at
+            //   layer 0 / ZIndex 0 — could swap draw order frame to frame (a filled terrain footprint flickering
+            //   over a unit). The emission index makes the order a total, stable one.
+            var order = new int[sortBuffer.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            Array.Sort(order, (x, y) =>
             {
+                var a = sortBuffer[x];
+                var b = sortBuffer[y];
                 int cmp = a.DebugLayer.CompareTo(b.DebugLayer);
-                return cmp != 0 ? cmp : a.ZIndex.CompareTo(b.ZIndex);
+                if (cmp != 0) return cmp;
+                cmp = a.ZIndex.CompareTo(b.ZIndex);
+                return cmp != 0 ? cmp : x.CompareTo(y);
             });
 
-            foreach (var prim in sortBuffer)
+            foreach (int i in order)
+            {
+                var prim = sortBuffer[i];
                 DispatchShape(in prim, camera, zoom);
+            }
         }
 
         public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
@@ -274,6 +286,15 @@ namespace GizmoMap.Presentation
                     float arrowScreenScale = zoom > 0f ? 1f / zoom : 1f;
                     float arrowThickness = baseThickness * arrowScreenScale;
                     DrawArrow(from, to, prim.ArrowHeadSize * arrowScreenScale, color, arrowThickness);
+                    break;
+                }
+
+                case DebugPrimitiveShape.FilledTriangle:
+                {
+                    // ⭐ Both windings: raylib culls a clockwise triangle, and whether a world-CCW triangle is
+                    //   screen-CCW depends on the camera's Y flip. The culled one costs nothing.
+                    Raylib.DrawTriangle(prim.TriA, prim.TriB, prim.TriC, color);
+                    Raylib.DrawTriangle(prim.TriA, prim.TriC, prim.TriB, color);
                     break;
                 }
 
