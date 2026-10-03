@@ -78,6 +78,7 @@ namespace Hrot.NED.Descriptors
         NAV_FOLLOW_ROUTE    = 2,
         NAV_JOIN_FORMATION  = 3,
         NAV_ROAD_GRAPH      = 4,
+        NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
     }
 
     /// <summary>
@@ -131,6 +132,19 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Route handle allocated by the nav subsystem v2 solver; 0 = none.</summary>
         public int RouteHandle;
+
+        // ⭐ CE-3026 — the rest of the MoveTo order, so the vehicle side plans what the Brain asked for on a cluster exactly
+        //   as in the editor (before, these stayed on the Brain's node and a cluster lost them silently).
+        /// <summary>Navmesh layer mask; 0 = the entity's own layer.</summary>
+        public uint LayerMask;
+        /// <summary>Backend force (0 Auto, 1 NavMesh, 2 RoadGraph, 3 Volumetric).</summary>
+        public byte BackendForce;
+        /// <summary>Behaviour flags (AllowReplan, AutoSendPathOnReplan, corridor preview …).</summary>
+        public byte Flags;
+        /// <summary>Max internal replans (0 = default).</summary>
+        public byte MaxReplans;
+        /// <summary>1 = reverse driving allowed.</summary>
+        public byte ReverseAllowed;
     }
 
     /// <summary>

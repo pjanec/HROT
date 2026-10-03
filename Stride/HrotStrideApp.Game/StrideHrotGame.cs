@@ -933,7 +933,7 @@ public sealed class StrideHrotGame : Game
         if (!world.IsComponentTypeRegistered<NavigationIntent>()) return;
         var intent = world.HasComponent<NavigationIntent>(entity)
             ? world.GetComponent<NavigationIntent>(entity) : default;
-        intent.Mode             = NavigationMode.DirectPoint;
+        intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — a click order plans
         intent.FinalDestination = targetFdp;
         intent.TargetSpeed      = Speed;
         intent.ArrivalRadius    = ArrivalRadius;

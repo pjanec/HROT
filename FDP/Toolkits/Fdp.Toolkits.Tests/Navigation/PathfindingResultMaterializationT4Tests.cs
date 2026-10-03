@@ -37,6 +37,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             _world.RegisterComponent<LocomotionChannel>();
             _world.RegisterComponent<NavigationStatus>();
             _world.RegisterComponent<NavigationCorridorMuscle>();
+            _world.RegisterComponent<NavigationIntent>();
+            _world.RegisterComponent<global::CarKinem.Core.NavState>();
 
             var batch = new PathfindingBatchData
             {
@@ -107,10 +109,8 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new NavigationStatus());
-            _world.AddComponent(entity, new LocomotionChannel
-            {
-                ActiveAction = NavigationConstants.ActionIdMoveTo,
-            });
+            // ⭐ CE-3026 — a MoveTo is a PathToPoint INTENT on the vehicle side (no Brain channel on a cluster's SimHost).
+            _world.AddComponent(entity, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 5 });
 
             long requestId = ((long)entity.Index << 32) | _world.GlobalVersion;
             _world.Bus.Publish(new PathfindingRequestEvent
@@ -154,9 +154,11 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new NavigationStatus());
-            _world.AddComponent(entity, new LocomotionChannel
+            // ⭐ CE-3026 — a MoveTo is a PathToPoint INTENT; the vehicle was (wrongly) already moving to prove it is STOPPED.
+            _world.AddComponent(entity, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 5 });
+            _world.AddComponent(entity, new global::CarKinem.Core.NavState
             {
-                ActiveAction = NavigationConstants.ActionIdMoveTo,
+                Mode = global::CarKinem.Core.KinematicsMode.Direct, TargetSpeed = 5f,
             });
 
             long requestId = ((long)entity.Index << 32) | _world.GlobalVersion;
@@ -173,6 +175,12 @@ namespace Fdp.Toolkit.Navigation.Tests
             // Assert status
             ref readonly var status = ref _world.GetComponent<NavigationStatus>(entity);
             Assert.Equal(NavigationResult.FailedUnreachable, status.Result);
+            Assert.Equal(5u, status.IntentId);   // reported for THIS intent, so the status writer does not reset it
+
+            // ⭐ CE-3026 — no straight-line fallback: the vehicle is stopped.
+            var nav = _world.GetComponent<global::CarKinem.Core.NavState>(entity);
+            Assert.Equal(global::CarKinem.Core.KinematicsMode.None, nav.Mode);
+            Assert.Equal(0f, nav.TargetSpeed);
 
             // Assert no corridor (not set -- component stays default if upsert was not called)
             Assert.False(_world.HasComponent<NavigationCorridorMuscle>(entity),

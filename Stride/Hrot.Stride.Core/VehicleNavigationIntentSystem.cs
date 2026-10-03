@@ -203,9 +203,9 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
         {
             var intent = repo.GetComponent<NavigationIntent>(entity);
 
-            // Only DirectPoint intents are handled. Any other mode (None, RoadGraph, FollowRoute)
-            // is left to the existing pipeline; drop any stale route for this entity.
-            if (intent.Mode != NavigationMode.DirectPoint)
+            // DirectPoint (drive STRAIGHT) and PathToPoint (PLAN a path — CE-3026) are handled. Any other mode
+            // (None, RoadGraph, FollowRoute) is left to the existing pipeline; drop any stale route for this entity.
+            if (intent.Mode != NavigationMode.DirectPoint && intent.Mode != NavigationMode.PathToPoint)
             {
                 _routes.Remove(entity);
                 continue;
@@ -338,7 +338,8 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     private RouteState PlanRoute(
         INavmeshProvider navmesh, Entity entity, Vector3 curPos, in NavigationIntent intent)
     {
-        if (!_useNavmesh)
+        // ⭐ CE-3026 — DirectPoint means STRAIGHT, always; only PathToPoint plans (and only with the navmesh enabled).
+        if (!_useNavmesh || intent.Mode == NavigationMode.DirectPoint)
         {
             // Direct straight-line steer: single virtual corner at the destination (FDP X/Y).
             // Bypasses the navmesh entirely (see BATCH-S2-J).

@@ -2051,7 +2051,7 @@ public static class StridePhysicsHarnessCases
                         ? ctx.World.GetComponent<NavigationIntent>(target)
                         : default;
                     intent.IntentId++;
-                    intent.Mode             = NavigationMode.DirectPoint;
+                    intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — mirrors MoveToExecutor
                     intent.FinalDestination = effectiveGoal;
                     intent.TargetSpeed      = MoveOrderCharSpeed;
                     intent.ArrivalRadius    = MoveOrderCharArrivalRadius;
@@ -2068,7 +2068,7 @@ public static class StridePhysicsHarnessCases
 
                 orderIssued = true;
                 ctx.Log($"[FDP Move Order char] PRODUCTION ORDER issued via LocomotionChannel " +
-                        $"(ActiveAction=ActionIdMoveTo) + NavigationIntent (Mode=DirectPoint, goal " +
+                        $"(ActiveAction=ActionIdMoveTo) + NavigationIntent (Mode=PathToPoint, goal " +
                         $"({effectiveGoal.X:F2},{effectiveGoal.Y:F2})). preAgentRegistered={preAgentCount==1}. " +
                         $"NavigationIntentBridgeSystem will auto-register the crowd agent this tick.");
             }
@@ -2305,7 +2305,7 @@ public static class StridePhysicsHarnessCases
                 var intent = ctx.World.HasComponent<NavigationIntent>(target)
                     ? ctx.World.GetComponent<NavigationIntent>(target) : default;
                 intent.IntentId++;
-                intent.Mode             = NavigationMode.DirectPoint;
+                intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — mirrors MoveToExecutor
                 intent.FinalDestination = new SNum.Vector3(MoveOrderVehGoalFdp.X, MoveOrderVehGoalFdp.Y, 0f);
                 intent.TargetSpeed      = MoveOrderVehSpeed;
                 intent.ArrivalRadius    = MoveOrderVehArrivalRadius;

@@ -93,7 +93,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                     Mode             = MapMode(msg.Mode),
                     FinalDestination = cartesian,
                     TargetSpeed      = msg.TargetSpeed,
-                    ArrivalRadius    = msg.ArrivalRadius
+                    ArrivalRadius    = msg.ArrivalRadius,
+                    // ⭐ CE-3026 — RouteHandle was sent and dropped here; the rest is new on the wire.
+                    RouteHandle      = msg.RouteHandle,
+                    LayerMask        = msg.LayerMask,
+                    BackendForce     = msg.BackendForce,
+                    Flags            = msg.Flags,
+                    MaxReplans       = msg.MaxReplans,
+                    ReverseAllowed   = msg.ReverseAllowed,
                 });
 
                 FdpLog<NavigationIntentIngressTranslator>.Debug(
@@ -113,11 +120,15 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // ── Enum mapping ──────────────────────────────────────────────────────
 
-        private static EcsNavMode MapMode(ENavigationMode mode) => mode switch
+        internal static EcsNavMode MapMode(ENavigationMode mode) => mode switch
         {
             ENavigationMode.NAV_DIRECT_POINT   => EcsNavMode.DirectPoint,
             ENavigationMode.NAV_FOLLOW_ROUTE   => EcsNavMode.FollowRoute,
             ENavigationMode.NAV_JOIN_FORMATION => EcsNavMode.JoinFormation,
+            // ⭐ CE-3026 — the two the egress always sent and this side never mapped: RoadGraph arrived as None
+            //   (a road-graph order from the Brain stopped the vehicle), and PathToPoint is new.
+            ENavigationMode.NAV_ROAD_GRAPH     => EcsNavMode.RoadGraph,
+            ENavigationMode.NAV_PATH_TO_POINT  => EcsNavMode.PathToPoint,
             _                                  => EcsNavMode.None,
         };
     }

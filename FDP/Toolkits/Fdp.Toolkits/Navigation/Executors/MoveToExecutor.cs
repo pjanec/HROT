@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             // ── Read current IntentId (default 0 if new) then increment ──────────────────────
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.IntentId++;
-            intent.Mode             = NavigationMode.DirectPoint;
+            intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — a MoveTo FINDS A PATH (the vehicle side plans)
             intent.FinalDestination = p.Destination;   // raw Cartesian copy — no geo conversion
             intent.TargetSpeed      = p.Speed;
             intent.ArrivalRadius    = p.ArrivalRadius;
@@ -56,6 +56,8 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.Flags            = p.Flags;
             intent.MaxReplans       = p.MaxReplans;
             intent.RouteHandle      = p.RouteHandle;
+            intent.LayerMask        = p.LayerMask;      // CE-3026 — the vehicle side plans on what the Brain asked for
+            intent.BackendForce     = p.BackendForce;
             intent.ReplanTimeBudget = 0f;  // no time limit by default; set post-enter if needed
             world.SetComponent(entity, intent);
 
