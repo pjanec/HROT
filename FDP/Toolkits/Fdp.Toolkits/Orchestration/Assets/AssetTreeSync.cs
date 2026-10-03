@@ -53,6 +53,28 @@ namespace Fdp.Toolkit.Orchestration.Assets
         /// <summary>⭐⭐ §7.3b clause ③ — for a kind the destination AUTHORS: only files it does not have are added.
         /// ⛔ Never overwrite, never delete — adding a file the node lacks cannot destroy work.</summary>
         AddOnly = 1,
+
+        /// <summary>⭐ The explicit publish (node→NAS) and refresh (NAS→author) — design §10 D6: add what the destination lacks
+        /// and replace a file ONLY where the source copy is NEWER. ⛔ Never delete, ⛔ never put an older file over a newer
+        /// one — with several authors, a mirror-publish would wipe or roll back other people's work on NAS.</summary>
+        UpdateNewer = 2,
+    }
+
+    /// <summary>What an <see cref="AssetSyncMode.UpdateNewer"/> sync WOULD do — the refresh's "name the files it will replace"
+    /// (design §7.3c), and the publish's transfer set.</summary>
+    public sealed record AssetUpdatePlan(
+        IReadOnlyList<AssetManifestEntry> ToAdd,
+        IReadOnlyList<AssetManifestEntry> ToReplace,
+        IReadOnlyList<AssetManifestEntry> DestinationNewer)
+    {
+        public IEnumerable<AssetManifestEntry> ToWrite => ToAdd.Concat(ToReplace);
+    }
+
+    /// <summary>⭐ C2 — a kind's tree in summary: file count and newest last-write time. Stat only: no file is opened.</summary>
+    public readonly record struct AssetTreeSummary(int Count, DateTime NewestUtc)
+    {
+        public static AssetTreeSummary Of(AssetManifest m)
+            => new(m.Count, m.Count == 0 ? DateTime.MinValue : m.Entries.Max(e => e.LastWriteUtc));
     }
 
     /// <summary>What one tree sync did.</summary>
@@ -89,7 +111,12 @@ namespace Fdp.Toolkit.Orchestration.Assets
             var diff = source.Diff(AssetManifest.Scan(destRoot));
             if (diff.IsEmpty) return new AssetSyncResult(0, 0, 0, 0, 0);
 
-            var toWrite = mode == AssetSyncMode.Mirror ? diff.ToCopy.ToList() : diff.Added.ToList();
+            var toWrite = mode switch
+            {
+                AssetSyncMode.Mirror      => diff.ToCopy.ToList(),
+                AssetSyncMode.UpdateNewer => PlanUpdateNewer(source, AssetManifest.Scan(destRoot)).ToWrite.ToList(),
+                _                         => diff.Added.ToList(),
+            };
             var (standalone, archived) = _partitioner.Partition(toWrite);
 
             foreach (var e in standalone)
@@ -113,9 +140,27 @@ namespace Fdp.Toolkit.Orchestration.Assets
 
             return new AssetSyncResult(
                 standalone.Count, unpacked, deleted,
-                HeldBackChanged: mode == AssetSyncMode.AddOnly ? diff.Changed.Count : 0,
-                HeldBackRemoved: mode == AssetSyncMode.AddOnly ? diff.Removed.Count : 0);
+                HeldBackChanged: mode == AssetSyncMode.Mirror ? 0 : diff.Changed.Count - (toWrite.Count - diff.Added.Count),
+                HeldBackRemoved: mode == AssetSyncMode.Mirror ? 0 : diff.Removed.Count);
         }
+
+        /// <summary>The <see cref="AssetSyncMode.UpdateNewer"/> plan for <paramref name="source"/> → <paramref name="dest"/>.</summary>
+        public static AssetUpdatePlan PlanUpdateNewer(AssetManifest source, AssetManifest dest)
+        {
+            var diff = source.Diff(dest);
+            var replace = new List<AssetManifestEntry>();
+            var destNewer = new List<AssetManifestEntry>();
+            foreach (var e in diff.Changed)
+            {
+                dest.TryGet(e.RelativePath, out var d);
+                (e.LastWriteUtc > d.LastWriteUtc ? replace : destNewer).Add(e);
+            }
+            return new AssetUpdatePlan(diff.Added, replace, destNewer);
+        }
+
+        /// <summary>The plan for two trees on disk.</summary>
+        public static AssetUpdatePlan PlanUpdateNewer(string sourceRoot, string destRoot)
+            => PlanUpdateNewer(AssetManifest.Scan(sourceRoot), AssetManifest.Scan(destRoot));
 
         private static int CarryInOneArchive(string sourceRoot, string destRoot, IReadOnlyList<AssetManifestEntry> entries)
         {

@@ -242,8 +242,9 @@ namespace Hrot.SimHost
             localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
 
             // P1/CE-285: advertise the full declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+            // ⭐ + the asset tokens derived from the role (docs/DESIGN_Asset_Management.md §7.3a, CE-3020).
             var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role,
-                capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
+                capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(role));
             SlaveTranslator = null;
             if (participant != null && eventBus != null)
             {

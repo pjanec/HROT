@@ -2199,6 +2199,10 @@ namespace Hrot.Editor
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
                 OrchestrationConstants.ResolveStagingRoot());
+            // ⭐ CE-3021 — the editor's offline master answers publish / refresh too (silent-default rule).
+            var offlineMaster = _clusterMaster!;
+            offlineMaster.AssetSync = new Hrot.Orchestrator.AssetSyncService(
+                _storageGateway!, ClusterConfiguration.Default.NasBasePath, offlineMaster.ActiveNodeCapabilitySnapshot);
             _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
             _fileDialogService = FileDialogServiceFactory.Create();

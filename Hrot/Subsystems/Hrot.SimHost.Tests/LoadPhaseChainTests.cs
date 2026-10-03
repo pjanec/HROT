@@ -24,6 +24,60 @@ namespace Hrot.SimHost.Tests;
 /// </summary>
 public sealed class LoadPhaseChainTests
 {
+    // ── Asset management B1/B2 (CE-3020) — the asset tokens DERIVED from this class's requirement table ─────────
+    //    📄 docs/DESIGN_Asset_Management.md §7.3a (adapter + ANY rule), §7.3b (subtraction, BOUNDED), §10 D1/D3/D4.
+
+    private static readonly (string, string?)[] BrainContributors =
+    {
+        ("blueprint", "/assets/Blueprints"),
+        ("btree", null), ("btree", "/assets/BTrees"),     // ⭐ two contributors, one assembly-backed (null) — ANY wins
+        ("hsm", null),                                    // ⭐ only an assembly-backed contributor ⇒ rootless ⇒ no token
+    };
+
+    [Fact]
+    public void AssetTokens_Map2D_GetsTheKnowledgeBaseAndTheTerrain_AndNothingElse_B1()
+    {
+        var tokens = AssetNeeds.Tokens(NodeRole.Map2D, BrainContributors, AssetAuthoring.None);
+        Assert.Equal(new[] { "hrot.asset.needs.tkb", "hrot.asset.needs.terrain" }, tokens);   // §10 D1: terrain is universal
+    }
+
+    [Fact]
+    public void AssetTokens_ARuntimeBrain_IsMirroredEveryRootedKind_ByTheAnyRule_B1()
+    {
+        var p = Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(
+            AssetNeeds.Tokens(NodeRole.Brain, BrainContributors, AssetAuthoring.None));
+
+        Assert.Equal(new[] { "blueprint", "btree", "scenario", "terrain", "tkb" }, p.Needs.OrderBy(k => k));
+        Assert.Equal("/assets/BTrees", p.Roots["btree"]);
+        Assert.False(p.Roots.ContainsKey("hsm"));                                      // rootless ⇒ no token, no throw
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror, p.ModeFor("blueprint"));   // rail ② NON-VACUITY
+    }
+
+    [Fact]
+    public void AssetTokens_AnAuthoringBrain_IsAddOnlyForItsKinds_ButNeverForALoadPart_B2()
+    {
+        var p = Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(
+            AssetNeeds.Tokens(NodeRole.Brain, BrainContributors, AssetAuthoring.AllRooted));
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly, p.ModeFor("blueprint"));
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly, p.ModeFor("btree"));
+        Assert.Null(p.ModeFor("hsm"));
+
+        // ⭐ rail ④ BOUNDED — even an explicit claim on the scenario never takes it away (ScenarioLoadStep would throw).
+        var bounded = Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(
+            AssetNeeds.Tokens(NodeRole.Brain, BrainContributors, AssetAuthoring.Of(new[] { "scenario", "blueprint" })));
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror, bounded.ModeFor("scenario"));
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror, bounded.ModeFor("btree"));   // not claimed
+        Assert.Equal(Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly, bounded.ModeFor("blueprint"));
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("all", true)]
+    [InlineData("none", false)]
+    [InlineData("blueprint, hsm", true)]
+    public void AssetAuthoring_ParsesTheSetting_DefaultingToAllRooted_D3(string? value, bool authorsBlueprint)
+        => Assert.Equal(authorsBlueprint, AssetAuthoring.Parse(value).Authors("blueprint"));
+
     // ── the requirement table ────────────────────────────────────────────────────────────────
 
     /// <summary>

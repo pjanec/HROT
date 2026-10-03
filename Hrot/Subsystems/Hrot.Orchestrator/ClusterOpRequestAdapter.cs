@@ -268,4 +268,13 @@ internal static class ClusterOpRequestAdapter
 
         return new BuildTerrainAssetIntent { RequestId = req.RequestId, Kinds = kinds };
     }
+
+    /// <summary>⭐ CE-3021 — the payload of a <c>PublishAssets</c> / <c>RefreshAssets</c> request; null when malformed.</summary>
+    public static AssetOpPayloadDto? ToAssetOpPayload(ClusterOpRequest req)
+    {
+        var payload = req.PayloadJson;
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try { return JsonSerializer.Deserialize<AssetOpPayloadDto>(payload, OrchestrationJsonOptions.Default); }
+        catch (JsonException) { return null; }
+    }
 }

@@ -45,6 +45,12 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⚠ Originally specified as 17 — that was WRONG and caught before it shipped: SaveScenario
         //   above already holds 17. 18 is the next genuinely free value in THIS (authoritative) enum.
         BuildTerrainAsset = 18,
+
+        // ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-03 — the next free values in BOTH enums.
+        // ⭐ CE-3021 — the explicit, user-triggered asset operations (docs/DESIGN_Asset_Management.md §5, C4/C5):
+        //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
+        PublishAssets = 19,
+        RefreshAssets = 20,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>

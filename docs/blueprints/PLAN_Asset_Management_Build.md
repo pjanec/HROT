@@ -64,6 +64,8 @@ cluster op.**
 
 ### Increment B — needs-filtered sync with the transport partition
 
+> ✅ **BUILT `2026-10-03` (`CE-3020`)** — B1/B2 `AssetNeeds` + `AssetTokens` (rails in `LoadPhaseChainTests`, `…_B1`/`…_B2`/`…_D3`), B3 `TransportPartitioner`, B4 `AssetTreeSync` (mtime restore red-proven), B4a `SyncBehaviourAssets` inside `PrefetchScenarioAsync` fed by `AssetSyncsFor` from `ClusterMaster`'s tokens, B5 `IAssetStorageStrategy` (⚠ **finding, as the row asked:** the two TKB providers each gained the two read members — an interface cannot default them without the root), B6 railed (`…_B6`). Design §10 D2–D5 carry the leans the build took.
+
 | # | task | success condition | owning chapter |
 |---|---|---|---|
 | **B1** | ⭐⭐ **Derive** `hrot.asset.needs.*` from `RoleLoadRequirements` through the **3-row `LoadPart → AssetKind` adapter**, ⭐ **plus one rule for `Brain`: every kind whose contributor exposes a non-null `BaseFolder`** *(⛔ never the phrase "all AI asset kinds" — `G4` retired it)* — ⛔ do NOT author a parallel table, ⛔⛔ do NOT extend `RoleLoadRequirements` *(it would claim a load step nobody implements)*. ✅ **RULED — `Q72-M`, design §7.3a carries the whole map.** ⭐⭐ **The AI-kind set is a PREDICATE — *the contributor has a non-null `BaseFolder`*** — ⛔ **not a list**: `AssetRoots.AssetsRelative:197-204` **throws** for `Blackboard`/`Utility` | the token set is **computed** from the requirement table; changing the table changes the tokens with **no second edit**. ⭐⭐ **Rail `Map2D` explicitly: it gets the KNOWLEDGE BASE and NOT terrain** — ⛔ *"Map2D gets nothing"* would throw `FileNotFoundException` in `KnowledgeBaseLoadStep` on IG. ⭐ Rail the subtraction: a role with no declared consumer loses **that part**, never the node. ⭐ Rail that a rootless kind yields **no** token rather than throwing | design **§7.3**, **§7.3a**, **§6 caption**; `Q72-L` |
@@ -75,6 +77,8 @@ cluster op.**
 | **B6** | ⭐⭐ **PRESERVE AND RAIL** — do **not** add: failing the load on any sync failure for a **named** artifact is **ALREADY BUILT** | 📐 `L8`: `IsSuccess:false` ⇒ `ClusterMaster` drops the parked entry, publishes `Failure`, fans out **nothing** (rail `A_failed_distribution_fails_the_request_and_fans_out_nothing`). ⇒ the deliverable is a rail proving the **new** sync's failures travel the **same** path — ⛔ a second failure route is a finding | design **§4**, **§7.5**; `Q72-F`; `DESIGN_Cluster_Load_Phase` §7.4 |
 
 ### Increment C — publish and the staleness probe *(independent of B; safe to defer)*
+
+> ✅ **BUILT `2026-10-03` (`CE-3021`)** — `AssetSyncService`: C1 publish (new/newer only, design §10 D6; `FileManifestEntry.Length`/`LastWriteUtc` + the skip in `PullToNasAsync`), C2/C3 `Probe` on every load via the saga (four arms railed in `…_C3`), C4 the `PublishAssets`/`RefreshAssets` cluster ops (§10 D7, `…_C4`), C5 `PreviewRefresh` + `RefreshFromNasAsync` (the pair railed in `…_C5`). Orchestrator suite 196/0.
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|

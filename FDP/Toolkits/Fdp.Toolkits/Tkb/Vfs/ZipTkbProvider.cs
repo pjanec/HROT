@@ -68,6 +68,18 @@ namespace Fdp.Toolkit.Tkb.Vfs
                 "ZipTkbProvider is read-only. Use RawDirectoryTkbProvider for authoring.");
 
         /// <inheritdoc/>
+        // ── IAssetStorageStrategy (B5) ──────────────────────────────────────────────
+        public IEnumerable<string> EnumerateFiles()
+        {
+            foreach (var entry in _archive.Entries)
+                if (!entry.FullName.EndsWith('/'))
+                    yield return entry.FullName.Replace('\\', '/');
+        }
+
+        public Stream OpenRead(string relativePath)
+            => (_archive.GetEntry(relativePath) ?? _archive.GetEntry(relativePath.Replace('/', '\\'))
+                ?? throw new FileNotFoundException($"[ZipTkbProvider] '{relativePath}' is not in the archive.", relativePath)).Open();
+
         public void Dispose() => _archive.Dispose();
     }
 }

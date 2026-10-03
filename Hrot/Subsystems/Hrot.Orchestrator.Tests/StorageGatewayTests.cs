@@ -1041,6 +1041,250 @@ public sealed class StorageGatewayTkbConsensusTests
         finally { Cleanup(nas, author); }
     }
 
+    // ── Asset management B4a / B6 (CE-3020) — the sync INSIDE the prefetch saga ─────────────────────────────
+
+    /// <summary>⭐ The saga reads each node's advertised tokens: a rooted kind it NEEDS is mirrored, one it AUTHORS is
+    /// add-only, a kind with no root is not sent, and the load-part kinds never appear here.</summary>
+    [Fact]
+    public void AssetSyncsFor_MapsTheAdvertisedTokens_B4a()
+    {
+        var syncs = AssetPrefetchProcessManager.AssetSyncsFor(new[]
+        {
+            "fdp.role.brain", "hrot.asset.needs.tkb", "hrot.asset.needs.scenario",
+            "hrot.asset.root.blueprint=/n/Blueprints", "hrot.asset.needs.blueprint",
+            "hrot.asset.root.btree=/n/BTrees", "hrot.asset.authors.btree",
+            "hrot.asset.needs.hsm",                                     // no root ⇒ nothing to write to
+        }).OrderBy(a => a.Kind).ToList();
+
+        Assert.Equal(2, syncs.Count);
+        Assert.Equal(new AssetSyncTarget("blueprint", "/n/Blueprints", Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror), syncs[0]);
+        Assert.Equal(new AssetSyncTarget("btree", "/n/BTrees", Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly), syncs[1]);
+        Assert.Empty(AssetPrefetchProcessManager.AssetSyncsFor(null));
+    }
+
+    /// <summary>
+    /// ⭐⭐ B4a — a prefetch delivers <c>{nas}/assets/&lt;kind&gt;</c> into each node's own root: a runtime brain gets the MIRROR,
+    /// an authoring brain gets only the files it lacks and keeps its edit (§7.3b ③). An unpublished kind is not a failure.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_SyncsBehaviourAssets_MirrorForRuntime_AddOnlyForAuthors_B4a()
+    {
+        const string scenarioId = "s-assets";
+        var nas  = MakeNas(scenarioId, null, null, out _);
+        var root = NewDir();
+        Put(Path.Combine(nas, "assets", "blueprint"), "ai/patrol.bp.json", "nas patrol");
+        Put(Path.Combine(nas, "assets", "blueprint"), "ai/sub/guard.bp.json", "nas guard");
+        var runtime = Path.Combine(root, "runtime", "Blueprints");
+        var author  = Path.Combine(root, "author", "Blueprints");
+        Put(author, "ai/patrol.bp.json", "author's unpublished edit");
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget>
+            {
+                TargetIn(root, 1, scenarioId) with { AssetSyncs = new[] {
+                    new AssetSyncTarget("blueprint", runtime, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror),
+                    new AssetSyncTarget("hsm", Path.Combine(root, "runtime", "HSMs"), Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror) } },
+                TargetIn(root, 2, scenarioId) with { AssetSyncs = new[] {
+                    new AssetSyncTarget("blueprint", author, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly) } },
+            };
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            Assert.Equal(0, result.FailureCount);                                              // unpublished hsm is legal
+            Assert.Equal("nas patrol", File.ReadAllText(Path.Combine(runtime, "ai", "patrol.bp.json")));
+            Assert.Equal("nas guard", File.ReadAllText(Path.Combine(runtime, "ai", "sub", "guard.bp.json")));
+            Assert.Equal("author's unpublished edit", File.ReadAllText(Path.Combine(author, "ai", "patrol.bp.json")));
+            Assert.Equal("nas guard", File.ReadAllText(Path.Combine(author, "ai", "sub", "guard.bp.json")));
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐ B6 — a sync that cannot write counts as a gateway FAILURE, which is exactly what the saga already turns into
+    /// "drop the parked transition, fan out nothing" (<c>ClusterMasterPrefetchTests.A_failed_distribution_fails_the_request_and_fans_out_nothing</c>).
+    /// ⛔ No second failure route.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_AnAssetSyncThatCannotWrite_IsAGatewayFailure_B6()
+    {
+        const string scenarioId = "s-assets-fail";
+        var nas  = MakeNas(scenarioId, null, null, out _);
+        var root = NewDir();
+        Put(Path.Combine(nas, "assets", "blueprint"), "a.bp.json", "x");
+        var blocked = Path.Combine(root, "not-a-dir");
+        File.WriteAllText(blocked, "a FILE where the root should be");
+        try
+        {
+            var targets = new List<NodeDistributionTarget>
+            {
+                TargetIn(root, 1, scenarioId) with { AssetSyncs = new[] {
+                    new AssetSyncTarget("blueprint", blocked, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.Mirror) } },
+            };
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+            Assert.Equal(1, result.FailureCount);
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    // ── Asset management increment C (CE-3021) — docs/DESIGN_Asset_Management.md §5, §7.3c, §10 D6 ─────────────
+
+    private static readonly DateTime T0 = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    private static void PutAt(string root, string rel, string text, DateTime mtime)
+    {
+        Put(root, rel, text);
+        File.SetLastWriteTimeUtc(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar)), mtime);
+    }
+
+    private static AssetSyncService ServiceFor(string nas, int nodeId, string kind, string root)
+        => new(new StorageGatewayModule(), nas, () => new Dictionary<int, string[]>
+        {
+            [nodeId] = new[] { $"hrot.asset.root.{kind}={root}", $"hrot.asset.authors.{kind}" },
+        });
+
+    /// <summary>
+    /// ⭐⭐ C1 + §10 D6 — a publish sends the author's NEW and NEWER files only: a NAS file newer than the author's copy is
+    /// not rolled back, another author's NAS file is not deleted, and a second publish transfers nothing.
+    /// </summary>
+    [Fact]
+    public async Task Publish_SendsNewAndNewerOnly_NeverRollsBackOrDeletes_C1()
+    {
+        var nas = NewDir(); var author = NewDir();
+        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        try
+        {
+            PutAt(author, "mine/new.bp.json", "brand new", T0);
+            PutAt(author, "shared/edited.bp.json", "author newer", T0.AddHours(2));
+            PutAt(nasBp,  "shared/edited.bp.json", "nas older", T0.AddHours(1));
+            PutAt(author, "shared/stale.bp.json", "author older", T0);
+            PutAt(nasBp,  "shared/stale.bp.json", "nas newer", T0.AddHours(3));
+            PutAt(nasBp,  "theirs/other.bp.json", "another author's", T0);
+
+            var svc = ServiceFor(nas, 7, "blueprint", author);
+            var r = await svc.PublishToNasAsync("blueprint", 7);
+            Assert.Equal(0, r.FailureCount);
+
+            Assert.Equal("brand new", File.ReadAllText(Path.Combine(nasBp, "mine", "new.bp.json")));
+            Assert.Equal("author newer", File.ReadAllText(Path.Combine(nasBp, "shared", "edited.bp.json")));
+            Assert.Equal("nas newer", File.ReadAllText(Path.Combine(nasBp, "shared", "stale.bp.json")));       // not rolled back
+            Assert.Equal("another author's", File.ReadAllText(Path.Combine(nasBp, "theirs", "other.bp.json"))); // not deleted
+            Assert.Equal(T0.AddHours(2), File.GetLastWriteTimeUtc(Path.Combine(nasBp, "shared", "edited.bp.json")));
+
+            Assert.Empty(svc.PreviewRefresh("blueprint", 7).ToReplace.Where(e => e.RelativePath != "shared/stale.bp.json"));
+            Assert.Throws<InvalidOperationException>(() => ServiceFor(nas, 7, "btree", author).PreviewRefresh("blueprint", 7));
+        }
+        finally { Cleanup(nas, author); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ C5, railed as the PAIR the plan asks for — a NAS-newer file does NOT reach an author on a load (add-only, B2) and
+    /// DOES on an explicit refresh, which names it first; the author's own newer edit survives both.
+    /// </summary>
+    [Fact]
+    public async Task Refresh_IsTheOnlyRouteAnUpdateReachesAnAuthor_AndNamesWhatItReplaces_C5()
+    {
+        var nas = NewDir(); var author = NewDir();
+        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        try
+        {
+            PutAt(nasBp,  "a.bp.json", "nas newer", T0.AddHours(3));
+            PutAt(author, "a.bp.json", "author older", T0);
+            PutAt(nasBp,  "b.bp.json", "nas older", T0);
+            PutAt(author, "b.bp.json", "author newer edit", T0.AddHours(5));
+
+            // On a load: add-only — nothing changes.
+            new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(nasBp, author, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly);
+            Assert.Equal("author older", File.ReadAllText(Path.Combine(author, "a.bp.json")));
+
+            var svc = ServiceFor(nas, 3, "blueprint", author);
+            var plan = svc.PreviewRefresh("blueprint", 3);
+            Assert.Equal(new[] { "a.bp.json" }, plan.ToReplace.Select(e => e.RelativePath));
+            Assert.Equal(new[] { "b.bp.json" }, plan.DestinationNewer.Select(e => e.RelativePath));
+
+            await svc.RefreshFromNasAsync("blueprint", 3);
+            Assert.Equal("nas newer", File.ReadAllText(Path.Combine(author, "a.bp.json")));
+            Assert.Equal("author newer edit", File.ReadAllText(Path.Combine(author, "b.bp.json")));
+        }
+        finally { Cleanup(nas, author); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ C2/C3 — the four arms: AHEAD warns, BEHIND warns (and the probe moved nothing), IN SYNC is silent, and an OFFLINE
+    /// author — absent from the active roster — produces NO warning: the silence is a stated limit, not proof (design §5).
+    /// </summary>
+    [Fact]
+    public void Probe_AheadAndBehindWarn_InSyncAndOfflineAreSilent_C3()
+    {
+        var nas = NewDir(); var ahead = NewDir(); var behind = NewDir(); var same = NewDir();
+        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        try
+        {
+            PutAt(nasBp, "x.bp.json", "n", T0.AddHours(1));
+            PutAt(ahead, "x.bp.json", "a", T0.AddHours(2));
+            PutAt(behind, "x.bp.json", "b", T0);
+            PutAt(same, "x.bp.json", "n", T0.AddHours(1));
+
+            string[] Author(string root) => new[] { $"hrot.asset.root.blueprint={root}", "hrot.asset.authors.blueprint" };
+            var findings = AssetPrefetchProcessManager.ProbeOnLoad(nas, new Dictionary<int, string[]>
+            {
+                [1] = Author(ahead), [2] = Author(behind), [3] = Author(same),
+                [4] = new[] { "hrot.asset.root.blueprint=/x", "hrot.asset.needs.blueprint" },   // receives, does not author
+            });
+
+            Assert.Equal(new[] { (1, AssetStaleness.Ahead), (2, AssetStaleness.Behind) },
+                findings.OrderBy(f => f.NodeId).Select(f => (f.NodeId, f.State)));
+            Assert.Equal("b", File.ReadAllText(Path.Combine(behind, "x.bp.json")));                // ⛔ a probe never transfers
+            Assert.Empty(AssetPrefetchProcessManager.ProbeOnLoad(nas, new Dictionary<int, string[]>()));   // the offline author
+        }
+        finally { Cleanup(nas, ahead, behind, same); }
+    }
+
+    /// <summary>⭐ C4 — publish is a cluster op, reachable any time: rejected loudly without a service, Success with one.</summary>
+    [Fact(Timeout = 10_000)]
+    public async Task PublishAssets_IsAClusterOp_RejectedWithoutAService_SucceedsWithOne_C4()
+    {
+        var nas = NewDir(); var author = NewDir();
+        try
+        {
+            PutAt(author, "p.bp.json", "x", T0);
+            var bus = new Fdp.Core.FdpEventBus();
+            using var master = new ClusterMaster(bus);
+            Guid Send()
+            {
+                var id = Guid.NewGuid();
+                master.HandleClusterOpRequest(new Hrot.NED.Descriptors.Orchestration.ClusterOpRequest
+                {
+                    RequestId = id,
+                    OperationType = Hrot.NED.Descriptors.Orchestration.ClusterOpType.PublishAssets,
+                    PayloadJson = "{\"Kind\":\"blueprint\",\"NodeId\":7}",
+                });
+                return id;
+            }
+
+            var rejected = Send();
+            master.Tick();                 // injected requests drain on the master's tick
+            bus.SwapBuffers();
+            Assert.Contains(bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>(),
+                e => e.RequestId == rejected && e.StatusCode == Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Rejected);
+
+            master.AssetSync = ServiceFor(nas, 7, "blueprint", author);
+            var ok = Send();
+            master.Tick();
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            bool done = false;
+            while (!done && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20);
+                bus.SwapBuffers();
+                done = bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>()
+                    .Any(e => e.RequestId == ok && e.StatusCode == Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success);
+            }
+            Assert.True(done, "PublishAssets never reported Success");
+            Assert.True(File.Exists(Path.Combine(nas, "assets", "blueprint", "p.bp.json")));
+        }
+        finally { Cleanup(nas, author); }
+    }
+
     private static void Cleanup(params string[] dirs)
     {
         foreach (var d in dirs)

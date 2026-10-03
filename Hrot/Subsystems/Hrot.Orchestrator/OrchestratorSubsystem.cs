@@ -273,6 +273,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             storageGateway,
             _config.NasBasePath);
 
+        // ⭐ CE-3021 — the explicit publish / refresh, over the SAME gateway and NAS (silent-default rule).
+        var master = _clusterMaster!;
+        master.AssetSync = new AssetSyncService(storageGateway, _config.NasBasePath, master.ActiveNodeCapabilitySnapshot);
+
         // Wire the diagnostics dump process manager for DumpDiagnostics cluster ops.
         _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
             _bus!,

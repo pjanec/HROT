@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Orchestration
         // (AQ-70 §Q70-C: the mask is no longer published; its tokens are) UNION the feature tokens the
         // composition root passed (e.g. CapabilityTokens.ReliableInit). Published ONCE at join on the durable
         // NodeCapabilities descriptor, never on the per-tick heartbeat (§Q70-B).
-        private readonly string[] _capabilityTokens;
+        private string[] _capabilityTokens;
         private bool _capabilitiesPublished;
 
         private readonly List<IClusterStateHandler> _handlers = new();
@@ -100,6 +100,23 @@ namespace Fdp.Toolkit.Orchestration
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
+        }
+
+        /// <summary>The capability tokens this node advertises (or has advertised) at join.</summary>
+        public IReadOnlyList<string> CapabilityTokens => _capabilityTokens;
+
+        /// <summary>
+        /// ⭐ Adds tokens a host can only compute AFTER the slave exists — e.g. the asset tokens, which need the host's
+        /// asset catalog (docs/DESIGN_Asset_Management.md §10 D4). ⛔ Only before the one publish at join: the capability
+        /// descriptor is durable and published ONCE, so a later append would be silently invisible to the cluster —
+        /// it throws instead.
+        /// </summary>
+        public void AppendCapabilities(IEnumerable<string> tokens)
+        {
+            if (_capabilitiesPublished)
+                throw new InvalidOperationException(
+                    $"[ClusterSlave] node {_nodeId}: capabilities were already published at join; appending now would never reach the cluster.");
+            _capabilityTokens = BuildCapabilityTokens(NodeRole.None, _capabilityTokens.Concat(tokens).ToList());
         }
 
         /// <summary>The full capability token set this node advertises: the <c>fdp.role.*</c> tokens for its

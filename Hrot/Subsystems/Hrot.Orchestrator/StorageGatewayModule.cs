@@ -40,7 +40,18 @@ public sealed record NodeDistributionTarget
     /// rather than failing, so an un-migrated caller degrades to the previous behaviour.</para>
     /// </summary>
     public string TkbDestinationPath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — the behaviour-asset trees this node receives, from its advertised tokens
+    /// (docs/DESIGN_Asset_Management.md §4, §7.3a/§7.3b): kind, the node's root for it, and MIRROR or ADD-ONLY.
+    /// Empty = none (every non-Brain node, and any node that advertised none).
+    /// </summary>
+    public IReadOnlyList<AssetSyncTarget> AssetSyncs { get; init; } = Array.Empty<AssetSyncTarget>();
 }
+
+/// <summary>One behaviour-asset tree a node receives: <paramref name="Kind"/> from <c>{nas}/assets/&lt;kind&gt;</c> into
+/// <paramref name="DestinationRoot"/>, by <paramref name="Mode"/>.</summary>
+public sealed record AssetSyncTarget(string Kind, string DestinationRoot, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode Mode);
 
 /// <summary>
 /// ⭐⭐ <c>S2a</c> — the artifact names the staged scenario slices AGREE on.
@@ -151,6 +162,18 @@ public sealed class StorageGatewayModule
                         var destDir  = Path.GetDirectoryName(destPath);
                         if (!string.IsNullOrEmpty(destDir))
                             Directory.CreateDirectory(destDir);
+
+                        // ⭐ C1 — an entry that carries its (length, mtime) and whose NAS copy already matches is skipped
+                        //   by the ONE freshness rule (IsAlreadyCurrent's) — nothing re-transfers.
+                        if (entry.LastWriteUtc is DateTime mtime && File.Exists(destPath))
+                        {
+                            var d = new FileInfo(destPath);
+                            if (d.Length == entry.Length && d.LastWriteTimeUtc == mtime)
+                            {
+                                Interlocked.Increment(ref successCount);
+                                return;
+                            }
+                        }
 
                         partial.Add(destPath);
                         File.Copy(entry.SourceUnc, destPath, overwrite: true);
@@ -372,6 +395,10 @@ public sealed class StorageGatewayModule
         // ⭐⭐⭐ S2b + S2c — stage the named ARTIFACTS beside the scenario slices.
         StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
 
+        // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
+        //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
+        SyncBehaviourAssets(targets, nasBasePath, ref success, ref failure);
+
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
     }
 
@@ -473,7 +500,9 @@ public sealed class StorageGatewayModule
                     var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
                     var terrainDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
                         names.TerrainName!);
-                    StageFolder(terrainSource, terrainDest, ref success);
+                    // ⭐ D2 — the terrain folder travels by the asset sync (mirror), not a second copier.
+                    var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(terrainSource, terrainDest);
+                    Interlocked.Add(ref success, Math.Max(1, r.Writes));
                 }
 
                 Directory.CreateDirectory(target.TkbDestinationPath);
@@ -511,22 +540,45 @@ public sealed class StorageGatewayModule
     }
 
     /// <summary>
-    /// Copies every file under <paramref name="sourceDir"/> to <paramref name="destDir"/>, skipping files the
-    /// node already holds byte-for-byte by the same (length, mtime) rule as the TKB (§6) — BP-557.
-    /// <para>⭐ Walks the tree with the ONE asset walker (<see cref="Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan"/>,
-    /// docs/DESIGN_Asset_Management.md §10 D2) — ⛔ never a second enumeration. The asset sync (increment B, <c>CE-3020</c>)
-    /// subsumes this method for the terrain kind.</para>
+    /// ⭐⭐ CE-3020 — sync every behaviour-asset tree each target receives (docs/DESIGN_Asset_Management.md §4, B4/B4a):
+    /// <c>{nas}/assets/&lt;kind&gt;</c> → the node's root for the kind, MIRROR or ADD-ONLY (§7.3b ③). Targets sharing one root
+    /// (several nodes on one machine) sync it once. ⚠ A kind with no NAS tree is skipped and logged, never a failure —
+    /// "nobody published K" is legal (§7.3b, the external-tool case). A sync that throws counts as a FAILURE, which the
+    /// saga turns into the L8 failure path (B6 — no second failure route).
     /// </summary>
-    private static void StageFolder(string sourceDir, string destDir, ref int success)
+    private static void SyncBehaviourAssets(
+        IReadOnlyList<NodeDistributionTarget> targets, string nasBasePath, ref int success, ref int failure)
     {
-        foreach (var entry in Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(sourceDir).Entries)
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+        foreach (var target in targets)
         {
-            var src  = Path.Combine(sourceDir, entry.RelativePath);
-            var dest = Path.Combine(destDir, entry.RelativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            if (!IsAlreadyCurrent(src, dest))
-                File.Copy(src, dest, overwrite: true);
-            Interlocked.Increment(ref success);
+            foreach (var a in target.AssetSyncs)
+            {
+                var source = OrchestrationConstants.GetNasAssetRoot(nasBasePath, a.Kind);
+                if (!done.Add(a.Kind + "|" + Path.GetFullPath(a.DestinationRoot))) continue;
+                if (!Directory.Exists(source))
+                {
+                    FdpLog<StorageGatewayModule>.Info(
+                        "[Gateway] Asset sync: no '{0}' tree published at '{1}' — nothing to send to node {2}.",
+                        a.Kind, source, target.NodeId);
+                    continue;
+                }
+                try
+                {
+                    var r = sync.Sync(source, a.DestinationRoot, a.Mode);
+                    Interlocked.Increment(ref success);
+                    FdpLog<StorageGatewayModule>.Info(
+                        $"[Gateway] Asset sync {a.Kind} → node {target.NodeId} ({a.Mode}): {r.CopiedStandalone} copied, "
+                      + $"{r.Unpacked} unpacked, {r.Deleted} deleted, {r.HeldBackChanged} changed held back (author).");
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] Asset sync {0} → node {1} at '{2}' FAILED: {3}", a.Kind, target.NodeId, a.DestinationRoot, ex.Message);
+                    Interlocked.Increment(ref failure);
+                }
+            }
         }
     }
 
