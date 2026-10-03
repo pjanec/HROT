@@ -936,9 +936,9 @@ public static class HsmEmitCore
     /// </para>
     ///
     /// <para>
-    /// ⚠⚠ <b>The <c>"@"</c> spelling is MIRRORED from <c>HsmActionKey.CompoundKeyName</c>, and the
-    /// mirror is forced:</b> this assembly is netstandard2.0 and deliberately references nothing, so
-    /// it cannot call the Roslyn-hosted analyzer. ⇒ <b>the drift is the defect</b> — same shape as
+    /// ⭐ <b>The <c>"@"</c> spelling IS <c>HsmActionKey.CompoundKeyName</c></b> (<c>CE-2032</c>). ⛔ HISTORY: it was a hand
+    /// mirror, called "forced" because this assembly references nothing — true of the ASSEMBLY, never of the FILE, which
+    /// this project links (user ruling 2026-09-28). The rest of this note predates that: ⇒ <b>the drift is the defect</b> — same shape as
     /// <c>HsmActionKey.Compute</c> mirroring <c>HsmFlattener.ComputeHash</c>, and
     /// <c>BehaviorParameterSizeAnalyzer</c>'s inlined size constant. ⭐ An agreement test compares the
     /// two sides across the wall rather than restating either.
@@ -949,7 +949,7 @@ public static class HsmEmitCore
     {
         if (string.IsNullOrEmpty(expressionTargetField)) return actionFqn;
         if (!paramOffsets.TryGetValue(expressionTargetField!, out int byteOffset)) return actionFqn;
-        return actionFqn + "@" + byteOffset;   // MIRROR of HsmActionKey.CompoundKeyName
+        return Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(actionFqn, byteOffset);   // ⭐ CE-2032 — the one spelling
     }
 
     /// <summary>

@@ -80,12 +80,8 @@ namespace Fdp.Toolkit.Diagnostics
                     //    every GET /entities on that node answered 500. Rail:
                     //    EventSerializationHelperTests.MapObject_InlineArrayOfAnEnum_ReadsEveryElementExactly.
                     Type elemType = elementField.FieldType;
-                    var element = InlineArrayElementOpen.MakeGenericMethod(type, elemType);
-                    for (int i = 0; i < length; i++)
-                    {
-                        object? elemVal = element.Invoke(null, new[] { obj, (object)i });
+                    foreach (var elemVal in ReadBufferElements(obj, elemType, length))
                         list.Add(MapObject(elemVal, elemType, visited));
-                    }
                 }
                 return list;
             }
@@ -100,27 +96,10 @@ namespace Fdp.Toolkit.Diagnostics
                     Type elemType = fixedAttr.ElementType;
                     var list = new List<object?>();
 
-                    object fixedStruct = f.GetValue(obj)!;
-
-                    int structSize = Marshal.SizeOf(fixedStruct.GetType());
-                    IntPtr ptr = Marshal.AllocHGlobal(structSize);
-                    try
-                    {
-                        Marshal.StructureToPtr(fixedStruct, ptr, false);
-                        int elemSize = GetSizeOf(elemType);
-
-                        for (int i = 0; i < length; i++)
-                        {
-                            IntPtr elemPtr = IntPtr.Add(ptr, i * elemSize);
-                            object? elemVal = ReadPointer(elemPtr, elemType);
-                            list.Add(MapObject(elemVal, elemType, visited));
-                        }
-                    }
-                    finally
-                    {
-                        Marshal.DestroyStructure(ptr, fixedStruct.GetType());
-                        Marshal.FreeHGlobal(ptr);
-                    }
+                    // ⭐ CE-2030 — the same exact reader as the [InlineArray] arm. ⛔ It marshalled the buffer, where a
+                    //   `fixed bool` element is widened to 4 bytes and every element after the first read the wrong bytes.
+                    foreach (var elemVal in ReadBufferElements(f.GetValue(obj)!, elemType, length))
+                        list.Add(MapObject(elemVal, elemType, visited));
 
                     dict[f.Name] = list;
                 }
@@ -144,7 +123,21 @@ namespace Fdp.Toolkit.Diagnostics
             return dict;
         }
 
-        private static readonly MethodInfo InlineArrayElementOpen =
+        /// <summary>
+    /// ⭐⭐ <c>CE-2030</c> — the <paramref name="length"/> elements of a BUFFER struct — an <c>[InlineArray]</c> or a compiler
+    /// <c>fixed T X[N]</c> buffer — read EXACTLY from the boxed value at the element's own stride (<c>CE-476</c>'s reader, the
+    /// runtime's own layout, no marshalling). The ONE such reader: this mapper's two arms and the ImGui property tree use it.
+    /// </summary>
+    public static List<object?> ReadBufferElements(object bufferStruct, Type elementType, int length)
+    {
+        var element = InlineArrayElementOpen.MakeGenericMethod(bufferStruct.GetType(), elementType);
+        var list = new List<object?>(length);
+        for (int i = 0; i < length; i++)
+            list.Add(element.Invoke(null, new[] { bufferStruct, (object)i }));
+        return list;
+    }
+
+    private static readonly MethodInfo InlineArrayElementOpen =
             typeof(DtoDiagnosticMapper).GetMethod(nameof(InlineArrayElement), BindingFlags.NonPublic | BindingFlags.Static)!;
 
         // Element `index` of a boxed [InlineArray] — the runtime's own layout, no marshalling.
@@ -172,15 +165,9 @@ namespace Fdp.Toolkit.Diagnostics
             try { return Marshal.PtrToStructure(ptr, type); } catch { return null; }
         }
 
-        /// <summary>Returns the size in bytes of a primitive or blittable type.</summary>
-        public static int GetSizeOf(Type type)
-        {
-            if (type == typeof(byte) || type == typeof(sbyte) || type == typeof(bool)) return 1;
-            if (type == typeof(short) || type == typeof(ushort)) return 2;
-            if (type == typeof(int) || type == typeof(uint) || type == typeof(float)) return 4;
-            if (type == typeof(long) || type == typeof(ulong) || type == typeof(double)) return 8;
-            return Marshal.SizeOf(type);
-        }
+        /// <summary>The managed size of <paramref name="type"/> — ⭐ CE-2030: <see cref="Fdp.Core.TypeLayout.SizeOf"/>, the stride the
+        /// memory being read actually has. ⛔ It was <c>Marshal.SizeOf</c> for a struct: the interop layout, where a bool is 4.</summary>
+        public static int GetSizeOf(Type type) => Fdp.Core.TypeLayout.SizeOf(type);
     }
 
     /// <summary>Extension helper used internally by <see cref="DtoDiagnosticMapper"/>.</summary>

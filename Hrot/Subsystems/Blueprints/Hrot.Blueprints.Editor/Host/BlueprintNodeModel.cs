@@ -492,12 +492,9 @@ internal sealed class BlueprintNodeModel : INodeModel
             ? eventId[4..]
             : eventId;
 
-        if (Guid.TryParse(idStr, out var guid))
-        {
-            var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
-            if (decl != null && !string.IsNullOrEmpty(decl.Name))
-                return decl.Name;
-        }
+        // ⭐ CE-2031 — the one resolution rule (a GUID-only copy before; a name-authored id now resolves too).
+        if (asset.FindCustomEvent(idStr) is { } decl && !string.IsNullOrEmpty(decl.Name))
+            return decl.Name;
 
         return eventId;
     }

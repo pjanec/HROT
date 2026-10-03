@@ -703,18 +703,7 @@ internal static class NodePinSchema
     /// missing argument pins went unnoticed.
     /// </summary>
     private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
-    {
-        if (string.IsNullOrWhiteSpace(eventId)) return null;
-
-        if (Guid.TryParse(eventId, out var guid))
-        {
-            var byId = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
-            if (byId != null) return byId;
-        }
-
-        return asset.CustomEvents.FirstOrDefault(
-            e => string.Equals(e.Name, eventId, StringComparison.Ordinal));
-    }
+        => asset.FindCustomEvent(eventId);   // ⭐ CE-2031 — the one rule (was a "Mirrors…" copy)
 
     /// <summary>
     /// CallPeerBlueprint: exec In + exec Out + one data-IN per peer function parameter

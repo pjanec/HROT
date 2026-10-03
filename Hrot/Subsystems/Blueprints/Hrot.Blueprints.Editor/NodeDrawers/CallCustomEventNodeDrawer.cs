@@ -85,13 +85,7 @@ internal sealed class CallCustomEventNodeSession : INodeEditSession
     /// </summary>
     private CustomEventDecl? ResolveCurrent()
     {
-        if (string.IsNullOrEmpty(_node.EventId)) return null;
-
-        if (Guid.TryParse(_node.EventId, out var id))
-            return _parent.CustomEvents.FirstOrDefault(e => e.Id == id);
-
-        return _parent.CustomEvents.FirstOrDefault(
-            e => string.Equals(e.Name, _node.EventId, StringComparison.Ordinal));
+        return _parent.FindCustomEvent(_node.EventId);   // ⭐ CE-2031 — the one rule
     }
 
     private static string Label(CustomEventDecl decl)

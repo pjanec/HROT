@@ -1344,6 +1344,30 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-2028</c> — an EVENT-driven host keeps its exact layout in the real generators.</b>
+    ///
+    /// <para>
+    /// 🔴 RED before: an event fiber keeps its payload in a slot typed from the event (<c>global::{Event}</c>), and Stage 5
+    /// typed graph inputs through the registry alone — never the size oracle declarations get — so the record was always
+    /// <c>SizeReliable = false</c> (CE-2014 forced it) and <c>CSharpEmitter.LayoutFromRuntime</c> held the WHOLE block
+    /// Sequential. 📐 The S8c rail's control measured it. ⭐ Now declarations, pins and graph inputs share ONE resolve-and-size
+    /// step (<c>Stage4_TypeResolve.TryResolveSized</c>).
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CE2028_AnEventDrivenHost_KeepsItsExactLayout_InTheRealGenerators()
+    {
+        var result = Integration.AuthoringPath.Generate(ParamsHost("CE2028Host", "CE2028Child", alongside: false));
+        Assert.True(result.Clean, result.Report());
+        string host = result.GeneratedSources.Single(src => src.Contains("class CE2028Host"));
+        Assert.Contains("_Fiber_", host);   // it IS an event fiber host
+        string[] lines = host.Split('\n');
+        int vars = Array.FindIndex(lines, l => l.Trim() == "public struct Vars");
+        Assert.True(vars > 0, "the host declares its Vars struct");
+        Assert.Contains("LayoutKind.Explicit", lines[vars - 1]);
+    }
+
+    /// <summary>
     /// <c>Tick</c>: Task(child) with Params = Make {paramsTypeId} (its <c>Value</c> left at default); Succeeded → Done + 1. ⚠ Driven
     /// from the Tick graph, not an event: an event fiber keeps its payload in a slot whose size is never oracle-checked (pin
     /// types), which alone drops a host to runtime layout — so only a Tick host shows what the PARAMS variable does to it.

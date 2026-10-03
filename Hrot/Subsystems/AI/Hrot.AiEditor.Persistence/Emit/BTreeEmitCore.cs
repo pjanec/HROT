@@ -878,7 +878,7 @@ public static class BTreeEmitCore
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(actionTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
@@ -907,7 +907,7 @@ public static class BTreeEmitCore
             int slotKey  = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
@@ -973,7 +973,7 @@ public static class BTreeEmitCore
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(condTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
@@ -1002,7 +1002,7 @@ public static class BTreeEmitCore
             int slotKey = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }

@@ -953,12 +953,8 @@ internal sealed class V_ValueNodeReferences : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
-        // Mirror Stage5's FindCustomEventIndex, which resolves an EventId against asset.CustomEvents
-        // by parsed Guid OR by Name. Matching only on Guid here would reject the ordinary authoring
-        // shape -- CallCustomEvent("OnFire") against .WithCustomEvent("OnFire").
-        var customEventIds   = new HashSet<Guid>(asset.CustomEvents.Select(e => e.Id));
-        var customEventNames = new HashSet<string>(
-            asset.CustomEvents.Select(e => e.Name), StringComparer.Ordinal);
+        // ⭐ CE-2031 — an EventId resolves through BlueprintAsset.FindCustomEvent (GUID OR name), the ONE rule Stage 5 uses;
+        //   matching only on Guid here would reject the ordinary authoring shape (CallCustomEvent("OnFire")).
         var engineEvents     = ctx.EngineEvents.GetEntries();
 
         foreach (var graph in asset.Graphs)
@@ -968,8 +964,7 @@ internal sealed class V_ValueNodeReferences : IValidator
                 switch (node)
                 {
                     case CallCustomEventNode call:
-                        ValidateCustomEventCall(
-                            call, asset, graph, ctx, customEventIds, customEventNames, engineEvents);
+                        ValidateCustomEventCall(call, asset, graph, ctx, engineEvents);
                         break;
 
                     // Non-empty only. Decision asset ids are NOT parseable Guids by convention -- the
@@ -1006,8 +1001,6 @@ internal sealed class V_ValueNodeReferences : IValidator
         BlueprintAsset asset,
         Graph graph,
         ValidationContext ctx,
-        HashSet<Guid> customEventIds,
-        HashSet<string> customEventNames,
         IReadOnlyList<EngineEventCatalogEntry> engineEvents)
     {
         if (string.IsNullOrWhiteSpace(call.EventId))
@@ -1018,11 +1011,8 @@ internal sealed class V_ValueNodeReferences : IValidator
             return;
         }
 
-        // An asset-authored custom event, matched by GUID or by name -- both are what
-        // Stage5's FindCustomEventIndex accepts.
-        if (Guid.TryParse(call.EventId, out var eventGuid) && customEventIds.Contains(eventGuid))
-            return;
-        if (customEventNames.Contains(call.EventId))
+        // An asset-authored custom event — ⭐ CE-2031: the one resolution rule.
+        if (asset.FindCustomEvent(call.EventId) != null)
             return;
 
         // A dotted identity is a baked [BlueprintEvent] the compiler cannot verify

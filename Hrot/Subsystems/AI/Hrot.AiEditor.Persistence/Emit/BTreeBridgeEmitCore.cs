@@ -492,7 +492,7 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
@@ -549,7 +549,7 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
@@ -655,7 +655,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
@@ -953,7 +953,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
@@ -1041,7 +1041,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
@@ -1369,23 +1369,7 @@ public static class BTreeBridgeEmitCore
     /// hash. ⛔ A second hash would make an HSM slot and a BTree slot of the same type disagree
     /// about whether the struct changed — the guard would fire on one tier and not the other.</remarks>
     internal static uint ComputeTypeNameHash(string typeName)
-    {
-        unchecked
-        {
-            uint hash = 2166136261u;
-            foreach (char c in typeName)
-            {
-                hash ^= (byte)(c & 0xFF);
-                hash *= 16777619u;
-                if (c > 0xFF)
-                {
-                    hash ^= (byte)(c >> 8);
-                    hash *= 16777619u;
-                }
-            }
-            return hash;
-        }
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.TypeNameHash(typeName);   // ⭐ CE-2033 — the one hash (linked)
 
     /// <summary>
     /// Emits the <c>ManagedBlackboardVariables</c> array initializer inside the
@@ -1908,7 +1892,7 @@ public static class BTreeBridgeEmitCore
                      && !string.IsNullOrEmpty(b.ExpressionTargetField) && offsetMap.TryGetValue(b.ExpressionTargetField!, out var field))
             {
                 offset = field.ByteOffset;
-                key = $"{b.MethodFqn}@{offset}";
+                key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, offset);   // ⭐ CE-2032
                 if (shape == BTreeDelegateShapeDto.Stateful)
                 {
                     slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(b), node.VisualId);

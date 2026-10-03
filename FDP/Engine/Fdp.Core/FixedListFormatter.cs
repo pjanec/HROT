@@ -39,9 +39,7 @@ public static class FixedListFormatter
         }
         catch (ArgumentException) { return false; }        // non-blittable wrapper — cannot map bytes
 
-        int elemSize = (int)typeof(Unsafe)
-            .GetMethod(nameof(Unsafe.SizeOf))!
-            .MakeGenericMethod(elemType).Invoke(null, null)!;
+        int elemSize = TypeLayout.SizeOf(elemType);   // ⭐ CE-2030 — the one runtime size
         if (elemSize <= 0 || bytes.Length < countOffset + 4) return false;
 
         int count = MemoryMarshal.Read<int>(bytes.Slice(countOffset, 4));

@@ -24,7 +24,9 @@ namespace Fdp.Core.Collections
         {
             if (length < 0) throw new ArgumentOutOfRangeException(nameof(length));
             
-            long size = (long)length * Marshal.SizeOf<T>();
+            // ⭐ CE-2030 — the stride the indexer uses ((T*)m_Buffer)[i] is sizeof(T); Marshal.SizeOf<T> is the INTEROP size
+            //   (a char field counts 1, so a struct with one under-allocated and the indexer wrote past the block).
+            long size = (long)length * sizeof(T);
             if (size == 0)
             {
                 m_Buffer = null;

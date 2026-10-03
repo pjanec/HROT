@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: S8d, one struct-layout algorithm).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8e as-built" — the editor sizes/reads/names as the build does).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1284,6 +1284,119 @@ Rails: `StructSizeResolverEnumTests.CE2027_TheStructSize_IsTheClrsManagedSize` (
 
 Rails: the two CLR-truth theories above + `CE2027_AShippedStruct_IsSizedAsTheClrLaysItOut` (the real `PlatoonHillAttackParams`,
 `HillAttackMutableState` — fixed buffers, unsizeable before —, `HillAttackRunner`, `PickableGeoPoint`, `Entity`). 31 rails, all green.
+
+#### S8e design — the editor sizes, reads and names things the way the build does *(`2026-10-03`, CE-2028 · CE-2029 · CE-2030 · CE-2031 · CE-2032; user: "editor has to calculate and show the same way as the generators of course, unified. Keep looking for unifications like that")*
+
+📐 **INVENTORY** (graph `search_graph` `.*Packer.*|^Pack$` · `.*SizeOf.*` + grep `SizeOf(Type|GetSizeOf|MakeGenericType(type)` ·
+grep of every hand-spelled `"@"` compound key · grep `CustomEvents.FirstOrDefault|events[i].Id == guid` · the code's own
+*"mirrors / keep in sync / same table"* comments):
+
+| # | concept | copies found | the one home after S8e |
+|---|---|---|---|
+| A | **type-resolve-and-size** in the blueprint compiler | 3 paths: declarations (oracle), pins (registry only), graph inputs (registry only, + CE-2014's forced "unreliable") | `Stage4_TypeResolve.TryResolveSized` — CE-2028 |
+| B | **blackboard layout** | 2 PACKERS: `BTreeBlackboardPackHelper.Pack` (generators) · `BlackboardBinPacker` (authoring window: `Marshal.SizeOf`, State counted in the params total) | `Pack`; the editor's packer is an adapter — CE-2029 |
+| C | **runtime `SizeOf(Type)`** | 8: `ComponentBytes.SizeOf` · `DataBreakpointManager.GetEcsComponentSize` · `FixedListFormatter` · `BlueprintDebugSession` (exact) · `DtoDiagnosticMapper`/`EntityJsonDumper.GetSizeOf` · `BlackboardBinPacker.GetManagedSize` (`Marshal.SizeOf`) · the blueprint editor's two payload tables (any struct = 8) | `Fdp.Core.TypeLayout.SizeOf` — CE-2030 |
+| D | **diagnostic value mapper** | `EntityJsonDumper` (editor Inspector/Watch) is a FORK of `DtoDiagnosticMapper` that missed QA-007 (FixedString as text) and CE-476 (enum `[InlineArray]` threw) | `DtoDiagnosticMapper.MapObject` — CE-2030 |
+| E | **buffer-element reader** (`[InlineArray]` / `fixed T[N]`) | 3: the mapper's exact CE-476 reader · the mapper's own fixed-buffer arm (marshals: `fixed bool` widened to 4) · `ImGuiPropertyTree.ExtractBuffer` (marshals: enum throws) | `DtoDiagnosticMapper.ReadBufferElements` — CE-2030 |
+| F | **custom-event lookup** "GUID first, then name" | ≥ 5: `Stage5_Schedule.FindCustomEventIndex` (the authority) · `Stage0_Rehydrate` · `NodePinSchema` (both "Mirrors…") · `BlueprintCommandSink` · `CallCustomEventNodeDrawer` | `BlueprintAsset.FindCustomEvent` — CE-2031 |
+| G | **compound action key** `fqn@offset` / `fqn@offset@slotKey` | 17 hand spellings: `BTreeEmitCore` ×4 · `BTreeBridgeEmitCore` ×6 · `SharedAiBindings` ×4 · `HsmEmitCore` ×1 (its comment: the mirror "is forced" — false since Persistence LINKS `HsmActionKey`) · runtime `SharedNodeBinder` ×3 | `HsmActionKey.CompoundKeyName` (+ the stateful overload) — CE-2032 |
+
+| claim | code | design basis |
+|---|---|---|
+| a State variable never joins the params region | ✅ `BTreeBlackboardPackHelper.Pack` skips `Role=State`; ⛔ `BlackboardBinPacker` counted it | ✅ `Blackboard_Authoring_Detailed_Design.md` §6.2 |
+| the editor's packer must reproduce the generated layout | ✅ `BTreeJsonGeneratorTests` already cross-checks the two packers on one fixture | ✅ `BTree_AiActionParameterBinding_Detailed_Design.md:31` — "must replicate C# sequential layout exactly" |
+| runtime managed size = build-time computed size | ✅ `StructSizeResolverEnumTests.CE2027_*` pin `RoslynStructLayout` against `Unsafe.SizeOf` | ✅ S8d |
+| the compound-key spelling is ruled shared | ✅ Persistence and the compiler link `Shared/HsmActionKey.cs` | ✅ user, 2026-09-28: *"no duplicating the HsmActionKey formula, must be shared"* (`Hrot.AiEditor.Persistence.csproj:39`) |
+| CE-2028 moves only what an oracle can size | ✅ in-process compiles (goldens) pass no oracle ⇒ `WithOracleSize` keeps them unreliable exactly as CE-2014 forced | ✅ S8c as-built CE-2028 table: 1 of 35 shipped blueprints moves |
+
+```mermaid
+classDiagram
+  class TypeLayout { <<NEW, Fdp.Core>> +SizeOf(Type) +TrySizeOf(Type) }
+  class DtoDiagnosticMapper { <<EXISTS, Fdp.Toolkits>> +MapObject +ReadBufferElements NEW +GetSizeOf }
+  class EntityJsonDumper { <<EXISTS, fork deleted>> Dump }
+  class ImGuiPropertyTree { <<EXISTS>> ExtractBuffer }
+  class BlackboardBinPacker { <<EXISTS, adapter>> Pack(descriptors) }
+  class BTreeBlackboardPackHelper { <<EXISTS, the packer>> +Pack }
+  class ComponentBytes { <<EXISTS>> SizeOf }
+  class DataBreakpointManager { <<EXISTS>> }
+  class Stage4_TypeResolve { <<EXISTS>> +TryResolveSized NEW }
+  class Stage5_Schedule { <<EXISTS>> BuildIrFieldsFromGraphParams }
+  class BlueprintAsset { <<EXISTS>> +FindCustomEvent NEW }
+  class HsmActionKey { <<EXISTS, Shared>> +CompoundKeyName(fqn, offset) +CompoundKeyName(fqn, offset, slotKey) NEW }
+  EntityJsonDumper --> DtoDiagnosticMapper
+  ImGuiPropertyTree --> DtoDiagnosticMapper : ReadBufferElements
+  DtoDiagnosticMapper --> TypeLayout
+  BlackboardBinPacker --> BTreeBlackboardPackHelper
+  BlackboardBinPacker --> TypeLayout
+  ComponentBytes --> TypeLayout
+  DataBreakpointManager --> TypeLayout
+  Stage5_Schedule --> Stage4_TypeResolve : TryResolveSized
+```
+
+*What the picture shows that prose hid: every runtime size, every buffer read and every editor layout now ends in ONE box —
+and the two that were wrong (`Marshal.SizeOf`, the fork) are on the editor's side, which is why the editor and the build
+could show different numbers for the same variable.*
+
+```mermaid
+sequenceDiagram
+  participant W as Blackboard window (editor)
+  participant BP as BlackboardBinPacker
+  participant P as BTreeBlackboardPackHelper.Pack
+  participant T as Fdp.Core.TypeLayout
+  participant G as BTree/HSM generator (build)
+  W->>BP: variables (name, CLR type, Role)
+  BP->>P: DTOs + size resolver
+  P->>T: SizeOf(type) per variable
+  P-->>BP: params-region fields (State skipped)
+  BP-->>W: offsets, sizes, total, warning
+  Note over G,P: the generator calls the SAME Pack, sizes from RoslynStructLayout (= T, pinned by CE-2027)
+```
+
+**Who calls it:** the editor's Blackboard window on every draw (`BlackboardAuthoringWindow.BuildViewModel`); the Inspector /
+Watch dumps on demand; the generators at build time. Nothing new is per-frame in the simulation.
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| E1 | CE-2028 | ⭐ ONE resolve-and-size step for declarations, pins and graph inputs | keep CE-2014's forced flag: it throws away an exact size the build has |
+| E2 | CE-2029 | ⭐ the window calls the generator's `Pack`; sizes from `TypeLayout`; State shown with its size, outside the region | fix the copy's sizes only: still a second packer free to drift |
+| E3 | runtime size home | ⭐ `Fdp.Core` — every caller already references it, and `ComponentType<T>.Size` lives there | `Hrot.Diagnostics.Breakpoints` (the exact copy's home): FDP cannot reference Hrot |
+| E4 | `EntityJsonDumper` | ⭐ delegate `MapObject` — the fork adds nothing the original lacks (measured by diff) | re-port the two fixes: a fork that already missed two fixes will miss the third |
+| E5 | custom events | ⭐ `BlueprintAsset.FindCustomEvent` (the asset owns the list; editor and compiler both reference it) | a static helper in Stage 5: the editor cannot reach compiler stages |
+| E6 | compound keys | ⭐ every spelling calls `HsmActionKey.CompoundKeyName`; the file is linked into Fdp.Toolkits for the runtime binder | a new neutral file: `HsmActionKey` already IS the ruled home |
+
+#### S8e as-built *(`2026-10-03`, CE-2028 · CE-2029 · CE-2030 · CE-2031 · CE-2032 · CE-2033)*
+
+✅ **Built as designed, E1–E6.** What moved from the design, and what the build added:
+
+| item | as-built | ⚠ different from the design / why |
+|---|---|---|
+| A · CE-2028 | `Stage4_TypeResolve.TryResolveSized` sizes declarations, pins and graph inputs; CE-2014's forced-unreliable block in `Stage5_Schedule.BuildIrFieldsFromGraphParams` is **deleted** (subsumed) | ✅ as designed. The rail `BlueprintBehaviourTests.CE2028_AnEventDrivenHost_KeepsItsExactLayout_InTheRealGenerators` (real generators, oracle present) asserts `LayoutKind.Explicit` on the fiber host's Vars; red-proved by restoring the forced flag. **No golden moved** — in-process compiles pass no oracle, exactly the CE-2028 table's prediction |
+| B · CE-2029 | `BlackboardBinPacker.Pack` is an adapter over `BTreeBlackboardPackHelper.Pack`; `BlackboardVariableDescriptor` carries `Role`; a State variable comes back with `ByteOffset = -1`, `InParamsRegion = false`, its own size | ⚠ **a reference type sizes 0**, not one pointer: `GetManagedSize` keeps the window's existing "un-sizeable degrades to 0" contract (`UnmarshalableType_DegradesToZero_DoesNotThrow`) — a reference can never sit in the blackboard. Rail `CE2029_TheEditorLaysOutTheParamsRegion_AsTheGeneratorDoes` (two bools, a byte enum, a State `long`): red-proved by restoring `Marshal.SizeOf` ⇒ `(8,8)` |
+| C · CE-2030 | `Fdp.Core.TypeLayout.SizeOf/TrySizeOf` (cached `Unsafe.SizeOf`); all eight inventory sites route to it | ⚠ **the inventory was short.** A wider `Marshal.SizeOf` sweep (grep only — the graph index was not loaded) found ~30 more production sites. Two more fixed here: `VariableCreateModal.StructByteSize` (the list budget line) and `NativeArray<T>` (allocated `length × Marshal.SizeOf<T>` but indexes at `sizeof(T)` — a `char` field under-allocated). The rest are classified in **CE-2041** — they change persisted hashes, generated code or a recording format, so each needs a measurement first, like CE-2028 |
+| D · CE-2030 | `EntityJsonDumper.MapObject` delegates to `DtoDiagnosticMapper.MapObject`; its fork (`MapObject`/`ReadPointer`/`GetSizeOf`) deleted | ✅ as designed |
+| E · CE-2030 | `DtoDiagnosticMapper.ReadBufferElements(buffer, elementType, length)` serves the `[InlineArray]` arm, the `fixed T[N]` arm and `ImGuiPropertyTree.ExtractBuffer` | ✅. Rail `EventSerializationHelperTests.CE2030_MapObject_FixedBoolBuffer_ReadsEveryElementExactly`, red-proved by restoring the marshalling arm ⇒ `[True,False,False]` |
+| F · CE-2031 | `BlueprintAsset.FindCustomEvent` / `IndexOfCustomEvent` (GUID, then ordinal name); Stage 0, Stage 2's call validation, Stage 5, `NodePinSchema`, `BlueprintCommandSink`, `CallCustomEventNodeDrawer`, `BlueprintNodeModel` route to it | ⚠ `Stage2.V_EventGraphReferences` deliberately NOT routed: it validates a GUID-only reference, and a name fallback there would change what it accepts |
+| G · CE-2032 | 18 spellings → `HsmActionKey.CompoundKeyName(fqn, offset)` / new `(fqn, paramOffset, slotKey)`; `HsmActionKey.cs` linked into `Fdp.Toolkits` for the runtime `SharedNodeBinder` | ⚠ the parameter is `string?` (the call sites pass nullable FQNs; CS8604 otherwise) |
+| **H · CE-2033** *(found by the FNV sweep)* | `OccurrenceSlotKey.TypeNameHash` is THE type-name hash; `StatefulBTreeActionBinder`, `BTreeBridgeEmitCore` and `HostedSubtree` route to it, and `HostedSubtree.Sized` folds it instead of `string.GetHashCode()` | 🔴 the old fold was **randomised per process** — a hosted child's `StructureHash` never matched across a restart. ASCII names hash identically to before ⇒ no baked value moves. Rails `OccurrenceSlotKeyParityTests.CE2033_R1/R2`; R2 red-proved by restoring `GetHashCode` |
+
+```mermaid
+classDiagram
+  class OccurrenceSlotKey { <<EXISTS, Shared, linked into Persistence>> +TypeNameHash(string) NEW }
+  class StatefulBTreeActionBinder { <<EXISTS, runtime>> ComputeTypeNameHash }
+  class BTreeBridgeEmitCore { <<EXISTS, emitter>> ComputeTypeNameHash }
+  class HostedSubtree { <<EXISTS, runtime>> Sized() TypeNameHash }
+  StatefulBTreeActionBinder --> OccurrenceSlotKey
+  BTreeBridgeEmitCore --> OccurrenceSlotKey : bakes the value
+  HostedSubtree --> OccurrenceSlotKey : was string.GetHashCode
+```
+
+*What the picture shows: the hash the emitter BAKES and the hash the runtime RECOMPUTES are now one function — they had
+been three, and one of them was not even deterministic.*
+
+**Sweeps that ran beside the build** (FNV hashes, class-name sanitizers, `Marshal.SizeOf`) are filed, not built:
+CE-2034 (EQS template id — **live** divergence) · CE-2035 (utility decision id) · CE-2036 (`BlueprintIdHash` ×4) ·
+CE-2037 (HSM behaviour-id scheme — R-42, user decision) · CE-2038 (JSON escaped keys) · CE-2039 (four sanitizers) ·
+CE-2040 (test fixture sanitizer) · CE-2041 (remaining interop sizes) · CE-2042 (animation node `StructureHash` randomised).
 
 ## 5. Decisions — each with a lean
 

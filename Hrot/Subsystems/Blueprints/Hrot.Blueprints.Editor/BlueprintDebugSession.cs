@@ -2303,7 +2303,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             if ((bool)IsReferenceOrContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null)!)
                 return false;                                       // managed => not blittable bytes
-            if ((int)UnsafeSizeOfMethod.MakeGenericMethod(type).Invoke(null, null)! != bytes.Length)
+            if (global::Fdp.Core.TypeLayout.SizeOf(type) != bytes.Length)
                 return false;                                       // ⛔ exactness IS the bound
 
             value = ReadManagedMethod.MakeGenericMethod(type).Invoke(null, new object[] { bytes });
@@ -2325,10 +2325,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     private static readonly System.Reflection.MethodInfo IsReferenceOrContainsReferencesMethod =
         typeof(System.Runtime.CompilerServices.RuntimeHelpers)
             .GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences))!;
-
-    private static readonly System.Reflection.MethodInfo UnsafeSizeOfMethod =
-        typeof(System.Runtime.CompilerServices.Unsafe)
-            .GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!;
 
     private static readonly System.Reflection.MethodInfo ReadManagedMethod =
         typeof(BlueprintDebugSession).GetMethod(nameof(ReadManaged),

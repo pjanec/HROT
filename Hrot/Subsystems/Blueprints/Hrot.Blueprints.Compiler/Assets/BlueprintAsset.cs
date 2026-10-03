@@ -109,6 +109,31 @@ public sealed class BlueprintAsset
     public List<Guid>? VariableOrder { get; set; }
     public List<EventDispatcherDecl> EventDispatchers { get; set; } = new();
     public List<CustomEventDecl> CustomEvents { get; set; } = new();
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2031</c> — the ONE resolution of a custom-event reference (<c>CallCustomEventNode.EventId</c>), in either
+    /// accepted form: its GUID first, then an ordinal <see cref="CustomEventDecl.Name"/> (hand-authored assets). ⛔ The rule was
+    /// written five times — <c>Stage5_Schedule.FindCustomEventIndex</c> (the authority), <c>Stage0_Rehydrate</c>,
+    /// <c>NodePinSchema</c> (both "Mirrors…"), <c>BlueprintCommandSink</c>, <c>CallCustomEventNodeDrawer</c> (which skipped the
+    /// name fallback for a GUID-shaped id) — and BP-69 was a projection honouring only one form.
+    /// </summary>
+    public CustomEventDecl? FindCustomEvent(string? eventId)
+    {
+        int i = IndexOfCustomEvent(eventId);
+        return i < 0 ? null : CustomEvents[i];
+    }
+
+    /// <summary>The index of <see cref="FindCustomEvent"/>'s answer in <see cref="CustomEvents"/>, or -1.</summary>
+    public int IndexOfCustomEvent(string? eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return -1;
+        if (Guid.TryParse(eventId, out var guid))
+            for (int i = 0; i < CustomEvents.Count; i++)
+                if (CustomEvents[i].Id == guid) return i;
+        for (int i = 0; i < CustomEvents.Count; i++)
+            if (string.Equals(CustomEvents[i].Name, eventId, StringComparison.Ordinal)) return i;
+        return -1;
+    }
     public List<Guid> CallablePeers { get; set; } = new();
 
     // Common:

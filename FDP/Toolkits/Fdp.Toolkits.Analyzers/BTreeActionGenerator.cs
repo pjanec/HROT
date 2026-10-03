@@ -297,7 +297,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 FullQualifiedMethodName = sym.ContainingType.ToDisplayString() + "." + sym.Name,
                 FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 Offset       = offset.Value,
-                CompoundKey  = sym.ContainingType.ToDisplayString() + "." + sym.Name + "@" + offset.Value,
+                CompoundKey  = HsmActionKey.CompoundKeyName(sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
                 IsCondition  = isCondition,
                 WritesChannels = writes,
             };

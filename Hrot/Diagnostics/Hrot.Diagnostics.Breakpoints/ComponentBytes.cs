@@ -41,20 +41,5 @@ public static class ComponentBytes
     /// ⭐ The ECS chunk stride for <paramref name="type"/> — <c>ComponentType&lt;T&gt;.Size</c>, i.e.
     /// <c>Unsafe.SizeOf&lt;T&gt;()</c>. ⛔ Not <c>Marshal.SizeOf</c>, for the reason above.
     /// </summary>
-    public static int SizeOf(Type type)
-    {
-        if (type is null) throw new ArgumentNullException(nameof(type));
-        lock (_sizeCache)
-        {
-            if (_sizeCache.TryGetValue(type, out int cached)) return cached;
-            var generic = typeof(Fdp.Core.ComponentType<>).MakeGenericType(type);
-            var prop    = generic.GetProperty("Size",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!;
-            int size    = (int)prop.GetValue(null)!;
-            _sizeCache[type] = size;
-            return size;
-        }
-    }
-
-    private static readonly System.Collections.Generic.Dictionary<Type, int> _sizeCache = new();
+    public static int SizeOf(Type type) => Fdp.Core.TypeLayout.SizeOf(type);   // ⭐ CE-2030 — the one runtime size
 }

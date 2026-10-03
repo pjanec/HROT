@@ -175,7 +175,7 @@ public static class SharedAiBindings
 
             if (string.IsNullOrEmpty(b.ExpressionTargetField)) return;
             if (!byName.TryGetValue(b.ExpressionTargetField!, out var field)) return;
-            string key = b.MethodFqn + "@" + field.ByteOffset;   // MIRROR of HsmActionKey.CompoundKeyName
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, field.ByteOffset);   // ⭐ CE-2032 — the one spelling
             var entry = new Entry
             {
                 MethodFqn = b.MethodFqn!, Form = form.Value, Offset = field.ByteOffset, Size = field.ByteSize,
@@ -185,7 +185,7 @@ public static class SharedAiBindings
             {
                 // ⭐ S8 — the WS is the block St member (S8-1); an unbindable one is reported by UnbindableBindings.
                 if (StatefulProblem(dto, b, info!, block, out string ws) != null) return;
-                key += "@" + StatefulSlotKey(dto.AssetId, ws);   // the BTree's Fqn@paramOffset@slotKey (S8-2)
+                key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, field.ByteOffset, StatefulSlotKey(dto.AssetId, ws));   // the BTree's Fqn@paramOffset@slotKey (S8-2)
                 entry.WsVariable = block!.Value.Member(StatefulSlotKey(dto.AssetId, ws))!;
                 entry.BlockFqn = block.Value.BlockFqn;
             }
@@ -235,8 +235,8 @@ public static class SharedAiBindings
         if (string.IsNullOrEmpty(b.ExpressionTargetField)) return fqn;
         if (!paramOffsets.TryGetValue(b.ExpressionTargetField!, out int off)) return fqn;
         if (form == Form.Stateful && WorkingStateVariable(b) is { Length: > 0 } ws)
-            return fqn + "@" + off + "@" + StatefulSlotKey(assetId, ws);
-        return fqn + "@" + off;
+            return Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(fqn, off, StatefulSlotKey(assetId, ws));
+        return Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(fqn, off);
     }
 
     /// <summary>The C# for one thunk method (an action or a guard), with the offset and type baked.</summary>

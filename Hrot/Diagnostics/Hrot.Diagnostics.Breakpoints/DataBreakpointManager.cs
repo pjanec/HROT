@@ -120,7 +120,6 @@ public sealed class DataBreakpointManager
 
     // Cache of component type -> CLR managed size (Unsafe.SizeOf<T>() via ComponentType<T>.Size).
     // Avoids repeated reflection on the hot path.
-    private static readonly Dictionary<Type, int> _componentSizeCache = new();
 
     // ---- IDataBreakpointManager.IsPaused --------------------------------
 
@@ -1250,21 +1249,7 @@ public sealed class DataBreakpointManager
     /// <c>Marshal.SizeOf</c>, which gives the interop layout size that may differ for
     /// components containing <c>fixed</c> buffers or bool fields with <c>[MarshalAs(UnmanagedType.I1)]</c>.
     /// </summary>
-    private static int GetEcsComponentSize(Type type)
-    {
-        lock (_componentSizeCache)
-        {
-            if (_componentSizeCache.TryGetValue(type, out int cached))
-                return cached;
-            // ComponentType<T>.Size = Unsafe.SizeOf<T>() -- matches the ECS chunk stride.
-            var genericType = typeof(ComponentType<>).MakeGenericType(type);
-            var prop        = genericType.GetProperty("Size",
-                BindingFlags.Public | BindingFlags.Static)!;
-            int size        = (int)prop.GetValue(null)!;
-            _componentSizeCache[type] = size;
-            return size;
-        }
-    }
+    private static int GetEcsComponentSize(Type type) => Fdp.Core.TypeLayout.SizeOf(type);   // ⭐ CE-2030
 
     /// <summary>
     /// Builds a compiled position accessor for unmanaged component type <paramref name="dto"/>.PositionComponentType.

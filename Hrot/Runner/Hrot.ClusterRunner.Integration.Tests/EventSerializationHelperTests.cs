@@ -121,4 +121,26 @@ public sealed class EventSerializationHelperTests
 
         Assert.Equal(new object?[] { "Left", "None", "Right" }, Assert.IsType<List<object?>>(mapped["Items"]));
     }
+
+    // ── CE-2030: a `fixed bool` buffer, read exactly ────────────────────────────────────────
+    private unsafe struct WithFixedFlags { public int Count; public fixed bool Flags[3]; }
+
+    /// <summary>
+    /// ⭐ <c>CE-2030</c> — the fixed-buffer arm reads through the SAME exact reader as the [InlineArray] arm
+    /// (<c>DtoDiagnosticMapper.ReadBufferElements</c>). 🔴 It marshalled the buffer: the marshaller widens a <c>bool</c> to a
+    /// 4-byte BOOL, so the elements after the first were read from the padding of the first.
+    /// </summary>
+    [Fact]
+    public unsafe void CE2030_MapObject_FixedBoolBuffer_ReadsEveryElementExactly()
+    {
+        var value = new WithFixedFlags { Count = 3 };
+        value.Flags[0] = true;
+        value.Flags[1] = false;
+        value.Flags[2] = true;
+
+        var mapped = Assert.IsType<Dictionary<string, object?>>(
+            DtoDiagnosticMapper.MapObject(value, typeof(WithFixedFlags), new HashSet<object>()));
+
+        Assert.Equal(new object?[] { true, false, true }, Assert.IsType<List<object?>>(mapped["Flags"]));
+    }
 }
