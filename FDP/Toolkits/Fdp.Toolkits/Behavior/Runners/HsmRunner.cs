@@ -125,6 +125,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 Self         = entity,
                 WorldHandle  = repo.UnmanagedHandle,
                 TraceContext = traceCtxPtr,
+                OccurrenceKey = ctx.OccurrenceKey,   // ⭐ CE-2002 — this machine's own occurrences nest under it
             };
 
             // ⭐⭐⭐ THE SIZE COMES FROM THE SLOT, NEVER FROM A TYPE (§9.4): a sizeof(TInstance) larger than the slot

@@ -122,7 +122,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
             var page = default(CommandPage);
             var writer = new HsmCommandWriter(&page);
             var hdr = new InstanceHeader { MachineId = HostMachine };
-            try { HsmOccurrence.KeyFor(&hdr, Child, &writer); }
+            var bridge = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge();
+            try { HsmOccurrence.KeyFor(&hdr, &bridge, Child, &writer); }
             catch (InvalidOperationException ex) { thrown = ex; }
         }
 
@@ -2243,7 +2244,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
     {
         _capturedRegion = writer->OccurrenceRegionSlotIndex;
         _capturedState = writer->OccurrenceStateId;
-        _capturedKey = HsmOccurrence.KeyFor(instance, Child, writer);
+        _capturedKey = HsmOccurrence.KeyFor(instance, context, Child, writer);
     }
 
     /// <summary>Drives one real kernel tick so the stamp comes from production code, not a test setter.</summary>
@@ -2268,7 +2269,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
         inst.Header.Phase = InstancePhase.Entry;
         for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;   // see HsmOccurrenceStampTests
 
-        var ctx = 0;
+        var ctx = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge();   // CE-2002 — the thunk reads its OccurrenceKey (0 = root)
         var page = default(CommandPage);
         Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
 

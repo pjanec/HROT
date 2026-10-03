@@ -397,6 +397,82 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         }
     }
 
+    // ══ CE-2002 — an HSM child's lazy occurrences nest under the site that hosts it ══════════════════════════════
+
+    private const ushort KeyCapturingAction = 0x2002;   // unique id: the dispatcher table is process-wide
+    private static readonly Guid HsmChildAsset = new("20020000-0000-0000-0000-0000000000c1");
+    private static readonly System.Collections.Generic.List<(int Key, int Region, ushort State, int Site)> _hsmKeys = new();
+
+    private static void CaptureHsmOccurrenceKey(void* instance, void* context, HsmCommandWriter* writer)
+        => _hsmKeys.Add((HsmOccurrence.KeyFor(instance, context, HsmChildAsset, writer),
+                         writer->OccurrenceRegionSlotIndex, writer->OccurrenceStateId,
+                         ((HsmKernelBridge*)context)->OccurrenceKey));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-2002</c> (S8k) — the same HSM child at TWO sites keys its lazily-attached occurrences apart.</b> The child's
+    /// initial state runs an entry action that asks <c>HsmOccurrence.KeyFor</c> — what every emitted HSM blueprint thunk does —
+    /// and each site's key is the state key NESTED under that site's occurrence. 🔴 Before: the bridge carried no occurrence
+    /// key, so both sites computed one key and shared one working state.
+    /// </summary>
+    [Fact]
+    public void CE2002_AnHsmChildAtTwoSites_KeysItsOccurrencesUnderEachSite()
+    {
+        _hsmKeys.Clear();
+        Fhsm.Kernel.HsmActionDispatcher.RegisterAction(KeyCapturingAction,
+            (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&CaptureHsmOccurrenceKey);
+        try
+        {
+            var states = new[]
+            {
+                new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, Flags = StateFlags.IsInitial,
+                               OnEntryActionId = KeyCapturingAction },
+            };
+            var blob = new HsmDefinitionBlob(new HsmDefinitionHeader { StructureHash = 0x20020001u, StateCount = 1 }, states,
+                Array.Empty<TransitionDef>(), Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(),
+                Array.Empty<ushort>(), Array.Empty<ushort>());
+
+            using var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var beh = new BehaviorRegistry();
+            beh.Register(ChildName, new BehaviorDefinition { Name = ChildName, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+
+            var hb = new BTreeBuilder<byte, BTreeContext>().Parallel(0, p => p
+                .Subtree(ChildName, visualId: SiteA)
+                .Subtree(ChildName, visualId: SiteB));
+            var hostBlob = hb.Compile(HostName);
+            var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+            beh.Register(HostId, HostName, new BehaviorDefinition
+            {
+                Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+                StatefulWorkingSlots = plan.Slots,
+            });
+            BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+            var brain = new BrainTickSystem(beh);
+            for (int f = 0; f < 3 && _hsmKeys.Count < 2; f++) { brain.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+            string seen = string.Join("; ", _hsmKeys);
+            Assert.True(_hsmKeys.Count == 2, "the entry action runs once per site: " + seen);
+            Assert.True(_hsmKeys[0].Key != _hsmKeys[1].Key, "two sites, two keys: " + seen);
+            var expected = new System.Collections.Generic.HashSet<int>();
+            foreach (var site in plan.Entries)
+                expected.Add(OccurrenceSlots.HostedKeyAt(site.TreeStateSlotKey,
+                    HsmOccurrence.KeyFor(blob.MachineId, HsmChildAsset, _hsmKeys[0].Region, _hsmKeys[0].State)));
+            Assert.Contains(_hsmKeys[0].Key, expected);
+            Assert.Contains(_hsmKeys[1].Key, expected);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(KeyCapturingAction, IntPtr.Zero);
+        }
+    }
+
     // ══ S5c — hosting cycles are refused at registration (U-9) ════════════════════════════════════
 
     /// <summary>Registers <paramref name="name"/> as a BTree hosting <paramref name="child"/>, in the generated order:

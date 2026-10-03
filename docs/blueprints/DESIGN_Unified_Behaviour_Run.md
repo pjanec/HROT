@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8j as-built" — an HSM's MachineId names the machine; S8k designed).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8k as-built" — an HSM child's occurrences nest under its site; S8l designed).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1914,6 +1914,78 @@ graph TD
 side; the bridge is ours) · §32 (E5, an HSM state hosts a BTree) — applies, `HsmRunner` already nests ITS children; this
 nests its own thunks the same way · this document's S5b — applies, the residue it names · S8j (CE-2001) — prerequisite:
 the `MachineId` inside the state key is unique now.
+
+#### S8k as-built *(`2026-10-03`, CE-2002)*
+
+Built as designed — no deviation. `HsmKernelBridge.OccurrenceKey` (filled by `HsmRunner.Tick` from `ctx.OccurrenceKey`);
+`HsmOccurrence.KeyFor(instance, context, asset, writer)` nests the state key with `OccurrenceSlots.HostedKeyAt`; the
+3-argument form is gone and a null `context` throws; `AiPrimitiveEmitter` passes `context` (4 blueprint goldens moved by
+exactly that token). Rail: `HostingMatrixTests.CE2002_AnHsmChildAtTwoSites_KeysItsOccurrencesUnderEachSite` — a BTree
+hosting one HSM child at two sites; the child's entry action keys through `KeyFor`, and the two keys differ and equal each
+site's nesting. 🔴 Red-proof: the runner leaving the bridge key 0 makes the two keys equal. ⚠ Measured on the way: one
+gate run reported that rail red — the test project's `bin` still held the red-proof's MUTATED `Fdp.Toolkits.dll` (the
+Blueprints build refreshes only its own bin); rebuilt, 2465/0 — the stale-binary trap, not a flake. Gates: Toolkits 2465/0,
+Blueprints 4129/0/17, SimHost 1057/0/3.
+
+#### S8l design — a child's Input region is its Inputs STRUCT, trailing padding included *(`2026-10-03`, CE-2023 ②)*
+
+**The defect.** At a hosted child's start, `HostedSubtree.Supply` refuses a binding whose width differs from
+`RootParamsAccess.InputBytes(child)`. The binding is `Unsafe.SizeOf<T>` of the bound struct (S8 Q3); `InputBytes` was the
+manifest EXTENT — the end of the last Input variable — which stops before a struct's trailing padding.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| every generated block embeds its Inputs struct as `In` at offset 0 | ✅ BTree/HSM: `[FieldOffset(0)] public {Asset}_Blackboard In` (golden `HsmVariableShowcase.Blackboard.g.cs.txt:27`); blueprint: `Sequential { Params In; Vars St; }` (golden `PlatoonHillAttackBp.cs.txt:110`) | ✅ CE-425 *"Inputs first, at offset 0"*; S3 rail pins `JsonParamsDtoType == Block.In`'s type (`BlueprintBehaviourTests.cs:485`) |
+| so the region the block reserves is `SizeOf(In)` | ✅ a struct FIELD occupies its type's whole size; `St` starts after it — 📐 measured on all 20 shipped BTree/HSM blocks: `St` never inside `In` | — |
+| `InputBytes` used the extent | ✅ `RootParamsAccess.InputBytes` → `ManifestExtent` (`RootParamsAccess.cs:324/330`) | ⚠ `DESIGN_Parameter_Model.md` §P.2 *"the host variable IS the child's authored input"* ⇒ the width is the input STRUCT's |
+| BTree/HSM never drift | ✅ the Inputs struct is `Explicit, Size = packedBytes` (`BTreeEmitCore.cs:174`) and 📐 the CLR honours an explicit `Size` exactly (measured: `{float,bool}` Size=5 ⇒ 5); 20/20 shipped: size == extent | — |
+| a blueprint can drift | 📐 its `Params` is `Sequential`: 1 of 12 shipped (`ParamDemo {int, bool, bool}`) is 8 bytes for an extent of 6. `ParamDemo` is not a behaviour, so no host can bind it TODAY; a blueprint BEHAVIOUR with such Params would throw at every hosted start | — |
+
+```mermaid
+classDiagram
+  class RootParamsAccess {
+    +InputBytes(def)$ int
+    -ManifestExtent(manifest)$ int
+  }
+  class BehaviorDefinition {
+    +Type JsonParamsDtoType  the block's In type (generated)
+    +ManagedBlackboardVariable[] ManagedBlackboardVariables
+    +Type BlackboardLayoutType
+  }
+  class HostedSubtree {
+    -Supply(childDef, block, binding)$
+  }
+  class BehaviorRegistry {
+    +ApplyResolverOverlay  resolver-fits-Input-region check
+  }
+  HostedSubtree ..> RootParamsAccess : width check
+  BehaviorRegistry ..> RootParamsAccess : Input region before St
+  RootParamsAccess ..> BehaviorDefinition : SizeOf(JsonParamsDtoType) when generated
+```
+*What the picture shows: one width, two readers — the start's copy and the registry's resolver-fit check both ask
+`InputBytes`, so both now see the region the block actually reserves.*
+
+```mermaid
+sequenceDiagram
+  participant T as HostedSubtree.TickHosted (fresh start)
+  participant S as Supply
+  participant R as RootParamsAccess.InputBytes
+  T->>S: binding (HostOffset, Length = SizeOf<T>)
+  S->>R: InputBytes(child)
+  R-->>S: generated with JsonParamsDtoType ⇒ its SizeOf, otherwise the extent or layout size
+  S->>S: Length == width ⇒ memcpy into the child's In
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| L1 the width | ⭐ a GENERATED child (manifest present) with a `JsonParamsDtoType` ⇒ `TypeLayout.SizeOf(JsonParamsDtoType)`; otherwise unchanged (no Inputs ⇒ 0; curated ⇒ its layout) | relax `Supply` to `Length >= extent` and copy `extent` — keeps two widths for one region, and a too-WIDE wrong struct would pass · emit `Explicit, Size = extent` for blueprint `Params` — a persisted-shape change to every blueprint for a check that is wrong, not the layout |
+| L2 a curated child's `JsonParamsDtoType` | ⭐ ignored here — it may be a JSON DTO class, not the block's `In` | — |
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2 — applies (the binding IS the child's input struct) · S8 Q3
+(binding width) — applies, unchanged · S3 (blueprint publishes `JsonParamsDtoType` = `In`) — applies, it is what makes L1
+true for blueprints · CE-437 (resolver-fit check, `BehaviorRegistry`) — applies, it reads the same width.
 
 ## 5. Decisions — each with a lean
 

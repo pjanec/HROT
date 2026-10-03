@@ -100,7 +100,7 @@ public sealed class ThunkEmissionTests
         //    state) the kernel stamped. 🔴 It used to be Blackboard1024 at a hard-coded memory + 8,
         //    which is ONE working state per ENTITY: two concurrently-active regions running this
         //    asset wrote the same bytes, silently (BP-297).
-        Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer)", src);
+        Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, context, AssetId, writer)", src);
         // ⭐⭐⭐ E3a — and the PARAMS ride the same slot: one key, one lookup, one lifetime (§28).
         Assert.Contains("HsmOccurrence.ResolveOrAttach<int, WorkingState>", src);   // CE-444: [WorkingState][host offset]
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);

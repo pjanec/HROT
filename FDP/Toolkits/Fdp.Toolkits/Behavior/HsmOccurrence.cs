@@ -40,11 +40,18 @@ public static unsafe class HsmOccurrence
     /// ran outside a kernel dispatch, and resolving that to <i>"region 0, state 0"</i> would hand it a
     /// real occurrence's bytes — a silent cross-occurrence alias, which is the exact failure this model
     /// exists to remove.</para>
+    ///
+    /// <para>⭐⭐ <b><c>CE-2002</c> — nested under the occurrence the machine runs as.</b> <paramref name="context"/> is the
+    /// <c>HsmKernelBridge*</c> the kernel hands every thunk; its <c>OccurrenceKey</c> is 0 at the root (the key is then exactly
+    /// what it was) and the hosting site's key when the machine is a hosted child — so the same HSM child at two sites keeps two
+    /// working states. ⛔ There is no overload without it: a key that silently assumed "root" is how two sites shared one.
+    /// 📄 <c>DESIGN_Unified_Behaviour_Run.md</c> "S8k".</para>
     /// </summary>
-    public static int KeyFor(void* hsmInstance, Guid childAssetId, HsmCommandWriter* writer)
+    public static int KeyFor(void* hsmInstance, void* context, Guid childAssetId, HsmCommandWriter* writer)
     {
         if (writer == null) throw new ArgumentNullException(nameof(writer));
         if (hsmInstance == null) throw new ArgumentNullException(nameof(hsmInstance));
+        if (context == null) throw new ArgumentNullException(nameof(context));
 
         int region = writer->OccurrenceRegionSlotIndex;
         ushort state = writer->OccurrenceStateId;
@@ -59,8 +66,10 @@ public static unsafe class HsmOccurrence
         // ⭐ The host identity comes from the instance the kernel just handed us — its header carries
         //   the HSM definition's MachineId (identity + shape since CE-2001). No literal to bake, no new plumbing (§24.9).
         uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
+        int occurrence = ((Systems.HsmKernelBridge*)context)->OccurrenceKey;
 
-        return Shared.OccurrenceSlotKey.ComputeHsmStateKey(machineId, region, state, childAssetId);
+        return OccurrenceSlots.HostedKeyAt(occurrence,
+            Shared.OccurrenceSlotKey.ComputeHsmStateKey(machineId, region, state, childAssetId));
     }
 
     /// <summary>

@@ -546,7 +546,8 @@ internal static class AiPrimitiveEmitter
         e.WriteLine();
         e.WriteLine("// CE-444: params are read LIVE from the entity's root block (§P.3); the occurrence holds only the");
         e.WriteLine("//         working state and the host offset, looked up once at attach (option B, §P.9).");
-        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
+        // ⭐ CE-2002 — `context` (the HsmKernelBridge) carries the occurrence the machine runs as; the key nests under it.
+        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, context, AssetId, writer);");
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<int, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out int* __hostOffset);");
         // ⭐⭐⭐ CE-414 — AssetId identifies the HOSTING SITE, not just the state: the occurrence's slot and its host
