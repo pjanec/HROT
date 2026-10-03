@@ -1555,160 +1555,27 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
 
     // ── §7 demos (DESIGN_Unified_Behaviour_Run §7): the SHIPPED demo assets, run through the real BrainTickSystem ────────
 
-    /// <summary>A frame that also advances the world's simulation time by the frame's 16 ms — what a Delay reads
-    /// (<c>BlueprintRunner</c> passes <c>repo.SimulationTime</c>); the plain framer leaves it at 0.</summary>
-    private Func<Fbt.NodeStatus?> Timed(Func<Fbt.NodeStatus?> frame)
-    {
-        float t = 0f;
-        return () => { t += 0.016f; _fixture.World.SetSimulationTime(t); return frame(); };
-    }
-
-    /// <summary>Loads the shipped Demo_TaskChain and its three step children (each: Delay → Success), and assigns it.</summary>
-    private (Fdp.Core.Entity e, Func<Fbt.NodeStatus?> frame, Func<string, int> readInt, Action<string> setTrue) LoadTaskChain()
-    {
-        const string Host = "Demo_TaskChain";
-        var assets = new[] { "Demo_Advance", "Demo_Engage", "Demo_Retreat", Host }.Select(GoldenCorpus.Load).ToList();
-        _fixture.CompileAndLoadMany(assets, GoldenCorpus.Options());
-        var (e, step) = AssignAndFramer(Host);
-        var frame = Timed(step);
-        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
-        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
-        unsafe
-        {
-            // ⚠ A finished behaviour's block is cleared: a read after the end returns the last value seen.
-            var last = new System.Collections.Generic.Dictionary<string, int>();
-            int ReadInt(string n)
-            {
-                if (RootParamsAccess.TryGetRootBytes(_fixture.World, e, out byte* root))
-                    last[n] = *(int*)(root + VarOffset(def!, n));
-                return last.TryGetValue(n, out int v) ? v : 0;
-            }
-            void SetTrue(string n) => *(bool*)(RootParamsAccessRoot(_fixture.World, e) + VarOffset(def!, n)) = true;
-            return (e, frame, ReadInt, SetTrue);
-        }
-    }
+    // ⭐ CE-2023 ③ ("S8n-2" in DESIGN_Unified_Behaviour_Run): the §7 demos host the CURATED MoveToLocation / FireAtTarget now,
+    //   which only a CGF registry holds ⇒ their four rails (order, abort ⇒ retreat, cover alongside, low health aborts) were
+    //   RE-HOMED to Hrot.SimHost.Tests/BehaviourTaskDemoTests, claim for claim.
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Demo_TaskChain (§7) — each Behaviour Task runs in order and the chain finishes.</b> Advance (1 s) ─Succeeded→
-    /// Stage = 1 → Engage (2 s) ─Succeeded→ Stage = 2 → Return Success. ⚠ The last write and the end share a frame (the
-    /// block is then cleared), so the end is pinned by its RESULT and its TIMING: Success ~2 s after Stage 1.
+    /// ⭐⭐ <b><c>CE-2053</c> ("S8n-2" ④) — a Parameter the compile cannot size never gets a baked offset.</b> The corpus compile
+    /// has no size oracle, so <c>Demo_MissionPlan</c>'s project-struct Parameters (<c>MoveToLocationParamsJsonDto</c>, 40 bytes)
+    /// come back at the AN2 4-byte guess. 🔴 Before: <c>LayoutFromRuntime</c> did not look at Parameters, so <c>Params</c> was
+    /// declared Explicit at 0 / 4 / 8 and the three structs OVERLAPPED. Now it is Sequential and the CLR lays it out.
     /// </summary>
     [Fact]
-    public void Demo_TaskChain_RunsEachTaskInOrder_AndSucceeds()
+    public void CE2053_AParameterTheCompileCannotSize_IsLaidOutByTheRuntime_NeverOverlapped()
     {
-        var (_, frame, readInt, _) = LoadTaskChain();
-        int stage1At = -1, endAt = -1;
-        Fbt.NodeStatus? result = null;
-        for (int f = 1; f <= 400 && result is null; f++)
-        {
-            result = frame();
-            if (stage1At < 0 && readInt("Stage") == 1) stage1At = f;
-            if (result is not null) endAt = f;
-        }
-        Assert.Equal(Fbt.NodeStatus.Success, result);
-        Assert.InRange(stage1At, 55, 75);                   // ~1 s of 16 ms frames
-        Assert.InRange(endAt - stage1At, 115, 140);         // Engage's ~2 s, then Stage 2 ⇒ Success
-        Assert.Equal(0, readInt("Retreated") & 0xFF);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>Demo_TaskChain (§7) — Abort stops a running task and the chain retreats.</b> Once Engage runs (Stage 1),
-    /// setting <c>CallOff</c> makes Engage's While Running abort it ⇒ Failed ⇒ Retreat (0.5 s) ⇒ Return Failure; Stage
-    /// never reaches 2.
-    /// </summary>
-    [Fact]
-    public unsafe void Demo_TaskChain_CallOff_AbortsTheRunningTask_AndRetreats()
-    {
-        var (e, frame, readInt, setTrue) = LoadTaskChain();
-        Fbt.NodeStatus? result = null;
-        int f = 0;
-        for (; f < 200 && readInt("Stage") != 1; f++) Assert.Null(frame());
-        Assert.Equal(1, readInt("Stage"));
-        for (int k = 0; k < 10; k++) Assert.Null(frame());   // Engage is running
-        setTrue("CallOff");
-        int abortedAt = f + 10;
-        for (; f < 600 && result is null; f++) result = frame();
-        Assert.Equal(Fbt.NodeStatus.Failure, result);
-        Assert.Equal(1, readInt("Stage"));                    // Stage 2 never written
-        Assert.InRange(f - abortedAt, 25, 45);                // the 0.5 s Retreat (an unwired failure would end at once)
-    }
-
-    /// <summary>Loads the shipped Demo_MissionPlan and its step children, and assigns it.</summary>
-    private (Fdp.Core.Entity e, Func<Fbt.NodeStatus?> frame, Func<string, int> readInt) LoadMissionPlan()
-    {
-        const string Host = "Demo_MissionPlan";
-        var assets = new[] { "Demo_Advance", "Demo_Engage", "Demo_Retreat", "Demo_TakeCover", Host }
-            .Select(GoldenCorpus.Load).ToList();
-        _fixture.CompileAndLoadMany(assets, GoldenCorpus.Options());
-        var (e, step) = AssignAndFramer(Host);
-        var frame = Timed(step);
-        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
-        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
-        unsafe
-        {
-            // ⚠ A finished behaviour's block is cleared: a read after the end returns the last value seen.
-            var last = new System.Collections.Generic.Dictionary<string, int>();
-            int ReadInt(string n)
-            {
-                if (RootParamsAccess.TryGetRootBytes(_fixture.World, e, out byte* root))
-                    last[n] = *(int*)(root + VarOffset(def!, n));
-                return last.TryGetValue(n, out int v) ? v : 0;
-            }
-            return (e, frame, ReadInt);
-        }
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>Demo_MissionPlan (§7, the concept capstone) — untouched, the mission runs its three legs.</b> Advance (1 s) →
-    /// Phase 1 → Defend (2 s) → Phase 2 → Return (1 s) → Phase 3 → Success; Health stays 100, no cover taken.
-    /// </summary>
-    [Fact]
-    public void Demo_MissionPlan_Untouched_RunsItsThreeLegs_AndSucceeds()
-    {
-        var (_, frame, readInt) = LoadMissionPlan();
-        var phases = new System.Collections.Generic.List<int>();
-        Fbt.NodeStatus? result = null;
-        int f = 0;
-        for (; f < 600 && result is null; f++)
-        {
-            result = frame();
-            int p = readInt("Phase");
-            readInt("Health"); readInt("CoverTaken");       // seen while it runs (the block is cleared at the end)
-            if (phases.Count == 0 || phases[^1] != p) phases.Add(p);
-        }
-        Assert.Equal(Fbt.NodeStatus.Success, result);
-        Assert.Equal(new[] { 0, 1, 2 }, phases);            // Phase 3 and the end share the last frame
-        Assert.InRange(f, 235, 265);                        // 1 s + 2 s + 1 s
-        Assert.Equal((100, 0), (readInt("Health"), readInt("CoverTaken")));
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>Demo_MissionPlan — hits take cover ALONGSIDE, and low health aborts the defence.</b> During Defend, eight
-    /// hits on self arrive one per frame: each costs 10 Health and starts Take Cover RUNNING ALONGSIDE (its Started chain
-    /// counts at once — the handler never waits; a later hit restarts the cover). At Health 20 Defend's While Running
-    /// aborts it ⇒ Failed ⇒ Retreat ⇒ Phase −1 ⇒ Failure — the Return leg never runs.
-    /// </summary>
-    [Fact]
-    public void Demo_MissionPlan_Hits_TakeCoverAlongside_AndLowHealthAbortsTheDefence()
-    {
-        var (e, frame, readInt) = LoadMissionPlan();
-        int f = 0;
-        for (; f < 200 && readInt("Phase") != 1; f++) Assert.Null(frame());
-        Assert.Equal(1, readInt("Phase"));
-        for (int k = 0; k < 8; k++)
-        {
-            _fixture.World.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.HitEvent { HitEntity = e });
-            _fixture.World.Bus.SwapBuffers();
-            Assert.Null(frame());
-            Assert.Equal(k + 1, readInt("CoverTaken"));       // the Started chain ran in the hit's own frame
-        }
-        Assert.Equal(20, readInt("Health"));
-        Fbt.NodeStatus? result = null;
-        int retreatFrames = 0;
-        for (; retreatFrames < 120 && result is null; retreatFrames++) result = frame();
-        Assert.Equal(Fbt.NodeStatus.Failure, result);
-        Assert.Equal(1, readInt("Phase"));                  // the Return leg (Phase 2) never ran
-        Assert.InRange(retreatFrames, 25, 45);              // Retreat's 0.5 s after the abort
+        var asm = _fixture.CompileAndLoad(GoldenCorpus.Load("Demo_MissionPlan"), GoldenCorpus.Options());
+        var prm = asm.GetTypes().Single(t => t.Name == "Params" && t.DeclaringType?.Name.StartsWith("DemoMissionPlan") == true);
+        int move = Fdp.Core.TypeLayout.OffsetOf(prm, "Move"), fire = Fdp.Core.TypeLayout.OffsetOf(prm, "Fire"),
+            home = Fdp.Core.TypeLayout.OffsetOf(prm, "Home");
+        int moveSize = Fdp.Core.TypeLayout.SizeOf(typeof(Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto));
+        int fireSize = Fdp.Core.TypeLayout.SizeOf(typeof(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto));
+        Assert.True(fire >= move + moveSize, $"Fire @{fire} overlaps Move @{move} (+{moveSize})");
+        Assert.True(home >= fire + fireSize, $"Home @{home} overlaps Fire @{fire} (+{fireSize})");
     }
 
     /// <summary>⭐ The shipped demos are registered by the PRODUCTION scan as blueprint behaviours (the generator compiled them).</summary>

@@ -735,7 +735,7 @@ internal static class InstanceEmitter
             foreach (var site in bound)
             {
                 e.WriteLine($"private static global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding __Bind_{site.SiteId:N}()");
-                e.WriteLine($"{{ var __b = default(Block); return __SiteBind(ref __b, ref __b.St.{site.ParamsVariable}); }}");
+                e.WriteLine($"{{ var __b = default(Block); return __SiteBind(ref __b, ref __b.{site.ParamsVariable}); }}");
                 e.WriteLine($"public static readonly global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding {RunBindField(site)} = __Bind_{site.SiteId:N}();");
             }
             e.WriteLine();

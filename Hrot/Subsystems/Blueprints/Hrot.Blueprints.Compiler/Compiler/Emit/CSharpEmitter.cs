@@ -546,9 +546,15 @@ internal sealed class CSharpEmitter
     /// as a state declaration would. Measured no-op on the corpus — <b>no shipped asset has any</b>.
     /// </para>
     /// </summary>
+    /// <para>⭐ <c>CE-2053</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8n-2" ④) — <b>Parameters too.</b> They share the layout
+    /// (the params region precedes the state, and a behaviour's <c>Block.In</c> precedes <c>St</c>), and
+    /// <c>EmitParamsStruct</c>'s own contract is "stays Sequential under this regime". 🔴 Measured: a Parameter typed as a
+    /// project struct the compile could not size (no oracle — every compile but the production generator) got the AN2
+    /// 4-byte guess AND baked <c>[FieldOffset]</c>s, so <c>Demo_MissionPlan</c>'s 40-byte <c>Move</c> and <c>Fire</c> overlapped.</para>
     private static bool LayoutFromRuntime(IrAsset asset)
         => asset.StateDeclarations.Any(f => !f.Type.SizeReliable)
-        || asset.GraphLocalSlots.Any(f => !f.Type.SizeReliable);
+        || asset.GraphLocalSlots.Any(f => !f.Type.SizeReliable)
+        || asset.Parameters.Any(f => !f.Type.SizeReliable);
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>W4</c> — emit <c>LayoutKind.Explicit</c> + <c>[FieldOffset]</c> so the struct <b>IS</b>

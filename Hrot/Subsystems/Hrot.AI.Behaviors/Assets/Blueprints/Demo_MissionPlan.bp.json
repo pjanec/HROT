@@ -12,6 +12,45 @@
   "Primitive": null,
   "Declarations": [
     {
+      "Kind": "Parameter",
+      "Id": "a7c0de01-0000-4000-8000-000000000001",
+      "Name": "Move",
+      "Type": {
+        "TypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": "Where the Advance leg drives (MoveToLocation).",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "a7c0de01-0000-4000-8000-000000000002",
+      "Name": "Fire",
+      "Type": {
+        "TypeId": "Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": "What the Defend leg engages (FireAtTarget).",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "a7c0de01-0000-4000-8000-000000000003",
+      "Name": "Home",
+      "Type": {
+        "TypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": "Where the Return leg drives (MoveToLocation).",
+      "Comment": null
+    },
+    {
       "Kind": "Variable",
       "Id": "6470a704-281f-480f-97d0-8ba62a876fb6",
       "Name": "Health",
@@ -102,7 +141,9 @@
         },
         {
           "kind": "BehaviorTask",
-          "BehaviorName": "Demo_Advance",
+          "BehaviorName": "MoveToLocation",
+          "ParamsTypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
+          "ParamsVariable": "a7c0de01-0000-4000-8000-000000000001",
           "Id": "e09361cc-bcb9-4b41-a88b-5d8527183512",
           "Pins": [
             {
@@ -271,7 +312,9 @@
         },
         {
           "kind": "BehaviorTask",
-          "BehaviorName": "Demo_Engage",
+          "BehaviorName": "FireAtTarget",
+          "ParamsTypeId": "Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto",
+          "ParamsVariable": "a7c0de01-0000-4000-8000-000000000002",
           "Id": "7b9e415a-9ed4-4429-a2c7-ca3a63180183",
           "Pins": [
             {
@@ -596,7 +639,9 @@
         },
         {
           "kind": "BehaviorTask",
-          "BehaviorName": "Demo_Advance",
+          "BehaviorName": "MoveToLocation",
+          "ParamsTypeId": "Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto",
+          "ParamsVariable": "a7c0de01-0000-4000-8000-000000000003",
           "Id": "fe4662b9-c63a-46cd-95dc-f5604172b8ab",
           "Pins": [
             {

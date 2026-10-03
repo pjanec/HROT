@@ -414,8 +414,8 @@ public sealed record IrOp_InlineActionCall(
 /// </summary>
 public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation
 {
-    /// <summary>⭐ S8 / <c>CE-2022</c> — the host Variable (by name, in the block's <c>St</c>) whose bytes seed the child at its
-    /// start, or null (the child starts from its defaults).</summary>
+    /// <summary>⭐ S8 / <c>CE-2022</c> — the host member whose bytes seed the child at its start, as a path in the block
+    /// (<c>St.Name</c> a Variable, <c>In.Name</c> a Parameter — CE-2023 ③), or null (the child starts from its defaults).</summary>
     public string? ParamsVariable { get; init; }
 }
 

@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n as-built" — N-1, the struct contracts; N-2 next).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n-2 as-built" — the §7 demos on the real children, CE-2052/2053).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -2216,6 +2216,23 @@ graph TD
 **Design docs checked:** U-10 (this document §5) — applies; its intent ("channels reset with the host") is kept and the
 missed case added · `DESIGN_Behavior_Action_Binding.md` (the `WritesChannels` clear, failure-only) — does not cover success,
 and curated actions do not declare it · §7 table — applies, this is its curated-children promise.
+
+#### S8n-2 as-built *(`2026-10-03`, CE-2023 ③ · CE-2052 · CE-2053)*
+
+Built as designed, with ONE compiler gap and ONE latent compiler defect the build found:
+
+| what | as built |
+|---|---|
+| ① demos | `Demo_MissionPlan` Parameters `Move` / `Fire` / `Home`, `Demo_TaskChain` `Move` / `Fire`; their Advance / Defend (Engage) / Return tasks are `MoveToLocation` / `FireAtTarget` with `ParamsTypeId` + `ParamsVariable` = the Parameter (asset edit, ids unchanged; the run-site slot keys are node-id based so nothing else moved) |
+| ⚠ gap | `Stage5_Schedule.ParamsVariableName` resolved only VARIABLES (`Block.St`) ⇒ an authored `ParamsVariable` naming a Parameter bound nothing. ⭐ It now returns a member path — `St.X` for a Variable, `In.X` for a Parameter — and `InstanceEmitter` binds `__b.{path}`: a behaviour passes its own input straight to a child |
+| ② rails | `Hrot.SimHost.Tests/BehaviourTaskDemoTests` (4): mission legs on the real children each from its own Parameter · hits ⇒ cover alongside, low health ⇒ abort ⇒ retreat, Return never drives · task chain in order · CallOff aborts a FIRING Engage ⇒ retreat. The four `BlueprintBehaviourTests.Demo_*` rails are gone from Blueprints (re-homed claim for claim) |
+| ③ CE-2052 | `HostedSubtree.ReleaseFinishedChannels` at a child's fresh start; rail `HostingMatrixTests.CE2052_*` |
+| ④ CE-2053 *(found by the corpus golden)* | `CSharpEmitter.LayoutFromRuntime` now scans **Parameters** too. 🔴 A Parameter typed as a project struct the compile could not size (every compile but the production generator has no size oracle) got the AN2 4-byte guess AND baked `[FieldOffset]`s ⇒ `Move`/`Fire`/`Home` at 0/4/8, overlapping 40-byte structs. `EmitParamsStruct`'s own doc already promised "stays Sequential under this regime". No other corpus golden moved. Rail `BlueprintBehaviourTests.CE2053_*` |
+
+🔴 Red-proofs: no release ⇒ the mission rail fails (the Return leg never drives — ONE destination); no Parameter binding ⇒ 3 of
+4 demo rails fail (the children start from defaults: no destination, no target) and the 4th was tightened to require Engage
+FIRING before the abort (it had passed for the wrong reason); CE-2052 unit rail 1 activation for 2 legs; CE-2053 "Fire @4
+overlaps Move @0 (+40)". Gates: Blueprints 4128/0/17, SimHost 1061/0/3, Toolkits 2468/0, Generators 378/0, Editor 453/0/2. ⏳ The capstone on a `--mode all` cluster: see "S8n-2 cluster run" below.
 
 ## 5. Decisions — each with a lean
 

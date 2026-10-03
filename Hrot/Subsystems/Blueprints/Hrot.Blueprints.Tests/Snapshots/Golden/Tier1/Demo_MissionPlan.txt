@@ -1,12 +1,14 @@
-StructureHash: 0x298AC20B6CDB2A3E
+StructureHash: 0xD24339EE981BB2FE
 Parameters:
-  (empty)
+  Move : Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto @0 size=4
+  Fire : Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto @4 size=4
+  Home : Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto @8 size=4
 WorkingState:
   (empty)
 Variables:
-  Health : System.Int32 @0 size=4
-  Phase : System.Int32 @4 size=4
-  CoverTaken : System.Int32 @8 size=4
+  Health : System.Int32 @16 size=4
+  Phase : System.Int32 @20 size=4
+  CoverTaken : System.Int32 @24 size=4
 GraphLocalSlots:
   __fib_OnHitTask0_0 : _Fiber__fib_OnHitTask0 @16 size=16
 Diagnostics:

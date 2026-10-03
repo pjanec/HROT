@@ -473,6 +473,79 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         }
     }
 
+    // ══ CE-2052 — a second hosted child must not inherit the first one's FINISHED channel ════════════════════
+
+    private const ushort MoveLikeAction = 0x2052;
+    private static int _moveActivations;
+
+    /// <summary>Exactly <c>CgfNodes.Action_WriteMoveToChannel</c>'s channel protocol: a finished action of its own kind is its
+    /// result; otherwise it activates (a new <c>ActionInstanceId</c>) and runs.</summary>
+    private static NodeStatus MoveLike(ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int p)
+    {
+        ref var ch = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+        ch.BehaviorInstanceId = ctx.World.GetComponent<BehaviorState>(ctx.Self).InstanceId;
+        bool needsActivation = ch.ActiveAction != MoveLikeAction || ch.Status == NodeStatus.Failure;
+        if (!needsActivation && ch.Status == NodeStatus.Success) return NodeStatus.Success;
+        if (needsActivation) { unchecked { ch.ActionInstanceId++; } _moveActivations++; }
+        ch.ActiveAction = MoveLikeAction;
+        return NodeStatus.Running;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2052</c> (S8n-2 ③) — two MoveTo-style children of ONE host, in sequence, each drive.</b> The rail plays the
+    /// locomotion dispatcher (a new action ⇒ <c>Running</c>, two frames later ⇒ <c>Success</c>). 🔴 Before: the second child
+    /// found the first one's <c>Success</c> on the shared channel (the host's instance never changed, so arbitration never
+    /// released it) and ended on its first tick — ONE activation for two legs.
+    /// </summary>
+    [Fact]
+    public void CE2052_TheSecondChild_DoesNotInheritTheFirstChildsFinishedChannel()
+    {
+        _moveActivations = 0;
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var cb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(MoveLike));
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name = ChildName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile(ChildName), cb.GetRegistry()),
+        });
+        var hb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq
+            .Subtree(ChildName, visualId: SiteA)
+            .Subtree(ChildName, visualId: SiteB));
+        var hostBlob = hb.Compile(HostName);
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.AddComponent(entity, new LocomotionChannel());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(beh);
+
+        int runningFor = 0, finished = 0;
+        for (int f = 0; f < 40 && finished == 0; f++)
+        {
+            brain.Execute(world, 0.016f);
+            foreach (var e in world.Bus.Read<BehaviorFinishedEvent>()) if (e.Entity.Index == entity.Index) finished++;
+            world.Bus.SwapBuffers();
+            ref var ch = ref world.GetComponentRW<LocomotionChannel>(entity);   // the played dispatcher
+            if (ch.ActionInstanceId != ch.DispatchedInstanceId) { ch.DispatchedInstanceId = ch.ActionInstanceId; ch.Status = NodeStatus.Running; runningFor = 0; }
+            else if (ch.ActiveAction != 0 && ch.Status == NodeStatus.Running && ++runningFor >= 2) ch.Status = NodeStatus.Success;
+        }
+
+        Assert.Equal(1, finished);                // the host's sequence completed
+        Assert.Equal(2, _moveActivations);        // and each leg activated its own move
+    }
+
     // ══ S5c — hosting cycles are refused at registration (U-9) ════════════════════════════════════
 
     /// <summary>Registers <paramref name="name"/> as a BTree hosting <paramref name="child"/>, in the generated order:

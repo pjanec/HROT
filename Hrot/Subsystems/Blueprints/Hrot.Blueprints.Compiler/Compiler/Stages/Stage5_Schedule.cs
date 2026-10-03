@@ -4915,14 +4915,20 @@ internal sealed class GraphScheduler
     /// the kind exactly as the id path did, so it gains the same fix.
     /// </para>
     /// </summary>
-    /// <summary>⭐ S8 / <c>CE-2022</c> — a Behaviour Task's bound variable, by NAME (its field in the block), or null.</summary>
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> — a Behaviour Task's bound host variable, as its MEMBER PATH in the block: <c>St.Name</c> for a
+    /// Variable, ⭐ <c>In.Name</c> for one of the behaviour's own Parameters (<c>CE-2023</c> ③, "S8n-2": a behaviour passes its
+    /// input straight to a child, e.g. the §7 demos' <c>Move</c> → <c>MoveToLocation</c>), or null.
+    /// </summary>
     private string? ParamsVariableName(string? variableId)
     {
         if (string.IsNullOrWhiteSpace(variableId)) return null;
         var idStr = variableId!.StartsWith("var:", StringComparison.OrdinalIgnoreCase) ? variableId.Substring(4) : variableId;
-        return Guid.TryParse(idStr, out var guid)
-            ? _typed.Asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(v => v.Id == guid)?.Name
-            : null;
+        if (!Guid.TryParse(idStr, out var guid)) return null;
+        var variable = _typed.Asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(v => v.Id == guid);
+        if (variable is not null) return "St." + variable.Name;
+        var parameter = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(v => v.Id == guid);
+        return parameter is not null ? "In." + parameter.Name : null;
     }
 
     private VariableRef FindVariableRef(string variableId)
