@@ -1,19 +1,7 @@
 namespace Hrot.Blueprints.Core.Compiler;
 
+/// <summary>The compiler's façade over THE asset-id hash (⭐ CE-2036: <c>Shared/BlueprintIdFnv.cs</c>, linked).</summary>
 public static class BlueprintIdHash
 {
-    private const uint OffsetBasis = 2166136261u;
-    private const uint FnvPrime = 16777619u;
-
-    public static int Compute(Guid assetId)
-    {
-        var bytes = assetId.ToByteArray();
-        uint hash = OffsetBasis;
-        for (int i = 0; i < bytes.Length; i++)
-        {
-            hash ^= bytes[i];
-            hash *= FnvPrime;
-        }
-        return (int)hash;
-    }
+    public static int Compute(Guid assetId) => global::Fdp.Toolkit.Behavior.Shared.BlueprintIdFnv.Compute(assetId);
 }

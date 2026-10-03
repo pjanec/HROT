@@ -2296,25 +2296,8 @@ public static class BlueprintDocumentFactory
         for (int i = 1; i < trimmed.Length; i++)
             if (!char.IsLetterOrDigit(trimmed[i]) && trimmed[i] != '_') return false;
 
-        return !CSharpKeywords.Contains(trimmed);
+        return !global::Hrot.AiEditor.Persistence.Emit.Identifiers.IsReservedKeyword(trimmed);   // ⭐ CE-2039 — the one sanitizer's keyword list
     }
-
-    /// <summary>
-    /// C# reserved words. A parameter named <c>class</c> is a well-formed identifier by shape but a
-    /// compile error once emitted, so shape alone is not enough.
-    /// </summary>
-    private static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
-    {
-        "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
-        "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
-        "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
-        "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
-        "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
-        "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
-        "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
-        "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
-        "void", "volatile", "while",
-    };
 
     // ── Graph switching support (BP-24 / Q23-C) ───────────────────────────────
 

@@ -53,4 +53,14 @@
                       ExcludeAssets="runtime" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ⭐⭐ CE-2027 — the ONE compile-time struct-layout algorithm, shared by link with the FDP analyzers that used to carry
+         three copies of it (BehaviorParameterSizeAnalyzer, BTreeActionGenerator, HsmActionGenerator). StructSizeResolver is
+         its string front door. Dependency-free (Roslyn only), like its Shared/ neighbours. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\RoslynStructLayout.cs"
+             Link="Shared\RoslynStructLayout.cs" />
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\KnownTypeLayouts.cs"
+             Link="Shared\KnownTypeLayouts.cs" />
+  </ItemGroup>
+
 </Project>

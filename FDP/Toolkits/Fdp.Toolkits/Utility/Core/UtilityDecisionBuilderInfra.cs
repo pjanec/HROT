@@ -107,15 +107,7 @@ namespace Fdp.Toolkit.Utility
         /// Used to derive blueprint IDs and decision asset IDs.
         /// </summary>
         public static uint Fnv1a32(string name)
-        {
-            uint hash = 2166136261u;
-            foreach (char c in name)
-            {
-                hash ^= (byte)c;
-                hash *= 16777619u;
-            }
-            return hash;
-        }
+            => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.Fnv1a32(name);   // ⭐ CE-2035 — was the low byte only
     }
 
     // ── Curve presets ──────────────────────────────────────────────────────────────

@@ -35,23 +35,17 @@ public static class RawValueDecoder
     {
         if (bytes is null || type is null || bytes.Length == 0) return null;
 
-        // ⭐ bool first: Marshal.SizeOf(bool) is 4 by default while the blackboard packs it as 1
-        //   (the [MarshalAs(I1)] the DTO emitter injects), so the generic path would read too much.
-        if (type == typeof(bool)) return bytes[0] != 0;
-
+        // ⭐ CE-2041 — the MANAGED layout the blackboard holds (Fdp.Core.TypeLayout). It read the interop layout
+        //   (Marshal.PtrToStructure), special-casing a bare bool but mis-reading any STRUCT with a bool or char field.
         var target = type.IsEnum ? Enum.GetUnderlyingType(type) : type;
 
-        int size;
-        try { size = Marshal.SizeOf(target); }
-        catch { return null; }                       // not a blittable layout
-
+        if (!Fdp.Core.TypeLayout.TrySizeOf(target, out int size) || Fdp.Core.TypeLayout.ContainsReferences(target))
+            return null;                             // no managed size, or its bytes are not a value
         if (size <= 0 || bytes.Length < size) return null;
 
         object? value;
-        var handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-        try { value = Marshal.PtrToStructure(handle.AddrOfPinnedObject(), target); }
+        try { value = Fdp.Core.TypeLayout.Read(bytes, 0, target); }
         catch { return null; }
-        finally { handle.Free(); }
 
         if (value is null) return null;
 

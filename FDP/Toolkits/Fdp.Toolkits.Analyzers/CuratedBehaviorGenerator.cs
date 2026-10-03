@@ -338,13 +338,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         }
 
         private static string SanitizeIdentifier(string name)
-        {
-            var sb = new StringBuilder(name.Length);
-            foreach (char c in name)
-                sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
-            if (sb.Length > 0 && char.IsDigit(sb[0])) sb.Insert(0, '_');
-            return sb.ToString();
-        }
+            => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.ReplaceInvalid(name, "");
     }
 
     internal class CuratedTopology

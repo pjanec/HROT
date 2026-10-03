@@ -178,25 +178,19 @@ internal static class GeneratedBlueprintSchemaCatalog
         if (schema == null)
             return null;
 
-        // Compute each parameter field's managed size: known primitive/vector table first (mirrors
-        // BTreeBlackboardPackHelper.Pack's own lookup order), then the Roslyn resolver (handles
-        // project enum types authored as a blueprint Parameter type).
-        var fieldSizes = new List<int>(schema.Parameters.Count);
+        // Each parameter field's managed (size, alignment) — the known-type table first, then the Roslyn resolver (handles
+        // project enum and struct types authored as a blueprint Parameter type). ⭐ CE-2027: the ALIGNMENT is the field's own
+        // (a Vector3 is 4-aligned), not min(size, 8) — the Params struct is a Sequential C# struct the CLR lays out.
+        var fields = new List<(int Size, int Align)>(schema.Parameters.Count);
         foreach (var param in schema.Parameters)
         {
-            if (Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.TryGetSize(param.TypeId, out int known))
-            {
-                fieldSizes.Add(known);
-                continue;
-            }
-
-            int? resolved = StructSizeResolver.ResolveFieldSize(param.TypeId, compilation);
-            if (!resolved.HasValue)
+            var layout = StructSizeResolver.ResolveFieldLayout(param.TypeId, compilation);
+            if (!layout.HasValue)
                 return null;
-            fieldSizes.Add(resolved.Value);
+            fields.Add(layout.Value);
         }
 
-        return StructSizeResolver.ComputeSequentialSize(fieldSizes);
+        return global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(fields);
     }
 
     /// <summary>

@@ -140,7 +140,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 };
 
             // Compute blueprint ID via FNV-1a-32 (bit-cast to int)
-            uint rawId = Fnv1a32(assetId);
+            uint rawId = global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.Fnv1a32(assetId);   // ⭐ CE-2035 — the one utility-id hash
 
             // Determine containing namespace
             string ns = GetFullNamespace(symbol.ContainingNamespace);
@@ -346,18 +346,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         }
 
         // ---- Helpers -----------------------------------------------------------
-
-        // 32-bit FNV-1a hash. basis=2166136261, prime=16777619.
-        private static uint Fnv1a32(string s)
-        {
-            uint hash = 2166136261u;
-            foreach (char c in s)
-            {
-                hash ^= (uint)c;
-                hash *= 16777619u;
-            }
-            return hash;
-        }
 
         private static string GetFullNamespace(INamespaceSymbol ns)
         {

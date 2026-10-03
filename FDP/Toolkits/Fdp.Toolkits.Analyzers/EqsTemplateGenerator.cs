@@ -38,15 +38,14 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             if (attr.ConstructorArguments.Length == 0) return null;
             if (attr.ConstructorArguments[0].Value is not string assetId) return null;
 
-            // Compute 32-bit FNV-1a hash for BlueprintId.
-            uint blueprintId = 2166136261u;
-            foreach (char c in assetId)
-            {
-                blueprintId ^= (uint)c;
-                blueprintId *= 16777619u;
-            }
+            // ⭐⭐ CE-2034 — THE asset-id hash: FNV-1a over the GUID's 16 BYTES (Shared/BlueprintIdFnv), the id
+            //   EqsTemplateRegistry keys the template by and the blueprint compiler bakes into SpawnEqsSensor.
+            //   ⛔ It hashed the GUID's TEXT, so the definition staged here sat under an id nothing looked up.
+            //   A non-GUID AssetId stages nothing — EqsTemplateRegistry.Discover skips it the same way.
+            if (!System.Guid.TryParse(assetId, out var assetGuid)) return null;
+            int blueprintId = global::Fdp.Toolkit.Behavior.Shared.BlueprintIdFnv.Compute(assetGuid);
 
-            return new EqsTemplateInfo(symbol.ToDisplayString(), assetId, (int)blueprintId);
+            return new EqsTemplateInfo(symbol.ToDisplayString(), assetId, blueprintId);
         }
 
         private static void Execute(
@@ -75,14 +74,17 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        public static void Register(BlueprintRegistryStaging staging)");
             sb.AppendLine("        {");
 
-            foreach (var t in valid)
+            for (int i = 0; i < valid.Count; i++)
             {
-                sb.AppendLine("            var template_" + t.BlueprintId + " = " + t.FullyQualifiedName + ".Build(new EqsTemplateBuilder());");
+                var t = valid[i];
+                // ⭐ CE-2034 — the local is named by INDEX: a negative id made "template_-123", which is not an identifier.
+                string local = "template_" + i;
+                sb.AppendLine("            var " + local + " = " + t.FullyQualifiedName + ".Build(new EqsTemplateBuilder());");
                 sb.AppendLine("            staging.Add(" + t.BlueprintId + ", new BlueprintDefinition");
                 sb.AppendLine("            {");
                 sb.AppendLine("                Name = \"" + t.FullyQualifiedName + "\",");
                 sb.AppendLine("                Kind = BlueprintDispatchKind.Library,");
-                sb.AppendLine("                StructureHash = template_" + t.BlueprintId + ".ComputeStructureHash(),");
+                sb.AppendLine("                StructureHash = " + local + ".ComputeStructureHash(),");
                 sb.AppendLine("                StateSize = 0,");
                 sb.AppendLine("            });");
             }

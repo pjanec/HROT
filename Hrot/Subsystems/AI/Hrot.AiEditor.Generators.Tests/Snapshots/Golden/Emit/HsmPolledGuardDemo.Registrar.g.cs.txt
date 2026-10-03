@@ -79,7 +79,7 @@ public static class HsmPolledGuardDemoRegistrar
         }
 
         // Register the JSON-owned HSM definition.
-        beh.Register(964840028, "HsmPolledGuardDemo", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmPolledGuardDemo"), "HsmPolledGuardDemo", new BehaviorDefinition
         {
             Name          = "HsmPolledGuardDemo",
             BrainTier     = BehaviorConstants.BrainTierHsm,

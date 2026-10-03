@@ -115,8 +115,16 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// bakes the key into an HSM blob and the generator that registers the thunk must produce the
         /// same string, and the only reliable way to guarantee that is for both to call this.
         /// </summary>
-        public static string CompoundKeyName(string fullyQualifiedName, int byteOffset)
+        public static string CompoundKeyName(string? fullyQualifiedName, long byteOffset)
             => fullyQualifiedName + "@" + byteOffset;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2032</c> — the STATEFUL compound key, <c>{fqn}@{paramOffset}@{slotKey}</c>: a shared method bound with a
+        /// working-state slot. ⛔ Both shapes were spelled by hand at 17 sites (BTree/HSM emit cores, the bridge,
+        /// <c>SharedAiBindings</c>, the runtime <c>SharedNodeBinder</c>) — one typo away from a registration nobody addresses.
+        /// </summary>
+        public static string CompoundKeyName(string? fullyQualifiedName, long paramOffset, long slotKey)
+            => fullyQualifiedName + "@" + paramOffset + "@" + slotKey;
 
         /// <summary>
         /// ⭐⭐ <b><c>P2</c> — the 64-bit layout guard baked into a curated action's occurrence resolve.</b>

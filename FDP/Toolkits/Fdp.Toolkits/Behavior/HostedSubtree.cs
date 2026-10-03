@@ -180,7 +180,7 @@ public static unsafe class HostedSubtree
         {
             hash = (hash ^ (uint)size) * 16777619u;
             if (childDef?.BlackboardLayoutType is { } t)
-                hash = (hash ^ (uint)t.FullName!.GetHashCode()) * 16777619u;
+                hash = (hash ^ TypeNameHash(t.FullName!)) * 16777619u;   // ⭐ CE-2033 — deterministic (was string.GetHashCode)
         }
         return s with { SlotKey = key, PayloadSize = size, StructureHash = hash };
     }
@@ -337,13 +337,8 @@ public static unsafe class HostedSubtree
             (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
     }
 
-    /// <summary>FNV-1a-32 over a type name — the same shape the emitters bake.</summary>
-    private static uint TypeNameHash(string typeName)
-    {
-        uint hash = 2166136261u;
-        foreach (char c in typeName) { hash ^= (byte)c; hash *= 16777619u; }
-        return hash;
-    }
+    /// <summary>The type-name hash the emitters bake — ⭐ CE-2033: THE one (<c>OccurrenceSlotKey.TypeNameHash</c>).</summary>
+    private static uint TypeNameHash(string typeName) => Shared.OccurrenceSlotKey.TypeNameHash(typeName);
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-431</c>/<c>CE-443</c> — <b>the child's start pipeline, run at every START</b>: clear → bake →

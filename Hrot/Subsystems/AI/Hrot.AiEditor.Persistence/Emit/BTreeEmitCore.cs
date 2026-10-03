@@ -375,7 +375,7 @@ public static class BTreeEmitCore
         var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
             ? "Hrot.AI.Behaviors.Trees"
             : dto.TargetNamespace;
-        var className = SanitizeIdentifier(dto.Name);
+        var className = global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(dto.Name, "BTreeAsset", bare: true);   // ⭐ CE-2039 — the one sanitizer (bare: a class name)
 
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
@@ -878,7 +878,7 @@ public static class BTreeEmitCore
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(actionTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
@@ -907,7 +907,7 @@ public static class BTreeEmitCore
             int slotKey  = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
@@ -973,7 +973,7 @@ public static class BTreeEmitCore
             if (variableOffsets != null && variableOffsets.Count > 0 &&
                 variableOffsets.TryGetValue(condTargetField!, out int offset))
             {
-                string blobKey = $"{p.MethodFqn}@{offset}";
+                string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, offset);   // ⭐ CE-2032
                 sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
@@ -1002,7 +1002,7 @@ public static class BTreeEmitCore
             int slotKey = dto != null
                 ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
-            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            string blobKey = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, statefulParamOffset, slotKey);   // ⭐ CE-2032
             sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
@@ -1259,17 +1259,7 @@ public static class BTreeEmitCore
     }
 
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder();
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-        }
-        if (sb.Length == 0) return "BTreeAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "BTreeAsset");
 
     private static string QuoteStr(string s) => $"\"{s}\"";
 

@@ -245,15 +245,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         // and produces different values). Must stay byte-identical with BTreeActionGenerator.ComputeHash
         // and HsmActionGenerator.ComputeHash — any divergence silently breaks dispatch.
         internal static ushort ComputeHash(string s)
-        {
-            uint hash = 2166136261u;
-            foreach (char c in s)
-            {
-                hash ^= (uint)c;
-                hash *= 16777619u;
-            }
-            return (ushort)(hash & 0xFFFF);
-        }
+            => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(s);   // ⭐ CE-2035 — the one utility-id hash
 
         // ---- Data class --------------------------------------------------------
 

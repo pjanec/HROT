@@ -188,12 +188,17 @@ namespace TestNs
         /// <summary>
         /// SC-P2-02-2: The hex literal emitted for Id and registry.Register matches
         /// the reference FNV-1a-32 hash of the AssetId string.
+        /// <para>⭐ <c>CE-2035</c>: "the reference" is now the RUNTIME's id — <see cref="UtilityDecisionCatalog.ComputeId"/>, which
+        /// the blueprint compiler's ScoreDecision also bakes — not a restatement of the generator's own formula. The non-ASCII
+        /// case is the one where the generator (whole char) and the runtime (low byte) used to disagree.</para>
         /// </summary>
-        [Fact]
-        public void BlueprintId_MatchesFnv1a32OfAssetId()
+        [Theory]
+        [InlineData("my-unique-asset-id")]
+        [InlineData("Kryt\u010D-posture")]
+        public void BlueprintId_MatchesFnv1a32OfAssetId(string assetId)
         {
-            const string assetId = "my-unique-asset-id";
-            string expectedHex = "0x" + Fnv1a32Ref(assetId).ToString("X8");
+            string expectedHex = "0x" + unchecked((uint)global::Fdp.Toolkit.Utility.UtilityDecisionCatalog.ComputeId(assetId)).ToString("X8");
+            Assert.Equal(Fnv1a32Ref(assetId).ToString("X8"), expectedHex.Substring(2));   // and it is the designed formula (§3.3)
 
             string source = @"
 namespace TestNs

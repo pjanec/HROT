@@ -292,8 +292,6 @@ public static class BTreeBridgeEmitCore
         string pad = Indent;
         string pad2 = Indent + Indent;
 
-        // Deterministic behavior ID from the asset GUID (not string.GetHashCode()).
-        int behaviorId = DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
         // ⭐⭐⭐ P4-② (2026-09-22) — THE DISPATCH TYPE IS `byte`, FOR EVERY TREE.
         //
@@ -492,7 +490,7 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
@@ -549,7 +547,7 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
@@ -655,7 +653,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
@@ -953,7 +951,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
@@ -983,10 +981,10 @@ public static class BTreeBridgeEmitCore
             // nothing to corrupt — skip the guard rather than emit a check that always throws.
             if (predictedSize > 0)
             {
-                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
                 sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
-                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
@@ -1041,7 +1039,7 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
-            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
 
             entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
@@ -1063,10 +1061,10 @@ public static class BTreeBridgeEmitCore
             // layout baked into the offset, or every projection at this offset corrupts the AAR schema.
             if (predictedSize > 0)
             {
-                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
                 sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
-                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
@@ -1241,15 +1239,15 @@ public static class BTreeBridgeEmitCore
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
             // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
             // WorkingState struct grows or changes layout (not just the type name).
-            // Strategy: XOR the FNV-1a-32 type-name hash with Marshal.SizeOf<T>() at
+            // Strategy: XOR the FNV-1a-32 type-name hash with Unsafe.SizeOf<T>() (CE-2041: the managed size, was Marshal.SizeOf) at
             // registration time so the hash changes whenever the struct's byte size changes.
-            // Marshal.SizeOf is evaluated at registration time (not emit time), so this
+            // Unsafe.SizeOf is evaluated at registration time (not emit time), so this
             // correctly reflects the loaded struct's actual unmanaged size.
             // Primary guard: PayloadSize mismatch already catches size-growth ghost-slot cases.
             // Hash guard: catches same-size layout changes (field type/order changes).
             uint typeNameHash = ComputeTypeNameHash(wsTypeId);
-            // PayloadSize: emitted as Marshal.SizeOf<T>() call (evaluated at registration time).
-            // StructureHash: also folds in Marshal.SizeOf<T>() so it changes when struct grows.
+            // PayloadSize: emitted as Unsafe.SizeOf<T>() call (evaluated at registration time).
+            // StructureHash: also folds in Unsafe.SizeOf<T>() so it changes when struct grows.
             // WorkingStateType: typeof(global::...) so the inspector can project typed values.
             // NodeLabel: the node's DisplayLabel for a friendly row label in the inspector.
             string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -1265,7 +1263,7 @@ public static class BTreeBridgeEmitCore
             string roleScopeArgs = (role != 0 || scope != 0)
                 ? $", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}"
                 : string.Empty;
-            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
 
         sb.AppendLine(appendHostedSlots ? $"{pad}{Indent}}}, __hosted.Slots)," : $"{pad}}},");
@@ -1369,23 +1367,7 @@ public static class BTreeBridgeEmitCore
     /// hash. ⛔ A second hash would make an HSM slot and a BTree slot of the same type disagree
     /// about whether the struct changed — the guard would fire on one tier and not the other.</remarks>
     internal static uint ComputeTypeNameHash(string typeName)
-    {
-        unchecked
-        {
-            uint hash = 2166136261u;
-            foreach (char c in typeName)
-            {
-                hash ^= (byte)(c & 0xFF);
-                hash *= 16777619u;
-                if (c > 0xFF)
-                {
-                    hash ^= (byte)(c >> 8);
-                    hash *= 16777619u;
-                }
-            }
-            return hash;
-        }
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.TypeNameHash(typeName);   // ⭐ CE-2033 — the one hash (linked)
 
     /// <summary>
     /// Emits the <c>ManagedBlackboardVariables</c> array initializer inside the
@@ -1908,7 +1890,7 @@ public static class BTreeBridgeEmitCore
                      && !string.IsNullOrEmpty(b.ExpressionTargetField) && offsetMap.TryGetValue(b.ExpressionTargetField!, out var field))
             {
                 offset = field.ByteOffset;
-                key = $"{b.MethodFqn}@{offset}";
+                key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(b.MethodFqn, offset);   // ⭐ CE-2032
                 if (shape == BTreeDelegateShapeDto.Stateful)
                 {
                     slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(b), node.VisualId);
@@ -1952,27 +1934,6 @@ public static class BTreeBridgeEmitCore
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Computes a deterministic int ID from a GUID using FNV-1a-32 over the 16 GUID bytes.
-    /// NOT string.GetHashCode() (process-randomized). Satisfies DEBT-006 stable-ID rule.
-    /// </summary>
-    public static int DeterministicIdFromGuid(Guid assetId)
-    {
-        // FNV-1a-32 over the 16 bytes of the GUID
-        byte[] bytes = assetId.ToByteArray();
-        unchecked
-        {
-            uint hash = 2166136261u; // FNV offset basis
-            foreach (byte b in bytes)
-            {
-                hash ^= b;
-                hash *= 16777619u; // FNV prime
-            }
-            // Convert to non-negative int (preserve bit pattern, clear sign bit)
-            return (int)(hash & 0x7FFFFFFFu);
-        }
-    }
-
     private static void AddNamespaceFromTypeName(HashSet<string> set, string typeName)
     {
         int last = typeName.LastIndexOf('.');
@@ -1993,15 +1954,5 @@ public static class BTreeBridgeEmitCore
     }
 
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder();
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-        }
-        if (sb.Length == 0) return "BTreeAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "BTreeAsset", bare: true);
 }

@@ -285,7 +285,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
         }
 
         var descriptors = rawVars
-            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType))
+            .Select(v => new BlackboardVariableDescriptor(v.Name, v.FieldType, v.Role))
             .ToList();
 
         // Derive aggregated descriptors from the aggregation requirements for packing.

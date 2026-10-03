@@ -143,6 +143,18 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-2034 — the starter template's id is the canonical hash too (it was a hand-typed constant that matched no
+        /// hash), so a C# caller, a blueprint <c>SpawnEqsSensor</c> and the generated registrar all name one id.
+        /// </summary>
+        [Fact]
+        public void CE2034_FindCoverFromTarget_BlueprintId_IsTheCanonicalHashOfItsAssetId()
+        {
+            Assert.Equal(
+                EqsTemplateRegistry.BlueprintIdOf(new Guid(FindCoverFromTarget.AssetId)),
+                FindCoverFromTarget.BlueprintId);
+        }
+
+        /// <summary>
         /// CE-465 red-proof: the production install finds the [EqsTemplate] classes, so a sensor gets a
         /// real template instead of the empty-result stub.
         /// </summary>
@@ -154,7 +166,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(registry.TryGetTemplate(EntitiesOfForceInArea.BlueprintId, out var t));
             Assert.IsType<EntitiesInAreaGenerator>(t.Generator);
             Assert.True(registry.TryGetTemplate(FindCoverFromTarget.BlueprintId, out _),
-                "a hand-typed template id must keep resolving for its C# callers");
+                "the starter template resolves by its canonical id");
             Assert.Same(registry, EqsTemplateRegistry.InstallDefault(_world));
         }
 

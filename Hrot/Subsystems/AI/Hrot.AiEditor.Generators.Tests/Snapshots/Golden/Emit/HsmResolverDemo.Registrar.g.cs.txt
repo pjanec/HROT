@@ -80,7 +80,7 @@ public static class HsmResolverDemoRegistrar
         }
 
         // Register the JSON-owned HSM definition.
-        beh.Register(1305886842, "HsmResolverDemo", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmResolverDemo"), "HsmResolverDemo", new BehaviorDefinition
         {
             Name          = "HsmResolverDemo",
             BrainTier     = BehaviorConstants.BrainTierHsm,

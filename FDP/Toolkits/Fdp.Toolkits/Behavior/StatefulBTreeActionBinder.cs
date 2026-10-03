@@ -73,23 +73,7 @@ namespace Fdp.Toolkit.Behavior
         /// layout-sensitive <see cref="StatefulSlotInfo.StructureHash"/>.
         /// </summary>
         public static uint ComputeTypeNameHash(string typeName)
-        {
-            unchecked
-            {
-                uint hash = FnvOffsetBasis;
-                foreach (char c in typeName)
-                {
-                    hash ^= (byte)(c & 0xFF);
-                    hash *= FnvPrime;
-                    if (c > 0xFF)
-                    {
-                        hash ^= (byte)(c >> 8);
-                        hash *= FnvPrime;
-                    }
-                }
-                return hash;
-            }
-        }
+            => Shared.OccurrenceSlotKey.TypeNameHash(typeName);   // ⭐ CE-2033 — the one hash
 
         // ⛔ CE-504 slice 4 — RegisterBlockThunk (CE-430: curried the BTree-only (ref P, ref WS, ref BTS, ref Ctx) form over the
         //   block) is RETIRED with that form: SharedNodeBinder.RegisterStatefulAction curries the shared stateful form the

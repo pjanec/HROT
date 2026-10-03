@@ -560,6 +560,32 @@ namespace Fdp.Toolkit.Behavior.Shared
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2033</c> — the ONE type-name hash folded into a slot's <c>StructureHash</c>: FNV-1a-32 over each char's low
+        /// byte, then its high byte when non-zero. ⛔ It was written three times — <c>StatefulBTreeActionBinder</c> (runtime),
+        /// <c>BTreeBridgeEmitCore</c> (the emitter that BAKES it, HSM included) and <c>HostedSubtree</c> (which dropped the
+        /// high byte, agreeing only on ASCII) — and <c>HostedSubtree.Sized</c> folded <c>string.GetHashCode()</c> instead,
+        /// which .NET randomises per process, so a hosted child's slot never matched across a restart or a replay branch.
+        /// </summary>
+        public static uint TypeNameHash(string typeName)
+        {
+            unchecked
+            {
+                uint hash = FnvOffsetBasis;
+                foreach (char c in typeName)
+                {
+                    hash ^= (byte)(c & 0xFF);
+                    hash *= FnvPrime;
+                    if (c > 0xFF)
+                    {
+                        hash ^= (byte)(c >> 8);
+                        hash *= FnvPrime;
+                    }
+                }
+                return hash;
+            }
+        }
+
         /// <summary>Masked to a non-negative int — 0 is reserved for "no host" / "unused slot".</summary>
         private static int Mask(uint hash) => unchecked((int)(hash & 0x7FFFFFFFu));
     }

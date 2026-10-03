@@ -78,59 +78,14 @@ public static class BTreeBlackboardPackHelper
             $"PackedField({Name}, {TypeId}, offset={ByteOffset}, size={ByteSize})";
     }
 
-    /// <summary>
-    /// Known managed sizes for CLR type FQNs.
-    /// Mirrors <c>BlackboardBinPacker.PrimitiveSizes</c> plus common value-type structs.
-    /// bool = 1 (C# sequential layout, not Win32 BOOL = 4).
-    /// </summary>
-    private static readonly Dictionary<string, int> KnownSizes = new(StringComparer.Ordinal)
-    {
-        { "System.Boolean",  1 },
-        { "System.Byte",     1 },
-        { "System.SByte",    1 },
-        { "System.Char",     2 },
-        { "System.Int16",    2 },
-        { "System.UInt16",   2 },
-        { "System.Int32",    4 },
-        { "System.UInt32",   4 },
-        { "System.Single",   4 },
-        { "System.Int64",    8 },
-        { "System.UInt64",   8 },
-        { "System.Double",   8 },
-        // Common game-math value types
-        { "System.Numerics.Vector2",    8  },
-        { "System.Numerics.Vector3",    12 },
-        { "System.Numerics.Vector4",    16 },
-        { "System.Numerics.Quaternion", 16 },
-        // Unity/engine math aliases (common in game code)
-        { "UnityEngine.Vector2",    8  },
-        { "UnityEngine.Vector3",    12 },
-        { "UnityEngine.Vector4",    16 },
-        { "UnityEngine.Quaternion", 16 },
-        // C# alias forms — mirror of BlackboardTypeHelper
-        { "bool",       1 },
-        { "byte",       1 },
-        { "sbyte",      1 },
-        { "char",       2 },
-        { "short",      2 },
-        { "ushort",     2 },
-        { "int",        4 },
-        { "uint",       4 },
-        { "float",      4 },
-        { "long",       8 },
-        { "ulong",      8 },
-        { "double",     8 },
-        { "Vector2",    8  },
-        { "Vector3",    12 },
-        { "Vector4",    16 },
-        { "Quaternion", 16 },
-    };
+    // ⭐⭐ CE-2027 — the known-type table is ONE file now, FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/KnownTypeLayouts.cs
+    //    (linked here and into every analyzer/generator); it carries the CLR alignment too, which this table never did.
 
     /// <summary>
     /// Returns the byte size for a known type FQN, or 0 if not in the table.
     /// </summary>
     public static bool TryGetSize(string typeId, out int size) =>
-        KnownSizes.TryGetValue(typeId, out size);
+        global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(typeId, out size);
 
     /// <summary>
     /// Packs <paramref name="variables"/> using declaration order (master-var invariant:
@@ -145,8 +100,8 @@ public static class BTreeBlackboardPackHelper
 
     /// <summary>
     /// Packs <paramref name="variables"/> using declaration order, with an optional injected
-    /// size resolver for struct-DTO types not in <see cref="KnownSizes"/>.
-    /// Lookup order: <see cref="KnownSizes"/> → <paramref name="extraSizeResolver"/>(<c>TypeId</c>).
+    /// size resolver for struct-DTO types not in <c>KnownTypeLayouts</c>.
+    /// Lookup order: <c>KnownTypeLayouts</c> → <paramref name="extraSizeResolver"/>(<c>TypeId</c>).
     /// Throws <see cref="NotSupportedException"/> when no resolver returns a size.
     /// Returns total byte size via <paramref name="totalBytes"/>.
     ///
@@ -236,12 +191,12 @@ public static class BTreeBlackboardPackHelper
     }
 
     /// <summary>
-    /// Resolves the byte size for <paramref name="typeId"/> via <see cref="KnownSizes"/>
+    /// Resolves the byte size for <paramref name="typeId"/> via <c>KnownTypeLayouts</c>
     /// then <paramref name="extraSizeResolver"/>. Returns true when resolved.
     /// </summary>
     private static bool TryResolveSize(string typeId, Func<string, int?>? extraSizeResolver, out int size)
     {
-        if (KnownSizes.TryGetValue(typeId, out size))
+        if (global::Fdp.Toolkit.Behavior.Shared.KnownTypeLayouts.TryGetSize(typeId, out size))
             return true;
 
         if (extraSizeResolver != null)

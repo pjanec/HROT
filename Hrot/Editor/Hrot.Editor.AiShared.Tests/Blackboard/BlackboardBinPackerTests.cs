@@ -23,6 +23,49 @@ public sealed class BlackboardBinPackerTests
         BlackboardBinPacker.Pack(vars);
 
     // -------------------------------------------------------------------------
+    // ⭐⭐ CE-2029 — the editor packs exactly as the generator does
+    // -------------------------------------------------------------------------
+
+#pragma warning disable CS0649 // laid out, never assigned: only its SIZE matters here
+    private struct TwoBools { public bool A; public bool B; }   // managed 2 bytes; Marshal.SizeOf says 8
+#pragma warning restore CS0649
+    private enum Small : byte { X }                            // Marshal.SizeOf throws for an enum
+
+    /// <summary>
+    /// 🔴 RED before: the panel laid the region out itself — <c>Marshal.SizeOf</c> sized <c>TwoBools</c> at 8 (pushing it to
+    /// offset 8), an enum at 0 (it throws, and the catch answered 0), and a <c>Role=State</c> variable counted into the params
+    /// total. ⭐ Now it is <c>BTreeBlackboardPackHelper.Pack</c>, the generator's packer, over managed sizes.
+    /// </summary>
+    [Fact]
+    public void CE2029_TheEditorLaysOutTheParamsRegion_AsTheGeneratorDoes()
+    {
+        var result = Pack(
+            V("A", typeof(int)),
+            V("Flags", typeof(TwoBools)),
+            V("Mode", typeof(Small)),
+            new BlackboardVariableDescriptor("Scratch", typeof(long), Hrot.AiEditor.Persistence.BlackboardVariableRole.State));
+
+        Assert.Equal((0, 4), (result.Variables[0].ByteOffset, result.Variables[0].ByteSize));
+        Assert.Equal((4, 2), (result.Variables[1].ByteOffset, result.Variables[1].ByteSize));
+        Assert.Equal((6, 1), (result.Variables[2].ByteOffset, result.Variables[2].ByteSize));
+        Assert.False(result.Variables[3].InParamsRegion);          // §6.2: a State variable never joins the params region
+        Assert.Equal(8, result.Variables[3].ByteSize);             // …but it still has its size
+        Assert.Equal(7, result.TotalInlineBytes);
+
+        // ⭐ and it IS the generator's packer: the same answer from BTreeBlackboardPackHelper.Pack directly
+        var dtos = new[] { ("A", typeof(int)), ("Flags", typeof(TwoBools)), ("Mode", typeof(Small)) }
+            .Select(p => new Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto
+            {
+                Name = p.Item1, Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = p.Item2.FullName! },
+            }).ToList();
+        var types = new[] { typeof(int), typeof(TwoBools), typeof(Small) }.ToDictionary(t => t.FullName!);
+        var fields = Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.Pack(
+            dtos, id => Fdp.Core.TypeLayout.SizeOf(types[id]), out int total);
+        Assert.Equal(fields.Select(f => f.ByteOffset), result.Variables.Take(3).Select(v => v.ByteOffset));
+        Assert.Equal(total, result.TotalInlineBytes);
+    }
+
+    // -------------------------------------------------------------------------
     // Single-field cases
     // -------------------------------------------------------------------------
 

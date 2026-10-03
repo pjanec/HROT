@@ -351,7 +351,7 @@ public sealed class BTreeJsonGeneratorTests
         // Params struct. The bools carry [MarshalAs(I1)] (task #3), so the compiled struct is 8 bytes
         // (int@0, bool@4, bool@5, pad→8); WITHOUT that attribute the runtime marshaller would see two
         // 4-byte BOOLs (→12) and every bin-packed offset after it would drift, corrupting AAR/replay.
-        int predicted = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1, 1 });
+        int predicted = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(new[] { (4, 4), (1, 1), (1, 1) });
         int reflected = Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>();
 
         predicted.Should().Be(8);
@@ -1775,11 +1775,11 @@ namespace Stub
         int? nestedSize = StructSizeResolver.Resolve("Stub.ContainerParams+NestedDto", compilation);
         nestedSize.Should().Be(8, "ContainerParams+NestedDto = {int,float} → 8 bytes");
 
-        // VecParams: {int A(4); Vector3 B(12)} → A@0(4), B@8(align=8), raw end=20,
-        // maxAlign=8 → AlignUp(20,8)=24.
+        // ⭐ CE-2027 — VecParams: {int A(4); Vector3 B(12)} → A@0(4), B@4 (a Vector3 is 4-aligned — the CLR's rule; the old
+        // "align = min(size, 8)" guess put it at 8 and called 24 "managed sequential", refuted by Unsafe.SizeOf), end=16.
         int? vecSize = StructSizeResolver.Resolve("Stub.VecParams", compilation);
-        vecSize.Should().Be(24,
-            "VecParams = {int@0(4), Vector3@8(12)} → raw=20, maxAlign=8, AlignUp(20,8)=24 (managed sequential)");
+        vecSize.Should().Be(16,
+            "VecParams = {int@0(4), Vector3@4(12)} → 16, the CLR's managed size (CE-2027; was 24 under the min(size, 8) guess)");
 
         // Reference check: ensure bool=1 assumption.
         // A {int; bool} struct: A@0(4), B@4(1) → raw=5, maxAlign=4, padded=8.
@@ -2165,9 +2165,9 @@ namespace Stub
     [Fact]
     public void StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002()
     {
-        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24)
+        // VecParams is 16 bytes (managed sequential: int@0, Vector3@4 — CE-2027; 24 under the old alignment guess)
         // and packs at alignment min(24,8)=8, so 24 divides evenly and there is no padding.
-        const int VecParamsBytes = 24;
+        const int VecParamsBytes = 16;
         int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / VecParamsBytes) + 2;
 
         var vars = new List<BlackboardVariableDto>();
@@ -2775,7 +2775,7 @@ namespace Stub
         size.Should().Be(8, "int(4)@0 + bool(1)@4 → raw=5, maxAlign=4 → AlignUp(5,4)=8");
 
         // Cross-check: the SAME field-size sequence run through the shared alignment primitive
-        // (StructSizeResolver.ComputeSequentialSize — the one the Roslyn-symbol path itself uses,
+        // (RoslynStructLayout.SequentialSize — the one the Roslyn-symbol path itself uses, CE-2027,
         // via ComputeStructSize) must produce the identical total. This proves the schema-driven
         // fallback reuses that one alignment routine rather than a hand-rolled second copy.
         //
@@ -2784,7 +2784,7 @@ namespace Stub
         // group's own max alignment is needed, since it's not itself a single array-element
         // struct type), whereas a real struct's managed byte size (what Params actually is, once
         // the blueprint's type exists) DOES need that trailing pad — hence AlignUp(5,4)=8, not 5.
-        int reference = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1 });
+        int reference = global::Fdp.Toolkit.Behavior.Shared.RoslynStructLayout.SequentialSize(new[] { (4, 4), (1, 1) });
         reference.Should().Be(size!.Value,
             "the schema-driven Params size must match the shared ComputeSequentialSize primitive directly — same alignment math, no second copy");
     }

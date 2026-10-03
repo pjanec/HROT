@@ -307,31 +307,13 @@ public static class ImGuiPropertyTree
 
     private static object ExtractBuffer(object bufferStruct, Type elementType, int length, string fieldName)
     {
-        var list = new List<object?>();
-        int structSize = System.Runtime.InteropServices.Marshal.SizeOf(bufferStruct.GetType());
-        IntPtr ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(structSize);
-
-        try
-        {
-            System.Runtime.InteropServices.Marshal.StructureToPtr(bufferStruct, ptr, false);
-            int elementSize = EntityJsonDumper.GetSizeOf(elementType);
-            for (int i = 0; i < length; i++)
-            {
-                IntPtr elementPtr = IntPtr.Add(ptr, i * elementSize);
-                object? elementValue = EntityJsonDumper.ReadPointer(elementPtr, elementType);
-                if (fieldName == "EntityIds" && TryGetPackedEntityValue(elementValue, out ulong packedEntityValue))
-                {
-                    elementValue = new Fdp.Core.Entity(packedEntityValue);
-                }
-                list.Add(elementValue);
-            }
-        }
-        finally
-        {
-            System.Runtime.InteropServices.Marshal.DestroyStructure(ptr, bufferStruct.GetType());
-            System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);
-        }
-
+        // ⭐ CE-2030 — the ONE exact buffer reader (DtoDiagnosticMapper.ReadBufferElements). ⛔ This marshalled its own copy:
+        //   an enum element threw (CE-476's crash, fixed in the mapper and not here) and a bool element was read 4 wide.
+        var list = Fdp.Toolkit.Diagnostics.DtoDiagnosticMapper.ReadBufferElements(bufferStruct, elementType, length);
+        if (fieldName == "EntityIds")
+            for (int i = 0; i < list.Count; i++)
+                if (TryGetPackedEntityValue(list[i], out ulong packedEntityValue))
+                    list[i] = new Fdp.Core.Entity(packedEntityValue);
         return list;
     }
 

@@ -188,8 +188,8 @@ public static class T20_MultiStatefulRegistrar
             BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1631759884, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_A"),
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1614982265, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_B"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1631759884, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_A"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1614982265, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_B"),
             },
         });
     }

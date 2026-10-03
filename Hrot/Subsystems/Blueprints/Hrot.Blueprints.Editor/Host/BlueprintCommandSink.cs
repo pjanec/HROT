@@ -575,15 +575,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (value.StartsWith("evt:", StringComparison.Ordinal))
             value = value.Substring(4);
 
-        if (Guid.TryParse(value, out var byGuid))
-        {
-            var known = _asset.CustomEvents.FirstOrDefault(e => e.Id == byGuid);
-            return known?.Id.ToString("D") ?? value;
-        }
-
-        var byName = _asset.CustomEvents.FirstOrDefault(
-            e => string.Equals(e.Name, value, StringComparison.Ordinal));
-        return byName?.Id.ToString("D") ?? value;
+        // ⭐ CE-2031 — the one resolution rule (GUID, then name); an unknown id is kept as written.
+        return _asset.FindCustomEvent(value)?.Id.ToString("D") ?? value;
     }
 
     /// <summary>

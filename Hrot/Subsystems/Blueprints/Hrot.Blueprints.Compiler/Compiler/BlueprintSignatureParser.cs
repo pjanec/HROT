@@ -39,10 +39,7 @@ public static class BlueprintSignatureParser
             var sanitized = Sanitizer.SanitizeName(name);
             int blueprintId = 0;
             if (assetId != Guid.Empty)
-            {
-                var bytes = assetId.ToByteArray();
-                blueprintId = unchecked((int)FnvHasher.Hash32(bytes));
-            }
+                blueprintId = BlueprintIdHash.Compute(assetId);   // ⭐ CE-2036 — the one asset-id hash
 
             return new BlueprintSignature(
                 Path: filePath,

@@ -23,7 +23,7 @@ public static class HsmTwoChannelRegionsDemoRegistrar
         var blob = HsmTwoChannelRegionsDemo.Compile();
 
         // Register the JSON-owned HSM definition.
-        beh.Register(727355791, "HsmTwoChannelRegionsDemo", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmTwoChannelRegionsDemo"), "HsmTwoChannelRegionsDemo", new BehaviorDefinition
         {
             Name          = "HsmTwoChannelRegionsDemo",
             BrainTier     = BehaviorConstants.BrainTierHsm,

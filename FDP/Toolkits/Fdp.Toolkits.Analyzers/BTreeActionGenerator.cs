@@ -269,7 +269,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             string? fieldName = attr.ConstructorArguments[1].Value as string;
             if (dtoTypeSymbol == null || string.IsNullOrEmpty(fieldName)) return null;
 
-            int? offset = TryComputeFieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
+            int? offset = RoslynStructLayout.FieldOffset(dtoTypeSymbol, fieldName!, out var fieldTypeSymbol);
             if (offset == null || fieldTypeSymbol == null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -297,129 +297,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 FullQualifiedMethodName = sym.ContainingType.ToDisplayString() + "." + sym.Name,
                 FieldTypeFqn = fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 Offset       = offset.Value,
-                CompoundKey  = sym.ContainingType.ToDisplayString() + "." + sym.Name + "@" + offset.Value,
+                CompoundKey  = HsmActionKey.CompoundKeyName(sym.ContainingType.ToDisplayString() + "." + sym.Name, offset.Value),
                 IsCondition  = isCondition,
                 WritesChannels = writes,
             };
         }
 
-        // ---- Struct field-offset computation -----------------------------------
-
-        private static int? TryComputeFieldOffset(
-            INamedTypeSymbol parentType,
-            string fieldName,
-            out ITypeSymbol? fieldTypeSymbol)
-        {
-            fieldTypeSymbol = null;
-            var fields = parentType.GetMembers()
-                .OfType<IFieldSymbol>()
-                .Where(f => !f.IsStatic && !f.IsConst)
-                .ToList();
-
-            bool isExplicit = parentType.GetAttributes()
-                .Any(a => a.AttributeClass?.Name == "StructLayoutAttribute"
-                       && a.ConstructorArguments.Length > 0
-                       && (int?)a.ConstructorArguments[0].Value == 2); // LayoutKind.Explicit = 2
-
-            if (isExplicit)
-            {
-                var target = fields.FirstOrDefault(f => f.Name == fieldName);
-                if (target == null) return null;
-                var fa = target.GetAttributes()
-                    .FirstOrDefault(a => a.AttributeClass?.Name == "FieldOffsetAttribute");
-                if (fa == null || fa.ConstructorArguments.Length == 0) return null;
-                fieldTypeSymbol = target.Type;
-                return (int)fa.ConstructorArguments[0].Value!;
-            }
-
-            int offset = 0;
-            foreach (var field in fields)
-            {
-                int size = GetTypeSize(field.Type);
-                if (size < 0) return null;
-                if (size > 0) offset = AlignUp(offset, GetTypeAlign(field.Type));
-                if (field.Name == fieldName) { fieldTypeSymbol = field.Type; return offset; }
-                offset += size;
-            }
-            return null;
-        }
-
-        private static int GetTypeSize(ITypeSymbol type)
-        {
-            switch (type.SpecialType)
-            {
-                case SpecialType.System_Boolean:
-                case SpecialType.System_Byte:
-                case SpecialType.System_SByte:   return 1;
-                case SpecialType.System_Char:
-                case SpecialType.System_Int16:
-                case SpecialType.System_UInt16:  return 2;
-                case SpecialType.System_Int32:
-                case SpecialType.System_UInt32:
-                case SpecialType.System_Single:  return 4;
-                case SpecialType.System_Int64:
-                case SpecialType.System_UInt64:
-                case SpecialType.System_Double:
-                case SpecialType.System_IntPtr:
-                case SpecialType.System_UIntPtr: return 8;
-                default:
-                    if (type.TypeKind == TypeKind.Enum && type is INamedTypeSymbol en)
-                        return en.EnumUnderlyingType != null ? GetTypeSize(en.EnumUnderlyingType) : 4;
-                    if (type.TypeKind == TypeKind.Struct && type is INamedTypeSymbol named)
-                        return ComputeStructSize(named);
-                    return -1;
-            }
-        }
-
-        private static int GetTypeAlign(ITypeSymbol type)
-        {
-            int size = GetTypeSize(type);
-            return size <= 0 ? 1 : (size <= 8 ? size : 8);
-        }
-
-        private static int ComputeStructSize(INamedTypeSymbol type)
-        {
-            bool isExplicit = type.GetAttributes()
-                .Any(a => a.AttributeClass?.Name == "StructLayoutAttribute"
-                       && a.ConstructorArguments.Length > 0
-                       && (int?)a.ConstructorArguments[0].Value == 2); // LayoutKind.Explicit = 2
-
-            var fields = type.GetMembers()
-                .OfType<IFieldSymbol>()
-                .Where(f => !f.IsStatic && !f.IsConst)
-                .ToList();
-
-            if (isExplicit)
-            {
-                int max = 0;
-                foreach (var field in fields)
-                {
-                    var fa = field.GetAttributes()
-                        .FirstOrDefault(a => a.AttributeClass?.Name == "FieldOffsetAttribute");
-                    if (fa == null || fa.ConstructorArguments.Length == 0) return -1;
-                    int fo = (int)fa.ConstructorArguments[0].Value!;
-                    int fs = GetTypeSize(field.Type);
-                    if (fs < 0) return -1;
-                    max = System.Math.Max(max, fo + fs);
-                }
-                return max;
-            }
-            else
-            {
-                int offset = 0, maxAlign = 1;
-                foreach (var field in fields)
-                {
-                    int size = GetTypeSize(field.Type), align = GetTypeAlign(field.Type);
-                    if (size < 0) return -1;
-                    if (align > maxAlign) maxAlign = align;
-                    if (size > 0) offset = AlignUp(offset, align);
-                    offset += size;
-                }
-                return AlignUp(offset, maxAlign);
-            }
-        }
-
-        private static int AlignUp(int v, int a) => a <= 1 ? v : (v + a - 1) & ~(a - 1);
+        // ---- Struct field-offset computation: the ONE algorithm, Shared/RoslynStructLayout.cs (CE-2027) ----
 
         // ---- Code generation ---------------------------------------------------
 

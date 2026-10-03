@@ -98,21 +98,9 @@ namespace Fdp.Toolkit.Blueprints.Attributes
             return (genDiags, generatedSource);
         }
 
-        /// <summary>
-        /// Computes the FNV-1a 32-bit hash of <paramref name="s"/> using the same algorithm
-        /// as the generator, so test assertions are self-consistent.
-        /// </summary>
-        private static int ComputeFnv1a32(string s)
-        {
-            uint h = 2166136261u;
-            unchecked
-            {
-                foreach (char c in s) { h ^= (uint)c; h *= 16777619u; }
-            }
-            return (int)h;
-        }
-
         // T-EGN1: generator emits correct BlueprintId for the known FindCoverFromTarget GUID.
+        // ⭐ CE-2034 — "correct" means the id EqsTemplateRegistry KEYS the template by (FNV over the GUID's bytes). This
+        //   rail used to compare the generator with its own text-hash formula, which locked the disagreement in.
         [Fact]
         public void EqsTemplateGenerator_EmitsCorrectBlueprintId_ForKnownAssetId()
         {
@@ -130,10 +118,11 @@ namespace My.Templates
 ";
             var (_, generated) = RunGenerator(source);
 
-            int expectedId = ComputeFnv1a32(assetId);
+            int expectedId = unchecked((int)Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(new Guid(assetId)));
 
-            Assert.Contains("staging.Add(", generated);
-            Assert.Contains(expectedId.ToString(), generated);
+            Assert.Contains("staging.Add(" + expectedId + ",", generated);
+            Assert.Equal(unchecked((int)Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId), expectedId);
+            Assert.Contains("var template_0 =", generated);   // named by index — a negative id is not an identifier
             Assert.Contains("EqsRegistrar_", generated);
         }
 

@@ -281,6 +281,28 @@ public sealed class TrackCWiringTests : IDisposable
     public void TheDecoder_RefusesUndersizedBytes()
         => Assert.Null(RawValueDecoder.Decode(new byte[] { 1, 2 }, typeof(long)));
 
+    /// <summary>
+    /// ⭐ <c>CE-2041</c> — a STRUCT is decoded from the managed bytes the blackboard holds. The interop read
+    /// (<c>Marshal.PtrToStructure</c>) wanted 12 bytes for this 8-byte struct and gave up — or, with enough bytes, read the
+    /// int from the wrong offset.
+    /// </summary>
+    [Fact]
+    public void CE2041_TheDecoder_ReadsAStructWithBools_FromItsManagedBytes()
+    {
+        var bytes = new byte[8];
+        bytes[0] = 1;                                         // A = true
+        bytes[1] = 0;                                         // B = false
+        BitConverter.GetBytes(42).CopyTo(bytes, 4);           // C at its managed offset 4
+        var v = Assert.IsType<FlagsAndCount>(RawValueDecoder.Decode(bytes, typeof(FlagsAndCount)));
+        Assert.True(v.A);
+        Assert.False(v.B);
+        Assert.Equal(42, v.C);
+    }
+
+#pragma warning disable CS0649   // filled from bytes
+    private struct FlagsAndCount { public bool A; public bool B; public int C; }
+#pragma warning restore CS0649
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private static string[] Names(AiVariablesWindow w)

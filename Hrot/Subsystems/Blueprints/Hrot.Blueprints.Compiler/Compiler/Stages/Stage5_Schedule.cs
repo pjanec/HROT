@@ -4988,16 +4988,7 @@ internal sealed class GraphScheduler
         return -1;
     }
 
-    private int FindCustomEventIndex(string eventId)
-    {
-        var events = _typed.Asset.CustomEvents;
-        if (Guid.TryParse(eventId, out var guid))
-            for (int i = 0; i < events.Count; i++)
-                if (events[i].Id == guid) return i;
-        for (int i = 0; i < events.Count; i++)
-            if (events[i].Name == eventId) return i;
-        return -1;
-    }
+    private int FindCustomEventIndex(string eventId) => _typed.Asset.IndexOfCustomEvent(eventId);   // ⭐ CE-2031
 
     // -----------------------------------------------------------------------
     // Graph-level Inputs/Outputs propagation (BATCH-03A)
@@ -5013,12 +5004,11 @@ internal sealed class GraphScheduler
         foreach (var d in decls)
         {
             IrTypeRef irType;
-            if (!_ctx.TypeRegistry.TryResolve(d.Type, out irType))
+            // ⭐ CE-2028 — the ONE resolve-and-size step declarations and pins use. ⚠ This subsumes CE-2014 (T-6): the whole
+            //   event is a `global::` project struct, so it is EXACT when the compile has a size oracle (the real build) and
+            //   honestly unreliable — the runtime-layout path, as before — when it has none (in-process compiles, goldens).
+            if (!Stage4_TypeResolve.TryResolveSized(_ctx, d.Type, out irType))
                 irType = Stage5_Schedule.UnknownType;
-            // ⭐ CE-2014 (T-6) — the whole event is a project struct whose size the reflection-free registry does not know
-            //   (it assumes 4): a fiber record holding it must take the runtime-layout path.
-            if (d.Name == EventPayload.WholeEventInput)
-                irType = irType with { SizeReliable = false };
             result.Add(new IrField
             {
                 Id   = d.Id,
@@ -5172,16 +5162,9 @@ internal sealed class GraphScheduler
     // Decision ID hash (FNV-1a-32 over chars -- matches UtilityDecisionCatalog.ComputeId)
     // -----------------------------------------------------------------------
 
-    private static int ComputeDecisionId(string assetId)
-    {
-        uint hash = 2166136261u;
-        foreach (char c in assetId)
-        {
-            hash ^= (byte)c;
-            hash *= 16777619u;
-        }
-        return (int)hash;
-    }
+    // ⭐ CE-2035 — THE utility decision id (linked Shared/UtilityIdHash), so a ScoreDecision node bakes exactly the id
+    //   UtilityDecisionCatalog registers under. It was an inlined mirror that XOR'd only each char's low byte.
+    private static int ComputeDecisionId(string assetId) => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.DecisionId(assetId);
 
     // -----------------------------------------------------------------------
     // BlockBuilder: mutable accumulator for one IrBlock

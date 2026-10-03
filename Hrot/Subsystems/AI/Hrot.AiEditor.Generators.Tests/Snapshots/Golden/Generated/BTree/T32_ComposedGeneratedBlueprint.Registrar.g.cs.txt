@@ -38,6 +38,12 @@ public static class T32_ComposedGeneratedBlueprintRegistrar
 
         // I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from
         // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params>() != 1)
+            throw new global::System.InvalidOperationException(
+                "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params compiled size (" +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params>() +
+                ") != predicted 1 bytes baked at offset 0. " +
+                "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.TickCore@0@378783867",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
@@ -118,7 +124,7 @@ public static class T32_ComposedGeneratedBlueprintRegistrar
             Name         = "T32_ComposedGeneratedBlueprint",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 4532758880387763782UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 4531844086713281455UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params), 0),
@@ -129,7 +135,7 @@ public static class T32_ComposedGeneratedBlueprintRegistrar
             BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(378783867, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState>(), unchecked(4073425874u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState), "ComposedGeneratedBlueprint"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(378783867, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState>(), unchecked(4073425874u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.WorkingState), "ComposedGeneratedBlueprint"),
             },
         });
     }

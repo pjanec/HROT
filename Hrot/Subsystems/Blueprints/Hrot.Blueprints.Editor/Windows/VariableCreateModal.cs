@@ -277,7 +277,7 @@ public sealed class VariableCreateModal
     }
 
     /// <summary>
-    /// U-8 — the marshalled size of a discovered <c>[BlackboardDtoStruct]</c>, or 0 when the id names
+    /// U-8 — the managed size (CE-2030) of a discovered <c>[BlackboardDtoStruct]</c>, or 0 when the id names
     /// no such struct.
     ///
     /// <para>
@@ -295,8 +295,8 @@ public sealed class VariableCreateModal
                      .DiscoverBlackboardDtoStructTypes())
         {
             if (!string.Equals(t.FullName, typeId, StringComparison.Ordinal)) continue;
-            try { return System.Runtime.InteropServices.Marshal.SizeOf(t); }
-            catch { return 0; }   // non-blittable ⇒ not a valid list element; 0 hides the budget line
+            // ⭐ CE-2030 — the managed size the slot really takes (was Marshal.SizeOf: a bool counted 4)
+            return global::Fdp.Core.TypeLayout.TrySizeOf(t, out int size) ? size : 0;
         }
         return 0;
     }

@@ -43,7 +43,8 @@ internal static class Stage4_TypeResolve
                         if (resolvedPinTypes.ContainsKey(pin.Id)) continue;
                         if (string.IsNullOrEmpty(pin.TypeRef.TypeId)) continue;
 
-                        if (ctx.TypeRegistry.TryResolve(pin.TypeRef, out var resolved))
+                        // ⭐ CE-2028 — the same resolve-and-size step as declarations and graph inputs.
+                        if (TryResolveSized(ctx, pin.TypeRef, out var resolved))
                             resolvedPinTypes[pin.Id] = resolved;
                         // Wildcard resolution attempted on second pass via wildcard propagation
                     }
@@ -163,6 +164,33 @@ internal static class Stage4_TypeResolve
         trustedVerbatim = false;
         var id = type.TypeId;
 
+        if (TryResolveSized(ctx, type, out resolved))
+            return true;
+
+        if (!string.IsNullOrEmpty(id)
+            && !id.StartsWith("global::", StringComparison.Ordinal)
+            && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
+        {
+            return TryResolveDottedProjectType(ctx, type, id!, out resolved, out trustedVerbatim);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-2028</c> — the ONE registry-resolve-and-size step</b>, for every place a type id becomes an
+    /// <see cref="IrTypeRef"/>: declarations (here), PINS (<see cref="Run"/>) and GRAPH INPUTS/OUTPUTS
+    /// (<c>Stage5_Schedule.BuildIrFieldsFromGraphParams</c>).
+    ///
+    /// <para>
+    /// 🔴 Only declarations used to reach the size oracle. An event fiber's payload slot is typed from the event (a
+    /// <c>global::</c> project struct) through Stage 5's own registry call, which kept the AN2 4-byte guess — so CE-2014 had to
+    /// force it <c>SizeReliable = false</c>, and every event-driven host lost its explicit layout. ⭐ Now: the registry, then, for a
+    /// trusted project id, the oracle — exact when it answers, honestly unreliable when it does not.
+    /// </para>
+    /// </summary>
+    internal static bool TryResolveSized(ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved)
+    {
+        var id = type.TypeId;
         if (ctx.TypeRegistry.TryResolve(type, out resolved))
         {
             // ⭐⭐ S2 — the SAME placeholder, on the arm that never flagged it.
@@ -182,10 +210,14 @@ internal static class Stage4_TypeResolve
                 resolved = WithOracleSizedElement(ctx, id!, resolved);
             return true;
         }
+        return false;
+    }
 
-        if (!string.IsNullOrEmpty(id)
-            && !id.StartsWith("global::", StringComparison.Ordinal)
-            && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
+    private static bool TryResolveDottedProjectType(
+        ValidationContext ctx, BlueprintTypeRef type, string id, out IrTypeRef resolved, out bool trustedVerbatim)
+    {
+        trustedVerbatim = false;
+        resolved = default!;
         {
             // ⭐⭐ S4 — the retry MUST carry Capacity/InitialLength.
             //

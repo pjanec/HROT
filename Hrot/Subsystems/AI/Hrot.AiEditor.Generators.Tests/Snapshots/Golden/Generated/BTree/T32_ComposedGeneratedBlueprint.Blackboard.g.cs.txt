@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 0)]
+[StructLayout(LayoutKind.Explicit, Size = 1)]
 public struct T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]

@@ -178,7 +178,8 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
     /// </summary>
     internal static byte[] ProjectBytes(byte[] rootParams, Type type, int byteOffset)
     {
-        int size = Marshal.SizeOf(type);
+        // ⭐ CE-2041 — the MANAGED size: the root params region holds managed bytes (Marshal.SizeOf counted a bool as 4)
+        if (!Fdp.Core.TypeLayout.TrySizeOf(type, out int size)) return Array.Empty<byte>();
         if (size <= 0) return Array.Empty<byte>();
         if (byteOffset < 0 || byteOffset + size > rootParams.Length) return Array.Empty<byte>();
 
@@ -193,18 +194,16 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
     /// For multi-field structs: <c>"Field1=val1, Field2=val2"</c>.
     /// For primitives: <c>value.ToString()</c>.
     /// </summary>
-    internal static unsafe string ProjectAndFormat(byte[] rootParams, Type type, int byteOffset)
+    internal static string ProjectAndFormat(byte[] rootParams, Type type, int byteOffset)
     {
-        int size = Marshal.SizeOf(type);
+        // ⭐ CE-2041 — read the MANAGED layout the bytes are in (was Marshal.PtrToStructure: the interop layout, which
+        //   mis-reads any struct whose bools or chars marshal to a different width — every blueprint Vars with a bool).
+        int size = Fdp.Core.TypeLayout.SizeOf(type);
         if (byteOffset < 0 || size <= 0 || byteOffset + size > rootParams.Length)
             throw new ArgumentOutOfRangeException(nameof(byteOffset),
                 "the declared variable does not fit inside this behaviour's root params region");
 
-        fixed (byte* p = &rootParams[byteOffset])
-        {
-            object boxed = Marshal.PtrToStructure((IntPtr)p, type)!;
-            return FormatValue(boxed, type);
-        }
+        return FormatValue(Fdp.Core.TypeLayout.Read(rootParams, byteOffset, type), type);
     }
 
     /// <summary>

@@ -210,12 +210,7 @@ public static class AutoManagedVariables
     }
 
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new System.Text.StringBuilder(name.Length);
-        foreach (char c in name) sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
-        if (sb.Length == 0 || char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.Identifiers.ReplaceInvalid(name, "_");
 }
 
 /// <summary>What <see cref="AutoManagedVariables.ComposeForAiPrimitive"/> created.</summary>

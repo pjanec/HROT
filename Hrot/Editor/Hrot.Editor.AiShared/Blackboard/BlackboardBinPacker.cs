@@ -11,7 +11,11 @@ namespace Hrot.Editor.AiShared.Blackboard;
 /// </summary>
 /// <param name="Name">The variable identifier.</param>
 /// <param name="FieldType">The CLR type used to determine size and alignment.</param>
-public record BlackboardVariableDescriptor(string Name, Type FieldType);
+/// <param name="Role">⭐ CE-2029 — a <c>State</c> variable never joins the params region
+/// (<c>Blackboard_Authoring_Detailed_Design.md</c> §6.2); the generator's packer already honoured that, this one did not.</param>
+public record BlackboardVariableDescriptor(
+    string Name, Type FieldType,
+    Hrot.AiEditor.Persistence.BlackboardVariableRole Role = Hrot.AiEditor.Persistence.BlackboardVariableRole.Input);
 
 /// <summary>
 /// Warning flags produced by <see cref="BlackboardBinPacker.Pack"/>.
@@ -41,11 +45,14 @@ public enum PackWarning
 /// <param name="FieldType">The CLR type.</param>
 /// <param name="ByteOffset">Byte offset from the start of the params region.</param>
 /// <param name="ByteSize">Unmanaged size of the field in bytes.</param>
+/// <param name="InParamsRegion">⭐ CE-2029 — false for a <c>State</c> variable: it has a size, but no params-region offset
+/// (<paramref name="ByteOffset"/> is then -1).</param>
 public record PackedVariable(
     string Name,
     Type FieldType,
     int ByteOffset,
-    int ByteSize);
+    int ByteSize,
+    bool InParamsRegion = true);
 
 /// <summary>
 /// Result of a <see cref="BlackboardBinPacker.Pack"/> call.
@@ -95,7 +102,7 @@ public static class BlackboardBinPacker
     /// not be raised while the heavy arm still existed. ⇒ the editor and the generator now agree on
     /// one ceiling.</para>
     /// </summary>
-    public const int MaxInlineBytes = 16096;
+    public const int MaxInlineBytes = Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.MaxInlineBytes;   // ⭐ CE-2029: one number
 
     /// <summary>
     /// Maximum struct-field alignment cap (matches C# default struct layout rules).
@@ -124,59 +131,55 @@ public static class BlackboardBinPacker
     {
         if (masterVars == null) throw new ArgumentNullException(nameof(masterVars));
 
-        var packed = new List<PackedVariable>(masterVars.Count + (aggregatedVars?.Count ?? 0));
-        int inlineOffset = 0;
-
-        // ⭐ CE-314: ONE region. Master variables first, then aggregated ones continuing the same
-        //   offset — there is no second tier to route between any more.
+        // ⭐ CE-314: ONE region — master variables first, then aggregated ones continuing the same offset.
+        var all = new List<BlackboardVariableDescriptor>(masterVars.Count + (aggregatedVars?.Count ?? 0));
         foreach (var desc in masterVars)
-        {
-            if (desc == null) throw new ArgumentException("masterVars contains a null entry.");
-            inlineOffset = Place(packed, desc, inlineOffset);
-        }
-
+            all.Add(desc ?? throw new ArgumentException("masterVars contains a null entry."));
         if (aggregatedVars != null)
-        {
             foreach (var desc in aggregatedVars)
+                all.Add(desc ?? throw new ArgumentException("aggregatedVars contains a null entry."));
+
+        // ⭐⭐⭐ CE-2029 — THE GENERATOR'S PACKER, not a copy of it. 🔴 This class laid the region out itself: Marshal.SizeOf
+        //   for a struct (a bool counted 4, an enum threw), and every Role=State variable counted into the params total —
+        //   so the panel could show a size and an overflow the generated struct does not have. ⭐ Now
+        //   BTreeBlackboardPackHelper.Pack lays out exactly what BTreeJsonGenerator/HsmJsonGenerator emit, and each size is
+        //   the managed size (Fdp.Core.TypeLayout) — what the build-time RoslynStructLayout computes for the same type.
+        var types = new Dictionary<string, Type>(StringComparer.Ordinal);
+        var dtos = new List<Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto>(all.Count);
+        foreach (var desc in all)
+        {
+            string typeId = TypeIdOf(desc.FieldType);
+            types[typeId] = desc.FieldType;
+            dtos.Add(new Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto
             {
-                if (desc == null) throw new ArgumentException("aggregatedVars contains a null entry.");
-                inlineOffset = Place(packed, desc, inlineOffset);
+                Name = desc.Name,
+                Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = typeId },
+                Role = desc.Role,
+            });
+        }
+        var fields = Hrot.AiEditor.Persistence.Emit.BTreeBlackboardPackHelper.Pack(
+            dtos, typeId => types.TryGetValue(typeId, out var t) ? GetManagedSize(t) : (int?)null, out int totalInlineBytes);
+
+        // Pack returns the params-region fields in declaration order; a State variable is absent from it.
+        var packed = new List<PackedVariable>(all.Count);
+        int next = 0;
+        foreach (var desc in all)
+        {
+            if (desc.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State)
+            {
+                packed.Add(new PackedVariable(desc.Name, desc.FieldType, -1, GetManagedSize(desc.FieldType), InParamsRegion: false));
+                continue;
             }
+            var f = fields[next++];
+            packed.Add(new PackedVariable(desc.Name, desc.FieldType, f.ByteOffset, f.ByteSize));
         }
 
-        // ⛔ The early return for a master-only overflow is GONE with the spill it guarded: its comment
-        //   said "heavy promotion cannot help when the master budget itself is exceeded", and there is
-        //   no promotion left. ⭐ Overflow is now reported the same way wherever it happens, and the
-        //   offsets of every variable are still computed so the panel can show them.
-        int totalInlineBytes = inlineOffset;
-
-        PackWarning warning;
-        if (totalInlineBytes > MaxInlineBytes)
-            warning = PackWarning.InlineMemoryExceeded;
-        else
-            warning = PackWarning.None;
-
+        var warning = totalInlineBytes > MaxInlineBytes ? PackWarning.InlineMemoryExceeded : PackWarning.None;
         return new PackResult(packed, totalInlineBytes, warning);
     }
 
-    /// <summary>
-    /// ⭐ <c>CE-314</c> — places one variable at the next aligned offset and returns the new offset.
-    /// ⚠ Extracted because master and aggregated variables now take the SAME path; they used to differ
-    /// only by the spill branch, and with that gone two near-identical loop bodies were one edit away
-    /// from drifting apart.
-    /// </summary>
-    private static int Place(List<PackedVariable> packed, BlackboardVariableDescriptor desc, int offset)
-    {
-        int size      = GetManagedSize(desc.FieldType);
-        int alignment = Math.Min(size, AlignmentCap);
-
-        // Round current offset up to the next alignment boundary.
-        if (alignment > 0 && offset % alignment != 0)
-            offset += alignment - (offset % alignment);
-
-        packed.Add(new PackedVariable(desc.Name, desc.FieldType, ByteOffset: offset, ByteSize: size));
-        return offset + size;
-    }
+    /// <summary>A CLR type's id as the generator spells it (nested types with <c>+</c>, as <c>Type.FullName</c> does).</summary>
+    private static string TypeIdOf(Type t) => t.FullName ?? t.Name;
 
     /// <summary>
     /// Optimization pass: sorts <paramref name="vars"/> to minimize alignment padding
@@ -203,43 +206,9 @@ public static class BlackboardBinPacker
     // Size helpers
     // -------------------------------------------------------------------------
 
-    // Known managed sizes for primitive types. Marshal.SizeOf(bool) returns 4 (Win32 BOOL)
-    // but C# sequential struct layout uses 1 byte for bool. Use the managed size here.
-    private static readonly Dictionary<Type, int> PrimitiveSizes = new()
-    {
-        { typeof(bool),   1 },
-        { typeof(byte),   1 },
-        { typeof(sbyte),  1 },
-        { typeof(char),   2 },
-        { typeof(short),  2 },
-        { typeof(ushort), 2 },
-        { typeof(int),    4 },
-        { typeof(uint),   4 },
-        { typeof(long),   8 },
-        { typeof(ulong),  8 },
-        { typeof(float),  4 },
-        { typeof(double), 8 },
-    };
-
-    /// <summary>
-    /// Returns the managed (C# struct sequential layout) size in bytes for <paramref name="t"/>.
-    /// Falls back to <see cref="Marshal.SizeOf(Type)"/> for non-primitive types.
-    /// </summary>
+    /// <summary>⭐ CE-2030 — the managed size (<see cref="Fdp.Core.TypeLayout"/>) of a VALUE type; 0 for anything else. ⚠ A
+    /// blackboard variable is blittable, so a reference type here is a variable whose CLR type could not be resolved (it falls
+    /// back to <c>object</c>): it renders as 0 bytes — the visible symptom — instead of a reference's 8 or a crash.</summary>
     private static int GetManagedSize(Type t)
-    {
-        if (PrimitiveSizes.TryGetValue(t, out int known))
-            return known;
-        try
-        {
-            return Marshal.SizeOf(t);
-        }
-        catch (ArgumentException)
-        {
-            // The type can't be marshaled (e.g. a variable whose CLR type could not be resolved
-            // and fell back to System.Object, or a struct whose assembly isn't loaded). Degrade to
-            // 0 instead of crashing the whole editor render loop; the variable still renders (as
-            // 0 bytes), which surfaces the resolution problem without taking the app down.
-            return 0;
-        }
-    }
+        => t.IsValueType && Fdp.Core.TypeLayout.TrySizeOf(t, out int size) ? size : 0;
 }

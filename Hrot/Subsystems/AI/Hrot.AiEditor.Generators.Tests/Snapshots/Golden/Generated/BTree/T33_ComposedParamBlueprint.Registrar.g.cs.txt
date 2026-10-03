@@ -37,10 +37,10 @@ public static class T33_ComposedParamBlueprintRegistrar
 
         // I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from
         // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
-        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() != 8)
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() != 8)
             throw new global::System.InvalidOperationException(
                 "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params compiled size (" +
-                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() +
                 ") != predicted 8 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore@0@658677001",
@@ -130,7 +130,7 @@ public static class T33_ComposedParamBlueprintRegistrar
             BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(658677001, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>(), unchecked(3623356001u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState), "ParamDemo"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(658677001, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>(), unchecked(3623356001u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState), "ParamDemo"),
             },
         });
     }

@@ -47,7 +47,16 @@
          asset holds the FQN), which is why this may never become a second copy. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
              Link="Emit\Shared\HsmActionKey.cs" />
+    <!-- CE-2036: the ONE asset-id hash. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs"
+             Link="Emit\Shared\BlueprintIdFnv.cs" />
+    <!-- CE-2039: the ONE identifier sanitizer (Emit/Identifiers.cs is its public door for the editors). -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\IdentifierSanitizer.cs"
+             Link="Emit\Shared\IdentifierSanitizer.cs" />
     <!-- ⭐ CE-417: the [WritesChannel] release block, shared with BTreeActionGenerator's 4-param wrapper. -->
+    <!-- ⭐⭐ CE-2027 — the ONE known-type (size, alignment) table; the packer's own KnownSizes copy is retired. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\KnownTypeLayouts.cs"
+             Link="Shared\KnownTypeLayouts.cs" />
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\ChannelClearEmit.cs"
              Link="Emit\Shared\ChannelClearEmit.cs" />
   </ItemGroup>

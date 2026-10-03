@@ -633,6 +633,13 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         def.HsmDefinition.Should().NotBeNull(
             "HsmDefinition must be non-null for an HSM definition");
 
+        // ── CE-2037 ───────────────────────────────────────────────────────────────
+        // A JSON-authored HSM registers under its NAME's hash, as every other producer does (Phase 1b of
+        // Behavior_Architecture_Implementation_Plan). It minted FNV over the asset GUID instead, so the blueprint node
+        // BehaviorHashOf(name) — and anything else recomputing FromName — never matched a running JSON HSM.
+        id.Should().Be(BehaviorHash.FromName("SampleGuard"),
+            "a behaviour's id is the hash of its name, whichever generator registered it");
+
         // ── CE-370 ────────────────────────────────────────────────────────────────
         // Until 2026-09-27 the emitted registrar set HsmDefinition and NOT HsmMetadata, so every
         // JSON-authored machine reached the three trace surfaces with a null overlay

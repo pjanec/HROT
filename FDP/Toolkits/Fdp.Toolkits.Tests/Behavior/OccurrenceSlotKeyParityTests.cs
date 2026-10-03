@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints.Partitioning;
@@ -290,6 +291,63 @@ namespace Fdp.Toolkits.Tests.Behavior
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
             Assert.True(allocated == 0, $"computing occurrence keys allocated {allocated} bytes over 1400 calls (sink {sink})");
+        }
+            // ── CE-2033 — ONE type-name hash, and a hosted slot's hash is the same in every process ──────
+
+        /// <summary>
+        /// ⭐ The integers the emitters BAKE (<c>BTreeBridgeEmitCore</c>, the HSM bridge's tree-state slot): the ASCII case is the
+        /// one every generated registrar carries today, and <c>"Ā"</c> pins the high byte the old <c>HostedSubtree</c> copy dropped.
+        /// </summary>
+        [Fact]
+        public void CE2033_R1_TheTypeNameHash_IsTheBakedOne_HighByteIncluded()
+        {
+            Assert.Equal(0xE5C97516u, Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.TypeNameHash("Fbt.BehaviorTreeState"));
+            Assert.Equal(0x1076963Au, Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.TypeNameHash("\u0100"));
+        }
+
+        private struct CE2033ChildParams { public int A; public long B; }
+
+        private static Fbt.NodeStatus CE2033Leaf(ref byte bb, ref Fbt.BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+            => Fbt.NodeStatus.Running;
+
+        /// <summary>
+        /// 🔴 <c>HostedSubtree.Sized</c> folded <c>string.GetHashCode()</c> — randomised per process — into a hosted slot's
+        /// <c>StructureHash</c>, so the hash a snapshot or replay carried never matched the next process's. ⭐ The expected value is
+        /// spelled from the formula with the deterministic type-name hash; the randomised one cannot equal it.
+        /// </summary>
+        [Fact]
+        public void CE2033_R2_AHostedSlotsStructureHash_IsDeterministic()
+        {
+            HostedChildren.ClearForTests();
+            try
+            {
+                var registry = new BehaviorRegistry();
+                var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(CE2033Leaf));
+                var childDef = new BehaviorDefinition
+                {
+                    Name                 = "CE2033Child",
+                    BrainTier            = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter     = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile("CE2033Child"), b.GetRegistry()),
+                    BlackboardLayoutType = typeof(CE2033ChildParams),
+                };
+                registry.Register(0x2033, "CE2033Child", childDef);
+                HostedChildren.Register(registry, 2033, "CE2033Child");
+
+                const uint baseHash = 0xABCD1234u;
+                var host = new[] { new StatefulSlotInfo(2033, 0, baseHash, typeof(Fbt.BehaviorTreeState)) };
+                var slot = HostedSubtree.EffectiveSlots(host).Single(s => s.SlotKey == 2033);
+
+                int size = HostedSubtree.SlotPayloadSizeFor(childDef);
+                uint expected;
+                unchecked
+                {
+                    expected = (baseHash ^ (uint)size) * 16777619u;
+                    expected = (expected ^ Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.TypeNameHash(typeof(CE2033ChildParams).FullName!)) * 16777619u;
+                }
+                Assert.Equal(size, slot.PayloadSize);
+                Assert.Equal(expected, slot.StructureHash);
+            }
+            finally { HostedChildren.ClearForTests(); }
         }
     }
 }

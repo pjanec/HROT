@@ -753,14 +753,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     // Converts a name into a valid C# identifier (strips non-alphanumeric chars,
     // prepends '_' when the first char is a digit, falls back to "HsmAsset").
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (char c in name)
-            if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
-        if (sb.Length == 0) return "HsmAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.Identifiers.StripInvalid(name, "HsmAsset");
 
     // ---- Region mutation helpers (called by HsmCommandSink) ----
 

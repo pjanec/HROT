@@ -150,7 +150,6 @@ public static class HsmBridgeEmitCore
         string pad  = Indent;
         string pad2 = Indent + Indent;
 
-        int behaviorId = BTreeBridgeEmitCore.DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
 
         sb.AppendLine($"{pad}/// <summary>");
@@ -172,7 +171,10 @@ public static class HsmBridgeEmitCore
 
         // Register definition
         sb.AppendLine($"{pad2}// Register the JSON-owned HSM definition.");
-        sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
+        // ⭐⭐ CE-2037 — the id is the NAME's hash, as for every other producer (Behavior_Architecture_Implementation_Plan
+        //   Phase 1b: "both producers mint id = FromName(name)"). ⛔ This registrar was the one Phase 1b missed — it minted
+        //   FNV over the asset GUID, so BehaviorHashOf(name) and any FromName recompute never matched a JSON HSM.
+        sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name          = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier     = BehaviorConstants.BrainTierHsm,");
@@ -628,14 +630,15 @@ public static class HsmBridgeEmitCore
         foreach (var (slotKey, typeId, label, role, scope) in slots)
         {
             string typeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(typeId);
-            // DEBT-AIB-027: the structure hash folds in Marshal.SizeOf<T>() at REGISTRATION time so it
-            // changes when the struct grows — identical to the BTree emission, by calling the same helper.
+            // DEBT-AIB-027: the structure hash folds in the struct's size at REGISTRATION time so it changes when the struct
+            // grows — identical to the BTree emission. ⭐ CE-2041: Unsafe.SizeOf, the MANAGED size the slot holds (was
+            // Marshal.SizeOf, the interop size; equal for every shipped working state, measured).
             uint typeNameHash  = BTreeBridgeEmitCore.ComputeTypeNameHash(typeId);
             string escapedLabel = label.Replace("\\", "\\\\").Replace("\"", "\\\"");
             sb.AppendLine(
                 $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
-                $"global::System.Runtime.InteropServices.Marshal.SizeOf<{typeFqn}>(), " +
-                $"unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{typeFqn}>()), " +
+                $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>(), " +
+                $"unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>()), " +
                 $"typeof({typeFqn}), \"{escapedLabel}\", " +
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, " +
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}),");
@@ -653,9 +656,9 @@ public static class HsmBridgeEmitCore
             string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"") + " (hosted)";
             sb.AppendLine(
                 $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
-                "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>(), " +
+                "global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fbt.BehaviorTreeState>(), " +
                 $"unchecked({BTreeBridgeEmitCore.ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
-                "(uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>()), " +
+                "(uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fbt.BehaviorTreeState>()), " +
                 $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
                 "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
                 "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
@@ -738,21 +741,11 @@ public static class HsmBridgeEmitCore
     //   addressed by. Keeping an unused collector here would have been a second source for a question
     //   that already has one.
 
+    // ⭐ CE-2039 (S8g G4) — the HSM's CLASS uses the strip shape its own _Block/_Blackboard structs already used (via
+    //   BlackboardOwner → BTreeEmitCore): it replaced with '_' instead, so "Guard-Patrol" made class Guard_Patrol but
+    //   GuardPatrol_Block, and a second HSM "GuardPatrol" collided on that struct. bare: a keyword name gets '_'.
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder(name.Length);
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-            else
-                sb.Append('_');
-        }
-        string result = sb.ToString();
-        if (result.Length == 0 || char.IsDigit(result[0]))
-            result = "_" + result;
-        return result;
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "HsmAsset", bare: true);
 
     /// <summary>⭐ CE-417 — the field a state's slot bindings share (Activity first, then OnEntry, OnExit, Timer).</summary>
     public static string? StateWideField(StateNodeDto st)

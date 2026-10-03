@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Behavior
         {
             Require(registry, logic);
             nint offset = FieldOffset(paramSelector);
-            string key = $"{Fqn(logic)}@{offset}";
+            string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World));
             AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Behavior
         {
             Require(registry, logic);
             nint offset = FieldOffset(paramSelector);
-            string key = $"{Fqn(logic)}@{offset}";
+            string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World)
                     ? NodeStatus.Success : NodeStatus.Failure);
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Behavior
         {
             Require(registry, logic);
             nint po = FieldOffset(paramSelector), so = FieldOffset(stateSelector);
-            string key = $"{Fqn(logic)}@{po}@{so}";
+            string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);   // ⭐ CE-2032
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),

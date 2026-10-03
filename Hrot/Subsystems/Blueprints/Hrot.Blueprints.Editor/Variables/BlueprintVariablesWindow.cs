@@ -460,17 +460,9 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     public void RemoveAlias(string name, Guid reqAssetId, Guid reqElemId) { }
     public IReadOnlyDictionary<Guid, int>? GetParallelRegionMap() => null;
 
-    private static int GetPayloadByteSize(Type type)
-    {
-        if (type == typeof(bool) || type == typeof(byte) || type == typeof(sbyte)) return 1;
-        if (type == typeof(short) || type == typeof(ushort)) return 2;
-        if (type == typeof(int) || type == typeof(uint) || type == typeof(float)) return 4;
-        if (type == typeof(long) || type == typeof(ulong) || type == typeof(double)) return 8;
-        if (type == typeof(System.Numerics.Vector2)) return 8;
-        if (type == typeof(System.Numerics.Vector3)) return 12;
-        if (type == typeof(System.Numerics.Vector4) || type == typeof(System.Numerics.Quaternion)) return 16;
-        return 8; // fallback
-    }
+    // ⭐ CE-2030 — the managed size, which is what the compiled field occupies. ⛔ This was a table of primitives and vectors
+    //   with "any other type = 8", copied between this file and its sibling ("same table, same fallback").
+    private static int GetPayloadByteSize(Type type) => global::Fdp.Core.TypeLayout.TrySizeOf(type, out int size) ? size : 0;
 }
 
 // ⛔⛔ L5 — `BlueprintVariablesWindow` (the WINDOW class) was RETIRED here.
