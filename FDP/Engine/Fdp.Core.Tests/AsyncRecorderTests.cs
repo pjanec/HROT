@@ -473,12 +473,21 @@ namespace Fdp.Tests
                 repo.Tick();
                 recorder.CaptureFrame(repo, 0, DateTime.UtcNow.Ticks, blocking: true);
                 
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-                
-                long memBefore = GC.GetTotalMemory(false);
-                
+                // ⭐ CE-2045 — the HOT PATH is the main thread (Fdp.Core.md: "no heap allocation on the hot path (simulation
+                //   loop)"); the LZ4 compression + file write run on the background worker BY DESIGN. GC.GetTotalMemory counted
+                //   every thread (measured 4960 B/frame in all, 4.6 KB of it the worker) and sampled noisily — so this test
+                //   could not pass at all (2467 B/frame against < 2048, at base and head alike).
+                // 📐 Main thread measured 376 B/frame before CE-2045: a MemoryStream + BinaryWriter per frame (104), two
+                //   enumerators boxed through IReadOnlyList / IReadOnlyDictionary (104), the worker-dispatch lambda (closure +
+                //   delegate + Task). Left: the dispatch Task itself — a persistent worker thread would remove it.
+                for (int w = 0; w < 3; w++)
+                {
+                    repo.Tick();
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
+                }
+
+                long before = GC.GetAllocatedBytesForCurrentThread();
+
                 // Execute hot path multiple times
                 for (int i = 0; i < 10; i++)
                 {
@@ -486,15 +495,12 @@ namespace Fdp.Tests
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i });
                     recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
-                
-                long memAfter = GC.GetTotalMemory(false);
-                
-                // Should have very low allocation increase (under 1KB per frame)
-                long allocatedPerFrame = (memAfter - memBefore) / 10;
-                
-                // This is generous - ideally should be near zero
-                Assert.True(allocatedPerFrame < 2048, 
-                    $"Hot path allocated {allocatedPerFrame} bytes per frame, expected < 2KB");
+
+                long allocatedPerFrame = (GC.GetAllocatedBytesForCurrentThread() - before) / 10;
+
+                // Only the worker dispatch's Task object may remain (~100 B on x64).
+                Assert.True(allocatedPerFrame <= 128,
+                    $"Hot path allocated {allocatedPerFrame} bytes per frame on the main thread, expected <= 128 (the dispatch Task)");
             }
         }
     }

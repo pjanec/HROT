@@ -26,8 +26,8 @@ namespace Fdp.Tests
         [ComponentId(100)]
         private struct IdC_100 { public int X; }
 
-        [ComponentId(200)]
-        private struct IdD_200 { public long Timestamp; }
+        [ComponentId(253)]   // CE-2045: was 200 — ComponentTypeRegistryPolicyTests owns 200–209 and registers without Clear()
+        private struct IdD_253 { public long Timestamp; }
 
         private struct NoAttributeStruct { public int Data; }
 
@@ -109,13 +109,13 @@ namespace Fdp.Tests
         {
             // First registration.
             ComponentTypeRegistry.Clear();
-            var firstId = ComponentTypeRegistry.GetOrRegister<IdD_200>();
-            Assert.Equal(200, firstId);
+            var firstId = ComponentTypeRegistry.GetOrRegister<IdD_253>();
+            Assert.Equal(253, firstId);
 
             // Clear and re-register — must get the same explicit ID.
             ComponentTypeRegistry.Clear();
-            var secondId = ComponentTypeRegistry.GetOrRegister<IdD_200>();
-            Assert.Equal(200, secondId);
+            var secondId = ComponentTypeRegistry.GetOrRegister<IdD_253>();
+            Assert.Equal(253, secondId);
         }
 
         /// <summary>
@@ -129,13 +129,13 @@ namespace Fdp.Tests
             ComponentTypeRegistry.Clear();
 
             var idC = ComponentTypeRegistry.GetOrRegister<IdC_100>();
-            var idD = ComponentTypeRegistry.GetOrRegister<IdD_200>();
+            var idD = ComponentTypeRegistry.GetOrRegister<IdD_253>();
 
             Assert.Equal(100, idC);
-            Assert.Equal(200, idD);
+            Assert.Equal(253, idD);
 
             Assert.Equal(typeof(IdC_100), ComponentTypeRegistry.GetType(100));
-            Assert.Equal(typeof(IdD_200), ComponentTypeRegistry.GetType(200));
+            Assert.Equal(typeof(IdD_253), ComponentTypeRegistry.GetType(253));
         }
 
         /// <summary>

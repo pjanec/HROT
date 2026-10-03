@@ -1490,6 +1490,12 @@ namespace Fdp.Core
         {
             return _componentTables;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — the same tables as the CONCRETE dictionary, for the recorder's per-frame walk: <c>foreach</c> over it
+        /// uses the struct enumerator, where the <see cref="IReadOnlyDictionary{TKey,TValue}"/> above boxes one every frame.
+        /// </summary>
+        internal Dictionary<Type, IComponentTable> ComponentTablesForRecording => _componentTables;
         
         // ================================================
         // QUERY API
@@ -1994,6 +2000,12 @@ namespace Fdp.Core
         /// Returns all active singleton tables.
         /// Used by Flight Recorder.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — the singleton slots as the raw array (null = empty slot), for the recorder's per-frame walk:
+        /// <see cref="GetSingletonTables"/> is a <c>yield</c> iterator and allocates its enumerator every frame.
+        /// </summary>
+        internal object[] SingletonSlotsForRecording => _singletons;
+
         public IEnumerable<IComponentTable> GetSingletonTables()
         {
             for (int i = 0; i < _singletons.Length; i++)
