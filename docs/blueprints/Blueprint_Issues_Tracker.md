@@ -41,7 +41,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | lane | block | next free *(update when you allocate)* |
 > |---|---|---|
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1000` |
-> | `backend` | **`CE-3000` – `CE-3999`** | `CE-3008` |
+> | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2044` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
 > | `backend` | **`CE-3000` – `CE-3999`** | `CE-3011` |
 > | *a new lane* | the next free thousand — **add its row here first** | |
 >
