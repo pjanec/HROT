@@ -180,3 +180,5 @@ bind entities, not authored fields).
 
 *Out of scope, measured:* `JoinFormationParams.LeaderNetworkId` (an `int` in a contract with no authoring surface) and the EQS sensor wire keys (`ParentNetworkId` — runtime keys on a DDS topic, not authored data) stay as they are.
 
+*Live (`2026-10-03`, `--mode all`, `scenarios/hill-attack-close-bp`):* load `OperatingLive`, 8 entities; the blueprint commander resolved its `EntityRef` area (1005) and dispatched `HullDownAttack` with `EntityRef` targets; both hostiles fell 50 → 25 → 0 by simTime 60 s; zero exceptions in the log. ⚠ In this file the staging ids coincide with the live ones, so the live run proves the type end to end, not the renumbering — `DistributedScenarioLoadTests` (non-coinciding ids) and the extractor rails prove that.
+
