@@ -2838,6 +2838,12 @@ shape hash, the derivation) is the BTree's own code. ⭐ That is why there is no
 
 ### 12.28 ⭐⭐⭐ `CE-439` BUILD DESIGN — **author and emit the hosted-subtree params binding, on both hosts** *(`2026-10-01`)*
 
+> ⚠ **`2026-10-03` — partly superseded by [`DESIGN_Unified_Behaviour_Run`](DESIGN_Unified_Behaviour_Run.md) "S8b design"
+> (CE-2024/CE-2025):** the child's Inputs TYPE for a pick comes from ONE lookup over the runtime `BehaviorRegistry`
+> (`JsonParamsDtoType` already carries it for every generated tier), shared with the Behaviour Task; `IBehaviorInputsContract`
+> below is retired. ⭐ Everything else here stands — the pick, the compose, the emitted binding, and the generators' sizing
+> catalogue (which answers at generation time).
+
 > Filed by `CE-431` (§11.7 as-built: *"the HSM host's registrar emits no bindings yet"*); §11.3 ③ ⑦ are the pieces. User `2026-10-01`:
 > ordering approved (`CE-416` → `CE-439` → `CE-417`).
 

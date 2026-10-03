@@ -23,6 +23,8 @@ related-designs:
   - Architect_Question_27_Local_Variables.md — owns the per-graph local slots of a suspending graph; §4 S6 makes them
     per-fiber.
   - DESIGN_Behavior_Action_Binding.md — owns the C# binding forms; unaffected.
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12.28 — owns the BTree/HSM subtree pick (CE-439) whose
+    child-input lookup "S8b" here routes through the registry (its IBehaviorInputsContract is retired by S8b-2).
   - DESIGN_Typed_Event_Nodes.md — owns the AUTHORED shape of Event graphs (any number of typed event nodes, split into
     one handler each before Stage 5). Each handler is one fiber graph here, unchanged.
 -->
@@ -956,6 +958,71 @@ children — moving them onto `MoveToLocation` / `FireAtTarget` needs the moveme
 Rails: `BlueprintBehaviourTests.S8_TheParamsPin_SeedsTheChild_AtItsStart`, `…S8_AStartedTask_TakesItsParamsFromTheStartingEvent_AndARestartTakesTheNewOnes`,
 `…S8_AnUnwiredParamsPin_BindsNothing`, `…S8_TheHostedInputType_IsTheChildsAuthoredInput`; `BehaviorTaskNodeDrawerTests.Picking_BakesTheChildsParamsType_AndProjectsAParamsPin_Undoably`,
 `…TheRegistry_ForwardsTheParamsTypeLookup_ToTheDrawerItBuilds`; `TheEqsBrainStartupIsSharedTests` (both hosts pass the lookup).
+
+#### S8b design — ONE answer to *"what does this child take?"* *(`2026-10-03`, CE-2024/CE-2025; user: "plan to do 1 and then 2. document it first")*
+
+📐 **Measured:** three producers answered the same question, two of them in the live editor.
+
+| # | producer | source | covered | consumers |
+|---|---|---|---|---|
+| ① | `BehaviorRegistry.TryGetHostedInputType` (S8) | the runtime `BehaviorDefinition` | blueprint, curated — ⛔ BTree/HSM excluded by S8's own rule | the Behaviour Task drawer |
+| ② | `IBehaviorInputsContract.InputsTypeId` (CE-439) | the editor catalogue, recomputing the name from the asset (`BTreeEmitCore.InputsStructTypeId`) | BTree only (one implementer) | the BTree + HSM subtree pickers |
+| ③ | `GeneratedBehaviorSchemaCatalog` / `GeneratedBlueprintSchemaCatalog` | sibling asset files, at generation time | BTree / blueprint siblings | the generators sizing a host variable |
+
+| claim | code | design basis |
+|---|---|---|
+| a generated BTree/HSM definition already carries its Inputs struct | ✅ `BTreeBridgeEmitCore.EmitRootParamsMembers` sets `JsonParamsDtoType` = the Inputs struct (CE-235/CE-437), shared by `HsmBridgeEmitCore` | ✅ Q76 §12.2b ("JsonParamsDtoType stays the Inputs struct") |
+| ⇒ ①'s BTree/HSM gap is S8's RULE, not missing data | ✅ S8 read `JsonParamsDtoType` for the blueprint tier only | — |
+| ② was never weighed against ① | ✅ — | ✅ Q76 §12.28's rejected list names "the HSM editor references the BTree editor", not the registry |
+| ② has no availability edge over ① | ✅ `ComposeForSubtree` refuses a type that is not loaded ⇒ both need the child built | — |
+| the facet pickers can reach ① without new host wiring | ✅ `AiFacetPickerServices.BehaviorRegistry` is already passed by both hosts | — |
+| ③ answers at GENERATION time, where no runtime type exists | ✅ the generators run inside Roslyn | ✅ Q76 §12.28 — out of scope here |
+
+```mermaid
+classDiagram
+  class BehaviorRegistry { <<EXISTS, rule fixed>> +TryGetHostedInputType(name) — any generated tier: JsonParamsDtoType }
+  class ChildInputTypes { <<NEW, AiComposition>> +Lookup(registry) Func~name, typeId~ }
+  class AiFacetPickerBinder { <<EXISTS, widened>> passes the lookup to both pickers }
+  class BTreeFacetMapper { <<EXISTS, widened>> +inputsTypeOf }
+  class HsmFacetDispatcher { <<EXISTS, widened>> +inputsTypeOf }
+  class BehaviorTaskNodeDrawer { <<EXISTS>> paramsTypeOf — the same lookup }
+  class AutoManagedVariables { <<EXISTS>> ComposeForSubtree(host, child, typeId) }
+  class IBehaviorInputsContract { <<RETIRED>> }
+  ChildInputTypes --> BehaviorRegistry
+  AiFacetPickerBinder --> ChildInputTypes
+  AiFacetPickerBinder --> BTreeFacetMapper
+  AiFacetPickerBinder --> HsmFacetDispatcher
+  BTreeFacetMapper --> AutoManagedVariables
+  HsmFacetDispatcher --> AutoManagedVariables
+  BehaviorTaskNodeDrawer --> ChildInputTypes : hosts pass it
+```
+
+*What the picture shows that prose hid: after the change there is one arrow into the answer — every picker (BTree state,
+HSM state, Behaviour Task) reaches `BehaviorRegistry` through one function; the catalogue keeps only what it is for (the
+asset id and rename heal), not the type.*
+
+```mermaid
+sequenceDiagram
+  participant P as a picker (BTree / HSM / Behaviour Task)
+  participant L as ChildInputTypes.Lookup
+  participant R as BehaviorRegistry
+  P->>L: child name
+  L->>R: TryGetHostedInputType(name)
+  R-->>L: Type (or none)
+  L-->>P: type id ("Ns.Outer.Inner")
+  P->>P: compose / bake (ComposeForSubtree, ParamsTypeId)
+```
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| U1 | the rule | ⭐ curated typed resolver → its `TAuthored` · else a definition WITH a manifest (BTree, HSM, blueprint — generated: authored DTO = the Inputs mirror) → `JsonParamsDtoType` · else no curated resolver → `BlackboardLayoutType` | per-tier switches: the manifest already says "generated" |
+| U2 | the editor seam | ⭐ ONE `Func<string, string?>` built by `ChildInputTypes.Lookup` (in `Hrot.Editor.AiComposition`, which both binders and both hosts already reach), passed to all three pickers | the catalogue as the source: it would need per-tier answers only the registry has |
+| U3 | `IBehaviorInputsContract` | ⭐ RETIRED with its one implementer's `InputsTypeId`; its two tests are re-homed onto the lookup (claims kept, source changed) | keep it beside the registry: two producers for one fact (ruling 9) |
+| U4 | `BTreeEmitCore.InputsStructTypeId` | ⭐ KEPT — it is the naming rule the GENERATORS (③) and the emitted `JsonParamsDtoType` share | — |
+| U5 | ③ | ⭐ out of scope (generation time); its BTree/blueprint split is a candidate for its own unification | folding it in: no runtime types exist where it runs |
+
+Slices: **S8b-1** (CE-2024) = U1 + rails · **S8b-2** (CE-2025) = U2 + U3 + re-homed tests + the host lookup routed through
+`ChildInputTypes`.
 
 ## 5. Decisions — each with a lean
 
