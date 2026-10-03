@@ -13,6 +13,7 @@ updated: 2026-09-30 (§7.3a's as-built limit CORRECTED: the BaseFolder seam has 
   AGGREGATION RULE and an AS-BUILT block. Earlier: round 1 six corrections; round 2 §7.3b's
   author-subtraction, the BaseFolder predicate, the merged AUTH/BRAIN box)
 owner: the BACKEND lane (`backend`) owns this design as of 2026-09-20 (user ruling).
+scope: IN THE BACKEND LANE'S BUILD SCOPE since 2026-10-03 (user) — §10 carries the terrain-world deltas D1/D2.
 current-answer: §2 is the model in one table (the three forms, the two directions) — ⭐ read its
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
   §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
@@ -20,7 +21,18 @@ current-answer: §2 is the model in one table (the three forms, the two directio
   read them as one rule, and ⭐ §7.3c is the explicit REFRESH that closes their loop. §8 is the increment
   split. §9 is under-specified (W1-W4 live; W5 and W6 CLOSED).
   ⛔ §HISTORY is what the two reviews measured FALSE — never quote it.
-stale-below: everything under `## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
+stale-below: everything under `## 10. ⭐ THE TERRAIN WORLD'S DELTAS — **added `2026-10-03`, when the user put this programme in the backend lane's scope**
+
+🔒 *User, `2026-10-03`: "Pls include to scope the asset management implementation that was parked recently."* ⇒ the
+programme is BUILDING (increments A → B → C, `CE-3019` / `CE-3020` / `CE-3021`). Two facts changed under it while it
+waited; both are leans the builder follows, stated so a reader can push on them.
+
+| # | what changed | ⭐ lean (followed) | basis |
+|---|---|---|---|
+| **D1** | a terrain is a **FOLDER** (`<root>/<name>/terrain.json` + world + roads), and the terrain part is **UNIVERSAL** | `LoadPart.Terrain` ⇒ **the whole folder**, as ONE tree asset, to **every** ECS node — §7.3a's row and §6 updated | `DESIGN_Terrain_World.md` §7.3 W12, §5; `RoleLoadRequirements.UniversalParts = {KnowledgeBase, Terrain}` |
+| **D2** | `StorageGatewayModule.StageFolder` (`BP-557`) already copies the terrain folder recursively on prefetch, with the BUILT skip | ⭐ **ROUTE, do not duplicate** (`R-132`): `A2`'s walker REPLACES its loop now; `B4`'s sync SUBSUMES the whole method for the terrain kind — ⛔ never a second terrain copier beside the sync | `StorageGatewayModule.cs` `StageFolder`; CLAUDE.md "prefer routing to deleting" |
+
+## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
   each is named there with what measured it false.
 known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — read §7.3a with it,
   which measures the vocabulary gap and carries the ruled adapter. ⚠ §7.6 records an inherited
@@ -294,13 +306,13 @@ graph TD
     SY["AssetSyncService (orchestrator)"]
     BRAIN["Brain host that does NOT author<br/>e.g. SimHost with Brain role"]
     MUSCLE["Muscle / Perception - terrain parts"]
-    MAP["Map2D - knowledge base ONLY"]
+    MAP["Map2D - knowledge base + terrain world"]
     EXT -->|publishes directly| NAS
     AUTH -->|explicit publish only| NAS
     NAS --> SY
     SY -->|"AI kinds + KnowledgeBase"| BRAIN
     SY -->|needs-filtered| MUSCLE
-    SY -->|"KnowledgeBase only - NO terrain"| MAP
+    SY -->|"KnowledgeBase + terrain folder"| MAP
     SY -.->|"AI kinds ADD-ONLY - it authors them"| AUTH
     AUTH -.->|"never node-to-node"| BRAIN
     style MAP fill:#eee,stroke:#999
@@ -308,6 +320,10 @@ graph TD
     style EXT fill:#dfd,stroke:#0a0
 ```
 
+> ⚠ **SUPERSEDED IN PART `2026-10-03` (§10 D1):** terrain is now a UNIVERSAL part — every map draws the terrain
+> world — so `Map2D` receives the knowledge base **and the terrain folder**. The paragraph below is the 2026-09-20
+> reading, kept for its subtraction argument, which still holds for the AI kinds.
+>
 > **Caption — what the picture shows that prose hid.** ⭐ `Map2D` is the **sharp** case, not the empty
 > one: it receives **the knowledge base and nothing else.** `UniversalParts = { KnowledgeBase }` is
 > 🔒 *"required by every ECS node, whatever its roles — not role-derived at all"*
@@ -385,7 +401,7 @@ duplication §7.3 warns against; it is railed and it is stated here.
 | the map — **the whole of it** | asset kind(s) reaching the node |
 |---|---|
 | `LoadPart.KnowledgeBase` | the scenario's named **TKB artifact** |
-| `LoadPart.Terrain` | the **terrain definition** and its road graph |
+| `LoadPart.Terrain` | ⭐ **the terrain FOLDER** `<name>/` — `terrain.json` + the world file + its road graph(s) *(since `2026-10-03`, §10 D1; ⛔ was: "the terrain definition and its road graph")* · ⭐ **universal** — every ECS node |
 | `LoadPart.ScenarioEntities` | the **scenario** ⚠ *(already travels by the prefetch path — see `§9-W3`)* |
 | ⭐ **`NodeRole.Brain`**, not a `LoadPart` | ⭐⭐ **every kind whose catalog contributor exposes a non-null `BaseFolder`** — today `Blueprint`, `BTree`, `Hsm` |
 
@@ -600,7 +616,7 @@ as **planned** rather than left to be discovered in a batch.
 
 | # | what | why this boundary |
 |---|---|---|
-| **A — the manifest and the recursive walk** | `AssetManifest` (three-set `Diff`) + recursive enumeration on **both** sides. ⛔⛔ **NOT the `FileManifestEntry` fields** — they moved to **C**, see below | ⭐⭐ **everything else needs it**, and ① says it exists nowhere. ⛔ Landing anything else first builds on sand |
+| **A — the manifest and the recursive walk** ✅ *built `2026-10-03`, `CE-3019`* | `AssetManifest` (three-set `Diff`) + recursive enumeration on **both** sides. ⛔⛔ **NOT the `FileManifestEntry` fields** — they moved to **C**, see below | ⭐⭐ **everything else needs it**, and ① says it exists nowhere. ⛔ Landing anything else first builds on sand |
 | **B — needs-filtered sync with the partition** | `AssetSyncService` NAS→node, tokens derived from `RoleLoadRequirements`, `TransportPartitioner`, the skip kept verbatim | ⭐ this is the increment that makes *"nodes keep just copies they really need"* true |
 | **C — publish, the probe, and the refresh** | explicit publish node→NAS, the summary probe, the warn/fail split, ⭐ **and `C5`'s explicit refresh NAS→author** | ⭐ independent of B and **safe to defer**; ⛔ it is the only part that touches authoring hosts. ⚠ **`C5` is what closes §7.3b's loop** — deferring C leaves an authoring station with no route to an update |
 

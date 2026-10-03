@@ -513,12 +513,16 @@ public sealed class StorageGatewayModule
     /// <summary>
     /// Copies every file under <paramref name="sourceDir"/> to <paramref name="destDir"/>, skipping files the
     /// node already holds byte-for-byte by the same (length, mtime) rule as the TKB (§6) — BP-557.
+    /// <para>⭐ Walks the tree with the ONE asset walker (<see cref="Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan"/>,
+    /// docs/DESIGN_Asset_Management.md §10 D2) — ⛔ never a second enumeration. The asset sync (increment B, <c>CE-3020</c>)
+    /// subsumes this method for the terrain kind.</para>
     /// </summary>
     private static void StageFolder(string sourceDir, string destDir, ref int success)
     {
-        foreach (var src in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        foreach (var entry in Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(sourceDir).Entries)
         {
-            var dest = Path.Combine(destDir, Path.GetRelativePath(sourceDir, src));
+            var src  = Path.Combine(sourceDir, entry.RelativePath);
+            var dest = Path.Combine(destDir, entry.RelativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             if (!IsAlreadyCurrent(src, dest))
                 File.Copy(src, dest, overwrite: true);

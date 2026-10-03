@@ -870,6 +870,99 @@ public sealed class StorageGatewayTkbConsensusTests
         finally { Cleanup(nas, root); }
     }
 
+    // ── Asset management increment A (CE-3019) — docs/DESIGN_Asset_Management.md §2, §3, §8 ──────────────────
+
+    private static string NewDir()
+    {
+        var d = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(d);
+        return d;
+    }
+
+    private static void Put(string root, string rel, string text)
+    {
+        var p = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(p)!);
+        File.WriteAllText(p, text);
+    }
+
+    /// <summary>⭐ A2 — the walker reaches every depth and keeps the subfolder structure (a 1-level walker fails this).</summary>
+    [Fact]
+    public void AssetManifest_ScansATreeFourLevelsDeep_KeepingTheStructure_A2()
+    {
+        var root = NewDir();
+        try
+        {
+            Put(root, "top.json", "t");
+            Put(root, "a/one.json", "1");
+            Put(root, "a/b/two.json", "22");
+            Put(root, "a/b/c/three.json", "333");
+            var m = Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(root);
+            Assert.Equal(new[] { "a/b/c/three.json", "a/b/two.json", "a/one.json", "top.json" },
+                m.Entries.Select(e => e.RelativePath).ToArray());
+            Assert.True(m.TryGet("a/b/c/three.json", out var deep));
+            Assert.Equal(3, deep.Length);
+            Assert.Equal(0, Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(Path.Combine(root, "missing")).Count);
+        }
+        finally { Cleanup(root); }
+    }
+
+    /// <summary>⭐ A1 — the diff returns ADDED, CHANGED and REMOVED; the removed set is what makes "mirror" testable.</summary>
+    [Fact]
+    public void AssetManifest_Diff_ReturnsAddedChangedAndRemoved_A1()
+    {
+        var nas = NewDir(); var node = NewDir();
+        try
+        {
+            Put(nas, "same.json", "s");     Put(node, "same.json", "s");
+            File.SetLastWriteTimeUtc(Path.Combine(node, "same.json"), File.GetLastWriteTimeUtc(Path.Combine(nas, "same.json")));
+            Put(nas, "sub/changed.json", "new-bytes"); Put(node, "sub/changed.json", "old");
+            Put(nas, "sub/added.json", "a");
+            Put(node, "gone/removed.json", "r");
+
+            var diff = Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(nas)
+                .Diff(Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(node));
+
+            Assert.Equal(new[] { "sub/added.json" }, diff.Added.Select(e => e.RelativePath));
+            Assert.Equal(new[] { "sub/changed.json" }, diff.Changed.Select(e => e.RelativePath));
+            Assert.Equal(new[] { "gone/removed.json" }, diff.Removed.Select(e => e.RelativePath));
+            Assert.False(diff.IsEmpty);
+        }
+        finally { Cleanup(nas, node); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ A3 — the manifest's freshness IS the built skip: a <c>File.Copy</c> compares equal under BOTH, a modified
+    /// file unequal under BOTH. ⚠ The archive arm is NOT railed here: ZIP's 2-second DOS timestamps make it unequal
+    /// until increment B restores each member's mtime (<c>B4</c>, <c>CE-3020</c>) — homed there, not forgotten.
+    /// </summary>
+    [Fact]
+    public void AssetManifest_Freshness_AgreesWithTheBuiltSkip_A3()
+    {
+        var nas = NewDir(); var node = NewDir();
+        try
+        {
+            Put(nas, "deep/x/asset.json", "payload");
+            var src = Path.Combine(nas, "deep", "x", "asset.json");
+            var dst = Path.Combine(node, "deep", "x", "asset.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+            File.Copy(src, dst);
+
+            var diff = Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(nas)
+                .Diff(Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(node));
+            Assert.True(diff.IsEmpty);
+            Assert.True(StorageGatewayModule.IsAlreadyCurrent(src, dst));
+
+            File.WriteAllText(dst, "payloaD");                          // same length, new mtime
+            File.SetLastWriteTimeUtc(dst, File.GetLastWriteTimeUtc(src).AddSeconds(5));
+            diff = Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(nas)
+                .Diff(Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(node));
+            Assert.Equal(new[] { "deep/x/asset.json" }, diff.Changed.Select(e => e.RelativePath));
+            Assert.False(StorageGatewayModule.IsAlreadyCurrent(src, dst));
+        }
+        finally { Cleanup(nas, node); }
+    }
+
     private static void Cleanup(params string[] dirs)
     {
         foreach (var d in dirs)

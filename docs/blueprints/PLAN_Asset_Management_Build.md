@@ -54,6 +54,8 @@ cluster op.**
 
 ### Increment A — the manifest and the recursive walk *(the enabler — ⛔ nothing else starts first)*
 
+> ✅ **BUILT `2026-10-03` (`CE-3019`)** — `Fdp.Toolkit.Orchestration.Assets.AssetManifest` (`Scan` = the one recursive walker, `Diff` = added/changed/removed, `AssetManifestEntry.IsSameContentAs` = the built skip's exact rule); `StorageGatewayModule.StageFolder` now walks with it (design §10 D2). Rails in `StorageGatewayTests.cs` (`…_A1`, `…_A2`, `…_A3`), Orchestrator suite 186/0. ⚠ A3's archive arm stays homed in `B4`.
+
 | # | task | success condition | owning chapter |
 |---|---|---|---|
 | **A1** | `AssetManifestEntry` + `AssetManifest.Diff` returning **THREE sets — added / changed / removed**. ⛔⛔ **NOT the `FileManifestEntry` fields — they moved to `C1`** | `Diff` returns exactly the entries that differ **and** the ones present only on the node. ⭐ Rail the **removed** set explicitly: a one-sided diff passes an added/changed fixture and fails this | design **§3**, **§8**; ⚠ **see §3-W4** |
