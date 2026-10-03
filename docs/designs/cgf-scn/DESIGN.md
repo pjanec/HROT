@@ -25,6 +25,8 @@ related-designs:
 -->
 # Design: CGF Scenario Loading via Genesis Pipeline
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../blueprints/DESIGN_Map_Picking_Unification.md):** `MapPickableWorldLocationAttribute` and `IPickInteractionContext` (the C008/C009 sections below) are deleted: the TYPE makes a member pickable and `IComponentPickerContext` with path keys is the one pick context.
+
 ## Context
 
 Hrot.Editor saves scenario files in a subsystem-typed JSON format.  Currently

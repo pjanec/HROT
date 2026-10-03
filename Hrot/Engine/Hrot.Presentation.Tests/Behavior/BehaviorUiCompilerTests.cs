@@ -9,16 +9,16 @@ namespace Hrot.Presentation.Tests.Behavior
     /// <summary>Tests for TASK-C009: BehaviorUiCompiler and BehaviorUiRegistry.</summary>
     public sealed class BehaviorUiCompilerTests
     {
-        // Null implementation of IPickInteractionContext for tests that do not exercise pick flow.
-        private sealed class NullPickContext : IPickInteractionContext
+        // Null pick context for tests that do not exercise the pick flow.
+        private sealed class NullPickContext : Fdp.Presentation.Editing.IComponentPickerContext
         {
-            public bool IsPickPendingFor(int taskIndex, string propertyName) => false;
-            public bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
-            { entityId = 0; return false; }
-            public bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
+            public bool IsPickPendingFor(string path) => false;
+            public bool TryConsumeEntityPick(string path, out Fdp.Toolkit.Replication.EntityRef picked)
+            { picked = default; return false; }
+            public bool TryConsumeLocationPick(string path, out PickableGeoPoint location)
             { location = default; return false; }
-            public void RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets) { }
-            public void RequestLocationPick(int taskIndex, string propertyName) { }
+            public void RequestEntityPick(string path, string[]? filterPresets) { }
+            public void RequestLocationPick(string path) { }
         }
 
         // ── C009 SC1: Compile<T> returns non-null delegate ────────────────────
@@ -59,20 +59,21 @@ namespace Hrot.Presentation.Tests.Behavior
 
         // ── CE-2023 ③ (S8n): the contracts are STRUCTS — a pick must land in the JSON, not in a copy ──
 
-        private sealed class PickingContext : IPickInteractionContext
+        private sealed class PickingContext : Fdp.Presentation.Editing.IComponentPickerContext
         {
             public long Entity;
             public PickableGeoPoint? Location;
-            public bool IsPickPendingFor(int taskIndex, string propertyName) => false;
-            public bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
-            { entityId = Entity; return Entity != 0; }
-            public bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
-            { location = Location ?? default; return Location.HasValue; }
-            public void RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets) { }
-            public void RequestLocationPick(int taskIndex, string propertyName) { }
+            public readonly System.Collections.Generic.List<string> AskedPaths = new();
+            public bool IsPickPendingFor(string path) => false;
+            public bool TryConsumeEntityPick(string path, out Fdp.Toolkit.Replication.EntityRef picked)
+            { AskedPaths.Add(path); picked = new Fdp.Toolkit.Replication.EntityRef(Entity); return Entity != 0; }
+            public bool TryConsumeLocationPick(string path, out PickableGeoPoint location)
+            { AskedPaths.Add(path); location = Location ?? default; return Location.HasValue; }
+            public void RequestEntityPick(string path, string[]? filterPresets) { }
+            public void RequestLocationPick(string path) { }
         }
 
-        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, IPickInteractionContext pick)
+        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, Fdp.Presentation.Editing.IComponentPickerContext pick)
         {
             var ctx = ImGuiNET.ImGui.CreateContext();
             ImGuiNET.ImGui.SetCurrentContext(ctx);
@@ -103,10 +104,11 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.True(typeof(FireAtTargetParamsJsonDto).IsValueType);
             var draw = BehaviorUiCompiler.Compile<FireAtTargetParamsJsonDto>();
 
-            string result = DrawOneFrame(draw, "{\"targetNetworkId\":42,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
-                new PickingContext { Entity = 99 });
+            var ctx = new PickingContext { Entity = 99 };
+            string result = DrawOneFrame(draw, "{\"targetNetworkId\":42,\"maxRounds\":5,\"cooldownSeconds\":1.0}", ctx);
 
             Assert.Contains("\"targetNetworkId\":99", result);
+            Assert.Contains("$.tasks[0].TargetNetworkId", ctx.AskedPaths);   // ⭐ P4 — the one context, path-keyed
             Assert.Contains("\"maxRounds\":5", result);
         }
 

@@ -22,9 +22,9 @@ public sealed record MissionTaskRowViewModel(string TaskId, string ExecutingEngi
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="MissionPanel"/> shows, this frame.</b>
 /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⚠ See <c>ConfigPanel</c>'s remarks for
 /// the group-5 twin finding (same shape — this is the SHIPPED copy). ⚠⚠ <b>Deliberately does NOT call
-/// <see cref="PollCommitCompletion"/>/<see cref="PollPickCompletion"/></b> — those are side-effecting
-/// (they null out and consume the pending task on completion), so calling them a second time ahead of
-/// <see cref="DrawContent"/> would change which frame observes a completed pick/commit. The dump reads
+/// <see cref="PollCommitCompletion"/></b> — it is side-effecting (it nulls out and consumes the pending task on
+/// completion), so calling it a second time ahead of <see cref="DrawContent"/> would change which frame observes a
+/// completed commit. (Picks are read from the broker, which has no poll step.) The dump reads
 /// whatever state this frame's <c>DrawContent</c> has already settled, one BUILD-CAPTURE-RENDER cycle
 /// behind the completion — the same tradeoff <c>MessageLogPanelViewModel</c> documents for its own
 /// "superset, not exact frame" deviation.</summary>
@@ -49,7 +49,7 @@ public sealed record MissionPanelViewModel(
 /// <c>Handle*</c> methods that accept the service interfaces directly; tests can
 /// call these without an ImGui render frame.</para>
 /// </summary>
-public sealed class MissionPanel : IPickInteractionContext
+public sealed class MissionPanel
 {
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -62,28 +62,14 @@ public sealed class MissionPanel : IPickInteractionContext
     private bool                          _commitInFlight;
     private Task<MissionCommitResult>?    _pendingCommit;
 
-    // ── Map-pick pending state ─────────────────────────────────────────────────
+    // ── Map picking ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Pending async location pick. Non-null while the operator is
-    /// picking a location on the map for a <c>MoveToLocation</c> task.
+    /// ⭐⭐ THE pick broker (<c>DESIGN_Map_Picking_Unification.md</c> P4) over this frame's pick service — the
+    /// behaviour-parameter UI requests and consumes picks through it, keyed <c>$.tasks[i].Prop</c>. ⛔ Replaces this
+    /// panel's own copy of the pending-pick state machine and its <c>IPickInteractionContext</c>.
     /// </summary>
-    private Task<GeoPoint>? _pendingLocationPick;
-
-    /// <summary>
-    /// Pending async entity pick. Non-null while the operator is
-    /// picking a route entity for a <c>FollowRoute</c> task.
-    /// </summary>
-    private Task<int>? _pendingEntityPick;
-
-    /// <summary>Task index that the current pending pick is targeting.</summary>
-    private int _pendingPickTaskIndex = -1;
-
-    /// <summary>Resolved location result buffered until a compiled delegate consumes it.</summary>
-    private GeoPoint? _resolvedLocationPick;
-
-    /// <summary>Resolved entity result buffered until a compiled delegate consumes it.</summary>
-    private long? _resolvedEntityPick;
+    private readonly Hrot.Presentation.Facades.MapPickServiceBridge _picks;
 
     // ── Trigger types ─────────────────────────────────────────────────────────
 
@@ -110,16 +96,15 @@ public sealed class MissionPanel : IPickInteractionContext
         PropertyNameCaseInsensitive = true,
     };
 
-    // Transient per-frame service reference set at start of DrawContent.
+    // Transient per-frame service reference set at start of DrawContent; the pick broker reads it at request time.
     private IMapPickService? _framePickService;
-    // Tracks which DTO property name is awaiting the current pick operation.
-    private string? _pendingPickPropertyName;
 
     /// <summary>Creates a new mission panel.</summary>
     public MissionPanel(long localNodeId = 0, BehaviorUiRegistry? behaviorUiRegistry = null)
     {
         _localNodeId        = localNodeId;
         _behaviorUiRegistry = behaviorUiRegistry ?? new BehaviorUiRegistry();
+        _picks              = new Hrot.Presentation.Facades.MapPickServiceBridge(() => _framePickService);
     }
 
     // ── Public state accessors ────────────────────────────────────────────────
@@ -384,41 +369,16 @@ public sealed class MissionPanel : IPickInteractionContext
             _draftPlan != null ? _draftPlan.ActiveTaskId.ToString() : null, tasks);
     }
 
-    // ── Map-pick handlers (public for testability) ────────────────────────────
+    // ── Map picking ───────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Initiates an async location pick for the <c>MoveToLocation</c> task at
-    /// <paramref name="index"/>.
-    /// </summary>
-    public void HandlePickLocation(int index, IMapPickService pick)
-    {
-        ArgumentNullException.ThrowIfNull(pick);
-        if (!TryGetDraftTasks(out _)) return;
-        if (index < 0) return;
-
-        _pendingPickTaskIndex = index;
-        _pendingLocationPick  = pick.PickLocationAsync();
-    }
-
-    /// <summary>
-    /// Initiates an async entity pick for the <c>FollowRoute</c> task at
-    /// <paramref name="index"/>.
-    /// </summary>
-    public void HandlePickEntity(int index, IMapPickService pick, string[]? filterPresets)
-    {
-        ArgumentNullException.ThrowIfNull(pick);
-        if (!TryGetDraftTasks(out _)) return;
-        if (index < 0) return;
-
-        _pendingPickTaskIndex = index;
-        _pendingEntityPick    = pick.PickEntityAsync(filterPresets);
-    }
+    /// <summary>The pick context the behaviour-parameter UI draws against (exposed for tests and hosts).</summary>
+    public Fdp.Presentation.Editing.IComponentPickerContext Picks => _picks;
 
     /// <summary>True when an async location pick is in flight for any task.</summary>
-    public bool IsLocationPickPending => _pendingLocationPick is { IsCompleted: false };
+    public bool IsLocationPickPending => _picks.IsLocationPickPending;
 
     /// <summary>True when an async entity pick is in flight for any task.</summary>
-    public bool IsEntityPickPending => _pendingEntityPick is { IsCompleted: false };
+    public bool IsEntityPickPending => _picks.IsEntityPickPending;
 
     // ── JSON helpers (kept for external compatibility) ────────────────────────
 
@@ -472,7 +432,7 @@ public sealed class MissionPanel : IPickInteractionContext
     /// </summary>
     public void DrawContent(IMissionEditorService service, IMapPickService pick)
     {
-        // Store service reference so IPickInteractionContext methods can call HandlePickEntity/Location.
+        // The pick broker reads this at request time.
         _framePickService = pick;
 
         // Refresh behavior list before any ImGui calls so tests can verify without a render ctx.
@@ -480,7 +440,6 @@ public sealed class MissionPanel : IPickInteractionContext
         var behaviors = service.GetAvailableBehaviorChoices(_selectedEntityId);
 
         PollCommitCompletion();
-        PollPickCompletion();
 
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
@@ -527,7 +486,7 @@ public sealed class MissionPanel : IPickInteractionContext
 
                 if (_behaviorUiRegistry.TryGet(task.BehaviorId ?? string.Empty, out var drawDelegate))
                 {
-                    var newJson = drawDelegate!(paramsBuffer, i, this);
+                    var newJson = drawDelegate!(paramsBuffer, i, _picks);
                     if (!ReferenceEquals(newJson, paramsBuffer))
                         HandleEditBehaviorParams(i, newJson);
                 }
@@ -707,8 +666,8 @@ public sealed class MissionPanel : IPickInteractionContext
     /// <summary>Internal test hook: manually drives the commit-completion polling cycle.</summary>
     internal void TestHook_PollCommitCompletion() => PollCommitCompletion();
 
-    /// <summary>Internal test hook: manually drives the pick-completion polling cycle.</summary>
-    internal void TestHook_PollPickCompletion() => PollPickCompletion();
+    /// <summary>Internal test hook: the pick service a frame would supply (<see cref="DrawContent"/> sets it).</summary>
+    internal void TestHook_SetFramePickService(IMapPickService pick) => _framePickService = pick;
 
     /// <summary>Internal test hook: clears the draft plan and dismisses the conflict alert.</summary>
     public void TestHook_ClearDraftAndDismissConflict()
@@ -775,86 +734,4 @@ public sealed class MissionPanel : IPickInteractionContext
         }
     }
 
-    // ── IPickInteractionContext implementation ─────────────────────────────────
-
-    bool IPickInteractionContext.IsPickPendingFor(int taskIndex, string propertyName) =>
-        _pendingPickTaskIndex == taskIndex
-        && _pendingPickPropertyName == propertyName
-        && (IsLocationPickPending || IsEntityPickPending);
-
-    bool IPickInteractionContext.TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
-    {
-        if (_resolvedEntityPick.HasValue
-            && _pendingPickTaskIndex == taskIndex
-            && _pendingPickPropertyName == propertyName)
-        {
-            entityId = _resolvedEntityPick.Value;
-            _resolvedEntityPick      = null;
-            _pendingPickTaskIndex    = -1;
-            _pendingPickPropertyName = null;
-            FdpLog<MissionPanel>.Info(
-                "[Node-{0}] EntityPick consumed: task={1} entityId={2}",
-                _localNodeId, taskIndex, entityId);
-            return true;
-        }
-        entityId = 0;
-        return false;
-    }
-
-    bool IPickInteractionContext.TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
-    {
-        if (_resolvedLocationPick.HasValue
-            && _pendingPickTaskIndex == taskIndex
-            && _pendingPickPropertyName == propertyName)
-        {
-            var gp = _resolvedLocationPick.Value;
-            location = new PickableGeoPoint(gp.Latitude, gp.Longitude);
-            _resolvedLocationPick    = null;
-            _pendingPickTaskIndex    = -1;
-            _pendingPickPropertyName = null;
-            FdpLog<MissionPanel>.Info(
-                "[Node-{0}] LocationPick consumed: task={1} lat={2:F4} lon={3:F4}",
-                _localNodeId, taskIndex, gp.Latitude, gp.Longitude);
-            return true;
-        }
-        location = default;
-        return false;
-    }
-
-    void IPickInteractionContext.RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets)
-    {
-        _pendingPickPropertyName = propertyName;
-        if (_framePickService != null)
-            HandlePickEntity(taskIndex, _framePickService, filterPresets);
-    }
-
-    void IPickInteractionContext.RequestLocationPick(int taskIndex, string propertyName)
-    {
-        _pendingPickPropertyName = propertyName;
-        if (_framePickService != null)
-            HandlePickLocation(taskIndex, _framePickService);
-    }
-
-    // ── Pick completion polling ────────────────────────────────────────────────
-
-    private void PollPickCompletion()
-    {
-        if (_pendingLocationPick?.IsCompleted == true)
-        {
-            var task = _pendingLocationPick;
-            _pendingLocationPick = null;
-
-            if (!task.IsFaulted && !task.IsCanceled)
-                _resolvedLocationPick = task.Result;
-        }
-
-        if (_pendingEntityPick?.IsCompleted == true)
-        {
-            var task = _pendingEntityPick;
-            _pendingEntityPick = null;
-
-            if (!task.IsFaulted && !task.IsCanceled)
-                _resolvedEntityPick = (long)task.Result;
-        }
-    }
 }

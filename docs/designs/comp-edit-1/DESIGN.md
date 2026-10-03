@@ -1,4 +1,18 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-10-03
+current-answer: §2.2 (IComponentPickerContext — kept as THE pick context).
+stale-below: §2.1's picker attributes (a field is pickable by its TYPE now).
+superseded-by: ../../blueprints/DESIGN_Map_Picking_Unification.md
+known-rot: [MapPickableWorldLocation] is deleted; TryConsumeEntityPick yields EntityRef and TryConsumeLocationPick PickableGeoPoint.
+known-conflict: none.
+related-designs:
+  - ../../blueprints/DESIGN_Map_Picking_Unification.md — owns the picking stack now (one service, adapter, context, broker).
+  - ../../blueprints/DESIGN_Entity_Reference.md — the EntityRef type that makes an entity field pickable.
+-->
 # Component Editor — Design
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../blueprints/DESIGN_Map_Picking_Unification.md):** §2.1's picker ATTRIBUTES are superseded — a field is pickable by its TYPE (`EntityRef`, `PickableGeoPoint`); `[MapPickableWorldLocation]` is deleted and `[MapPickableEntity]` only narrows. §2.2's `IComponentPickerContext` is kept as THE pick context (entity result `EntityRef`, location result `PickableGeoPoint`).
 
 **Workstream:** `comp-edit-1`
 **Status:** Planned

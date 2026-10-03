@@ -40,7 +40,6 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
         /// <see cref="TargetLon"/> carry the wire representation.
         /// </summary>
         [JsonIgnore]
-        [MapPickableWorldLocation]
         public PickableGeoPoint PickableLocation
         {
             get => new PickableGeoPoint(TargetLat, TargetLon);

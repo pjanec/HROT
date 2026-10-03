@@ -528,7 +528,12 @@ public class IgApplication : IDisposable
     public MapPickServiceBridge? GetMapPickBridge()
     {
         if (_mapPickBridge == null && _canvas != null)
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager,
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world,
+                    // ⭐ DESIGN_Map_Picking_Unification P2 — IG HOLDS both, so it passes both (the silent-default rule):
+                    //    filter presets now narrow a pick, and a location pick is geodetic.
+                    filterFactory: _entityFilterFactory ??= new HrotEntityFilterFactory(_world),
+                    geoTransform:  _context?.GeoTransform,
+                    globalGizmoManager: _globalGizmoManager,
                     // 🔒 UXI-07 step 4b — a RESOLVER: this adapter is built here, but _igToolController
                     //    is not assigned until the pack is built further down (:816). An instance would
                     //    be permanently null.

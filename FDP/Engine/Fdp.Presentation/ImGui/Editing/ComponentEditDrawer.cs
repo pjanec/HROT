@@ -260,8 +260,9 @@ public sealed class ComponentEditDrawer
         var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
         if (isEntityRef && _pickerCtx != null) inputWidth -= 90f;
 
-        var locationAttr = node.Metadata.CustomAttributes.OfType<MapPickableWorldLocationAttribute>().FirstOrDefault();
-        if (locationAttr != null && _pickerCtx != null) inputWidth -= 90f;
+        // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a pickable world location by its TYPE.
+        bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint);
+        if (isLocation && _pickerCtx != null) inputWidth -= 90f;
 
         if (inputWidth < 60f) inputWidth = 60f;
         ImGuiApi.SetNextItemWidth(inputWidth);
@@ -306,7 +307,7 @@ public sealed class ComponentEditDrawer
         }
 
         // Picker: world location.
-        if (locationAttr != null && _pickerCtx != null)
+        if (isLocation && _pickerCtx != null)
         {
             ImGuiApi.SameLine();
             if (_pickerCtx.IsPickPendingFor(node.JsonPath))
@@ -381,6 +382,20 @@ public sealed class ComponentEditDrawer
             return customDrawer.DrawInput(ref value, node);
 
         var meta = node.Metadata;
+
+        if (type == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint))
+        {
+            // Latitude and longitude, typed in or set by the map picker.
+            var gp = value is Fdp.Toolkit.Behavior.Params.PickableGeoPoint p ? p : default;
+            float half = (ImGuiApi.CalcItemWidth() - 4f) * 0.5f;
+            ImGuiApi.SetNextItemWidth(half);
+            bool latChanged = ImGuiApi.InputDouble("##lat", ref gp.Latitude, 0, 0, "%.6f");
+            ImGuiApi.SameLine(0f, 4f);
+            ImGuiApi.SetNextItemWidth(half);
+            bool lonChanged = ImGuiApi.InputDouble("##lon", ref gp.Longitude, 0, 0, "%.6f");
+            if (latChanged || lonChanged) value = gp;
+            return latChanged || lonChanged;
+        }
 
         if (type == typeof(EntityRef))
         {

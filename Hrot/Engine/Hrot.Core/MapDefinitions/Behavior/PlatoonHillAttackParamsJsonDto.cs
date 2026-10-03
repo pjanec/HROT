@@ -19,22 +19,18 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]
-        [MapPickableWorldLocation]
         public PickableGeoPoint FiringLineStart { get; set; }
 
         /// <summary>End of the firing-line segment.</summary>
         [JsonPropertyName("firingLineEnd")]
-        [MapPickableWorldLocation]
         public PickableGeoPoint FiringLineEnd { get; set; }
 
         /// <summary>Start of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineStart")]
-        [MapPickableWorldLocation]
         public PickableGeoPoint BaselineStart { get; set; }
 
         /// <summary>End of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineEnd")]
-        [MapPickableWorldLocation]
         public PickableGeoPoint BaselineEnd { get; set; }
 
         /// <summary>Spacing (metres) between adjacent firing-line slots. Defaults to 30 m.</summary>

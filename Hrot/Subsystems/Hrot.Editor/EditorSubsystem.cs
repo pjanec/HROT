@@ -273,7 +273,7 @@ namespace Hrot.Editor
         private ScenarioMissionService?           _missionService;
         private ScenarioOrbatAdapter?             _orbatAdapter;
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
-        private EditorMapPickAdapter?           _mapPickAdapter;
+        private CanvasMapPickAdapter?           _mapPickAdapter;
         private EditorZoneAdapter?              _zoneAdapter;
         private JsonEntityContextMenuHandler? _contextMenuHandler;
         private EditorPreviewController?        _previewController;
@@ -2446,8 +2446,15 @@ namespace Hrot.Editor
             {
                 _mapViewConfig    = new MapViewConfig();
                 // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
-                _mapPickAdapter   = new EditorMapPickAdapter(
-                    _canvas!, geoTransform, _world, _globalGizmoManager!, () => _editorToolController);
+                // ⭐ CE-063 — THE shared adapter, built with the editor's capabilities (DESIGN_Map_Picking_Unification P2):
+                //   the domain filter, geodetic location picks and the modal area gizmo.
+                _mapPickAdapter   = new CanvasMapPickAdapter(
+                    _canvas!, _world,
+                    filterFactory:      new Hrot.IG.Systems.HrotEntityFilterFactory(_world!),
+                    globalGizmoManager: _globalGizmoManager!,
+                    tools:              () => _editorToolController,
+                    geoTransform:       geoTransform,
+                    areaGizmo:          (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove: onRemove));
 
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
@@ -3345,6 +3352,14 @@ namespace Hrot.Editor
                                            || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
                                            || ClockIsHalted();
 
+            // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge every Watch needs for a pin to survive a scenario
+            //    reload (📄 DESIGN_Variable_Watch_Pinning.md §5/§8a), and the source of the Watch's entity picker.
+            // ⭐ Method groups: `_world` is nulled on shutdown, so it is read AT CALL TIME rather than captured.
+            var watchIdentity = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
+                _stagingRemap,
+                runtimeId => FindEntityByNetworkId(runtimeId),
+                RuntimeNetworkIdOf);
+
             var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
                 catalog, refactorService, debugRegistry, facetEditService,
                 // ⭐⭐ R-66 — the run state comes from the CLOCK, not from "is a document open".
@@ -3405,23 +3420,13 @@ namespace Hrot.Editor
                     resolve:        blueprintLiveValueWriter.ResolveStagedField,
                     selectedEntity: () => blueprintLiveValueWriter.SelectedEntity),
 
-                // ⭐⭐⭐ AQ55 — the map picker every perspective's Watch gets. 📄
-                //    Architect_Question_55_Watch_Concrete_Entity_Picker.md.
-                // ⭐ A METHOD GROUP, not a captured adapter: _mapPickAdapter is assigned at :1883 and
-                //   nulled at shutdown, so the field is read AT CALL TIME — ⛔ capturing it here would
-                //   bind whatever it is now, which is the construction-order shape StagedWrites' own
-                //   comment two lines up warns about.
-                EntityPicker                  = PickWatchEntityBindingAsync,
+                // ⭐⭐⭐ AQ55 — the map picker every perspective's Watch gets, built by the ONE shared
+                //    WatchEntityIdentity.PickerOver (CGF uses the same; DESIGN_Map_Picking_Unification).
+                // ⭐ _mapPickAdapter is read AT CALL TIME — it is assigned later and nulled at shutdown.
+                EntityPicker                  = watchIdentity.PickerOver(
+                    ct => _mapPickAdapter?.PickEntityAsync(null, ct) ?? Task.FromResult(-1)),
 
-                // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge every Watch needs for a pin to
-                //    survive a scenario reload. 📄 DESIGN_Variable_Watch_Pinning.md §5/§8a.
-                // ⭐ Method groups again, for the same construction-order reason as EntityPicker above:
-                //   `_world` is assigned before this bag is built but nulled on shutdown, so the field is
-                //   read AT CALL TIME rather than captured.
-                EntityIdentity                = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
-                    _stagingRemap,
-                    runtimeId => FindEntityByNetworkId(runtimeId),
-                    RuntimeNetworkIdOf),
+                EntityIdentity                = watchIdentity,   // BP-511 — built above
             };
 
             _btreeRegistrar    = perspectiveServices.CreateRegistrar(
@@ -5359,46 +5364,6 @@ namespace Hrot.Editor
         private long RuntimeNetworkIdOf(Entity entity)
             // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`; see NetworkIdResolver's own note.
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity);
-
-        /// <summary>
-        /// ⭐⭐⭐ <b><c>AQ55</c> — the composition root's half of the "pin on entity…" gesture.</b>
-        /// 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c> *(<c>Q55-A</c>: REUSE)*.
-        ///
-        /// <para>⭐⭐ <b>Both halves are existing mechanisms</b>, which is the whole answer AQ55 gave:
-        /// <c>IMapPickService.PickEntityAsync</c> already enters map-pick mode and resolves with the
-        /// clicked entity's <b>network id</b> — §3's restart-stable identity — and
-        /// <see cref="FindEntityByNetworkId"/> already turns that id into an in-session
-        /// <c>Entity</c>, exactly as *"Mark Target for N Units…"* does at <c>:1937</c>.
-        /// ⛔ Nothing new is built here; this method only joins them.</para>
-        ///
-        /// <para>⚠ <b>No filter</b> *(<c>Q55-E</c>)*: v1 pins on any entity. <c>filterPresets</c> is
-        /// there when someone wants *"only entities of this type"*.</para>
-        ///
-        /// <para>⛔ Answers <c>null</c> — never a chameleon, never a half-built binding — when there is
-        /// no map, no world, the pick yields nothing, or the picked entity is not alive. ⭐ The Watch
-        /// then pins NOTHING rather than silently pinning something else.</para>
-        /// </summary>
-        private async Task<Hrot.Editor.AiShared.Variables.EntityBinding?> PickWatchEntityBindingAsync(
-            CancellationToken ct)
-        {
-            var pick = _mapPickAdapter;
-            if (pick == null || _world == null) return null;
-
-            int netId = await pick.PickEntityAsync(null, ct).ConfigureAwait(false);
-            if (netId == 0) return null;                       // ⭐ the adapter's own "nothing picked"
-
-            var entity = FindEntityByNetworkId(netId);
-            if (!_world.IsAlive(entity)) return null;
-
-            // ⭐⭐⭐ BP-511 — the pin stores the AUTHORED id, not the runtime one the pick returned.
-            // ⛔⛔ `PickEntityAsync` answers with THIS LOAD's runtime id, and Pass 1 hands out fresh ones
-            //    every load ⇒ storing it would point the pin at a different entity after a reload.
-            // ⚠ 0 is a legitimate answer (a runtime-spawned entity has no authored ancestor); the pin is
-            //   then within-session, which `IsPersistable` reports and the save path skips-and-counts.
-            long stagingId = _stagingRemap.ToStaging(netId);
-
-            return Hrot.Editor.AiShared.Variables.EntityBinding.Concrete(stagingId, entity);
-        }
 
         /// <summary>
         /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used

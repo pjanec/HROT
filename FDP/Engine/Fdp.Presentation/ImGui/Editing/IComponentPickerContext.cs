@@ -1,11 +1,12 @@
-using System.Numerics;
+using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 
 namespace Fdp.Presentation.Editing
 {
     /// <summary>
-    /// Brokers async map/entity pick requests between the component editor window
-    /// and the application's spatial and entity-selection services.
+    /// ⭐⭐ THE pick context: brokers async map/entity pick requests between an editing surface — the component editor
+    /// and the mission panel — and the application's map pick service (<c>DESIGN_Map_Picking_Unification.md</c> P4;
+    /// the mission panel's own <c>IPickInteractionContext</c> was deleted).
     /// Requests are keyed on the stable <c>EditNode.JsonPath</c> so pending picks
     /// survive a <c>RebuildDocument</c> call.
     /// </summary>
@@ -29,8 +30,9 @@ namespace Fdp.Presentation.Editing
 
         /// <summary>
         /// Attempts to consume a completed location pick.
-        /// Returns <see langword="true"/> and sets <paramref name="location"/> when a result is available.
+        /// Returns <see langword="true"/> and sets <paramref name="location"/> (geodetic latitude/longitude) when a
+        /// result is available.
         /// </summary>
-        bool TryConsumeLocationPick(string jsonPath, out Vector3 location);
+        bool TryConsumeLocationPick(string jsonPath, out PickableGeoPoint location);
     }
 }

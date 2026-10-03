@@ -121,7 +121,8 @@ public class ComponentReflector
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
             .RegisterFieldEditor<FixedString128>(new FixedString128FieldEditor())
             .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
-            .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new EntityRefFieldEditor())
+            .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityRef)))
+            .RegisterFieldEditor<Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)))
             .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
         foreach (var p in _bufferViewProviders)
             builder = builder.RegisterBufferViewProvider(p);

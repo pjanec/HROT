@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Presentation.Editing;
 using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using ImGuiNET;
@@ -17,7 +18,7 @@ namespace Hrot.Presentation.Behavior
     /// Signature: (currentJson, taskIndex, context) -> newJson (same reference when unchanged).
     /// </summary>
     public delegate string BehaviorUiDrawDelegate(
-        string currentJson, int taskIndex, IPickInteractionContext context);
+        string currentJson, int taskIndex, IComponentPickerContext context);
 
     // ── BehaviorUiRegistry ────────────────────────────────────────────────────
 
@@ -134,6 +135,13 @@ namespace Hrot.Presentation.Behavior
             };
         }
 
+        /// <summary>
+        /// ⭐ The pick-context path of a mission task's parameter — <c>$.tasks[i].Prop</c> — the key a pick is requested
+        /// and consumed under (<c>DESIGN_Map_Picking_Unification.md</c> P4: one context, string paths, for the mission panel
+        /// and the component editor alike).
+        /// </summary>
+        public static string PickPath(int taskIndex, string propertyName) => $"$.tasks[{taskIndex}].{propertyName}";
+
         private static List<Renderer<TDto>> BuildPropertyRenderers<TDto>()
         {
             var renderers = new List<Renderer<TDto>>();
@@ -146,7 +154,6 @@ namespace Hrot.Presentation.Behavior
             foreach (var prop in props)
             {
                 var pickEntity   = prop.GetCustomAttribute<MapPickableEntityAttribute>();
-                var pickLocation = prop.GetCustomAttribute<MapPickableWorldLocationAttribute>();
                 string propName  = prop.Name;
 
                 if (prop.PropertyType == typeof(EntityRef))
@@ -157,14 +164,14 @@ namespace Hrot.Presentation.Behavior
                     var getter        = BuildGetter<TDto, EntityRef>(prop);
                     var setter        = BuildSetter<TDto, EntityRef>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         bool changed = false;
 
                         // 1. Consume any asynchronously resolved pick targeting this field.
-                        if (ctx.TryConsumeEntityPick(taskIdx, propName, out long pickedId))
+                        if (ctx.TryConsumeEntityPick(PickPath(taskIdx, propName), out var pickedRef))
                         {
-                            setter(ref dto, new EntityRef(pickedId));
+                            setter(ref dto, pickedRef);
                             changed = true;
                         }
 
@@ -172,26 +179,26 @@ namespace Hrot.Presentation.Behavior
                         var val = getter(dto);
                         ImGui.Text($"{propName}: {val}");
                         ImGui.SameLine();
-                        if (ctx.IsPickPendingFor(taskIdx, propName))
+                        if (ctx.IsPickPendingFor(PickPath(taskIdx, propName)))
                             ImGui.Text("[Picking...]");
                         else if (ImGui.SmallButton($"Pick##{propName}_{taskIdx}"))
-                            ctx.RequestEntityPick(taskIdx, propName, filterPresets);
+                            ctx.RequestEntityPick(PickPath(taskIdx, propName), filterPresets);
                         return changed;
                     });
                 }
-                else if (pickLocation != null && prop.PropertyType == typeof(PickableGeoPoint))
+                else if (prop.PropertyType == typeof(PickableGeoPoint))   // ⭐ P5 — the TYPE makes it pickable
                 {
                     // World location pick via composite GeoPoint facade property.
                     // A single "Pick" button drives both lat and lon from one async operation.
                     var getter = BuildGetter<TDto, PickableGeoPoint>(prop);
                     var setter = BuildSetter<TDto, PickableGeoPoint>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         bool changed = false;
 
                         // 1. Consume any asynchronously resolved location pick.
-                        if (ctx.TryConsumeLocationPick(taskIdx, propName, out var pickedLoc))
+                        if (ctx.TryConsumeLocationPick(PickPath(taskIdx, propName), out var pickedLoc))
                         {
                             setter(ref dto, pickedLoc);
                             changed = true;
@@ -199,14 +206,14 @@ namespace Hrot.Presentation.Behavior
 
                         // 2. Render UI.
                         var val = getter(dto);
-                        if (ctx.IsPickPendingFor(taskIdx, propName))
+                        if (ctx.IsPickPendingFor(PickPath(taskIdx, propName)))
                         {
                             ImGui.Text($"{propName}: {val.Latitude:F4}, {val.Longitude:F4} [Picking...]");
                         }
                         else
                         {
                             if (ImGui.Button($"Pick##{propName}_{taskIdx}"))
-                                ctx.RequestLocationPick(taskIdx, propName);
+                                ctx.RequestLocationPick(PickPath(taskIdx, propName));
                             ImGui.SameLine();
                             ImGui.Text($"{val.Latitude:F4}, {val.Longitude:F4}");
                         }
@@ -218,7 +225,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, float>(prop);
                     var setter = BuildSetter<TDto, float>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         float val = getter(dto);
                         if (ImGui.InputFloat($"{propName}##{propName}_{taskIdx}", ref val))
@@ -234,7 +241,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, double>(prop);
                     var setter = BuildSetter<TDto, double>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         double val = getter(dto);
                         if (ImGui.InputDouble($"{propName}##{propName}_{taskIdx}", ref val))
@@ -250,7 +257,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, int>(prop);
                     var setter = BuildSetter<TDto, int>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         int val = getter(dto);
                         if (ImGui.InputInt($"{propName}##{propName}_{taskIdx}", ref val))
@@ -266,7 +273,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildLongGetter<TDto>(prop);
                     var setter = BuildSetter<TDto, long>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         string strVal = getter(dto).ToString();
                         if (ImGui.InputText($"{propName}##{propName}_{taskIdx}", ref strVal, 64))
@@ -285,7 +292,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, bool>(prop);
                     var setter = BuildSetter<TDto, bool>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
                     {
                         bool val = getter(dto);
                         if (ImGui.Checkbox($"{propName}##{propName}_{taskIdx}", ref val))
@@ -332,7 +339,7 @@ namespace Hrot.Presentation.Behavior
         }
 
         private delegate void RefSetter<TDto, in TProp>(ref TDto dto, TProp val);
-        private delegate bool Renderer<TDto>(ref TDto dto, int taskIndex, IPickInteractionContext context);
+        private delegate bool Renderer<TDto>(ref TDto dto, int taskIndex, IComponentPickerContext context);
 
         /// <summary>A mutation of a DTO in place — <see cref="TestHook_ApplyChange{TDto}"/>.</summary>
         internal delegate void RefAction<TDto>(ref TDto dto);

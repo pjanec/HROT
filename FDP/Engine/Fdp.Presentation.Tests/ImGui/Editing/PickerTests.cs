@@ -26,8 +26,6 @@ public class PickerAttributesTests
         [MapPickableEntity]
         public EntityRef EntityNoPresets;
 
-        [Fdp.Presentation.Editing.MapPickableWorldLocation]
-        public Vector3 WorldLocation;
     }
 
     // -- T-CE04a --------------------------------------------------------------
@@ -51,22 +49,6 @@ public class PickerAttributesTests
 
         Assert.Null(attr.FilterPresets);
     }
-
-    // -- T-CE04c --------------------------------------------------------------
-    // [MapPickableWorldLocation] applied to a field is present via reflection,
-    // and the attribute allows AttributeTargets.Field.
-    [Fact]
-    public void T_CE04c_MapPickableWorldLocation_AttributePresentOnField()
-    {
-        var field = typeof(TestComponent).GetField(nameof(TestComponent.WorldLocation))!;
-        var attr = field.GetCustomAttribute<Fdp.Presentation.Editing.MapPickableWorldLocationAttribute>();
-
-        Assert.NotNull(attr);
-
-        var usage = typeof(Fdp.Presentation.Editing.MapPickableWorldLocationAttribute)
-            .GetCustomAttribute<AttributeUsageAttribute>()!;
-        Assert.True((usage.ValidOn & AttributeTargets.Field) != 0);
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +68,7 @@ public class IComponentPickerContextTests
             picked = default;
             return false;
         }
-        public bool TryConsumeLocationPick(string jsonPath, out Vector3 location)
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
         {
             location = default;
             return false;

@@ -1,5 +1,7 @@
 # Fdp.Presentation
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `[MapPickableWorldLocation]` and the `ImGui/Editing/PickerAttributes.cs` copy of `[MapPickableEntity]` are deleted — a field is pickable by its TYPE (`EntityRef`, `PickableGeoPoint`), drawn as one leaf by `PickableLeafFieldEditor`; `[MapPickableEntity]` (Fdp.Toolkits) only narrows an entity pick. `IComponentPickerContext` is THE pick context (location result `PickableGeoPoint`).
+
 **Project path:** `FDP/Engine/Fdp.Presentation/Fdp.Presentation.csproj`
 **Date:** 2026-05-23
 

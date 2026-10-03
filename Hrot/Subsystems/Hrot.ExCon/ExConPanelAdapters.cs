@@ -107,28 +107,3 @@ internal sealed class ExConMissionShim : IMissionEditorService
     }
 
 }
-
-/// <summary>
-/// Temporary shim that wraps ExCon's internal <see cref="Services.IMapPickService"/>
-/// into the shared <see cref="IMapPickService"/> port until Phase 6.
-/// </summary>
-internal sealed class ExConMapPickShim : IMapPickService
-{
-    private readonly Services.IMapPickService _inner;
-
-    internal ExConMapPickShim(Services.IMapPickService inner) => _inner = inner;
-
-    /// <inheritdoc/>
-    public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
-        => _inner.PickLocationAsync(ct);
-
-    /// <inheritdoc/>
-    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
-        => _inner.PickEntityAsync(filterPresets, ct);
-
-    /// <inheritdoc/>
-    /// <remarks>Area pick not yet supported by ExCon; always returns empty list.</remarks>
-    public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(
-        string[]? filterPresets = null, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
-}

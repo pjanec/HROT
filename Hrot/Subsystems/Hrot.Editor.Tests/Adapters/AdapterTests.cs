@@ -85,6 +85,7 @@ namespace Hrot.Editor.Tests.Adapters
 
         private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
 
+
         [Fact]
         public void StartPlacementMode_RegistersGizmoWithManager()
         {
@@ -679,7 +680,8 @@ namespace Hrot.Editor.Tests.Adapters
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // A004 — EditorMapPickAdapter
+    // A004 — the editor's map picking. ⭐ CE-063: EditorMapPickAdapter is GONE — the editor builds THE shared
+    //   CanvasMapPickAdapter with its capabilities (DESIGN_Map_Picking_Unification P2); these rails moved with it.
     // ═══════════════════════════════════════════════════════════════════════════
 
     public sealed class EditorMapPickAdapterTests
@@ -688,6 +690,53 @@ namespace Hrot.Editor.Tests.Adapters
         private readonly DebugPrimitiveBuffer _buffer = new();
 
         private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
+
+        /// <summary>The adapter as <c>EditorSubsystem</c> builds it: geodetic transform + the modal area gizmo.</summary>
+        private CanvasMapPickAdapter EditorLike(GlobalGizmoManager manager, Func<ToolController?>? tools = null)
+            => new(_canvas, globalGizmoManager: manager, tools: tools,
+                   geoTransform: HrotEnvironment.CreateGeoTransform(),
+                   areaGizmo: (onPicked, onRemove) => new Hrot.Editor.Gizmos.ModalBoxSelectionGizmo(onPicked, onRemove));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-063</c> — a location pick is GEODETIC through the host's transform. 🔴 The shared adapter used to
+        /// return the world X/Y in the Latitude/Longitude fields; merging the editor onto it without this would have
+        /// written metres where degrees belong — the silent degradation CE-063 named.
+        /// </summary>
+        [Fact]
+        public async Task PickLocationAsync_IsGeodetic_ThroughTheHostTransform()
+        {
+            var manager = MakeManager();
+            var geo     = HrotEnvironment.CreateGeoTransform();
+            var adapter = new CanvasMapPickAdapter(_canvas, globalGizmoManager: manager, geoTransform: geo);
+
+            var task = adapter.PickLocationAsync();
+            SimulateLeftClick(manager, 120f, -340f);
+            var picked = await task;
+
+            var (lat, lon, _) = geo.ToGeodetic(new System.Numerics.Vector3(120f, -340f, 0f));
+            Assert.Equal(lat, picked.Latitude, 9);
+            Assert.Equal(lon, picked.Longitude, 9);
+        }
+
+        /// <summary>⭐ A host that publishes the transform as a world singleton (SimHost) gets geodetic picks without
+        /// passing it.</summary>
+        [Fact]
+        public async Task PickLocationAsync_FallsBackToTheWorldsTransformSingleton()
+        {
+            var manager = MakeManager();
+            var geo     = HrotEnvironment.CreateGeoTransform();
+            using var world = new EntityRepository();
+            world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var adapter = new CanvasMapPickAdapter(_canvas, world, globalGizmoManager: manager);
+
+            var task = adapter.PickLocationAsync();
+            SimulateLeftClick(manager, 50f, 75f);
+            var picked = await task;
+
+            Assert.Equal(geo.ToGeodetic(new System.Numerics.Vector3(50f, 75f, 0f)).lat, picked.Latitude, 9);
+        }
+
+
 
         private static void SimulateLeftClick(GlobalGizmoManager manager, float x = 0f, float y = 0f)
         {
@@ -709,7 +758,7 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_ToolFires_TaskCompletesWithGeoPoint()
         {
             var manager = MakeManager();
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
+            var adapter = EditorLike(manager);
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync();
 
             // Verify gizmo is registered, then simulate left-click.
@@ -728,7 +777,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var cts     = new CancellationTokenSource();
             var manager = MakeManager();
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
+            var adapter = EditorLike(manager);
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync(cts.Token);
 
             // Verify the gizmo is registered before cancellation.
@@ -743,7 +792,7 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickAreaEntitiesAsync_ToolFires_TaskCompletesWithList()
         {
             var manager = MakeManager();
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
+            var adapter = EditorLike(manager);
             Task<IReadOnlyList<int>> task = adapter.PickAreaEntitiesAsync();
 
             // Simulate a left-click to trigger the gizmo's selection complete callback.
@@ -806,9 +855,7 @@ namespace Hrot.Editor.Tests.Adapters
             var manager = MakeManager();
             var (controller, route) = ArmARouteTool(manager);
 
-            var adapter = new EditorMapPickAdapter(
-                _canvas, HrotEnvironment.CreateGeoTransform(),
-                globalGizmoManager: manager, tools: () => controller);
+            var adapter = EditorLike(manager, () => controller);
 
             _ = adapter.PickLocationAsync();
 
@@ -828,9 +875,7 @@ namespace Hrot.Editor.Tests.Adapters
             var manager = MakeManager();
             var (controller, route) = ArmARouteTool(manager);
 
-            var adapter = new EditorMapPickAdapter(
-                _canvas, HrotEnvironment.CreateGeoTransform(),
-                globalGizmoManager: manager, tools: () => controller);
+            var adapter = EditorLike(manager, () => controller);
 
             var task = adapter.PickLocationAsync();
             SimulateLeftClick(manager, 0f, 0f);
@@ -853,6 +898,7 @@ namespace Hrot.Editor.Tests.Adapters
         private readonly DebugPrimitiveBuffer _buffer = new();
 
         private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
+
 
         private static void SimulateLeftClick(GlobalGizmoManager manager, float x = 0f, float y = 0f)
         {

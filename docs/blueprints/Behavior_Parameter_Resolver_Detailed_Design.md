@@ -34,6 +34,8 @@ related-designs:
 
 # Behavior Parameters & the Resolver — Detailed Design
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](DESIGN_Map_Picking_Unification.md):** "World location" is a `PickableGeoPoint` member — the type alone makes it map-pickable; `[MapPickableWorldLocation]` is deleted.
+
 > ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
 >
 > ⭐ **This document's MODEL and PIPELINE still stand** and are quoted there as the authority —

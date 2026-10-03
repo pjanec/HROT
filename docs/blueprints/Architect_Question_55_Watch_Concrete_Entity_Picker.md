@@ -12,9 +12,12 @@ design-basis: DESIGN_Variable_Watch_Pinning.md §3 (the TWO-KIND binding: concre
 known-conflict: none. ⚠ Surfaces two ruling-9 duplicates (two IMapPickService, two MapPickableEntityAttribute) —
   flagged, NOT resolved here; the watch reuse consumes ONE and the reconciliation is a separate cleanup.
 related-designs:
+  - DESIGN_Map_Picking_Unification.md — resolves both duplicates this question flagged (two IMapPickService, two MapPickableEntityAttribute) and builds the Watch entity picker once for every host.
   - DESIGN_Entity_Reference.md — resolves the two-`MapPickableEntityAttribute` duplicate (the Fdp.Presentation copy is deleted, 2026-10-03).
 -->
 # Architect Question 55 — **binding a watch to an arbitrary concrete entity (the picker)**
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](DESIGN_Map_Picking_Unification.md):** Both duplicates this question flagged are resolved: one `IMapPickService` (Facades; ExCon's copy and its shim deleted) and one `MapPickableEntityAttribute`. `EditorMapPickAdapter` is gone too (CE-063), and the Watch's entity picker is `WatchEntityIdentity.PickerOver`, used by the editor AND CGF.
 
 > 📄 **Settles `DESIGN_Variable_Watch_Pinning.md` §9c**, which named a `MapPickableEntityAttribute` lead but was
 > explicitly *"not measured; a lead, not a decision."* The watch-list finalization batch
