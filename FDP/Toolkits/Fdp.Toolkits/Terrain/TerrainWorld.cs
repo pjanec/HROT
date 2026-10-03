@@ -78,6 +78,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>How far above its current Z an entity may step onto a surface (a kerb, a ramp start).</summary>
         public const float StepHeight = 0.6f;
 
+        /// <summary>The terrain's catalog name (e.g. <c>test-town</c>), stamped at load; null for a world built in code.
+        /// ⭐ CE-3028 — so a reader of the singleton (<c>GET /world/info</c>) can name what is resident.</summary>
+        public string? Name { get; init; }
         public Vector2 BoundsMin { get; init; }
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }

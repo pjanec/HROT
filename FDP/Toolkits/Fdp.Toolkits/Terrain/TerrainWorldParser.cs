@@ -34,7 +34,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Margin added around the features when the file declares no bounds.</summary>
         public const float DefaultBoundsMargin = 50f;
 
-        public static TerrainWorld Parse(string geojson)
+        public static TerrainWorld Parse(string geojson) => Parse(geojson, name: null);
+
+        /// <summary>Parses <paramref name="geojson"/> and stamps the terrain's catalog <paramref name="name"/> on it.</summary>
+        public static TerrainWorld Parse(string geojson, string? name)
         {
             if (string.IsNullOrWhiteSpace(geojson))
                 throw new ArgumentException("Terrain world file is empty.", nameof(geojson));
@@ -166,6 +169,7 @@ namespace Fdp.Toolkit.Terrain
 
             return new TerrainWorld
             {
+                Name = name,
                 BoundsMin = bMin,
                 BoundsMax = bMax,
                 GroundZ = groundZ,

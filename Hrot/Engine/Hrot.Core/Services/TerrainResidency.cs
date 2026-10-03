@@ -171,7 +171,7 @@ public sealed class TerrainResidency
                 throw new FileNotFoundException(
                     $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
                   + $"at '{worldPath}'.", worldPath);
-            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath));
+            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName);
 
             // ⭐ W6 — the bake rides Prepare, whose contract is already "off-thread, no ECS mutation".
             if (_navmeshFactory != null)
@@ -232,7 +232,7 @@ public sealed class TerrainResidency
         //   with no world file still publishes an EMPTY world, so a re-load never leaves the previous
         //   terrain's buildings behind.
         world.RegisterManagedComponent<TerrainWorld>();
-        world.SetSingletonManaged(staged.World ?? new TerrainWorld());
+        world.SetSingletonManaged(staged.World ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
 
         // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
         //   LocalGridBuilderSystem — docs/DESIGN_Terrain_World.md §4.4); log where they will sit, and stay LOUD if even the
