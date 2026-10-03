@@ -25,7 +25,7 @@ related-designs:
 | `CE-3006` | no host composes `NavigationSolverModule` ⇒ path requests are never answered, vehicles steer `Direct` | 🔒 user `2026-10-03`: MuscleGround implements a POC solver, but ONLY after a design discussion on how SimHost represents terrain (debug stand-in for a real MuscleGround host). ⛔ do not start |
 | `CE-3007` | after a crash an IG creator reclaims Muscle/Perception descriptors it has no components for ⇒ nothing publishes them, other nodes keep stale samples | to be handled later (user `2026-10-03`) |
 | `CE-524` | where the `NavState` write belongs | wait for `CE-3006`; then the writer goes under MuscleGround and the scale-out hop reuses `PathRequestBatch`/`PathResponseBatch` (design §5.9) |
-| `CE-513 (backend)` | animation channels have two writers | settle the intent/status split once for every channel with the behaviors lane: it is the generic `IActionExecutor` contract (design §5.10) |
+| `CE-513 (backend)` | animation channels have two writers | architect question [`Q80`](Architect_Question_80_Animation_Channel_Ownership_Split.md): split request/status like stance, executor contract unchanged, small backend batch |
 | `CE-518` (rest) | the whole `Hrot.ClusterRunner.Integration.Tests` run is order-dependent | gate by class `--filter` until someone isolates the shared state |
 
 ## 3. Tooling notes that cost time
