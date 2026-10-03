@@ -770,9 +770,10 @@ namespace Fdp.Toolkit.Behavior
         /// ⭐⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P5) — the ONE answer to <i>"what does a host
         /// bind to start child <paramref name="name"/> with parameters?"</i> (<c>DESIGN_Parameter_Model</c> §P.2: the host
         /// variable IS the child's authored input). In order: a curated typed resolver's source (<c>TAuthored</c>) · a
-        /// blueprint behaviour's <c>Params</c> · a child with no manifest and no resolver: its <c>BlackboardLayoutType</c>.
-        /// ⛔ <c>false</c> for a child that cannot take a host's bytes (a JSON-shaped resolver, or nothing to seed).
-        /// ⚠ A BTree child publishes its Inputs struct through the editor catalog, not here.
+        /// GENERATED child (it has a manifest — BTree, HSM, blueprint): its <c>JsonParamsDtoType</c>, the Inputs mirror or its
+        /// bound resolver's Params, which IS what its start pipeline consumes · a curated child with no resolver: its
+        /// <c>BlackboardLayoutType</c>. ⛔ <c>false</c> for a child that cannot take a host's bytes (a JSON-shaped resolver)
+        /// or has nothing to seed. ⭐ S8b-1 (CE-2024): one rule for every tier — the editor's pickers all ask this.
         /// </summary>
         public bool TryGetHostedInputType(string name, out Type inputType)
         {
@@ -780,13 +781,13 @@ namespace Fdp.Toolkit.Behavior
             if (name == null || !TryGetId(name, out int id) || !TryGetDefinition(id, out var def)) return false;
             if (_sourceTypesByName.TryGetValue(name, out var source)) { inputType = source; return true; }
             if (HasCuratedResolver(name)) return false;
-            if (def.BrainTier == BehaviorConstants.BrainTierBlueprint)
+            if (def.ManagedBlackboardVariables != null)          // generated: the authored contract is the hosted input
             {
-                if (def.JsonParamsDtoType == null) return false;
+                if (def.JsonParamsDtoType == null) return false;   // no Input half and no resolver: nothing to seed
                 inputType = def.JsonParamsDtoType;
                 return true;
             }
-            if (def.ManagedBlackboardVariables == null && def.BlackboardLayoutType != null)
+            if (def.BlackboardLayoutType != null)                // curated, no resolver: its block IS its input
             {
                 inputType = def.BlackboardLayoutType;
                 return true;

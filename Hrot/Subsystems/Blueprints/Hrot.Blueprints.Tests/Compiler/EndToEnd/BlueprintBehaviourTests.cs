@@ -1254,15 +1254,26 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
 
     /// <summary>A BTree child whose block IS <see cref="Runtime.S8TaskParams"/> (no manifest, no resolver) ⇒ a host binds
     /// exactly that struct (<c>BehaviorRegistry.TryGetHostedInputType</c>).</summary>
-    private void RegisterParamsReadingChild(string name)
+    /// <param name="generated">⭐ S8b — register the shape a GENERATED BTree/HSM registrar emits instead: a manifest and
+    /// its Inputs struct as <c>JsonParamsDtoType</c> (<paramref name="noInputs"/>: an empty manifest and no contract).</param>
+    private void RegisterParamsReadingChild(string name, bool generated = false, bool noInputs = false)
     {
         _childSaw.Clear(); _childTicksLeft = 0;
         var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(ChildReadsParams));
-        _fixture.BehaviorRegistry.Register(name, new BehaviorDefinition
+        var def = new BehaviorDefinition
         {
             Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
-            BlackboardLayoutType = typeof(Runtime.S8TaskParams),
+        };
+        if (!generated) def.BlackboardLayoutType = typeof(Runtime.S8TaskParams);
+        _fixture.BehaviorRegistry.Register(name, !generated ? def : new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierBTree, BTreeInterpreter = def.BTreeInterpreter,
+            ManagedBlackboardVariables = noInputs
+                ? Array.Empty<ManagedBlackboardVariable>()
+                : new[] { new ManagedBlackboardVariable("Value", typeof(float), 0) },
+            JsonParamsDtoType = noInputs ? null : typeof(Runtime.S8TaskParams),
+            BlackboardLayoutType = typeof(Runtime.S8TaskParams),   // its block (here: just the Inputs half)
         });
     }
 
@@ -1409,6 +1420,31 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.EndsWith(".Params", lookup("S8TypeBpWithParams"));
         Assert.DoesNotContain("+", lookup("S8TypeBpWithParams"));
         Assert.Null(lookup("S8TypeBpNoParams"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S8b-1 (CE-2024) — a GENERATED child (it has a manifest: BTree, HSM) answers with its Inputs struct</b>, its
+    /// <c>JsonParamsDtoType</c>, and a Behaviour Task seeds it. 🔴 S8 read <c>JsonParamsDtoType</c> for blueprints only, so a
+    /// BTree/HSM child had no Params pin. One with a manifest but no Inputs struct answers nothing.
+    /// <para>✅ Red-proof: restore S8's blueprint-only branch and the first assert fails.</para>
+    /// </summary>
+    [Fact]
+    public void S8b_AGeneratedChild_AnswersWithItsInputsStruct_AndIsSeeded()
+    {
+        const string Host = "S8bHost", Child = "S8bGeneratedChild", NoInputs = "S8bNoInputsChild";
+        RegisterParamsReadingChild(NoInputs, generated: true, noInputs: true);
+        RegisterParamsReadingChild(Child, generated: true);
+
+        Assert.True(_fixture.BehaviorRegistry.TryGetHostedInputType(Child, out var type));
+        Assert.Equal(typeof(Runtime.S8TaskParams), type);
+        Assert.False(_fixture.BehaviorRegistry.TryGetHostedInputType(NoInputs, out _));
+
+        _fixture.CompileAndLoad(ParamsHost(Host, Child, alongside: false), GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+        HitWith(5f);
+        for (int f = 0; f < 6 && read("Done") == 0; f++) Assert.Null(frame());
+        Assert.Equal(new[] { 5f }, _childSaw);
     }
 
     // ── §7 demos (DESIGN_Unified_Behaviour_Run §7): the SHIPPED demo assets, run through the real BrainTickSystem ────────
