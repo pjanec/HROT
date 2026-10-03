@@ -60,7 +60,7 @@ public sealed class EqsMultiLevelProofTests : IDisposable
     // survives the filter and both levels appear in the Top-K.
     private sealed class ClearLosService : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => false; // "blocked" => kept as cover
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false; // "blocked" => kept as cover
     }
 
     private int RunCoverQuery(ICoverProvider provider, out EqsResult[] results)

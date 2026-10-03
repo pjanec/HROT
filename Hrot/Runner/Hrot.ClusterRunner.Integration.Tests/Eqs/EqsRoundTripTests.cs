@@ -124,10 +124,10 @@ public sealed class EqsRoundTripTests : IDisposable
 
     // ── T-RT3a / T-RT3b helpers ────────────────────────────────────────────────
 
-    // HasCheapLineOfSight always returns true (all candidates exposed to threat).
+    // HasLineOfSight always returns true (all candidates exposed to threat).
     private sealed class ExposedLosServiceMock : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => true;
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => true;
     }
 
     // ── Fixture ────────────────────────────────────────────────────────────────

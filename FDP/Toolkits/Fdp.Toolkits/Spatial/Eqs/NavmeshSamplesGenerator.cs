@@ -17,18 +17,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (view is not EntityRepository repo) return 0;
             if (!repo.HasSingletonManaged<INavmeshProvider>()) return 0;
-            if (!repo.HasComponent<SimTransform>(observer)) return 0;
+            if (!EqsContext.SelfPosition(repo, observer, sensor, out var selfPos)) return 0;   // ⭐ §19 H3
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
-            ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
             // INavmeshProvider is Z-up like Sim (R-182 / W7): pass the observer position as it is. The real
             // altitude (Z) lets the provider snap to the correct vertical level (P3D-203).
-            var center3D = tf.Position;
+            var center3D = selfPos;
 
             // Intermediate stackalloc buffer for raw navmesh points (engine space, Z-up).
             Span<Vector3> rawPoints3D = stackalloc Vector3[candidates.Length];
-            // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
-            int rawCount = navmesh.SampleNavmeshPoints(center3D, sensor.SearchRadius, rawPoints3D);
+            // ⭐ §19 H5 — on the self's own layer (CE-3025: a tank's points come from the vehicle mesh).
+            int rawCount = navmesh.SampleNavmeshPoints(center3D, sensor.SearchRadius, rawPoints3D,
+                EqsContext.SelfLayer(repo, observer, sensor));
 
             for (int i = 0; i < rawCount; i++)
             {

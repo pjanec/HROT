@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     ///
     /// <para>For each candidate, checks whether a raycast result is already in
     /// <see cref="RaycastBatchData.Hits"/>. If found, resolves the candidate
-    /// immediately (flag bit 0 = occluded = good cover; EntityId = -1L = exposed).
+    /// immediately (§4.2 flag bit     /// immediately (flag bit 0 = occluded = good cover; EntityId = -1L = exposed).lt;slot    /// immediately (flag bit 0 = occluded = good cover; EntityId = -1L = exposed).gt; = HasLOS; occluded = good cover is kept, exposed is rejected with EntityId = -1L).
     /// If not found, submits a <see cref="RaycastRequestEvent"/> (subject to the
     /// per-tick budget in <see cref="EqsSolverGlobalState"/>) and marks the candidate
     /// with <see cref="FlagPendingRay"/> so the solver knows to yield.</para>
@@ -51,11 +51,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (!repo.HasComponent<SimTransform>(slotEntity)) return;
             ref readonly var slotTransform = ref repo.GetComponentRO<SimTransform>(slotEntity);
 
-            // Step 4-6: Keep threshold gate (reads from observer's TargetMemory).
-            if (!repo.HasComponent<TargetMemory>(observer)) return;
-            ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(observer);
-            if (mem.Count == 0) return;
-            if (mem.ThreatScores[0] < sensor.ThreatThreshold) return;
+            // Step 4-6: threshold gate on the SELF's TargetMemory when it has one (§19 H4 — a child sensor's carrier never
+            //   does, which made this test inert); a self without one is not gated (the slot names the threat explicitly).
+            var self = EqsContext.Self(repo, observer, sensor);
+            // ⭐ The gate is OPT-IN (ThreatThreshold > 0): a sensor that names its threat in the slot and sets no threshold is
+            //   always filtered — an empty memory on the Muscle used to switch the filter off (found by the cross-node rail).
+            var memOwner = sensor.ThreatThreshold > 0f ? EqsContext.ThreatMemoryOwner(repo, observer, self) : Entity.Null;
+            if (!memOwner.IsNull)
+            {
+                ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(memOwner);
+                if (mem.Count == 0) return;
+                if (mem.ThreatScores[0] < sensor.ThreatThreshold) return;
+            }
+            short bit = (short)(1 << ContextSlotIndex);
+            var mount = EqsTerrainSight.Mount(repo, slotEntity);
+            float crouched = EqsTerrainSight.Mount(repo, self).Crouched;
 
             // Guard: ring buffer not initialized — mark all non-rejected candidates as pending.
             if (!repo.HasSingleton<RaycastBatchData>())
@@ -75,7 +85,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             ref var          globalState = ref repo.GetSingletonUnmanaged<EqsSolverGlobalState>();
 
             // Threat position from slot entity's SimTransform (not from TargetMemory).
-            var targetPos3D = new Vector3(slotTransform.Position.X, slotTransform.Position.Y, 1.5f);
+            // ⭐ §19 — real heights: the threat's eye (its SensorMount) → the self's crouched eye at the candidate.
+            //   ⛔ SUPERSEDED: both ends at a fixed Z = 1.5 m, discarding terrain height (CE-210 ③).
+            var targetPos3D = slotTransform.Position + new Vector3(0, 0, mount.Standing);
             var cmd         = view.GetCommandBuffer();
 
             for (int i = 0; i < candidates.Length; i++)
@@ -95,15 +107,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                     if (hit.HasHit != 0)
                     {
-                        // Geometry blocks LOS -> candidate is occluded -> good cover.
-                        candidates[i].Flags           |= 1;
-                        candidates[i].FlagsMeaningful |= 1; // Bit 0 was computed by this test.
+                        // Geometry blocks LOS -> candidate is occluded -> good cover. §4.2: bit <slot> = HasLOS, judged false.
+                        candidates[i].FlagsMeaningful |= bit;
                     }
                     else
                     {
                         // Clear LOS -> candidate exposed to threat -> reject.
                         candidates[i].EntityId        = -1L;
-                        candidates[i].FlagsMeaningful |= 1; // Bit 0 was computed (result = rejection).
+                        candidates[i].Flags           |= bit;   // §4.2 HasLOSToContext<slot>
+                        candidates[i].FlagsMeaningful |= bit;
                     }
                 }
                 else
@@ -113,7 +125,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     {
                         cmd.PublishEvent(new RaycastRequestEvent
                         {
-                            Start        = new Vector3(candidates[i].PositionX, candidates[i].PositionY, 1.5f),
+                            Start        = new Vector3(candidates[i].PositionX, candidates[i].PositionY,
+                                                       candidates[i].PositionZ + crouched),
                             End          = targetPos3D,
                             RayId        = rayId,
                             Observer     = observer,

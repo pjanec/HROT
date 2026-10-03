@@ -1,0 +1,136 @@
+{
+  "Name": "FindFlankingPosition",
+  "BlueprintId": 3274732996,
+  "Count": 16,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 10,
+      "PositionY": -30,
+      "Score": 2,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -10,
+      "PositionY": -30,
+      "Score": 2,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -19.828897,
+      "PositionY": -27.389479,
+      "Score": 1.8694739,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 19.828897,
+      "PositionY": -27.389477,
+      "Score": 1.8694738,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 19.828897,
+      "PositionY": -32.610523,
+      "Score": 1.8694738,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -19.828896,
+      "PositionY": -32.610527,
+      "Score": 1.8694737,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -9.659259,
+      "PositionY": -27.411812,
+      "Score": 1.7411811,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 9.659258,
+      "PositionY": -27.41181,
+      "Score": 1.741181,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 9.659258,
+      "PositionY": -32.588192,
+      "Score": 1.7411808,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -9.659258,
+      "PositionY": -32.588192,
+      "Score": 1.7411808,
+      "Flags": 66,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 18.477594,
+      "PositionY": -37.65366,
+      "Score": 1.617317,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -18.477592,
+      "PositionY": -22.346334,
+      "Score": 1.6173167,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -18.47759,
+      "PositionY": -37.653667,
+      "Score": 1.6173166,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 18.47759,
+      "PositionY": -22.34633,
+      "Score": 1.6173165,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 8.660255,
+      "PositionY": -34.999996,
+      "Score": 1.5000004,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    },
+    {
+      "EntityId": 0,
+      "PositionX": -8.660255,
+      "PositionY": -25.000002,
+      "Score": 1.5000002,
+      "Flags": 2,
+      "FlagsMeaningful": 66
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

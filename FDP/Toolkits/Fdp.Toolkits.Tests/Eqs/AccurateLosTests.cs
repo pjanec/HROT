@@ -102,9 +102,11 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
-            // Resolved via ring buffer: not rejected, flag bit 0 set (occluded = good cover).
+            // Resolved via ring buffer: not rejected; §4.2 HasLOSToContext1 judged and false (occluded = good cover).
+            // ⛔ SUPERSEDED (EQS §19.5): flag bit 0 meant "occluded".
             Assert.NotEqual(-1L, candidates[0].EntityId);
-            Assert.NotEqual(0, candidates[0].Flags & 1);
+            Assert.Equal(2, candidates[0].FlagsMeaningful & 2);
+            Assert.Equal(0, candidates[0].Flags & 2);
             // FlagPendingRay cleared.
             Assert.Equal(0, candidates[0].Flags & AccurateLineOfSightTest.FlagPendingRay);
         }

@@ -13,8 +13,8 @@ namespace Hrot.Stride.Core.Tests;
 /// <para>
 /// Tests verify:
 /// <list type="bullet">
-///   <item>Wall between observer and target → ray blocked → HasCheapLineOfSight = false</item>
-///   <item>Clear LOS → no hit → HasCheapLineOfSight = true</item>
+///   <item>Wall between observer and target → ray blocked → HasLineOfSight = false</item>
+///   <item>Clear LOS → no hit → HasLineOfSight = true</item>
 ///   <item>Hit exactly at/beyond target → treated as clear (hit-fraction threshold)</item>
 ///   <item>3-D LOS entry point works correctly</item>
 ///   <item>Drop-in: service satisfies ILosService at compile-time and runtime</item>
@@ -31,10 +31,10 @@ public class StrideRaycastLosServiceTests
 
     /// <summary>
     /// When the fake returns a hit at fraction 0.5 (midway between observer and target),
-    /// there is a wall in between → <see cref="ILosService.HasCheapLineOfSight"/> must return false.
+    /// there is a wall in between → <see cref="ILosService.HasLineOfSight"/> must return false.
     /// </summary>
     [Fact]
-    public void HasCheapLineOfSight_WallBetweenObserverAndTarget_ReturnsFalse()
+    public void HasLineOfSight_WallBetweenObserverAndTarget_ReturnsFalse()
     {
         var fake = new FakeStrideRaycastService();
         // Wall hit at fraction 0.5 — well before the target.
@@ -47,10 +47,10 @@ public class StrideRaycastLosServiceTests
 
         var svc = new StrideRaycastLosService(fake);
 
-        var observer = new Vector2(0f, 0f);
-        var target   = new Vector2(10f, 0f);
+        var observer = new Vector3(0f, 0f, 1.5f);
+        var target   = new Vector3(10f, 0f, 1.5f);
 
-        bool result = svc.HasCheapLineOfSight(observer, target);
+        bool result = svc.HasLineOfSight(observer, target);
 
         Assert.False(result, "A wall at t=0.5 should block LOS (return false = not visible).");
         Assert.Equal(1, fake.CallCount); // exactly one raycast was issued
@@ -60,13 +60,13 @@ public class StrideRaycastLosServiceTests
     /// Hit at fraction 0.01 (almost at observer) — clearly blocked.
     /// </summary>
     [Fact]
-    public void HasCheapLineOfSight_WallCloseToObserver_ReturnsFalse()
+    public void HasLineOfSight_WallCloseToObserver_ReturnsFalse()
     {
         var fake = new FakeStrideRaycastService();
         fake.NextHit = new StrideRaycastHit(true, new Vector3(0.1f, 0f, 1.5f), Vector3.UnitZ, 0.01f, default);
 
         var svc    = new StrideRaycastLosService(fake);
-        bool result = svc.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool result = svc.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
 
         Assert.False(result);
     }
@@ -75,15 +75,15 @@ public class StrideRaycastLosServiceTests
 
     /// <summary>
     /// When the fake returns a miss (no hit between observer and target),
-    /// LOS is clear → <see cref="ILosService.HasCheapLineOfSight"/> must return true.
+    /// LOS is clear → <see cref="ILosService.HasLineOfSight"/> must return true.
     /// </summary>
     [Fact]
-    public void HasCheapLineOfSight_ClearLos_NoHit_ReturnsTrue()
+    public void HasLineOfSight_ClearLos_NoHit_ReturnsTrue()
     {
         var fake = new FakeStrideRaycastService { NextHit = StrideRaycastHit.Miss };
         var svc  = new StrideRaycastLosService(fake);
 
-        bool result = svc.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool result = svc.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
 
         Assert.True(result, "No hit between observer and target = clear LOS (return true).");
         Assert.Equal(1, fake.CallCount);
@@ -97,26 +97,26 @@ public class StrideRaycastLosServiceTests
     /// This is treated as clear (return true) to avoid false occlusion.
     /// </summary>
     [Fact]
-    public void HasCheapLineOfSight_HitAtTargetFraction_TreatedAsClear()
+    public void HasLineOfSight_HitAtTargetFraction_TreatedAsClear()
     {
         var fake = new FakeStrideRaycastService();
         fake.NextHit = new StrideRaycastHit(true, Vector3.Zero, Vector3.UnitZ, 0.995f, default);
 
         var svc  = new StrideRaycastLosService(fake);
-        bool result = svc.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool result = svc.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
 
         Assert.True(result, "Hit at t=0.995 (at the target itself) should be treated as clear.");
     }
 
     [Fact]
-    public void HasCheapLineOfSight_HitJustBeforeThreshold_ReturnsFalse()
+    public void HasLineOfSight_HitJustBeforeThreshold_ReturnsFalse()
     {
         var fake = new FakeStrideRaycastService();
         // Just below the default 0.99 threshold.
         fake.NextHit = new StrideRaycastHit(true, Vector3.Zero, Vector3.UnitZ, 0.98f, default);
 
         var svc  = new StrideRaycastLosService(fake);
-        bool result = svc.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool result = svc.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
 
         Assert.False(result, "Hit at t=0.98 is before the threshold → blocked.");
     }
@@ -159,26 +159,22 @@ public class StrideRaycastLosServiceTests
         Assert.False(svc.HasLineOfSight3D(Vector3.Zero, new Vector3(10f, 0f, 0f)));
     }
 
-    // ── 5. Eye-height lift for 2-D inputs ────────────────────────────────────
+    // ── 5. The caller's 3-D endpoints reach the raycast unchanged (CE-210 (a)) ─────
 
     /// <summary>
-    /// 2-D positions are lifted to 3-D using EyeHeightMetres.  The raycast must receive
-    /// the Z coordinate equal to the configured eye height.
+    /// ⭐ CE-210 (a): the interface is 3-D and the caller applies the entity's eye/aim heights, so the raycast must receive
+    /// exactly the points it was given. ⛔ SUPERSEDED: a 2-D call lifted both ends to a service-wide <c>EyeHeightMetres</c>.
     /// </summary>
     [Fact]
-    public void HasCheapLineOfSight_EyeHeight_AppliedToRaycastZ()
+    public void HasLineOfSight_PassesTheEndpointsThroughUnchanged()
     {
         var fake = new FakeStrideRaycastService { NextHit = StrideRaycastHit.Miss };
-        var svc  = new StrideRaycastLosService(fake) { EyeHeightMetres = 2.0f };
+        var svc  = new StrideRaycastLosService(fake);
 
-        svc.HasCheapLineOfSight(new Vector2(1f, 2f), new Vector2(5f, 6f));
+        svc.HasLineOfSight(new Vector3(1f, 2f, 1.7f), new Vector3(5f, 6f, 0.55f));
 
-        Assert.Equal(2.0f, fake.LastFrom.Z, 5); // observer lifted to Z=2.0
-        Assert.Equal(2.0f, fake.LastTo.Z,   5); // target lifted to Z=2.0
-        Assert.Equal(1f,   fake.LastFrom.X, 5);
-        Assert.Equal(2f,   fake.LastFrom.Y, 5);
-        Assert.Equal(5f,   fake.LastTo.X,   5);
-        Assert.Equal(6f,   fake.LastTo.Y,   5);
+        Assert.Equal(new Vector3(1f, 2f, 1.7f),  fake.LastFrom);
+        Assert.Equal(new Vector3(5f, 6f, 0.55f), fake.LastTo);
     }
 
     // ── 6. Drop-in: satisfies ILosService ────────────────────────────────────
@@ -263,18 +259,18 @@ public class StrideRaycastLosServiceTests
     [Fact]
     public unsafe void CheapLineOfSightTest_WithStrideBackedLos_ExposedCandidateRejected()
     {
-        // Clear LOS: fake returns no hit → HasCheapLineOfSight = true → candidate exposed → rejected.
+        // Clear LOS: fake returns no hit → HasLineOfSight = true → candidate exposed → rejected.
         var fake = new FakeStrideRaycastService { NextHit = StrideRaycastHit.Miss };
         var los  = new StrideRaycastLosService(fake);
 
         // Verify the LOS service returns true (clear) before running through CheapLineOfSightTest logic.
-        bool hasClear = los.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool hasClear = los.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
         Assert.True(hasClear, "Clear LOS should return true.");
     }
 
     /// <summary>
     /// Integration test: blocked LOS (wall between candidate and threat) keeps candidate.
-    /// <see cref="StrideRaycastLosService.HasCheapLineOfSight"/> = false → covered → keep.
+    /// <see cref="StrideRaycastLosService.HasLineOfSight"/> = false → covered → keep.
     /// </summary>
     [Fact]
     public void CheapLineOfSightTest_WithStrideBackedLos_BlockedLos_CandidateKept()
@@ -284,7 +280,7 @@ public class StrideRaycastLosServiceTests
         fake.NextHit = new StrideRaycastHit(true, Vector3.Zero, Vector3.UnitZ, 0.5f, default);
 
         var los   = new StrideRaycastLosService(fake);
-        bool blocked = !los.HasCheapLineOfSight(new Vector2(0f, 0f), new Vector2(10f, 0f));
+        bool blocked = !los.HasLineOfSight(new Vector3(0f, 0f, 1.5f), new Vector3(10f, 0f, 1.5f));
 
         Assert.True(blocked, "Blocked LOS should return false (hasLOS=false → covered → candidate kept).");
     }

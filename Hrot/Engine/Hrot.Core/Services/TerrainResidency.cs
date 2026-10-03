@@ -45,6 +45,7 @@ public sealed class TerrainResidency
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
+        internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
 
         /// <summary>⭐ True when this staged result would actually change residency.</summary>
         public bool HasWork => Definition != null;
@@ -182,6 +183,9 @@ public sealed class TerrainResidency
                     $"[Terrain] Navmesh for '{terrainName}' baked in {sw.ElapsedMilliseconds} ms"
                   + (staged.Navmesh == null ? " — nothing walkable." : "."));
             }
+
+            // ⭐ EQS §19 — the cover database is derived from the same world, off-thread like the bake.
+            staged.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(staged.World);
         }
 
         // ── The road network(s) the terrain declares: roads are a property of the TERRAIN, not of a zone.
@@ -248,6 +252,11 @@ public sealed class TerrainResidency
         //   keeps the previous terrain's navmesh).
         _navmesh?.Publish(staged.Navmesh);
 
+        // ⭐ EQS §19 — the terrain's cover points (an EMPTY database when it has no world, so a re-load never keeps the
+        //   previous terrain's cover). Read by CoverPointsGenerator through the solver snapshot.
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
+            staged.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
+
         if (staged.HasRoadNetwork)
         {
             // ⛔ The previous blob is NOT disposed here — the holder retires it and frees it once its last
@@ -313,6 +322,9 @@ public sealed class TerrainResidency
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
         if (world != null && world.HasSingletonManaged<TerrainWorld>())
             world.SetSingletonManaged(new TerrainWorld());
+        if (world != null && world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>())
+            world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
+                Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
         _navmesh?.Publish(null);
 
         _lastLoadedTerrainName = null;

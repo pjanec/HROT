@@ -15,10 +15,15 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
     {
         private readonly EntityRepository _repo;
 
-        // LOS stub: always returns true (clear = exposed).
+        // LOS stubs (the 3-D seam — CE-210): always clear (exposed) / always blocked (occluded).
         private sealed class ExposedLosService : ILosService
         {
-            public bool HasCheapLineOfSight(Vector2 from, Vector2 to) => true;
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) => true;
+        }
+
+        private sealed class BlockedLos : ILosService
+        {
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false;
         }
 
         public CoverGeneratorAndLosTests()
@@ -164,9 +169,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(-1L, candidates[0].EntityId);
         }
 
-        // T-LOS4: CheapLineOfSightTest keeps occluded candidates and sets flag bit 0.
+        // T-LOS4: CheapLineOfSightTest keeps occluded candidates; §4.2 bit 1 (HasLOSToContext1) is judged and clear.
         [Fact]
-        public unsafe void CheapLineOfSightTest_KeepsOccludedCandidates_SetsFlagBit0()
+        public unsafe void CheapLineOfSightTest_KeepsOccludedCandidates_JudgesHasLosBitClear()
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
@@ -187,12 +192,13 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
-            var test = new CheapLineOfSightTest(new BlockedLosService()); // always blocked
+            var test = new CheapLineOfSightTest(new BlockedLos()); // always blocked
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 
-            // Occluded: candidate kept, flag bit 0 set.
+            // Occluded: candidate kept; HasLOSToContext1 judged (meaningful) and false. ⛔ SUPERSEDED (EQS §19.5): bit 0 = "covered".
             Assert.Equal(0L, candidates[0].EntityId);
-            Assert.Equal(1, candidates[0].Flags & 1);
+            Assert.Equal(2, candidates[0].FlagsMeaningful & 2);
+            Assert.Equal(0, candidates[0].Flags & 2);
         }
     }
 }

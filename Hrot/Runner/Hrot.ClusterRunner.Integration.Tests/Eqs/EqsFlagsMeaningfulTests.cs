@@ -26,7 +26,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
     // A LOS service that always reports no line-of-sight (all cover is "good cover").
     private sealed class AlwaysBlockedLosService : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 observer, Vector2 target) => false;
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false;
     }
 
     // ── Inner types ────────────────────────────────────────────────────────────
@@ -235,12 +235,13 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
 
         Assert.True(ready, "CognitiveBuffer must be ready with results within timeout");
 
-        // Assert: all surviving candidates have FlagsMeaningful bit 0 set.
+        // Assert: all surviving candidates have FlagsMeaningful bit 1 set — §4.2 HasLOSToContext1 (the test reads slot 1).
+        // ⛔ SUPERSEDED (EQS §19.5): bit 0, which the LOS test used to set for "covered from slot 1".
         ref readonly var buffer = ref _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer);
         var span = buffer.GetSpanRO();
         for (int i = 0; i < buffer.Count; i++)
         {
-            Assert.NotEqual(0, span[i].FlagsMeaningful & 1);
+            Assert.NotEqual(0, span[i].FlagsMeaningful & 2);
         }
     }
 

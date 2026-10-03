@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE (toolkit reference, 2026-05-30 baseline)
+updated: 2026-10-03
+current-answer: the class reference below; for the terrain slice (sight, cover, generators, tests, starter templates) read
+  docs/designs/eqs-2/EQS_Design_v1.3_final.md §19 — it supersedes this file where they differ.
+known-rot: "BlockedLosService ... LOS always blocked" (~line 413) — DELETED; ILosService is a 3-D seam with TerrainLosService
+  as the default (§19.7 A1). The 2-D HasCheapLineOfSight is gone. "Design reference: .dev/eqs-2" — the live design is
+  docs/designs/eqs-2/. The generator/test inventory below predates §19 (Donut/Grid/Cone/OffsetFromContext, ThreatExposure,
+  DotProduct, HeightScore, TerrainCoverProvider, EqsContext). Flag bits now follow the design's §4.2 (LOS = bit <slot>).
+related-designs:
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the intent and the as-built (§16–§19).
+  - docs/DESIGN_Terrain_World.md — owns the terrain world EQS now reads (sight, ground, cover source).
+-->
 # Fdp.Toolkit.Spatial.Eqs -- Environment Query System (EQS) v1.3
 
 **Source folder**: `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/`

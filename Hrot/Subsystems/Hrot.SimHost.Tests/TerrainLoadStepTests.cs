@@ -282,6 +282,39 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(1, factory.Calls);
     }
 
+    /// <summary>
+    /// ⭐ EQS §19 — a terrain commit publishes the terrain's COVER database (building edges), so a cover query has points on
+    /// every node that loaded the terrain; unload replaces it with an empty one (never the previous terrain's cover).
+    /// </summary>
+    [Fact]
+    public void Commit_PublishesTheTerrainsCover_AndUnloadEmptiesIt()
+    {
+        var folder = Path.Combine(_terrainDir, "blocks");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "terrain.json"),
+            """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        residency.Commit(world, residency.Prepare("blocks"));
+
+        var cover = Assert.IsType<Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider>(
+            world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>());
+        Assert.Equal(16, cover.Points.Count);   // four 10 m faces, a point every 2.5 m
+        var near = new Fdp.Toolkit.Spatial.Eqs.CoverPoint[32];
+        Assert.True(cover.GetCoverPointsInRadius(new System.Numerics.Vector2(5, -1), 3f, near) > 0);
+
+        residency.Unload(world);
+        Assert.Empty(Assert.IsType<Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider>(
+            world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()).Points);
+    }
+
     [Fact]
     public void ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection()
     {

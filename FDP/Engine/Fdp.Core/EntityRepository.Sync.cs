@@ -120,6 +120,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.INavmeshProvider); // NavmeshSamplesGenerator / NavmeshReachableTest
             SyncSingletonById(source, GlobalComponentIds.RaycastBatchData); // AccurateLineOfSightTest ring-buffer reads
             SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
+            SyncSingletonById(source, GlobalComponentIds.TerrainWorld); // ⭐ EQS §19 — terrain sight + ground placement
 
             // 4. Sync BOTH version clocks.
             //
