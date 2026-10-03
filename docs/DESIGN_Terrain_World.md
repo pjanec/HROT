@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (slice 1, 2026-10-03; open: CE-3018, CE-3010; CE-3017 closed 2026-10-03) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
+build-state: BUILT (slice 1, 2026-10-03; open: CE-3010; CE-3017 + CE-3018 closed 2026-10-03) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
 updated: 2026-10-03
 current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
-known-rot: nothing yet. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (check only, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
+known-rot: nothing yet. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
   - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — the WHY and the approved decisions T1–T10; THIS doc is the WHAT.
@@ -300,6 +300,97 @@ references `StanceStatus`'s assembly or composes the stance runtime — folded i
 `PhysicsCollider.Height` is filled from `StrideRenderModelDefDto.ShapeHeight` by the vehicle and combat translators;
 `SensorMount` from the new `SensorCapabilitiesDto.EyeHeight*` fields (0 = unset ⇒ the default mount).
 
+### 4.4 W9 — the spatial grids follow the terrain (`CE-3018`, as built `2026-10-03`)
+
+```mermaid
+classDiagram
+  class SpatialHashGrid {
+    <<struct>>
+    +NativeArray GridHead / GridNext / GridValues / Positions
+    +NativeArray~float~ Geometry  [cell, originX, originY]
+    +int Width / Height  (fixed)
+    +CellSize / OriginX / OriginY  read Geometry
+    +Rebase(originX, originY, cellSize)
+  }
+  class SpatialGridFit {
+    <<static>>
+    +For(defaultMin, defaultMax, width, height, baseCell, world)$ GridGeometry
+  }
+  class GridGeometry {
+    <<record struct>>
+    +float OriginX
+    +float OriginY
+    +float CellSize
+  }
+  class SpatialHashSystem {
+    -TerrainWorld lastWorld
+    main thread, live repo
+  }
+  class LocalGridBuilderSystem {
+    -Func~TerrainWorld~ terrainSource
+    -TerrainWorld lastWorld
+    background, perception module
+  }
+  class VisionBroadphaseSystem
+  class CognitiveSpatialModule {
+    +ForTerrainHost(EntityRepository)$
+  }
+  class TerrainWorldSource {
+    <<static>>
+    +Live(EntityRepository)$ Func~TerrainWorld~
+  }
+  class TerrainWorldLosStrategy
+  class TerrainWorld
+  SpatialHashSystem --> SpatialHashGrid : owns collider grid, Rebase on world change
+  SpatialHashSystem --> SpatialGridFit
+  LocalGridBuilderSystem --> SpatialHashGrid : sole writer of perception grid, Rebase + full rebuild
+  LocalGridBuilderSystem --> SpatialGridFit
+  VisionBroadphaseSystem --> SpatialHashGrid : copy, reads shared Geometry
+  SpatialGridFit --> GridGeometry
+  SpatialGridFit --> TerrainWorld : BoundsMin/Max
+  CognitiveSpatialModule --> LocalGridBuilderSystem : passes terrainSource
+  CognitiveSpatialModule --> TerrainWorldSource
+  TerrainWorldLosStrategy --> TerrainWorldSource : same live source (R-174)
+  SpatialHashSystem --> TerrainWorld : live repo singleton
+```
+
+*What the picture shows that the prose hid:* **each grid is rebased only by its own writer, on its own thread** —
+`SpatialHashSystem` (main) for the collider grid, `LocalGridBuilderSystem` (perception module) for the perception grid —
+so the rebase adds no cross-thread write. **Nothing is reallocated**: the cell COUNT and the entity capacity stay fixed;
+only origin and cell size move, and they live in shared native memory (`Geometry`) so every value copy of the struct
+(the broadphase's, the `SpatialGridData` singleton's, a background snapshot's) sees the new geometry with no re-plumbing.
+
+```mermaid
+sequenceDiagram
+  participant TR as TerrainResidency.Commit
+  participant W as World (TerrainWorld singleton)
+  participant SH as SpatialHashSystem (main)
+  participant PB as LocalGridBuilderSystem (perception)
+  participant VB as VisionBroadphaseSystem
+  TR->>W: SetSingletonManaged(new TerrainWorld)
+  Note over SH: next Simulation frame
+  SH->>W: GetSingletonManaged TerrainWorld
+  SH->>SH: world changed: SpatialGridFit.For(...) then grid.Rebase
+  SH->>SH: Clear + re-insert colliders (as every frame)
+  SH->>W: SetSingleton(SpatialGridData)
+  Note over PB: next perception tick
+  PB->>W: terrainSource() (live read, as the LOS strategy does)
+  PB->>PB: world changed: Rebase, forget prev positions, FullRebuild
+  PB->>VB: same tick, after the builder
+  VB->>VB: QueryNeighbors reads the shared Geometry
+```
+
+| ⭐ decision | why |
+|---|---|
+| **rebase, never reallocate** | a reallocation frees memory a background snapshot (`SyncSingletonById(SpatialGridData)`) or the broadphase's copy may still read — the use-after-free `RoadNetworkHolder` had to solve with leases. Same-size arrays make every index still in range |
+| **coverage = UNION(today's default extent, terrain bounds + margin)**; cell = max(base cell, union span ÷ cell count) | ⛔ never shrinks what is covered today, so a terrain that fits changes NOTHING (same origin, same cell). A big terrain coarsens cells — query cost grows, correctness does not |
+| **each owner PULLS the world** | the collider system already requires the live repo; the perception builder gets the world by `Func` exactly as `TerrainWorldLosStrategy` does (`TerrainWorldSource.Live`, one source for both) |
+| **`CognitiveSpatialModule.ForTerrainHost(world)`** | the three production sites (SimHost, editor, Stride) built the module identically; one factory makes "forgot the terrain source" unrepresentable (`AX-012`) |
+
+⛔ Rejected: **resize at commit** — frees memory other threads hold (see above). **Shrink-to-terrain** — would hide an
+entity placed off the terrain that today's grid sees. **Publish the geometry from `TerrainResidency.Commit`** — a
+main-thread write into the perception grid while its builder runs on the perception thread.
+
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 
 ```mermaid
@@ -390,7 +481,7 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
 | # | question | ⭐ lean | rejected (one fact each) |
 |---|---|---|---|
 | **W1** | home of the DotRecast code | **new `Fdp.Toolkits.Navigation.Recast` project** (net8.0); `Hrot.Stride.Core` and SimHost reference it; 5 of its 7 Stride tests move with it | into `Fdp.Toolkits`: DotRecast would ride into all 49 projects that reference it |
-| **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside [0,1000) / [-750,750) ⚠ **As built: CHECK ONLY** — the grids are value types allocated at composition, before any terrain; `TerrainGridCoverage.Problems` is logged as a warning at every terrain commit. Resizing is `CE-3018` |
+| **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside [0,1000) / [-750,750) ⭐ **As built `2026-10-03` (`CE-3018`): REBASE** — see §4.4. ⛔ SUPERSEDED: *"check only — `TerrainGridCoverage.Problems` warns at every commit; resizing is CE-3018"*. `TerrainGridCoverage` now reports the FITTED extents (it can only warn if a fit is impossible) |
 | **W10** | infantry motion on SimHost | v1 follows the trajectory on the existing bicycle model (they carry `VehicleState` on SimHost); DotRecast crowd later | crowd in slice 1: a second motion model at once |
 | **W11** | the stance runtime (for W5) | compose `StanceTransitionSystem` on the Muscle (SimHost, Editor=CGF) in slice step 3, so posture is real when LOS reads it | leave it out: W5 would read Standing forever ⚠ **As built: NOT composed in slice 1** — `StanceTransitionSystem` needs `IAnimationBackend` and the Muscle animation pipeline that **no host composes**; folded into `CE-3010`. The LOS stance reader is the seam that lights up when it lands |
 

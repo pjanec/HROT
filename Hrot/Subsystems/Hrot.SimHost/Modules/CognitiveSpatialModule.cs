@@ -32,6 +32,27 @@ namespace Hrot.SimHost.Modules
         // ⭐ The sight test; null ⇒ the planar 2-D sweep over _colliderRadiusReader. 📄 docs/DESIGN_Terrain_World.md §4.3.
         private readonly Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? _losStrategy;
 
+        // ⭐ CE-3018 — the live terrain the perception grid follows (W9); null ⇒ fixed placement.
+        private readonly Func<Fdp.Toolkit.Terrain.TerrainWorld?>? _terrainSource;
+
+        /// <summary>True when this module's perception grid follows the resident terrain — what a composition rail asserts.</summary>
+        public bool FollowsTerrain => _terrainSource != null;
+
+        /// <summary>
+        /// ⭐⭐ The module as EVERY terrain host composes it (SimHost, editor ≡ CGF, Stride): 3-D sight through the resident
+        /// world (§4.3) and a perception grid that rebases to it (§4.4, CE-3018). ⭐ One factory, so a host cannot wire
+        /// the LOS strategy and forget the grid source — the two read the SAME live source (<c>TerrainWorldSource.Live</c>).
+        /// </summary>
+        public static CognitiveSpatialModule ForTerrainHost(EntityRepository world, PerceptionGridProvider? gridProvider = null)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return new CognitiveSpatialModule(
+                gridProvider,
+                colliderRadiusReader: Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Radius,
+                losStrategy: Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world),
+                terrainSource: Fdp.Toolkit.Terrain.TerrainWorldSource.Live(world));
+        }
+
         /// <summary>
         /// <b>B3 — the capability RECEIVES its grid.</b>
         /// </summary>
@@ -45,11 +66,15 @@ namespace Hrot.SimHost.Modules
         /// <param name="colliderRadiusReader">Optional collider-radius reader for LOS batching.</param>
         /// <param name="losStrategy">The sight test (<c>TerrainWorldLosStrategy</c> on a terrain host); null ⇒
         /// the planar 2-D sweep over <paramref name="colliderRadiusReader"/>.</param>
+        /// <param name="terrainSource">⭐ CE-3018 — the live terrain the perception grid rebases to. Prefer
+        /// <see cref="ForTerrainHost"/>, which supplies it together with the LOS strategy.</param>
         public CognitiveSpatialModule(
             PerceptionGridProvider? gridProvider = null,
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
-            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null)
+            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null,
+            Func<Fdp.Toolkit.Terrain.TerrainWorld?>? terrainSource = null)
         {
+            _terrainSource = terrainSource;
 
             // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
             // Dispose frees exactly what this module allocated and never what it borrowed.
@@ -69,7 +94,7 @@ namespace Hrot.SimHost.Modules
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            _localGridBuilder = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
+            _localGridBuilder = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid, _terrainSource));
             _visionBroadphase = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
             _losRequestBatching = registry.RegisterManualSystem(new LosRequestBatchingSystem(
                 mockMode: false,

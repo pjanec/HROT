@@ -6,6 +6,7 @@ using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Terrain;
 
 namespace CarKinem.Systems
 {
@@ -20,7 +21,13 @@ namespace CarKinem.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public class SpatialHashSystem : IEcsModuleSystem
     {
+        /// <summary>The grid's current placement — a rail reads it; consumers read <c>SpatialGridData</c>.</summary>
+        public GridGeometry Geometry => new(_grid.OriginX, _grid.OriginY, _grid.CellSize);
+
         private SpatialHashGrid _grid;
+
+        // ⭐ CE-3018 — the terrain this grid was last fitted to (reference compare: a commit swaps the singleton object).
+        private TerrainWorld? _fittedTo;
 
         public SpatialHashSystem()
         {
@@ -43,6 +50,19 @@ namespace CarKinem.Systems
                 throw new InvalidOperationException(
                     $"{nameof(SpatialHashSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // ⭐ CE-3018 (W9) — follow the resident terrain: on a new world, REBASE (same memory, new origin/cell) so an
+            //    entity outside today's [-750,750)² is no longer silently missing from avoidance. Main thread, the grid's
+            //    only writer — the same thread that already clears it every frame (docs/DESIGN_Terrain_World.md §4.4).
+            var world = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
+            if (!ReferenceEquals(world, _fittedTo))
+            {
+                _fittedTo = world;
+                var g = SpatialGridFit.For(
+                    new Vector2(SpatialHashConstants.OriginX, SpatialHashConstants.OriginY),
+                    SpatialHashConstants.GridWidth, SpatialHashConstants.GridHeight, SpatialHashConstants.CellSizeMeters, world);
+                _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+            }
 
             _grid.Clear();
 

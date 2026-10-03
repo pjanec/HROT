@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         public static TerrainWorldLosStrategy ForLiveWorld(
             EntityRepository world, Func<ISimulationView, Entity, StanceId>? stanceReader = null)
             => new(
-                () => world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null,
+                TerrainWorldSource.Live(world),   // CE-3018 — the one live source, shared with the perception grid
                 PhysicsColliderReaders.Radius,
                 PhysicsColliderReaders.Height,
                 stanceReader);

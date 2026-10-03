@@ -136,10 +136,9 @@ public static class SimHostCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
-            // ⭐ 3-D sight through the resident terrain world (docs/DESIGN_Terrain_World.md §4.3, R-182).
-            var module = new CognitiveSpatialModule(
-                colliderRadiusReader: PhysicsColliderReaders.Radius,
-                losStrategy: Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(context.World));
+            // ⭐ 3-D sight through the resident terrain world (§4.3, R-182) and a perception grid that follows it (§4.4,
+            //    CE-3018) — one factory for every terrain host (docs/DESIGN_Terrain_World.md).
+            var module = CognitiveSpatialModule.ForTerrainHost(context.World);
 
             // The host still exposes this module publicly (diagnostics read it), so hand it back.
             // ⚠ Migration boundary, like NodeBootPlan.Value<T> — it should disappear once the

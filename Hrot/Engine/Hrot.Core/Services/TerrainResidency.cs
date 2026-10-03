@@ -234,10 +234,15 @@ public sealed class TerrainResidency
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(staged.World ?? new TerrainWorld());
 
-        // ⭐ W9 — the spatial grids are fixed at composition; a world that leaves them is reported LOUDLY.
+        // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
+        //   LocalGridBuilderSystem — docs/DESIGN_Terrain_World.md §4.4); log where they will sit, and stay LOUD if even the
+        //   fitted grids cannot cover it.
         if (staged.World != null)
+        {
+            FdpLog<TerrainResidency>.Info($"[Terrain] '{staged.TerrainName}': {TerrainGridCoverage.Describe(staged.World)}");
             foreach (var problem in TerrainGridCoverage.Problems(staged.World))
                 FdpLog<TerrainResidency>.Warn($"[Terrain] '{staged.TerrainName}': {problem}");
+        }
 
         // ⭐ W6 — publish the bake (null ⇒ the straight-line fallback, so a terrain without a world never
         //   keeps the previous terrain's navmesh).

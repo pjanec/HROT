@@ -299,5 +299,39 @@ namespace Fdp.Toolkit.Perception.Tests
 
             grid.Dispose();
         }
+
+        /// <summary>
+        /// ⭐ CE-3018 (W9) — the perception grid's only writer REBASES it when the resident terrain changes, and the
+        /// broadphase's copy (made at composition) sees the result: an entity outside the composition extent becomes
+        /// visible to sight. Its remembered positions were hashed with the old geometry, so it full-rebuilds.
+        /// </summary>
+        [Fact]
+        public void LocalGridBuilder_RebasesToTheTerrain_AndTheBroadphaseCopySeesIt_CE3018()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var grid  = CreateTestGrid();                                         // [0,500)²
+            var broadphaseCopy = grid;
+            Fdp.Toolkit.Terrain.TerrainWorld? terrain = null;
+            var sys = new LocalGridBuilderSystem(grid, () => terrain);
+
+            var near = world.CreateEntity();
+            world.AddComponent(near, new SimTransform { Position = new Vector3(50f, 50f, 0f) });
+            var far = world.CreateEntity();
+            world.AddComponent(far, new SimTransform { Position = new Vector3(900f, 900f, 0f) });
+
+            ISimulationView view = world;
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[10];
+            sys.Execute(view, 0f);
+            Assert.Equal(0, broadphaseCopy.QueryNeighbors(new Vector2(900f, 900f), 1f, hits));
+
+            terrain = new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(0f, 0f), BoundsMax = new Vector2(1000f, 1000f) };
+            sys.Execute(view, 0f);
+
+            Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(900f, 900f), 1f, hits));
+            Assert.Equal(far, hits[0].entity);
+            Assert.Equal(1, broadphaseCopy.QueryNeighbors(new Vector2(50f, 50f), 1f, hits));   // the rest re-inserted
+            grid.Dispose();
+        }
     }
 }

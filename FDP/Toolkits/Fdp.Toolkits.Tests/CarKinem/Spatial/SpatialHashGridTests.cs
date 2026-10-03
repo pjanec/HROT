@@ -242,5 +242,31 @@ namespace CarKinem.Tests.Spatial
 
             grid.Dispose();
         }
+
+        /// <summary>
+        /// ⭐ CE-3018 — a REBASE is seen by every value copy (the geometry lives in shared native memory, like the cells)
+        /// and needs no reallocation: a copy made BEFORE the rebase indexes and finds an entity far outside the old extent.
+        /// </summary>
+        [Fact]
+        public void Rebase_IsSeenByEveryCopy_CE3018()
+        {
+            var grid = SpatialHashGrid.Create(100, 100, 5f, 100, Allocator.Persistent);   // covers [0,500)²
+            var copy = grid;                                                              // e.g. the broadphase's copy
+            var e = new Entity(7, 1);
+
+            copy.Add(e, new Vector2(4000f, 4000f));                                       // outside: dropped
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[4];
+            Assert.Equal(0, grid.QueryNeighbors(new Vector2(4000f, 4000f), 1f, hits));
+
+            grid.Rebase(0f, 0f, 50f);                                                     // now covers [0,5000)²
+            Assert.Equal(50f, copy.CellSize);
+            copy = grid;                                                                  // the rebase cleared the cells
+            copy.Add(e, new Vector2(4000f, 4000f));
+
+            Assert.Equal(1, grid.QueryNeighbors(new Vector2(4000f, 4000f), 1f, hits));
+            Assert.Equal(e, hits[0].entity);
+            Assert.Throws<ArgumentOutOfRangeException>(() => grid.Rebase(0f, 0f, 0f));
+            grid.Dispose();
+        }
     }
 }

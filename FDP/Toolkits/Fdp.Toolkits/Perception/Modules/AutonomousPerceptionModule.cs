@@ -59,6 +59,9 @@ namespace Fdp.Toolkit.Perception.Modules
         // Module-private spatial grid. Shares native-memory pointers with the two grid systems.
         // B3 -- RECEIVED, not allocated. See the constructor.
         private readonly SpatialHashGrid _localGrid;
+
+        // ⭐ CE-3018 — the live terrain the perception grid rebases to (W9); null ⇒ fixed placement.
+        private readonly Func<Fdp.Toolkit.Terrain.TerrainWorld?>? _terrainSource;
         private readonly PerceptionGridProvider? _ownedGridProvider;
 
         // Module-private event bus for inter-stage event passing.
@@ -100,8 +103,10 @@ namespace Fdp.Toolkit.Perception.Modules
         public AutonomousPerceptionModule(
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
             PerceptionGridProvider? gridProvider = null,
-            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null)
+            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null,
+            Func<Fdp.Toolkit.Terrain.TerrainWorld?>? terrainSource = null)
         {
+            _terrainSource = terrainSource;
             // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
             // Dispose frees exactly what this module allocated and never what it borrowed.
             _ownedGridProvider = gridProvider is null ? new PerceptionGridProvider() : null;
@@ -121,7 +126,7 @@ namespace Fdp.Toolkit.Perception.Modules
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            _localGridBuilder    = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
+            _localGridBuilder    = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid, _terrainSource));
             _visionBroadphase    = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
             _losRequestBatching  = registry.RegisterManualSystem(new LosRequestBatchingSystem(
                 mockMode: false,

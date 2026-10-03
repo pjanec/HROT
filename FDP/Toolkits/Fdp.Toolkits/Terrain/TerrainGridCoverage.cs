@@ -6,42 +6,51 @@ using Fdp.Toolkit.Perception;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>
-    /// ⭐ <b>W9 — does the terrain fit the fixed spatial grids?</b> (docs/DESIGN_Terrain_World.md §7.2 W9).
-    /// <para>⚠ The perception grid covers [0, 1000) and the collider grid [-750, 750) on both axes, and both are
-    /// value-type grids allocated at composition, long before a terrain loads, so they cannot simply be resized at
-    /// commit. An entity outside a grid is silently missing from sight and avoidance. Slice 1 makes that LOUD: the
-    /// terrain commit reports every grid the world's bounds leave. Sizing the grids from the bounds is CE-3018.</para>
+    /// ⭐ <b>W9 — where the spatial grids sit for a terrain, and whether it fits</b> (docs/DESIGN_Terrain_World.md §4.4).
+    /// <para>⭐ CE-3018: the grids REBASE to the resident terrain (<see cref="SpatialGridFit"/>), so this reports the FITTED
+    /// placement. ⛔ SUPERSEDED: <i>"the grids are fixed at composition; this warns every grid the world leaves"</i>.
+    /// <see cref="Problems"/> stays as the loud check — it can only fire if a fit is impossible.</para>
     /// </summary>
     public static class TerrainGridCoverage
     {
-        /// <summary>The perception grid's world extent.</summary>
-        public static (Vector2 Min, Vector2 Max) PerceptionGrid => (
-            Vector2.Zero,
-            new Vector2(PerceptionConstants.LocalGridWidth  * PerceptionConstants.LocalGridCellSize,
-                        PerceptionConstants.LocalGridHeight * PerceptionConstants.LocalGridCellSize));
+        /// <summary>The perception grid's placement for <paramref name="world"/> (null ⇒ the composition default).</summary>
+        public static GridGeometry PerceptionGrid(TerrainWorld? world) => SpatialGridFit.For(
+            Vector2.Zero, PerceptionConstants.LocalGridWidth, PerceptionConstants.LocalGridHeight,
+            PerceptionConstants.LocalGridCellSize, world);
 
-        /// <summary>The collider (avoidance) grid's world extent.</summary>
-        public static (Vector2 Min, Vector2 Max) ColliderGrid => (
+        /// <summary>The collider (avoidance) grid's placement for <paramref name="world"/>.</summary>
+        public static GridGeometry ColliderGrid(TerrainWorld? world) => SpatialGridFit.For(
             new Vector2(SpatialHashConstants.OriginX, SpatialHashConstants.OriginY),
-            new Vector2(SpatialHashConstants.OriginX + (SpatialHashConstants.GridWidth  * SpatialHashConstants.CellSizeMeters),
-                        SpatialHashConstants.OriginY + (SpatialHashConstants.GridHeight * SpatialHashConstants.CellSizeMeters)));
+            SpatialHashConstants.GridWidth, SpatialHashConstants.GridHeight, SpatialHashConstants.CellSizeMeters, world);
 
-        /// <summary>One line per grid the world's bounds leave; empty when the world fits both.</summary>
+        /// <summary>One line per grid that, even fitted, leaves part of the world uncovered; empty when both cover it.</summary>
         public static IReadOnlyList<string> Problems(TerrainWorld world)
         {
             var problems = new List<string>();
-            Check("perception", PerceptionGrid, world, problems);
-            Check("collider", ColliderGrid, world, problems);
+            Check("perception", PerceptionGrid(world), PerceptionConstants.LocalGridWidth, PerceptionConstants.LocalGridHeight, world, problems);
+            Check("collider", ColliderGrid(world), SpatialHashConstants.GridWidth, SpatialHashConstants.GridHeight, world, problems);
             return problems;
         }
 
-        private static void Check(string name, (Vector2 Min, Vector2 Max) grid, TerrainWorld world, List<string> problems)
+        /// <summary>A one-line description of both placements, for the commit log.</summary>
+        public static string Describe(TerrainWorld world)
         {
-            if (world.BoundsMin.X >= grid.Min.X && world.BoundsMin.Y >= grid.Min.Y
-                && world.BoundsMax.X <= grid.Max.X && world.BoundsMax.Y <= grid.Max.Y) return;
+            var p = PerceptionGrid(world);
+            var c = ColliderGrid(world);
+            return $"perception grid origin ({p.OriginX},{p.OriginY}) cell {p.CellSize:0.##} m; "
+                 + $"collider grid origin ({c.OriginX},{c.OriginY}) cell {c.CellSize:0.##} m";
+        }
+
+        private static void Check(string name, GridGeometry g, int width, int height, TerrainWorld world, List<string> problems)
+        {
+            var min = new Vector2(g.OriginX, g.OriginY);
+            var max = min + new Vector2(width * g.CellSize, height * g.CellSize);
+            if (!(world.BoundsMax.X > world.BoundsMin.X && world.BoundsMax.Y > world.BoundsMin.Y)) return;   // empty world
+            if (world.BoundsMin.X >= min.X && world.BoundsMin.Y >= min.Y
+                && world.BoundsMax.X <= max.X && world.BoundsMax.Y <= max.Y) return;
             problems.Add(
                 $"terrain bounds [{world.BoundsMin.X},{world.BoundsMin.Y}]..[{world.BoundsMax.X},{world.BoundsMax.Y}] leave the "
-              + $"{name} grid [{grid.Min.X},{grid.Min.Y}]..[{grid.Max.X},{grid.Max.Y}] — entities outside it are invisible "
+              + $"fitted {name} grid [{min.X},{min.Y}]..[{max.X},{max.Y}] — entities outside it are invisible "
               + $"to {(name == "perception" ? "sight" : "collision avoidance")} (CE-3018).");
         }
     }

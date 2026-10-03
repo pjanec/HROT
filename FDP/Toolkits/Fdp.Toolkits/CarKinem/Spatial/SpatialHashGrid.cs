@@ -7,7 +7,7 @@ namespace CarKinem.Spatial
 {
     /// <summary>
     /// 2D spatial hash grid for fast neighbor queries.
-    /// Hardcoded cell size: 5.0 meters.
+    /// Cell size and origin are set at <see cref="Create"/> and moved by <see cref="Rebase"/>.
     /// <para>
     /// <b>Incremental update support (BATCH-09):</b>
     /// <see cref="Remove"/> splices an entity out of its cell's linked-list chain and
@@ -35,7 +35,17 @@ namespace CarKinem.Spatial
         /// <summary>Number of valid entries currently stored in <see cref="FreeList"/>.</summary>
         public int FreeListCount;
         
-        public float CellSize;
+        /// <summary>
+        /// ⭐ CE-3018 — the grid's geometry <c>[cellSize, originX, originY]</c> in SHARED native memory, exactly like the
+        /// cell arrays: every value copy of this struct (a system's field, the <c>SpatialGridData</c> singleton, a
+        /// background snapshot) sees a <see cref="Rebase"/> at once. Before, these were plain fields, so a copy kept the
+        /// geometry it was made with and a grid could not follow a terrain (docs/DESIGN_Terrain_World.md §4.4).
+        /// </summary>
+        public NativeArray<float> Geometry;
+
+        /// <summary>Cell edge length in metres.</summary>
+        public float CellSize => Geometry.IsCreated ? Geometry[0] : 0f;
+
         public int Width;
         public int Height;
         public int EntityCount;
@@ -44,8 +54,8 @@ namespace CarKinem.Spatial
         /// World-space origin of the grid (bottom-left corner).
         /// Allows the grid to cover negative world coordinates.
         /// </summary>
-        public float OriginX;
-        public float OriginY;
+        public float OriginX => Geometry.IsCreated ? Geometry[1] : 0f;
+        public float OriginY => Geometry.IsCreated ? Geometry[2] : 0f;
         
         /// <summary>
         /// Create grid with specified dimensions.
@@ -53,23 +63,40 @@ namespace CarKinem.Spatial
         public static SpatialHashGrid Create(int width, int height, float cellSize,
             int maxEntities, Allocator allocator, float originX = 0f, float originY = 0f)
         {
+            var geometry = new NativeArray<float>(3, allocator);
+            geometry[0] = cellSize;
+            geometry[1] = originX;
+            geometry[2] = originY;
             return new SpatialHashGrid
             {
+                Geometry = geometry,
                 GridHead = new NativeArray<int>(width * height, allocator),
                 GridNext = new NativeArray<int>(maxEntities, allocator),
                 GridValues = new NativeArray<Entity>(maxEntities, allocator),
                 Positions = new NativeArray<Vector2>(maxEntities, allocator),
                 FreeList = new NativeArray<int>(maxEntities, allocator),
                 FreeListCount = 0,
-                CellSize = cellSize,
                 Width = width,
                 Height = height,
                 EntityCount = 0,
-                OriginX = originX,
-                OriginY = originY,
             };
         }
         
+        /// <summary>
+        /// ⭐ CE-3018 — move the grid to a new origin and cell size, keeping its cell COUNT and capacity, and empty it.
+        /// ⛔ Nothing is reallocated, so no other holder of this memory is left reading freed memory — the reason this is
+        /// a rebase and not a resize (docs/DESIGN_Terrain_World.md §4.4). The caller re-inserts; a copy whose own
+        /// <see cref="EntityCount"/> it tracks (the perception builder) must also full-rebuild.
+        /// </summary>
+        public void Rebase(float originX, float originY, float cellSize)
+        {
+            if (cellSize <= 0f) throw new ArgumentOutOfRangeException(nameof(cellSize), cellSize, "cell size must be positive");
+            Geometry[0] = cellSize;
+            Geometry[1] = originX;
+            Geometry[2] = originY;
+            Clear();
+        }
+
         /// <summary>
         /// Clear grid (reset all heads to -1) and reset the free-list.
         /// After a full clear all slot state is gone, so the free-list must also be reset
@@ -95,6 +122,7 @@ namespace CarKinem.Spatial
         /// </summary>
         public void Add(Entity entity, Vector2 position)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
             int cellX = (int)((position.X - OriginX) / CellSize);
             int cellY = (int)((position.Y - OriginY) / CellSize);
 
@@ -135,6 +163,7 @@ namespace CarKinem.Spatial
         /// </returns>
         public bool Remove(Entity entity, Vector2 previousPosition)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
             int cellX = (int)((previousPosition.X - OriginX) / CellSize);
             int cellY = (int)((previousPosition.Y - OriginY) / CellSize);
 
@@ -179,6 +208,7 @@ namespace CarKinem.Spatial
         public int QueryNeighbors(Vector2 position, float radius, 
             Span<(Entity entity, Vector2 pos)> output)
         {
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;   // one read of the shared geometry
             int count = 0;
             float radiusSq = radius * radius;
             
@@ -232,6 +262,7 @@ namespace CarKinem.Spatial
             if (GridValues.IsCreated) GridValues.Dispose();
             if (Positions.IsCreated) Positions.Dispose();
             if (FreeList.IsCreated) FreeList.Dispose();
+            if (Geometry.IsCreated) Geometry.Dispose();
         }
     }
 }

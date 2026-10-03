@@ -114,18 +114,29 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.NotNull(TopAt(95, 5, 1.5f));   // halfway up the ramp
         }
 
-        /// <summary>W9 — a world inside both fixed grids reports nothing; one that leaves them is named, per grid.</summary>
+        /// <summary>
+        /// W9 / CE-3018 — the grids are FITTED to the world. ⛔ The expectation changed deliberately: this rail used to
+        /// assert that a world leaving the fixed grids is reported per grid (slice 1, check only). Now both grids rebase,
+        /// so a big world is covered and a world that already fits leaves the placement exactly at the default.
+        /// </summary>
         [Fact]
-        public void GridCoverage_NamesEveryGridTheWorldLeaves_W9()
+        public void GridCoverage_FitsBothGridsToTheWorld_W9()
         {
-            Assert.Empty(TerrainGridCoverage.Problems(Parse()));   // [0,200]² fits both
+            var small = Parse();                                                   // [0,200]² fits both
+            Assert.Empty(TerrainGridCoverage.Problems(small));
+            Assert.Equal(TerrainGridCoverage.PerceptionGrid(null), TerrainGridCoverage.PerceptionGrid(small));
+            Assert.Equal(TerrainGridCoverage.ColliderGrid(null), TerrainGridCoverage.ColliderGrid(small));
 
             var big = TerrainWorldParser.Parse(
                 """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-100,0,1200,500]},"features":[]}""");
-            var problems = TerrainGridCoverage.Problems(big);
-            Assert.Equal(2, problems.Count);
-            Assert.Contains(problems, p => p.Contains("perception"));
-            Assert.Contains(problems, p => p.Contains("collider"));
+            Assert.Empty(TerrainGridCoverage.Problems(big));                       // was 2 before CE-3018
+            var p = TerrainGridCoverage.PerceptionGrid(big);
+            Assert.True(p.OriginX <= -100f && p.OriginX + 200 * p.CellSize >= 1200f);
+            Assert.Equal(0f, p.OriginY);                                           // the side it does not leave stays put
+            Assert.Contains("perception grid origin", TerrainGridCoverage.Describe(big));
+
+            // ⚠ An EMPTY world (a terrain with no world file) is "no terrain": the default placement, not a 0×0 fit.
+            Assert.Equal(TerrainGridCoverage.PerceptionGrid(null), TerrainGridCoverage.PerceptionGrid(new TerrainWorld()));
         }
 
         [Fact]
