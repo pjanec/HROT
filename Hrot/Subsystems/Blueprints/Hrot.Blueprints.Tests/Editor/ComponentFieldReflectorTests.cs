@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Hrot.AI.Behaviors;
 using Hrot.AI.Behaviors.Brains;
@@ -266,5 +267,26 @@ public sealed class ComponentFieldReflectorTests
         Assert.Equal(typeof(int).FullName, memberIds.ElementTypeId);
         Assert.Equal("", memberIds.CountAccessorFqn);
         Assert.Equal("", memberIds.ItemAccessorFqn);
+    }
+
+    // ── ⭐ CE-2043 — the struct palette bakes MANAGED offsets ───────────────────────────────────────────────────────
+
+#pragma warning disable CS0649   // layout-only fixture
+    public struct FlagsThenFloat { public bool A; public bool B; public float C; }
+#pragma warning restore CS0649
+
+    /// <summary>
+    /// <c>SharedStructFieldReflector</c> gives Make/Break/SetMembers a per-field offset that the compiler writes at, into
+    /// managed bytes. 🔴 It used <c>Marshal.OffsetOf</c> — the INTEROP offset, which counts each bool as 4 — so <c>C</c> came
+    /// back as 8 while it sits at 4, and a SetMembers write landed in padding. Measured on shipped types: 22 of 1545 fields.
+    /// </summary>
+    [Fact]
+    public void CE2043_TheStructPalette_BakesManagedFieldOffsets()
+    {
+        var decls = SharedStructFieldReflector.TryReflect(typeof(FlagsThenFloat).FullName);
+        Assert.NotNull(decls);
+        Assert.Equal(0, decls!.Single(d => d.Name == "A").Offset);
+        Assert.Equal(1, decls.Single(d => d.Name == "B").Offset);
+        Assert.Equal(4, decls.Single(d => d.Name == "C").Offset);
     }
 }

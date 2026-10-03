@@ -26,7 +26,7 @@ public static class BlackboardSchemaBuilder
     {
         try
         {
-            return (int)Marshal.OffsetOf(structType, fieldName);
+            return global::Fdp.Core.TypeLayout.OffsetOf(structType, fieldName); // ⭐ CE-2043 — the MANAGED offset
         }
         catch
         {

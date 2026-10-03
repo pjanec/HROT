@@ -505,7 +505,7 @@ internal sealed class CSharpEmitter
         // synthesized `__List_…` field is EXCLUDED from StateFields (IsReferencableStateFieldType;
         // debugger visibility lands in LV-5) but still occupies state bytes with an unreliable
         // computed size, so any SCALAR field declared after it has a wrong baked offset and must
-        // take the runtime Marshal.OffsetOf path too.
+        // take the runtime offset path too (TypeLayout.OffsetOf — the managed offset, CE-2043).
         bool layoutFromRuntime = LayoutFromRuntime(asset);
 
         WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
@@ -520,7 +520,7 @@ internal sealed class CSharpEmitter
             if (f.Type.Capacity > 0)
                 csharpType = $"{className}.{csharpType}";
             string offset = layoutFromRuntime
-                ? $"(int)global::System.Runtime.InteropServices.Marshal.OffsetOf<{className}.{stateStructName}>(\"{f.Name}\")"
+                ? $"global::Fdp.Core.TypeLayout.OffsetOf(typeof({className}.{stateStructName}), \"{f.Name}\")"   // ⭐ CE-2043 — managed, not interop
                 : StructRelativeOffset(asset, f).ToString();
             string size = layoutFromRuntime
                 ? $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{csharpType}>()"

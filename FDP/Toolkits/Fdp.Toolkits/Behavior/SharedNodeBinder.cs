@@ -286,7 +286,7 @@ namespace Fdp.Toolkit.Behavior
             if (member == null)
                 throw new ArgumentException("The selector must be a direct field access (e.g. bb => bb.Params).",
                                             nameof(selector));
-            return (nint)Marshal.OffsetOf<TBB>(member.Member.Name);
+            return Fdp.Core.TypeLayout.OffsetOf(typeof(TBB), member.Member.Name); // ⭐ CE-2043 — the MANAGED offset
         }
     }
 }

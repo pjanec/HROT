@@ -73,6 +73,40 @@ namespace Fdp.Core
 
         private static object ReadCore<T>(byte[] bytes, int offset) => Unsafe.ReadUnaligned<T>(ref bytes[offset])!;
 
+        private static readonly ConcurrentDictionary<(Type, string), int> OffsetCache = new ConcurrentDictionary<(Type, string), int>();
+
+        /// <summary>
+        /// ⭐ <c>CE-2043</c> — the MANAGED byte offset of instance field <paramref name="fieldName"/> in struct <paramref name="type"/>:
+        /// the address of the field minus the address of the struct, taken by IL (<c>ldflda</c>) on a local — exact for any
+        /// layout. ⛔ Not <c>Marshal.OffsetOf</c>, the INTEROP offset: measured, 22 of 1545 shipped struct fields sit elsewhere
+        /// in memory (every field after a <c>bool</c> in a struct without <c>[MarshalAs(I1)]</c> — e.g. <c>Fbt.RaycastResult.HitPoint</c>
+        /// 4, not 8), so a write at the interop offset lands in the wrong field.
+        /// </summary>
+        /// <exception cref="ArgumentException">Not a struct, or no such instance field.</exception>
+        public static int OffsetOf(Type type, string fieldName)
+        {
+            if (type is null) throw new ArgumentNullException(nameof(type));
+            if (fieldName is null) throw new ArgumentNullException(nameof(fieldName));
+            return OffsetCache.GetOrAdd((type, fieldName), static key =>
+            {
+                var (t, name) = key;
+                if (!t.IsValueType || t.ContainsGenericParameters)
+                    throw new ArgumentException($"'{t}' is not a closed struct.", nameof(type));
+                var field = t.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    ?? throw new ArgumentException($"'{t}' has no instance field '{name}'.", nameof(fieldName));
+                var dm = new System.Reflection.Emit.DynamicMethod("OffsetOf", typeof(int), Type.EmptyTypes, typeof(TypeLayout).Module, skipVisibility: true);
+                var il = dm.GetILGenerator();
+                var local = il.DeclareLocal(t);
+                il.Emit(System.Reflection.Emit.OpCodes.Ldloca_S, local);
+                il.Emit(System.Reflection.Emit.OpCodes.Ldflda, field);
+                il.Emit(System.Reflection.Emit.OpCodes.Ldloca_S, local);
+                il.Emit(System.Reflection.Emit.OpCodes.Sub);
+                il.Emit(System.Reflection.Emit.OpCodes.Conv_I4);
+                il.Emit(System.Reflection.Emit.OpCodes.Ret);
+                return (int)dm.Invoke(null, null)!;
+            });
+        }
+
         /// <summary><see cref="SizeOf"/>, or <c>false</c> for a type that has no managed size.</summary>
         public static bool TrySizeOf(Type? type, out int size)
         {

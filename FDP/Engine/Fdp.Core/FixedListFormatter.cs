@@ -31,13 +31,10 @@ public static class FixedListFormatter
                 out int capacity, out var countField, out var bufferField))
             return false;
 
-        int countOffset, itemsOffset;
-        try
-        {
-            countOffset = (int)Marshal.OffsetOf(wrapperType, countField.Name);
-            itemsOffset = (int)Marshal.OffsetOf(wrapperType, bufferField.Name);
-        }
-        catch (ArgumentException) { return false; }        // non-blittable wrapper — cannot map bytes
+        // ⭐ CE-2043 — the MANAGED offsets the bytes are laid out by (was Marshal.OffsetOf, the interop ones)
+        if (TypeLayout.ContainsReferences(wrapperType)) return false;   // non-blittable wrapper — cannot map bytes
+        int countOffset = TypeLayout.OffsetOf(wrapperType, countField.Name);
+        int itemsOffset = TypeLayout.OffsetOf(wrapperType, bufferField.Name);
 
         int elemSize = TypeLayout.SizeOf(elemType);   // ⭐ CE-2030 — the one runtime size
         if (elemSize <= 0 || bytes.Length < countOffset + 4) return false;

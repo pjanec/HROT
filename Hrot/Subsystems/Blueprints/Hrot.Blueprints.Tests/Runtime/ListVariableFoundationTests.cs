@@ -190,11 +190,12 @@ public sealed class ListVariableFoundationTests
 
         // F3/LV-5: the list is descriptor-VISIBLE (qualified nested wrapper type, runtime
         // offset/size -- the LV-5 watch reads it), and its unreliable size flips the
-        // SCALAR-after-it onto the runtime Marshal.OffsetOf path too.
+        // SCALAR-after-it onto the runtime offset path too (TypeLayout.OffsetOf, CE-2043).
         Assert.Contains("\"MyList\"] = new", src);
         Assert.Matches(@"typeof\([A-Za-z0-9_]+\.__List_System_Int32_4\)", src);
-        Assert.Matches(@"Marshal\.OffsetOf<[^>]+\.State>\(""MyList""\)", src);
-        Assert.Matches(@"Marshal\.OffsetOf<[^>]+\.State>\(""After""\)", src);
+        // ⭐ CE-2043 — the runtime path asks the MANAGED offset (TypeLayout.OffsetOf), not Marshal's interop one
+        Assert.Matches(@"TypeLayout\.OffsetOf\(typeof\([^)]+\.State\), ""MyList""\)", src);
+        Assert.Matches(@"TypeLayout\.OffsetOf\(typeof\([^)]+\.State\), ""After""\)", src);
     }
 
     [Fact]
@@ -212,7 +213,7 @@ public sealed class ListVariableFoundationTests
         var state   = bpClass.GetNestedType("State")!;
         var field   = state.GetField("MyList")!;
 
-        int offset = (int)Marshal.OffsetOf(state, "MyList");         // must not throw, must be sane
+        int offset = Fdp.Core.TypeLayout.OffsetOf(state, "MyList");  // the query the emitted fallback makes (CE-2043); must be sane
         Assert.True(offset >= 16, $"list field offset {offset} overlaps the 16-byte cursor header");
 
         var listType = field.FieldType;
