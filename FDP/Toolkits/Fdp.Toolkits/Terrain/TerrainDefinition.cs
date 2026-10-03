@@ -50,6 +50,25 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public IReadOnlyList<string> RoadNetworks { get; init; } = new List<string>();
 
+        /// <summary>
+        /// ⭐ The name the scenario RESOLVED this terrain by (the header's <c>TerrainName</c>), set by the
+        /// loader when it commits the terrain. This — not the asset's self-declared <see cref="Name"/> — is
+        /// what a save writes back into the scenario header, so a load→save round-trip keeps the terrain
+        /// (<c>CE-3015</c>). Empty until a loader commits it.
+        /// </summary>
+        public string ResolvedName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The terrain name resident in <paramref name="world"/> — the scenario's <c>TerrainName</c> to save —
+        /// or <c>null</c> when no terrain is loaded.
+        /// </summary>
+        public static string? ResidentName(EntityRepository? world)
+        {
+            if (world == null || !world.HasSingletonManaged<TerrainDefinition>()) return null;
+            var def = world.GetSingletonManaged<TerrainDefinition>();
+            return string.IsNullOrEmpty(def?.ResolvedName) ? null : def!.ResolvedName;
+        }
+
         /// <summary>True when this definition declares nothing to load — legal, and not an error.</summary>
         public bool IsEmpty => RoadNetworks.Count == 0;
     }

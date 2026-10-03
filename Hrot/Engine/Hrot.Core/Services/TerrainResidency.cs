@@ -171,6 +171,8 @@ public sealed class TerrainResidency
         }
 
         world.RegisterManagedComponent<TerrainDefinition>();
+        // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
+        staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
         world.SetSingletonManaged(staged.Definition!);
 
         if (staged.HasRoadNetwork)

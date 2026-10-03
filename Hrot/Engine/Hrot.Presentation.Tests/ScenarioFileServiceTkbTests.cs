@@ -95,4 +95,29 @@ public sealed class ScenarioFileServiceTkbTests : IDisposable
         // Phase 2: Header node is omitted entirely when TkbName is null.
         Assert.True(envelope!.Header == null || envelope.Header.TkbName == null);
     }
+    // ── CE-3015 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// CE-3015: a save stamps the RESIDENT terrain beside the TKB name, so a load→save round-trip keeps
+    /// the scenario's terrain. Before the fix the header carried TkbName only and the terrain was lost.
+    /// </summary>
+    [Fact]
+    public void SaveScenario_WithResidentTerrain_StampsTerrainNameInHeader_CE3015()
+    {
+        using var repo = new EntityRepository();
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition
+        {
+            Name = "self-declared", ResolvedName = "test-town",
+        });
+
+        var svc = new ScenarioFileService(BuildSerializer());
+        svc.SaveScenario(repo, _tempFile);
+
+        var json     = File.ReadAllText(_tempFile);
+        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
+
+        Assert.NotNull(envelope?.Header);
+        Assert.Equal("test-town", envelope!.Header!.TerrainName);
+    }
 }
