@@ -309,7 +309,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         sb.AppendLine("            {");
                         sb.AppendLine("                var __src = global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolverSource<" + r.AuthoredType + ", " + r.BlockType + ">(");
                         sb.AppendLine("                    global::" + r.MethodRef + ");");
-                        sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src);");
+                        // S8 / CE-2022: with its SOURCE type, so a host knows what to bind (TryGetHostedInputType).
+                        sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src, typeof(" + r.AuthoredType + "));");
                         sb.AppendLine("            }");
                     }
                     else if (r.ParamCount == 5)

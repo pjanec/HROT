@@ -90,6 +90,23 @@ internal sealed class TypedEventGraph
                P(RunBehaviorNode.StartedPin, "Out"), P(RunBehaviorNode.WhileRunningPin, "Out"),
                P(RunBehaviorNode.SucceededPin, "Out"), P(RunBehaviorNode.FailedPin, "Out"));
 
+    /// <summary>Make Struct over <paramref name="fqn"/>: one data-in per field of <paramref name="typeId"/>, a struct "Value" out.</summary>
+    public MakeStructNode MakeStruct(string fqn, string typeId, params string[] fields)
+        => Add(new MakeStructNode
+        {
+            StructTypeId = fqn,
+            Fields = fields.Select(f => new StructFieldDecl { Name = f, TypeId = typeId }).ToList(),
+        }, fields.Select(f => P(f, "In", typeId)).Append(P("Value", "Out", "global::" + fqn)).ToArray());
+
+    /// <summary>A Behaviour Task (S8) taking <paramref name="paramsFqn"/> as its Params: the S7 pins + a typed Params in.</summary>
+    public RunBehaviorNode RunBehaviorWithParams(string child, string paramsFqn)
+    {
+        var node = RunBehavior(child);
+        node.ParamsTypeId = paramsFqn;
+        node.Pins.Add(P(RunBehaviorNode.ParamsPin, "In", RunBehaviorNode.ParamsPinTypeId(paramsFqn)));
+        return node;
+    }
+
     /// <summary>A Delay (latent) with exec in/out and its Duration (seconds) as the pin default.</summary>
     public LatentDelayNode Delay(float seconds = 0f)
     {
@@ -127,4 +144,11 @@ internal sealed class TypedEventGraph
         Data(get, "Value", add, "A").Data(one, "Value", add, "B").Data(add, "Result", set, "Value");
         return set;
     }
+}
+
+/// <summary>⭐ S8 — a hosted child's parameters for the Behaviour Task Params rails (blittable: the child's block IS it).</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct S8TaskParams
+{
+    public float Value;
 }

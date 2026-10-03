@@ -356,6 +356,7 @@ namespace Fdp.Toolkit.Behavior
         // ⭐ CE-443/CE-438: the FROM-BYTES arm of a curated TYPED resolver (unmanaged TAuthored), keyed by
         //   behaviour name — what a HOSTED child runs, its source being the host variable's bytes.
         private readonly Dictionary<string, ResolveStageDelegate> _sourceResolversByName = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Type> _sourceTypesByName = new(StringComparer.Ordinal);   // S8 / CE-2022
 
         // CE-235: authored JSON contracts keyed by behavior name, supplied by BehaviorSchemaDiscovery
         // from [BehaviorContract]. Same order-independent reconciliation as _resolversByName, and for
@@ -752,10 +753,45 @@ namespace Fdp.Toolkit.Behavior
         /// generator beside <see cref="RegisterResolver"/>.
         /// </summary>
         public void RegisterSourceResolver(string name, ResolveStageDelegate resolve)
+            => RegisterSourceResolver(name, resolve, sourceType: null);
+
+        /// <summary>⭐ S8 / <c>CE-2022</c> — the same, recording the resolver's SOURCE type (its <c>TAuthored</c>): what a host
+        /// must bind to start this child with parameters (<see cref="TryGetHostedInputType"/>).</summary>
+        public void RegisterSourceResolver(string name, ResolveStageDelegate resolve, Type? sourceType)
         {
             if (name    == null) throw new ArgumentNullException(nameof(name));
             if (resolve == null) throw new ArgumentNullException(nameof(resolve));
             _sourceResolversByName[name] = resolve;
+            if (sourceType != null) _sourceTypesByName[name] = sourceType;
+            else _sourceTypesByName.Remove(name);
+        }
+
+        /// <summary>
+        /// ⭐⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P5) — the ONE answer to <i>"what does a host
+        /// bind to start child <paramref name="name"/> with parameters?"</i> (<c>DESIGN_Parameter_Model</c> §P.2: the host
+        /// variable IS the child's authored input). In order: a curated typed resolver's source (<c>TAuthored</c>) · a
+        /// blueprint behaviour's <c>Params</c> · a child with no manifest and no resolver: its <c>BlackboardLayoutType</c>.
+        /// ⛔ <c>false</c> for a child that cannot take a host's bytes (a JSON-shaped resolver, or nothing to seed).
+        /// ⚠ A BTree child publishes its Inputs struct through the editor catalog, not here.
+        /// </summary>
+        public bool TryGetHostedInputType(string name, out Type inputType)
+        {
+            inputType = null!;
+            if (name == null || !TryGetId(name, out int id) || !TryGetDefinition(id, out var def)) return false;
+            if (_sourceTypesByName.TryGetValue(name, out var source)) { inputType = source; return true; }
+            if (HasCuratedResolver(name)) return false;
+            if (def.BrainTier == BehaviorConstants.BrainTierBlueprint)
+            {
+                if (def.JsonParamsDtoType == null) return false;
+                inputType = def.JsonParamsDtoType;
+                return true;
+            }
+            if (def.ManagedBlackboardVariables == null && def.BlackboardLayoutType != null)
+            {
+                inputType = def.BlackboardLayoutType;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>⭐ <c>CE-443</c> — the curated from-bytes resolver for <paramref name="name"/>, if one is registered.</summary>
@@ -809,6 +845,7 @@ namespace Fdp.Toolkit.Behavior
             _nameToId.Clear();
             _resolversByName.Clear();
             _sourceResolversByName.Clear();
+            _sourceTypesByName.Clear();
             _jsonParamsDtoByName.Clear();
             // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
             _hostedDemandByName.Clear();
@@ -828,6 +865,8 @@ namespace Fdp.Toolkit.Behavior
                 _resolversByName[name] = overlay;
             foreach (var (name, resolve) in source._sourceResolversByName)
                 _sourceResolversByName[name] = resolve;
+            foreach (var (name, type) in source._sourceTypesByName)
+                _sourceTypesByName[name] = type;
 
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)

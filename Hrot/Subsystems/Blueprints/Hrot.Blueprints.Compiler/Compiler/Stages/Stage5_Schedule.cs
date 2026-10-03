@@ -528,7 +528,11 @@ internal sealed class GraphScheduler
                 // ⭐ S5d / S7a — the Behaviour Task (run and wait): latent like an inline action; Succeeded on the child's
                 //   Success, Failed on its Failure, and — each frame it is still Running — its While Running chain.
                 case RunBehaviorNode rb:
-                    ScheduleLatentNode(rb, bb, new IrOp_RunBehavior(rb.BehaviorName.Trim(), rb.Id),
+                    ScheduleLatentNode(rb, bb, new IrOp_RunBehavior(rb.BehaviorName.Trim(), rb.Id)
+                        {
+                            // ⭐ S8 — the host variable bound to this site (authored, or Stage 2.6's hidden one)
+                            ParamsVariable = ParamsVariableName(rb.ParamsVariable),
+                        },
                         successSuccessor: GetExecSuccessorWhere(rb, n => !RunBehaviorNode.IsNonSuccessOut(n)),
                         failureSuccessor: GetExecSuccessorWhere(rb, RunBehaviorNode.IsFailedPin),
                         whileRunningSuccessor: GetExecSuccessorWhere(rb, n => n == RunBehaviorNode.WhileRunningPin));
@@ -4911,6 +4915,16 @@ internal sealed class GraphScheduler
     /// the kind exactly as the id path did, so it gains the same fix.
     /// </para>
     /// </summary>
+    /// <summary>⭐ S8 / <c>CE-2022</c> — a Behaviour Task's bound variable, by NAME (its field in the block), or null.</summary>
+    private string? ParamsVariableName(string? variableId)
+    {
+        if (string.IsNullOrWhiteSpace(variableId)) return null;
+        var idStr = variableId!.StartsWith("var:", StringComparison.OrdinalIgnoreCase) ? variableId.Substring(4) : variableId;
+        return Guid.TryParse(idStr, out var guid)
+            ? _typed.Asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(v => v.Id == guid)?.Name
+            : null;
+    }
+
     private VariableRef FindVariableRef(string variableId)
     {
         // Search Instance variables first, then AiPrimitive working-state and parameters.

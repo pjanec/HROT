@@ -692,6 +692,9 @@ internal static class InstanceEmitter
     /// <summary>⭐ S5d — the generated field holding a Run Behaviour site's hosted-slot key.</summary>
     internal static string RunSiteField(IrOp_RunBehavior op) => $"__RunSite_{op.SiteId:N}";
 
+    /// <summary>⭐ S8 / <c>CE-2022</c> — the generated field holding a site's parameter binding (a slice of the block).</summary>
+    internal static string RunBindField(IrOp_RunBehavior op) => $"__RunBind_{op.SiteId:N}";
+
     /// <summary>⭐ S7a — the same field, by site (node) id.</summary>
     internal static string RunSiteField(Guid siteId) => $"__RunSite_{siteId:N}";
 
@@ -718,6 +721,25 @@ internal static class InstanceEmitter
             e.WriteLine($"public static readonly int {RunSiteField(site)} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor("
                 + $"new global::System.Guid(\"{asset.AssetId}\"), new global::System.Guid(\"{site.SiteId}\"), "
                 + $"global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName(\"{site.BehaviorName}\"));");
+
+        // ⭐ S8 / CE-2022 — a site bound to a host variable seeds its child from that slice of the block at the child's start
+        //   (HostedSubtree.SiteBinding, CE-431). The offset and size are MEASURED on the real struct, like the manifest below.
+        var bound = RunBehaviorSites(asset).Where(s => s.ParamsVariable is not null).ToList();
+        if (bound.Count > 0)
+        {
+            e.WriteLine("private static global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding __SiteBind<T>(ref Block __b, ref T __f)");
+            e.WriteLine("    => new((int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset("
+                      + "ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __b), "
+                      + "ref global::System.Runtime.CompilerServices.Unsafe.As<T, byte>(ref __f)), "
+                      + "global::System.Runtime.CompilerServices.Unsafe.SizeOf<T>());");
+            foreach (var site in bound)
+            {
+                e.WriteLine($"private static global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding __Bind_{site.SiteId:N}()");
+                e.WriteLine($"{{ var __b = default(Block); return __SiteBind(ref __b, ref __b.St.{site.ParamsVariable}); }}");
+                e.WriteLine($"public static readonly global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding {RunBindField(site)} = __Bind_{site.SiteId:N}();");
+            }
+            e.WriteLine();
+        }
 
         // ⭐ S3 (DESIGN_Unified_Behaviour_Run) — the Input manifest, exactly what a BTree/HSM registrar publishes: one
         //   entry per Parameter at its offset in the block (In sits at 0). The offsets are MEASURED on the real struct

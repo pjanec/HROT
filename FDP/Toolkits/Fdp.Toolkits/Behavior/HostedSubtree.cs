@@ -302,6 +302,15 @@ public static unsafe class HostedSubtree
     /// </summary>
     public static NodeStatus TickFromBlueprint(ref byte hostBlock, EntityRepository world, Entity self, float deltaTime,
                                                uint instanceId, int occurrenceKey, int siteKey)
+        => TickFromBlueprint(ref hostBlock, world, self, deltaTime, instanceId, occurrenceKey, siteKey, SiteBinding.Unbound);
+
+    /// <summary>
+    /// ⭐⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design") — the same step, with the slice of the host's
+    /// block that seeds the child at its start: the Behaviour Task's parameters (a host variable, P2), exactly the
+    /// <see cref="SiteBinding"/> a BTree or HSM host passes (CE-431).
+    /// </summary>
+    public static NodeStatus TickFromBlueprint(ref byte hostBlock, EntityRepository world, Entity self, float deltaTime,
+                                               uint instanceId, int occurrenceKey, int siteKey, SiteBinding binding)
     {
         var ctx = new BTreeContext
         {
@@ -309,7 +318,7 @@ public static unsafe class HostedSubtree
             _floatParams = Array.Empty<float>(), _intParams = Array.Empty<int>(), _instanceId = instanceId,
             _occurrenceKey = occurrenceKey,
         };
-        return TickHosted(ref hostBlock, ref ctx, siteKey, SiteBinding.Unbound);
+        return TickHosted(ref hostBlock, ref ctx, siteKey, binding);
     }
 
     /// <summary>

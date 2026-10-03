@@ -43,10 +43,89 @@ internal static class Stage2_6_SplitEventHandlers
         }
         // ⭐ S7b — a Started task runs ALONGSIDE: lifted into a task fiber of its own (after the split, so each handler
         //   lifts its own copy; before the abort retarget, so the fiber's own While Running aborts are S7a's).
+        // ⭐ S8 — a wired Params pin becomes a hidden variable + a Set on the Start path (after the split, before the lift).
+        graphs = graphs.Select(g => BindTaskParams(asset, g)).ToList();
         graphs = LiftStartedTasks(asset, graphs, taken, ctx);
         // ⭐ S7a — after the split, so each handler's links point at its own task (a shared tail's clone included).
         asset.Graphs = graphs.Select(RetargetAborts).ToList();
         return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P2) — a Behaviour Task whose <c>Params</c> pin is
+    /// wired gets a HIDDEN host variable of the child's input type, written by a Set Variable inserted on its Start path,
+    /// and names it as its <see cref="RunBehaviorNode.ParamsVariable"/>. ⇒ the child is seeded from that variable at its
+    /// start through the CE-431 binding every host uses; nothing after this stage knows a pin existed. Runs after the
+    /// split (a handler's clone gets its own variable) and before the lift (the Set stays in the STARTING graph, P4).
+    /// ⚠ The task node is REPLACED, never edited: node objects are shared with the caller's asset.
+    /// </summary>
+    private static Graph BindTaskParams(BlueprintAsset asset, Graph graph)
+    {
+        var pinById = new Dictionary<Guid, Pin>();
+        foreach (var n in graph.Nodes) foreach (var p in n.Pins) pinById[p.Id] = p;
+        var wired = graph.Nodes.OfType<RunBehaviorNode>()
+            .Select(t => (Task: t, Pin: t.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In" && p.Name == RunBehaviorNode.ParamsPin)))
+            .Where(x => x.Pin is not null && !string.IsNullOrWhiteSpace(x.Task.ParamsTypeId)
+                        && graph.Links.Any(l => l.ToNodeId == x.Task.Id && l.ToPinId == x.Pin!.Id))
+            .ToList();
+        if (wired.Count == 0) return graph;
+
+        var nodes = new List<Node>(graph.Nodes);
+        var links = new List<Link>(graph.Links);
+        var debugIds = graph.HandlerDebugIds is { } h ? h.ToDictionary(kv => kv.Key, kv => kv.Value) : new Dictionary<Guid, Guid>();
+        foreach (var (task, paramsPin) in wired)
+        {
+            string typeId = RunBehaviorNode.ParamsPinTypeId(task.ParamsTypeId!);
+            var variable = new VariableDecl
+            {
+                Id   = DeterministicIds.FromString($"task-params:{task.Id:N}"),
+                Name = $"__TaskParams_{task.Id:N}",
+                Type = new BlueprintTypeRef { TypeId = typeId },
+            };
+            asset.Variables.Add(variable);
+
+            var set = new SetVariableNode
+            {
+                Id = DeterministicIds.FromString($"task-params-set:{task.Id:N}"), VariableId = variable.Id.ToString(),
+                OriginNodeId = task.OriginNodeId, OriginGraphId = task.OriginGraphId,
+            };
+            Pin P(string name, string dir, string? type) => new()
+            {
+                Id = DeterministicIds.PinId(set.Id, name, dir), Name = name, Direction = dir, IsExec = type is null,
+                TypeRef = new BlueprintTypeRef { TypeId = type ?? "" },
+            };
+            var setIn = P("In", "In", null); var setOut = P("Out", "Out", null); var setValue = P("Value", "In", typeId);
+            set.Pins.AddRange(new[] { setIn, setOut, setValue });
+            nodes.Add(set);
+
+            // the task, replaced (never edited): the same id and pins, now naming its variable
+            var bound = new RunBehaviorNode
+            {
+                Id = task.Id, BehaviorName = task.BehaviorName, ParamsTypeId = task.ParamsTypeId,
+                ParamsVariable = variable.Id.ToString(), EditorMetadata = task.EditorMetadata, PinDefaults = task.PinDefaults,
+                OriginNodeId = task.OriginNodeId, OriginGraphId = task.OriginGraphId,
+            };
+            bound.Pins.AddRange(task.Pins);
+            nodes[nodes.IndexOf(task)] = bound;
+
+            // Start path: … → Set → task.Start ; the Params wire now feeds the Set
+            var startIn = task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "In" && p.Name != RunBehaviorNode.AbortPin);
+            for (int i = 0; i < links.Count; i++)
+            {
+                var l = links[i];
+                if (l.ToNodeId != task.Id) continue;
+                if (startIn is not null && l.ToPinId == startIn.Id)
+                    links[i] = new Link { FromNodeId = l.FromNodeId, FromPinId = l.FromPinId, ToNodeId = set.Id, ToPinId = setIn.Id, Waypoints = l.Waypoints };
+                else if (l.ToPinId == paramsPin!.Id)
+                    links[i] = new Link { FromNodeId = l.FromNodeId, FromPinId = l.FromPinId, ToNodeId = set.Id, ToPinId = setValue.Id, Waypoints = l.Waypoints };
+            }
+            if (startIn is not null)
+                links.Add(new Link { FromNodeId = set.Id, FromPinId = setOut.Id, ToNodeId = task.Id, ToPinId = startIn.Id });
+            debugIds[set.Id] = debugIds.TryGetValue(task.Id, out var authored) ? authored : task.Id;   // E6: it is the task
+        }
+        var copy = graph.WithNodesAndLinks(nodes, links);
+        copy.HandlerDebugIds = debugIds;
+        return copy;
     }
 
     /// <summary>

@@ -69,6 +69,38 @@ public sealed class BehaviorTaskNodeDrawerTests
         Assert.Equal(1, edits.Edits);
     }
 
+    /// <summary>
+    /// ⭐⭐ S8 / CE-2022 — picking a child bakes its parameter type, so the node grows a typed <c>Params</c> pin; picking one
+    /// with no parameters removes it, and undo restores the previous shape (the BP-202 pin rule).
+    /// </summary>
+    [Fact]
+    public void Picking_BakesTheChildsParamsType_AndProjectsAParamsPin_Undoably()
+    {
+        var node = new RunBehaviorNode { Id = Guid.NewGuid() };
+        var asset = Asset();
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function };
+        graph.Nodes.Add(node);
+        asset.Graphs.Add(graph);
+        node.Pins.AddRange(Hrot.Blueprints.Editor.Host.NodePinSchema.GetCanonicalPins(node, containingGraph: graph));
+        var edits = new RecordingEditService();
+        var s = (BehaviorTaskNodeSession)new BehaviorTaskNodeDrawer(edits, () => Names,
+                name => name == "Patrol" ? "My.Ns.PatrolParams" : null).CreateSession(node, asset);
+        Pin? ParamsPin() => node.Pins.FirstOrDefault(p => p.Name == RunBehaviorNode.ParamsPin);
+
+        s.SetBehaviourForTest("Patrol");
+        Assert.Equal("My.Ns.PatrolParams", node.ParamsTypeId);
+        Assert.Equal("global::My.Ns.PatrolParams", ParamsPin()?.TypeRef.TypeId);
+        Assert.Equal("In", ParamsPin()?.Direction);
+
+        s.SetBehaviourForTest("Guard");                     // takes no parameters
+        Assert.Null(node.ParamsTypeId);
+        Assert.Null(ParamsPin());
+
+        edits.LastUndo!();
+        Assert.Equal("Patrol", node.BehaviorName);
+        Assert.NotNull(ParamsPin());
+    }
+
     /// <summary>⚠ A name the host does not list now is KEPT and flagged (a child may register later), never dropped.</summary>
     [Fact]
     public void AnUnlistedName_IsKeptAndFlagged()
@@ -95,5 +127,19 @@ public sealed class BehaviorTaskNodeDrawerTests
         Assert.IsType<BehaviorTaskNodeDrawer>(drawer);
         var s = (BehaviorTaskNodeSession)drawer!.CreateSession(new RunBehaviorNode(), Asset());
         Assert.Equal(3, s.GetFilteredBehavioursForTest("").Count);
+    }
+
+    /// <summary>⭐ S8 — the registry forwards the params-type lookup to the drawer it builds (silent-default rule).</summary>
+    [Fact]
+    public void TheRegistry_ForwardsTheParamsTypeLookup_ToTheDrawerItBuilds()
+    {
+        var registry = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+            BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, new RecordingEditService(),
+            new NullPredicateCompiler(), new EqsTemplateRegistry(), behaviourNames: () => Names,
+            behaviourParamsType: _ => "My.Ns.AnyParams");
+        var node = new RunBehaviorNode();
+        var s = (BehaviorTaskNodeSession)registry.GetDrawerFor(node)!.CreateSession(node, Asset());
+        s.SetBehaviourForTest("Guard");
+        Assert.Equal("My.Ns.AnyParams", node.ParamsTypeId);
     }
 }

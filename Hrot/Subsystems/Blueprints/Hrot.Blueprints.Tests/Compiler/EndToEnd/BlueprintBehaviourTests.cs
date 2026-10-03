@@ -1238,6 +1238,179 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
                t.Then(task, done, RunBehaviorNode.SucceededPin).ThenInto(done, "Out", task, RunBehaviorNode.AbortPin);
            })), d => d.Code == "BP1685");
 
+    // ── S8 (DESIGN_Unified_Behaviour_Run "S8 design"): a Behaviour Task's Params ──────────────────────────────────────
+
+    private static readonly System.Collections.Generic.List<float> _childSaw = new();
+    private static int _childTicksLeft;
+
+    /// <summary>The child records each NEW Value its block holds (what it was seeded with; a restart re-seeds), then runs
+    /// three ticks per value.</summary>
+    private static Fbt.NodeStatus ChildReadsParams(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
+    {
+        float v = System.Runtime.CompilerServices.Unsafe.As<byte, Runtime.S8TaskParams>(ref bb).Value;
+        if (_childSaw.Count == 0 || _childSaw[^1] != v) { _childSaw.Add(v); _childTicksLeft = 3; }
+        return --_childTicksLeft <= 0 ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Running;
+    }
+
+    /// <summary>A BTree child whose block IS <see cref="Runtime.S8TaskParams"/> (no manifest, no resolver) ⇒ a host binds
+    /// exactly that struct (<c>BehaviorRegistry.TryGetHostedInputType</c>).</summary>
+    private void RegisterParamsReadingChild(string name)
+    {
+        _childSaw.Clear(); _childTicksLeft = 0;
+        var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(ChildReadsParams));
+        _fixture.BehaviorRegistry.Register(name, new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+            BlackboardLayoutType = typeof(Runtime.S8TaskParams),
+        });
+    }
+
+    /// <summary>OnHit: Task(child) with Params = Make S8TaskParams { Value = hit.Damage }; <paramref name="alongside"/> wires
+    /// Started (→ Ticks + 1), else the task is waited for; Succeeded → Done + 1.</summary>
+    private static BlueprintAsset ParamsHost(string name, string child, bool alongside)
+    {
+        string hitFqn = typeof(Runtime.WhenTestHitEvent).FullName!, paramsFqn = typeof(Runtime.S8TaskParams).FullName!;
+        return TaskHostWith(name, (t, v) =>
+        {
+            var hit  = t.Event(hitFqn);
+            hit.Policy = EventFiberPolicy.Parallel; hit.Capacity = 4;
+            var task = t.RunBehaviorWithParams(child, paramsFqn);
+            var brk  = t.BreakStructOf(hitFqn, "System.Single", "Damage");
+            var make = t.MakeStruct(paramsFqn, "System.Single", "Value");
+            t.Then(hit, task).Data(hit, "Event", brk, "Value").Data(brk, "Damage", make, "Value")
+             .Data(make, "Value", task, RunBehaviorNode.ParamsPin)
+             .Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+            if (alongside) t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.StartedPin);
+        });
+    }
+
+    private static BlueprintAsset TaskHostWith(string name, Action<Runtime.TypedEventGraph, Func<string, VariableDecl>> build)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name)
+            .WithVariable("Ticks", typeof(int)).WithVariable("Done", typeof(int)).WithVariable("Failed", typeof(int))
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        var t = new Runtime.TypedEventGraph();
+        build(t, n => asset.Variables.Single(v => v.Name == n));
+        asset.Graphs.Add(t.Graph);
+        return asset;
+    }
+
+    private void HitWith(float damage)
+    {
+        _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = damage });
+        _fixture.World.Bus.SwapBuffers();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S8 (P1/P2) — the Params pin seeds the child at its start.</b> The hit's Damage (7) goes through Make Struct
+    /// into the task's Params; the child's FIRST tick reads 7 from its own block — copied from the hidden host variable
+    /// the Start path wrote (CE-431's binding, now passed by the blueprint host).
+    /// <para>✅ Red-proof: emit the tick without the binding argument and the child reads its default 0.</para>
+    /// </summary>
+    [Fact]
+    public void S8_TheParamsPin_SeedsTheChild_AtItsStart()
+    {
+        const string Host = "S8ParamsHost", Child = "S8ParamsChild";
+        RegisterParamsReadingChild(Child);
+        var asset = ParamsHost(Host, Child, alongside: false);
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        Assert.Contains("__RunBind_", compiled.GeneratedSource!);
+        Assert.Contains("__TaskParams_", compiled.GeneratedSource!);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+        HitWith(7f);
+        for (int f = 0; f < 6 && read("Done") == 0; f++) Assert.Null(frame());
+        Assert.Equal(new[] { 7f }, _childSaw);
+        Assert.Equal(1, read("Done"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S8 (P4) — a STARTED task takes its Params from the starting event, and a restart takes the new ones.</b>
+    /// The Set Variable stays in the starting graph (the event is there), so the task fiber's child reads 7; a second hit
+    /// (9) while it runs restarts it, and the restarted child reads 9.
+    /// </summary>
+    [Fact]
+    public void S8_AStartedTask_TakesItsParamsFromTheStartingEvent_AndARestartTakesTheNewOnes()
+    {
+        const string Host = "S8AlongHost", Child = "S8AlongChild";
+        RegisterParamsReadingChild(Child);
+        var asset = ParamsHost(Host, Child, alongside: true);
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        HitWith(7f);
+        Assert.Null(frame());                     // f1: Set Params = 7, start the task fiber, Started ⇒ Ticks 1
+        Assert.Equal(1, read("Ticks"));
+        Assert.Null(frame());                     // f2: the child's first tick reads 7
+        Assert.Equal(new[] { 7f }, _childSaw);
+        HitWith(9f);
+        Assert.Null(frame());                     // f3: the child ticks · the second hit ⇒ Params = 9, RESTART
+        Assert.Equal(2, read("Ticks"));
+        for (int f = 0; f < 6 && read("Done") == 0; f++) Assert.Null(frame());
+        Assert.Equal(new[] { 7f, 9f }, _childSaw);
+        Assert.Equal(1, read("Done"));
+    }
+
+    /// <summary>⭐ S8 — an unwired Params pin changes nothing: no binding, and the child starts from its defaults (0).</summary>
+    [Fact]
+    public void S8_AnUnwiredParamsPin_BindsNothing()
+    {
+        const string Host = "S8UnwiredHost", Child = "S8UnwiredChild";
+        RegisterParamsReadingChild(Child);
+        var asset = TaskHostWith(Host, (t, v) =>
+        {
+            var hit  = t.Event(typeof(Runtime.WhenTestHitEvent).FullName!);
+            var task = t.RunBehaviorWithParams(Child, typeof(Runtime.S8TaskParams).FullName!);
+            t.Then(hit, task).Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+        });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        Assert.DoesNotContain("__RunBind_", compiled.GeneratedSource!);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+        HitWith(7f);
+        for (int f = 0; f < 6 && read("Done") == 0; f++) Assert.Null(frame());
+        Assert.Equal(new[] { 0f }, _childSaw);
+    }
+
+    /// <summary>
+    /// ⭐⭐ S8 (P5) — <c>BehaviorRegistry.TryGetHostedInputType</c>, the one answer the drawer asks: a child with a block
+    /// layout and no manifest binds its layout; a blueprint behaviour binds its generated <c>Params</c>; one with no
+    /// parameters binds nothing. ⭐ And the drawer's lookup spells a nested type the C# way (<c>.</c>, not <c>+</c>).
+    /// </summary>
+    [Fact]
+    public void S8_TheHostedInputType_IsTheChildsAuthoredInput()
+    {
+        RegisterParamsReadingChild("S8TypeLayoutChild");
+        _fixture.CompileAndLoadMany(new[]
+        {
+            BlueprintAssetBuilder.Behavior("S8TypeBpWithParams").WithParameter("Speed", typeof(float))
+                .WithGraph("Tick", g => g.Entry()).Build(),
+            BlueprintAssetBuilder.Behavior("S8TypeBpNoParams").WithGraph("Tick", g => g.Entry()).Build(),
+        }, GoldenCorpus.Options());
+        var reg = _fixture.BehaviorRegistry;
+
+        Assert.True(reg.TryGetHostedInputType("S8TypeLayoutChild", out var layout));
+        Assert.Equal(typeof(Runtime.S8TaskParams), layout);
+        Assert.True(reg.TryGetHostedInputType("S8TypeBpWithParams", out var bp));
+        Assert.Equal("Params", bp.Name);
+        Assert.False(reg.TryGetHostedInputType("S8TypeBpNoParams", out _));
+
+        var lookup = Hrot.Blueprints.Editor.NodeDrawers.BehaviorTaskNodeDrawer.ParamsTypeLookup(() => reg);
+        Assert.Equal(typeof(Runtime.S8TaskParams).FullName, lookup("S8TypeLayoutChild"));
+        Assert.EndsWith(".Params", lookup("S8TypeBpWithParams"));
+        Assert.DoesNotContain("+", lookup("S8TypeBpWithParams"));
+        Assert.Null(lookup("S8TypeBpNoParams"));
+    }
+
     // ── §7 demos (DESIGN_Unified_Behaviour_Run §7): the SHIPPED demo assets, run through the real BrainTickSystem ────────
 
     /// <summary>A frame that also advances the world's simulation time by the frame's 16 ms — what a Delay reads

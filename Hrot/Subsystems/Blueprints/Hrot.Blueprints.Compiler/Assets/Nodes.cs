@@ -482,6 +482,28 @@ public sealed class RunBehaviorNode : Node
     /// <summary>The child behaviour's REGISTRY name.</summary>
     public string BehaviorName { get; set; } = "";
 
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P1) — the child's hosted INPUT type (unprefixed
+    /// FQN), baked when the child is picked. Set ⇒ the node projects a <see cref="ParamsPin"/> data-in typed as it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsTypeId { get; set; }
+
+    /// <summary>
+    /// ⭐ S8 / <c>CE-2022</c> (P2/P3) — the id of the HOST variable whose bytes seed the child at its start
+    /// (<c>DESIGN_Parameter_Model</c> §P.2; the BTree/HSM field of the same name). Authored directly, or set by Stage 2.6
+    /// for a wired <see cref="ParamsPin"/> (a hidden variable written on the Start path).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
+
+    /// <summary>⭐ S8 — the data-in pin carrying the child's parameters (present when <see cref="ParamsTypeId"/> is set).</summary>
+    public const string ParamsPin = "Params";
+
+    /// <summary>The pin type for <see cref="ParamsTypeId"/> (project types carry the <c>global::</c> prefix).</summary>
+    public static string ParamsPinTypeId(string paramsTypeId)
+        => paramsTypeId.StartsWith("global::", StringComparison.Ordinal) ? paramsTypeId : "global::" + paramsTypeId;
+
     // ⭐⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design", U-11) — the BEHAVIOUR TASK node's pins. "Run and wait" is only
     //   Start + the completion pins wired. ⚠ The S5d names (In / Out / OnFailure) still route, so a graph built against
     //   them is read the same (BehaviorTaskMigration renames them on load).

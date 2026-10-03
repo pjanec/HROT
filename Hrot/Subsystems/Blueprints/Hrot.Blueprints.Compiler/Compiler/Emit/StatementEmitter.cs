@@ -798,8 +798,10 @@ internal static class StatementEmitter
                     + $"{e.Ctx.WorldVar}, self, deltaTime, instanceVersion, occurrenceKey, "
                     // ⭐ S6b — inside a fiber graph the site key is the running copy's (copy 0 = the plain key).
                     + (Lowering.Fibers.IsOwnFiber(e.Ctx.CurrentGraph)
-                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rb)}, __fi));"
-                        : $"{InstanceEmitter.RunSiteField(rb)});"));
+                        ? $"global::Fdp.Toolkit.Behavior.OccurrenceSlots.FiberKey({InstanceEmitter.RunSiteField(rb)}, __fi)"
+                        : InstanceEmitter.RunSiteField(rb))
+                    // ⭐ S8 / CE-2022 — a bound site passes its slice of the block (the child's parameters)
+                    + (rb.ParamsVariable is not null ? $", {InstanceEmitter.RunBindField(rb)});" : ");"));
                 break;
 
             // ⭐ S7a — a Behaviour Task's Abort: reset the child at that site (recursively), as Restart does.

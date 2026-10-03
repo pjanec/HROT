@@ -38,6 +38,8 @@ public sealed class TheEqsBrainStartupIsSharedTests
         //   registry must hand it to the binder (the silent-default rule; the registry→drawer leg is
         //   BehaviorTaskNodeDrawerTests.TheRegistry_ForwardsTheBehaviourNames_ToTheDrawerItBuilds).
         Assert.Matches(@"BehaviourNames\s*=\s*\(\)\s*=>\s*_behaviorRegistry", text);
+        // ⭐ S8 / CE-2022 — and the child's parameter type, so the task shows its typed Params pin.
+        Assert.Matches(@"BehaviourParamsType\s*=\s*Hrot\.Blueprints\.Editor\.NodeDrawers\.BehaviorTaskNodeDrawer\.ParamsTypeLookup\(\(\)\s*=>\s*_behaviorRegistry\)", text);
     }
 
     [Theory]

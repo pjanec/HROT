@@ -29,7 +29,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         LiteralNode lt  => LiteralPins(lt),
         CastNode ca     => CastPins(ca),
         LatentDelayNode => LatentDelayPins(),
-        RunBehaviorNode => RunBehaviorPins(),
+        RunBehaviorNode rb => RunBehaviorPins(rb),
         BehaviorTaskAbortNode => new[] { ExecIn() },   // ⭐ S7a — compile-time only
 
         // Dynamic: return known static skeleton; Stage0_Rehydrate enriches from asset state.
@@ -297,6 +297,12 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
 
     /// <summary>⭐ S7a (U-11) — the Behaviour Task: in Start / Abort; out Started, While Running, Succeeded, Failed.
     /// (S5d's Run Behaviour was In / Out / OnFailure — the same node, grown.)</summary>
+    private static IReadOnlyList<PinSchema> RunBehaviorPins(RunBehaviorNode rb)
+        => string.IsNullOrWhiteSpace(rb.ParamsTypeId)
+            ? RunBehaviorPins()
+            : RunBehaviorPins().Append(new PinSchema(RunBehaviorNode.ParamsPin, "In", false,
+                                                      RunBehaviorNode.ParamsPinTypeId(rb.ParamsTypeId!))).ToArray();
+
     private static IReadOnlyList<PinSchema> RunBehaviorPins()
         => new[]
         {

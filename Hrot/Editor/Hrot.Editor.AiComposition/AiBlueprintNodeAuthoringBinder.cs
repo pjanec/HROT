@@ -34,6 +34,10 @@ public sealed record AiBlueprintNodeAuthoringServices
     /// <summary>⭐ S7a — the Behaviour Task picker's source: the host's registered behaviour names (read when drawn, so a
     /// behaviour registered later appears). ⛔ A host with a <c>BehaviorRegistry</c> must pass it.</summary>
     public Func<IReadOnlyList<string>>? BehaviourNames { get; init; }
+
+    /// <summary>⭐ S8 / CE-2022 — a child's hosted input type id, so the Behaviour Task shows a typed <c>Params</c> pin
+    /// (<c>BehaviorTaskNodeDrawer.ParamsTypeLookup</c>). ⛔ A host with a <c>BehaviorRegistry</c> must pass it.</summary>
+    public Func<string, string?>? BehaviourParamsType { get; init; }
 }
 
 /// <summary>
@@ -97,7 +101,8 @@ public static class AiBlueprintNodeAuthoringBinder
         var eqsTemplates = CreateEqsTemplates();
         var drawers = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
             BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, edit, predicate, eqsTemplates,
-            peerProvider: services.PeerProvider, behaviourNames: services.BehaviourNames);
+            peerProvider: services.PeerProvider, behaviourNames: services.BehaviourNames,
+            behaviourParamsType: services.BehaviourParamsType);
         var attachments = BlueprintEditorBootstrap.CreateAttachmentProviders(
             eqsTemplates, new PeerNameCache(services.PeerProvider).Resolve);
         return new AiBlueprintNodeAuthoring(drawers, eqsTemplates, attachments);

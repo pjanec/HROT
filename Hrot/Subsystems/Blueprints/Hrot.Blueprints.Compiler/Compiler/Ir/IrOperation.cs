@@ -412,7 +412,12 @@ public sealed record IrOp_InlineActionCall(
 /// node's id) one frame; returns its <c>NodeStatus</c>. Latent exactly like <see cref="IrOp_InlineActionCall"/>: WaitLowering
 /// re-invokes it in the resume check until it is not Running.
 /// </summary>
-public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation;
+public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation
+{
+    /// <summary>⭐ S8 / <c>CE-2022</c> — the host Variable (by name, in the block's <c>St</c>) whose bytes seed the child at its
+    /// start, or null (the child starts from its defaults).</summary>
+    public string? ParamsVariable { get; init; }
+}
 
 /// <summary>
 /// ⭐ S7a (<c>DESIGN_Unified_Behaviour_Run</c> "S7 design" D2/D5) — abort the Behaviour Task <paramref name="TaskNodeId"/> of

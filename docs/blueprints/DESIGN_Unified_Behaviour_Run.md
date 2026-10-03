@@ -866,6 +866,97 @@ Rails: `BlueprintBehaviourTests.S7b_AStartedTask_RunsAlongside_TheGraphContinues
 `…S7b_AbortFromTheStartedChain_StopsTheTask_AndTakesFailed`, `…S7b_AStartedTaskReadingTheStartingEvent_IsBP1687`,
 `…S7b_AnAbortFromTheSucceededChain_IsStillBP1685`.
 
+#### S8 design — a Behaviour Task's PARAMETERS *(`2026-10-03`, CE-2022; user: "approved" the `Params` pin, 2026-10-03; BUILT — as-built below)*
+
+📐 **Measured basis:**
+
+| # | fact | where |
+|---|---|---|
+| P-T1 | a hosted child is seeded ONCE, at its start, from a slice of the HOST's block — copied, or handed to the child's own resolver | `HostedSubtree.StartChild` + `SiteBinding` (CE-431/CE-443) |
+| P-T2 | ⛔ the Behaviour Task passes NO slice: `TickFromBlueprint` hard-codes `SiteBinding.Unbound` ⇒ every child runs on its defaults | `HostedSubtree.TickFromBlueprint` |
+| P-T3 | BTree and HSM hosts already bind a host variable per site (`ParamsVariable`), composed when the child is picked | `AutoManagedVariables.ComposeForSubtree` (CE-439) |
+| P-T4 | a child's hosted INPUT type, per tier: blueprint = its `Params` (`JsonParamsDtoType`) · curated, no resolver = `BlackboardLayoutType` · curated typed resolver = its `TAuthored` (⛔ the registry keeps only the type-erased delegate) · BTree = its `Inputs` struct (editor catalog, `IBehaviorInputsContract`) | `CSharpEmitter.EmitBehaviorRegistration`, `CuratedBehaviorGenerator`, `BehaviorTreeAsset.InputsTypeId` |
+| P-T5 | a child's start happens on its FIRST tick (the frame after the task is reached), so the source must survive until then ⇒ a host VARIABLE, not a stack value | `HostedSubtree.TickHosted` |
+
+**Claim table**
+
+| claim | code | design basis |
+|---|---|---|
+| params come from a host variable, once, at start | ✅ P-T1 | ✅ `DESIGN_Parameter_Model` §P.2 ("the host variable its node/state names") |
+| the pin is only an AUTHORING form of that variable | ✅ P-T5 forces a variable anyway | ✅ §P.2 · user approval 2026-10-03 |
+| one runtime mechanism for all three hosts | ✅ P-T1 serves BTree + HSM today | ✅ ruling 9 (one implementation per concept) |
+
+```mermaid
+classDiagram
+  class RunBehaviorNode { <<EXISTS, widened>> +BehaviorName +ParamsTypeId (NEW, baked at pick) +ParamsVariable (NEW) pin Params in }
+  class Stage2_6_SplitEventHandlers { <<EXISTS, widened>> +BindTaskParams() — after the split, before the lift }
+  class SetVariableNode { <<EXISTS>> writes the hidden variable at Start }
+  class IrOp_RunBehavior { <<EXISTS, widened>> +ParamsVariable }
+  class InstanceEmitter { <<EXISTS, widened>> __RunBind_site = SiteBinding(offset of St.var, size) }
+  class HostedSubtree { <<EXISTS, widened>> TickFromBlueprint(..., SiteBinding) }
+  class BehaviorRegistry { <<EXISTS, widened>> +TryGetHostedInputType(name) }
+  class BehaviorTaskNodeDrawer { <<EXISTS, widened>> bakes ParamsTypeId when a child is picked }
+  RunBehaviorNode --> Stage2_6_SplitEventHandlers : Params wired
+  Stage2_6_SplitEventHandlers --> SetVariableNode : inserted before Start
+  RunBehaviorNode --> IrOp_RunBehavior : Stage 5
+  IrOp_RunBehavior --> InstanceEmitter
+  InstanceEmitter --> HostedSubtree : binding per site
+  BehaviorTaskNodeDrawer --> BehaviorRegistry : the child's input type
+```
+
+*What the picture shows that prose hid: the pin never reaches the runtime — Stage 2.6 turns it into a Set Variable of a
+hidden host variable, so everything after it is the CE-431 binding BTree and HSM already use.*
+
+```mermaid
+sequenceDiagram
+  participant G as the graph (frame f)
+  participant V as hidden host variable (in the block)
+  participant H as HostedSubtree (frame f+1)
+  participant C as the child
+  G->>V: Set = the Params pin's value (when Start fires)
+  G->>G: reach the task (wait, or Started ⇒ its task fiber)
+  H->>V: StartChild: read the bound slice once
+  H->>C: copy onto In, or the child's resolver(source)
+  loop until it ends
+    H->>C: tick
+  end
+  Note over G,V: a re-Start rewrites V and restarts the child, so the new value is taken
+```
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| P1 | the authoring form | ⭐ a `Params` data-IN pin typed as the child's input, projected when the node has a `ParamsTypeId` | a variable picker only (the BTree/HSM form): the user asked for a pin, and a pin takes a value computed at Start |
+| P2 | where the value lives until the child starts | ⭐ a compiler-made HIDDEN variable per task (named from the task's id), written by an inserted Set Variable on the Start path (Stage 2.6, per handler — after the split, so clones get their own) | the child's slot directly: it is not allocated until its first tick |
+| P3 | a task authored with `ParamsVariable` and no pin | ⭐ bound to that variable directly (the BTree/HSM form, same field name) | — |
+| P4 | a Started task (S7b) | ⭐ the inserted Set stays in the STARTING graph (it is before Start), so the pin may read the starting event; the task fiber's clone keeps `ParamsVariable` | lifting the Set into the fiber: the event payload is not there (`BP1687`) |
+| P5 | the child's input type, for the drawer | ⭐ `BehaviorRegistry.TryGetHostedInputType`: a typed source resolver's `TAuthored` (now recorded) · else `JsonParamsDtoType` when the child is a blueprint · else `BlackboardLayoutType`; a BTree child via the editor catalog (`IBehaviorInputsContract`) | one more per-tier switch in the editor: the registry already owns "what does this child accept" |
+| P6 | a width mismatch | ⭐ `HostedSubtree.Supply` already THROWS, naming both widths; a `ParamsTypeId` that does not resolve fails as any unresolved variable type does (Stage 4) — no new code | silently truncating |
+
+*Who calls what each frame is unchanged from S7b's module diagram: the graph's tick reaches the task, `TickFromBlueprint`
+steps the child — it now passes the site's binding as its last argument.*
+
+#### S8 as-built *(`2026-10-03`, CE-2022)*
+
+⭐ Built as P1–P6; both diagrams above are true as drawn.
+
+| # | as-built fact | where |
+|---|---|---|
+| Q1 | `RunBehaviorNode.ParamsTypeId` + `ParamsVariable` (both omitted from JSON when null); the `Params` pin is projected by the ONE pin schema both the compiler and the editor read | `Nodes.cs`, `BuiltInNodeRegistry.RunBehaviorPins(rb)` |
+| Q2 | `BindTaskParams` (Stage 2.6, after the split, before the lift) adds `__TaskParams_{task}` and a Set Variable `task-params-set:{task}` on the Start path, and REPLACES the task node (node objects are shared with the caller) | `Stage2_6_SplitEventHandlers.BindTaskParams` |
+| Q3 | the emitter measures each bound site's slice on the real `Block` (`__SiteBind<T>` → `__RunBind_{site}`) and passes it as `TickFromBlueprint`'s last argument; an unbound site emits exactly what it did before (no golden moves) | `InstanceEmitter`, `StatementEmitter` |
+| Q4 | `BehaviorRegistry.TryGetHostedInputType`: a curated typed resolver's `TAuthored` (the curated generator now records it) · a blueprint's `Params` · else a child's `BlackboardLayoutType` | `BehaviorRegistry`, `CuratedBehaviorGenerator` |
+| Q5 | the drawer bakes the type on pick and re-derives the pins with the BP-202 rule (a vanished `Params` wire is pruned, restored on undo); both hosts pass `BehaviorTaskNodeDrawer.ParamsTypeLookup(() => _behaviorRegistry)` | `BehaviorTaskNodeDrawer`, `EditorSubsystem`, `CgfSubsystem` |
+
+⚠ **Known limits, filed as CE-2023:** ① an editor-authored **BTree** child publishes its Inputs struct only through the editor
+catalog (`IBehaviorInputsContract`), which the lookup does not read yet ⇒ no `Params` pin for a BTree child; ② the binding's
+width is `Unsafe.SizeOf<T>` while a child's Input width is its manifest extent / `Marshal.SizeOf` — a struct with trailing
+padding or a `bool` field THROWS at start (the CE-431 rule, pre-existing for BTree hosts too); ③ §7's demos still host step
+children — moving them onto `MoveToLocation` / `FireAtTarget` needs the movement and fire systems in the rail's world.
+
+Rails: `BlueprintBehaviourTests.S8_TheParamsPin_SeedsTheChild_AtItsStart`, `…S8_AStartedTask_TakesItsParamsFromTheStartingEvent_AndARestartTakesTheNewOnes`,
+`…S8_AnUnwiredParamsPin_BindsNothing`, `…S8_TheHostedInputType_IsTheChildsAuthoredInput`; `BehaviorTaskNodeDrawerTests.Picking_BakesTheChildsParamsType_AndProjectsAParamsPin_Undoably`,
+`…TheRegistry_ForwardsTheParamsTypeLookup_ToTheDrawerItBuilds`; `TheEqsBrainStartupIsSharedTests` (both hosts pass the lookup).
+
 ## 5. Decisions — each with a lean
 
 | # | decision | lean | rejected |

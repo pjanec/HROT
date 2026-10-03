@@ -50,7 +50,7 @@ internal static class IrPrinter
         IrOp_WaitForEvent w   => $"wait_for_event {w.EventTypeFqn}",
         IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
         IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
-        IrOp_RunBehavior rb      => $"run_behavior {rb.BehaviorName}",
+        IrOp_RunBehavior rb      => rb.ParamsVariable is null ? $"run_behavior {rb.BehaviorName}" : $"run_behavior {rb.BehaviorName} params={rb.ParamsVariable}",
         IrOp_AbortTask at        => $"abort_task {at.TaskNodeId:N}",
         IrOp_ResetHostedSite rs  => $"reset_hosted_site {rs.SiteId:N}",
         IrOp_StartTask st        => $"start_task {st.FiberGraph}",
