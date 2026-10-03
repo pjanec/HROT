@@ -375,7 +375,7 @@ public static class BTreeEmitCore
         var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
             ? "Hrot.AI.Behaviors.Trees"
             : dto.TargetNamespace;
-        var className = SanitizeIdentifier(dto.Name);
+        var className = global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(dto.Name, "BTreeAsset", bare: true);   // ⭐ CE-2039 — the one sanitizer (bare: a class name)
 
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
@@ -1259,17 +1259,7 @@ public static class BTreeEmitCore
     }
 
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder();
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-        }
-        if (sb.Length == 0) return "BTreeAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "BTreeAsset");
 
     private static string QuoteStr(string s) => $"\"{s}\"";
 

@@ -794,12 +794,7 @@ public static class ThrowingRegistrar
     }
 
     private static string SanitizeNameForClass(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (var c in name)
-            sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
-        return sb.ToString();
-    }
+        => global::Hrot.Blueprints.Core.Compiler.Emit.Sanitizer.SanitizeName(name);
 
     // ---- Slot inspection helpers --------------------------------------------
 

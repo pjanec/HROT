@@ -227,17 +227,5 @@ public sealed class UtilityFluentEmitter : IFluentCSharpEmitter<UtilityDecisionA
 
     // Derives the class name from DisplayName: strips non-identifier chars, appends "Decision".
     private static string DeriveClassName(string displayName)
-    {
-        if (string.IsNullOrEmpty(displayName))
-            return "UnnamedDecision";
-        var sb = new StringBuilder();
-        foreach (char c in displayName)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-        }
-        if (sb.Length == 0) return "UnnamedDecision";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString() + "Decision";
-    }
+        => (global::Hrot.AiEditor.Persistence.Emit.Identifiers.StripInvalid(displayName, "") is { Length: > 0 } core) ? core + "Decision" : "UnnamedDecision";
 }

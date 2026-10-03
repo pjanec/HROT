@@ -773,21 +773,11 @@ public static class HsmEmitCore
         return name;
     }
 
+    // ⭐ CE-2039 (S8g G4) — the HSM's CLASS uses the strip shape its own _Block/_Blackboard structs already used (via
+    //   BlackboardOwner → BTreeEmitCore): it replaced with '_' instead, so "Guard-Patrol" made class Guard_Patrol but
+    //   GuardPatrol_Block, and a second HSM "GuardPatrol" collided on that struct. bare: a keyword name gets '_'.
     private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder(name.Length);
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_')
-                sb.Append(c);
-            else
-                sb.Append('_');
-        }
-        string result = sb.ToString();
-        if (result.Length == 0 || char.IsDigit(result[0]))
-            result = "_" + result;
-        return result;
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "HsmAsset", bare: true);
 
     private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap,
         System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)

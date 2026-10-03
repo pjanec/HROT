@@ -162,15 +162,7 @@ public static class OrchestratorAliasCollector
 
     /// <summary>Strips every character a C# identifier may not contain; prefixes a leading digit.</summary>
     public static string SanitizeIdentifier(string? name, string fallback)
-    {
-        var sb = new StringBuilder();
-        if (name != null)
-            foreach (char c in name)
-                if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
-        if (sb.Length == 0) return fallback;
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, fallback);
 
     /// <summary>The segment after the last <c>'.'</c>, or the whole string when there is none.</summary>
     public static string ShortTypeName(string? fqn)

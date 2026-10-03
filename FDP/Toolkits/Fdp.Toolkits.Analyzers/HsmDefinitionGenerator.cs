@@ -135,19 +135,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         // Replace any character that is not a letter, digit, or underscore with '_'.
         // Prepend '_' if the name starts with a digit. (Same rule as BTreeDefinitionGenerator.)
         private static string SanitizeIdentifier(string name)
-        {
-            var sb = new StringBuilder(name.Length);
-            foreach (char c in name)
-            {
-                if (char.IsLetterOrDigit(c) || c == '_')
-                    sb.Append(c);
-                else
-                    sb.Append('_');
-            }
-            if (sb.Length > 0 && char.IsDigit(sb[0]))
-                sb.Insert(0, '_');
-            return sb.ToString();
-        }
+            => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.ReplaceInvalid(name, "");
 
         private static string GenerateCatalog(List<HsmDefinitionInfo> methods, string namespaceName)
         {

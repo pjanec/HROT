@@ -396,4 +396,36 @@ public sealed class HsmJsonGeneratorTests
             "the binding's size came from the sibling HSM's own packing");
         registrar.Should().Contain("case \"PatrolMachineParams\":", "the host's params path is emitted — Pack did not throw");
     }
+
+    // ── ⭐ CE-2039 (S8g G4/G5) — an HSM's class, registrar and structs come from ONE name ─────────────────────────────
+
+    /// <summary>
+    /// 🔴 The class used the "replace with _" sanitizer while the <c>_Block</c>/<c>_Blackboard</c> structs (via
+    /// <c>BlackboardOwner</c> → <c>BTreeEmitCore</c>) used "strip": <c>Guard-Patrol</c> emitted class <c>Guard_Patrol</c> but struct
+    /// <c>GuardPatrol_Block</c>, and a second HSM <c>GuardPatrol</c> collided on that struct (CS0101). ⭐ Now one shape.
+    /// </summary>
+    [Theory]
+    [InlineData("Guard-Patrol", "GuardPatrol")]
+    [InlineData("class",        "_class")]      // a bare keyword class name gets '_' (it emitted `class class`)
+    public void CE2039_AnHsmsClassAndRegistrar_UseTheStructsShape(string assetName, string expectedClass)
+    {
+        // the shipped .hsm.json (it owns a managed blackboard, so the structs are emitted)
+        var dto = HsmJsonServices.Deserialize(
+            Hrot.AiEditor.Generators.Tests.Golden.AiAssetCorpus.ReadAsset(
+                Hrot.AiEditor.Generators.Tests.Golden.AiAssetKind.Hsm, "HsmResolverDemo"))!;
+        dto.Name = assetName;
+
+        string core   = HsmEmitCore.EmitTopologyCore(dto);
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        core.Should().Contain($"public static class {expectedClass}");
+        bridge.Should().Contain($"public static class {expectedClass}Registrar");
+        bridge.Should().Contain($"var blob = {expectedClass}.Compile();");
+        bridge.Should().NotContain("Guard_Patrol");
+        // the structs come from the SAME emitter the generator calls (HsmJsonGenerator → BlackboardOwner → BTreeEmitCore)
+        string? structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
+        structs.Should().NotBeNull("HsmResolverDemo owns a managed blackboard");
+        if (assetName == "Guard-Patrol")
+            structs!.Should().Contain("public struct GuardPatrol_Block", "the struct and the class now share one sanitized name");
+    }
 }

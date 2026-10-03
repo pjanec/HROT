@@ -35,23 +35,7 @@ public static class BlueprintClassNaming
 
     /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.Emit.Sanitizer.SanitizeName</c>.</summary>
     public static string SanitizeName(string name)
-    {
-        var sb = new StringBuilder();
-        bool capitalizeNext = true;
-        foreach (char c in name ?? string.Empty)
-        {
-            if (char.IsLetterOrDigit(c))
-            {
-                sb.Append(capitalizeNext ? char.ToUpperInvariant(c) : c);
-                capitalizeNext = false;
-            }
-            else
-            {
-                capitalizeNext = true;
-            }
-        }
-        return sb.Length > 0 ? sb.ToString() : "UnknownBlueprint";
-    }
+        => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.PascalJoin(name, "UnknownBlueprint");
 
     /// <summary>THE asset-id hash (⭐ CE-2036: <c>Shared/BlueprintIdFnv.cs</c>, linked — was a mirror).</summary>
     public static int ComputeBlueprintId(Guid assetId) => global::Fdp.Toolkit.Behavior.Shared.BlueprintIdFnv.Compute(assetId);

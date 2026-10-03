@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8g" — utility ids, JSON keys, identifier sanitizers).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8g as-built" — utility ids, JSON keys, identifier sanitizers).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1561,6 +1561,11 @@ helper allocates nothing unless an escaped key exceeds 256 bytes); editors when 
 |---|---|---|
 | G1 · CE-2035 | `Shared/UtilityIdHash.cs` (linked into Fdp.Toolkits and the compiler); both generators, `In.Fnv1a32` (⇒ catalog, `DefBuilder`, the editor preview's input ids) and `Stage5.ComputeDecisionId` route to it | ✅ no shipped id moved (all ASCII). The generator rail `BlueprintId_MatchesFnv1a32OfAssetId` now compares against `UtilityDecisionCatalog.ComputeId` and carries a non-ASCII case; red-proved by restoring the low-byte `In.Fnv1a32` |
 | G2 · CE-2038 | `JsonAttributeCompiler.PropertyNameBytes(in reader, scratch)` — a 256-byte stack scratch per compile, heap only for a longer escaped key; both compilers call it | ⚠ `in`, not `ref`: with `ref` the compiler (rightly) refuses a stack buffer beside a ref-struct reader the callee could write it into. Rail `FnvHashTests.CE2038_*` (3 cases), red-proved |
+| G3 · CE-2039 | `Shared/IdentifierSanitizer.cs` (`ReplaceInvalid` / `StripInvalid` / `PascalJoin` / `IsReservedKeyword`), compiled in the analyzers and linked into Tkb.SourceGen, Persistence and the compiler; `Persistence.Emit.Identifiers` is the editors' public door. All 15 copies route to it (each method kept its name, its body is one line) | 📐 **no golden moved anywhere** (Generators 378, Blueprints 4128, Toolkits generator tests 234) — every shipped name sanitizes as before. Rail `SanitizerTests.CE2039_TheOneSanitizer_KeepsEveryShape` restates the sweep's shape table, and pins the compiler's `Sanitizer` ≡ `BlueprintClassNaming` |
+| G4 · CE-2039 | `HsmEmitCore`/`HsmBridgeEmitCore` name the class with the strip shape (`bare`) | Rail `HsmJsonGeneratorTests.CE2039_AnHsmsClassAndRegistrar_UseTheStructsShape` (class, registrar, `Compile()` reference and the `_Block` struct from the same emitter the generator calls, on the shipped `HsmResolverDemo.hsm.json`); red-proved with the replace shape and no guards — as are the `SanitizerTests` rows |
+| G5 · CE-2039 | digit guard in all three shapes; `bare: true` only at the four emit-core class names (`BTreeEmitCore` class, `BTreeBridgeEmitCore`/`HsmEmitCore`/`HsmBridgeEmitCore` core class) | ⚠ `SanitizerTests` pinned `"123abc" → "123abc"` — an output that was never a legal class name; now `_123abc`. Rail `CE2039_ABareKeyword_IsPrefixed` |
+| G6 · CE-2039 | `BlueprintDocumentFactory` and `BlackboardNameValidator` call `Identifiers.IsReservedKeyword` (the validator keeps rejecting `var`) | ⚠ the validator is STRICTER: it now refuses `lock`, `goto`, `throw`, `try`, … — names that would have emitted invalid C# fields |
+| G7 · CE-2040 | `BlueprintTestFixture.SanitizeNameForClass` calls the compiler's `Sanitizer.SanitizeName` | ✅ Blueprints 4128/0 |
 
 ## 5. Decisions — each with a lean
 

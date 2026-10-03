@@ -10,18 +10,6 @@ namespace Hrot.Editor.AiShared.Blackboard;
 public static class BlackboardNameValidator
 {
     // C# keywords that are not valid as identifier names.
-    private static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
-    {
-        "bool", "byte", "char", "decimal", "double", "float", "int", "long", "object",
-        "sbyte", "short", "string", "uint", "ulong", "ushort", "void",
-        "class", "struct", "enum", "interface", "delegate", "event",
-        "base", "this", "new", "return",
-        "if", "else", "while", "for", "foreach", "switch", "case",
-        "break", "continue", "true", "false", "null",
-        "namespace", "using", "static", "public", "private", "protected", "internal",
-        "sealed", "abstract", "readonly", "const", "var", "ref", "out", "in",
-    };
-
     /// <summary>
     /// Returns null when <paramref name="name"/> is valid; otherwise returns a
     /// human-readable error message describing why the name is invalid.
@@ -42,7 +30,8 @@ public static class BlackboardNameValidator
                 return "Name must contain only letters, digits, or underscores.";
         }
 
-        if (CSharpKeywords.Contains(name))
+        // ⭐ CE-2039 — the complete reserved list (this one lacked lock, goto, throw, try, …) plus contextual "var".
+        if (global::Hrot.AiEditor.Persistence.Emit.Identifiers.IsReservedKeyword(name) || name == "var")
             return $"'{name}' is a C# keyword and cannot be used as a variable name.";
 
         if (existingVars != null)
