@@ -239,6 +239,20 @@ namespace Hrot.Map.Common.Services
                 ? repo.GetComponent<NetworkIdentity>(entity).Value.ToString(CultureInfo.InvariantCulture)
                 : string.Empty;
 
+        /// <summary>
+        /// ⭐ CE-3024 (E2) — the cluster op a "Load zone" action publishes for <paramref name="entity"/>, or null when it is
+        /// not a terrain zone with an id. ⭐ One place for both rules (what a zone is, what its id is), so every host's
+        /// menu handler publishes the same intent.
+        /// </summary>
+        public static Fdp.Toolkit.Orchestration.LoadZoneIntent? LoadZoneIntentFor(EntityRepository repo, Entity entity)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<TkbIdentity>(entity)) return null;
+            if (repo.GetComponent<TkbIdentity>(entity).TkbType != TkbEntityTypes.TerrainZone) return null;
+            var id = ZoneIdOf(repo, entity);
+            if (id.Length == 0) return null;
+            return new Fdp.Toolkit.Orchestration.LoadZoneIntent { RequestId = Guid.NewGuid(), ZoneId = id };
+        }
+
         private static bool MatchesZoneId(EntityRepository repo, Entity entity, string zoneId)
             => string.Equals(ZoneIdOf(repo, entity), zoneId, StringComparison.Ordinal);
 

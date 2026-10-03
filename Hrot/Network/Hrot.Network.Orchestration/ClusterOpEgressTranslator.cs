@@ -170,6 +170,17 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                     new TerrainAssetBuildPayloadDto(intent.Kinds), OrchestrationJsonOptions.Default),
             });
 
+        // ⭐ CE-3024 — a zone load from a host that does not hold the master: the master translator already turned a
+        //   LoadZone request into this intent (`ClusterOpMasterTranslator`), but nothing ever wrote one.
+        foreach (var intent in _bus.ReadManaged<LoadZoneIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.LoadZone,
+                PayloadJson   = JsonSerializer.Serialize(new ZonePayloadDto(intent.ZoneId ?? string.Empty),
+                                                         OrchestrationJsonOptions.Default),
+            });
+
         // ⭐ CE-3021 — publish / refresh (docs/DESIGN_Asset_Management.md §10 D7).
         foreach (var intent in _bus.ReadManaged<AssetOpIntent>())
             _writer.Write(new ClusterOpRequest

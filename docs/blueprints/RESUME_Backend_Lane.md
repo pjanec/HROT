@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-current-answer: §1 — terrain-world slice 1 BUILT 2026-10-03 (report: batches/REPORT_Terrain_World_Slice1.md); §2 lists the open follow-ups (CE-3010 stance/animation, CE-3024 Load-zone menu dead; CE-3017 editor solver + CE-3018 grid rebase CLOSED 2026-10-03). ⭐ Asset management (user 2026-10-03) BUILT: increments A/B/C = CE-3019/3020/3021, design docs/DESIGN_Asset_Management.md §8 + §10 (D1–D7 leans). Panel buttons for publish/refresh BUILT (ClusterScenarioPanel Assets section; remote path fixed with E4's — CE-3022; CE-3023 fixed: request/status QoS no longer collapses a same-frame burst). Open there: §7.6's distributed-deployment limit (the orchestrator stats node disks).
+current-answer: §1 — terrain-world slice 1 BUILT 2026-10-03 (report: batches/REPORT_Terrain_World_Slice1.md); §2 lists the open follow-ups (CE-3010 stance/animation; CE-3017 editor solver, CE-3018 grid rebase, CE-3024 Load-zone menu CLOSED 2026-10-03 — CGF menu actions wait on UXI-23 S5). ⭐ Asset management (user 2026-10-03) BUILT: increments A/B/C = CE-3019/3020/3021, design docs/DESIGN_Asset_Management.md §8 + §10 (D1–D7 leans). Panel buttons for publish/refresh BUILT (ClusterScenarioPanel Assets section; remote path fixed with E4's — CE-3022; CE-3023 fixed: request/status QoS no longer collapses a same-frame burst). Open there: §7.6's distributed-deployment limit (the orchestrator stats node disks).
 stale-below: nothing yet
 related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the programme's owning design (push-only ownership, S1–S8, §5.7.1 live matrix, §5.9/§5.10 deferred designs).
@@ -13,7 +13,7 @@ related-designs:
 
 ## 1. Where it stands (`2026-10-03`)
 
-- ⭐ **Terrain-world slice 1 BUILT** ([`DESIGN_Terrain_World.md`](../DESIGN_Terrain_World.md) §8, report [`REPORT_Terrain_World_Slice1.md`](batches/REPORT_Terrain_World_Slice1.md)): GeoJSON world on every ECS node, map layer, movement Z (W8), DotRecast navmesh baked per terrain + solver on SimHost (W6, `CE-3006` closed), Z-up navigation (`CE-3011` closed), 3-D LOS with posture eye heights (W5). Open: `CE-3010`, `CE-3024` (`CE-3017` editor solver and `CE-3018` grid rebase closed `2026-10-03`).
+- ⭐ **Terrain-world slice 1 BUILT** ([`DESIGN_Terrain_World.md`](../DESIGN_Terrain_World.md) §8, report [`REPORT_Terrain_World_Slice1.md`](batches/REPORT_Terrain_World_Slice1.md)): GeoJSON world on every ECS node, map layer, movement Z (W8), DotRecast navmesh baked per terrain + solver on SimHost (W6, `CE-3006` closed), Z-up navigation (`CE-3011` closed), 3-D LOS with posture eye heights (W5). Open: `CE-3010` (`CE-3017`, `CE-3018`, `CE-3024` closed `2026-10-03`).
 - ⭐ **Asset management BUILT** (user put it in scope `2026-10-03`): [`DESIGN_Asset_Management.md`](../DESIGN_Asset_Management.md) §8 increments A→B→C (`CE-3019`/`CE-3020`/`CE-3021`), §10 the terrain deltas; plan [`PLAN_Asset_Management_Build.md`](PLAN_Asset_Management_Build.md).
 - Backend id block **next free `CE-3022`**.
 

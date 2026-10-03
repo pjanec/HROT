@@ -2037,6 +2037,14 @@ namespace Hrot.Editor
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
             actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
+            // ⭐ CE-3024 (E2) — "Load zone" on a terrain zone publishes the CLUSTER op on the orchestration bus; the
+            //    editor's in-process master drains it and runs the PrepareZone/CommitZone round (design §9.6).
+            actionRegistry.Register(GlobalActionIds.LoadZone, (view, target) =>
+            {
+                if (target == Entity.Null || view is not EntityRepository repo) return;
+                var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
+                if (intent is { } i) _orchestrationBus?.PublishManaged(i);
+            });
             actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
             {
                 if (target == Entity.Null) return;

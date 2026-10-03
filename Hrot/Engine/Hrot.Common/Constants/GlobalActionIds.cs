@@ -32,6 +32,8 @@ namespace Hrot.Common.Constants
         public const int EditOverlay       = 100;
         public const int EditRoute         = 101;
         public const int EditPersonalRoute = 102;
+        /// <summary>⭐ CE-3024 (E2) — load a TERRAIN ZONE across the cluster. Always enabled (design §9.7 ③b).</summary>
+        public const int LoadZone          = 103;
 
         // --- Canvas-level tools ---
         public const int Measure       = 200;

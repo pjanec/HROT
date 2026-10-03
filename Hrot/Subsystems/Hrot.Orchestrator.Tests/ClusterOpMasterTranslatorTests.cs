@@ -374,6 +374,7 @@ public sealed class ClusterOpMasterTranslatorTests
         var buildId = Guid.NewGuid(); var publishId = Guid.NewGuid(); var refreshId = Guid.NewGuid();
         var builds = new List<BuildTerrainAssetIntent>();
         var assetOps = new List<AssetOpIntent>();
+        var zones = new List<LoadZoneIntent>();
 
         // One op per frame, as a panel click sends; the same-frame burst is SameFrameBurst_…_CE3023's job.
         void SendAndPump(Action publish)
@@ -382,20 +383,24 @@ public sealed class ClusterOpMasterTranslatorTests
             panelBus.SwapBuffers();
             egress.Tick();
             var deadline = DateTime.UtcNow.AddSeconds(4);
-            int before = builds.Count + assetOps.Count;
-            while (builds.Count + assetOps.Count == before && DateTime.UtcNow < deadline)
+            int before = builds.Count + assetOps.Count + zones.Count;
+            while (builds.Count + assetOps.Count + zones.Count == before && DateTime.UtcNow < deadline)
             {
                 Thread.Sleep(50);
                 master.Tick();
                 masterBus.SwapBuffers();
                 builds.AddRange(masterBus.ReadManaged<BuildTerrainAssetIntent>());
                 assetOps.AddRange(masterBus.ReadManaged<AssetOpIntent>());
+                zones.AddRange(masterBus.ReadManaged<LoadZoneIntent>());
             }
         }
 
         SendAndPump(() => panelBus.PublishManaged(new BuildTerrainAssetIntent { RequestId = buildId, Kinds = new[] { "roads" } }));
         SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = publishId, Refresh = false, Kind = "blueprint", NodeId = 3 }));
         SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = refreshId, Refresh = true, Kind = "btree", NodeId = 4 }));
+        // ⭐ CE-3024 — a zone load from a host without the master: the egress never wrote one before.
+        var zoneReqId = Guid.NewGuid();
+        SendAndPump(() => panelBus.PublishManaged(new LoadZoneIntent { RequestId = zoneReqId, ZoneId = "777" }));
 
         var build = Assert.Single(builds);
         Assert.Equal(buildId, build.RequestId);
@@ -407,6 +412,9 @@ public sealed class ClusterOpMasterTranslatorTests
         var refresh = Assert.Single(assetOps, a => a.RequestId == refreshId);
         Assert.True(refresh.Refresh);
         Assert.Equal(("btree", 4), (refresh.Kind, refresh.NodeId));
+
+        var zoneOp = Assert.Single(zones);
+        Assert.Equal((zoneReqId, "777"), (zoneOp.RequestId, zoneOp.ZoneId));
     }
 
     /// <summary>

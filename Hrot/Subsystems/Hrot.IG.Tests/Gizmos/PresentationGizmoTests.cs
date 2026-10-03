@@ -261,6 +261,25 @@ namespace Hrot.IG.Tests.Gizmos
         // 📄 EntityPresentationGizmoShared.EmitPickSegments · DESIGN_Gizmo_Anchor_Identity.md §6.4
         // =====================================================================
 
+        /// <summary>
+        /// ⭐ CE-3024 (E2) — right-clicking a TERRAIN ZONE offers "Load zone"; a plain area does not. ⛔ Before this the
+        /// item existed only in the shared populator, whose sole production caller (ExCon) no-ops it — so the map menu
+        /// on the editor never offered it at all.
+        /// </summary>
+        [Fact]
+        public void ZoneMenu_OffersLoadZone_PlainAreaMenuDoesNot_CE3024()
+        {
+            var (zone, _) = MakeOverlay(isClosed: true, networkId: 501L);
+            _repo.AddComponent(zone, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            var (area, _) = MakeOverlay(isClosed: true, networkId: 502L);
+
+            string loadZone = $"\"id\":{Hrot.Common.Constants.GlobalActionIds.LoadZone},";   // the DTO serialises camelCase
+            Assert.Contains(loadZone,
+                Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_repo, zone));
+            Assert.DoesNotContain(loadZone,
+                Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_repo, area));
+        }
+
         private (Entity entity, EditablePolyline poly) MakeOverlay(bool isClosed, long networkId = 90210L)
         {
             _repo.RegisterComponent<MapOverlayStyle>();
