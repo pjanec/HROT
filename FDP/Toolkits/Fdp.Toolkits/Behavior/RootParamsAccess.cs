@@ -317,11 +317,20 @@ public static unsafe class RootParamsAccess
     /// generated behaviour with no <c>Role=Input</c> variable declares an empty manifest and so has 0
     /// Input bytes. ⚠ With no manifest at all (a curated behaviour) the whole layout type is the
     /// parameters, exactly as before.
+    ///
+    /// <para>⭐ <c>CE-2023</c> ② — a generated behaviour WITH an Inputs struct (<c>JsonParamsDtoType</c>, embedded at
+    /// offset 0 as the block's <c>In</c> — CE-425) has exactly that struct's size, trailing padding included: that is the
+    /// region the block reserves and what a host binds (<c>Unsafe.SizeOf&lt;T&gt;</c>). ⛔ The manifest EXTENT stopped before
+    /// the padding, so a blueprint child with <c>Params {int; bool; bool}</c> (8 bytes, extent 6) threw at every hosted
+    /// start. 📄 <c>DESIGN_Unified_Behaviour_Run.md</c> "S8l".</para>
     /// </summary>
     public static int InputBytes(BehaviorDefinition def)
     {
         if (def is null) return 0;
-        if (def.ManagedBlackboardVariables != null) return ManifestExtent(def.ManagedBlackboardVariables);
+        if (def.ManagedBlackboardVariables != null)
+            return def.JsonParamsDtoType is { IsValueType: true } inputs
+                ? Fdp.Core.TypeLayout.SizeOf(inputs)
+                : ManifestExtent(def.ManagedBlackboardVariables);
         return def.BlackboardLayoutType != null
             ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)
             : 0;

@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8k as-built" — an HSM child's occurrences nest under its site; S8l designed).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8l as-built"; "S8m" is an OPEN decision — CE-2023 ③).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1986,6 +1986,40 @@ sequenceDiagram
 **Design docs checked:** `DESIGN_Parameter_Model.md` §P.2 — applies (the binding IS the child's input struct) · S8 Q3
 (binding width) — applies, unchanged · S3 (blueprint publishes `JsonParamsDtoType` = `In`) — applies, it is what makes L1
 true for blueprints · CE-437 (resolver-fit check, `BehaviorRegistry`) — applies, it reads the same width.
+
+#### S8l as-built *(`2026-10-03`, CE-2023 ②)*
+
+Built as designed — no deviation. `RootParamsAccess.InputBytes`: a generated child (manifest present) whose
+`JsonParamsDtoType` is a value type ⇒ `TypeLayout.SizeOf` of it. Rails: `BehaviorIngressSystemTests.CE2023_*` (an `{int,
+bool, bool}` Inputs struct is 8, not its extent 6) and `BlueprintBehaviourTests.S8l_AGeneratedChildWithPaddedInputs_TakesItsParams`
+(a blueprint host binds an 8-byte `{float, bool}` struct to a generated child whose manifest ends at 5; the child reads 7).
+🔴 Red-proof: the extent width fails both. The S3 rail's `Marshal.SizeOf` pin of the Input width is now `TypeLayout.SizeOf`
+(the CE-2041 rule). Gates: Toolkits 2466/0, Blueprints 4130/0/17, SimHost 1057/0/3, Generators 378/0.
+
+#### S8m — CE-2023 ③ needs a decision: a curated child with a CLASS authored contract cannot be hosted with params *(`2026-10-03`)*
+
+**Measured.** `MoveToLocation` and `FireAtTarget` resolve JSON into `MoveToLocationParamsJsonDto` / `FireAtTargetParamsJsonDto`
+— sealed CLASSES (`Hrot.Core/MapDefinitions/Behavior/*.cs`), deliberately: `BehaviorParams.ResolveBlock` documents them as
+*"JSON contracts … never stored in a slot"*, and `BehaviorUiCompiler` (mission panel) and `BehaviorParamRemapperCompiler`
+(scenario id remap) both require `class, new()` and build property setters on a reference. A hosted child's start gets the
+host variable's BYTES (CE-443): its from-bytes arm exists only for an UNMANAGED authored type
+(`BehaviorParams.FromBlockResolverSource` returns null for a class), and a JSON-shaped resolver throws (`HostedSubtree.StartChild`).
+⇒ a blueprint Behaviour Task cannot start either child with parameters, so the §7 demos cannot move onto them as they are.
+
+| option | what changes | blast radius |
+|---|---|---|
+| ⭐ **A — the authored contract becomes a STRUCT** (lean) | the two DTOs → unmanaged structs (same JSON keys; `DefaultRelaxed` is field-aware and case-insensitive); their resolvers → the typed shape `(in Dto, ref Block, world, self)`, which the generator already wires to BOTH arms (JSON + from-bytes); `BehaviorUiCompiler` and the remapper move to `ref`-taking setters so a struct contract works | 2 DTOs, 2 resolvers, 2 compilers (~470 lines) + their rails. One contract per behaviour kept (§P.2 *"the host variable IS the child's authored input"*), and every future unmanaged contract is hostable for free |
+| B — a JSON-resolver child is hosted with its BLOCK | `TryGetHostedInputType` offers `BlackboardLayoutType`; `StartChild` copies the bound block and skips the resolver | 2 files. ⛔ the host authors the USABLE shape (Cartesian metres, a packed entity) — the opposite of §P.2, and `MoveToLocationParams` is documented as *"engine-internal … must never appear in a public description"* |
+| C — a hostable twin struct per behaviour | a second contract next to the DTO | ⛔ two contracts for one behaviour |
+
+Then, under A: §7's `Demo_TaskChain` / `Demo_MissionPlan` host `MoveToLocation` (a geo point) and `FireAtTarget` (its target —
+⚠ the contract names a NETWORK id, so a blueprint host needs the target's network id; a demo can read it from the hit) instead
+of the `Demo_*` step children, and the capstone runs as a scenario on a `--mode all` cluster (`RUNBOOK_Cluster_Debugging_Over_Http.md`).
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2/§P.8 — applies (one authored contract; the from-bytes arm) ·
+`Behavior_Parameter_Resolver_Detailed_Design.md` §3.2 (the "two shapes on divergence" MoveTo case) — applies, it is why the
+DTO and the block differ · CE-438 (closed by CE-443: *"keep the typed delegate alongside the JSON adapter"*) — applies, A is
+that lean carried to the two shipped contracts.
 
 ## 5. Decisions — each with a lean
 

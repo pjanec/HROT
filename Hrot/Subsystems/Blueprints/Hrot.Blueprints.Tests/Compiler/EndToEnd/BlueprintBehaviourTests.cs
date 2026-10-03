@@ -487,8 +487,8 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal("Speed", manifest.Name);
         Assert.Equal(typeof(float), manifest.Type);
         Assert.Equal(0, manifest.ByteOffset);
-        Assert.Equal(System.Runtime.InteropServices.Marshal.SizeOf(def.JsonParamsDtoType!), RootParamsAccess.InputBytes(def));
-        Assert.True(RootParamsAccess.InputBytes(def) < System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType),
+        Assert.Equal(Fdp.Core.TypeLayout.SizeOf(def.JsonParamsDtoType!), RootParamsAccess.InputBytes(def));   // CE-2023 ②: the In struct's managed size
+        Assert.True(RootParamsAccess.InputBytes(def) < Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType),
             "the Input region is the Params half, not the whole block");
     }
 
@@ -1256,7 +1256,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     /// exactly that struct (<c>BehaviorRegistry.TryGetHostedInputType</c>).</summary>
     /// <param name="generated">⭐ S8b — register the shape a GENERATED BTree/HSM registrar emits instead: a manifest and
     /// its Inputs struct as <c>JsonParamsDtoType</c> (<paramref name="noInputs"/>: an empty manifest and no contract).</param>
-    private void RegisterParamsReadingChild(string name, bool generated = false, bool noInputs = false)
+    private void RegisterParamsReadingChild(string name, bool generated = false, bool noInputs = false, bool padded = false)
     {
         _childSaw.Clear(); _childTicksLeft = 0;
         var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(ChildReadsParams));
@@ -1271,9 +1271,11 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
             Name = name, BrainTier = BehaviorConstants.BrainTierBTree, BTreeInterpreter = def.BTreeInterpreter,
             ManagedBlackboardVariables = noInputs
                 ? Array.Empty<ManagedBlackboardVariable>()
-                : new[] { new ManagedBlackboardVariable("Value", typeof(float), 0) },
-            JsonParamsDtoType = noInputs ? null : typeof(Runtime.S8TaskParams),
-            BlackboardLayoutType = typeof(Runtime.S8TaskParams),   // its block (here: just the Inputs half)
+                : padded
+                    ? new[] { new ManagedBlackboardVariable("Value", typeof(float), 0), new ManagedBlackboardVariable("Flag", typeof(bool), 4) }
+                    : new[] { new ManagedBlackboardVariable("Value", typeof(float), 0) },
+            JsonParamsDtoType = noInputs ? null : padded ? typeof(Runtime.S8PaddedTaskParams) : typeof(Runtime.S8TaskParams),
+            BlackboardLayoutType = padded ? typeof(Runtime.S8PaddedTaskParams) : typeof(Runtime.S8TaskParams),   // its block (here: just the Inputs half)
         });
     }
 
@@ -1420,6 +1422,26 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Contains("__RunBind_", compiled.GeneratedSource!);
         Assert.Contains("__TaskParams_", compiled.GeneratedSource!);
 
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+        HitWith(7f);
+        for (int f = 0; f < 6 && read("Done") == 0; f++) Assert.Null(frame());
+        Assert.Equal(new[] { 7f }, _childSaw);
+        Assert.Equal(1, read("Done"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2023</c> ② (S8l) — a GENERATED child whose Inputs struct has trailing padding takes its Params.</b> The host
+    /// binds <c>S8PaddedTaskParams</c> (8 bytes managed); the child's manifest ends at 5. 🔴 Before: <c>InputBytes</c> was the
+    /// extent, so the start refused the binding ("the host variable … is 8 bytes but the child's Input region is 5").
+    /// </summary>
+    [Fact]
+    public void S8l_AGeneratedChildWithPaddedInputs_TakesItsParams()
+    {
+        const string Host = "S8lPaddedHost", Child = "S8lPaddedChild";
+        RegisterParamsReadingChild(Child, generated: true, padded: true);
+        var asset = ParamsHost(Host, Child, alongside: false, paramsTypeId: typeof(Runtime.S8PaddedTaskParams).FullName);
         _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
         var (e, frame) = AssignAndFramer(Host);
         var read = IntReader(Host, e);
