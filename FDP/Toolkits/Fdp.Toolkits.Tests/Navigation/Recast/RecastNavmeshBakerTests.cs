@@ -1,16 +1,16 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
 using DotRecast.Detour;
 using Fdp.Toolkit.Navigation;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
-/// Headless tests for <see cref="StrideNavmeshBaker"/> (STR-P2-T1).
+/// Headless tests for <see cref="RecastNavmeshBaker"/> (STR-P2-T1).
 ///
 /// <para>
 /// All tests operate on a synthetic triangle soup in navmesh-query space:
@@ -30,7 +30,7 @@ namespace Hrot.Stride.Core.Tests;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class StrideNavmeshBakerTests
+public sealed class RecastNavmeshBakerTests
 {
     private const float Tol = 0.5f;  // generous tolerance for navmesh projection
 
@@ -108,7 +108,7 @@ public sealed class StrideNavmeshBakerTests
     public void Bake_FlatGroundQuad_ProducesNonEmptyNavmesh()
     {
         var (verts, indices) = MakeGroundQuad();
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
 
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
@@ -136,7 +136,7 @@ public sealed class StrideNavmeshBakerTests
     public void Bake_InfantryAndVehicle_HaveDifferentAgentParams()
     {
         var (verts, indices) = MakeGroundQuad(-20f, 20f, -20f, 20f);  // bigger for vehicle
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
 
         baker.Bake(verts, indices, NavLayerMask.Infantry | NavLayerMask.Vehicle);
 
@@ -173,7 +173,7 @@ public sealed class StrideNavmeshBakerTests
         const float GapWidth = 0.8f;
         var (verts, indices) = MakeGroundWithGap(GapWidth);
 
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry | NavLayerMask.Vehicle);
 
         // Infantry must produce a mesh (gap is walkable).
@@ -207,7 +207,7 @@ public sealed class StrideNavmeshBakerTests
         // Ground quad at Y=0, X ∈ [-10,10], Z ∈ [-10,10].
         // A query point at (0, 1, 0) — above centre — should snap to Y≈0.
         var (verts, indices) = MakeGroundQuad();
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         Assert.True(result.ContainsKey(NavLayerMask.Infantry));
@@ -243,7 +243,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_NullVerts_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentNullException>(() =>
             baker.Bake(null!, new int[0]));
     }
@@ -251,7 +251,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_NullIndices_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentNullException>(() =>
             baker.Bake(new float[0], null!));
     }
@@ -259,7 +259,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_VertsNotMultipleOf3_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentException>(() =>
             baker.Bake(new float[7], new int[3]));
     }

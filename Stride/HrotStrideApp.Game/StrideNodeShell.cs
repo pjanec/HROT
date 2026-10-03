@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;   // SenderIdentityConfig
@@ -111,7 +112,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     /// <c>TryInitializeNavMesh</c>, which is why it must be reachable from the bake.
     /// ⚠ Mode 1 exposes the same thing as <c>EditorStrideSubsystem.InfantryCrowdProvider</c>.
     /// </summary>
-    public Hrot.Stride.Core.DotRecastDtCrowdProvider? InfantryCrowdProvider { get; private set; }
+    public Fdp.Toolkit.Navigation.Recast.DotRecastDtCrowdProvider? InfantryCrowdProvider { get; private set; }
 
     /// <summary>
     /// Boots the node: resolves the Stride capability plan, creates an isolated DDS participant, and

@@ -78,11 +78,12 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             Assert.True(ok);
             Assert.Equal(2, count);
+            // Z-up (R-182 / W7): the 2-D trajectory point (x, y) is NavWaypoint (x, y, altitude 0) — no swizzle.
             Assert.Equal(1f, buf[0].Position.X, precision: 4);
-            Assert.Equal(0f, buf[0].Position.Y, precision: 4);
-            Assert.Equal(2f, buf[0].Position.Z, precision: 4);
+            Assert.Equal(2f, buf[0].Position.Y, precision: 4);
+            Assert.Equal(0f, buf[0].Position.Z, precision: 4);
             Assert.Equal(3f, buf[1].Position.X, precision: 4);
-            Assert.Equal(4f, buf[1].Position.Z, precision: 4);
+            Assert.Equal(4f, buf[1].Position.Y, precision: 4);
         }
 
         [Fact]

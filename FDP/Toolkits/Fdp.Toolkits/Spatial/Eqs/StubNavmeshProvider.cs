@@ -27,16 +27,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <inheritdoc/>
         public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF)
         {
-            // Stub: return a 3x3 grid of sample points within the radius (XZ plane).
+            // Stub: return a 3x3 grid of sample points within the radius (XY ground plane; Z-up).
             int count = 0;
             float step = radius / 2f;
             for (float dx = -step; dx <= step && count < results.Length; dx += step)
             {
-                for (float dz = -step; dz <= step && count < results.Length; dz += step)
+                for (float dy = -step; dy <= step && count < results.Length; dy += step)
                 {
-                    float distXZ = MathF.Sqrt(dx * dx + dz * dz);
-                    if (distXZ <= radius)
-                        results[count++] = new Vector3(center.X + dx, center.Y, center.Z + dz);
+                    float distXY = MathF.Sqrt(dx * dx + dy * dy);
+                    if (distXY <= radius)
+                        results[count++] = new Vector3(center.X + dx, center.Y + dy, center.Z);
                 }
             }
             return count;
@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <inheritdoc/>
         public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
-            // True 3D Euclidean distance (P3D-301): the Y term is the Recast altitude delta,
+            // True 3D Euclidean distance (P3D-301): the Z term is the altitude delta (Z-up),
             // so stairs/ramps to a deck cost more. Matches FakeNavmeshProvider.
             float dx = from.X - to.X;
             float dy = from.Y - to.Y;

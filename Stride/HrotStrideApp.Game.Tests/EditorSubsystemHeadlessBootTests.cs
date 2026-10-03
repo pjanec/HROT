@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -533,7 +534,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         AddQuad(-12f, -5f, 0f, 15f);
         AddQuad(0f, 5f, 12f, 15f);
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts.ToArray(), idx.ToArray(), NavLayerMask.Infantry);
         Assert.True(meshes.ContainsKey(NavLayerMask.Infantry),
             "Infantry navmesh must bake for STRIDE-INTEG test.");
@@ -559,7 +560,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
             new Stride.Core.Mathematics.Vector3(5f, 1f, 0.25f),
             verts, idx);
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts.ToArray(), idx.ToArray(), NavLayerMask.Vehicle);
         Assert.True(meshes.ContainsKey(NavLayerMask.Vehicle),
             "Vehicle navmesh must bake for STRIDE-INTEG test.");

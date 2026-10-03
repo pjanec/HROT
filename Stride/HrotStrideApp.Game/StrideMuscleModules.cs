@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Modules;

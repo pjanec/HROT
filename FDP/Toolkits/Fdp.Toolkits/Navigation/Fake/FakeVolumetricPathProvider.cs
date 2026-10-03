@@ -32,12 +32,12 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// <summary>
     /// In-memory volumetric path provider for unit testing.
     ///
-    /// Flyable checks: position must be within [MinAltitude, MaxAltitude] and outside all
+    /// Flyable checks (Z-up — altitude is the Z coordinate): position must be within [MinAltitude, MaxAltitude] and outside all
     /// registered no-fly zones.
     ///
     /// Path planning: uses a straight line if both endpoints are flyable and the segment
     /// does not intersect any no-fly zone. Otherwise performs a 5-metre grid A* search
-    /// in the (X, Y) plane (ignoring Z for simplicity).
+    /// in the (X, Y) ground plane at the average altitude (Z-up: altitude is Z).
     ///
     /// QueryVersion(BoundingBox3D): returns current version if any registered no-fly zone
     /// intersects <paramref name="region"/>.
@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Navigation.Fake
         private const float GridStep = 5f;
         private const int   MaxGridSteps = 200;
 
-        private static readonly (int dx, int dz)[] _dirs = { (1, 0), (-1, 0), (0, 1), (0, -1) };
+        private static readonly (int dx, int dy)[] _dirs = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
         private readonly List<BoundingBox3D> _noFlyZones = new();
         private uint   _version = 1u;
@@ -58,8 +58,8 @@ namespace Fdp.Toolkit.Navigation.Fake
         private int _isFlyableCalls;
         private int _pathExistsCalls;
 
-        /// <param name="minAltitude">Minimum flyable altitude (Y, metres). Default 0.</param>
-        /// <param name="maxAltitude">Maximum flyable altitude (Y, metres). Default 5000.</param>
+        /// <param name="minAltitude">Minimum flyable altitude (Z, metres). Default 0.</param>
+        /// <param name="maxAltitude">Maximum flyable altitude (Z, metres). Default 5000.</param>
         public FakeVolumetricPathProvider(float minAltitude = 0f, float maxAltitude = 5000f)
         {
             _minAltitude = minAltitude;
@@ -97,9 +97,9 @@ namespace Fdp.Toolkit.Navigation.Fake
                 return 2;
             }
 
-            // Fall back to grid A* in the (X, Z) plane at the average Y.
-            float midY = (from.Y + to.Y) * 0.5f;
-            return GridPlan(from, to, midY, waypoints);
+            // Fall back to grid A* in the (X, Y) ground plane at the average altitude (Z).
+            float midZ = (from.Z + to.Z) * 0.5f;
+            return GridPlan(from, to, midZ, waypoints);
         }
 
         /// <inheritdoc/>
@@ -117,16 +117,16 @@ namespace Fdp.Toolkit.Navigation.Fake
         {
             _pathExistsCalls++;
 
-            if (from.Y < profile.MinAltitude || from.Y > profile.MaxAltitude) return false;
-            if (to.Y   < profile.MinAltitude || to.Y   > profile.MaxAltitude) return false;
+            if (from.Z < profile.MinAltitude || from.Z > profile.MaxAltitude) return false;
+            if (to.Z   < profile.MinAltitude || to.Z   > profile.MaxAltitude) return false;
             if (!IsPositionFlyable(from) || !IsPositionFlyable(to))           return false;
 
             if (!SegmentBlockedByNoFly(from, to)) return true;
 
             // Try grid plan; if it finds any path, return true.
-            float midY = (from.Y + to.Y) * 0.5f;
+            float midZ = (from.Z + to.Z) * 0.5f;
             var buf = new NavWaypoint[MaxGridSteps];
-            int n = GridPlan(from, to, midY, buf.AsSpan());
+            int n = GridPlan(from, to, midZ, buf.AsSpan());
             if (n == 0) return false;
             if (maxCost <= 0f) return true;
 
@@ -180,7 +180,7 @@ namespace Fdp.Toolkit.Navigation.Fake
 
         private bool IsPositionFlyable(Vector3 p)
         {
-            if (p.Y < _minAltitude || p.Y > _maxAltitude) return false;
+            if (p.Z < _minAltitude || p.Z > _maxAltitude) return false;
             foreach (var zone in _noFlyZones)
                 if (zone.Contains(p)) return false;
             return true;
@@ -194,17 +194,17 @@ namespace Fdp.Toolkit.Navigation.Fake
         }
 
         /// <summary>
-        /// Grid A* in the (X, Z) plane at fixed Y = <paramref name="planeY"/>.
+        /// Grid A* in the (X, Y) ground plane at fixed altitude Z = <paramref name="planeZ"/>.
         /// Uses 4-connected grid with step <see cref="GridStep"/>.
         /// Returns number of waypoints written to <paramref name="out_"/>.
         /// </summary>
-        private int GridPlan(Vector3 from, Vector3 to, float planeY, Span<NavWaypoint> out_)
+        private int GridPlan(Vector3 from, Vector3 to, float planeZ, Span<NavWaypoint> out_)
         {
             // Snap start and end to grid.
-            (int sx, int sz) = Snap(from.X, from.Z);
-            (int ex, int ez) = Snap(to.X,   to.Z);
+            (int sx, int sy) = Snap(from.X, from.Y);
+            (int ex, int ey) = Snap(to.X,   to.Y);
 
-            if (sx == ex && sz == ez)
+            if (sx == ex && sy == ey)
             {
                 if (out_.Length < 2) return 0;
                 out_[0] = MakeWaypoint(from);
@@ -214,28 +214,28 @@ namespace Fdp.Toolkit.Navigation.Fake
 
             var dist = new Dictionary<(int, int), float>();
             var prev = new Dictionary<(int, int), (int, int)?>();
-            var pq   = new SortedSet<(float cost, int x, int z)>(
-                Comparer<(float cost, int x, int z)>.Create((a, b) =>
+            var pq   = new SortedSet<(float cost, int x, int y)>(
+                Comparer<(float cost, int x, int y)>.Create((a, b) =>
                 {
                     int c = a.cost.CompareTo(b.cost);
                     if (c != 0) return c;
                     c = a.x.CompareTo(b.x);
-                    return c != 0 ? c : a.z.CompareTo(b.z);
+                    return c != 0 ? c : a.y.CompareTo(b.y);
                 }));
 
-            var start = (sx, sz);
+            var start = (sx, sy);
             dist[start] = 0f;
             prev[start] = null;
-            pq.Add((0f, sx, sz));
+            pq.Add((0f, sx, sy));
 
             int iters = 0;
             while (pq.Count > 0 && iters++ < MaxGridSteps * MaxGridSteps)
             {
-                var (cost, cx, cz) = pq.Min;
+                var (cost, cx, cy) = pq.Min;
                 pq.Remove(pq.Min);
-                var cur = (cx, cz);
+                var cur = (cx, cy);
 
-                if (cx == ex && cz == ez)
+                if (cx == ex && cy == ey)
                 {
                     // Reconstruct.
                     var cells = new List<(int, int)>();
@@ -254,8 +254,8 @@ namespace Fdp.Toolkit.Navigation.Fake
                     out_[written++] = MakeWaypoint(from);
                     for (int i = 1; i < cells.Count && written < out_.Length - 1; i++)
                     {
-                        var (gx, gz) = cells[i];
-                        out_[written++] = MakeWaypoint(new Vector3(gx * GridStep, planeY, gz * GridStep));
+                        var (gx, gy) = cells[i];
+                        out_[written++] = MakeWaypoint(new Vector3(gx * GridStep, gy * GridStep, planeZ));
                     }
                     if (written < out_.Length)
                         out_[written++] = MakeWaypoint(to);
@@ -263,27 +263,27 @@ namespace Fdp.Toolkit.Navigation.Fake
                 }
 
                 // 4-connected neighbours (static array to avoid stackalloc-in-loop CA2014).
-                foreach (var (dx, dz) in _dirs)
+                foreach (var (dx, dy) in _dirs)
                 {
-                    int nx = cx + dx, nz = cz + dz;
-                    var pos = new Vector3(nx * GridStep, planeY, nz * GridStep);
+                    int nx = cx + dx, ny = cy + dy;
+                    var pos = new Vector3(nx * GridStep, ny * GridStep, planeZ);
                     if (!IsPositionFlyable(pos)) continue;
                     float newDist = cost + GridStep;
-                    var next = (nx, nz);
+                    var next = (nx, ny);
                     if (!dist.TryGetValue(next, out float existing) || newDist < existing)
                     {
                         dist[next] = newDist;
                         prev[next] = cur;
-                        float h = Math.Abs(nx - ex) * GridStep + Math.Abs(nz - ez) * GridStep;
-                        pq.Add((newDist + h, nx, nz));
+                        float h = Math.Abs(nx - ex) * GridStep + Math.Abs(ny - ey) * GridStep;
+                        pq.Add((newDist + h, nx, ny));
                     }
                 }
             }
             return 0;
         }
 
-        private static (int x, int z) Snap(float x, float z)
-            => ((int)MathF.Round(x / GridStep), (int)MathF.Round(z / GridStep));
+        private static (int x, int y) Snap(float x, float y)
+            => ((int)MathF.Round(x / GridStep), (int)MathF.Round(y / GridStep));
 
         private static NavWaypoint MakeWaypoint(Vector3 pos)
             => new NavWaypoint { Position = pos, Traversal = TraversalKind.Fly };

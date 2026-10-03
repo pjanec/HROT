@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation;
 using System;
 using System.Collections.Generic;
 using Hrot.Stride.Core;

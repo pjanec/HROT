@@ -9,7 +9,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 
-namespace Hrot.Stride.Core;
+namespace Fdp.Toolkit.Navigation.Recast;
 
 /// <summary>
 /// <see cref="IDtCrowdProvider"/> backed by DotRecast <c>DtCrowd</c> local avoidance/steering.
@@ -17,16 +17,14 @@ namespace Hrot.Stride.Core;
 ///
 /// <para>
 /// <b>Coordinate convention.</b>
-/// The crowd simulation operates in <em>navmesh-query space</em>: X=East, Y=altitude(up), Z=North
-/// — the same as Stride world space and the baked <see cref="DtNavMesh"/>.
-/// FDP world positions (X=East, Y=North, Z=Up) are converted to crowd space by swizzling
-/// <c>(fdp.X, fdp.Z, fdp.Y)</c> via <see cref="FdpStrideTransform.ToStridePosition"/> and
-/// converting back via <see cref="FdpStrideTransform.ToFdpPosition"/>.
+/// The API is engine space, Z-up (X=East, Y=North, Z=Up — R-182 / W7). Internally the crowd simulation runs in the baked
+/// <see cref="DtNavMesh"/>'s Recast space (X=East, Y=Up, Z=North); <c>ToRcVec</c> / <c>ToFdpVec</c> swizzle
+/// <c>(x, y, z) ⇄ (x, z, y)</c> at every boundary, so callers never convert.
 /// </para>
 ///
 /// <para>
 /// <b>Usage.</b>
-/// Construct with a baked <see cref="DtNavMesh"/> from <see cref="StrideNavmeshBaker"/>.
+/// Construct with a baked <see cref="DtNavMesh"/> from <see cref="Fdp.Toolkit.Navigation.Recast.RecastNavmeshBaker"/>.
 /// Call <see cref="IDtCrowdProvider.Update"/> once per sim tick; then read per-agent
 /// velocities via <see cref="IDtCrowdProvider.GetAgentVelocity"/>.
 /// </para>
@@ -74,7 +72,7 @@ public sealed class DotRecastDtCrowdProvider : IDtCrowdProvider
     /// Constructs a crowd provider over the given baked navmesh.
     /// </summary>
     /// <param name="navMesh">
-    /// Baked <see cref="DtNavMesh"/> from <see cref="StrideNavmeshBaker"/>.
+    /// Baked <see cref="DtNavMesh"/> from <see cref="Fdp.Toolkit.Navigation.Recast.RecastNavmeshBaker"/>.
     /// Must not be null.
     /// </param>
     /// <param name="maxAgentRadius">
@@ -393,8 +391,7 @@ public sealed class DotRecastDtCrowdProvider : IDtCrowdProvider
     /// <summary>
     /// Converts an FDP world position (X=East, Y=North, Z=Up) to a DotRecast
     /// <see cref="RcVec3f"/> in crowd/navmesh space (X=East, Y=altitude, Z=North).
-    /// Swizzle: crowd = (fdp.X, fdp.Z, fdp.Y) — matches
-    /// <see cref="FdpStrideTransform.ToStridePosition"/>.
+    /// Swizzle: crowd = (fdp.X, fdp.Z, fdp.Y).
     /// </summary>
     private static RcVec3f ToRcVec(Vector3 fdp) => new(fdp.X, fdp.Z, fdp.Y);
 

@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Navigation
     [StructLayout(LayoutKind.Sequential)]
     public readonly struct NavWaypoint
     {
-        /// <summary>World-space position of the waypoint (metres, FDP Cartesian).</summary>
+        /// <summary>World-space position of the waypoint (metres, engine space: X east, Y north, Z up).</summary>
         public Vector3 Position { get; init; }          // 12 bytes
 
         /// <summary>How the agent traverses the edge leading to this waypoint.</summary>

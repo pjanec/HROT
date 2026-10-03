@@ -375,7 +375,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 for (int i = 0; i < traj.Waypoints.Length; i++)
                     wps[i] = new NavWaypoint
                     {
-                        Position  = new Vector3(traj.Waypoints[i].Position.X, 0f, traj.Waypoints[i].Position.Y),
+                        Position  = new Vector3(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y, 0f), // engine space, Z-up (no swizzle)
                         Traversal = TraversalKind.Walk,
                     };
                 PathRegistry.Muscle.RegisterOrReplace(muscle.RouteHandle, wps, 0f, 0, 0, 0);

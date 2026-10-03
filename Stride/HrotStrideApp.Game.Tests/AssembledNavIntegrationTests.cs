@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -107,7 +108,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         AddQuad(-12f, -5f, 0f, 15f);  // west strip
         AddQuad(0f,   5f, 12f, 15f);  // east strip (north portion only)
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts.ToArray(), idx.ToArray(), NavLayerMask.Infantry);
         Assert.True(meshes.ContainsKey(NavLayerMask.Infantry), "Infantry navmesh must bake.");
         return meshes[NavLayerMask.Infantry];
@@ -134,7 +135,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
             SMath.Matrix.Translation(new SMath.Vector3(0f, 1f, 5f)),
             new SMath.Vector3(5f, 1f, 0.25f), verts, idx);
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts.ToArray(), idx.ToArray(), NavLayerMask.Vehicle);
         Assert.True(meshes.ContainsKey(NavLayerMask.Vehicle), "Vehicle navmesh must bake.");
         return meshes[NavLayerMask.Vehicle];
