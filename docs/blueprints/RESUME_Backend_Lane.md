@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-current-answer: §1 — terrain-world slice 1 BUILT 2026-10-03 (report: batches/REPORT_Terrain_World_Slice1.md); §2 lists the open follow-ups (CE-3018 grid resize, CE-3010 stance/animation; CE-3017 editor solver CLOSED 2026-10-03). ⭐ Asset management (user 2026-10-03) BUILT: increments A/B/C = CE-3019/3020/3021, design docs/DESIGN_Asset_Management.md §8 + §10 (D1–D7 leans). Panel buttons for publish/refresh BUILT (ClusterScenarioPanel Assets section; remote path fixed with E4's — CE-3022; CE-3023 open: request QoS collapses a same-frame burst). Open there: §7.6's distributed-deployment limit (the orchestrator stats node disks).
+current-answer: §1 — terrain-world slice 1 BUILT 2026-10-03 (report: batches/REPORT_Terrain_World_Slice1.md); §2 lists the open follow-ups (CE-3018 grid resize, CE-3010 stance/animation; CE-3017 editor solver CLOSED 2026-10-03). ⭐ Asset management (user 2026-10-03) BUILT: increments A/B/C = CE-3019/3020/3021, design docs/DESIGN_Asset_Management.md §8 + §10 (D1–D7 leans). Panel buttons for publish/refresh BUILT (ClusterScenarioPanel Assets section; remote path fixed with E4's — CE-3022; CE-3023 fixed: request/status QoS no longer collapses a same-frame burst). Open there: §7.6's distributed-deployment limit (the orchestrator stats node disks).
 stale-below: nothing yet
 related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the programme's owning design (push-only ownership, S1–S8, §5.7.1 live matrix, §5.9/§5.10 deferred designs).

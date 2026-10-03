@@ -130,9 +130,12 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string UnarchivedLocalExercisesJson;
     }
 
+    // ⭐ CE-3023 — KeepAll: a QUEUE of requests (mgmt-1 DESIGN "consume ClusterOpRequest DDS queue"). The default depth-1
+    //   history collapsed a same-frame burst to its newest sample (measured: ops lost). Volatile, so nothing is retained
+    //   for late joiners — the NodeOpCommand shape.
     [DdsTopic("ClusterOpRequest")]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct ClusterOpRequest
     {
         public Guid RequestId;
@@ -140,9 +143,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string PayloadJson;
     }
 
+    // ⭐ CE-3023 — the reply leg had the same depth-1 collapse (measured: 1 of 5 same-frame statuses arrived), so a remote
+    //   panel waited forever on an op whose completion was overwritten. ⚠ BOUNDED, not KeepAll: the topic is
+    //   TransientLocal, so its history is what a late-joining panel replays; every reader filters by RequestId.
     [DdsTopic("SysOpStatus")]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
     public partial struct ClusterOpStatus
     {
         public Guid RequestId;

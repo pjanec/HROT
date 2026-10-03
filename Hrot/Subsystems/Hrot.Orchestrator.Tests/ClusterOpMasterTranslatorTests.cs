@@ -375,8 +375,7 @@ public sealed class ClusterOpMasterTranslatorTests
         var builds = new List<BuildTerrainAssetIntent>();
         var assetOps = new List<AssetOpIntent>();
 
-        // ⚠ ONE op per frame, as a panel click sends: ClusterOpRequest is unkeyed, reliable, volatile with default
-        //   (depth-1) history, so ops written in the same burst collapse to the last — CE-3023, pre-existing.
+        // One op per frame, as a panel click sends; the same-frame burst is SameFrameBurst_…_CE3023's job.
         void SendAndPump(Action publish)
         {
             publish();
@@ -408,6 +407,76 @@ public sealed class ClusterOpMasterTranslatorTests
         var refresh = Assert.Single(assetOps, a => a.RequestId == refreshId);
         Assert.True(refresh.Refresh);
         Assert.Equal(("btree", 4), (refresh.Kind, refresh.NodeId));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3023 — several ops written in ONE frame all reach the master. ⛔ Before the fix the request topic kept the
+    /// DDS default history (KeepLast 1), so a burst written before the reader took collapsed to the newest sample —
+    /// measured: 1 of 3 arrived. Same QoS shape as <c>NodeOpCommand</c> (Reliable, Volatile, KeepAll).
+    /// </summary>
+    [Fact(Timeout = 15_000)]
+    public void SameFrameBurst_OfClusterOps_AllCrossTheWire_CE3023()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        var panelBus  = new FdpEventBus();
+        var masterBus = new FdpEventBus();
+        using var egress = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(panelBus, participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+        var master = new ClusterOpMasterTranslator(requestReader, statusWriter, masterBus);
+
+        Thread.Sleep(400); // DDS discovery
+
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var (id, i) in ids.Select((id, i) => (id, i)))
+            panelBus.PublishManaged(new AssetOpIntent { RequestId = id, Refresh = i % 2 == 1, Kind = "blueprint", NodeId = i + 1 });
+        panelBus.SwapBuffers();
+        egress.Tick();                                   // all five written in one burst
+
+        Thread.Sleep(300);                               // let them all land before the first take
+        var seen = new List<AssetOpIntent>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (seen.Count < ids.Length && DateTime.UtcNow < deadline)
+        {
+            master.Tick();
+            masterBus.SwapBuffers();
+            seen.AddRange(masterBus.ReadManaged<AssetOpIntent>());
+            Thread.Sleep(50);
+        }
+
+        Assert.Equal(ids.OrderBy(g => g), seen.Select(a => a.RequestId).OrderBy(g => g));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3023, the reply leg — two ops finishing in the same frame must both report back, or a remote panel's status
+    /// line waits forever on the one whose completion was overwritten. The status topic is TransientLocal, so its
+    /// history is BOUNDED (KeepLast 64) rather than KeepAll: a late joiner replays at most
+    /// that many, and every reader filters by RequestId.
+    /// </summary>
+    [Fact(Timeout = 15_000)]
+    public void SameFrameBurst_OfClusterOpStatuses_AllReachTheReader_CE3023()
+    {
+        using var participant = new DdsParticipant(TestDomain);
+        using var writer = new DdsWriter<ClusterOpStatus>(participant);
+        using var reader = new DdsReader<ClusterOpStatus>(participant);
+        Thread.Sleep(400); // DDS discovery
+
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var id in ids)
+            writer.Write(new ClusterOpStatus { RequestId = id, StatusCode = 0, ResultJson = "" });
+
+        Thread.Sleep(300);
+        var seen = new HashSet<Guid>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (seen.Count < ids.Length && DateTime.UtcNow < deadline)
+        {
+            using (var l = reader.Take())
+                foreach (var s in l)
+                    if (s.IsValid) seen.Add(s.Data.RequestId);
+            Thread.Sleep(50);
+        }
+
+        Assert.True(ids.All(seen.Contains), $"only {seen.Count} of {ids.Length} statuses arrived");
     }
 
     /// <summary>⭐ CE-3021 — the panel's status line follows ONLY its own request, and knows a failure from a success.</summary>
