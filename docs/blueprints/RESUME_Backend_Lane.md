@@ -16,7 +16,7 @@ related-designs:
 - Branch **`backend`**. Last batch: [`HANDOFF_Ownership_Remaining_Work.md`](batches/HANDOFF_Ownership_Remaining_Work.md) → report [`REPORT_Ownership_Remaining_Work.md`](batches/REPORT_Ownership_Remaining_Work.md).
 - Ownership programme: S1–S8 built; live matrix §5.7.1 **E1–E8 all ✅** (E8 = the multi-process crash reclaim, +10.2 s, no message).
 - Done this batch: `CE-3003` (debug writes ask the owner), `CE-3004` (CGF polls mission acks), `CE-516` (editor uses the injected offline factory), `CE-518`'s 11 unit reds (all stale tests).
-- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3010`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
+- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3011`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
 
 ## 2. Waiting on the user
 
@@ -28,6 +28,7 @@ related-designs:
 | `CE-513 (backend)` | ✅ DONE `2026-10-03` (Q80 §5) | — |
 | `CE-3008` | Muscle clears the Brain's montage queue on capability loss | dormant; read the abort from the Muscle's queue state |
 | `CE-3009` | animation egress translators gate on entity authority | prerequisite for composing animation replication across nodes |
+| `CE-3010` | no host composes the Muscle animation pipeline ⇒ Brain montages/look-ats never play (Stride included) | compose `AnimationMuscleModule` over `StrideAnimationBackend` in editor_stride; cross-node needs `CE-3009` |
 | `CE-518` (rest) | the whole `Hrot.ClusterRunner.Integration.Tests` run is order-dependent | gate by class `--filter` until someone isolates the shared state |
 
 ## 3. Tooling notes that cost time

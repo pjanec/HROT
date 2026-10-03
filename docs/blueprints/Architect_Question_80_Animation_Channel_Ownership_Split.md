@@ -64,6 +64,8 @@ split **by field** (*"Channel intents (`AnimationChannel`, `LookAtChannel` …) 
 
 ⇒ the build touches no Stride file. ⚠ A Stride Muscle node that later composes `AnimationMuscleModule` gets the split for free, because the dispatchers are where it lands.
 
+⚠ **The flip side, filed as [`CE-3010`](Blueprint_Issues_Tracker.md) (`2026-10-03`):** no production host composes the Muscle animation pipeline, so a Brain-requested montage or look-at is written and never consumed. On Stride the walk/run blend works only because `StrideAnimationBridge` derives it from velocity, and the keyboard harness jump calls `bridge.TriggerJump` directly (`StrideAnimationHarnessCases.cs:217-223`). Brain-driven animation is not visible on any host yet.
+
 ## 2. Claim table
 
 | the leans rest on | code — how it IS | design — how it was MEANT to be |
