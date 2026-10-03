@@ -963,6 +963,84 @@ public sealed class StorageGatewayTkbConsensusTests
         finally { Cleanup(nas, node); }
     }
 
+    // ── Asset management increment B, the tree engine (CE-3020) — docs/DESIGN_Asset_Management.md §2, §4, §7.2, §7.3b ──
+
+    /// <summary>⭐ B3 — one huge file + 3 000 small ones ⇒ exactly two transfers; the big file is never archived.</summary>
+    [Fact]
+    public void Partitioner_OneHugeFileAndThreeThousandSmall_IsTwoTransfers_B3()
+    {
+        var entries = new List<Fdp.Toolkit.Orchestration.Assets.AssetManifestEntry>
+            { new("terrain/height.raw", 100L * 1024 * 1024 * 1024, DateTime.UtcNow) };
+        for (int i = 0; i < 3000; i++) entries.Add(new($"bt/n{i}.json", 400, DateTime.UtcNow));
+
+        var (standalone, archived) = new Fdp.Toolkit.Orchestration.Assets.TransportPartitioner().Partition(entries);
+        Assert.Equal(new[] { "terrain/height.raw" }, standalone.Select(e => e.RelativePath));
+        Assert.Equal(3000, archived.Count);
+        Assert.True(new Fdp.Toolkit.Orchestration.Assets.TransportPartitioner().IsStandalone(new("x/tex.PNG", 10, DateTime.UtcNow)));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ B4 + A3's archive arm — after a sync the node tree MIRRORS the NAS tree (structure, bytes, mtimes, a removed
+    /// file deleted), and a SECOND sync writes nothing. ⛔ Without the mtime restore the archived files would compare
+    /// unequal (ZIP's 2-second timestamps) and the second sync would rewrite them all.
+    /// </summary>
+    [Fact]
+    public void TreeSync_Mirrors_AndTheSecondSyncWritesNothing_B4()
+    {
+        var nas = NewDir(); var node = NewDir();
+        try
+        {
+            Put(nas, "a.json", "top");
+            Put(nas, "x/y/z/deep.json", "deep");
+            Put(nas, "x/tex.png", "pretend-compressed");                 // standalone by extension
+            File.SetLastWriteTimeUtc(Path.Combine(nas, "x", "y", "z", "deep.json"),
+                new DateTime(2026, 9, 19, 11, 22, 33, 456, DateTimeKind.Utc));   // an odd second + millis: ZIP would lose both
+            Put(node, "stale/old.json", "gone on NAS");
+
+            var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+            var first = sync.Sync(nas, node);
+            Assert.Equal(1, first.CopiedStandalone);
+            Assert.Equal(2, first.Unpacked);
+            Assert.Equal(1, first.Deleted);                               // W4 answered: mirror deletes
+
+            Assert.True(Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(nas)
+                .Diff(Fdp.Toolkit.Orchestration.Assets.AssetManifest.Scan(node)).IsEmpty);
+            Assert.Equal("deep", File.ReadAllText(Path.Combine(node, "x", "y", "z", "deep.json")));
+
+            var second = sync.Sync(nas, node);
+            Assert.Equal(0, second.Writes);
+        }
+        finally { Cleanup(nas, node); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ B2 clause ③ at tree level (design §7.3b) — ADD-ONLY never destroys authored work: a file the author has and
+    /// NAS lacks SURVIVES (rail ① LOSS), a NEW NAS file arrives, and a CHANGED one does NOT overwrite the local copy (rail ③).
+    /// </summary>
+    [Fact]
+    public void TreeSync_AddOnly_KeepsAuthoredWork_AddsNewFiles_AndNeverOverwrites_B2()
+    {
+        var nas = NewDir(); var author = NewDir();
+        try
+        {
+            Put(author, "mine/unpublished.json", "local work");
+            Put(author, "shared/tree.json", "author's edit");
+            Put(nas, "shared/tree.json", "someone else's version");
+            Put(nas, "theirs/new.json", "a new asset");
+
+            var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync()
+                .Sync(nas, author, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode.AddOnly);
+
+            Assert.Equal("local work", File.ReadAllText(Path.Combine(author, "mine", "unpublished.json")));
+            Assert.Equal("author's edit", File.ReadAllText(Path.Combine(author, "shared", "tree.json")));
+            Assert.Equal("a new asset", File.ReadAllText(Path.Combine(author, "theirs", "new.json")));
+            Assert.Equal(0, r.Deleted);
+            Assert.Equal(1, r.HeldBackChanged);
+            Assert.Equal(1, r.HeldBackRemoved);
+        }
+        finally { Cleanup(nas, author); }
+    }
+
     private static void Cleanup(params string[] dirs)
     {
         foreach (var d in dirs)
