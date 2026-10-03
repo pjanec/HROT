@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +26,7 @@ namespace Hrot.Stride.Core.Tests;
 ///   <item><see cref="BoxGeometryHelper.AabbToBox"/> — AABB fallback from a scale-only
 ///     world matrix produces 12 triangles centred at the matrix origin.</item>
 ///   <item>PlanPath-around-obstacle: a synthetic triangle soup (floor + wall obstacle) is
-///     baked via <see cref="StrideNavmeshBaker"/> and queried via
+///     baked via <see cref="RecastNavmeshBaker"/> and queried via
 ///     <see cref="DotRecastNavmeshProvider"/>; the path from south-of-wall to north-of-wall
 ///     must include a corner that detours outside the direct line, proving the navmesh
 ///     routes around the obstacle rather than through it.</item>
@@ -274,7 +275,7 @@ public sealed class StrideSceneGeometryExtractorTests
         // Arena provides 15-6.5 = 8.5 m of open passage on each side → path exists.
         AddBoxToSoup(verts, idx, 0f, 1f, 5f, 5f, 1f, 0.25f);
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts.ToArray(), idx.ToArray(), NavLayerMask.Vehicle);
 
         Assert.True(meshes.ContainsKey(NavLayerMask.Vehicle),

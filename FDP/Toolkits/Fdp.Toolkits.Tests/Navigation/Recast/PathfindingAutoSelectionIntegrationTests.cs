@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -10,10 +11,9 @@ using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Systems;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
 /// Integration tests for T5 (STR-P2-T5): verifies that <see cref="PathfindingSolverSystem"/>
@@ -278,7 +278,7 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
         };
         int[] indices = { 0, 2, 1,  0, 3, 2 };
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         if (!meshes.ContainsKey(NavLayerMask.Infantry))

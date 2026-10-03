@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -7,10 +8,9 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Fake;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
 /// Headless tests for <see cref="DotRecastDtCrowdProvider"/> (STR-P2-T3).
@@ -346,7 +346,7 @@ public sealed class DotRecastDtCrowdProviderTests : IDisposable
             0, 3, 2,  // CCW triangle 2
         };
 
-        var baker    = new StrideNavmeshBaker();
+        var baker    = new RecastNavmeshBaker();
         var meshes   = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         Assert.True(meshes.ContainsKey(NavLayerMask.Infantry),

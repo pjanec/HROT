@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -6,10 +7,9 @@ using DotRecast.Detour;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Fake;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
 /// Headless tests for <see cref="DotRecastNavmeshProvider"/> (STR-P2-T2).
@@ -58,7 +58,7 @@ public sealed class DotRecastNavmeshProviderTests
         (float[] verts, int[] indices) soup,
         NavLayerMask layers = NavLayerMask.Infantry)
     {
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(soup.verts, soup.indices, layers);
         return new DotRecastNavmeshProvider(meshes);
     }
@@ -212,7 +212,7 @@ public sealed class DotRecastNavmeshProviderTests
     [Fact]
     public void QueryVersion_AfterRebake_Increments()
     {
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var (verts, indices) = GroundQuad;
         var meshes = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
@@ -383,8 +383,8 @@ public sealed class DotRecastNavmeshProviderTests
         // Ramp is the only route between platforms.
         var (verts, indices) = MakeIsolatedRampGeometry(slopeDeg: 45f);
 
-        var infantryBaker = new StrideNavmeshBaker();
-        var vehicleBaker  = new StrideNavmeshBaker();
+        var infantryBaker = new RecastNavmeshBaker();
+        var vehicleBaker  = new RecastNavmeshBaker();
 
         var infMeshes = infantryBaker.Bake(verts, indices, NavLayerMask.Infantry);
         var vehMeshes = vehicleBaker.Bake(verts, indices, NavLayerMask.Vehicle);

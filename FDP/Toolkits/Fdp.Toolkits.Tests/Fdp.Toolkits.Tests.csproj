@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- W1: the DotRecast navigation tests moved here from Hrot.Stride.Core.Tests (they use no Stride type). -->
+    <ProjectReference Include="..\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
     <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <!-- S2-1: StatefulPrimitiveTests uses DemoCounterNodes from Hrot.AI.Behaviors. -->
     <ProjectReference Include="..\..\..\Hrot\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />

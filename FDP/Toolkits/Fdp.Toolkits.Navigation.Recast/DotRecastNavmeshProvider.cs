@@ -7,20 +7,20 @@ using DotRecast.Detour;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 
-namespace Hrot.Stride.Core;
+namespace Fdp.Toolkit.Navigation.Recast;
 
 /// <summary>
 /// <see cref="INavmeshProvider"/> backed by DotRecast baked navmeshes.
 /// Drop-in replacement for <c>FakeNavmeshProvider</c>.
 ///
 /// <para>
-/// <b>Coordinate convention.</b>
-/// All input/output <see cref="Vector3"/> values follow the <see cref="INavmeshProvider"/>
-/// contract: <c>new Vector3(x_east, altitude, z_north)</c> — i.e. the same as Stride world
-/// space (X=East, Y=Up, Z=North).  FDP world positions (X=East, Y=North, Z=Up) must be
-/// converted by <see cref="FdpStrideTransform.ToStridePosition"/> by callers before being
-/// passed here.  Internally all DotRecast calls use the same X/Y/Z ordering, so no additional
-/// swizzle is required.
+/// ⭐ <b>Coordinate convention — Z-up API, Y-up inside</b> (R-182, DESIGN_Terrain_World W7).
+/// Every <see cref="Vector3"/> in and out of this class is in the engine's space: X east, Y north, Z up.
+/// DotRecast (and the baked <c>DtNavMesh</c>) are Y-up (X east, Y up, Z north), so each public method converts
+/// its inputs with <see cref="ToRcVec"/> and its outputs with <see cref="ToVector3"/> — <c>(x, y, z)</c> engine
+/// ⇄ <c>(x, z, y)</c> Recast. Callers never swizzle. The baked meshes themselves stay in Recast space
+/// (<see cref="ISceneGeometrySource"/> triangles are Recast-space input), and <see cref="TryGetNavMesh"/> hands out the raw
+/// Recast-space mesh for <see cref="DotRecastDtCrowdProvider"/>, which does its own conversion.
 /// </para>
 ///
 /// <para>
@@ -322,14 +322,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     // ── Coordinate helpers ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Converts a <see cref="Vector3"/> in navmesh-query space to a DotRecast <see cref="RcVec3f"/>.
-    /// No swizzle needed — both use (X=East, Y=altitude, Z=North).
+    /// Engine (Z-up: X east, Y north, Z up) → DotRecast (Y-up: X east, Y up, Z north): <c>(x, y, z) → (x, z, y)</c>.
+    /// The ONLY place an input leaves the engine's coordinate system.
     /// </summary>
     private static RcVec3f ToRcVec(Vector3 v) => new(v.X, v.Y, v.Z);
 
     /// <summary>
-    /// Converts a DotRecast <see cref="RcVec3f"/> back to a <see cref="Vector3"/>.
-    /// No swizzle needed — both use (X=East, Y=altitude, Z=North).
+    /// DotRecast (Y-up) → engine (Z-up): <c>(x, y, z) → (x, z, y)</c>. The ONLY place an output enters the engine's
+    /// coordinate system.
     /// </summary>
     private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Y, v.Z);
 }

@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using CarKinem.Core;
@@ -1536,7 +1537,7 @@ public static class StridePhysicsHarnessCases
     private const float NavWalkTimeoutSec   = 60.0f;   // generous timeout for real navmesh
     private const float NavWalkArrivalRadiusM = 1.5f;  // m — same as F4 vehicle tolerance
 
-    // Infantry crowd agent parameters (matching StrideNavmeshBaker.InfantryParams).
+    // Infantry crowd agent parameters (matching RecastNavmeshBaker.InfantryParams).
     private const float InfantryAgentRadius  = 0.3f;   // m
     private const float InfantryAgentHeight  = 1.8f;   // m
     private const float InfantryMaxAccel     = 20f;    // m/s²
@@ -2134,7 +2135,7 @@ public static class StridePhysicsHarnessCases
 
                 // STR-D21 F6 fix diagnostics: also show crowd-init status and CrowdAgent
                 // component presence so GPU operator can diagnose registration issues.
-                bool crowdInit    = infantryCrowd is Hrot.Stride.Core.DotRecastDtCrowdProvider dp
+                bool crowdInit    = infantryCrowd is Fdp.Toolkit.Navigation.Recast.DotRecastDtCrowdProvider dp
                                     && dp.IsInitialized;
                 bool hasCrowdComp = ctx.World.IsComponentTypeRegistered<CrowdAgent>()
                                     && ctx.World.HasComponent<CrowdAgent>(target);
