@@ -9,6 +9,7 @@ known-rot: ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with Comb
   same slot mid-run (CE-460 — WON'T FIX by user ruling 2026-09-30: keep the old behaviour).
 known-conflict: none.
 related-designs:
+  - ../../blueprints/DESIGN_Entity_Reference.md — §6.1's `TargetAreaNetworkId` is an `EntityRef` (2026-10-03), no longer `long` + attributes.
   - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
     return to baseline must be an explicit step here.
   - docs/blueprints/Architect_Question_8_Wave_Core.md — the wave core rulings this doctrine's blueprint twin follows.

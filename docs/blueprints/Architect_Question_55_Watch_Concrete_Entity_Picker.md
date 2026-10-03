@@ -11,6 +11,8 @@ design-basis: DESIGN_Variable_Watch_Pinning.md §3 (the TWO-KIND binding: concre
   deferred it here.
 known-conflict: none. ⚠ Surfaces two ruling-9 duplicates (two IMapPickService, two MapPickableEntityAttribute) —
   flagged, NOT resolved here; the watch reuse consumes ONE and the reconciliation is a separate cleanup.
+related-designs:
+  - DESIGN_Entity_Reference.md — resolves the two-`MapPickableEntityAttribute` duplicate (the Fdp.Presentation copy is deleted, 2026-10-03).
 -->
 # Architect Question 55 — **binding a watch to an arbitrary concrete entity (the picker)**
 

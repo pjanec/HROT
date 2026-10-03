@@ -11,6 +11,7 @@ owns-beyond-its-title: ⭐⭐⭐ THIS DOCUMENT IS THE DEEPEST TREATMENT OF CHILD
   it is filed under a CGF-scenario-loading programme and reaches children only because extraction must
   AVOID them. That is exactly the miss shape the related-designs rule exists for.
 related-designs:
+  - ../../blueprints/DESIGN_Entity_Reference.md — the `EntityRef` TYPE is the remap schema now; `[RemapNetworkId]` and the extractor's hand-coded intent cases are retired (2026-10-03).
   - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Draws request → spawn → grant →
     ghost → promotion → takeover → Active end to end and routes each stage to its owner. Its §6 and
     stage ⑪ point HERE for children.
