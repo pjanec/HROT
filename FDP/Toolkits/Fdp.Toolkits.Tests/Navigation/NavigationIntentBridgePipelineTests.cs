@@ -69,6 +69,56 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(20f, events[0].End.Y);
         }
 
+        // ── The layer a request plans on (live run 2026-10-03) ───────────────────────
+
+        /// <summary>
+        /// 🔴 Found by the 2026-10-03 live run: every request left with <c>NavLayerMask = 0</c> ("all layers"), and the
+        /// provider took the FIRST layer that found a path — the infantry mesh — so a tank hugged a building at infantry
+        /// clearance. ⭐ A MoveTo with no explicit mask now plans on Vehicle for a <see cref="VehicleState"/> entity and on
+        /// Infantry otherwise (design: one bit, defaulting from the agent profile).
+        /// </summary>
+        [Theory]
+        [InlineData(true,  NavLayerMask.Vehicle)]
+        [InlineData(false, NavLayerMask.Infantry)]
+        public void MoveTo_WithNoExplicitLayer_PlansOnTheEntitysOwnLayer(bool isVehicle, NavLayerMask expected)
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            if (isVehicle) _repo.AddComponent(entity, new VehicleState());
+
+            var ch = new LocomotionChannel { ActiveAction = NavigationConstants.ActionIdMoveTo, ActionInstanceId = 1 };
+            unsafe
+            {
+                LocomotionChannel* pCh = &ch;
+                *(MoveToParams*)pCh->Params = new MoveToParams { Destination = new Vector3(10f, 20f, 0f), ArrivalRadius = 1f, Speed = 5f };
+            }
+            _repo.AddComponent(entity, ch);
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            var events = _view.ReadEvents<PathfindingRequestEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal((int)expected, events[0].NavLayerMask);
+        }
+
+        /// <summary>The rule's precedence: an explicit mask wins, then the agent profile's preferred layer, then the kind.</summary>
+        [Fact]
+        public void NavLayerSelection_Precedence_ExplicitThenProfileThenKind()
+        {
+            if (!_repo.IsComponentTypeRegistered<VehicleState>()) _repo.RegisterComponent<VehicleState>();
+            if (!_repo.IsComponentTypeRegistered<NavAgentProfile>()) _repo.RegisterComponent<NavAgentProfile>();
+            var e = _repo.CreateEntity();
+            _repo.AddComponent(e, new VehicleState());
+            Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, e, 0));
+            _repo.AddComponent(e, new NavAgentProfile { PreferredLayerMask = (uint)NavLayerMask.Naval });
+            Assert.Equal(NavLayerMask.Naval, NavLayerSelection.For(_repo, e, 0));
+            Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(_repo, e, (uint)NavLayerMask.Infantry));
+        }
+
         // ── Test 2: PlanRoute carries the Brain-allocated RouteHandle ──────────────
 
         [Fact]

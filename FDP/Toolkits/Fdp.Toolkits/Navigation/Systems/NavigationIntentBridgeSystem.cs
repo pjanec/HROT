@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
                             RouteHandle     = p.RouteHandle,
-                            NavLayerMask    = (int)p.LayerMask,
+                            NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                         });
 
                         // Crowd registration for infantry (entities without VehicleState).
@@ -348,7 +348,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
                             RouteHandle     = routeHandle,
-                            NavLayerMask    = (int)p.LayerMask,
+                            NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                             MaxCost         = p.MaxCost,
                         });
                         break;

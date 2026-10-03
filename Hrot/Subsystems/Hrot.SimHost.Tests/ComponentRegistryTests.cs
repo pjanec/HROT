@@ -95,6 +95,20 @@ namespace Hrot.SimHost.Tests
         //    BRAIN's — which is why SimHost, a node that runs no cognitive system, had to call the
         //    Brain's registry to get its own role's components.
 
+        /// <summary>
+        /// ⭐ The solver's materialization system ADDS <see cref="NavigationCorridorMuscle"/> on a reachable MoveTo, so the
+        /// solver role's registry must register it. 🔴 Found by the 2026-10-03 live run: the editor (Brain + Muscle fused,
+        /// CE-3017) aborted on its first path result — no production registry registered the type.
+        /// </summary>
+        [Fact]
+        public void NavigationSolverComponentRegistry_RegistersTheCorridorItsSystemWrites()
+        {
+            using var world = new EntityRepository();
+            NavigationSolverComponentRegistry.RegisterAll(world);
+            Assert.True(world.IsComponentTypeRegistered<NavigationCorridorMuscle>());
+            NavigationSolverComponentRegistry.DisposeAll(world);
+        }
+
         [Fact]
         public void PerceptionRoleComponentRegistry_RegisterAll_DoesNotThrow()
         {
