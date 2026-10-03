@@ -1004,7 +1004,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "spawn_entity",
             Group:   "F — Commands, discovery, spawn",
             Summary: "Spawn an entity from a TKB type.",
-            Returns: "ok:true envelope. Spawn is processed on the next tick (step to realize it).",
+            Returns: "{ spawned, tkbType, reliable, requestId, ownerNodeId, awaited, reason }. Created through the node's creation pack (request → spawn + ownership grants) on the next ticks — step to realize it.",
             Hint:    "Req: tkbType (number/long from list_entity_types). Optional: transform ({position,rotation}), components (array), attributesJson (string). Example: spawn_entity({tkbType:1001})",
             Params: new RouteParam[]
             {
@@ -1012,15 +1012,16 @@ namespace Hrot.Editor.DebugApi
                 new("transform", "object", false, "Transform: { position: {x,y,z}, rotation: {x,y,z,w} }"),
                 new("components", "array", false, "Additional component overrides"),
                 new("attributesJson", "string", false, "JSON string of attribute overrides (JsonAttributeCompiler patch)"),
-                new("ownerNodeId", "number", false, "This node's id ⇒ the host becomes the CREATOR (claims authority); 0 ⇒ no authority"),
-                new("reliable", "boolean", false, "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); pair with ownerNodeId=<this node>"),
+                new("ownerNodeId", "number", false, "0 (default) or this node's id ⇒ this node creates and owns it (and grants role groups); another node's id ⇒ routed to that node, which creates it"),
+                new("reliable", "boolean", false, "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); the creator is this node unless ownerNodeId names another"),
                 new("reliableTimeoutSeconds", "number", false, "CE-292: creator's reliable-init abort timeout in seconds (0 ⇒ gateway default)"),
             },
             Notes: new[]
             {
                 "Spawn is queued and processed on the next tick — call step to realize it.",
+                "CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.",
                 "Use list_entity_types to discover valid tkbType values.",
-                "CE-292 — reliable:true (pair with ownerNodeId:<this node's id> so the host is the CREATOR) engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
+                "CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
             },
             ExampleArgsJson: "{\"tkbType\":1001,\"transform\":{\"position\":{\"x\":100,\"y\":0,\"z\":50},\"rotation\":{\"x\":0,\"y\":0,\"z\":0,\"w\":1}}}",
             ExampleGist: "spawn entity type 1001 at position (100,0,50)"),
@@ -1703,8 +1704,8 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/attribute")] = new RouteDoc(
             Tool:    "patch_attribute",
             Group:   "L — Mutation / fault injection",
-            Summary: "Apply a JSON attribute patch to an entity.",
-            Returns: "Updated entity dump on success.",
+            Summary: "Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not.",
+            Returns: "Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.",
             Hint:    "Req: networkId (number), patchJson (object {\"Name\":\"Alpha\"} or JSON string). Example: patch_attribute({networkId:1000,patchJson:{Name:\"Alpha\"}})",
             Params: new RouteParam[]
             {
@@ -1713,7 +1714,13 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "Authority-aware; unregistered keys are silently ignored (no error).",
+                "Unregistered keys are silently ignored (no error) — write.route is then noMatch.",
+                "CE-3003: a key on a component this node does NOT own is sent to its owner as an UpdateEntityAttributeRequest "
+              + "(the JSON arm the owner already applies) — write.route is requested, and the change is in the OWNER's world, "
+              + "not yet in this dump: read it back from the owner's perspective after a tick. Components this node owns in "
+              + "the same patch are applied here.",
+                "CE-3003 / CE-191: a key on a component this node does not own and no network descriptor carries (a node-local "
+              + "component, or a networkless host) has no owner to ask — the route REFUSES with 400 instead of answering ok.",
                 "patchJson may be a nested JSON object like {\"Name\":\"Alpha\"} or a JSON string.",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"patchJson\":{\"Name\":\"Alpha\"}}",
@@ -1734,8 +1741,9 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "CE-271 seam ⑤: unlike POST /entities/spawn (a raw SpawnEntityCommand), this uses the "
-              + "create-request pipeline, so routing and the auto-takeover grant both run.",
+                "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn "
+              + "now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', "
+              + "there 'this node'.",
             }),
 
         [("GET", "/entities/{networkId}/ownership")] = new RouteDoc(
@@ -1805,6 +1813,9 @@ namespace Hrot.Editor.DebugApi
             {
                 "Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.",
                 "Invalid values → 400, component unchanged.",
+                "CE-3003: a component another node owns (a network descriptor carries it and this node holds no authority) "
+              + "is REFUSED with 400 — writing it here would change only this node's replica, which the owner overwrites. "
+              + "Use patch_attribute (it asks the owner) or select the owner's perspective (get_entity_ownership names it).",
                 "For fields registered in the attribute schema, prefer patch_attribute.",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"componentType\":\"SimTransform\",\"patch\":{\"Position\":{\"X\":999,\"Y\":0,\"Z\":0}}}",

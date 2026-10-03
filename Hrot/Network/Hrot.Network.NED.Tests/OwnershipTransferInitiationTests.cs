@@ -77,6 +77,29 @@ namespace Hrot.Network.NED.Tests
             Assert.Equal(Local, ups[0].OriginNodeId);
         }
 
+        /// <summary>
+        /// ⭐ S5 — <c>MasterOnly</c> leaves every other descriptor where it is (design §3), in the RECORD as well as the
+        /// claim. Before S5 a descriptor with no record entry followed the primary owner, so the giver stopped publishing
+        /// it while still writing it. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S5.
+        /// </summary>
+        [Fact]
+        public void MasterOnly_TheGiverKeepsPublishingEveryOtherDescriptorItStillWrites()
+        {
+            var (repo, e, sys) = Setup();
+            repo.SetAuthority<TkbIdentity>(e, true);   // the creator claims what it materialised
+            Assert.True(((ISimulationView)repo).HasAuthority(e, OwnershipExtensions.PackKey(OtherOrd, 0)));
+
+            Fire(repo, sys, new TransferEntityOwnershipRequest
+            {
+                NetworkId = NetId, NewOwnerNodeId = 5, Scope = TransferScope.MasterOnly,
+            });
+
+            Assert.Equal(5, repo.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);
+            Assert.True(repo.HasAuthority<TkbIdentity>(e));                                               // claim
+            Assert.True(((ISimulationView)repo).HasAuthority(e, OwnershipExtensions.PackKey(OtherOrd, 0))); // record
+            Assert.Equal(Local, repo.GetComponent<DescriptorOwnership>(e).Map[OwnershipExtensions.PackKey(OtherOrd, 0)]);
+        }
+
         [Fact]
         public void AllOwnedByThisNode_MovesAllDescriptors_IncludingMaster()
         {

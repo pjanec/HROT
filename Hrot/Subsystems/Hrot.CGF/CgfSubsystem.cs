@@ -74,8 +74,12 @@ namespace Hrot.CGF;
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
-    Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+    Hrot.Common.EntityCreation.IEntityCreationHost
 {
+    /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
+    public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
+
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
 
@@ -141,7 +145,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// composition scope. ⛔ <c>null</c> on a toolbar-less host.
     /// </summary>
     private Fdp.Presentation.WindowManager.PerspectiveToolbarSection? _perspectiveToolbarSection;
-    private Action?           _cgfNetworkPolling;
 
     // ── Headless + behavior registry ──────────────────────────────────────────
     private bool               _headless;    private ClusterTimeTransportAdapter? _clusterTimeAdapter;    private BehaviorRegistry?  _behaviorRegistry;
@@ -583,7 +586,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
-    /// that assigns the WorldPos descriptor to <paramref name="muscleNodeId"/>.
+    /// that assigns the MuscleGround and Perception ownership groups to <paramref name="muscleNodeId"/>.
     ///
     /// <para>Mirrors what a full <c>CreateEntityRequestSystem(isDefaultProcessor:true)</c> would do
     /// without requiring ExCon wiring in integration tests.</para>
@@ -597,13 +600,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ?? unchecked((long)System.Threading.Interlocked.Increment(ref _testIdCounter));
 
         // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
+        //    ⭐ S6: grant WHOLE GROUPS, as RoleGroupOwnershipStrategy does when muscleNodeId is the chosen node for
+        //    both roles: the MuscleGround group (dtWorldPos, dtNavigationStatus) and the Perception group (dtEqsResult).
+        //    It granted only the two kinematic descriptors before, so the Muscle never owned the EQS result it solves —
+        //    harmless while the result sender was ungated, wrong since S6 gates it (F-12). The lists come from this
+        //    node's bound descriptor map, the same source the strategy reads. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
         var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId };
-        long worldPosId  = _networkFactory?.WorldPosDescriptorId          ?? 0;
-        long navStatusId = _networkFactory?.NavigationStatusDescriptorId   ?? 0;
-        if (worldPosId != 0)
-            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
-        if (navStatusId != 0)
-            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
+        var groups = _context.NedReplication?.DescriptorOwnershipMap;
+        if (groups != null)
+        {
+            foreach (var role in new[] { Fdp.Core.NodeRole.MuscleGround, Fdp.Core.NodeRole.Perception })
+                foreach (long descriptor in groups.DescriptorsOf(role))
+                    dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = descriptor, NodeId = muscleNodeId });
+        }
+        else
+        {
+            long worldPosId  = _networkFactory?.WorldPosDescriptorId        ?? 0;
+            long navStatusId = _networkFactory?.NavigationStatusDescriptorId ?? 0;
+            if (worldPosId != 0)
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
+            if (navStatusId != 0)
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
+        }
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).
@@ -837,7 +855,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐⭐ CGF is where the pack's SHAPE came from — DESIGN §5 records "CGF already composes exactly
         //    this" of the composite-source arrangement — so this is the one host where adoption removes no
         //    decision it had not already made correctly. ⛔ That is exactly why it went LAST: it is the
-        //    broadcast arbiter AND carries BrainMuscleOwnershipStrategy's delegation, so a composition
+        //    broadcast arbiter AND carries RoleGroupOwnershipStrategy's delegation, so a composition
         //    mistake here breaks unowned requests for the WHOLE CLUSTER and every CGF-spawned entity's
         //    kinematics handover. It adopts on three hosts of evidence, not on nerve.
         //
@@ -851,12 +869,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    regardless. It only decides who intercepts `Owner == 0` broadcasts from non-ECS clients like
         //    ExCon. 🔒 Exactly one node in a cluster may set it, and CGF is that node.
         //
-        // ⭐ Every optional input is the value this host already passed, threaded from the SAME
-        //    `adapters` object — the pack substitutes NullEntityAckSink when offline, as this code did.
+        // ⭐ Every optional network input comes from ONE adapters object (NetworkAdapters, S2b) —
+        //    the pack substitutes NullEntityAckSink when offline, as this code did.
         // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §5.1 row d ·
         //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §1.
-        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
-
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = _context.World,
@@ -867,10 +883,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                               .First(m => m is EntityLifecycleModule),
             NodeId      = _context.NodeId,
 
-            NetworkRequestSource = adapters?.RequestSource,
-            AckSink              = adapters?.AckSink,
-            JsonAttributeCompiler = adapters?.JsonCompiler,
-            OwnershipStrategy     = adapters?.OwnershipStrategy,
+            // ⭐⭐ S2b — the SAME network adapters every ECS host passes. The pack takes the request source, ack
+            //   sink, JSON compiler, ownership strategy and forwarding egress (CE-509 / §4.1d) from this one
+            //   object, and builds the delete and poll systems this host used to build itself. Null offline.
+            //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2b.
+            NetworkAdapters       = nodeFactory?.CreateCgfEntityLifecycleAdapters(),
             // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, now sourced UNIFORMLY from the
             //    shared NED replication module (same cluster cache the adapters used, but the module hosts the
             //    membership ingest + provider for EVERY ECS node). 🔒 User ruling 2026-09-16: the prior
@@ -888,19 +905,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             },
 
             IsBroadcastArbiter = true,
-
-            // ⭐⭐⭐ P3 step 4 — ROLE AFFINITY, the Brain half. 📄 docs/DESIGN_Role_Affinity_Ownership.md
-            //    §3.9a, §6i. This is what makes SimHost's decline (the other half of step 4) safe: the
-            //    brain components a Muscle node stops owning are CLAIMED HERE on the promote leg, so they
-            //    end up owned by exactly one node instead of by whoever spawned first.
-            //
-            //    ⭐ The CREATE leg is unchanged by this: the Brain's owned set is the full mask minus the
-            //    birth-critical components, and the creator's birthright adds those straight back.
-            //    ⛔ SimTransform must stay OUT of the role table — a promoting node that claimed it would
-            //    tell GeoSpatialIngressTranslator.cs:90 it owns a position it does not simulate, and its
-            //    ghosts would stop accepting the owner's updates.
-            RoleAffinity = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(DefaultRole),
         });
+        EntityCreation = creation;   // CE-515
 
         // Shared with the load handlers in Phases 3-4 via CgfLogicPack.ScenarioSource.
         // ⭐ Now the pack's own in-memory source, merged behind CompositeEntityCreationRequestSource with
@@ -962,6 +968,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfInputSystems   = new List<IEcsModuleSystem>();
         var cgfSimSystems     = new List<IEcsModuleSystem>();
         var cgfPostSimSystems = new List<IEcsModuleSystem>();
+
+        // ⭐⭐ S2b / F-10 — the owner-side edit-request handlers, so this node applies another node's edit to an
+        //   entity it OWNS (a Map2D drag of a symbol CGF created). The input group because replay disables it.
+        //   ⚠ The other hosts get these from SharedApplicationBootstrapper; CGF composes inline (§4.1).
+        //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-10, §5.6 S2b.
+        if (nodeFactory != null)
+            cgfInputSystems.AddRange(nodeFactory.CreateSimHostAttributeUpdateSystems());
 
         foreach (INodeCapability capability in _capabilities)
             capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
@@ -1029,7 +1042,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
             creation.PromotionSystem,
-        });
+        }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
 
@@ -1037,24 +1050,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
 
-        // 4. Network-dependent deletion routing: only when a live adapter exists.
-        if (adapters != null)
-        {
-            var deleteSystem = new DeleteEntityRequestSystem(
-                adapters.DeleteSource,
-                adapters.AckSink,
-                _entityMap!,
-                // ⭐ The SAME finalization instance the create side uses — the pack's. ⛔ Constructing a
-                //   second one here would give delete its own ACK bookkeeping, which is precisely the
-                //   class of split this pack exists to make unrepresentable.
-                creation.FinalizationSystem,
-                _context.NodeId);
-
-            _context.Kernel.RegisterGlobalSystem(deleteSystem);
-
-            // Store polling action for heartbeat updates in Update().
-            _cgfNetworkPolling = adapters.PollNetwork;
-        }
+        // 4. ⭐ S2b — the pack's network systems: the delete-request system (sharing the pack's finalization
+        //    instance) and the cluster-cache poll, which this host used to call from Update(). Empty offline.
+        foreach (var sys in creation.NetworkSystems)
+            _context.Kernel.RegisterGlobalSystem(sys);
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
@@ -1741,10 +1740,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
-        // Poll network state (e.g. DDS NodeHeartbeat) to keep the cluster cache up-to-date
-        // so that BrainMuscleOwnershipStrategy can find the least-loaded Muscle node.
-        _cgfNetworkPolling?.Invoke();
-
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
         _clusterTimeAdapter?.Update();
@@ -1773,6 +1768,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _debugTimeController?.BeginFrame();
         _context?.Kernel.Update();
         _debugTimeController?.EndFrame();
+
+        // ⭐⭐ CE-3004 — resolve mission commits, as EditorSubsystem does each frame. ⛔ Without it every
+        //    CommitMissionAsync/SendControlCommandAsync on this host stayed pending forever: the plan was
+        //    applied (MissionControlExecutionSystem, CgfLogicPack) and its MissionControlAckEvent published,
+        //    but nothing read it — so the Mission panel's commit never completed and `/missions/*` timed out.
+        _missionService?.PollAcks();
 
         if (!_headless && _context != null)
         {
@@ -3215,7 +3216,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Shutdown()
     {
-        _cgfNetworkPolling = null;
         _toggleInput = null;
         _toggleSim = null;
         // QA-001: dispose the whole node context — kernel THEN world. This used to be

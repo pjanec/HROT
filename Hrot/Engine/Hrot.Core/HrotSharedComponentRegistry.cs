@@ -81,6 +81,7 @@ public static class HrotSharedComponentRegistry
         // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
         world.RegisterManagedComponent<DescriptorOwnership>();
         world.RegisterManagedComponent<PendingAuthorityGrants>();
+        world.RegisterManagedComponent<OutgoingGrantsPending>();   // S5: the creator's unconfirmed grants (F7 window)
         world.RegisterManagedComponent<NetworkAckPeerSet>();   // CE-283: reliable-init barrier peer set
 
         // ── Lifecycle events (network entity construction / destruction) ──────
@@ -155,6 +156,7 @@ public static class HrotSharedComponentRegistry
         //    OwnershipEgressSystem) and the consumer (OwnershipIngressSystem) are thereby served on
         //    every node, which is what R-138's "nodes should be equal" requires.
         world.RegisterEvent<Fdp.Toolkit.Replication.Messages.OwnershipUpdate>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.NodeDeparted>();   // S7: a cluster node left (R-167 reclaim)
         world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
 
         // ── Blueprint blackboard tiers ────────────────────────────────────────

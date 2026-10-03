@@ -143,7 +143,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 {
                     EntityId            = (int)netId.Value,
                     Name                = data.Name.ToString(),
-                    ForceIdentifier     = MapForceId(data.ForceId),
+                    ForceIdentifier     = Utils.ForceIdMapping.ToWire(data.ForceId),
                     CommanderId         = (int)commanderNetId,
                     TacticalDesignation = designation,
                 });
@@ -168,16 +168,5 @@ namespace Hrot.Map.Common.Replication.Egress
         {
 			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)networkEntityId } );
         }
-
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        private static eForceIdentifier MapForceId(ForceId forceId) =>
-            forceId switch
-            {
-                ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
-                ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
-                ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
-                _               => eForceIdentifier.FORCE_UNKNOWN,
-            };
     }
 }

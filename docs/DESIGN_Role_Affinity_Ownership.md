@@ -1,6 +1,7 @@
 <!--STATUS
-state: LIVE
-updated: 2026-09-13
+state: LIVE — ⛔ SUPERSEDED IN PART 2026-10-02 by push-only ownership (R-164/R-165, Architect_Question_79 §0.7-§0.8); see the banner under the title for which sections survive
+known-rot: ⛔⛔ AS-BUILT 2026-10-02 (DESIGN_Ownership_Groups_And_Grants.md §5.6 S4): the CREATE leg's decline (P3 step 2, §3.2) and the PROMOTE leg's claim (P3 step 3) are REMOVED from the code — NetworkSpawningSystem and GhostPromotionSystem no longer take an IRoleAffinityPolicy, and no host passes one. The creator claims everything it materialised and the yield gives up exactly the granted role groups. The policy TYPE survives (registration sets, D-7). Any section here describing either leg as live, including build-state's "STEP 4 … CGF holds a Brain policy, SimHost a Muscle policy", describes retired code.
+updated: 2026-10-02
 build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainInterrupts checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the ABSENT set, adding four more (the three channels + PreviousCapabilities) for SEVEN droppable -- the absent set is three entries since BrainBTreeState/BrainHsm64/BrainHsm128 no longer exist to decline, the brain's own state being occurrence slots inside the BlueprintBlackboard* tiers. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoScenario governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
@@ -153,6 +154,8 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed, ownership per
   §0 (no capability removal by design), §5.3 (mechanism vs policy) - docs/designs/tkb-1/DESIGN.md
   §6.5b gate 2 (registration is the narrowing lever).
 related-designs:
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — REPLACES this doc's role tables as the source of ownership (push-only groups, 2026-10-02); keeps §2.3's component-mask shape.
+  - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns how a SENDER turns the component claim into "may I publish" (one derived gate; CE-500).
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
     routes back to its owner, including this one. Read it FIRST if you do not already know where in
@@ -184,6 +187,21 @@ related-designs:
     production caller today (CE-259bg), so the breakage is latent, not live.
 -->
 # ⭐⭐⭐ Role-Affinity Ownership — **every node decides locally what it owns, so no two nodes ever claim the same component**
+
+> ⛔⛔⛔ **`2026-10-02` — SUPERSEDED IN PART by push-only ownership** (`R-164`, `R-165`; [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §0.7-§0.8).
+> Ownership is DECIDED BY THE OWNER and delivered by GRANT/TRANSFER; no node derives its own ownership from its role.
+>
+> | section | status |
+> |---|---|
+> | §0a (derivation removes `CE-256`; re-grant = second mechanism) | ⛔ superseded — grant + transfer is the single mechanism |
+> | §3 promote leg (§3.2 PROMOTE row, `GhostPromotionSystem.cs:313-324`), §3.3 `OwnableMask` as an ownership source | ⛔ superseded (R-164) |
+> | §3.8 role-shard seam evaluated on every node, constraint ② "stable" | ⛔ superseded — the owner's strategy shards (R-163, R-164) |
+> | §3.9c complement tables as OWNERSHIP | ⛔ superseded — ownership GROUPS (Q79 §0.8) |
+> | §3.1 birth-critical + birthright | ⚠ subsumed — the creator owns everything at birth and grants away |
+> | §2.3 ownership must be network-agnostic | ✅ KEPT — groups are component masks; the grant is a contract of every network implementation (R-165) |
+> | §3.9 / §3.9a / §3.9b REGISTER ≠ OWN, read sets, registration narrowing | ✅ KEPT — registration is not ownership |
+> | §3.5 execution gate (`WithOwnedWhen`, `gateOnAuthority`) | ✅ KEPT — it now reads a claim that comes from grants |
+> | §3.4 explicit grants win | ✅ KEPT — and generalised: grants are now the only source |
 
 > 🔒 **User, `2026-09-01`, verbatim:** *"SimHost having a muscle role should not instantiate any brain
 > related components. If it does, this is a mistake. But even if it does, by applying 'auto-takeover'
@@ -226,6 +244,8 @@ it is a property of having a grant path at all.**
 |---|---|
 | **a re-grant / retry on node-join** | ⚠ The obvious fix: have CGF re-evaluate when a Muscle heartbeat arrives for entities with no muscle owner. ⛔ **Rejected** — it is a SECOND ownership mechanism, and this design deletes the first. 📌 Ruling 9. ⭐ Building it would mean building something this design removes |
 | ⭐ **what WAS built instead** | a **detector**, in the node: `StrideNodeShell.CheckOwnershipStarvation` warns once when the node holds entities with a `SimTransform` and owns **none** of them, naming the start-order cause. ⚠ **It is not a fix and does not claim to be** — ⭐ it converts a silent 340-second mystery into one sentence at the moment it happens. 📐 Proven both ways: fires on the starved ordering *(8 entities, 0 owned)*, **silent** on the healthy one *(8 takeovers, 0 warnings)* |
+
+⚠ **`2026-10-01` — narrower than stated:** derivation removes the late-joiner failure for NON-birth-critical components only. `SimTransform` still moves by the creator's grant (§3.1), so a Muscle that joins after creation still owns no position and moves nothing. 📄 `Architect_Question_79` §11.3.
 
 ⚠ **Read this as evidence FOR the design, not as a reason to patch around it.** ⭐ Until §3 is built the
 operational rule is simply: **start a muscle node only after CGF answers.**
@@ -392,6 +412,8 @@ birth and hands off explicitly. ⇒ ⛔ **no handshake is needed for the cogniti
 keeps the handshake it already has, and needs it.
 
 ### 3.2 The two insertion points — both in shared code
+
+> ⛔ **`2026-10-01` — the PROMOTE row is SUPERSEDED by `R-164` (push-only):** a promoting node claims nothing by role; its ownership comes only from the owner's grant or a transfer. 📄 `Architect_Question_79` §0.7. The CREATE row stands.
 
 | leg | file | change |
 |---|---|---|
@@ -565,7 +587,7 @@ public sealed class SingleNodePerRoleShardProvider(int declaredRoles) : IRoleSha
 | # | constraint | why |
 |---|---|---|
 | 🔴🔴 **①** | **`ServesRole` may read ONLY inputs that are IDENTICAL ON EVERY NODE.** ⛔⛔ **A node may NOT decide from its own CPU load, queue depth, entity count or any locally-observed metric** | ⭐⭐⭐ **This design's whole safety property is that two nodes independently evaluating the same function cannot disagree** *(§3's opening)*. ⛔ If node A reads *its* load and node B reads *its* load, both can answer `true` for one entity ⇒ **two owners, which is exactly the conflict this design removes.** ⇒ 🔴 **"performance balancing" CANNOT be implemented as each node measuring itself.** It must be a **shard assignment published by ONE authority and replicated**, which every node then reads identically — the provider is handed that table, it does not compute one |
-| 🔴 **②** | **the shard mapping must be STABLE for the lifetime of an entity** | ⭐ the policy is evaluated at **birth** and **promotion** only *(§3.2's two insertion points)*. ⇒ ⛔ if the mapping changes while entities are live, they keep their birth assignment while newly-promoted ghosts follow the new mapping — **ownership becomes history-dependent.** ⚠ **Today's constraint, stated so an implementer knows what they must add:** a shard mapping is fixed for a scenario's lifetime. ⛔ **Making it dynamic requires a RE-EVALUATION path, which is a SECOND ownership mechanism** *(ruling 9)* — that is a design of its own, not an implementation detail of this seam |
+| 🔴 **②** ⛔ **SUPERSEDED `2026-10-01` by `R-163`** *(user: "it is not stable. it can change with load")* — a change is executed as an ownership TRANSFER decided by one authority; see `Architect_Question_79` §0.7 | ~~**the shard mapping must be STABLE for the lifetime of an entity**~~ | ⭐ the policy is evaluated at **birth** and **promotion** only *(§3.2's two insertion points)*. ⇒ ⛔ if the mapping changes while entities are live, they keep their birth assignment while newly-promoted ghosts follow the new mapping — **ownership becomes history-dependent.** ⚠ **Today's constraint, stated so an implementer knows what they must add:** a shard mapping is fixed for a scenario's lifetime. ⛔ **Making it dynamic requires a RE-EVALUATION path, which is a SECOND ownership mechanism** *(ruling 9)* — that is a design of its own, not an implementation detail of this seam |
 
 ⭐ **A consequence worth stating, because it is benign:** if a shard table has not arrived yet, the
 provider answers `false` for everyone and the entity is owned by no one ⇒ that is exactly §5 ②'s case,
@@ -944,6 +966,33 @@ third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `Bi
 imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
 correct**, and the first thing a positive enumeration would tighten.
 
+#### 📐 `2026-10-01` — MEASURED: how big the overlap is, and who reads it
+
+📐 Live probe (`Architect_Question_79` §10): **17 components claimed by BOTH CGF and SimHost on Path A, 22 on Path B** — `EntityInfo`,
+`Health`, `WeaponState`, `BrainInterrupts`, the perception components, and on Path B also `SimVelocity`/`VehicleState`/`NavState`/
+`NavigationStatus`. ⚠ So the title's *"no two nodes ever claim the same component"* holds only for the CLASSIFIED sets.
+⛔ **And the overlap is no longer read by nothing:** `BrainInterrupts` is unclassified and gated through the claim by
+`CognitiveInterruptSystem.cs:74,92` / `CognitiveCleanupSystem.cs:40` — ⚠ the §3.9c revisit trigger has fired for that one component
+(harmless today: only CGF composes those systems).
+
+#### ⭐ `2026-10-01` — THE PROMOTE LEG SHOULD USE A POSITIVE SET *(user rule; an interim "refuted" verdict was WITHDRAWN — its only objection, `BrainInterrupts`, is a brain component missing from `brainOnly`; see `Architect_Question_79` §11)*
+
+> 🔒 **User, verbatim:** *"'everything minus named list' is ok from the point of the creator only. if non-creator node takes
+> ownership because of its role, it should take just the ownership of component belonging to its role, shouldn't it?"*
+
+⭐ **Yes — and it is §3.1's own rule** (*"owns it if, and only if, it holds the role that component belongs to"*). The complement was
+argued for the CREATE leg only; the promote leg inherited it. **The asymmetry that makes a positive list SAFE on the promote leg:**
+
+| leg | set | if the set is incomplete… |
+|---|---|---|
+| CREATE | complement: `ALL − birthCritical − ∪ other roles' P` | over-owns ⇒ tolerated (unchanged) |
+| PROMOTE | **positive `P(role)`** — `P(Brain) = brainOnly`, `P(Muscle) = ∅`, `P(Map2D) = ∅` *(see below)* | under-claims ⇒ **the creator still owns it** — one owner, never zero ⇒ ⛔ **not `CE-256`** |
+
+⇒ claims become exclusive by construction (with one node per role, `R-157`): the creator declines exactly `∪ P`, the promoter claims
+exactly its `P`. ⚠ **Map2D:** its owned table (`EditablePolyline`, `RoutePlan`) is inside the Brain and Muscle create tables, so
+`P(Map2D)` must stay ∅ unless those tables also exclude it — which would leave an overlay unowned in a cluster with no IG. Nothing
+reads those bits today, so `∅` changes nothing observable. 📄 [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §9a′.
+
 📄 **The same answer, aimed at a reader who arrived from the other side** *(*"the pack has no opt-out, so
 every node creates entities — who owns what?"*)*, is
 [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) **§4.1**. ⚠ It is a
@@ -1257,6 +1306,17 @@ sequenceDiagram
     Note over SH: SimHost keeps spatial. It is the Muscle, so no handoff is needed
     CGF-->>DDS: OwnershipUpdate (OPTIONAL - bookkeeping for ExCon and IG)
 ```
+
+> ⛔⛔ **MEASURED `2026-10-01` (`CE-500`) — the diagram above is TRUE FOR EXECUTION AND FALSE FOR
+> PUBLICATION.** The promote leg's `SetAuthority` writes the `AuthorityMask`, so CGF's brain **runs** for a
+> Muscle-created entity *(BTree ticks, `NavigationIntent` written with the real target)*. ⛔ But every egress
+> translator gates on the **extension** `HasAuthority(entity, packedKey)` *(§3.6)*, which reads
+> `DescriptorOwnership` → `NetworkAuthority` and never the mask — and on Path B the CGF ghost has
+> `HasAuthority = false`, `PrimaryOwnerId = -1`. ⇒ **the brain's intents never leave CGF**; the Muscle never
+> moves. 📐 `CgfSubsystemHeadlessTests.SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick`.
+> ⚠ The optional `OwnershipUpdate` edge above is the only arrow that would write the face egress reads — it is
+> drawn as bookkeeping and nothing sends it. ⇒ an OPEN DECISION, not a fix: which authority face gates egress
+> *(the `CE-142` "policy half")*.
 
 ### 4.3 Sequence — **Path A: the Brain creates it, and must hand the spatial half off**
 

@@ -110,6 +110,7 @@ public abstract class SharedApplicationBootstrapper
         plan.Step("configured-factory", requires: new[] { "context" }, provides: new[] { "configured-factory" }, run: () =>
         {
             configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
+            ConfiguredNetworkFactory = configuredFactory;
         });
 
         // Phase 2 — Register domain ECS components BEFORE the serializer is built.
@@ -188,13 +189,23 @@ public abstract class SharedApplicationBootstrapper
         // ⭐ REQUIRES the declared resource keys, so PopulateSystems may legally read an allocated
         //    resource out of BootValues — the read is checked against this step's own declaration.
         plan.Step("system-groups",
-            requires: new[] { "context" }.Concat(declaredResourceKeys).ToArray(),
+            requires: new[] { "context", "configured-factory" }.Concat(declaredResourceKeys).ToArray(),
             provides: new[] { "system-groups" },
             run: () =>
         {
             var inputSystems   = new List<IEcsModuleSystem>();
             var simSystems     = new List<IEcsModuleSystem>();
             var postSimSystems = new List<IEcsModuleSystem>();
+
+            // ⭐⭐ S2b / F-10 — the owner-side edit-request handlers on EVERY host, not only SimHost: a node
+            //   that is not an entity's owner sends its edit as a request (EntityWriteRouter), and the owner
+            //   applies it. Push-only ownership leaves positions without kinematics with their creator (R-175),
+            //   which may be IG or Stride, so each of them must be able to apply. ⭐ In the input group because
+            //   replay disables that group, and network edits must not touch replayed state.
+            //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-10, §5.6 S2b.
+            if (configuredFactory != null)
+                inputSystems.AddRange(configuredFactory.CreateSimHostAttributeUpdateSystems());
+
             PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
@@ -236,7 +247,7 @@ public abstract class SharedApplicationBootstrapper
         // Phase 6a — Register base modules (EntityLifecycleModule + GeographicModule) and
         // the domain spawning pipeline.
         // ⛔ REQUIRES system-groups — see the Phase 4a note (the subclass-field channel).
-        plan.Step("spawning-pipeline", requires: new[] { "system-groups" }, run: () =>
+        plan.Step("spawning-pipeline", requires: new[] { "system-groups", "configured-factory" }, run: () =>
         {
             foreach (IEcsModule m in context.BaseModules)
                 context.Kernel.RegisterModule(m);
@@ -434,6 +445,19 @@ public abstract class SharedApplicationBootstrapper
     /// Called after base modules and before network translators.
     /// </summary>
     protected abstract void RegisterSpawningPipeline(HrotNodeContext context);
+
+    /// <summary>
+    /// ⭐ The node-configured network factory (null offline), available from the <c>configured-factory</c> step on —
+    /// so every host's <see cref="RegisterSpawningPipeline"/> builds the SAME entity-lifecycle network adapters
+    /// (<c>CE-509</c>; <c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1d "UNIFY — pass everywhere").
+    /// </summary>
+    protected INetworkFactory? ConfiguredNetworkFactory { get; private set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-515</c> — what this node's <see cref="RegisterSpawningPipeline"/> built, so the subsystem can expose it
+    /// (<see cref="Hrot.Common.EntityCreation.IEntityCreationHost"/>). Set by every subclass right after it builds the pack.
+    /// </summary>
+    public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; protected set; }
 
     /// <summary>
     /// Phase 6b: Register domain-specific DDS translators (entity state, combat, etc.).

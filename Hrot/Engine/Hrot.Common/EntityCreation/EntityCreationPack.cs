@@ -126,16 +126,24 @@ namespace Hrot.Common.EntityCreation
             //   "this host does not forward", which is true of every host that materialises entities
             //   itself. ⭐ The rail EntityCreationPack_WiresTheForwarder_WhenAnEgressIsSupplied is the
             //   control that a host which HAS an egress actually gets one.
-            IEntityCreationRequestSource localTier = ctx.RequestEgress == null
+            // ⭐⭐⭐ S2b — every network seam comes from ONE place: the adapters object a production host passes,
+            //   or the per-seam fields a test fakes (Validate forbids both). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6.
+            var adapters             = ctx.NetworkAdapters;
+            var requestEgress        = adapters != null ? adapters.RequestEgress     : ctx.RequestEgress;
+            var networkRequestSource = adapters != null ? adapters.RequestSource     : ctx.NetworkRequestSource;
+            var jsonCompiler         = adapters != null ? adapters.JsonCompiler      : ctx.JsonAttributeCompiler;
+            var ownershipStrategy    = adapters != null ? adapters.OwnershipStrategy : ctx.OwnershipStrategy;
+
+            IEntityCreationRequestSource localTier = requestEgress == null
                 ? localRequests
                 : new ForwardingEntityCreationRequestSource(
-                    localRequests, ctx.RequestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
+                    localRequests, requestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
 
             var sources = new List<IEntityCreationRequestSource> { localTier };
-            if (ctx.NetworkRequestSource != null) sources.Add(ctx.NetworkRequestSource);
+            if (networkRequestSource != null) sources.Add(networkRequestSource);
             var requestSource = new CompositeEntityCreationRequestSource(sources);
 
-            IEntityAckSink ackSink = ctx.AckSink ?? new NullEntityAckSink();
+            IEntityAckSink ackSink = (adapters != null ? adapters.AckSink : ctx.AckSink) ?? new NullEntityAckSink();
 
             var finalization = new EntityRequestFinalizationSystem(ackSink, ctx.EntityMap);
 
@@ -150,10 +158,10 @@ namespace Hrot.Common.EntityCreation
                 tkbDb:                 ctx.TkbDb,
                 idAllocator:           ctx.IdAllocator,
                 localNodeId:           ctx.NodeId,
-                jsonAttributeCompiler: ctx.JsonAttributeCompiler,
+                jsonAttributeCompiler: jsonCompiler,
                 finalizationSystem:    finalization,
                 isDefaultProcessor:    ctx.IsBroadcastArbiter,
-                ownershipStrategy:     ctx.OwnershipStrategy);
+                ownershipStrategy:     ownershipStrategy);
 
             var spawnSystem = new NetworkSpawningSystem(
                 ctx.TkbDb,
@@ -169,14 +177,10 @@ namespace Hrot.Common.EntityCreation
                 //   SILENT-DEFAULT shape: an optional dependency one caller happens to pass and the next
                 //   host forgets. 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
                 translators: translators,
-                // ⭐⭐⭐ P3 step 2 — the ROLE-AFFINITY policy, wired from the context so this system and
-                //   GhostPromotionSystem below get the SAME INSTANCE by construction (§3.7). ⚠ null is the
-                //   norm today and keeps today's behaviour exactly; step 4 is where hosts supply one.
-                //   ⛔ This is NOT the onEntitySpawned hole re-opened: that was an invariant a single host
-                //   happened to pass, whereas this is a POLICY the pack hands to both of its consumers.
-                roleAffinity: ctx.RoleAffinity,
-                // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver. Same rationale as
-                // roleAffinity — a POLICY the pack hands its consumer, not a per-host invariant. null keeps
+                // ⛔ S4 — no role-affinity policy any more: the creator claims all and yields what it grants
+                //   (push-only, D-7). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S4.
+                // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver — a POLICY the pack hands
+                // its consumer, not a per-host invariant. null keeps
                 // today's behaviour (a reliable entity acks immediately, no cross-node wait).
                 expectedPeers: ctx.ExpectedPeers);
 
@@ -204,11 +208,9 @@ namespace Hrot.Common.EntityCreation
             //   promotion with no diagnostic", adding "which hosts pass null has not been measured".
             //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
             //   and the question cannot recur.
-            // ⭐⭐⭐ P3 step 3 — the SAME policy instance the spawn system got, which is the whole reason
-            //   §3.7 relocated this registrar into the pack: the CREATE leg declines exactly what the
-            //   PROMOTE leg claims, and that is only true by construction if both evaluate one instance.
+            // ⛔ S4 — the promote leg claims nothing (push-only); the role-affinity policy it took is gone.
             var promotionSystem = new GhostPromotionSystem(
-                ctx.TkbDb, ctx.Elm, translators, roleAffinity: ctx.RoleAffinity)
+                ctx.TkbDb, ctx.Elm, translators)
         {
             // ⭐⭐⭐ §2.1m step 1 — the replay gate, wired ONCE here so every host that builds the pack gets
             //   it. Read LATE through the ELM so a root may set elm.IsReplayActive afterwards (the
@@ -218,9 +220,23 @@ namespace Hrot.Common.EntityCreation
             IsReplayActive = () => ctx.Elm.IsReplayActive?.Invoke() ?? false,
         };
 
+            // ⭐⭐ S2b — the systems that only exist with a live network, built ONCE here for every host.
+            //   ⚠ Before S2b only CGF built the delete system, and only SimHost/Stride registered the poll
+            //   (CGF and IG called PollNetwork from their app loops). Every host ticks its kernel every frame,
+            //   so the Input-phase poll runs exactly as often as those loops did.
+            var networkSystems = adapters == null
+                ? Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>()
+                : new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+                {
+                    new NetworkPollingSystem(adapters.PollNetwork),
+                    // ⭐ The SAME finalization instance the create side uses — a second one would give delete
+                    //   its own ACK bookkeeping, the class of split this pack exists to prevent.
+                    new DeleteEntityRequestSystem(adapters.DeleteSource, ackSink, ctx.EntityMap, finalization, ctx.NodeId),
+                };
+
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId);
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World);
         }
     }
 }

@@ -169,9 +169,13 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard
+    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
+        Hrot.Common.EntityCreation.IEntityCreationHost
     {
         private const int EditorNodeId = 0;
+
+        /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
         // ?? Subsystem identity ????????????????????????????????????????????????
 
@@ -184,6 +188,10 @@ namespace Hrot.Editor
 
         // ?? Network factory (no-op stubs for offline editor) ?????????????????
 
+        // ⭐ CE-516 — the factory the composition root CHOSE for this node. The editor is an offline node
+        //   (ruling 66 "the editor is a one-node cluster"; Q26 constraint 2), so the runner passes
+        //   OfflineNetworkFactory and the parameterless (test) ctor defaults to it — the editor builds with
+        //   what it is given instead of discarding it and constructing its own.
         private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
 
         // ?? Core state ????????????????????????????????????????????????????????
@@ -1020,10 +1028,9 @@ namespace Hrot.Editor
 
 
         // ctor for ClusterRunner
-        public EditorSubsystem( INetworkFactory _ ) : this()
+        public EditorSubsystem( INetworkFactory networkFactory ) : this()
         {
-            // we do not use the injected network factory in the offline editor,
-            // but we accept it in the constructor to satisfy the dependency graph and allow for future online features.
+            _networkFactory = networkFactory ?? throw new ArgumentNullException(nameof(networkFactory));
         }
 
         /// <summary>
@@ -1071,14 +1078,14 @@ namespace Hrot.Editor
                     //   said here before, and TimeControllerFactory routes both to MasterSyncController.
                     .WithTimeRole(TimeRole.Standalone)
                     // ⭐⭐⭐ CE-203 `E2` — the offline factory supplies the id allocator, so this host stops
-                    //   carrying its own. 📄 §4.1y `E2`. ⛔ Constructed here rather than taken from the ctor's
-                    //   injected factory ON PURPOSE: the runner injects whatever the RUN is, and the editor is
-                    //   an offline node by definition — `EditorStrideSubsystem:109` does the same.
+                    //   carrying its own. 📄 §4.1y `E2`. ⭐ CE-516: it is the factory the composition root
+                    //   gave this node (Program.cs passes OfflineNetworkFactory for the editor), no longer a
+                    //   private one built here while the injected NED factory was thrown away.
                     //   ⚠ Every other member of OfflineNetworkFactory returns a Null* stub, and none of them
                     //     is reached: `Headless = true` means no participant, so Build() takes neither the DDS
                     //     branch nor the slave-translator branch. The ONLY thing this changes is which
                     //     allocator object exists.
-                    .WithNetworkFactory(new OfflineNetworkFactory())
+                    .WithNetworkFactory(_networkFactory)
                     .Build();
 
             // ?? 1. ECS world ?????????????????????????????????????????????????
@@ -1383,6 +1390,7 @@ namespace Hrot.Editor
 
                 IsBroadcastArbiter = true,
             });
+            EntityCreation = creation;   // CE-515
 
             var elm      = creation.Elm;
             var spawnSys = creation.SpawnSystem;
@@ -2286,6 +2294,8 @@ namespace Hrot.Editor
                         // MX1 (Group O): turns a blackboard slot's int blueprintId into the asset Guid
                         // the debug session addresses variables by.
                         blueprintRegistry: _blueprintRegistry,
+                        // ⭐ CE-515 — create-request through this node's pack, as on every cluster node.
+                        entityCreation:    _ => EntityCreation,
                         // ⭐⭐ HN-029: the editor is NOT special — it is a ONE-NODE cluster whose own
                         //    ClusterMaster reads this very bus (_clusterMaster = new ClusterMaster(
                         //    _orchestrationBus, offlineConfig)). ⇒ publishing a TransitionStateIntent here is

@@ -91,11 +91,17 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 if (sample.IsValid)
                 {
-                    // Skip ingress for entities the local node has authority over.
+                    // Skip ingress when this node OWNS the mission descriptor.
                     // Without this check the local egress translator's own published
                     // EntityMission sample loops back through DDS and overwrites the
                     // ECS component set by MissionControlExecutionSystem in the same frame.
-                    if (view.HasAuthority(entity)) continue;
+                    // ⭐⭐ S3 / F-5 — the DESCRIPTOR's recorded owner, not the entity's primary owner. With push-only
+                    //   grants the Brain owns dtEntityMission on an entity another node created; the old entity-level
+                    //   test was false there, so CGF overwrote its fresh mission queue with an incoming sample (0/0
+                    //   phases) and the tank never moved (CE-500). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5.
+                    if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                            view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                        continue;
 
                     var queue = BuildQueue(sample.Data);
                     cmd.SetComponent(entity, queue);

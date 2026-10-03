@@ -36,12 +36,16 @@ namespace Hrot.SimHost
     /// the core application class is the single source of truth for its own wiring.</para>
     /// </summary>
     public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Common.EntityCreation.IEntityCreationHost,
         Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
         /// <inheritdoc/>
         public string Name => "SimHost";
+
+        /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _app?.EntityCreation;
 
         /// <summary>
         /// ⭐⭐ <b><c>Q54</c> — SimHost's debug surface.</b> 📄 <c>Architect_Question_54</c> Q54-2.

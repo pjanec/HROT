@@ -81,8 +81,17 @@ namespace Hrot.IG.Tests
 			Assert.DoesNotContain( commands[0].ComponentsToUpdate, c => c is Hrot.NED.Descriptors.EntityInfo );
         }
 
-        [Fact]
-        public void ApplyToEntity_SetsIgEntityData()
+        /// <summary>
+        /// Every wire force maps to a NAMED ECS force. ⚠ The enums do not share numbering (wire NEUTRAL = 3, ECS has
+        /// no 3): a direct cast once gave every replica of a neutral entity <c>(ForceId)3</c>, which the debug API
+        /// could not serialize (measured on <c>ClusterRunner --mode all</c>).
+        /// </summary>
+        [Theory]
+        [InlineData(eForceIdentifier.FORCE_FRIENDLY, ForceId.Friend)]
+        [InlineData(eForceIdentifier.FORCE_OPPOSING, ForceId.Hostile)]
+        [InlineData(eForceIdentifier.FORCE_NEUTRAL,  ForceId.Neutral)]
+        [InlineData(eForceIdentifier.FORCE_UNKNOWN,  ForceId.Neutral)]
+        public void ApplyToEntity_SetsIgEntityData(eForceIdentifier wire, ForceId expected)
         {
             var (repo, _, _, translator) = CreateFixture();
             var entity = repo.CreateEntity();
@@ -91,7 +100,7 @@ namespace Hrot.IG.Tests
             {
                 EntityId = 1,
                 Name = "Bravo",
-                ForceIdentifier = eForceIdentifier.FORCE_OPPOSING,
+                ForceIdentifier = wire,
                 CommanderId = 3
             }, repo);
 
@@ -99,7 +108,43 @@ namespace Hrot.IG.Tests
             ref readonly var data = ref view.GetComponentRO<Fdp.Core.EntityInfo>( entity );
 
             Assert.Equal("Bravo", data.Name.ToString());
-            Assert.Equal(ForceId.Hostile, data.ForceId);
+            Assert.Equal(expected, data.ForceId);
+        }
+
+        [Theory]
+        [InlineData(ForceId.Friend)]
+        [InlineData(ForceId.Hostile)]
+        [InlineData(ForceId.Neutral)]
+        public void EveryForce_SurvivesTheWireRoundTrip(ForceId force)
+            => Assert.Equal(force, Hrot.Map.Common.Replication.Utils.ForceIdMapping.FromWire(
+                                       Hrot.Map.Common.Replication.Utils.ForceIdMapping.ToWire(force)));
+
+        // ── Loopback prevention: RECORDED ownership only ──────────────────────
+
+        /// <summary>
+        /// ⭐ The recorded owner of EntityInfo is the source of the hierarchy and drops its own loopback sample.
+        /// The CS011 tests below cover the other half: an entity with no ownership record yet (a ghost being
+        /// built) takes the commander from the sample. An earlier version used the raw gate, which treats "no
+        /// record" as owned, and dropped it.
+        /// </summary>
+        [Fact]
+        public void TheRecordedOwner_DropsItsOwnHierarchyLoopback()
+        {
+            var (repo, entityMap, eventBus, translator) = CreateFixture();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            var cmdEntity = repo.CreateEntity();
+            var subEntity = repo.CreateEntity();
+            repo.AddComponent(subEntity, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 0, localNodeId: 0));
+            entityMap.Register(10, cmdEntity);
+            entityMap.Register(20, subEntity);
+
+            translator.ProcessSample(new Hrot.NED.Descriptors.EntityInfo
+            {
+                EntityId = 20, CommanderId = 10, TacticalDesignation = eTacticalDesignation.Wingman,
+            }, netId: 20, repo: repo);
+
+            eventBus.SwapBuffers();
+            Assert.Equal(0, eventBus.Read<CmdAssignSubordinate>().Length);
         }
 
         // ── CS011 ingress tests ───────────────────────────────────────────────

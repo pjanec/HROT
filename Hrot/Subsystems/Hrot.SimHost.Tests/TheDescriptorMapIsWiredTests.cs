@@ -239,4 +239,118 @@ public class TheDescriptorMapIsWiredTests
         // ⭐⭐ And nothing was marked for republication, because there is nothing to republish.
         Assert.False(repo.HasManagedComponent<EgressPublicationState>(e));
     }
+
+    // ══ ③ the ownership groups are bound — the same on every role ═══════════════════
+
+    private static Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap ModuleMapFor(Fdp.Core.NodeRole role)
+        => new Hrot.Network.Replication.NedReplicationModule(
+            participant:          null,
+            role:                 role,
+            entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(),
+            eventBus:             new FdpEventBus(),
+            localNodeId:          1,
+            domainId:             0,
+            tkbEntityTranslators: new System.Collections.Generic.List<Fdp.Interfaces.ITkbEntityTranslator>().AsReadOnly())
+           .DescriptorOwnershipMap;
+
+    /// <summary>
+    /// ⭐⭐ <b>Every role binds the SAME groups with no violation</b> — so a grant of a descriptor means the same thing
+    /// on the creator and on the target. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §2, step S1 (F-2: five
+    /// descriptors used to declare no components, so granting them moved no claim).
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver)]
+    [InlineData(Fdp.Core.NodeRole.Map2D)]
+    public void EveryRoleBindsTheSameOwnershipGroupsWithNoViolation(Fdp.Core.NodeRole role)
+    {
+        var map = ModuleMapFor(role);
+        Assert.Empty(map.GroupBindingViolations);
+
+        long D(Hrot.NED.Descriptors.EDescriptorType d) => (long)d;
+        Assert.Equal(
+            new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEntityDamage), D(Hrot.NED.Descriptors.EDescriptorType.dtEntityMission),
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent), D(Hrot.NED.Descriptors.EDescriptorType.dtSensorConfig),
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig) },
+            map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
+        Assert.Equal(
+            new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus) },
+            map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
+        Assert.Equal(
+            new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },
+            map.DescriptorsOf(Fdp.Core.NodeRole.Perception).ToArray());
+
+        // ⭐ S3: the lists the creator's grant strategy hands out (NedOwnershipGroupBinding.GroupDescriptors) ARE
+        //   this node's live binding — for every role, so the strategy and the nodes cannot disagree.
+        foreach (var (groupRole, descriptors) in Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors)
+            Assert.Equal(map.DescriptorsOf(groupRole).ToArray(), descriptors.ToArray());
+
+        // D-4: the anchors carry the never-sent members — BehaviorState rides dtNavigationIntent, FrustrationTicks
+        // rides dtWorldPos, SensorContactList rides dtEqsResult.
+        Assert.Contains(Fdp.Core.ComponentType<Fdp.Toolkit.Behavior.Components.BehaviorState>.ID,
+            map.GetComponentIdsForDescriptor(D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent)).ToArray());
+        Assert.Contains(GlobalComponentIds.FrustrationTicks,
+            map.GetComponentIdsForDescriptor(D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos)).ToArray());
+        Assert.Contains(Fdp.Toolkit.Perception.PerceptionApplicationComponentIds.SensorContactList,
+            map.GetComponentIdsForDescriptor(D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult)).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐ <b>The binding still holds with the PRODUCTION translator pairings registered first</b> — mirrored, as above,
+    /// because the real DDS translators need a live participant. A translator whose targets straddle groups (or a group
+    /// and the creator's remainder) would show up here as a violation.
+    /// </summary>
+    [Fact]
+    public void TheBindingHoldsOverTheProductionTranslatorPairings()
+    {
+        var map = new Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap();
+        long D(Hrot.NED.Descriptors.EDescriptorType d) => (long)d;
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtEntityMaster),
+            new[] { GlobalComponentIds.NetworkIdentity, GlobalComponentIds.TkbIdentity });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtEntityInfo), new[] { GlobalComponentIds.EntityInfo });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos),
+            new[] { GlobalComponentIds.SimTransform, GlobalComponentIds.NetworkTransform, GlobalComponentIds.NetworkVelocity });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtMapVisualOverlay), new[] { GlobalComponentIds.EditablePolyline });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtMapRoute),
+            new[] { (int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
+            new[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus });
+        map.RegisterFromTranslator(D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationIntent),
+            new[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent });
+        map.RegisterMapping(D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos),
+            GlobalComponentIds.SimTransform, GlobalComponentIds.SimVelocity, GlobalComponentIds.VehicleState,
+            GlobalComponentIds.VehicleParams, GlobalComponentIds.NavState);
+
+        Hrot.Network.Replication.NedOwnershipGroupBinding.Apply(map);
+
+        Assert.Empty(map.GroupBindingViolations);
+    }
+
+    /// <summary>
+    /// ⭐ <b>No component sits in two descriptors that can have different owners</b> (a group's and the creator's, or two
+    /// groups'). The creator's yield clears the claim of every component of a granted descriptor; if one of them also
+    /// belonged to a descriptor the creator keeps, the record recompute (S5, R-159) would read that kept descriptor as
+    /// unclaimed and stop its publication. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S5, Q79 P4.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver)]
+    [InlineData(Fdp.Core.NodeRole.Map2D)]
+    public void NoComponentIsSharedByDescriptorsWithDifferentOwners(Fdp.Core.NodeRole role)
+    {
+        var map = ModuleMapFor(role);
+        var boxOf = new System.Collections.Generic.Dictionary<long, Fdp.Core.NodeRole>();
+        foreach (long d in map.RegisteredDescriptors) boxOf[d] = Fdp.Core.NodeRole.None;
+        foreach (var (groupRole, _) in Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors)
+            foreach (long d in map.DescriptorsOf(groupRole)) boxOf[d] = groupRole;
+
+        var shared = new System.Collections.Generic.List<string>();
+        foreach (long d in map.RegisteredDescriptors)
+            foreach (int c in map.GetComponentIdsForDescriptor(d))
+                foreach (long other in map.RegisteredDescriptors)
+                    if (other != d && boxOf[other] != boxOf[d] && map.GetComponentIdsForDescriptor(other).ToArray().Contains(c))
+                        shared.Add($"component {c}: descriptor {d} ({boxOf[d]}) and {other} ({boxOf[other]})");
+        Assert.Empty(shared);
+    }
 }

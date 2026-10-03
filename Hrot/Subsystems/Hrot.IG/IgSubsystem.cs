@@ -28,6 +28,7 @@ namespace Hrot.IG
     /// </para>
     /// </summary>
     public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Common.EntityCreation.IEntityCreationHost,
         Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         /// <inheritdoc/>
@@ -148,17 +149,11 @@ namespace Hrot.IG
         internal IgApplication App => _app ?? throw new InvalidOperationException("Not initialized");
 
         /// <summary>
-        /// ⭐⭐⭐ <c>CE-271</c> seam ⑤ — enqueue an <see cref="Hrot.Core.Network.EntityCreationRequest"/>
-        /// onto THIS node's local creation source, so it flows through the REAL request path
-        /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>) rather than a
-        /// raw <c>SpawnEntityCommand</c>. This is what lets the debug API demonstrate a Map2D node
-        /// creating an entity IT owns and distributing it via auto-takeover — the direct spawn route
-        /// bypasses routing and the grant path entirely. Null until the node is initialised.
+        /// ⭐⭐⭐ <c>CE-515</c> (was <c>CE-271</c> seam ⑤, IG-only) — this node's entity-creation pack. The debug API's
+        /// <c>POST /entities/create-request</c> resolves the ACTIVE perspective's pack through
+        /// <see cref="Hrot.Common.EntityCreation.IEntityCreationHost"/>, the same on every node. Null until initialised.
         /// </summary>
-        public System.Action<Hrot.Core.Network.EntityCreationRequest>? CreationRequestEnqueuer
-            => _app?.LocalEntityCreationRequests is { } src
-                 ? new System.Action<Hrot.Core.Network.EntityCreationRequest>(src.Enqueue)
-                 : null;
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _app?.EntityCreation;
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _app?.GetMapCamera()?.GetCameraView();

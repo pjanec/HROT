@@ -53,6 +53,15 @@ namespace Hrot.Network.NED.SimHost
                 // Skip local-only results (ParentNetworkId == 0): they are not replicated via DDS.
                 if (evt.ParentNetworkId == 0) continue;
 
+                // ⭐ S6 (F-12): only the node that owns this sensor's RESULT instance publishes it — the Perception group's
+                //   record, (dtEqsResult, part), falling back to the group's (dtEqsResult, 0) and then the primary owner.
+                //   Every Muscle node builds carriers and solves; without this gate two of them would both publish.
+                //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
+                if (_entityMap.TryGetEntity(evt.ParentNetworkId, out var parent) && view.IsAlive(parent) &&
+                    !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(
+                        view, parent, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, evt.LocalChildIndex)))
+                    continue;
+
                 // Build the managed DDS payload from the unmanaged pool slice.
                 // EntryCount == 0 (Phase 1 stub) is valid: publish an empty result.
                 var entries = new List<EqsResultEntry>(evt.EntryCount);

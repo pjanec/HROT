@@ -27,35 +27,6 @@ namespace Hrot.NED.Messages
     // NedStatusCode has been moved to Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs
     // (namespace Hrot.NED.Messages). All existing usages remain valid without change.
 
-    // Message to change the ownership of a descriptor.
-    // Used when a node wants to gracefully hand over control of a specific component
-    // (e.g., simulation physics) to another node without deleting/recreating data.
-    [DdsTopic("OwnershipUpdate")]
-    [DdsIdlFile("hrot-generic-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    public partial struct OwnershipUpdate
-    {
-        // The unique ID of the entity instance affected.
-        [DdsKey]
-        public int EntityId;
-
-        // Unique ID of the descriptor type (e.g., 0=Master, 10=GeoSpatial).
-        [DdsKey]
-        public int DescrTypeId;
-
-        // ID of the descriptor instance.
-        // Non-zero if there are multiple descriptors of the same type per entity instance
-        // (e.g., multiple radios, multiple engines).
-        // Zero if there is just one descriptor of that type per entity instance.
-        [DdsKey]
-        public int DescrInstanceId;
-
-        // The NodeId of the participant taking over ownership.
-        // The current owner monitors this; if it matches 'NewOwner', it stops publishing.
-        // The new owner monitors this; if it matches 'NewOwner', it starts publishing.
-        public NodeId NewOwner;
-    }
-
     // ===================================================================================
     // ATTR2 BINARY CONTRACT: ATTRIBUTE WIRE TYPES
     // ===================================================================================

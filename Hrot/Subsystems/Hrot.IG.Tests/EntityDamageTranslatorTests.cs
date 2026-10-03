@@ -75,6 +75,93 @@ namespace Hrot.IG.Tests
             Assert.Equal(100f, cmd.LastHealth?.Max);
         }
 
+        /// <summary>
+        /// ⭐ The other half of CE-272's guard: the node that RECORDS entity-level ownership is the source of
+        /// health and must not take its own loopback sample back. Paired with the two tests above, which
+        /// prove a replica (with or without an ownership record yet) does take it.
+        /// </summary>
+        [Fact]
+        public void Decode_OnTheRecordedOwner_DoesNotWriteHealth()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkAuthority>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 3));
+            entityMap.Register(KnownId, entity);
+
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.False(cmd.SetComponentCalled, "the recorded owner must not take its own health back");
+        }
+
+        /// <summary>⭐ A replica with a RECORDED ownership elsewhere takes the owner's health.</summary>
+        [Fact]
+        public void Decode_OnARecordedReplica_WritesHealth()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkAuthority>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 4));
+            entityMap.Register(KnownId, entity);
+
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.Equal(1f, cmd.LastHealth?.Current);
+        }
+
+        /// <summary>⭐ S8 / F-5 — the guard keys on the <c>dtEntityDamage</c> RECORD, not the entity's primary owner. SimHost
+        /// created the tank (primary owner = me) and granted its Brain group, Health with it, to CGF (node 5): SimHost is a
+        /// replica of Health now and must take CGF's value — keyed on the entity it skipped it and kept a stale full health
+        /// (CE-272's bug, on every SimHost-created entity). 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S8.</summary>
+        [Fact]
+        public void Decode_OnThePrimaryOwner_WhoseDamageDescriptorWasGrantedAway_WritesHealth()
+        {
+            var (repo, entityMap, entity) = Recorded(primaryOwner: 3, local: 3, damageOwner: 5);
+            using var participant = new DdsParticipant(0);
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.Equal(1f, cmd.LastHealth?.Current);
+        }
+
+        /// <summary>⭐ S8 — the converse: CGF holds the granted <c>dtEntityDamage</c> of an entity another node created, so
+        /// its own sample looping back must not overwrite the Health it writes.</summary>
+        [Fact]
+        public void Decode_OnTheGrantedOwnerOfTheDamageDescriptor_DoesNotWriteHealth()
+        {
+            var (repo, entityMap, entity) = Recorded(primaryOwner: 3, local: 5, damageOwner: 5);
+            using var participant = new DdsParticipant(0);
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+
+            Assert.False(cmd.SetComponentCalled, "the owner of dtEntityDamage must not take its own health back");
+        }
+
+        private static (EntityRepository, NetworkEntityMap, Entity) Recorded(int primaryOwner, int local, int damageOwner)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterManagedComponent<DescriptorOwnership>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: primaryOwner, localNodeId: local));
+            var record = new DescriptorOwnership();
+            record.Map[Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEntityDamage, 0)] = damageOwner;
+            repo.SetManagedComponent(entity, record);
+            entityMap.Register(KnownId, entity);
+            return (repo, entityMap, entity);
+        }
+
         private sealed class TestEntityDamageIngressTranslator : EntityDamageIngressTranslator
         {
             public TestEntityDamageIngressTranslator(

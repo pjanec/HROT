@@ -28,6 +28,9 @@ related-designs:
     Details on CGF).
   - docs/blueprints/batches/HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md — the frame for §18 (part A).
   - docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md — part B of the same handoff (CE-476); owns nothing here.
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — §5.8 owns WHICH node solves a child sensor (R-179, CE-3002): the Brain
+    names it in `EqsSensorConfigTopic.SolverNodeId` (least-loaded Perception node, once per sensor), every node records it
+    as the owner of result part n, and only that node builds a carrier. This design owns the solve itself.
 -->
 # EQS (Environment Query System) — Design v1.3
 

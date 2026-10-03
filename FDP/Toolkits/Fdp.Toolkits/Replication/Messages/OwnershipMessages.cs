@@ -41,4 +41,19 @@ namespace Fdp.Toolkit.Replication.Messages
             return $"DescriptorAuthorityChanged(Entity={Entity}, Key={Fdp.Interfaces.PackedKey.ToString(PackedKey)}, Auth={IsAuthoritative})";
         }
     }
+
+    /// <summary>
+    /// ⭐ Local event: a cluster node has LEFT (crashed or exited) — this node no longer hears its heartbeat. Raised by
+    /// the network implementation's cluster-membership ingest; consumed by <c>PartialOwnerReclaimSystem</c>, which
+    /// returns what the departed node owned to each entity's primary owner (R-167: a direct call, never a network
+    /// message). 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3, §5.6 S7.
+    /// </summary>
+    [EventId(9033)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeDeparted
+    {
+        public int NodeId;
+
+        public override string ToString() => $"NodeDeparted(Node={NodeId})";
+    }
 }

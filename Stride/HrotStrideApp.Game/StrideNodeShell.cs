@@ -171,8 +171,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             //         to a role via MapSubsystemNameToRole (NedNetworkFactory.cs:423), whose entire
             //         table is { "SimHost" => MuscleGround, "CGF" => Brain, "IG" => ImageGenerator,
             //         _ => NodeRole.None }
-            //      -> BrainMuscleOwnershipStrategy asks GetLeastLoadedNode(MuscleGround)
-            //         (BrainMuscleOwnershipStrategy.cs:43); with no node mapping to MuscleGround it
+            //      -> RoleGroupOwnershipStrategy asks GetLeastLoadedNode(MuscleGround)
+            //         (RoleGroupOwnershipStrategy.GetInitialGrants); with no node mapping to MuscleGround it
             //         returns null and GetInitialGrants returns an EMPTY grant list -- its documented
             //         "safe fallback: the Brain retains physics authority".
             //    ⇒ "Stride" mapped to NodeRole.None, so CGF kept dtWorldPos/dtNavigationStatus and this
@@ -604,6 +604,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             dispatcher,
             logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(null),
             behaviorRegistry: () => null,
+            // ⭐ CE-515 — create-request through this node's pack, as on every cluster node.
+            entityCreation: _ => _bootstrapper.EntityCreation,
             // ⭐⭐ CE-236 — PASSED, never defaulted. A defaulted WGS84Transform origin is 0N 0E while
             //    every node simulates on the Berlin origin HrotEnvironment.CreateGeoTransform() sets,
             //    so geo routes would answer against the wrong planet.
@@ -765,7 +767,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     /// <remarks>
     /// <para><b>📌 The defect this reports</b> — measured <c>2026-09-09</c>. If the node starts before
     /// CGF is healthy, CGF's cluster cache has no <c>MuscleGround</c> node when the scenario loads,
-    /// <c>BrainMuscleOwnershipStrategy.GetInitialGrants</c> returns its documented <b>empty "safe
+    /// <c>RoleGroupOwnershipStrategy.GetInitialGrants</c> returns its documented <b>empty "safe
     /// fallback"</b>, and those entities are <b>never re-granted</b>: 0 takeovers across 340 s and a
     /// scenario reload. Start the node after CGF answers and it is 8 takeovers every time.</para>
     ///
@@ -813,7 +815,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             "[StrideNodeShell] CE-256: this node holds {0} entities with a SimTransform and OWNS NONE " +
             "of them. Nothing it is responsible for will move. The usual cause is that this node was " +
             "started BEFORE CGF was healthy: CGF grants muscle ownership once, at entity creation, from " +
-            "its cluster cache — if no MuscleGround node was known then, BrainMuscleOwnershipStrategy " +
+            "its cluster cache — if no MuscleGround node was known then, RoleGroupOwnershipStrategy " +
             "returns an empty grant list as its documented safe fallback and NOTHING RE-GRANTS. Restart " +
             "this node after CGF's API answers. (The structural fix is role-affinity ownership, where " +
             "the role-holder claims on promotion and there is nothing to race.)",

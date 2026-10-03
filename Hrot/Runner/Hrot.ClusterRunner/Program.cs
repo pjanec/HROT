@@ -194,8 +194,15 @@ class Program
         // Discover all non-abstract ISubsystem implementations (runner-internal
         // ones are excluded; see ScanForSubsystems).
         var discovered = ScanForSubsystems()
-            .Select(type => 
+            .Select(type =>
             {
+                // ⭐ CE-516 — the composition root chooses each node's network. The editor is an OFFLINE node
+                //   (ruling 66 "the editor is a one-node cluster"; Q26 constraint 2): it gets the offline
+                //   factory and no DDS participant. ⛔ Before, it was handed a live NedNetworkFactory it threw
+                //   away, and built its own offline one.
+                if (type == typeof(Hrot.Editor.EditorSubsystem))
+                    return TryCreateSubsystem(type, new Hrot.Editor.OfflineNetworkFactory());
+
                 // 1. Create isolated memory spaces per subsystem
                 var entityMap    = new NetworkEntityMap();
                 var geoTransform = HrotEnvironment.CreateGeoTransform();
@@ -421,15 +428,6 @@ class Program
                 //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader
                 //    and the JSON parameter interpreter alike. ⛔ Null here is not a silent fallback any
                 //    more — the service then resolves the world singleton, and refuses if there is none.
-                // ⭐⭐⭐ CE-271 seam ⑤ — the local creation-request enqueuer, resolved from whichever
-                //   subsystem on this process composed an EntityCreationPack and exposes one (IG today;
-                //   the shape generalises to any node). Lets POST /entities/create-request drive the real
-                //   request path on this node instead of a raw SpawnEntityCommand.
-                Func<Action<Hrot.Core.Network.EntityCreationRequest>?> creationEnqueuerGetter =
-                    () => subsystems.OfType<Hrot.IG.IgSubsystem>()
-                                    .Select(s => s.CreationRequestEnqueuer)
-                                    .FirstOrDefault(e => e != null);
-
                 // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world (only the
                 //   subsystem that OWNS that world answers). 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1.
                 var aiDebugSurfaceGetter = ClusterDebugApiComposition.AiDebugSurface(subsystems);
@@ -440,7 +438,8 @@ class Program
                         windowCtrl?.WindowManager?.MessageLogRegistry),
                     behaviorRegistry: behaviorRegistryGetter,
                     geoTransform: HrotEnvironment.CreateGeoTransform(),
-                    creationRequestEnqueuer: creationEnqueuerGetter,
+                    // ⭐⭐ CE-515 — the ACTIVE perspective's pack, on every node (was IG only).
+                    entityCreation: ClusterDebugApiComposition.EntityCreation(subsystems),
                     aiDebugSurface: aiDebugSurfaceGetter);
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();

@@ -221,7 +221,6 @@ public class IgApplication : IDisposable
 
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) ? wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
-    private System.Action? _networkPolling;   // CE-271 seam ④ — cluster-cache heartbeat pump
     // CMC-S016: orchestration bus + slave translator (Option C).
     // ⛔ CE-164 — `_igOrchestrationBus` is GONE. There is ONE orchestration bus, `_context.EventBus`,
     //    swapped ONCE per frame at the end of Update() (see the swap there). Two swaps of one
@@ -316,6 +315,9 @@ public class IgApplication : IDisposable
     /// here would be the duplicate-mechanism trap — the tools would fill a queue nothing drains.</para>
     /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
     /// </summary>
+    /// <summary>⭐ CE-515 — this node's entity-creation pack, for the subsystem to expose.</summary>
+    internal Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _igBootstrapper?.EntityCreation;
+
     internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
         => _igBootstrapper?.LocalEntityCreationRequests;
 
@@ -916,6 +918,13 @@ public class IgApplication : IDisposable
                             SelectedEntityIds = ids,
                         })));
 
+            // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
+            // ⭐⭐ CE-159 — assigned BEFORE the MapCommandController that takes it. ⛔ It used to be assigned
+            //   two statements AFTER being passed, so the controller always received null and every remote
+            //   placement request (ExCon "place entity") refused to arm with "this host composes no global
+            //   gizmo manager" — since UXI-23 S2b (measured 2026-10-01, MapPlacementIntegrationTests).
+            _globalGizmoManager = igMapInteraction.GlobalManager;
+
             // MapCommandController - created here when network is available.
             if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
             {
@@ -937,10 +946,8 @@ public class IgApplication : IDisposable
                     tools: _igToolController);
             }
 
-            // UXI-23 S2b: both come from the pack. _globalGizmoManager is assigned HERE, at its original
-            // position, so the MapCommandController above keeps its pre-migration behaviour.
-            // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-            _globalGizmoManager = igMapInteraction.GlobalManager;
+            // UXI-23 S2b: both come from the pack. (_globalGizmoManager is assigned ABOVE the
+            // MapCommandController — CE-159.)
             // 🔒 UXI-07 step 4a — the arbiter is PASSED, so the settings checkbox ARMS THROUGH it and
             //    follows it back down when another tool displaces Measure (the dead-toggle fix, §4.9c).
             _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(
@@ -1030,7 +1037,6 @@ public class IgApplication : IDisposable
         _networkEnabled      = _igBootstrapper.NetworkEnabled;
         _networkAdapter      = _igBootstrapper.NetworkAdapter;
         _commandGateway      = _igBootstrapper.CommandGateway;
-        _networkPolling      = _igBootstrapper.NetworkPolling;   // CE-271 seam ④ — pump the cluster cache each frame
         _clusterSlave        = _context.ClusterSlave;
         // ⭐⭐⭐ CE-164 — the node's OWN slave translator, from the context, exactly as SimHostApp:504 does.
         //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
@@ -1086,7 +1092,6 @@ public class IgApplication : IDisposable
         //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
         _slaveTranslator?.Tick();
         _clusterSlave?.Tick();
-        _networkPolling?.Invoke();   // CE-271 seam ④ — refresh cluster cache from NodeHeartbeat (BrainMuscleOwnershipStrategy reads it)
 
         if (!_headless)
 
@@ -1888,6 +1893,11 @@ public class IgApplication : IDisposable
 
             return;
 
+        // ⭐ A real click does BOTH: the pack's SelectionInteractionSystem requests the selection (a LOCAL
+        //   reason, which SelectionEgressSystem forwards to ExCon) and then reports the gesture. ⛔ Since
+        //   UXI-11 S-6 OnCanvasClicked only reports the gesture, so this hook selected nothing and the
+        //   selection never reached ExCon (measured 2026-10-01).
+        SelectEntityOnMap(entity);
         OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity);
 
     }

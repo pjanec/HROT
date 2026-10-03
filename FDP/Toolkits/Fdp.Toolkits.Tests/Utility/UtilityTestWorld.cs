@@ -124,7 +124,6 @@ namespace Fdp.Toolkit.Tests.Utility
             {
                 ParentEntity      = owner,
                 InstanceId        = mountIndex,
-                DescriptorOrdinal = 0
             });
 
             // WeaponRangeBandFit reads Position from the mount entity.
@@ -237,7 +236,6 @@ namespace Fdp.Toolkit.Tests.Utility
             {
                 ParentEntity      = owner,
                 InstanceId        = instanceId,
-                DescriptorOrdinal = 0
             });
 
             return child;

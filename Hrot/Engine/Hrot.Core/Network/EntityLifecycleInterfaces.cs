@@ -93,6 +93,14 @@ public sealed class EntityCreationRequest
         = Fdp.Toolkit.Replication.ReliableInitType.AllPeers;
 
     /// <summary>
+    /// ⭐ <c>CE-515</c> ③ — the creator's reliable-init abort timeout (<c>CE-292</c>), carried to the spawn order
+    /// beside <see cref="InitType"/>. <c>null</c> ⇒ the gateway default, which is what every caller got before.
+    /// ⚠ Applies where the CREATOR spawns: it is not on the wire request, so a request forwarded to another node
+    /// uses that node's default.
+    /// </summary>
+    public TimeSpan? ReliableInitTimeout { get; init; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>D2</c> — whether this entity is a THROWAWAY that must never reach a saved scenario.</b>
     ///
     /// <para>🔒 <b>The ruling (user, <c>2026-09-02</c>, <c>R-140</c>):</b> a passive node such as an IG

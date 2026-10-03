@@ -100,6 +100,14 @@ namespace Hrot.Network.NED.CGF
                     }
                 }
 
+                // ⭐ S8 / F-5 — skip our OWN result looping back: the recorded owner of this sensor's result part (d, n) is the
+                //   node that SOLVED it, and its own EqsResultUpdateSystem already took the answer from the local
+                //   EqsResultEvent — this copy is the echo. ⛔ Recorded owner only. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8, §5.8 (who solves).
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        repo, observer, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, data.LocalChildIndex)))
+                    continue;
+
                 // Bridge to the managed event bus so EqsResultUpdateSystem can consume it.
                 // EqsResultTopic.Results is List<EqsResultEntry> -- direct assignment works.
                 repo.Bus.PublishManaged(new EqsResultUpdateEvent

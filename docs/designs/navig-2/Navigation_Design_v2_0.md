@@ -637,6 +637,8 @@ enum KinematicsMode : byte {
 
 `NavState.Mode` is set by `NavigationIntentBridgeSystem` based on the routing decision below.
 
+> ⛔ **`CE-498` (`2026-10-01`) — the bridge must see an intent written while the entity is still CONSTRUCTING.** It reads through a DELTA query ("components changed since my last scan"). With the query's default lifecycle filter (Active only), an intent written before activation was never applied: becoming Active changes no component version, so the delta never revisited the entity — a spawn-then-move order never moved (measured: `NavState.Mode` stayed `None`). ⭐ The bridge now includes `Constructing` entities; motion still starts at activation (the kinematics run on Active entities only). ⚠ **Open:** the same blind spot exists for a GHOST promoted to Active with an intent already present, and for any delta-query system that assumes activation re-dirties components (15 production delta-query users) — whether activation should bump versions is an engine decision, not made here.
+
 ```
 on ActionInstanceId mismatch (new intent):
   switch (intent.ActiveAction):

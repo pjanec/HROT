@@ -394,6 +394,52 @@ public class MapRouteTranslatorTests
             "RoutePlan must not appear — entity 60 was never registered in NetworkEntityMap.");
     }
 
+    // ── S8 / F-5: the recorded owner does not take its own route back ─────────
+
+    /// <summary>⭐ Ownership build S8 / F-5 — the creator owns <c>dtMapRoute</c> (CREATOR group); its own sample looping
+    /// back must not overwrite the route it holds (a newer local edit). 📄 <c>DESIGN_Ownership_Groups_And_Grants.md</c>
+    /// §3 F-5, §5.6 S8.</summary>
+    [Fact]
+    public void Ingress_OnTheRecordedOwner_DoesNotOverwriteItsOwnRoute()
+    {
+        var (world, translator, entity) = RouteOwnedBy(primaryOwner: 1, local: 1);
+        ProcessAndPlay(world, translator, MakeMapRoute(entityId: 10, waypointCount: 5));
+
+        Assert.Equal(3, ((ISimulationView)world).GetManagedComponentRO<RoutePlan>(entity).Waypoints.Count);
+    }
+
+    /// <summary>The converse: a replica takes the owner's route.</summary>
+    [Fact]
+    public void Ingress_OnAReplica_TakesTheOwnersRoute()
+    {
+        var (world, translator, entity) = RouteOwnedBy(primaryOwner: 1, local: 2);
+        ProcessAndPlay(world, translator, MakeMapRoute(entityId: 10, waypointCount: 5));
+
+        Assert.Equal(5, ((ISimulationView)world).GetManagedComponentRO<RoutePlan>(entity).Waypoints.Count);
+    }
+
+    private static (EntityRepository, MapRouteIngressTranslator, Entity) RouteOwnedBy(int primaryOwner, int local)
+    {
+        var world = CreateEcsWorld();
+        world.RegisterManagedComponent<DescriptorOwnership>();
+        var entityMap = new NetworkEntityMap();
+        var entity    = world.CreateEntity();
+        world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: primaryOwner, localNodeId: local));
+        var plan = new RoutePlan();
+        plan.Mutate(wps => { for (int i = 0; i < 3; i++) wps.Add(new RouteWaypoint { Position = new Vector3(i, i, 0) }); });
+        world.SetManagedComponent(entity, plan);
+        entityMap.Register(10, entity);
+        return (world, new MapRouteIngressTranslator(null, entityMap, new StubGeoTransform()), entity);
+    }
+
+    private static void ProcessAndPlay(EntityRepository world, MapRouteIngressTranslator translator, MapRoute sample)
+    {
+        var view = (ISimulationView)world;
+        var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
+        translator.ProcessSample(in sample, cmd, view);
+        cmd.Playback(world);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateEcsWorld()

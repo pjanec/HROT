@@ -178,9 +178,12 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,
-  patchJson:{...}}` (authority-aware; unregistered keys ignored).
+  patchJson:{...}}` (unregistered keys ignored). ⭐ **Works from ANY perspective** *(`CE-3003`)*: what the
+  active node owns lands here, the rest is sent to its owner — read `write.route` (`direct` · `requested` ·
+  `noMatch`), and for `requested` read the result back from the **owner's** perspective after a tick.
 - Escape hatch (any component field): `edit_component {networkId, componentType, patch:{...}}` (validated;
-  invalid values rejected with 400).
+  invalid values rejected with 400). ⛔ **Owner only** — on a node that does not own the component it refuses
+  with 400 rather than edit a replica the owner overwrites; use `patch_attribute`, or switch perspective.
 
 ### I. Author a scenario
 1. `list_entity_types` → choose a `tkbType`. `get_entity_type {tkbType}` for its components.
@@ -230,7 +233,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: DESCRIPTOR-level and NED-initiated (ruling 2026-09-15): 'descriptors' are network descriptor type ids (get them from get_entity_ownership), never ECS component types.; Only descriptors THIS node owns move — so on a native cluster AllOwnedByThisNode hands off the brain's descriptors but leaves the muscle-owned world-position descriptor where it is.; Save ownership (primaryOwnerId) moves IFF EntityMaster is in the set (MasterOnly and AllOwnedByThisNode include it; a SpecificDescriptors set that omits master leaves it here).; The old owner stops publishing without disposing (entity never blinks out); the new owner confirms by re-publishing EntityMaster. Verify with get_entity_ownership on the new owner..
   Example: `transfer_entity_ownership({"networkId":1000,"newOwnerNodeId":2,"scope":"AllOwnedByThisNode"})` — hand entity 1000 to node 2.
 - **`create_entity_request`** — Create an entity THROUGH the request path (routing + auto-takeover grant). Req `tkbType` (integer), `ownerNodeId?` (integer, def 0), `transform?` (object), `attributesJson?` (string). Returns { networkId, ... } for the created entity, or a 400 on a malformed body.
-  Notes: CE-271 seam ⑤: unlike POST /entities/spawn (a raw SpawnEntityCommand), this uses the create-request pipeline, so routing and the auto-takeover grant both run..
+  Notes: CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', there 'this node'..
 - **`list_scenarios`** — List available scenarios by relative path. No params. Returns Available scenario names (relative paths) for use with load_scenario_edit / load_scenario_live.
   Example: `list_scenarios({})` — discover loadable scenario names.
 
@@ -313,8 +316,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`send_entity_command`** — Publish an FDP event by type name. Req `eventType` (string), `payload?` (object), `wait?` (boolean). Returns ok:true envelope. awaited:false if sim not running (not an error).
   Notes: Set wait:true to attempt correlated-ack wait — only effective while time advances, else awaited:false.; awaited:false is NOT an error — it means time was not advancing..
   Example: `send_entity_command({"eventType":"MissionControlIntent","payload":{"targetId":1000},"wait":false})` — publish MissionControlIntent event.
-- **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string), `ownerNodeId?` (number), `reliable?` (boolean), `reliableTimeoutSeconds?` (number). Returns ok:true envelope. Spawn is processed on the next tick (step to realize it).
-  Notes: Spawn is queued and processed on the next tick — call step to realize it.; Use list_entity_types to discover valid tkbType values..
+- **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string), `ownerNodeId?` (number), `reliable?` (boolean), `reliableTimeoutSeconds?` (number). Returns { spawned, tkbType, reliable, requestId, ownerNodeId, awaited, reason }. Created through the node's creation pack (request → spawn + ownership grants) on the next ticks — step to realize it.
+  Notes: Spawn is queued and processed on the next tick — call step to realize it.; CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.; Use list_entity_types to discover valid tkbType values.; CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor)..
   Example: `spawn_entity({"tkbType":1001,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1001 at position (100,0,50).
 
 ### Group I — Recording / replay

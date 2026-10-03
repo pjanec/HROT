@@ -32,6 +32,13 @@ namespace Hrot.Network.NED.SimHost
         private readonly List<(long ParentNetworkId, int LocalChildIndex)> _orphans = new();
         private readonly NetworkEntityMap _entityMap;
 
+        // ⭐ CE-3002 / R-179 — the brain names each child sensor's solver. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.8.
+        private readonly Hrot.Network.Routing.IClusterStateCache? _clusterCache;
+        private readonly int _localNodeId;
+        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
+        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
+        private OwnershipApplier? _applier;
+
         // What was last written per sensor entity. ⭐ A reliable topic that publishes ONCE never
         // carries a later parameter change (epoch bump, new area) to the Muscle — the old
         // SmartEgressUtil gate did exactly that, and the distributed rails worked around it by
@@ -53,11 +60,17 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public EqsSensorConfigEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
+        /// <param name="clusterCache">⭐ R-179: where the solver of each child sensor is picked (least-loaded Perception
+        /// node). <see langword="null"/> names no solver — every Perception node solves and the record gates the publish.</param>
+        /// <param name="localNodeId">This node, for the ownership record the pick writes.</param>
+        public EqsSensorConfigEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap,
+                                               Hrot.Network.Routing.IClusterStateCache? clusterCache = null, int localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
-            _entityMap = entityMap;
+            _entityMap    = entityMap;
+            _clusterCache = clusterCache;
+            _localNodeId  = localNodeId;
             _writer = new DdsWriter<EqsSensorConfigTopic>(participant, DdsTopicName);
             _reader = new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName);
         }
@@ -85,7 +98,9 @@ namespace Hrot.Network.NED.SimHost
                 if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
                 _liveKeys.Add((parentNetworkId, localChildIndex));
 
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                // ⭐ CE-507 (S6): the key is (descriptor, part instance) — the raw ordinal matched no record entry, so the
+                //   gate always fell to the parent's PRIMARY owner, whatever the brain group's grant said.
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, localChildIndex))) continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
                 if (kind == EqsSensorKeyKind.Child) _parentOf[entity] = parent;
@@ -115,7 +130,11 @@ namespace Hrot.Network.NED.SimHost
                     ContextSlot1NetworkId = slot1,
                     ContextSlot2NetworkId = slot2,
                     Suspended             = sensor.Suspended,
+                    // ⭐ R-179: a child sensor names its solver; a legacy instance-0 sensor keeps its Perception group.
+                    SolverNodeId          = localChildIndex == 0 ? 0 : SolverFor((parentNetworkId, localChildIndex)),
                 };
+                if (topic.SolverNodeId != 0 && !parent.IsNull && view is EntityRepository repo)
+                    RecordSolver(repo, parent, (parentNetworkId, localChildIndex), topic.SolverNodeId);
 
                 if (_published.TryGetValue(entity, out var last) && SameConfig(in last, in topic))
                     continue;
@@ -177,7 +196,7 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (var entity in removalQuery)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                if (!view.HasAuthority(entity, OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
                 if (!view.HasManagedComponent<EgressPublicationState>(entity)) continue;
 
                 var state = view.GetManagedComponentRO<EgressPublicationState>(entity);
@@ -233,7 +252,7 @@ namespace Hrot.Network.NED.SimHost
                 if (key.LocalChildIndex == 0 || last.Suspended) continue;     // legacy, or already ended
                 if (_liveKeys.Contains(key) || _suspendedByUs.Contains(key)) continue;
                 if (!_entityMap.TryGetEntity(key.ParentNetworkId, out var parent) || !view.IsAlive(parent)) continue;
-                if (!view.HasAuthority(parent, DescriptorOrdinal)) continue;    // another node's sensor
+                if (!view.HasAuthority(parent, OwnershipExtensions.PackKey(DescriptorOrdinal, key.LocalChildIndex))) continue;    // another node's sensor
                 _orphans.Add(key);
             }
 
@@ -245,6 +264,40 @@ namespace Hrot.Network.NED.SimHost
                 _suspendedByUs.Add(key);
                 SentSampleCount++;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-179</c> — the solver of one child sensor: picked ONCE (the least-loaded Perception node) and kept; a
+        /// sensor this node inherited keeps the solver already on the wire; re-picked only when that node has left the
+        /// cluster cache (a departure removes it, S7). <c>0</c> while no Perception node is known — the next scan retries.
+        /// </summary>
+        private int SolverFor((long ParentNetworkId, int LocalChildIndex) key)
+        {
+            if (_clusterCache == null) return 0;
+            var known = _clusterCache.AllNodeIds();
+            if (_solverOf.TryGetValue(key, out int solver) && Contains(known, solver)) return solver;
+            solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)
+                ? wire.SolverNodeId
+                : _clusterCache.GetLeastLoadedNode(NodeRole.Perception) ?? 0;
+            if (solver != 0) _solverOf[key] = solver;
+            return solver;
+        }
+
+        private static bool Contains(IReadOnlyList<int> nodes, int node)
+        {
+            for (int i = 0; i < nodes.Count; i++) if (nodes[i] == node) return true;
+            return false;
+        }
+
+        /// <summary>⭐ R-179: the config is the per-sensor grant — this node records the solver as the owner of result
+        /// part <c>n</c>, as every Perception node does on reading the config.</summary>
+        private void RecordSolver(EntityRepository repo, Entity parent, (long ParentNetworkId, int LocalChildIndex) key, int solver)
+        {
+            if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
+            _applier ??= new OwnershipApplier(_localNodeId,
+                Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo));
+            _applier.Apply(repo, parent, OwnershipExtensions.PackKey((long)EDescriptorType.dtEqsResult, key.LocalChildIndex), solver);
+            _recordedSolver[key] = solver;
         }
 
         /// <inheritdoc/>
@@ -281,7 +334,8 @@ namespace Hrot.Network.NED.SimHost
             && a.ContextSlot0NetworkId == b.ContextSlot0NetworkId
             && a.ContextSlot1NetworkId == b.ContextSlot1NetworkId
             && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId
-            && a.Suspended             == b.Suspended;
+            && a.Suspended             == b.Suspended
+            && a.SolverNodeId          == b.SolverNodeId;   // R-179: a re-pick is a change the solvers must hear
     }
 }
 

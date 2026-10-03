@@ -11,6 +11,8 @@ related-designs:
     descriptors): part ids allocated and reused, an `Active=false` write instead of a dispose (D5).
   - ../DESIGN_Distributed_Scenario_Persistence.md — §6c maps this spec onto our ECS (PrimaryOwnerId as
     the mirror of EntityMaster ownership) and records the compliance gap.
+  - ../blueprints/Architect_Question_79_One_Ownership_Truth.md — §0.10-§0.12 apply this spec's multi-instance,
+    disposal (partial-owner crash ⇒ master reclaims) and external-OwnershipUpdate rules to our push-only ownership.
 -->
 
 # Entities made of descriptors

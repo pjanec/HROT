@@ -173,6 +173,8 @@ classDiagram
     note for ScenarioOrbatAdapter "IEditorLogic.ActivateTool replaced by the E3 event"
 ```
 
+⚠ **As built, `2026-10-02` (`CE-3004`):** a `ScenarioMissionService` is only half of the seam — its commits resolve when the OWNING HOST calls `PollAcks()` once per frame. `EditorSubsystem` did; `CgfSubsystem` built the same service and never polled, so every commit on CGF (its Mission panel and the `/missions/*` routes) stayed pending although the plan was applied. ⭐ `CgfSubsystem.Update` now polls right after `Kernel.Update()`, where `MissionControlExecutionSystem` (`CgfLogicPack`) publishes the ack. ⇒ any new host that builds the service must poll it too.
+
 ## 6. ⭐⭐ SEQUENCE — how CGF gets a spawner window, and where the old wall stood
 
 ```mermaid

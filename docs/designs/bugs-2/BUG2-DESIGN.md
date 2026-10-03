@@ -62,6 +62,10 @@ samples without an attached identity blob. Because the `EntityMaster` ingress tr
 the `OwnerId` from the sender identity metadata, all owner resolution silently fails when this
 call is missing.
 
+> ⚠ **`2026-10-02` correction:** the participants did enable tracking, but the translator **never read it** — every
+> replica recorded the owner as `-1` until `CE-517` built it (`EntityMasterIngressTranslator`, see
+> [`DESIGN_Ownership_Groups_And_Grants.md`](../../DESIGN_Ownership_Groups_And_Grants.md) §5.6 S7a).
+
 The configuration values come from already-available variables at each call site:
 
 | Application | `AppDomainId` | `AppInstanceId` |

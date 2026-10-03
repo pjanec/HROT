@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         result.Add(new Fdp.Core.EntityInfo
                         {
                             Name = d.EntityInfo.Name,
-                            ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
+                            ForceId = ForceIdMapping.FromWire(d.EntityInfo.ForceIdentifier),
                         });
                         break;
 

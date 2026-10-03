@@ -52,6 +52,9 @@ known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is e
   ABSENCE" (IG registers no save handler). ⭐ THIS design supersedes that enforcement with a
   UNIFORM per-entity GATE (§6): every host runs the same gated save; IG's file is empty by the
   gate, not by a missing handler. §7.1's ABSENCE becomes belt-and-suspenders, not the mechanism.
+  ✅ (2026-10-02, user R-166) §6c's "an EXTERNAL OwnershipUpdate is delivered generically" holds:
+  external nodes use our `SST_OwnershipUpdate`, which IS the spec's message (int node ids, no NodeId
+  mapping needed). The unused spec-shaped `GenericMessages.OwnershipUpdate` struct was deleted 2026-10-02.
 superseded-by: —
 design-basis:
   - docs/DESIGN_Node_Roles_And_Policies.md §4 (ownership axes), §5 (persistence policy R-140),
@@ -66,6 +69,7 @@ design-basis:
     EntityMaster lifecycle, per-descriptor ownership, the generic OwnershipUpdate transfer — §6c maps it
     onto our ECS and records the PrimaryOwnerId-mirror compliance gap)
 related-designs:
+  - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns how a SENDER turns the component claim into "may I publish" (one derived gate; CE-500).
   - docs/designs/routes-1/ROUTES1-DESIGN.md — owns the ROUTE model; §16 records that RoutePlan has no
     scenario translator, so routes pass this gate as entities but reload with no waypoints (BP-518).
   - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the

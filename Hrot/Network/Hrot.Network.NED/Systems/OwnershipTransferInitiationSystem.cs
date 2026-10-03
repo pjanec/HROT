@@ -41,6 +41,7 @@ namespace Hrot.Network.Systems
         private readonly NetworkEntityMap       _entityMap;
         private readonly int                    _localNodeId;
         private readonly DescriptorOwnershipMap _descriptorMap;
+        private readonly OwnershipApplier       _applier;
 
         private readonly List<long> _scratch = new();
 
@@ -52,6 +53,7 @@ namespace Hrot.Network.Systems
             _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId   = localNodeId;
             _descriptorMap = descriptorMap ?? throw new ArgumentNullException(nameof(descriptorMap));
+            _applier       = new OwnershipApplier(localNodeId, descriptorMap);
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -73,28 +75,18 @@ namespace Hrot.Network.Systems
                     continue;
                 }
 
-                DescriptorOwnership ownership = repo.HasManagedComponent<DescriptorOwnership>(entity)
-                    ? repo.GetComponent<DescriptorOwnership>(entity)
-                    : new DescriptorOwnership();
-
                 long? master = _descriptorMap.PrimaryOwnerDescriptorOrdinal;
-                bool masterMoved = false;
+                bool masterMoved = master.HasValue && _scratch.Contains(master.Value);
 
                 foreach (long ordinal in _scratch)
                 {
                     long packedKey = OwnershipExtensions.PackKey(ordinal, 0);
 
-                    // 1. local ownership dictionary → new owner
-                    ownership.SetOwner(packedKey, req.NewOwnerNodeId);
-
-                    // 2. drop our AuthorityMask for the descriptor's components (stop publishing, no dispose)
-                    foreach (int componentId in _descriptorMap.GetComponentIdsForDescriptor(ordinal))
-                        if (repo.HasComponentByTypeId(entity, componentId))
-                            repo.SetAuthority(entity, componentId, false);
-
-                    // 3. save-ownership mirror for the master descriptor
-                    if (master.HasValue && master.Value == ordinal)
-                        masterMoved = true;
+                    // 1-3. record → new owner, our claim of the descriptor's components dropped (stop publishing, no
+                    //      dispose), and for the master descriptor the save-ownership mirror. ⭐ S5: the same
+                    //      OwnershipApplier the receiving nodes run, so the giver's record and theirs agree — including
+                    //      the MasterOnly pin of every other descriptor to us (Transfer design §3).
+                    _applier.Apply(repo, entity, packedKey, req.NewOwnerNodeId);
 
                     // 4. wire: OwnershipUpdate (OriginNodeId = us) → OwnershipUpdateTranslator egress → DDS
                     repo.Bus.Publish(new OwnershipUpdate
@@ -104,14 +96,6 @@ namespace Hrot.Network.Systems
                         NewOwnerNodeId = req.NewOwnerNodeId,
                         OriginNodeId   = _localNodeId,
                     });
-                }
-
-                repo.SetManagedComponent(entity, ownership);
-
-                if (masterMoved && repo.HasComponent<NetworkAuthority>(entity))
-                {
-                    int existingLocal = repo.GetComponentRO<NetworkAuthority>(entity).LocalNodeId;
-                    repo.SetComponent(entity, new NetworkAuthority(req.NewOwnerNodeId, existingLocal));
                 }
 
                 FdpLog<OwnershipTransferInitiationSystem>.Info(

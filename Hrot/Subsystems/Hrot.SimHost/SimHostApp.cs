@@ -197,6 +197,9 @@ namespace Hrot.SimHost
         /// <summary>Returns the ECS world, or <c>null</c> before <see cref="InitializeEmbedded"/> / <see cref="OnLoad"/> completes.</summary>
         public EntityRepository? WorldOrNull => _initialized ? _world : null;
 
+        /// <summary>⭐ CE-515 — this node's entity-creation pack, for the subsystem to expose.</summary>
+        public Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _bootstrapper?.EntityCreation;
+
         /// <summary>Returns the network entity map after initialization.</summary>
         public NetworkEntityMap EntityMap => _entityMap
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -846,15 +849,23 @@ namespace Hrot.SimHost
                 });
             }
 
-            _world.Bus.PublishManaged(new SpawnEntityCommand
+            // ⭐⭐ S3 / CE-515 — through this node's entity-creation pack, the ONE creation path, so the creator
+            //   computes and publishes the role-group grants (push-only, R-164) exactly as production does. It used
+            //   to publish a raw SpawnEntityCommand, which bypasses CreateEntityRequestSystem and so granted
+            //   NOTHING: every test built on this hook was blind to CE-500.
+            //   ⚠ The id is pre-allocated so the hook can return it synchronously; on the request path that is the
+            //   scenario-load form, whose only extra effect is not auto-spawning a composite's children.
+            //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3, §5.7.
+            var creation = EntityCreation
+                ?? throw new InvalidOperationException("SimHostApp has no entity-creation pack yet.");
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
             {
-                NetworkId         = networkId,
-                TkbType           = tkbType,
-                DisType           = 0,
-                OwnerNodeId       = 1,
-                InitType          = ReliableInitType.AllPeers,
-                InitialComponents = initialComponents,
-                RequestId         = Guid.Empty
+                RequestId             = Guid.NewGuid(),
+                OwnerAppInstanceId    = creation.NodeId,
+                TkbType               = tkbType,
+                InitType              = ReliableInitType.AllPeers,
+                InitialComponents     = initialComponents,
+                PreAllocatedNetworkId = networkId,
             });
 
             return networkId;
@@ -905,6 +916,13 @@ namespace Hrot.SimHost
             intent.TargetSpeed      = speed;
             intent.ArrivalRadius    = 20f;
             unchecked { intent.IntentId++; }
+
+            // ⭐ Stamp this write NEWER than any delta scan already made. ⛔ A hook writes BETWEEN frames, at the version
+            //   NavigationIntentBridgeSystem recorded as `_lastScanTick` at the end of the last frame — its QueryDelta
+            //   asks for "newer than", so the intent was skipped forever and the vehicle never moved
+            //   (SpawnMovingVehicleIntegrationTests, measured 2026-10-01: NavigationStatus.IntentId=1, NavState.Mode=None).
+            //   Production intents arrive DURING a frame (ingress, after Tick()), so they never hit this.
+            _world.BumpMemoryVersion();
 
             if (hasIntent)
                 _world.SetComponent(entity, intent);

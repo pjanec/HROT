@@ -52,4 +52,15 @@ internal static class ClusterDebugApiComposition
         => world => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
                               .Select(s => s.AiDebugSurface)
                               .FirstOrDefault(a => a is not null && ReferenceEquals(a.World, world));
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-515</c> — the entity-creation pack of the subsystem that OWNS <c>world</c> (the active perspective's), on
+    /// EVERY node that builds one. Replaces an IG-only lookup, which made "SimHost creates" and "CGF creates" impossible
+    /// to drive over HTTP (<c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.7).
+    /// </summary>
+    public static Func<Fdp.Core.EntityRepository, Hrot.Common.EntityCreation.EntityCreation?> EntityCreation(
+        IEnumerable<object> subsystems)
+        => world => subsystems.OfType<Hrot.Common.EntityCreation.IEntityCreationHost>()
+                              .Select(s => s.EntityCreation)
+                              .FirstOrDefault(c => c is not null && ReferenceEquals(c.World, world));
 }

@@ -482,6 +482,19 @@ public sealed class NedReplicationModule : INedReplicationModule
         // == local, same SetAuthority/SetOwner the takeover already did).
         registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
+        // ── Record recompute — EVERY node (R-159, ownership build S5) ────────
+        // After every OwnershipUpdate this node sees, and on creation/promotion (ConstructionOrder), the record of
+        // each descriptor is made to agree with the claim — except a granted descriptor still in its F7 window
+        // (OutgoingGrantsPending). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S5.
+        registry.RegisterSystem(new OwnershipRecomputeSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+
+        // ── Partial-owner reclaim — EVERY node (R-167, ownership build S7) ───
+        // When a node leaves (ClusterCapabilityIngestSystem raises NodeDeparted from its heartbeat going not-alive),
+        // every key whose record names it returns to the entity's primary owner, and a grant whose target left before
+        // taking over is taken back by its creator — a direct call on every node, no message.
+        // 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.3, §5.6 S7.
+        registry.RegisterSystem(new PartialOwnerReclaimSystem(_localNodeId, _descriptorOwnershipMap));
+
         // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
         // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity
         // (or a subset of its descriptors) it owns to another node; the system is a no-op on a
@@ -501,17 +514,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         // TearDown lifecycle when destroyed. If GhostDestructionSystem ran here too, it would
         // consume the DestroyEntityCommand first and bypass TearDown, skipping EntityMaster
         // DISPOSE publication to DDS (and thus the IG ghost would never be removed).
-        bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
-
-        // ── LocalAuthorityYieldSystem (pure-Brain only) ──────────────────────
-        // (OwnershipIngressSystem was pure-Brain-here + pure-IG-above; it is now registered
-        // role-independently below — CE-276 — so ANY node can APPLY an incoming ownership update,
-        // which is what lets a Muscle receive an EntityMaster transfer. LocalAuthorityYieldSystem
-        // stays pure-Brain: it is the Brain yielding its bits when a Muscle takes over.)
-        if (pureBrainRole)
-        {
-            registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
-        }
+        // ── LocalAuthorityYieldSystem (EVERY NED host) ───────────────────────
+        // ⭐⭐ CE-508 — whichever node creates an entity and grants a group away gives up that group's claim the
+        //    same way (push-only ownership, docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2). It used to be
+        //    pure-Brain only, with no recorded reason (Q79 §0.2 F15). It acts only on grants addressed to OTHER
+        //    nodes, so a node that grants nothing is unaffected. (OwnershipIngressSystem is role-independent
+        //    too — CE-276.)
+        registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
 
 
@@ -613,29 +622,9 @@ public sealed class NedReplicationModule : INedReplicationModule
             foreach (var t in _cognitiveTranslators)
                 _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
 
-        // Explicit mapping: WorldPos descriptor represents the entire physical/kinematic authority block.
-        // GeoSpatialIngressTranslator writes NetworkTransform (ordinal 10), but the authoritative
-        // components on the Muscle side are SimTransform + SimVelocity (fed by SimTransformBridgeSystem)
-        // plus the CarKinem physics state that CarKinematicsSystem requires write access to.
-        // DeferredTakeoverSystem uses these mappings to SetAuthority(entity, componentId, true)
-        // when the Muscle receives a split-authority WorldPos delegation.
-        // All five IDs are passed in a single call to avoid overwriting the prior entry.
-        _descriptorOwnershipMap.RegisterMapping(
-            (long)EDescriptorType.dtWorldPos,
-            ComponentType<SimTransform>.ID,
-            ComponentType<SimVelocity>.ID,
-            ComponentType<VehicleState>.ID,
-            ComponentType<VehicleParams>.ID,
-            ComponentType<NavState>.ID);
-
-        // Explicit mapping: NavigationStatus descriptor -> NavigationStatus ECS component.
-        // NavigationStatusEgressTranslator (Muscle-only) provides TargetComponentIds for Muscle,
-        // but the Brain's NavigationStatusIngressTranslator has empty TargetComponentIds.
-        // This mapping ensures OwnershipIngressSystem on Brain clears NavigationStatus authority
-        // when SimHost claims dtNavigationStatus via DeferredTakeover.
-        _descriptorOwnershipMap.RegisterMapping(
-            (long)EDescriptorType.dtNavigationStatus,
-            NavigationContractsComponentIds.NavigationStatus);
+        // ⭐ S3 — the explicit dtWorldPos / dtNavigationStatus mappings moved INTO NedOwnershipGroupBinding.Apply
+        //   (below), so the binding is the ONE source of every group descriptor and the grant strategy can read
+        //   the same lists without a module instance. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3.
 
         // ⭐⭐⭐ OQ12 / CE-275 ④ — BDC compliance: the EntityMaster descriptor DEFINES entity /
         // primary (save) ownership. Record its ordinal so the transport-agnostic
@@ -645,6 +634,9 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ownership transfer, which may originate from an EXTERNAL system handing us an entity.
         // 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
         _descriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal = (long)EDescriptorType.dtEntityMaster;
+
+        // ⭐⭐ Ownership groups (DESIGN_Ownership_Groups_And_Grants.md §2, step S1) — LAST, after every mapping.
+        NedOwnershipGroupBinding.Apply(_descriptorOwnershipMap, _localNodeId);
     }
 
     public void Tick(ISimulationView view, float dt)
@@ -741,6 +733,7 @@ public sealed class NedReplicationModule : INedReplicationModule
                 if (!_entityMap.TryGetEntity(cmd.NetworkId, out Entity entity)) continue;
                 if (!repo.IsAlive(entity)) continue;
 
+                Fdp.Toolkit.Replication.Components.OutgoingGrantsPending? pending = null;
                 foreach (var grant in cmd.Grants)
                 {
                     if (grant.NodeId == _localNodeId) continue;
@@ -751,7 +744,16 @@ public sealed class NedReplicationModule : INedReplicationModule
                         if (repo.HasComponentByTypeId(entity, cid))
                             repo.SetAuthority(entity, cid, false);
                     }
+
+                    // ⭐ S5 — the claim is gone but the record still says "mine" until the grantee confirms (F7):
+                    //   mark the descriptor so OwnershipRecomputeSystem leaves it alone in that window (Q79 P6).
+                    pending ??= repo.HasManagedComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
+                        ? repo.GetComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
+                        : new Fdp.Toolkit.Replication.Components.OutgoingGrantsPending();
+                    pending.Descriptors[grant.DescriptorTypeId] = grant.NodeId;
                 }
+                if (pending != null)
+                    repo.SetManagedComponent(entity, pending);
             }
         }
     }

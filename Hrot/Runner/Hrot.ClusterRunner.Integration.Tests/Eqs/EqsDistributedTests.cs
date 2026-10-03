@@ -6,6 +6,7 @@ using System.Threading;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
@@ -341,7 +342,12 @@ public sealed class EqsDistributedTests
         Place(sim, SimEntity(harness, hostileB),    80f,  90f, ForceId.Hostile);
         Place(sim, SimEntity(harness, hostileOut), 300f, 300f, ForceId.Hostile);
         Place(sim, SimEntity(harness, friendlyIn),  95f, 105f, ForceId.Friend);
-        Place(sim, SimEntity(harness, wreckIn),    120f,  80f, ForceId.Hostile, health: 0f);
+        Place(sim, SimEntity(harness, wreckIn),    120f,  80f, ForceId.Hostile);
+        // ⭐ S8 (push-only): Health is in the BRAIN group, so on a Muscle-created T72 it is owned by CGF, and the
+        //   Muscle's copy is a replica that follows CGF's dtEntityDamage. Kill the wreck on the node that CLAIMS Health
+        //   — as damage is applied in production. (Writing it on the Muscle only stuck while the Muscle wrongly
+        //   ignored the owner's health — the CE-523 replica bug.) 📄 DESIGN_Ownership_Groups_And_Grants.md §5.6 S8.
+        KillOnTheHealthOwner(harness, wreckIn);
         Assert.True(harness.PumpUntil(() => ForceIs(harness, ForceId.Hostile, hostileA, hostileB, hostileOut, wreckIn)
                                           && ForceIs(harness, ForceId.Friend, friendlyIn), timeoutFrames: 2000),
             $"Forces must settle on the Muscle after republishing. {Describe(harness, everything)}");
@@ -444,6 +450,58 @@ public sealed class EqsDistributedTests
             $"muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)} (areaTwo={SimEntity(harness, areaTwo)}, " +
             $"epoch={MuscleCarrierEpoch(harness, commanderNet)}); brain answer=[{string.Join(",", EqsTargets(harness, sensor))}] " +
             $"brain epoch={cgf.GetComponentRO<EqsSensor>(sensor).Epoch}");
+    }
+
+    /// <summary>
+    /// ⭐ S6 / <c>CE-507</c>: the commander is created by the MUSCLE (SimHost), so the Brain holds its brain group only
+    /// by GRANT — the sensor config's record names CGF while the primary owner stays SimHost. The config sender used
+    /// to gate on the raw descriptor ordinal, which matches no record entry and fell to the primary owner, so CGF never
+    /// published the sensor and EQS never answered for a Muscle-created entity (the CE-500 class, for EQS). 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S6, §5.7 E7.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void EqsSensor_OnAMuscleCreatedCommander_ReachesTheMuscle_AndAnswersTheBrain()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+
+        long area         = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        long inside       = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        long commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // ⭐ created by SimHost
+
+        long[] everything = { area, inside, commanderNet };
+        Assert.True(harness.PumpUntil(() => everything.All(n =>
+                harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
+            "All entities must exist on both nodes.");
+
+        var square = new List<Vector2> { new(-20, -20), new(20, -20), new(20, 20), new(-20, 20) };
+        Place(sim, SimEntity(harness, area), 100f, 100f, ForceId.Neutral);
+        sim.SetManagedComponent(SimEntity(harness, area), new EditablePolyline { Points = new List<Vector2>(square) });
+        Place(sim, SimEntity(harness, inside), 105f, 95f, ForceId.Hostile);
+        Assert.True(harness.PumpUntil(() => ForceIs(harness, ForceId.Hostile, inside), timeoutFrames: 2000),
+            "Forces must settle on the Muscle after republishing.");
+
+        var cgf = harness.Cgf!.World!;
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(area, out Entity cgfArea);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(commanderNet, out Entity cgfCommander);
+
+        // The Brain holds the commander's brain group by grant, not as its primary owner.
+        long sensorKey = OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEqsSensorConfig, 0);
+        Assert.True(harness.PumpUntil(() => ((ISimulationView)cgf).HasAuthority(cgfCommander, sensorKey), timeoutFrames: 3000),
+            "CGF must hold the commander's sensor-config descriptor by the brain-group grant.");
+        Assert.NotEqual(cgf.GetComponentRO<NetworkAuthority>(cgfCommander).LocalNodeId,
+                        cgf.GetComponentRO<NetworkAuthority>(cgfCommander).PrimaryOwnerId);
+
+        Entity sensor = cgf.CreateEntity();
+        cgf.AddComponent(sensor, new PartMetadata { ParentEntity = cgfCommander, InstanceId = AreaChildIndex });
+        cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfArea, ForceId.Hostile, epoch: 1u));
+        cgf.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<long> { inside }), timeoutFrames: 3000),
+            $"EQS must answer for a sensor on a Muscle-created commander. muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)}; " +
+            $"brain answer=[{string.Join(",", EqsTargets(harness, sensor))}]");
     }
 
     // ── T-DIS6..10: the SCENARIO MATRIX ─────────────────────────────────────────────────
@@ -691,7 +749,11 @@ public sealed class EqsDistributedTests
         }
 
         public void Put(long net, float x, float y, ForceId force, float? health = null)
-            => Place(Sim, SimEntity(H, net), x, y, force, health);
+        {
+            Place(Sim, SimEntity(H, net), x, y, force);
+            // ⭐ S8: Health is owned by the Brain group's holder — kill on that node, never on a replica.
+            if (health is float h) { Assert.Equal(0f, h); KillOnTheHealthOwner(H, net); }
+        }
 
         public void Delete(long net)
         {
@@ -744,14 +806,42 @@ public sealed class EqsDistributedTests
         public EntityRepository Sim => H.SimHost.World!;
         public EntityRepository Cgf => H.Cgf!.World!;
 
-        public LifecycleRig()
+        /// <param name="createdThroughThePack">⭐ R-179: create the commander as production does — a request to CGF's
+        /// creation pack, so the ownership strategy decides the grants — instead of the split-authority hook, which
+        /// grants the Perception group to the Muscle by hand.</param>
+        public LifecycleRig(long? createdThroughThePack = null)
         {
             H = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _lifecycleDomain));
-            Commander = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+            Commander = createdThroughThePack is long tkb
+                ? CreateThroughThePack(tkb)
+                : H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
             Assert.True(H.PumpUntil(() => H.SimHost.TestHook_EntityMap.TryGetEntity(Commander, out _)
                                        && H.Cgf!.GhostEntityMap!.TryGetEntity(Commander, out _), timeoutFrames: 3000),
                 "The commander must exist on both nodes.");
         }
+
+        private long CreateThroughThePack(long tkb)
+        {
+            var creation = ((Hrot.Common.EntityCreation.IEntityCreationHost)H.Cgf!).EntityCreation!;
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = tkb,
+            });
+            long net = 0;
+            Assert.True(H.PumpUntil(() =>
+            {
+                foreach (var e in Cgf.Query().With<TkbIdentity>().With<NetworkIdentity>().Build())
+                    if (Cgf.GetComponentRO<TkbIdentity>(e).TkbType == tkb) { net = Cgf.GetComponentRO<NetworkIdentity>(e).Value; return true; }
+                return false;
+            }, timeoutFrames: 3000), $"CGF must create tkb {tkb} through its pack.");
+            return net;
+        }
+
+        /// <summary>The recorded owner of result part <paramref name="part"/> of the commander on a node.</summary>
+        public static int? ResultOwner(EntityRepository world, Entity parent, int part)
+            => world.HasManagedComponent<DescriptorOwnership>(parent) &&
+               world.GetComponent<DescriptorOwnership>(parent).TryGetOwner(
+                   OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEqsResult, part), out int o) ? o : null;
 
         public void Dispose() => H.Dispose();
 
@@ -1000,6 +1090,126 @@ public sealed class EqsDistributedTests
             "The next lifetime on the same part id must be answered like a fresh carrier's.");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-492</c> — an instance with TWO writers (after an authority move: the old owner's last ACTIVE sample, the new
+    /// owner's SUSPEND from its orphan sweep) ends in the state of the NEWEST sample by source time, whatever order a
+    /// late-joining Muscle receives them in. 🔴 Before: the sample that ARRIVED last won, so an ended sensor could be solved
+    /// forever (case ①) or a new lifetime silenced (case ③).
+    /// </summary>
+    /// <remarks>Real DDS gives a test control over neither arrival order nor source time, so the rail plays chosen
+    /// arrivals into a Muscle ingress over the rig's REAL Muscle world (its entity map, parent ghost, command playback).
+    /// The epochs are EQUAL on purpose: the owner run is not unique across an authority move (behaviours lane, design
+    /// §3a), so the epoch cannot tell the cases apart.</remarks>
+    [Fact(Timeout = 120_000)]
+    public void CE492_TwoWritersOnOneInstance_TheNewestSourceTimeWins_WhateverTheArrivalOrder()
+    {
+        using var rig = new LifecycleRig();
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null, rig.H.SimHost.TestHook_EntityMap);
+
+        EqsSensorConfigTopic Config(int part, bool suspended) => new()
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 0x0002_0001u,
+            SearchRadius = 25f, Suspended = suspended,
+        };
+        void Arrive(params (EqsSensorConfigTopic Data, long SourceTime)[] arrivals)
+        {
+            var cmd = new EntityCommandBuffer();
+            foreach (var (data, sourceTime) in arrivals) ingress.Receive(cmd, data, valid: true, disposed: false, sourceTime);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+
+        // ① the hazard: the new owner suspended (t=200); the old owner's last ACTIVE (t=100) arrives after it ⇒ stays ended.
+        var before = rig.Carrier(11);
+        Arrive((Config(11, suspended: true), 200), (Config(11, suspended: false), 100));
+        var c1 = rig.Carrier(11);
+        Assert.True(c1.IsNull || rig.CarrierSensor(11).Suspended,
+            "A stale ACTIVE sample from the old owner must not revive a sensor the new owner ended. "
+            + $"(carrier before={before}, after={c1}, stale samples={ingress.StaleSampleCount}"
+            + (c1.IsNull ? ")" : $", its epoch={rig.CarrierSensor(11).Epoch:X} radius={rig.CarrierSensor(11).SearchRadius} template={rig.CarrierSensor(11).BlueprintId})"));
+
+        // ② one writer ends a lifetime and starts the next (same epoch): the later one wins ⇒ solved.
+        Arrive((Config(12, suspended: true), 100), (Config(12, suspended: false), 200));
+        Assert.False(rig.Carrier(12).IsNull, "The new lifetime must get a carrier.");
+        Assert.False(rig.CarrierSensor(12).Suspended, "The new lifetime must be solved.");
+
+        // ③ the old owner had ended its sensor (t=100); the new owner's first run is ACTIVE (t=200) and arrives first ⇒
+        //    the old suspend, arriving last, must not silence it.
+        Arrive((Config(13, suspended: false), 200), (Config(13, suspended: true), 100));
+        Assert.False(rig.Carrier(13).IsNull, "The new owner's sensor must get a carrier.");
+        Assert.False(rig.CarrierSensor(13).Suspended, "A stale SUSPEND from the old owner must not silence the new owner's sensor.");
+
+        Assert.Equal(2, ingress.StaleSampleCount);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3002</c> / <c>R-179</c> — the live defect (§5.7.1 E7): a brain WITHOUT vision sensors, created through the
+    /// pack as production does, gets no Perception group grant — yet its EQS sensor is answered, because the brain names
+    /// the solver (the least-loaded Perception node) in the config, and every node records it as the owner of the result
+    /// part. 🔴 Before: the result part fell back to the creator (CGF, no solver) and SimHost's gated egress published 0.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.8.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R179_ABrainWithoutVisionSensors_IsAnswered_ByTheSolverItsBrainNamed()
+    {
+        using var rig = new LifecycleRig(createdThroughThePack: TkbEntityTypes.Unit_TankPlatoon);
+        const int part = 4;
+        var sensor = rig.Sensor(part, epoch: 1, radius: 25f);
+
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(sensor), timeoutFrames: 3000),
+            "A brain without vision sensors must still get its EQS answer.");
+
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity onCgf);
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+        int simNode = rig.Sim.GetComponentRO<NetworkAuthority>(onSim).LocalNodeId;
+        Assert.Equal(simNode, LifecycleRig.ResultOwner(rig.Cgf, onCgf, part));    // the brain recorded its pick…
+        Assert.Equal(simNode, LifecycleRig.ResultOwner(rig.Sim, onSim, part));    // …and so did the solver, from the config
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-179</c> — a Perception node builds a carrier ONLY for a sensor whose config names it; a config naming
+    /// another node builds none here, and moving the solver away stops the carrier this node had. Every node records the
+    /// named solver as the result part's owner. (Driven into a Muscle ingress over the rig's real Muscle world, as the
+    /// CE-492 rail does — real DDS gives no control over who is named.)
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R179_OnlyTheNamedSolverBuildsACarrier_AndEveryNodeRecordsIt()
+    {
+        using var rig = new LifecycleRig();
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+        Assert.True(rig.H.PumpUntil(() => rig.Sim.HasComponent<NetworkAuthority>(onSim), timeoutFrames: 3000));
+        int me = rig.Sim.GetComponentRO<NetworkAuthority>(onSim).LocalNodeId;
+        const int elsewhere = 999;
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null,
+                                                                                    rig.H.SimHost.TestHook_EntityMap, me);
+        long t = 0;
+        void Arrive(int part, int solver)
+        {
+            var cmd = new EntityCommandBuffer();
+            ingress.Receive(cmd, new EqsSensorConfigTopic
+            {
+                ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f,
+                SolverNodeId = solver,
+            }, valid: true, disposed: false, ++t);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+
+        Arrive(21, elsewhere);
+        Assert.True(rig.Carrier(21).IsNull, "Another node's sensor must get no carrier here.");
+        Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 21));
+
+        Arrive(22, me);
+        Arrive(22, me);   // a second sample finds the carrier the first one's playback created
+        Assert.False(rig.Carrier(22).IsNull, "This node's sensor must get a carrier.");
+        Assert.False(rig.CarrierSensor(22).Suspended);
+        Assert.Equal(me, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
+
+        Arrive(22, elsewhere);
+        Assert.True(rig.CarrierSensor(22).Suspended, "A carrier whose sensor moved to another solver must stop solving.");
+        Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
+    }
+
     private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)
     {
         int n = 0;
@@ -1080,6 +1290,30 @@ public sealed class EqsDistributedTests
     }
 
     // Sets position, force and (optionally) health on the Muscle, which owns these entities.
+    /// <summary>Sets <see cref="Health"/> to 0 on whichever node claims it (the Brain group's owner); every replica then
+    /// follows through <c>dtEntityDamage</c>.</summary>
+    private static void KillOnTheHealthOwner(HrotRunnerHarness harness, long net)
+    {
+        Assert.True(harness.PumpUntil(() => Owner() != null, timeoutFrames: 2000),
+            $"Some node must claim Health of {net}.");
+        var (world, e) = Owner()!.Value;
+        world.GetComponentRW<Health>(e) = new Health { Current = 0f, Max = world.GetComponent<Health>(e).Max };
+        Assert.True(harness.PumpUntil(() => harness.SimHost.World!.GetComponent<Health>(SimEntity(harness, net)).Current <= 0f,
+                timeoutFrames: 2000),
+            $"The Muscle's replica of {net} must follow its owner's Health to 0.");
+
+        (EntityRepository, Entity)? Owner()
+        {
+            var sim = harness.SimHost.World!;
+            Entity s = SimEntity(harness, net);
+            if (sim.HasComponent<Health>(s) && sim.HasAuthority<Health>(s)) return (sim, s);
+            var cgf = harness.Cgf!.World!;
+            if (harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity c) && cgf.HasComponent<Health>(c) && cgf.HasAuthority<Health>(c))
+                return (cgf, c);
+            return null;
+        }
+    }
+
     private static void Place(EntityRepository world, Entity e, float x, float y, ForceId force, float? health = null)
     {
         var tf = new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity };

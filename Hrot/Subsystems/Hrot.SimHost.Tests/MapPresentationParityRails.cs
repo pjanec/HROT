@@ -250,7 +250,11 @@ namespace Hrot.SimHost.Tests
         //    measured (IG has no local materialisation — SpawnEntityCommand is forwarded to SimHost) and
         //    whether IG should widen to Base() is the open question CE-141, not this rail's to decide.
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
-        [InlineData("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs")]
+        // ⛔ EditorStrideSubsystem.cs is NOT a case any more (CE-518 ①): CE-209 retired the self-contained
+        //   Stride mode (DESIGN_Stride_Node_Modes.md §13.8), so it HOSTS an EditorSubsystem and its spawn path
+        //   is that editor's pack — covered by the EditorSubsystem case above.
+        //   ⭐ TheStrideEditorObtainsItsSetThroughTheHostedEditor pins the delegation, so it cannot regress
+        //   to a hand-rolled list unnoticed.
         // ⭐ CE-140 step 3 host (a) — the Stride NODE was missing from this list. It obtains the set
         //   through EntityCreationPack.Build, and adding it makes the rail cover every host that has a
         //   TKB spawn path rather than the five that happened to be here first.
@@ -291,6 +295,17 @@ namespace Hrot.SimHost.Tests
               + "(TkbTranslatorSet.Base) nor through EntityCreationPack.Build. A composition root that "
               + "hand-rolls its own list is how CE-137/138/139 happened. "
               + "⚠ Comments are stripped before this check, so documenting the call does not satisfy it.");
+        }
+
+        /// <summary>⭐ CE-518 ① — the Stride editor hosts an <c>EditorSubsystem</c> (CE-209) and builds no
+        /// translator list of its own, so the editor's pack is its set.</summary>
+        [Fact]
+        public void TheStrideEditorObtainsItsSetThroughTheHostedEditor()
+        {
+            var code = StripComments(ReadRepoSource("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs"));
+            Assert.Contains("new EditorSubsystem(", code, System.StringComparison.Ordinal);
+            Assert.DoesNotContain("new List<ITkbEntityTranslator>", code, System.StringComparison.Ordinal);
+            Assert.DoesNotContain("new System.Collections.Generic.List<Fdp.Toolkit.Tkb.ITkbEntityTranslator>", code, System.StringComparison.Ordinal);
         }
 
         // ⭐ CE-160: these two helpers were PRIVATE here and a second rail family needed them.

@@ -59,7 +59,9 @@ namespace Hrot.Network.NED.SimHost
             foreach (var entity in query)
             {
                 // Authority gate: only publish for entities this node owns.
-                if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
+                // ⭐ CE-507 (S6): the descriptor key, not the raw ordinal (which matched no record entry, so the brain
+                //   that holds the granted brain group never published this).
+                if (!view.HasAuthority(entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0))) continue;
 
                 // SmartEgress dirty-tracking: skip entities whose config hasn't changed.
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
@@ -368,6 +370,14 @@ namespace Hrot.Network.NED.SimHost
                     if (repo == null) continue;
                     entity = _ghostCreationSystem.CreateGhost(repo, data.EntityId, view.Tick);
                 }
+
+                // ⭐ S8 / F-5 — skip our OWN sample looping back: the descriptor's RECORDED owner writes this state, so the
+                //   last value it published must not overwrite the one it holds now. ⛔ Recorded owner only (IsRecordedOwner):
+                //   a ghost still being built has no record and takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md
+                //   §3 F-5, §5.6 S8.
+                if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                        view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
+                    continue;
 
                 // ACL transformation: precompute FovCos once at the network boundary.
                 float halfFovRad = data.FovDegrees * 0.5f * (MathF.PI / 180f);

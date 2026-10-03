@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-13
+known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
   capability), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator

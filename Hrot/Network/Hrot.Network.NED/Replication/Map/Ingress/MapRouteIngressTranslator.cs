@@ -147,6 +147,13 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     private void ApplyRouteToEntity(
         Entity entity, in MapRoute data, IEntityCommandBuffer cmd, ISimulationView view)
     {
+        // ⭐ S8 / F-5 — skip our OWN sample looping back: the recorded owner of this descriptor (the creator — CREATOR
+        //   group) edits it, and the value it last published must not overwrite a newer local edit. ⛔ Recorded owner
+        //   only: a ghost still being built takes the sample. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §3 F-5, §5.6 S8.
+        if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
+                view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0)))
+            return;
+
         RoutePlan routePlan;
         if (view.HasManagedComponent<RoutePlan>(entity))
         {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Fdp.Core;
@@ -247,6 +247,96 @@ public class AttributeChangeRequestRoundTripTests
         Assert.True(RotationsMatch(shWorld.GetComponent<SimTransform>(shEntity).Rotation, expected),
             "The owning node's direct write did not land in SimTransform.Rotation.");
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3003</c> — the DEBUG API's attribute patch, on a non-owner, reaches the owner.</b>
+    ///
+    /// <para>📐 Measured live <c>2026-10-02</c> before the fix: <c>POST /entities/{id}/attribute</c> on a node that
+    /// does not own the target compiled the patch onto its own world, skipped every key at the authority gate and
+    /// answered with the unchanged dump — no node sent a request. ⇒ design §5.7 E4/E6 could not be driven.</para>
+    ///
+    /// <para>⭐ This drives <see cref="Hrot.Editor.DebugApi.DebugApiService.PatchEntityAttribute"/> exactly as the
+    /// route does, bound to the IG's world through a perspective dispatcher (the cluster composition's shape), and
+    /// asserts the OWNER's component — not the requester's replica. ⭐ It then asks the owner's own service for the
+    /// same patch, which must report <c>direct</c>: without that, a build where every patch became a request would
+    /// pass too (the reason <see cref="TheOwningNodeWritesTheSameAttributeDirectly"/> exists for the router).</para>
+    ///
+    /// <para>⭐ <b>Red-proof</b> (by inverse edit, not kept): drop the <c>TryPublishJsonPatch</c> call in
+    /// <c>PatchEntityAttribute</c> — the route still answers, SimHost's rotation never changes, and the pump times out.</para>
+    /// </summary>
+    [Fact]
+    public void ANonOwningNodesDebugAttributePatchIsAppliedByTheOwner()
+    {
+        using var harness = new HrotRunnerHarness();
+
+        long networkId = harness.SimHost.TestHook_SpawnEntity(
+            TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
+        Assert.True(harness.PumpUntil(() => IgHasEntity(harness, networkId), SpawnTimeoutFrames),
+            $"IG never received entity netId={networkId} within {SpawnTimeoutFrames} frames.");
+
+        var shWorld = harness.SimHost.World!;
+        Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var shEntity));
+
+        // ── the IG — a non-owner of SimTransform — patches the heading through the debug service ──
+        var geo = shWorld.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
+        var igService = DebugServiceOver("IG", harness.Ig.App.World, harness.Ig.App.TestHook_EntityMap, geo,
+            harness.Ig.App.NedReplication?.DescriptorOwnershipMap);
+        const double TargetHeadingDeg = 137.0;
+        var (igResult, igError) = igService.PatchEntityAttribute(networkId, $"{{\"Heading\":{TargetHeadingDeg}}}");
+        _out.WriteLine($"[D1] IG patch: error={igError ?? "<none>"} write={igResult?["write"]?.ToJsonString()}");
+        Assert.Null(igError);
+        Assert.Equal("requested", igResult?["write"]?["route"]?.GetValue<string>());
+
+        var expected = SimTransformBridgeSystem.HeadingDegToRotation((float)TargetHeadingDeg);
+        Assert.True(
+            harness.PumpUntil(() => RotationsMatch(shWorld.GetComponent<SimTransform>(shEntity).Rotation, expected),
+                              RoundTripTimeoutFrames),
+            $"SimHost never applied the IG's debug patch within {RoundTripTimeoutFrames} frames. The JSON-arm " +
+            "request did not complete IG bus → UpdateEntityAttributeCommandEgressTranslator → DDS → SimHost's " +
+            "UpdateEntityAttributeRequestSystem (JSON compiler).");
+
+        // ── the StructEdit route must REFUSE the same component on the non-owner (CE-3003 / CE-191) ──
+        //    ⛔ It used to write the IG's replica and answer with the edited dump; the owner's next sample
+        //    overwrote it and nothing reached SimHost.
+        var (compResult, compError) = igService.EditEntityComponent(
+            networkId, nameof(SimTransform), System.Text.Json.Nodes.JsonNode.Parse("{}"));
+        _out.WriteLine($"[D2] IG component edit: error={compError ?? "<none>"}");
+        Assert.Null(compResult);
+        Assert.NotNull(compError);
+        Assert.Contains("owned by another node", compError);
+
+        // ── and on the OWNER the same route writes directly ──
+        var shService = DebugServiceOver("SimHost", shWorld, harness.SimHost.TestHook_EntityMap, geo,
+            harness.SimHost.App.NedReplication?.DescriptorOwnershipMap);
+        var (shResult, shError) = shService.PatchEntityAttribute(networkId, "{\"Heading\":42}");
+        Assert.Null(shError);
+        Assert.Equal("direct", shResult?["write"]?["route"]?.GetValue<string>());
+        Assert.True(RotationsMatch(shWorld.GetComponent<SimTransform>(shEntity).Rotation,
+                                   SimTransformBridgeSystem.HeadingDegToRotation(42f)),
+            "The owner's own debug patch did not land in SimTransform.Rotation.");
+    }
+
+    /// <summary>
+    /// A debug service bound to one node's world, as the cluster composition binds the active perspective.
+    /// ⚠ It passes an explicit geographic transform because <c>Program.cs</c> does
+    /// (<c>geoTransform: HrotEnvironment.CreateGeoTransform()</c>): the IG world publishes no transform
+    /// singleton, so without it the service's attribute compiler cannot be built on the IG perspective.
+    /// </summary>
+    private static Hrot.Editor.DebugApi.DebugApiService DebugServiceOver(
+        string perspective, EntityRepository world, Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap,
+        Fdp.Modules.Geographic.IGeographicTransform geoTransform,
+        Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? descriptorMap)
+        => new(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+                new Hrot.Presentation.DebugApi.ISubsystemDebugProvider[]
+                {
+                    new Hrot.Presentation.DebugApi.SubsystemDebugProvider(perspective, perspective,
+                        world: () => world, entityMap: () => entityMap,
+                        // ⭐ as IgSubsystem / SimHostSubsystem wire it: the node's NED ownership map
+                        descriptorMap: () => descriptorMap),
+                },
+                currentPerspective: () => perspective,
+                acksPending: null),
+            geoTransform: geoTransform);
 
     // ── helpers ──────────────────────────────────────────────────────────────
 

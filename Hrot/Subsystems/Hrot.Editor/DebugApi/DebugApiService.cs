@@ -71,7 +71,7 @@ namespace Hrot.Editor.DebugApi
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
-        private readonly Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? _creationRequestEnqueuerGetter;   // CE-271 seam ⑤
+        private readonly Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? _entityCreationGetter;   // CE-515 (was CE-271 seam ⑤)
 
         /// <summary>⭐ Set only in the CLUSTER shape; null in the editor. See the block above.</summary>
         private readonly Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
@@ -577,8 +577,11 @@ namespace Hrot.Editor.DebugApi
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
             Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
             Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null,
-            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null)
+            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null,
+            // ⭐ CE-515 — the editor's pack, the same seam every cluster node exposes (cgf==editor).
+            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null)
         {
+            _entityCreationGetter = entityCreation;
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
             _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));
@@ -648,11 +651,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-169 — a Func, not a value: CGF's registry is built during subsystem boot, which
             //   happens AFTER this service is constructed. See the field comment for the measurement.
             Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null,
-            // ⭐⭐⭐ CE-271 seam ⑤ — a Func for the same boot-order reason: the node's local creation
-            //   source exists only after its subsystem builds the EntityCreationPack. When present, the
-            //   node can create entities THROUGH the request path (routing + auto-takeover grant), which
-            //   the raw /entities/spawn route deliberately bypasses.
-            Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? creationRequestEnqueuer = null,
+            // ⭐⭐⭐ CE-515 (was CE-271 seam ⑤, IG-only) — the entity-creation pack of the subsystem that OWNS the
+            //   ACTIVE perspective's world, so POST /entities/create-request creates on the SELECTED node through the
+            //   request path (routing + grants). A Func for the same boot-order reason: the pack exists only after
+            //   the subsystem builds it.
+            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null,
             // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world. A Func for
             //   the same boot-order reason as behaviorRegistry (CGF composes it during Initialize, after this ctor).
             Func<EntityRepository, Hrot.Editor.AiComposition.AiDebugSurface?>? aiDebugSurface = null)
@@ -660,7 +663,7 @@ namespace Hrot.Editor.DebugApi
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _aiDebugSurfaceGetter = aiDebugSurface;
             _clusterStateGetter = clusterState;
-            _creationRequestEnqueuerGetter = creationRequestEnqueuer;
+            _entityCreationGetter = entityCreation;
 
             // ⭐⭐⭐ CE-110 — ⛔⛔ NO `?? new TkbDatabase()` HERE. That default is what made /tkb/* answer
             //    `[]` on every cluster node: the composition root passes nothing, so the service latched a
@@ -1531,8 +1534,14 @@ namespace Hrot.Editor.DebugApi
             UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
         };
 
-        /// <c>POST /entities/spawn</c> — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns
-        /// <c>awaited</c> per the wait rule. Must run on the main thread.
+        /// <c>POST /entities/spawn</c> — creates an entity THROUGH THE NODE'S CREATION PACK
+        /// (<see cref="Hrot.Common.EntityCreation.EntityCreation.RequestEntityCreation"/>), exactly as every other author
+        /// does. Returns <c>awaited</c> per the wait rule. Must run on the main thread.
+        /// <para>⭐ <c>CE-515</c> ③ (approved <c>2026-10-02</c>, R-174 one creation path): it published a raw
+        /// <see cref="SpawnEntityCommand"/>, which bypassed the request system and therefore the ownership GRANT — an
+        /// entity spawned this way was owned by nobody's roles. ⭐ <c>ownerNodeId = 0</c> now means <b>this node</b>
+        /// (the node you are talking to creates and owns it, then grants role groups as any creator does), keeping
+        /// "spawn here" — never the request path's "forward to the arbiter".</para>
         /// ⛔ The API contract (params, notes, the <c>CE-292</c> reliable-init knob) is documented ONCE, in the
         /// <c>DebugApiRouteDocs</c> entry for this route — do not restate it here (it would drift). This summary
         /// is for code readers only.
@@ -1542,11 +1551,10 @@ namespace Hrot.Editor.DebugApi
         /// optional parses below <b>used to be discarded silently</b>. See their comments.
         /// </remarks>
         /// <param name="ownerNodeId">
-        /// ⚠ <b>EXPERIMENT KNOB (<c>CE-269</c>) — default <c>0</c> preserves today's behaviour exactly.</b>
-        /// <c>NetworkSpawningSystem.ProcessSpawn</c> computes <c>isLocalAuthority = cmd.OwnerNodeId ==
-        /// _localNodeId</c>, so with the default the spawning node claims NO authority and the P3 create-leg
-        /// block never runs. Passing this node's own id is what makes the host the CREATOR, which is the
-        /// only way to observe what a given role actually owns at birth.
+        /// <c>0</c> (default) ⇒ this node creates and owns it. Another node's id ⇒ the request is routed to that node,
+        /// which creates it (as <c>POST /entities/create-request</c> does). ⛔ <b>SUPERSEDED (<c>CE-515</c> ③):</b>
+        /// <i>"default 0 ⇒ the spawning node claims NO authority"</i> (<c>CE-269</c>'s experiment knob) — an unowned
+        /// entity is not a state push-only ownership can produce.
         /// </param>
         public (JsonNode? Node, string? Error) SpawnEntity(
             long     tkbType,
@@ -1557,20 +1565,11 @@ namespace Hrot.Editor.DebugApi
             bool     reliable       = false,
             double   reliableTimeoutSeconds = 0)
         {
-            var cmd = new SpawnEntityCommand
-            {
-                TkbType             = tkbType,
-                NetworkId           = 0,          // 0 = allocate a new ID
-                OwnerNodeId         = ownerNodeId,
-                // ⭐ CE-292 — reliable=true engages the cross-node construction barrier (§3b). The creator holds
-                //   the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init)
-                //   report Active, or the timeout aborts via EntityMaster dispose.
-                InitType            = reliable ? ReliableInitType.AllPeers : ReliableInitType.None,
-                ReliableInitTimeout = (reliable && reliableTimeoutSeconds > 0)
-                                          ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
-                                          : (TimeSpan?)null,
-                InitialAttributesJson = attributesJson,
-            };
+            var (creation, noPack) = ResolveEntityCreation();
+            if (creation == null) return (null, noPack);
+
+            SimTransform? initialTransform = null;
+            List<object>? initialComponents = null;
 
             // Parse optional transform.
             //
@@ -1582,9 +1581,8 @@ namespace Hrot.Editor.DebugApi
             {
                 try
                 {
-                    var simTransform = JsonSerializer.Deserialize<SimTransform>(
+                    initialTransform = JsonSerializer.Deserialize<SimTransform>(
                         transform.ToJsonString(), SpawnTransformJsonOptions);
-                    cmd.InitialTransform = simTransform;
                 }
                 catch (Exception ex)
                 {
@@ -1609,7 +1607,7 @@ namespace Hrot.Editor.DebugApi
             //   caller goes on to assert against a thing that is quietly missing half its state.
             if (components is JsonArray compArr && compArr.Count > 0)
             {
-                cmd.InitialComponents = new List<object>();
+                initialComponents = new List<object>();
                 for (int i = 0; i < compArr.Count; i++)
                 {
                     JsonNode? item = compArr[i];
@@ -1649,21 +1647,52 @@ namespace Hrot.Editor.DebugApi
                     if (compObj == null)
                         return (null, $"'components[{i}].data' deserialized to null for {typeName}. Nothing was spawned.");
 
-                    cmd.InitialComponents.Add(compObj);
+                    initialComponents.Add(compObj);
                 }
             }
 
-            _world.Bus.PublishManaged(cmd);
+            // ⭐ CE-515 ③ — through the pack: the request system orders the spawn and the grant together.
+            int owner = ownerNodeId == 0 ? creation.NodeId : ownerNodeId;
+            Guid requestId = creation.RequestEntityCreation(
+                tkbType,
+                transform:             initialTransform,
+                initialComponents:     initialComponents,
+                owner:                 owner,
+                // ⭐ CE-292 — reliable=true engages the cross-node construction barrier (§3b). The creator holds
+                //   the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init)
+                //   report Active, or the timeout aborts via EntityMaster dispose. ⚠ The request's default is
+                //   AllPeers; this route keeps its own default (no wait) explicitly.
+                initType:              reliable ? ReliableInitType.AllPeers : ReliableInitType.None,
+                initialAttributesJson: attributesJson,
+                reliableInitTimeout:   (reliable && reliableTimeoutSeconds > 0)
+                                           ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
+                                           : (TimeSpan?)null);
 
             bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
             return (new JsonObject
             {
-                ["spawned"]  = true,
-                ["tkbType"]  = tkbType,
-                ["reliable"] = reliable,
+                ["spawned"]     = true,
+                ["tkbType"]     = tkbType,
+                ["reliable"]    = reliable,
+                ["requestId"]   = requestId.ToString(),
+                ["ownerNodeId"] = owner,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
             }, null);
+        }
+
+        /// <summary>The active perspective's creation pack — the one creation path both creation routes go through
+        /// (<c>CE-515</c>).</summary>
+        private (Hrot.Common.EntityCreation.EntityCreation? Creation, string? Error) ResolveEntityCreation()
+        {
+            var world    = _editorWorld ?? _dispatcher?.World;
+            var creation = world is null ? null : _entityCreationGetter?.Invoke(world);
+            return creation != null
+                ? (creation, null)
+                : (null,
+                   "The active perspective's node has no entity-creation pack wired into the debug API (a node "
+                 + "with no ECS world, or one not yet initialised). Select an ECS node's perspective: every node "
+                 + "that builds EntityCreationPack (SimHost, CGF, IG, Stride, the editor) exposes one. Nothing was created.");
         }
 
         /// <summary>
@@ -1672,11 +1701,10 @@ namespace Hrot.Editor.DebugApi
         /// node's LOCAL creation source, so it flows through the real request path
         /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>).
         ///
-        /// <para>⛔ <b>Unlike <see cref="SpawnEntity"/>, this exercises routing and the auto-takeover grant.</b>
-        /// With <c>ownerNodeId</c> = this node, the node creates + owns the entity and hands off its non-role
-        /// components (kinematics → a Muscle) via <c>DeferredTakeOwnership</c>; with <c>ownerNodeId = 0</c> the
-        /// request is forwarded to the broadcast arbiter. <see cref="SpawnEntity"/> publishes a raw
-        /// <c>SpawnEntityCommand</c> and bypasses both.</para>
+        /// <para>With <c>ownerNodeId</c> = this node, the node creates + owns the entity and grants its role groups;
+        /// with <c>ownerNodeId = 0</c> the request is forwarded to the broadcast arbiter. ⭐ <c>CE-515</c> ③:
+        /// <see cref="SpawnEntity"/> goes through the same pack now — the only difference is that its
+        /// <c>ownerNodeId = 0</c> means THIS node.</para>
         /// </summary>
         public (JsonNode? Node, string? Error) CreateEntityViaRequestPath(
             long      tkbType,
@@ -1684,12 +1712,9 @@ namespace Hrot.Editor.DebugApi
             JsonNode? transform      = null,
             string?   attributesJson = null)
         {
-            var enqueue = _creationRequestEnqueuerGetter?.Invoke();
-            if (enqueue == null)
-                return (null,
-                    "This node has no local entity-creation request source wired into the debug API. Only a "
-                  + "node that composes EntityCreationPack (IG/CGF/SimHost) exposes one. Use POST /entities/spawn "
-                  + "for a direct SpawnEntityCommand (which bypasses routing and the auto-takeover grant).");
+            var (creation, noPack) = ResolveEntityCreation();
+            if (creation == null) return (null, noPack);
+            Action<Hrot.Core.Network.EntityCreationRequest> enqueue = creation.LocalRequests.Enqueue;
 
             List<object>? initialComponents = null;
             if (transform != null)
@@ -2934,8 +2959,26 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// POST /entities/{networkId}/attribute {patchJson} — compile JSON attribute patch
         /// onto the entity via <see cref="JsonAttributeCompiler"/>.
-        /// Authority-aware; unregistered keys silently ignored.
+        /// Unregistered keys are silently ignored (a mixed-version sender is not an error).
         /// Must run on the main thread.
+        ///
+        /// <para>⭐⭐⭐ <b><c>CE-3003</c> — a write this node does not own is ASKED of the owner, never dropped.</b>
+        /// 📐 Measured live <c>2026-10-02</c>: on a non-owner the compile skipped every key at the authority gate,
+        /// the route answered with the unchanged dump, and no node sent an <c>UpdateEntityAttributeRequest</c> —
+        /// so §5.7 E4/E6 (an edit on a non-owner applied by the owner) could not be driven.
+        /// ⭐ The rule is the drag gizmo's (<c>AX-007</c>, <see cref="Fdp.Toolkit.Replication.Attributes.EntityWriteRouter"/>):
+        /// apply locally what this node owns, and send the rest to the owner as a request. ⭐ It rides the JSON arm
+        /// of the request the owner already applies (<c>UpdateEntityAttributeRequestSystem</c>) — no new message
+        /// (<c>R-158</c>).</para>
+        ///
+        /// <para>⭐ <b>The response says which happened</b> — <c>write.route</c> is <c>direct</c>, <c>requested</c>
+        /// or <c>noMatch</c> — because <i>"it landed"</i> and <i>"the owner will apply it"</i> are different outcomes
+        /// to whoever called (<see cref="Fdp.Toolkit.Replication.Patching.EntityWriteRoute"/>). ⚠ A <c>requested</c>
+        /// write is not yet in the dump: read it back from the owner, or again after a tick.</para>
+        ///
+        /// <para>⛔ <c>CE-191</c>: a write that cannot be honoured REFUSES. A refused component that no network
+        /// descriptor covers has no remote owner to ask (a networkless host, or a node-local component), and an
+        /// entity with no network identity cannot be addressed — both answer an error, never <c>ok</c>.</para>
         /// </summary>
         public (JsonNode? result, string? error) PatchEntityAttribute(long networkId, string? patchJson)
         {
@@ -2945,9 +2988,10 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(patchJson))
                 return (null, "patchJson is required.");
 
+            EcsPatchContext ctx;
             try
             {
-                var ctx = _attributeCompiler.CreatePatchContext(_world, entity);
+                ctx = _attributeCompiler.CreatePatchContext(_world, entity);
                 _attributeCompiler.Compile(patchJson, ctx);
                 ctx.FlushDirtyMarks();
             }
@@ -2956,10 +3000,58 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Attribute patch failed: {ex.Message}");
             }
 
-            // Return the updated entity dump.
+            string route = ctx.HasRefusedAny ? "requested" : ctx.HasAppliedAny ? "direct" : "noMatch";
+            if (ctx.HasRefusedAny)
+            {
+                var map = OwnershipDescriptorMap();
+                var unaddressable = ctx.RefusedComponentIds.Where(cid => !map.IsBoundToAnyDescriptor(cid)).ToList();
+                if (unaddressable.Count > 0)
+                    return (null,
+                        $"Entity {networkId}: this node does not own component(s) {string.Join(", ", unaddressable.Select(ComponentLabel))} " +
+                        "and no network descriptor carries them, so there is no owner to ask. Nothing was requested." +
+                        (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
+
+                if (!Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(_world, entity, patchJson!))
+                    return (null,
+                        $"Entity {networkId} has no network identity on this node, so its owner cannot be addressed. Nothing was requested." +
+                        (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
+            }
+
+            // Return the updated entity dump, with how the write was routed.
             var node = DumpEntity(networkId);
+            if (node is JsonObject obj)
+            {
+                var applied   = new JsonArray();
+                foreach (var cid in ctx.AppliedComponentIds) applied.Add(ComponentLabel(cid));
+                var requested = new JsonArray();
+                foreach (var cid in ctx.RefusedComponentIds) requested.Add(ComponentLabel(cid));
+                obj["write"] = new JsonObject
+                {
+                    ["route"]               = route,
+                    ["appliedComponents"]   = applied,
+                    ["requestedComponents"] = requested,
+                };
+            }
             return (node, null);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3003</c> — the map that answers <i>"does a network descriptor carry this component, so another
+        /// node can own it?"</i>: the active node's NED ownership map (the one <c>GET …/ownership</c> reads), falling
+        /// back to the world's map on a host with no NED transport.
+        /// <para>📐 ⛔ NOT the world map alone. Measured on the IG: <c>AttributeInterpreterProvider.GetDescriptorMap</c>
+        /// is contributed by <c>CycloneEgressSystem</c> from EGRESS translators only, and a pure IG publishes no
+        /// <c>WorldPos</c> — so the world map says <c>SimTransform</c> is not networked at all, which is right for
+        /// <i>"what do I republish"</i> and wrong for <i>"who owns it"</i>. ⭐ Asked through
+        /// <c>DescriptorOwnershipMap.IsBoundToAnyDescriptor</c>, the forward table, for the same reason.</para>
+        /// </summary>
+        private Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap OwnershipDescriptorMap()
+            => _dispatcher?.DescriptorMap
+               ?? Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(_world);
+
+        /// <summary>A component id rendered as its type name when registered, else the bare id.</summary>
+        private static string ComponentLabel(int componentId)
+            => ComponentTypeRegistry.GetType(componentId)?.Name ?? componentId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>
         /// POST /entities/{networkId}/component {componentType, patch} — StructEdit escape hatch.
@@ -2999,6 +3091,23 @@ namespace Hrot.Editor.DebugApi
 
             if (boxedComponent is null)
                 return (null, $"Entity {networkId} does not have component '{componentType}'.");
+
+            // ⭐⭐ CE-3003 — ⛔ never write another node's component into this node's REPLICA. 📐 That write is
+            //   overwritten by the owner's next sample and reaches nobody, so answering it with the edited dump
+            //   would be CE-191's "ok about work that was discarded". ⭐ A component a network descriptor carries
+            //   and this node does not claim is another node's (one ownership truth: claim == record) ⇒ refuse,
+            //   naming the route that DOES reach the owner. ⚠ A component no descriptor carries is node-local and
+            //   is written here as before — so a networkless host (editor) is unaffected.
+            int componentTypeId = ComponentTypeRegistry.GetId(clrType);
+            var descriptorMap = OwnershipDescriptorMap();
+            if (componentTypeId >= 0
+                && descriptorMap.IsBoundToAnyDescriptor(componentTypeId)
+                && !_world.HasAuthority(entity, componentTypeId))
+                return (null,
+                    $"Entity {networkId}: component '{clrType.Name}' is owned by another node, so editing it here would " +
+                    "change only this node's replica and be overwritten by the owner. Nothing was written. Use " +
+                    "POST /entities/{networkId}/attribute, which asks the owner, or select the owner's perspective " +
+                    "(GET /entities/{networkId}/ownership names it).");
 
             // Open a StructEdit session.
             using var session = _componentEditSvc.Open(boxedComponent, clrType);

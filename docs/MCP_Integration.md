@@ -873,7 +873,7 @@ regenerated `tool-catalog.mjs` / `SKILL.md` / `test-catalog.mjs` allow-list.
    jump-to-first-task. The `restart` field is carried in the reply for honesty, not because it changes the call.
 
 3. **The commit is awaited OFF the main thread with a bounded 15 s timeout.** `CommitMissionAsync`/
-   `SendControlCommandAsync` resolve only when the editor loop's `PollAcks()` reads the ack *(across frames)*,
+   `SendControlCommandAsync` resolve only when the owning host's loop calls `PollAcks()` and it reads the ack *(across frames — the editor and, since `CE-3004`, CGF)*,
    so awaiting on the main thread would deadlock. The `Begin*` service methods publish on the main thread and
    return the `Task`; `AwaitMissionCommitAsync` awaits it on the HTTP thread → 200 (with the ack's
    `NewVersion`), **409** on a rejected commit *(`ERR_VERSION_CONFLICT`, never a silent overwrite)*, **504**

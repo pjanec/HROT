@@ -983,6 +983,10 @@ sequenceDiagram
 | **`ReplayProcessManager` · `ReplaySeekProcessManager`** | end-of-replay and seek detection, then ⭐ **`PauseTimeIntent`** — the ordinary control path | ⭐⭐ **replay is controlled by PATH A**, not a private one |
 | ⚠ **`ReplayBrowserContext.SandboxRepo`** | ⛔⛔ **a bare `EntityRepository` with NO kernel and NO time controller** | ⇒ it has **no clock at all**; readers guard with `HasSingletonUnmanaged<GlobalTime>()` and fall back — 📌 which is why that guard exists |
 
+### ⛔ `CE-497` — a seek is RELATIVE on the wire and absolute in the playback *(`2026-10-01`)*
+
+⭐ `ReferenceReplayLoadHandler` (`NodeReplaySeek`) converts the cluster's RELATIVE target (0 = recording start) to an absolute wall tick: `ActiveRecordingStartWallTicks + relative`. ⛔⛔ "Seek to the end" is `long.MaxValue` — the handler's own default and what scripts send — and the plain add **overflowed negative**, so `PlaybackController.SeekToWallClockTicks` clamped it to **frame 0**: a seek to the end restored the FIRST frame. 📐 Measured by `ClusterOpE2eScriptTests.RecordAndReplaySeek` (target −8 584 107 341 263 421 530, an empty world). ⭐ The add now **saturates** at `long.MaxValue`, which the playback already reads as "the last frame". 🧪 `ReferenceHandlerTests.ReplaySeek_*` (red-proved).
+
 ### ⚠ Two consequences worth writing down
 
 | ⚠ | |

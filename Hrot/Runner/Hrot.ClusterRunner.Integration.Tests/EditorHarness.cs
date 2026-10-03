@@ -69,6 +69,8 @@ public sealed class EditorHarness : IDisposable
     /// </summary>
     public Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry { get; }
     public IEditorLogic       Editor    { get; private set; } = null!;
+    /// <summary>The harness node's creation pack (CE-515 ③): the debug API's creation routes go through it.</summary>
+    public Hrot.Common.EntityCreation.EntityCreation EntityCreation { get; private set; } = null!;
     public ScenarioFileService FileService  => _fileService;
     public IPreviewController  Preview   { get; private set; } = null!;
 
@@ -119,7 +121,10 @@ public sealed class EditorHarness : IDisposable
             //   answering NOT_SUPPORTED_HERE. See BpManager's remarks for why it is real, not a stub.
             bpManager:      BpManager,
             // ⭐ The harness is a single offline editor: it is always "the one node, operating".
-            clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+            clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+            // ⭐ CE-515 ③ — the harness HOLDS a creation pack; a debug API built without it is the silent-default
+            //   pattern (POST /entities/spawn and /create-request would refuse).
+            entityCreation: _ => EntityCreation);
 
     /// <summary>
     /// The real ring-buffer history the debug API reads for <c>GET /events</c>.
@@ -247,7 +252,10 @@ public sealed class EditorHarness : IDisposable
 
         var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
-        var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        // ⭐ The editor's OWN serializer (EditorBootstrap.CreateFileService), not a bare builder: the bare one has no
+        //   translators, so a scenario saved here dropped ActiveMissionPlan (MissionPlanTranslator) and a live load of it
+        //   had no missions — the drift this harness's header warns about (DistributedScenarioLoadTests).
+        var serializer       = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
         // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
         var fileService      = new ScenarioFileService(serializer, Bus);
         _fileService = fileService;
@@ -255,20 +263,26 @@ public sealed class EditorHarness : IDisposable
         // ── TKB + ELM + spawn system ─────────────────────────────────────────
         var tkbDb = new TkbDatabase();
         tkbDb.Register(new TkbTemplate("TestUnit", tkbType: 1L));
+        // ⭐ A type the CLUSTER's TKB also has, so a scenario authored here can be loaded into a live cluster
+        //   (DistributedScenarioLoadTests). ⛔ Type 1 exists only here: CGF rejects it ("TkbType=1 not found").
+        tkbDb.Register(new TkbTemplate("Tank_M1Abrams", tkbType: Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams));
 
-        var translators = new List<ITkbEntityTranslator>
-        {
-            new SpatialCoreTkbTranslator(),
-            new VehicleKinematicsTkbTranslator(),
-            new BehaviorTkbTranslator(),
-            new CombatTkbTranslator(),
-            new PerceptionTkbTranslator()
-        }.AsReadOnly();
-
-        var elm      = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
-        elm.SetTranslators(translators);
+        // ⭐ CE-515 ③ — the pipeline comes from the PACK, as on every production host (DESIGN_Entity_Creation_Unification
+        //   §6 ⑨). This harness hand-rolled its translator list and spawn system (a sixth list, missing
+        //   PresentationTkbTranslator), so the debug API's creation routes had no pack to go through.
         _idAllocator = new SequentialIdAllocator();
-        var spawnSys = new NetworkSpawningSystem(tkbDb, elm, EntityMap, _idAllocator, localNodeId: 0, translators: translators);
+        EntityCreation = Hrot.Common.EntityCreation.EntityCreationPack.Build(new Hrot.Common.EntityCreation.EntityCreationContext
+        {
+            World              = Repo,
+            EntityMap          = EntityMap,
+            TkbDb              = tkbDb,
+            IdAllocator        = _idAllocator,
+            Elm                = new EntityLifecycleModule(tkbDb, Array.Empty<int>()),
+            NodeId             = 0,
+            IsBroadcastArbiter = true,
+        });
+        var elm      = EntityCreation.Elm;
+        var spawnSys = EntityCreation.SpawnSystem;
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
@@ -285,6 +299,8 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
+        Kernel.RegisterGlobalSystem(EntityCreation.RequestSystem);       // CE-515 ③ — as EditorSubsystem schedules them
+        Kernel.RegisterGlobalSystem(EntityCreation.FinalizationSystem);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
         // ⭐ CE-493: CE-221 (2026-09-07) moved EqsResultUpdateSystem and UnitHierarchySystem out of the role packs into
         //   node capabilities. This harness wires the packs by hand, so it must install them as every production host does

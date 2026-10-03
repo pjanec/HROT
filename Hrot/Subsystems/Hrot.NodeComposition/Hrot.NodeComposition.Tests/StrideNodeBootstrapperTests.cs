@@ -9,6 +9,11 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common.Infrastructure;
+using Hrot.Common.Abstractions;
+using Fdp.Interfaces;
+using Fdp.Toolkit.DER;
+using Hrot.Network.Infrastructure;
+using IOrchestrationTranslator = Hrot.Core.Network.IOrchestrationTranslator;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
@@ -239,5 +244,111 @@ public sealed class StrideNodeBootstrapperTests
         // Cross-check: each system is in the correct group and not in the other.
         Assert.DoesNotContain(simSystems,     s => s is VisualEffectCleanupSystem);
         Assert.DoesNotContain(postSimSystems, s => s is EventToEffectSystem);
+    }
+
+    // ── CE-509 — this host passes the entity-lifecycle network adapters ──────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-509</c> — the Stride node builds the SAME network adapters CGF and IG pass, and they reach the
+    /// CONSTRUCTED request system (not just a call site): the ownership strategy the node grants with is the
+    /// factory's, and the cluster cache it reads is polled each frame. 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2; <c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1d.
+    /// </summary>
+    [Fact]
+    public void TheEntityLifecycleAdaptersReachTheConstructedRequestSystem()
+    {
+        var factory      = new AdaptersSpyFactory();
+        var bootstrapper = new StrideNodeBootstrapper();
+        bootstrapper.BootstrapNode(HeadlessConfig(), StrideNodeBootstrapper.Role, factory);
+
+        Assert.Equal(1, factory.AdaptersRequested);
+
+        var systems = bootstrapper.Context.Kernel.SystemScheduler.GetAllSystems().ToList();
+        var request = systems.OfType<Hrot.Common.Systems.CreateEntityRequestSystem>().Single();
+        var strategy = typeof(Hrot.Common.Systems.CreateEntityRequestSystem)
+            .GetField("_ownershipStrategy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(request);
+        Assert.Same(factory.Adapters.OwnershipStrategy, strategy);
+
+        Assert.Contains(systems, s => s is Hrot.Common.Systems.NetworkPollingSystem);
+        bootstrapper.Context.Kernel.Update(0.016f);
+        Assert.True(factory.Adapters.PollCount > 0, "the cluster cache poll never ran");
+    }
+
+    private sealed class FakeAdapters : ICgfEntityLifecycleAdapters
+    {
+        public int PollCount;
+        public IEntityCreationRequestSource RequestSource { get; } = new NoRequests();
+        public IEntityDeletionRequestSource DeleteSource  { get; } = new NoRequests();
+        public IEntityAckSink AckSink                     { get; } = new NoAcks();
+        public IEntityCreationRequestEgress? RequestEgress { get; } = new NoEgress();
+        public Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy? OwnershipStrategy { get; } = new NoGrants();
+        public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonCompiler => null;
+        public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => null;
+        public void PollNetwork() => PollCount++;
+
+        private sealed class NoRequests : IEntityCreationRequestSource, IEntityDeletionRequestSource
+        {
+            public void ProcessRequests(Action<EntityCreationRequest> handler) { }
+            public void ProcessRequests(Action<EntityDeletionRequest> handler) { }
+        }
+        private sealed class NoAcks : IEntityAckSink
+        {
+            public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status) { }
+        }
+        private sealed class NoEgress : IEntityCreationRequestEgress
+        {
+            public void Send(EntityCreationRequest request) { }
+        }
+        private sealed class NoGrants : Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy
+        {
+            public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant> GetInitialGrants(
+                in Fdp.Toolkit.Replication.Abstractions.GrantRequest request)
+                => Array.Empty<Fdp.Toolkit.NetworkSpawning.Events.DescriptorGrant>();
+        }
+    }
+
+    /// <summary>Offline in every respect except that it hands out <see cref="FakeAdapters"/>.</summary>
+    private sealed class AdaptersSpyFactory : INetworkFactory
+    {
+        private readonly Hrot.Editor.OfflineNetworkFactory _base = new();
+        public FakeAdapters Adapters { get; } = new();
+        public int AdaptersRequested { get; private set; }
+
+        public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() { AdaptersRequested++; return Adapters; }
+
+        public CycloneDDS.Runtime.DdsParticipant? Participant         => _base.Participant;
+        public long WorldPosDescriptorId         => _base.WorldPosDescriptorId;
+        public long NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
+        public INetworkFactory ConfigureForNode(CycloneDDS.Runtime.DdsParticipant? p, int n, NodeRole r) => this;
+        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, Fdp.Toolkit.Behavior.BehaviorRegistry? d = null) => this;
+        public IReplicationModule CreateReplicationModule()  => _base.CreateReplicationModule();
+        public ITimeControlGateway CreateTimeControlGateway() => _base.CreateTimeControlGateway();
+        public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators() => _base.CreateSimHostAuxiliaryTranslators();
+        public IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateOrchestratorTranslators(b, n);
+        public IDisposable CreateIdAllocatorServer() => _base.CreateIdAllocatorServer();
+        public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator CreateIdAllocator(string id, bool skip = false) => _base.CreateIdAllocator(id, skip);
+        public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus b, int n) => _base.CreateMasterTimeTranslators(b, n);
+        public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
+        public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus b) => _base.CreateOrchestrationObserver(b);
+        public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
+        public IExConEgressWriters CreateExConEgressWriters() => _base.CreateExConEgressWriters();
+        public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
+        public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
+        public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
+        public System.Collections.Generic.IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
+        public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
+        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public System.Collections.Generic.IEnumerable<IIngressHandler> CreateExConIngressHandlers(
+            CycloneDDS.Runtime.DdsParticipant? p, long id, Fdp.Toolkit.DER.IDerRepo repo,
+            Action<MapClickEventDto> onMapClick, Action<SelectionChangedEventDto> onSelectionChanged,
+            Action<EntityLifecycleAckDto> onEntityLifecycleAck, Action<MapCommandAckDto> onMapCommandAck)
+            => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus,
+            Fdp.Modules.Geographic.IGeographicTransform geoTransform, long nodeId)
+            => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, long id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, long id) => _base.CreateGizmoPublisherSystem(buf, id);
     }
 }

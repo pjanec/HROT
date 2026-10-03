@@ -11,6 +11,15 @@ using Hrot.Core.Network;
 namespace Hrot.Common.EntityCreation
 {
     /// <summary>
+    /// ⭐ <c>CE-515</c> — a subsystem that built an <see cref="EntityCreationPack"/> exposes the result, so composition
+    /// code (the cluster debug API) can resolve the pack for a given world. <c>null</c> until the node is initialised.
+    /// </summary>
+    public interface IEntityCreationHost
+    {
+        EntityCreation? EntityCreation { get; }
+    }
+
+    /// <summary>
     /// What <see cref="EntityCreationPack.Build"/> produced. ⛔ Nothing here is scheduled — the host
     /// registers the <b>four</b> systems with its own kernel and then calls
     /// <see cref="Unserviceable"/> so an omission is loud instead of silent.
@@ -27,7 +36,9 @@ namespace Hrot.Common.EntityCreation
             EntityRequestFinalizationSystem finalizationSystem,
             NetworkSpawningSystem spawnSystem,
             Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
-            int nodeId)
+            int nodeId,
+            IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
+            Fdp.Core.EntityRepository world)
         {
             Translators        = translators;
             Elm                = elm;
@@ -37,7 +48,16 @@ namespace Hrot.Common.EntityCreation
             SpawnSystem        = spawnSystem;
             PromotionSystem    = promotionSystem;
             NodeId             = nodeId;
+            NetworkSystems     = networkSystems;
+            World              = world;
         }
+
+        /// <summary>
+        /// ⭐ The world this node creates entities in. 📌 <c>CE-515</c>: lets a multi-node process (<c>--mode all</c>)
+        /// find the pack that belongs to the ACTIVE perspective's world, so the debug API's create-request reaches
+        /// the selected node instead of a hard-wired one.
+        /// </summary>
+        public Fdp.Core.EntityRepository World { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
@@ -158,6 +178,8 @@ namespace Hrot.Common.EntityCreation
         /// </param>
         /// <param name="requestId">Supply one to correlate the two-phase ACK yourself; omit it and one
         /// is minted. ⭐ Either way the value actually used is RETURNED.</param>
+        /// <param name="reliableInitTimeout">The creator's reliable-init abort timeout (<c>CE-292</c>); <c>null</c> ⇒ the
+        /// gateway default. Meaningful only with a waiting <paramref name="initType"/>. (<c>CE-515</c> ③)</param>
         public Guid RequestEntityCreation(
             long                   tkbType,
             Fdp.Core.SimTransform? transform             = null,
@@ -168,7 +190,8 @@ namespace Hrot.Common.EntityCreation
             string?                initialAttributesJson = null,
             bool                   isTransient           = false,
             ulong                  disType               = 0,
-            Guid                   requestId             = default)
+            Guid                   requestId             = default,
+            TimeSpan?              reliableInitTimeout   = null)
         {
             // ⭐ Mint only when the caller did not name its own request. An author that must be told the
             //   outcome supplies one; one that does not care ignores the return value.
@@ -190,6 +213,7 @@ namespace Hrot.Common.EntityCreation
                 InitialComponents     = components,
                 InitialAttributesJson = initialAttributesJson,
                 InitType              = initType,
+                ReliableInitTimeout   = reliableInitTimeout,   // CE-515 ③
                 IsTransient           = isTransient,
                 // ⛔ PreAllocatedNetworkId and ChildComponentOverrides are NOT exposed: one producer
                 //   each, and that producer is the scenario extractor — a TRANSLATOR (§3).
@@ -221,6 +245,14 @@ namespace Hrot.Common.EntityCreation
         /// makes a double registration throw at <c>BeginRun()</c> instead of promoting twice a frame.</para>
         /// </summary>
         public Fdp.Toolkit.Replication.Systems.GhostPromotionSystem PromotionSystem { get; }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>S2b</c> — the systems that exist only with a live network. Schedule each one
+        /// (<c>RegisterGlobalSystem</c>).</b> Empty offline. Today: the per-frame network poll that feeds the
+        /// ownership strategy's cluster cache, and the delete-request system. 📄
+        /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S2b.
+        /// </summary>
+        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> NetworkSystems { get; }
 
         /// <summary>
         /// ⭐⭐ <b>The <c>S2b</c> diagnostic habit: report what the pack built and the host did NOT
@@ -262,6 +294,13 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");
+
+            foreach (var sys in NetworkSystems)
+                if (!seen.Contains(sys))
+                    missing.Add($"{nameof(NetworkSystems)} ({sys.GetType().Name}) — " +
+                                (sys is NetworkPollingSystem
+                                    ? "the ownership strategy's cluster cache is never fed, so created entities grant nothing"
+                                    : "delete requests addressed to this node are never processed"));
 
             if (missing.Count == 0) return string.Empty;
 

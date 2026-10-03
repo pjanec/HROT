@@ -6,6 +6,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.NED.Descriptors;
@@ -18,7 +19,8 @@ namespace Hrot.Network.NED.SimHost
     /// solver picks it up on the next tick.
     /// On <c>NOT_ALIVE_DISPOSED</c>, removes a LEGACY sensor (part 0) from the ghost entity; a child sensor's dispose
     /// only forgets the key — its carrier dies with its parent (<c>CE-486</c>). An ended child sensor arrives as a
-    /// <c>Suspended</c> config, which the solver skips.
+    /// <c>Suspended</c> config, which the solver skips. ⭐ <c>CE-492</c>: an instance can have two writers after an authority
+    /// move, so samples are taken in SOURCE-TIME order per instance, not arrival order (<see cref="Receive"/>).
     /// </summary>
     public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator
     {
@@ -37,6 +39,8 @@ namespace Hrot.Network.NED.SimHost
         private readonly List<(long ParentNetId, int ChildIndex)> _resolvedKeys = new();
         // Carriers created through the command buffer and not yet visible in the world.
         private readonly HashSet<(long ParentNetId, int ChildIndex)> _awaitingPlayback = new();
+        // ⭐ CE-492 — per instance, the newest source time taken; an older sample is stale (two writers after an authority move).
+        private readonly SourceTimeOrder<(long ParentNetId, int ChildIndex)> _order = new();
 
         private struct Pending
         {
@@ -51,10 +55,22 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
+        //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
+        private readonly int _localNodeId;
+        private readonly Dictionary<(long ParentNetId, int ChildIndex), int> _recordedSolver = new();
+        private OwnershipApplier? _applier;
+
+        /// <summary>Sensors this node was told another node solves (diagnostics and rails).</summary>
+        public long SolvedElsewhereCount { get; private set; }
+
+        /// <param name="localNodeId">⭐ R-179: this node — a child sensor whose config names another solver gets no
+        /// carrier here.</param>
+        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _entityMap = entityMap;
+            _entityMap   = entityMap;
+            _localNodeId = localNodeId;
             _reader = participant != null
                 ? new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName)
                 : null;
@@ -68,64 +84,84 @@ namespace Hrot.Network.NED.SimHost
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
-                long parentNetId;
-                int  localChildIndex;
                 if (sample.IsValid)
                 {
-                    parentNetId     = sample.Data.ParentNetworkId;
-                    localChildIndex = sample.Data.LocalChildIndex;
-                    ReceivedSampleCount++;
+                    Receive(cmd, sample.Data, valid: true, disposed: false, sample.Info.SourceTimestamp);
                 }
                 else
                 {
                     // For NOT_ALIVE samples the managed .Data property throws.
                     // Read key fields directly from the native serialised buffer.
-                    var keyData     = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
-                    parentNetId     = keyData.ParentNetworkId;
-                    localChildIndex = keyData.LocalChildIndex;
-                }
-
-                if (localChildIndex == 0)
-                {
-                    // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
-                    if (sample.IsValid)
-                    {
-                        _pending[(parentNetId, 0)] = new Pending { Data = sample.Data };
-                    }
-                    else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                    {
-                        _pending.Remove((parentNetId, 0));
-                        if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) continue;
-                        cmd.RemoveComponent<EqsSensor>(parentGhost);
-                        _childGhostCache.Remove((parentNetId, 0));
-                    }
-                }
-                else
-                {
-                    // Child-entity sensor path: carrier ghost is spawned/reused from cache.
-                    var cacheKey = (parentNetId, localChildIndex);
-
-                    if (sample.IsValid)
-                    {
-                        _pending[cacheKey] = new Pending { Data = sample.Data };
-                    }
-                    else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                    {
-                        // ⭐⭐ CE-486 — a child-sensor dispose is NOT "destroy the carrier". The Brain never disposes a
-                        //    child instance while its parent lives (it writes Suspended instead), so a dispose now only
-                        //    comes with the parent's death — and SubEntityCleanupSystem already destroys that parent's
-                        //    carriers. 🔴 Destroying here was the design's §2 ② race: a dispose and a write for the same
-                        //    key in one batch queued the destroy, then applied the new config to the doomed carrier.
-                        //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
-                        _pending.Remove(cacheKey);
-                        _awaitingPlayback.Remove(cacheKey);
-                        _childGhostCache.Remove(cacheKey);
-                    }
+                    var keyData = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
+                    Receive(cmd, keyData, valid: false,
+                        disposed: sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed, sample.Info.SourceTimestamp);
                 }
             }
 
             ApplyPending(cmd, view);
         }
+
+        /// <summary>
+        /// One sample, in arrival order. ⭐⭐ <c>CE-492</c> — a sample OLDER (by source time) than the newest one already
+        /// taken for its instance is STALE and dropped (<see cref="SourceTimeOrder{TKey}"/>). 📄
+        /// <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §3a. 🔴 The case: after an authority move an instance has two
+        /// writers — the old owner's last ACTIVE sample and the new owner's SUSPEND (its orphan sweep, <c>CE-490</c>). A
+        /// late-joining Muscle gets both from TransientLocal in discovery order, and whichever came last won — so an ended
+        /// sensor could be solved forever. ⚠ Not "the same epoch": the owner run is NOT unique across an authority move (a
+        /// new owner counts from the same start), so an epoch match cannot tell a stale sample from a new lifetime.
+        /// </summary>
+        /// <remarks>Internal so a rail can play a chosen arrival order with chosen source times — real DDS gives a test
+        /// control over neither.</remarks>
+        internal void Receive(IEntityCommandBuffer cmd, in EqsSensorConfigTopic data, bool valid, bool disposed, long sourceTimestamp)
+        {
+            if (!valid && !disposed) return;                     // unregistered / no writers: nothing to apply
+            long parentNetId    = data.ParentNetworkId;
+            int  localChildIndex = data.LocalChildIndex;
+            var  cacheKey       = (parentNetId, localChildIndex);
+            if (!_order.Accept(cacheKey, sourceTimestamp)) { StaleSampleCount++; return; }
+            if (valid) ReceivedSampleCount++;
+
+            if (localChildIndex == 0)
+            {
+                // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
+                if (valid)
+                {
+                    _pending[cacheKey] = new Pending { Data = data };
+                }
+                else
+                {
+                    _pending.Remove(cacheKey);
+                    if (!_entityMap.TryGetEntity(parentNetId, out var parentGhost)) return;
+                    cmd.RemoveComponent<EqsSensor>(parentGhost);
+                    _childGhostCache.Remove(cacheKey);
+                }
+                return;
+            }
+
+            // Child-entity sensor path: carrier ghost is spawned/reused from cache.
+            if (valid)
+            {
+                _pending[cacheKey] = new Pending { Data = data };
+            }
+            else
+            {
+                // ⭐⭐ CE-486 — a child-sensor dispose is NOT "destroy the carrier". The Brain never disposes a
+                //    child instance while its parent lives (it writes Suspended instead), so a dispose now only
+                //    comes with the parent's death — and SubEntityCleanupSystem already destroys that parent's
+                //    carriers. 🔴 Destroying here was the design's §2 ② race: a dispose and a write for the same
+                //    key in one batch queued the destroy, then applied the new config to the doomed carrier.
+                //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
+                _pending.Remove(cacheKey);
+                _awaitingPlayback.Remove(cacheKey);
+                _childGhostCache.Remove(cacheKey);
+            }
+        }
+
+        /// <summary>Samples dropped as older than their instance's newest (<c>CE-492</c>; diagnostics and rails).</summary>
+        public long StaleSampleCount { get; private set; }
+
+        /// <summary>Applies what <see cref="Receive"/> left pending (exposed for rails that drive <c>Receive</c>).</summary>
+        internal void ApplyPendingForRail(IEntityCommandBuffer cmd, ISimulationView view) => ApplyPending(cmd, view);
 
         // Applies every pending sample whose parent is present; re-applies one only when a named slot
         // has newly resolved; drops it from the set once the parent and all named slots resolved.
@@ -147,7 +183,7 @@ namespace Hrot.Network.NED.SimHost
                 {
                     // A carrier created by an earlier poll is not in the world until that command
                     // buffer plays back — wait for it rather than create a second one.
-                    if (!Apply(cmd, view, key, parentGhost, sensor)) continue;
+                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data.SolverNodeId)) continue;
                     pending.Applied          = true;
                     pending.ResolvedSlotMask = mask;
                     _pending[key]            = pending;
@@ -161,7 +197,7 @@ namespace Hrot.Network.NED.SimHost
 
         // Returns false when the sample must wait (its carrier is created but not yet played back).
         private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
-                           Entity parentGhost, EqsSensor sensor)
+                           Entity parentGhost, EqsSensor sensor, int solverNodeId = 0)
         {
             if (key.ChildIndex == 0)
             {
@@ -169,6 +205,26 @@ namespace Hrot.Network.NED.SimHost
                 cmd.SetComponent(parentGhost, sensor);
                 _childGhostCache[key] = parentGhost;
                 return true;
+            }
+
+            // ⭐ R-179 — the config is the per-sensor grant: every node records the named solver as the owner of result
+            //   part n (the S6 result gate reads it). Another node's sensor gets no carrier here, and a carrier left from
+            //   an earlier assignment stops solving.
+            if (solverNodeId != 0)
+            {
+                if (view is EntityRepository repo) RecordSolver(repo, parentGhost, key, solverNodeId);
+                if (solverNodeId != _localNodeId)
+                {
+                    SolvedElsewhereCount++;
+                    _awaitingPlayback.Remove(key);
+                    if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var stale))
+                    {
+                        var stopped = sensor;
+                        stopped.Suspended = true;
+                        cmd.SetComponent(stale, stopped);
+                    }
+                    return true;
+                }
             }
 
             if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
@@ -197,12 +253,21 @@ namespace Hrot.Network.NED.SimHost
             {
                 ParentEntity      = parentGhost,
                 InstanceId        = key.ChildIndex,
-                DescriptorOrdinal = 0,
             });
             cmd.AddComponent(child, sensor);
             cmd.AddComponent(child, default(EqsCognitiveBuffer));
             _awaitingPlayback.Add(key);
             return true;
+        }
+
+        private void RecordSolver(EntityRepository repo, Entity parentGhost, (long ParentNetId, int ChildIndex) key, int solver)
+        {
+            if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
+            _applier ??= new OwnershipApplier(_localNodeId,
+                Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo));
+            _applier.Apply(repo, parentGhost,
+                Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEqsResult, key.ChildIndex), solver);
+            _recordedSolver[key] = solver;
         }
 
         // The carrier ghost for (parent, childIndex) as it exists in the WORLD — never an ECB placeholder.

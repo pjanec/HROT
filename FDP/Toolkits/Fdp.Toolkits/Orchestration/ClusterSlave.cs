@@ -248,12 +248,15 @@ namespace Fdp.Toolkit.Orchestration
                 _pendingPrepare = null;
                 if (pending.PrepareTask.IsFaulted)
                 {
+                    // ⭐ The STACK, not just the message: a faulted prepare fails the whole 2PC and leaves an
+                    //   empty world, and "Entity … missing NetworkIdentity" alone did not say which of a
+                    //   dozen translators threw (2026-10-01). This path is an error and is rare; it can afford it.
                     FdpLog<ClusterSlave>.Error(
                         "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                         "(transactionId={1}): {2}. Commit skipped.",
                         pending.Intent.Operation,
                         pending.Intent.TransactionId,
-                        pending.PrepareTask.Exception?.GetBaseException().Message ?? "unknown");
+                        pending.PrepareTask.Exception?.GetBaseException().ToString() ?? "unknown");
                     _eventBus?.PublishManaged(new NodeOpCompletedEvent
                     {
                         TransactionId   = pending.Intent.TransactionId,
@@ -415,7 +418,7 @@ namespace Fdp.Toolkit.Orchestration
                             "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                             "(transactionId={1}): {2}. Commit skipped.",
                             intent.Operation, intent.TransactionId,
-                            prepareTask.Exception?.GetBaseException().Message ?? "unknown");
+                            prepareTask.Exception?.GetBaseException().ToString() ?? "unknown");
                         _eventBus?.PublishManaged(new NodeOpCompletedEvent
                         {
                             TransactionId   = intent.TransactionId,

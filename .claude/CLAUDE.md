@@ -153,6 +153,7 @@ answer — and when you do, batch every symbol question into that one warm sessi
 | ⭐ *"what does this function do?"* | **`get_code_snippet`** → `Read` | — |
 | ⭐ anything **not C#** — `.csproj`, `Directory.Build.props`, JSON/config, scenario assets, SQL, Razor, shell, markdown | **grep / `search_code`** | ⛔⛔ the Roslyn workspace holds **C# only** |
 | ⭐ *"was this MEANT to exist?"* | **the design corpus** *(`R-129`)* | ⛔ no compiler answers intent |
+| ⭐⭐ *"is this DDS sample actually SENT / what crossed the wire?"* | ⭐⭐ **`ddsmonitor`** *(installed, on PATH — recipe in the T-tiers section, "DDS WIRE CAPTURE")*; point `--DdsSettings:DomainId` at the cluster's domain **or a test harness's per-test domain** | ⛔ **do NOT hand-write a throwaway `DdsReader` probe first** — 📌 `2026-10-02` (S8) I did exactly that to learn CGF published `EntityDamage 1:2975`. ⚠ It answers *"did it leave?"* only — a sample on the wire that the receiver DROPS needs the receiver instrumented next |
 | ⛔⛔ **RENAME a C# symbol** | 🔴 **Roslyn — always** | see the ban below |
 | ⛔ *"is this text hit REALLY this symbol?"* — overloads, interface dispatch, aliases, partial classes, same name on two types | 🔴 **Roslyn** | ⛔ `search_code` is TEXT: 📌 **131 text matches vs 30 real references** on the same field — the rest were `<see cref>`, comments and markdown prose |
 | ⛔ *"who implements / overrides this?"* | 🔴 **Roslyn** `find_implementations` · `get_type_hierarchy` | ⚠ `trace_path` **under-reports C# interface dispatch** *(measured: 3 vs 9+)* |
@@ -994,6 +995,7 @@ git merge-base --is-ancestor <sha> origin/<lane>
 that wrote no code, every lane branching and re-syncing from it, one id PREFIX per lane, cross-lane edits a STOP,
 and *"the coordinator allocates no ids"*. ⚠ The id-prefix rule had already drifted into one shared `CE-` space,
 which is how `CE-459`/`460`/`507`/`508` came to mean two things each.
+⛔ **Also superseded the same day:** rule 3b / `R-176` — *"the lane which is merging the other lane's branch is renumbering"*. It renumbered five rows before the blocks arrived; at the `ui` merge the behaviors rows got their own ids back with a lane tag (`CE-507/508/509 (behaviors)`), and the backend-only renumbers (`CE-520`, `CE-523`, `CE-524`) were kept rather than renumbered twice.
 
 ### ⭐⭐⭐ Rule 8 — **the reviewing / merging lane does NOT re-run the gates** *(user, `2026-08-17`; roles per the lane protocol)*
 

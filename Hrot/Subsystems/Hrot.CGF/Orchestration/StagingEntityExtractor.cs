@@ -160,6 +160,24 @@ namespace Hrot.CGF.Orchestration
             INetworkIdAllocator idAllocator)
             => Extract(serializer, json, idAllocator);
 
+        /// <summary>
+        /// ⭐⭐ The remapping overload — <b>implemented here, not left to the interface's default</b>.
+        /// </summary>
+        /// <remarks>
+        /// 🔴 The interface's default for this member IGNORES the remapper (right for an extractor with no notion of one).
+        /// This class — the one that DOES remap — implemented only the three-argument member, so since <c>L4a</c> (the ONE
+        /// <c>ScenarioLoadStep</c>) every live load reached the default and CGF's remapper was dropped: entity references
+        /// inside mission parameters (<c>[RemapNetworkId]</c>, e.g. <c>FireAtTarget.targetNetworkId</c>) kept their
+        /// STAGING ids. 📐 Measured by <c>DistributedScenarioLoadTests</c> once its offline ids stopped coinciding with the
+        /// live ones (both allocators start at 1000 — which is why nothing noticed). 📄 <c>DESIGN_Cluster_Load_Phase.md</c> §4.1c.
+        /// </remarks>
+        IReadOnlyList<EntityCreationRequest> IScenarioEntityExtractor.Extract(
+            ScenarioSerializer serializer,
+            string json,
+            INetworkIdAllocator idAllocator,
+            ScenarioBehaviorRemapper? behaviorRemapper)
+            => Extract(serializer, json, idAllocator, episodeId: null, behaviorRemapper: behaviorRemapper);
+
         // ── Extraction ────────────────────────────────────────────────────────────
 
         /// <summary>
