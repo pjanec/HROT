@@ -6,35 +6,60 @@ using Fdp.Toolkit.Perception.Components;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
+    /// <summary>Which end of the sight line is the eye.</summary>
+    public enum EqsLosViewer : byte
+    {
+        /// <summary>The context entity looks at the candidate ("can the threat see me there?").</summary>
+        Slot = 0,
+        /// <summary>The self, standing at the candidate, looks at the context entity ("can I shoot from there?").</summary>
+        Candidate = 1,
+    }
+
+    /// <summary>What the filter keeps.</summary>
+    public enum EqsLosRequire : byte
+    {
+        /// <summary>Keep candidates the line does NOT reach (cover, concealment).</summary>
+        Hidden = 0,
+        /// <summary>Keep candidates the line reaches (firing positions, threats in view).</summary>
+        Visible = 1,
+    }
+
     /// <summary>
-    /// Rejects cover candidates that are exposed to the entity in <see cref="ContextSlotIndex"/>
-    /// (default slot 1 = Target). "Exposed" = HasCheapLineOfSight returns true (clear LOS from
-    /// candidate to threat). "Covered" = returns false (LOS blocked); flag bit 0 is set.
-    ///
-    /// Bypass conditions (in order):
-    ///   - The configured context slot entity is <see cref="Entity.Null"/> (no threat configured).
-    ///   - The slot entity has no <see cref="SimTransform"/> (slot entity not yet ready).
-    ///   - Observer has no <see cref="TargetMemory"/> (threshold gate not applicable).
-    ///   - TargetMemory.Count == 0 (no threats tracked).
-    ///   - ThreatScores[0] &lt; sensor.ThreatThreshold (threat not significant enough).
-    ///
-    /// Rejection sentinel: EntityId = -1L (NOT 0 -- positional candidates use 0).
-    /// FlagsMeaningful bit 0 is set on BOTH exposed (rejected) and covered candidates.
+    /// ⭐ Line-of-sight FILTER over the resident terrain between each candidate and the entity in
+    /// <see cref="ContextSlotIndex"/> (docs/designs/eqs-2/EQS_Design_v1.3_final.md §9.1, §19.5).
+    /// <list type="bullet">
+    ///   <item>Sight = <see cref="Terrain.TerrainWorld.SegmentBlocked"/> — the occluder perception uses. Heights: an eye at the
+    ///     viewer's STANDING height; a context entity is aimed at half its standing height; a positional candidate the threat
+    ///     looks at is aimed at the self's CROUCHED eye (the part that must be hidden).</item>
+    ///   <item>Flag bit <see cref="ContextSlotIndex"/> = <c>HasLOSToContextN</c> (§4.2), set on every judged candidate's
+    ///     <c>FlagsMeaningful</c>.</item>
+    ///   <item>⭐ No terrain resident ⇒ sight is unknown ⇒ the test does nothing (no flag judged, nothing rejected).</item>
+    ///   <item>The threat-score gate is opt-in: with <see cref="EqsSensor.ThreatThreshold"/> &gt; 0 it reads the self's (else the
+    ///     observer's) <see cref="TargetMemory"/> and skips the test while no threat reaches the threshold. Threshold 0 ⇒ always
+    ///     filtered (the context slot names the threat explicitly).</item>
+    /// </list>
+    /// ⛔ SUPERSEDED: the 2-D <c>ILosService</c> whose only implementation (<c>BlockedLosService</c>) answered "blocked"
+    /// for everything, a gate on the OBSERVER's <c>TargetMemory</c> (a child sensor's carrier has none ⇒ the test never ran),
+    /// and flag bit 0 meaning "covered from slot 1".
     /// </summary>
     public sealed class CheapLineOfSightTest : IEqsTest
     {
-        private readonly ILosService _los;
+        private readonly ILosService? _los;
 
-        /// <summary>
-        /// Index of the sensor context slot whose entity's <see cref="SimTransform"/>
-        /// provides the threat position. Default 1 (Target slot by convention).
-        /// </summary>
+        /// <summary>A test over the resident terrain (production: every registry-built template).</summary>
+        public CheapLineOfSightTest() { }
+
+        /// <summary>A test over an explicit sight source (a test fake, or a host-specific one such as Stride's raycasts).</summary>
+        public CheapLineOfSightTest(ILosService los) => _los = los;
+
+        /// <summary>The context slot (0..2) of the other end of the line. Default 1 = Target.</summary>
         public byte ContextSlotIndex { get; set; } = 1;
 
-        public CheapLineOfSightTest(ILosService los)
-        {
-            _los = los;
-        }
+        /// <summary>Which end is the eye. Default <see cref="EqsLosViewer.Slot"/>.</summary>
+        public EqsLosViewer Viewer { get; set; } = EqsLosViewer.Slot;
+
+        /// <summary>What is kept. Default <see cref="EqsLosRequire.Hidden"/> (cover).</summary>
+        public EqsLosRequire Require { get; set; } = EqsLosRequire.Hidden;
 
         /// <inheritdoc/>
         public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
@@ -42,61 +67,54 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <inheritdoc/>
         public unsafe void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
-            if (view is not EntityRepository repo) return;
+            var los = EqsTerrainSight.Sight(view, _los);
+            if (los == null) return;
 
-            // Step 1-2: Resolve context slot; bypass if null (no threat configured).
-            var slotEntity = GetSlotEntity(ref sensor);
-            if (slotEntity.IsNull) return;
+            var other = EqsContext.Anchor(view, observer, sensor, ContextSlotIndex);
+            if (other.IsNull) return;
+            var self = EqsContext.Self(view, observer, sensor);
 
-            // Step 3: Lookup SimTransform on the slot entity; bypass if not present.
-            if (!repo.HasComponent<SimTransform>(slotEntity)) return;
-            ref readonly var slotTransform = ref repo.GetComponentRO<SimTransform>(slotEntity);
+            // ⭐ The gate is OPT-IN (ThreatThreshold > 0): a sensor that names its threat in the slot and sets no threshold is
+            //   always filtered — an empty memory on the Muscle used to switch the filter off (found by the cross-node rail).
+            var memOwner = sensor.ThreatThreshold > 0f ? EqsContext.ThreatMemoryOwner(view, observer, self) : Entity.Null;
+            if (!memOwner.IsNull)
+            {
+                ref readonly var mem = ref view.GetComponentRO<TargetMemory>(memOwner);
+                if (mem.Count == 0 || mem.ThreatScores[0] < sensor.ThreatThreshold) return;
+            }
 
-            // Step 4: Bypass if observer has no TargetMemory.
-            if (!repo.HasComponent<TargetMemory>(observer)) return;
-            ref readonly var memRO = ref repo.GetComponentRO<TargetMemory>(observer);
-
-            // Step 5: Bypass if no threats tracked.
-            if (memRO.Count == 0) return;
-
-            // Step 6: Bypass if primary threat score is below threshold (not significant).
-            if (memRO.ThreatScores[0] < sensor.ThreatThreshold) return;
-
-            // Step 7: Threat position from slot entity's SimTransform.
-            var threatPos = new Vector2(slotTransform.Position.X, slotTransform.Position.Y);
+            var otherPos   = view.GetComponentRO<SimTransform>(other).Position;
+            var otherMount = EqsTerrainSight.Mount(view, other);
+            var selfMount  = EqsTerrainSight.Mount(view, self);
+            short bit      = (short)(1 << ContextSlotIndex);
 
             for (int i = 0; i < candidates.Length; i++)
             {
-                ref var candidate = ref candidates[i];
+                ref var c = ref candidates[i];
+                if (c.EntityId == -1L) continue;
 
-                // Skip already-rejected candidates.
-                if (candidate.EntityId == -1L) continue;
-
-                var candidatePos = new Vector2(candidate.PositionX, candidate.PositionY);
-
-                // HasCheapLineOfSight: true = clear (exposed) = reject.
-                //                      false = blocked (cover valid) = keep + set flag bit 0.
-                if (_los.HasCheapLineOfSight(candidatePos, threatPos))
+                var cPos = new Vector3(c.PositionX, c.PositionY, c.PositionZ);
+                bool visible;
+                if (Viewer == EqsLosViewer.Candidate)
                 {
-                    candidate.EntityId        = -1L; // Exposed: reject.
-                    candidate.FlagsMeaningful |= 1;  // Bit 0 was computed (result = rejection).
+                    visible = los.HasLineOfSight(
+                        cPos + new Vector3(0, 0, selfMount.Standing),
+                        otherPos + new Vector3(0, 0, otherMount.Standing * 0.5f));
                 }
                 else
                 {
-                    candidate.Flags           |= 1; // Covered: set flag bit 0.
-                    candidate.FlagsMeaningful |= 1; // Bit 0 was computed by this test.
+                    float aim = c.EntityId > 0
+                        ? EqsTerrainSight.Mount(view, new Entity((ulong)c.EntityId)).Standing * 0.5f
+                        : selfMount.Crouched;
+                    visible = los.HasLineOfSight(
+                        otherPos + new Vector3(0, 0, otherMount.Standing),
+                        cPos + new Vector3(0, 0, aim));
                 }
-            }
-        }
 
-        private Entity GetSlotEntity(ref EqsSensor sensor)
-        {
-            return ContextSlotIndex switch
-            {
-                0 => sensor.ContextSlot0,
-                2 => sensor.ContextSlot2,
-                _ => sensor.ContextSlot1,
-            };
+                c.FlagsMeaningful |= bit;
+                if (visible) c.Flags |= bit;
+                if (visible != (Require == EqsLosRequire.Visible)) c.EntityId = -1L;
+            }
         }
     }
 }

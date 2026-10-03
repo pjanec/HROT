@@ -64,10 +64,11 @@ public sealed class EqsContextSlotTests : IDisposable
         public float LastToX { get; private set; } = float.NaN;
 
         // Returns true (exposed) when to.X is near 20.
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to)
+        // ⭐ The 3-D seam (CE-210): the default LOS filter looks FROM the slot entity (eye) AT the candidate (aim).
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim)
         {
-            LastToX = to.X;
-            return MathF.Abs(to.X - 20f) < 1f; // exposed only when target is near x=20
+            LastToX = eye.X;
+            return MathF.Abs(eye.X - 20f) < 1f; // exposed only when the threat is near x=20
         }
     }
 
@@ -327,7 +328,7 @@ public sealed class EqsContextSlotTests : IDisposable
     /// <summary>
     /// T-CS5: <see cref="CheapLineOfSightTest"/> must pass the <see cref="SimTransform"/>
     /// position of the <c>ContextSlot1</c> entity as the threat position to
-    /// <see cref="ILosService.HasCheapLineOfSight"/>.
+    /// <see cref="ILosService.HasLineOfSight"/> (as the eye — the threat looks at the candidate).
     /// When the service reports all candidates are exposed (no cover), all are rejected and
     /// the buffer is empty.
     /// </summary>

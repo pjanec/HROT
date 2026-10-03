@@ -24,8 +24,9 @@ public sealed class FindCoverFromTargetTests : IDisposable
     // false (blocked) otherwise. Point A (x=5) is exposed; B and C (x=0) are occluded.
     private sealed class MockLosService : ILosService
     {
-        public bool HasCheapLineOfSight(Vector2 from, Vector2 to)
-            => from.X > 2f; // Points east of x=2 are exposed to threat at (20,0).
+        // ⭐ 3-D seam (CE-210): the threat's eye looks AT the candidate (aim).
+        public bool HasLineOfSight(Vector3 eye, Vector3 aim)
+            => aim.X > 2f; // Points east of x=2 are exposed to threat at (20,0).
     }
 
     // Simple in-memory template registry.

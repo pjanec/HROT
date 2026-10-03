@@ -369,16 +369,16 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         [Fact]
-        public void CE2046_FindSafeRetreatPoint_IsAnIdentityOnly_WithTheCanonicalId()
+        public void CE2046_FindSafeRetreatPoint_IsRegistered_WithTheCanonicalId()
         {
             var t = typeof(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint);
             Assert.Equal(
                 global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
                     new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.AssetId)),
                 global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId);
-            // not built (CE-2051): nothing may discover it as a template
+            // ⭐ BUILT by backend's terrain EQS slice (CE-3030, EQS design §19.6), which closed CE-2051: it is discovered.
             var registry = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.Discover(new[] { t.Assembly });
-            Assert.False(registry.TryGetTemplate(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, out _));
+            Assert.True(registry.TryGetTemplate(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, out _));
         }
 
         // ── SC-P1-06-5: IsAssignedTarget ─────────────────────────────────────────

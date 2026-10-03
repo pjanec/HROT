@@ -18,13 +18,10 @@ namespace Hrot.Stride.Core;
 /// </para>
 ///
 /// <para>
-/// <b>2-D → 3-D promotion.</b>
-/// <see cref="ILosService.HasCheapLineOfSight"/> receives 2-D XY positions (FDP ground
-/// plane: X=East, Y=North).  This service lifts them to 3-D by using a configurable
-/// <see cref="EyeHeightMetres"/> offset on the Z axis.  Both the observer and the target
-/// are placed at the same eye height, which is correct for the cover-evaluation use case
-/// (EQS <c>CheapLineOfSightTest</c>) where altitude is not yet known at the call site.
-/// When full 3-D altitude is available, use <see cref="HasLineOfSight3D"/> directly.
+/// <b>3-D endpoints (CE-210 (a)).</b> <see cref="ILosService.HasLineOfSight"/> takes engine-space points with the
+/// entity's eye/aim heights already applied by the caller (EQS: <c>CheapLineOfSightTest</c>, <c>ThreatExposureTest</c>).
+/// ⛔ SUPERSEDED: a 2-D <c>HasCheapLineOfSight</c> that lifted both ends to one service-wide <c>EyeHeightMetres</c> —
+/// stance, vehicles and terrain height were unrepresentable.
 /// </para>
 ///
 /// <para>
@@ -45,12 +42,6 @@ namespace Hrot.Stride.Core;
 public sealed class StrideRaycastLosService : ILosService
 {
     private readonly IStrideRaycastService _raycast;
-
-    /// <summary>
-    /// Eye height above the ground plane used when lifting 2-D positions to 3-D.
-    /// Default: 1.5 m (average eye height for a standing soldier).
-    /// </summary>
-    public float EyeHeightMetres { get; set; } = 1.5f;
 
     /// <summary>
     /// Fraction of the ray length within which a hit is considered "before" the target.
@@ -76,16 +67,9 @@ public sealed class StrideRaycastLosService : ILosService
     // ── ILosService ────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    /// <remarks>
-    /// Lifts the 2-D positions to 3-D using <see cref="EyeHeightMetres"/> on the
-    /// FDP Z axis, then delegates to <see cref="HasLineOfSight3D"/>.
-    /// </remarks>
-    public bool HasCheapLineOfSight(Vector2 observer, Vector2 target)
-    {
-        var obs3D = new Vector3(observer.X, observer.Y, EyeHeightMetres);
-        var tgt3D = new Vector3(target.X,   target.Y,   EyeHeightMetres);
-        return HasLineOfSight3D(obs3D, tgt3D);
-    }
+    /// <remarks>⭐ CE-210 (a): the 3-D method IS the interface method now; the caller applies the entity's eye/aim heights.
+    /// ⛔ SUPERSEDED: <c>HasCheapLineOfSight(Vector2, Vector2)</c>, which lifted both ends to a fixed eye height.</remarks>
+    public bool HasLineOfSight(Vector3 eye, Vector3 aim) => HasLineOfSight3D(eye, aim);
 
     // ── 3-D entry point ────────────────────────────────────────────────────────
 

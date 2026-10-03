@@ -21,12 +21,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (view is not EntityRepository repo) return;
             if (!repo.HasSingletonManaged<INavmeshProvider>()) return;
-            if (!repo.HasComponent<SimTransform>(observer)) return;
+            if (!EqsContext.SelfPosition(repo, observer, sensor, out var obsPos)) return;   // ⭐ §19 H3
+            uint layer = EqsContext.SelfLayer(repo, observer, sensor);                      // ⭐ §19 H5
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
-            ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
             // INavmeshProvider is Z-up like Sim (R-182 / W7): no swizzle (P3D-205).
-            var obsPos = tf.Position;
 
             float maxDist = sensor.SearchRadius;
             if (maxDist <= 0f) return;
@@ -40,8 +39,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, candidate.PositionZ);
 
-                // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
-                float pathDist = navmesh.PathCost(obsPos, targetPos);
+                float pathDist = navmesh.PathCost(obsPos, targetPos, layer);
                 if (pathDist != float.MaxValue)
                 {
                     // Inverse-linear falloff: shorter path = higher score. Additive.

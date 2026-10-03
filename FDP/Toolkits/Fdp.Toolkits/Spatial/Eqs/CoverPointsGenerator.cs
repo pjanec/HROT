@@ -19,9 +19,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             ICoverProvider provider = repo.GetSingletonManaged<ICoverProvider>()!;
 
-            if (!repo.HasComponent<SimTransform>(observer)) return 0;
-            ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            var center = new Vector2(tf.Position.X, tf.Position.Y);
+            // ⭐ §19 H3 — the self, not the observer: a child sensor's carrier has no position.
+            if (!EqsContext.SelfPosition(repo, observer, sensor, out var selfPos)) return 0;
+            var center = new Vector2(selfPos.X, selfPos.Y);
 
             // Intermediate stackalloc buffer for raw cover points.
             Span<CoverPoint> rawPoints = stackalloc CoverPoint[candidates.Length];
@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     PositionY = rawPoints[i].PositionY,
                     PositionZ = rawPoints[i].PositionZ, // P3D-203: stream cover altitude.
                     Score     = rawPoints[i].Quality, // Seed score with cover quality.
-                    Flags     = rawPoints[i].StanceHeight,
+                    // ⛔ SUPERSEDED (§19): Flags = StanceHeight — it wrote stance into the §4.2 flag bits 0–1 (HasLOSToContext).
                 };
             }
 

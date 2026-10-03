@@ -17,9 +17,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (view is not EntityRepository repo) return 0;
             if (!repo.HasSingletonUnmanaged<SpatialGridData>()) return 0;
-            if (!repo.HasComponent<SimTransform>(observer)) return 0;
+            // ⭐ §19 H3 — centred on the self (a child sensor's carrier has no position).
+            var self = EqsContext.Self(repo, observer, sensor);
+            if (self.IsNull) return 0;
 
-            ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
+            ref readonly var tf = ref repo.GetComponentRO<SimTransform>(self);
             var obsPos = new Vector2(tf.Position.X, tf.Position.Y);
 
             ref readonly var gridData = ref repo.GetSingletonUnmanaged<SpatialGridData>();
@@ -34,7 +36,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             for (int i = 0; i < rawCount; i++)
             {
                 // Exclude the observer entity itself from results.
-                if (neighbors[i].entity == observer) continue;
+                if (neighbors[i].entity == observer || neighbors[i].entity == self) continue;
 
                 // The spatial grid only returns 2D positions, so source the real altitude from
                 // each neighbour's authoritative SimTransform (P3D-203). Defensive: skip neighbours

@@ -1,16 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01)
-current-answer: §1–§15 are the v1.3 intent (§6.6a — FindSafeRetreatPoint, CE-2051 — is a DESIGN awaiting the user's nod). §16 is the MEASURED as-built state (2026-09-30) and what the
+build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01) · §19 — the terrain EQS slice BUILT (2026-10-03)
+current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
-stale-below: nothing is superseded, but §6.4 (hot reload) and §6.6 (starter pack of 8) describe intent that was
-  never built — see §16.
+stale-below: nothing is superseded, but §6.4 (hot reload) describes intent that was never built — see §16. §6.6's starter
+  pack is 6 of 8 since §19 (FindNearestEnemy/Ally and FindAllyForFormation not built; FindThreatsInView, FindFlankingPosition,
+  FindSafeRetreatPoint, FindOpenFiringPosition built §19.6). §9.1's "baked occluder grid" is the terrain world (§19.5).
 known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordinator ... registrars invoked" — the
   generated registrar registers a BlueprintDefinition, not the template, and the coordinator has no EQS code (§16).
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - docs/DESIGN_Terrain_World.md — owns the terrain world §19 queries over (prisms, SegmentBlocked, SurfaceZ) and TerrainResidency.
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — owns WHEN a behaviour's child sensor dies (at its behaviour
     instance's end), how LocalChildIndex is chosen (allocated + reused, never disposed — descriptor rules), the lifetime in the
     epoch, and the `Suspended` flag (CE-485, CE-486 — approved as `Active`, polarity flipped); the races it fixes are its §2.
@@ -372,7 +374,7 @@ Eight templates ship as hand-written C# classes in `Engine.Eqs.Templates.Starter
 
 They serve as documentation-by-example and as runtime test fixtures.
 
-### 6.6a `FindSafeRetreatPoint` — design *(`2026-10-03`, CE-2051; build-state: DESIGN, awaiting the user's nod)*
+### 6.6a `FindSafeRetreatPoint` — design *(`2026-10-03`, CE-2051)* — ⛔ SUPERSEDED: built differently by §19.6 (CE-3030); kept as the record of the proposal, not the as-built
 
 📐 **Measured first.** As built, a test is a class with no weight or curve (§16), and `DistanceScoreTest` scores
 NEARNESS to the observer only (`1 - d / SearchRadius`, `DistanceScoreTest.cs`). The template's one reader is
@@ -1124,4 +1126,169 @@ it is perception (grid, vision, LOS); only its solver call went.
 ⚠ **Names that survive, deliberately:** the behaviours lane's doctrine methods `Action_RequestAreaQuery` /
 `Condition_IsAreaQueryResolved` / `Deactivate_RequestAreaQuery` (and the BTree asset that binds them by FQN) now drive the EQS
 sensor (`CE-478`); renaming them is a behaviours-lane change touching `PlatoonHillAttack.btree.json` and `Hrot.IG.Tests`.
+
+
+---
+
+## 19. Terrain EQS slice — queries over the terrain world *(`2026-10-03`, build-state: BUILT — as-built in §19.7)*
+
+> 🔒 **User, `2026-10-03`:** *"Approved, go with the terrain EQS slice."* Scope: make cover real over the terrain, build the
+> unbuilt §5.4/§5.5 blocks, ship the §6.6 positional starter templates. 📄 Terrain world: [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md).
+
+### 19.0 INVENTORY *(measured before designing)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=".*Eqs.*" label=Class` | **119** (incl. tests) |
+| `[EqsTemplate]` classes | **2** — `FindCoverFromTarget`, `EntitiesOfForceInArea` |
+| `IEqsGenerator` impls | **4** — `CoverPoints`, `EntitiesInRadius`, `EntitiesInArea`, `NavmeshSamples` |
+| `IEqsTest` impls | **7** — `Faction`, `Alive`, `Distance`, `CheapLineOfSight`, `AccurateLineOfSight`, `NavmeshReachable`, `PathCost` |
+| `ILosService` impls | **1** — `BlockedLosService` (a stub: "always blocked") |
+| `ICoverProvider` impls | **1** — `ManualCoverProvider`; ⛔ no production registration (tests only) |
+| singletons synced into the solver's snapshot (`EntityRepository.Sync.cs:115`) | `INavmeshProvider` ✅, `ICoverProvider` ✅, ⛔ **`TerrainWorld` not** |
+
+### 19.1 What was hollow — measured
+
+| # | defect | evidence |
+|---|---|---|
+| H1 | cover's LOS filter never rejects anything | the registry builds templates through `Build(IEqsTemplateBuilder)` (`EqsTemplateRegistry.cs:87`), which injects `BlockedLosService` (`FindCoverFromTarget.cs:46`) |
+| H2 | no cover points on any production node | no production `SetSingletonManaged<ICoverProvider>` |
+| H3 | ⭐ **a CHILD sensor has no observer position** | the Muscle carrier is created with `PartMetadata` + `EqsSensor` + buffer only (`EqsSensorConfigIngressTranslator.cs:250`); every generator/test reads `SimTransform` of the observer ⇒ generates nothing / skips |
+| H4 | the cheap LOS test is inert for a child sensor on any host | its `TargetMemory` gate reads the OBSERVER (the carrier, which has none) and returns early (`CheapLineOfSightTest.cs:60`) |
+| H5 | navmesh generators/tests plan on every layer | `TODO NAV-P0-T5` in `NavmeshSamplesGenerator` / `PathCostScoreTest` — the `CE-3025` disease (a tank's points on the infantry mesh) |
+
+### 19.2 Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class IEqsGenerator { <<interface, existing>> +Generate(observer, sensor, view, candidates) int }
+    class IEqsTest { <<interface, existing>> +Phase +ExecuteBatch(observer, sensor, view, candidates) }
+    class ICoverProvider { <<interface, existing>> +GetCoverPointsInRadius(center, r, results) int }
+    class EqsContext { <<static, NEW>> +Self(view, observer, sensor) Entity +SelfPosition() bool +SlotPosition(slot) bool }
+    class EqsTerrainSight { <<static, NEW>> +Visible(world, eye, aim) bool +EyeOf(view, e) SensorMount }
+    class TerrainCoverProvider { <<NEW>> +Build(TerrainWorld) +GetCoverPointsInRadius() }
+    class ManualCoverProvider { <<existing>> }
+    class CheapLineOfSightTest { <<existing, CHANGED>> +ContextSlotIndex +Mode: RequireHidden|RequireVisible }
+    class ThreatExposureTest { <<NEW>> reads SensorContactList · bit4 IsInCover · bit5 Exposed }
+    class DotProductTest { <<NEW>> angle around a slot · bit6 IsPreferredSide }
+    class HeightScoreTest { <<NEW>> high ground }
+    class DistanceScoreTest { <<existing, CHANGED>> +FromSlot +PreferFar }
+    class DonutGenerator { <<NEW>> rings around a slot }
+    class GridGenerator { <<NEW>> }
+    class ConeGenerator { <<NEW>> }
+    class OffsetFromContextGenerator { <<NEW>> }
+    class CoverPointsGenerator { <<existing>> }
+    class NavmeshSamplesGenerator { <<existing, CHANGED: layer>> }
+    class PathCostScoreTest { <<existing, CHANGED: layer>> }
+    class TerrainWorld { <<existing singleton>> +SegmentBlocked(from,to) +SurfaceZ() +Prisms }
+    class TerrainResidency { <<existing, CHANGED>> Commit publishes TerrainCoverProvider }
+    ICoverProvider <|.. TerrainCoverProvider
+    ICoverProvider <|.. ManualCoverProvider
+    IEqsGenerator <|.. DonutGenerator
+    IEqsGenerator <|.. GridGenerator
+    IEqsGenerator <|.. ConeGenerator
+    IEqsGenerator <|.. OffsetFromContextGenerator
+    IEqsGenerator <|.. CoverPointsGenerator
+    IEqsGenerator <|.. NavmeshSamplesGenerator
+    IEqsTest <|.. CheapLineOfSightTest
+    IEqsTest <|.. ThreatExposureTest
+    IEqsTest <|.. DotProductTest
+    IEqsTest <|.. HeightScoreTest
+    IEqsTest <|.. DistanceScoreTest
+    IEqsTest <|.. PathCostScoreTest
+    TerrainCoverProvider ..> TerrainWorld : built from Prisms
+    CheapLineOfSightTest ..> EqsTerrainSight
+    ThreatExposureTest ..> EqsTerrainSight
+    EqsTerrainSight ..> TerrainWorld : SegmentBlocked
+    TerrainResidency ..> TerrainCoverProvider : Commit
+    DonutGenerator ..> EqsContext
+    CheapLineOfSightTest ..> EqsContext
+```
+*What the picture shows that prose hid:* every new block goes through `EqsContext` for "where am I / where is the target" —
+the H3 fix lives in ONE place, and the existing blocks are re-pointed at it rather than each growing its own fallback. Sight has
+one source (`TerrainWorld.SegmentBlocked`, the one perception uses — R-174), so `ILosService` / `BlockedLosService` are
+**retired**, not kept beside it.
+
+### 19.3 A cover query on the Muscle
+
+```mermaid
+sequenceDiagram
+    participant TR as TerrainResidency.Commit (every ECS node)
+    participant W as live world
+    participant SN as solver snapshot (EntityRepository.Sync)
+    participant S as EqsSolverSystem (SlowBackground)
+    participant G as CoverPointsGenerator
+    participant C as EqsContext
+    participant T as CheapLineOfSightTest / ThreatExposureTest
+    TR->>W: TerrainWorld + TerrainCoverProvider singletons
+    W->>SN: sync TerrainWorld (NEW), ICoverProvider, INavmeshProvider
+    S->>G: Generate(carrier, sensor)
+    G->>C: SelfPosition(carrier) = slot0 / carrier / PartMetadata.Parent
+    G-->>S: cover points near self
+    S->>T: ExecuteBatch
+    T->>C: SlotPosition(1) = threat
+    T->>T: SegmentBlocked(threat eye -> candidate crouched aim)
+    T-->>S: hidden kept (bit 4), exposed rejected
+    S-->>S: top-K, publish EqsResult
+```
+
+### 19.4 Who registers what, per host
+
+```mermaid
+graph TD
+    TR["TerrainResidency (every ECS node: SimHost, CGF, IG, editor)"] -->|"Commit"| TW["TerrainWorld singleton"]
+    TR -->|"Commit (NEW)"| CP["ICoverProvider = TerrainCoverProvider"]
+    EM["EqsModule (SimHost, editor)"] --> SS["EqsSolverSystem — SlowBackground 10 Hz"]
+    SS -->|"reads via snapshot"| TW
+    SS -->|"reads via snapshot"| CP
+    IG["IG / CGF on a cluster: no EqsModule"] -. "provider built, never queried" .-> CP
+    linkStyle 5 stroke:#999,stroke-dasharray:4
+```
+*What the picture shows:* the cover provider is published wherever a terrain is resident, but only a node with `EqsModule`
+reads it (R-179 picks the solving node). The dashed edge is cost without use on IG/CGF — accepted: one build per terrain load,
+milliseconds for a town.
+
+### 19.5 Rules of the blocks
+
+| block | rule |
+|---|---|
+| `EqsContext.Self` | slot 0 if it has a `SimTransform` ⇒ else the observer if it has one ⇒ else the carrier's `PartMetadata.ParentEntity`. The SAME entity drives `NavLayerSelection` (H5) and the threat read |
+| sight heights | from the entity's `SensorMount` (default 1.7 / 1.1 / 0.35 m — perception's `TerrainWorldLosStrategy.DefaultMount`). "Can I shoot from P" = self's **standing** eye at P → target's aim; "am I hidden at P" = threat's eye → self's **crouched** eye at P. Terrain only — vehicles are not cover (they move) |
+| no terrain resident | sight is **unknown** ⇒ LOS tests do nothing (no flag bits set). ⛔ Never "always blocked" (the old stub) and never "always visible" |
+| flags (§4.2, now honoured) | LOS test sets bit `slot` = HasLOS; `ThreatExposureTest` bit 4 `IsInCover` (hidden from every known threat) / bit 5 `IsExposedFromKnownThreat`; `DotProductTest` bit 6. ⚠ **As-built change:** `CheapLineOfSightTest` used to set bit 0 for "covered from slot 1" — wrong per §4.2 and read by no production code (`grep Flags & 1`: tests only) |
+| `ThreatExposureTest` | known threats = the self's `SensorContactList` (perception's tracks — on the Muscle), filtered by the sensor's `FactionFilter`. Score = 1 − exposedFraction. ⭐ It IS §5.4's `CoverQuality` too: two kinds would be two implementations of one measurement |
+| `TerrainCoverProvider` | points along every prism edge every 2.5 m, 0.75 m out from the wall, facing it; stance from wall height (≥1.5 m stand, ≥0.9 crouch, ≥0.45 prone, else none); Z = `SurfaceZ`; points inside another prism dropped; 10 m bucket grid for radius queries |
+| new generators | ring/grid/cone points are snapped to ground with `TerrainWorld.SurfaceZ` and dropped if inside a prism; params are template constants, the radius is the sensor's `SearchRadius` |
+
+### 19.6 Templates *(§6.6)*
+
+| template | generator | filters | scores |
+|---|---|---|---|
+| `FindCoverFromTarget` *(rebuilt)* | `CoverPoints` | LOS RequireHidden(slot 1) | Distance(self, near) · ThreatExposure · PathCost |
+| `FindOpenFiringPosition` | `Donut` around self | LOS RequireVisible(slot 1) | ThreatExposure · Distance(self, near) · Height |
+| `FindFlankingPosition` | `Donut` around slot 1 | LOS RequireVisible(slot 1) | DotProduct(around slot 1, away from self's side) · ThreatExposure · PathCost |
+| `FindSafeRetreatPoint` | `Grid` around self | LOS RequireHidden(slot 1) | Distance(slot 1, FAR) · ThreatExposure · PathCost |
+| `FindThreatsInView` | `EntitiesInRadius` | Faction · Alive · LOS RequireVisible(from self to candidate) | Distance(self, near) |
+
+⛔ Not in this slice: `FindNearestAlly` / `FindAllyForFormation` (no consumer named), Tag / DisType tests, accurate LOS rework,
+influence maps (§1 future).
+
+### 19.7 As-built *(`2026-10-03`)* — what the build found that §19.0–19.6 did not know
+
+| # | as built | ⛔ the design above said |
+|---|---|---|
+| A1 | ⭐ **`ILosService` is RE-HOMED, not retired** — now 3-D `HasLineOfSight(eye, aim)` with the entity's heights applied by the caller; `TerrainLosService` is the default (read from the world); `StrideRaycastLosService.HasLineOfSight3D` IS its implementation. ⭐ This is `CE-210` (c) *("give the EQS cover path a live caller on the new abstraction")* and (a) for EQS. Reason: six integration suites inject fakes through it, and Stride's raycast LOS is designed to plug in there (`CE-210`) | §19.2: "`ILosService` / `BlockedLosService` are **retired**" — `BlockedLosService` IS deleted; the interface is not |
+| A2 | ⭐ **the threat-score gate is OPT-IN** (`ThreatThreshold > 0`). 🔴 Found by the cross-node rail: the commander's replica on the Muscle carries an EMPTY `TargetMemory`, and "Count == 0 ⇒ bypass" switched the cover filter off — every point was returned | §19.5: the gate reads the self's memory when it has one |
+| A3 | `EqsContext.ThreatMemoryOwner` — the self's memory, else the observer's (a sensor placed directly on a Brain entity, as the older suites do) | — |
+| A4 | the generators share `PointPatternGenerator` (anchor, ground placement via `EqsTerrainSight.TryPlace`, "no anchor yet ⇒ negative ⇒ publish nothing") | — |
+| A5 | `CoverPointsGenerator` no longer writes `StanceHeight` into `Flags` — it was landing in §4.2 bits 0–1 | — |
+| A6 | `AccurateLineOfSightTest` got the same H4 gate fix, real heights (was a fixed Z 1.5 m) and §4.2 flag bits | ⛔ §19.6 "accurate LOS rework not in this slice" — only the defects, not a rework |
+| A7 | `TerrainCoverProvider` is built in `TerrainResidency.Prepare` (off-thread, beside the navmesh bake) and published at `Commit`; `Unload` publishes an empty one | §19.4 said "Commit" only |
+
+**Rails:** `TerrainEqsTests` (25 — sight both ways, no-terrain, the child-sensor self, cover provider, threat exposure,
+bearing, height, distance-far, the four generators, four templates on the real `test-town`, the template-id hashes) ·
+`TerrainLoadStepTests.Commit_PublishesTheTerrainsCover_AndUnloadEmptiesIt` · `EqsDistributedTests.FindCoverFromTarget_OverTheTerrain_*`
+(simhost + cgf: the Brain gets only points hidden from the threat) · `EqsFlatTerrainGoldenTests` +4 goldens (reviewed: the
+threats-in-view answer is the hostile in the open only; retreat points are all in the wall's shadow; the flank is side-on).
 

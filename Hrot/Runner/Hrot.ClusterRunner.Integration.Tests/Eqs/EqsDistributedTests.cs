@@ -395,6 +395,67 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
+    /// ⭐ EQS §19 — cover over the TERRAIN across hosts. A child sensor of a Brain commander asks <c>FindCoverFromTarget</c>
+    /// with a real threat in slot 1; on the Muscle the carrier has no position (§19.1 H3 — it must resolve its parent), the
+    /// solver reads the terrain from its background snapshot (TerrainWorld now synced), the cover comes from the terrain's
+    /// buildings, and every answer that reaches the Brain must be hidden from the threat. tt-nav-los geometry on test-town.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void FindCoverFromTarget_OverTheTerrain_AnswersTheBrainWithPointsHiddenFromTheThreat()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName,
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson")), "test-town");
+        sim.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent (TerrainResidency does the same)
+        sim.SetSingletonManaged(town);
+        sim.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(town));
+
+        long threatNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        long commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // Muscle-owned: its position is placed there
+        Assert.True(harness.PumpUntil(() => new[] { threatNet, commanderNet }.All(n =>
+                harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
+            "Both entities must exist on the Muscle and the Brain.");
+        Place(sim, SimEntity(harness, threatNet), 360f, 175f, ForceId.Hostile);
+
+        var cgf = harness.Cgf!.World!;
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(commanderNet, out Entity cgfCommander);
+        Place(sim, SimEntity(harness, commanderNet), 300f, 80f, ForceId.Friend);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(threatNet, out Entity cgfThreat);
+        Entity sensor = cgf.CreateEntity();
+        cgf.AddComponent(sensor, new PartMetadata { ParentEntity = cgfCommander, InstanceId = 3 });
+        cgf.AddComponent(sensor, new EqsSensor
+        {
+            BlueprintId = FindCoverFromTarget.BlueprintId, Epoch = 1, SearchRadius = 60f, ContextSlot1 = cgfThreat,
+        });
+        cgf.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady
+                                         && cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).Count > 0, timeoutFrames: 3000),
+            "The Muscle must answer the Brain with cover points — the carrier resolves its parent's position (§19.1 H3). "
+            + DiagnoseCover(harness, sensor) + $" commander@sim={SimEntity(harness, commanderNet).Index}:{sim.GetComponent<SimTransform>(SimEntity(harness, commanderNet)).Position}");
+
+        ref readonly var buf = ref cgf.GetComponentRO<EqsCognitiveBuffer>(sensor);
+        var span = buf.GetSpanRO();
+        // The rule (§19.5): the threat's standing eye → the self's crouched eye at the point, from their SensorMounts.
+        var threatEye = sim.GetComponent<SimTransform>(SimEntity(harness, threatNet)).Position
+                      + new Vector3(0, 0, EqsTerrainSight.Mount(sim, SimEntity(harness, threatNet)).Standing);
+        float crouched = EqsTerrainSight.Mount(sim, SimEntity(harness, commanderNet)).Crouched;
+        for (int i = 0; i < buf.Count; i++)
+        {
+            var p = new Vector3(span[i].PositionX, span[i].PositionY, span[i].PositionZ + crouched);
+            Assert.True(town.SegmentBlocked(threatEye, p),
+                $"Cover point ({span[i].PositionX:F1},{span[i].PositionY:F1},{span[i].PositionZ:F1}) is in the threat's view (eye {threatEye}, crouched {crouched}).");
+            Assert.True(Vector2.Distance(new Vector2(300f, 80f), new Vector2(span[i].PositionX, span[i].PositionY)) <= 60.5f);
+        }
+    }
+
+    /// <summary>
     /// T-DIS5: pointing a live sensor at a different area (epoch bump) must reach the Muscle and change
     /// the answer. Before the egress published on change, a reliable config sample was sent ONCE and a
     /// later parameter change never left the Brain (T-DIS2 had to remove and re-add the sensor).
@@ -1277,6 +1338,31 @@ public sealed class EqsDistributedTests
                 return sim.GetComponentRO<EqsSensor>(e).Epoch;
         }
         return 0;
+    }
+
+    private static string DiagnoseCover(HrotRunnerHarness harness, Entity brainSensor)
+    {
+        var sim = harness.SimHost.World!;
+        var cgf = harness.Cgf!.World!;
+        var sb = new System.Text.StringBuilder();
+        ref readonly var b = ref cgf.GetComponentRO<EqsCognitiveBuffer>(brainSensor);
+        sb.Append($"brain ready={b.IsReady} count={b.Count}; ");
+        foreach (var c in sim.Query().With<PartMetadata>().With<EqsSensor>().WithLifecycle(EntityLifecycle.All).Build())
+        {
+            var sensor = sim.GetComponent<EqsSensor>(c);
+            var self = EqsContext.Self(sim, c, sensor);
+            sb.Append($"carrier {c.Index} bp=0x{sensor.BlueprintId:X} r={sensor.SearchRadius} slot1={sensor.ContextSlot1.Index} self={(self.IsNull ? "null" : self.Index + "@" + sim.GetComponent<SimTransform>(self).Position)} cover={sim.GetSingletonManaged<ICoverProvider>()?.GetType().Name} ");
+            if (!sim.GetSingletonManaged<IEqsTemplateRegistry>()!.TryGetTemplate(sensor.BlueprintId, out var t)) { sb.Append("no template; "); continue; }
+            var buf = new EqsResult[t.MaxCandidates];
+            int n = t.Generator.Generate(c, ref sensor, sim, buf);
+            sb.Append($"gen={n} ");
+            if (n <= 0) continue;
+            var span = buf.AsSpan(0, n);
+            foreach (var x in t.FilterCheap ?? Array.Empty<IEqsTest>()) x.ExecuteBatch(c, ref sensor, sim, span);
+            int kept = 0; foreach (var r in span) if (r.EntityId != -1L) kept++;
+            sb.Append($"afterLos={kept} terrain={sim.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()}; ");
+        }
+        return sb.ToString();
     }
 
     private static long SpawnOnMuscle(HrotRunnerHarness harness, long tkbType)
