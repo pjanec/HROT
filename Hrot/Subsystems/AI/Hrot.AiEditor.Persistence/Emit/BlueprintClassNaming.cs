@@ -53,17 +53,6 @@ public static class BlueprintClassNaming
         return sb.Length > 0 ? sb.ToString() : "UnknownBlueprint";
     }
 
-    /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.BlueprintIdHash.Compute</c>.</summary>
-    public static int ComputeBlueprintId(Guid assetId)
-    {
-        const uint offsetBasis = 2166136261u;
-        const uint fnvPrime    = 16777619u;
-        uint hash = offsetBasis;
-        foreach (byte b in assetId.ToByteArray())
-        {
-            hash ^= b;
-            hash *= fnvPrime;
-        }
-        return unchecked((int)hash);
-    }
+    /// <summary>THE asset-id hash (⭐ CE-2036: <c>Shared/BlueprintIdFnv.cs</c>, linked — was a mirror).</summary>
+    public static int ComputeBlueprintId(Guid assetId) => global::Fdp.Toolkit.Behavior.Shared.BlueprintIdFnv.Compute(assetId);
 }

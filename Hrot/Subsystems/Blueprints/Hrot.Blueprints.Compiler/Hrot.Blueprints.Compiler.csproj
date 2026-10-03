@@ -42,6 +42,9 @@
          ⛔ CE-403 measured what a disagreement costs: a lookup that misses with no error anywhere. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
              Link="Compiler\Shared\HsmActionKey.cs" />
+    <!-- CE-2036: the ONE asset-id hash. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs"
+             Link="Compiler\Shared\BlueprintIdFnv.cs" />
   </ItemGroup>
 
   <ItemGroup>

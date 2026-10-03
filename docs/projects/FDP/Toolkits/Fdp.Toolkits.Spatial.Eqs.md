@@ -308,10 +308,11 @@ exceeds a threshold, so expensive scoring phases only operate on viable candidat
 
 ```csharp
 // Hand-authored C# template registered by the Roslyn source generator:
-[EqsTemplate("f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d")]
+[EqsTemplate(AssetId)]
 public static class FindCoverFromTarget
 {
-    public const uint BlueprintId = 0x7F3A2B1Cu;
+    public const string AssetId = "f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d";
+    public const uint BlueprintId = 0x082E6DADu;   // FNV-1a over AssetId's 16 bytes (CE-2034)
 
     public static EqsQueryTemplate Build(ILosService los) => new EqsQueryTemplate
     {
@@ -670,8 +671,8 @@ pattern. Visualizer tests live in `Hrot/Subsystems/Hrot.IG.Tests/Eqs/`.
 ## Starter Template Pack
 
 `FindCoverFromTarget` ships as a hand-authored C# template demonstrating the authoring
-pattern. Its `BlueprintId` is the FNV-1a hash of AssetId GUID
-`"f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d"` (= `0x7F3A2B1Cu`).
+pattern. Its `BlueprintId` is the FNV-1a hash of the AssetId GUID's 16 bytes
+`"f8a3c1d2-4e5b-4f6a-8c9d-2b1e3f4a5c6d"` (= `0x082E6DADu`; `CE-2034` — it was a hand-typed `0x7F3A2B1Cu` that matched no hash).
 
 Eight templates are specified in the design's starter pack; `FindCoverFromTarget` is the
 one currently implemented.

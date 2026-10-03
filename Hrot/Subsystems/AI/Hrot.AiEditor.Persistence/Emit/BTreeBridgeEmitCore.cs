@@ -292,8 +292,6 @@ public static class BTreeBridgeEmitCore
         string pad = Indent;
         string pad2 = Indent + Indent;
 
-        // Deterministic behavior ID from the asset GUID (not string.GetHashCode()).
-        int behaviorId = DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
         // ⭐⭐⭐ P4-② (2026-09-22) — THE DISPATCH TYPE IS `byte`, FOR EVERY TREE.
         //
@@ -1935,27 +1933,6 @@ public static class BTreeBridgeEmitCore
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Computes a deterministic int ID from a GUID using FNV-1a-32 over the 16 GUID bytes.
-    /// NOT string.GetHashCode() (process-randomized). Satisfies DEBT-006 stable-ID rule.
-    /// </summary>
-    public static int DeterministicIdFromGuid(Guid assetId)
-    {
-        // FNV-1a-32 over the 16 bytes of the GUID
-        byte[] bytes = assetId.ToByteArray();
-        unchecked
-        {
-            uint hash = 2166136261u; // FNV offset basis
-            foreach (byte b in bytes)
-            {
-                hash ^= b;
-                hash *= 16777619u; // FNV prime
-            }
-            // Convert to non-negative int (preserve bit pattern, clear sign bit)
-            return (int)(hash & 0x7FFFFFFFu);
-        }
-    }
 
     private static void AddNamespaceFromTypeName(HashSet<string> set, string typeName)
     {

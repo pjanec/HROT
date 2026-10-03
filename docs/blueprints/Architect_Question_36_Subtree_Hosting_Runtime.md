@@ -231,6 +231,11 @@ calling it *"the deterministic behavior ID"* reads as the mechanism when it is n
 it (`C`) or delete it with the reason recorded** *(and per the `.dev/` rule, check the design corpus
 before deleting)*.
 
+> ✅ **RESOLVED `2026-10-03` (`CE-2037`)** — ②c is **deleted**, and the split went the OTHER way from `C`: the JSON HSM
+> registrar now registers under `BehaviorHash.FromName(name)` like every other producer (the `Behavior_Architecture_Implementation_Plan`
+> Phase 1b ruling it had missed); `DeterministicIdFromGuid` is gone. User: *"replays are disposable, no alias needed."*
+> 📄 `DESIGN_Unified_Behaviour_Run.md` "S8f" F4.
+
 ---
 
 ## 5. Blast radius under the lean (`Q36-A` = `B`, `Q36-B` = `A`)

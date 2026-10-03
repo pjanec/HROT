@@ -150,7 +150,6 @@ public static class HsmBridgeEmitCore
         string pad  = Indent;
         string pad2 = Indent + Indent;
 
-        int behaviorId = BTreeBridgeEmitCore.DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
 
         sb.AppendLine($"{pad}/// <summary>");
@@ -172,7 +171,10 @@ public static class HsmBridgeEmitCore
 
         // Register definition
         sb.AppendLine($"{pad2}// Register the JSON-owned HSM definition.");
-        sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
+        // ⭐⭐ CE-2037 — the id is the NAME's hash, as for every other producer (Behavior_Architecture_Implementation_Plan
+        //   Phase 1b: "both producers mint id = FromName(name)"). ⛔ This registrar was the one Phase 1b missed — it minted
+        //   FNV over the asset GUID, so BehaviorHashOf(name) and any FromName recompute never matched a JSON HSM.
+        sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name          = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier     = BehaviorConstants.BrainTierHsm,");

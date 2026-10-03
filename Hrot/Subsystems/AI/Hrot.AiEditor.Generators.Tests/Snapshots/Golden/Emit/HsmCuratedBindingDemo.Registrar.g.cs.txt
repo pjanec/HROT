@@ -31,7 +31,7 @@ public static class HsmCuratedBindingDemoRegistrar
         var blob = HsmCuratedBindingDemo.Compile();
 
         // Register the JSON-owned HSM definition.
-        beh.Register(1197632028, "HsmCuratedBindingDemo", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmCuratedBindingDemo"), "HsmCuratedBindingDemo", new BehaviorDefinition
         {
             Name          = "HsmCuratedBindingDemo",
             BrainTier     = BehaviorConstants.BrainTierHsm,

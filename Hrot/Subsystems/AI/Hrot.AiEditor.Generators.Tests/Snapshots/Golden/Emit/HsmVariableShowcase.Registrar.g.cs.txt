@@ -79,7 +79,7 @@ public static class HsmVariableShowcaseRegistrar
         }
 
         // Register the JSON-owned HSM definition.
-        beh.Register(444402202, "HsmVariableShowcase", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmVariableShowcase"), "HsmVariableShowcase", new BehaviorDefinition
         {
             Name          = "HsmVariableShowcase",
             BrainTier     = BehaviorConstants.BrainTierHsm,

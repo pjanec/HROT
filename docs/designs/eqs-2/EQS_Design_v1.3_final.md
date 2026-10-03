@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-01
+updated: 2026-10-03
 build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01)
 current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
@@ -877,8 +877,12 @@ empty stub), and the **editor** ran AreaQuery but no EQS solver at all.
 
 ⭐ **Identity.** `BlueprintId = FNV-1a over the GUID's 16 bytes` (`Fdp.Toolkit.Blueprints.BlueprintIdHash`) — the
 hash the blueprint compiler already bakes. The registry keys every `[EqsTemplate]` by it, so a blueprint and a C#
-caller reach the same template. ⚠ `FindCoverFromTarget.BlueprintId` is a hand-typed constant that matches neither hash;
-the registry also registers a template under its own `BlueprintId` so existing C# callers keep working.
+caller reach the same template. ⚠ The registry also registers a template under its own `BlueprintId` when that differs.
+⭐ **As-built `2026-10-03` (`CE-2034`/`CE-2036`):** the `[EqsTemplate]` generator now stages under this same id (it hashed
+the GUID's *text*, so its `BlueprintDefinition` sat under an id nothing looked up), and `FindCoverFromTarget.BlueprintId` is
+the canonical `0x082E6DADu`, pinned by a rail (it was a hand-typed `0x7F3A2B1C` that matched no hash). The one formula is
+`Shared/BlueprintIdFnv.cs`, linked into every producer — 📄 `docs/blueprints/DESIGN_Unified_Behaviour_Run.md` "S8f".
+~~`FindCoverFromTarget.BlueprintId` is a hand-typed constant that matches neither hash~~ — SUPERSEDED by the line above.
 
 ### 17.5 Parity — what "the same as AreaQuery" means, measured
 

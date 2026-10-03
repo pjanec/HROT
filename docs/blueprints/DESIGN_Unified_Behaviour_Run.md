@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8e as-built" — the editor sizes/reads/names as the build does).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8f as-built" — one asset-id hash, one behaviour-id scheme).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1397,6 +1397,87 @@ been three, and one of them was not even deterministic.*
 CE-2034 (EQS template id — **live** divergence) · CE-2035 (utility decision id) · CE-2036 (`BlueprintIdHash` ×4) ·
 CE-2037 (HSM behaviour-id scheme — R-42, user decision) · CE-2038 (JSON escaped keys) · CE-2039 (four sanitizers) ·
 CE-2040 (test fixture sanitizer) · CE-2041 (remaining interop sizes) · CE-2042 (animation node `StructureHash` randomised).
+
+#### S8f design — one asset-id hash, one behaviour-id scheme *(`2026-10-03`, CE-2034 · CE-2036 · CE-2037; user: "Approved. replays are disposable, no alias needed")*
+
+📐 **INVENTORY** — graph `search_graph name_pattern=.*(FromName|IdFromGuid|BehaviorHashOf).*` → **13** (5 production:
+`BehaviorHash.FromName`, `DeterministicIdFromGuid` (2 callers, both emitters), `BlueprintWorldLibrary.BehaviorHashOf`,
+`BTreeHostedSites.AssetIdFromName`, editor `AssetIdHasher.FromName`; 8 tests) · grep for the FNV offset basis AND
+`ToByteArray|TryWriteBytes` over production → **5 files**: Fdp `BlueprintIdHash`, compiler `BlueprintIdHash`,
+`BlueprintClassNaming.ComputeBlueprintId`, `BTreeBridgeEmitCore.DeterministicIdFromGuid`, `OccurrenceSlotKey` (slot keys — a
+different identity, stays) · plus `BlueprintSignatureParser` (via `FnvHasher.Hash32`) and `EqsTemplateGenerator` (FNV over the
+GUID *text*). ⚠ `check_index_coverage` is unavailable through the CLI.
+
+| claim | code | design basis |
+|---|---|---|
+| an asset's id = FNV-1a over the GUID's 16 bytes | ✅ `Fdp…BlueprintIdHash.cs:17` · `EqsTemplateRegistry.cs:40` | ✅ `EQS_Design_v1.3_final.md` §17.4 *"BlueprintId = FNV-1a over the GUID's 16 bytes"* |
+| the EQS generator registers under another id | ✅ `EqsTemplateGenerator.cs:42` (GUID text) ⇒ `0x76F14294` vs `0x082E6DAD` | ✅ §17.4: `FindCoverFromTarget.BlueprintId` *"matches neither hash"* |
+| a behaviour's id = FNV-1a over its NAME | ✅ `BehaviorRegistry.cs:385`, `BTreeBridgeEmitCore.cs:440`, `CSharpEmitter.cs:621` | ✅ `Behavior_Architecture_Implementation_Plan.md` Phase 1b — *"replace … the generated registrar's `DeterministicIdFromGuid` with `FromName`"* |
+| the JSON HSM registrar was missed | ✅ `HsmBridgeEmitCore.cs:153` | ✅ same Phase 1b |
+| nothing persists a JSON HSM's id but replays | ✅ no scenario serializer touches `BehaviorState`; missions resolve by name (`MissionPlanTranslator.cs:127`) | ✅ `BehaviorHash` doc: scenarios reference behaviours by name · 🔒 user: replays disposable |
+
+```mermaid
+classDiagram
+  class BlueprintIdFnv { <<NEW, Analyzers/Shared, linked>> +Compute(Guid) int }
+  class BlueprintIdHash_Fdp { <<EXISTS, Fdp.Toolkits, public>> +Compute(Guid) int }
+  class BlueprintIdHash_Compiler { <<EXISTS, Blueprints.Compiler>> +Compute(Guid) int }
+  class BlueprintClassNaming { <<EXISTS, Persistence>> +ComputeBlueprintId(Guid) }
+  class BlueprintSignatureParser { <<EXISTS>> Guid.Empty gives 0 }
+  class EqsTemplateGenerator { <<EXISTS, analyzer>> was FNV over GUID text }
+  class EqsTemplateRegistry { <<EXISTS>> +BlueprintIdOf(Guid) uint }
+  class FindCoverFromTarget { <<EXISTS>> BlueprintId const }
+  class BehaviorHash { <<EXISTS>> +FromName(string) int }
+  class HsmBridgeEmitCore { <<EXISTS>> was DeterministicIdFromGuid }
+  class BTreeBridgeEmitCore { <<EXISTS>> DeterministicIdFromGuid DELETED }
+  BlueprintIdHash_Fdp --> BlueprintIdFnv
+  BlueprintIdHash_Compiler --> BlueprintIdFnv
+  BlueprintClassNaming --> BlueprintIdFnv
+  BlueprintSignatureParser --> BlueprintIdHash_Compiler
+  EqsTemplateGenerator --> BlueprintIdFnv
+  EqsTemplateRegistry --> BlueprintIdHash_Fdp
+  FindCoverFromTarget ..> EqsTemplateRegistry : const pinned by a rail
+  HsmBridgeEmitCore --> BehaviorHash : emits FromName
+```
+
+*What the picture shows: two identities, each with ONE function — an asset's id hashes its GUID bytes, a behaviour's id hashes
+its name — and every producer, build-time or runtime, points at one of the two.*
+
+```mermaid
+sequenceDiagram
+  participant G as EqsTemplateGenerator (build)
+  participant C as Blueprint compiler (build)
+  participant R as EqsTemplateRegistry (startup)
+  participant S as EqsSolverSystem (per frame)
+  participant F as BlueprintIdFnv
+  G->>F: Compute(asset GUID)
+  G-->>G: staging.Add(id, definition)
+  C->>F: Compute(template GUID) via BlueprintIdHash
+  C-->>C: bake id into SpawnEqsSensor
+  R->>F: Compute(asset GUID) via BlueprintIdHash
+  S->>R: TryGetTemplate(sensor id)
+  Note over G,S: all three ids are now the same number
+```
+
+**Who calls it:** the analyzer generators and the blueprint compiler at build time; `EqsTemplateRegistry.InstallDefault` at
+startup; `EqsSolverSystem` per frame (lookup only); generated registrars at registration (behaviour ids). Nothing new per frame.
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| F1 | one asset-id function | ⭐ `Shared/BlueprintIdFnv.cs` in the analyzer project (netstandard2.0-safe), linked into Fdp.Toolkits, the compiler and Persistence; the two public `BlueprintIdHash.Compute` stay as delegating façades | delete a public `BlueprintIdHash`: ~40 callers for no gain |
+| F2 | the EQS generator | ⭐ hashes GUID bytes; its local is `template_{index}` (a negative id made `template_-123`, not an identifier) | keep the text hash and alias it in the registry: two ids for one asset |
+| F3 | `FindCoverFromTarget.BlueprintId` | ⭐ the canonical literal `0x082E6DADu`, pinned to `BlueprintIdOf(AssetId)` by a rail (the `EntitiesOfForceInArea` pattern) | compute it at runtime: it is used as a `const` key |
+| F4 | JSON HSM behaviour ids | ⭐ emit `BehaviorHash.FromName("name")` as the BTree bridge does; delete `DeterministicIdFromGuid` and its dead BTree local | a legacy-id alias: the user ruled replays disposable |
+
+#### S8f as-built *(`2026-10-03`, CE-2034 · CE-2036 · CE-2037)*
+
+✅ **Built as designed, F1–F4.** Deviations and measurements:
+
+| item | as-built | ⚠ note |
+|---|---|---|
+| F1 · CE-2036 | `Fdp.Toolkits.Analyzers/Shared/BlueprintIdFnv.cs`, linked into Fdp.Toolkits, `Hrot.Blueprints.Compiler`, `Hrot.AiEditor.Persistence`; Fdp + compiler `BlueprintIdHash.Compute`, `BlueprintClassNaming.ComputeBlueprintId`, `BlueprintSignatureParser` route to it | ✅ no value moved (same bytes, same formula); the parser keeps its `Guid.Empty → 0` |
+| F2 · CE-2034 | `EqsTemplateGenerator` hashes the GUID bytes; a non-GUID `AssetId` stages nothing (as `EqsTemplateRegistry.Discover` skips it); the local is `template_{index}` | ⚠ the rail `EqsTemplateGeneratorTests.T-EGN1` now asserts the id equals `EqsTemplateRegistry.BlueprintIdOf` — it used to restate the generator's own text-hash, which is how the split stayed green. Red-proved (text hash restored ⇒ red), as is F3's pin (old constant ⇒ red) |
+| F3 · CE-2034 | `FindCoverFromTarget.AssetId` + `BlueprintId = 0x082E6DADu`, pinned by `EqsModuleTests.CE2034_*`; the EQS flat-terrain golden's `BlueprintId` field moves `2134518556 → 137260461` (the only change; its 8 tests pass) | ⚠ the registry's "also register under the template's own id" branch stays: generic, now inert for this template |
+| F4 · CE-2037 | the JSON HSM registrar emits `BehaviorHash.FromName("name")`; `DeterministicIdFromGuid` and the dead BTree local are deleted | 📐 **10 HSM registrar goldens moved, one line each, the id expression only** (all 10 shipped JSON HSMs). Rail folded into `Hsm_SampleGuard_Bridge_Register_RegistersHsmDefinition` (the test that runs the real emitted registrar); red-proved by re-emitting the GUID id ⇒ *found 718053693*, the old golden's value. Replays recorded before this carry the old ids — 🔒 user: disposable, no alias |
 
 ## 5. Decisions — each with a lean
 

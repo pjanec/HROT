@@ -43,7 +43,7 @@ public static class HsmOrthogonalRegionsRegistrar
             __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);
         }
         // Register the JSON-owned HSM definition.
-        beh.Register(1996438449, "HsmOrthogonalRegions", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmOrthogonalRegions"), "HsmOrthogonalRegions", new BehaviorDefinition
         {
             Name          = "HsmOrthogonalRegions",
             BrainTier     = BehaviorConstants.BrainTierHsm,

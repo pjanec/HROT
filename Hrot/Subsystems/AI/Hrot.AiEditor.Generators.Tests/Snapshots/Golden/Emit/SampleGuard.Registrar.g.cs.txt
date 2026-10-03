@@ -23,7 +23,7 @@ public static class SampleGuardRegistrar
         var blob = SampleGuard.Compile();
 
         // Register the JSON-owned HSM definition.
-        beh.Register(718053693, "SampleGuard", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("SampleGuard"), "SampleGuard", new BehaviorDefinition
         {
             Name          = "SampleGuard",
             BrainTier     = BehaviorConstants.BrainTierHsm,

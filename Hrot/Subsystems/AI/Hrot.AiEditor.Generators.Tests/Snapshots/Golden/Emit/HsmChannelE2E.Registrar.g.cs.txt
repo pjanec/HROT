@@ -31,7 +31,7 @@ public static class HsmChannelE2ERegistrar
         var blob = HsmChannelE2E.Compile();
 
         // Register the JSON-owned HSM definition.
-        beh.Register(2134535788, "HsmChannelE2E", new BehaviorDefinition
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("HsmChannelE2E"), "HsmChannelE2E", new BehaviorDefinition
         {
             Name          = "HsmChannelE2E",
             BrainTier     = BehaviorConstants.BrainTierHsm,
