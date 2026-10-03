@@ -183,6 +183,20 @@ namespace Hrot.Editor
         /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
         private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
 
+        /// <summary>
+        /// ⭐ CE-3017 — the editor's navmesh: ONE provider shared by the <c>INavmeshProvider</c> singleton and the background
+        /// <c>NavigationSolverModule</c>; each terrain load re-bakes it (<c>TerrainResidency.AttachNavmesh</c>). Same shape as
+        /// SimHost's (docs/DESIGN_Terrain_World.md §7.1 W6) — CGF ≡ editor (R-182).
+        /// </summary>
+        private readonly Fdp.Toolkit.Navigation.SwitchableNavmeshProvider _navmesh = new();
+
+        /// <summary>⭐ CE-3017 — the composed navigation module; its providers go in after kernel Initialize. Null on the
+        /// injected (Stride) arm, which brings its own navigation.</summary>
+        private Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule? _navModule;
+
+        /// <summary>⭐ CE-3017 — the solver capability, kept so its modules join the hot-swappable logic packs.</summary>
+        private SimHostCapabilities.NavigationSolver? _navSolverCapability;
+
         /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
         public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
@@ -1553,6 +1567,18 @@ namespace Hrot.Editor
                 muscleInputSystems   = simHostCorePack.InputSystems;
                 muscleSimSystems     = simHostCorePack.SimulationSystems;
                 musclePostSimSystems = simHostCorePack.PostSimulationSystems;
+
+                // ⭐⭐ CE-3017 — the path SOLVER, as SimHost composes it (CE-3006, W6): one navmesh shared by the
+                //    singleton and the background solver, the muscle pack's OWN trajectory pool (two pools ⇒ routes
+                //    resolve into memory the kinematics never read — CE-180), and the live road holder (a
+                //    SlowBackground module cannot read ZoneEnvironmentData). Each terrain load re-bakes the navmesh.
+                var navPool = simHostCorePack.TrajectoryPool;
+                _navModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(
+                    default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh);
+                _navSolverCapability = new SimHostCapabilities.NavigationSolver(_navModule,
+                    () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(
+                        default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh, roadNetworkHolder: _roadNetworkHolder));
+                TerrainResidency?.AttachNavmesh(new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory(), _navmesh);
             }
             else
             {
@@ -1580,7 +1606,7 @@ namespace Hrot.Editor
             //    a null capability registered as if it were real is the silent-default shape this
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
-                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!)
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!, _navSolverCapability!)
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
@@ -1756,6 +1782,10 @@ namespace Hrot.Editor
             if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
             if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
             foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
+            // ⭐ CE-3017 — the solver's modules are registered by its Register hook (SimHost's capability, unchanged), so
+            //    they are not in _capabilityModules; add them so SwitchToExternalAsync uninstalls them with the rest.
+            if (_navSolverCapability != null)
+                foreach (var mod in _navSolverCapability.RegisteredModules) logicPacks.Add(mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -2150,6 +2180,10 @@ namespace Hrot.Editor
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();
+
+            // ⭐ CE-3017 — the navigation singletons (INavmeshProvider, IPathRegistry) exist only after the module's
+            //    RegisterSystems ran inside Initialize — the same post-Initialize step SimHost takes.
+            _navModule?.RegisterProviders(_world!);
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(

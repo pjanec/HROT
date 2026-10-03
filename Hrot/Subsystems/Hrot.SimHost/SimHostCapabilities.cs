@@ -34,7 +34,7 @@ namespace Hrot.SimHost;
 /// split preserves it exactly rather than guessing. ⇒ <b>a follow-up should establish whether the two
 /// halves can be merged</b>; until then, the shape here is the honest one.</para>
 /// </remarks>
-internal static class SimHostCapabilities
+public static class SimHostCapabilities
 {
     /// <summary>The Muscle-tier ground simulation: the core logic pack's systems and its module.</summary>
     /// <remarks>
@@ -82,16 +82,19 @@ internal static class SimHostCapabilities
     }
 
     /// <summary>On-demand pathfinding, backed by the engine's navmesh and road graph.</summary>
-    internal sealed class NavigationSolver : INodeCapability
+    /// <remarks>⭐ <c>CE-3017</c> — public so the editor (≡ CGF solo, <c>R-182</c>) composes THIS capability rather than a
+    /// copy of it (<c>R-174</c>). The other SimHost capabilities stay internal.</remarks>
+    public sealed class NavigationSolver : INodeCapability
     {
         private readonly EngineBackedNavigationModule _module;
         private readonly Func<NavigationSolverModule>? _solverFactory;
+        private readonly List<IEcsModule> _registered = new();
 
         /// <param name="solverFactory">⭐ W6 (docs/DESIGN_Terrain_World.md §5) — builds the path SOLVER. Before it,
         /// no production host composed <see cref="NavigationSolverModule"/>, so a <c>PathfindingRequestEvent</c>
         /// was published and never answered. A factory, not an instance: the road holder it needs exists only
         /// after orchestration is built.</param>
-        internal NavigationSolver(EngineBackedNavigationModule module, Func<NavigationSolverModule>? solverFactory = null)
+        public NavigationSolver(EngineBackedNavigationModule module, Func<NavigationSolverModule>? solverFactory = null)
         {
             _module = module;
             _solverFactory = solverFactory;
@@ -107,10 +110,16 @@ internal static class SimHostCapabilities
         /// </remarks>
         public IReadOnlyList<string> Needs { get; } = new[] { ResourceKeys.TrajectoryPool };
 
+        /// <summary>The modules <see cref="Register"/> registered, in order — what a host that hot-swaps its logic tier
+        /// (the editor's <c>SwitchToExternalAsync</c>) must uninstall with it. Empty before <see cref="Register"/>.</summary>
+        public IReadOnlyList<IEcsModule> RegisteredModules => _registered;
+
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
-            context.Kernel.RegisterModule(_module);
-            if (_solverFactory != null) context.Kernel.RegisterModule(_solverFactory());
+            _registered.Clear();
+            _registered.Add(_module);
+            if (_solverFactory != null) _registered.Add(_solverFactory());
+            foreach (IEcsModule module in _registered) context.Kernel.RegisterModule(module);
         }
     }
 

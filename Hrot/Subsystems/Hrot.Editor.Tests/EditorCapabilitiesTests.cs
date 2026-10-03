@@ -80,6 +80,37 @@ public class EditorCapabilitiesTests : IDisposable
         if (o is IDisposable d) _disposables.Add(d);
     }
 
+    /// <summary>The navigation-solver capability as the editor builds it: over the muscle pack's own pool (CE-3017).</summary>
+    private static SimHostCapabilities.NavigationSolver Nav(SimHostCoreLogicPack muscle)
+    {
+        var navmesh = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+        var module = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(default, muscle.TrajectoryPool, navmesh);
+        return new SimHostCapabilities.NavigationSolver(module,
+            () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(default, muscle.TrajectoryPool, navmesh));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3017 — the editor's role DECLARES <c>NavigationSolver</c>; the resolved set must CARRY it, after the EQS solver
+    /// (it adds modules only, so the pinned system sequences above are untouched). Before this, nothing answered an
+    /// editor path request and every MoveTo steered <c>Direct</c>.
+    /// </summary>
+    [Fact]
+    public void DefaultArm_ComposesTheNavigationSolver_AfterThePerceptionSolvers_CE3017()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle, perception) = BuildPacks(world);
+
+        var keys = EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
+                                     .Resolve(EditorCapabilities.DefaultRole)
+                                     .Select(c => c.Key).ToList();
+
+        int nav = keys.IndexOf(CapabilityKeys.NavigationSolver);
+        Assert.True(nav >= 0, "the editor must compose the NavigationSolver capability its role declares");
+        Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception + ":eqs"),
+            "appended after the EQS solver, so every module registered before it keeps its slot");
+        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, perception, null!));
+    }
+
     /// <summary>
     /// ⭐ THE ONE THAT MATTERS. The resolved capability set must produce the same three system
     /// sequences the hand-written block produces — same types, same order, after the same
@@ -103,7 +134,7 @@ public class EditorCapabilitiesTests : IDisposable
 
         // ── The same thing, resolved from the plan ─────────────────────────────────
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, perception)
+            EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
@@ -159,7 +190,7 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, muscle, perception) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, perception)
+            EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
                               .Resolve(EditorCapabilities.DefaultRole);
 
         int brain  = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.Brain);
@@ -177,7 +208,7 @@ public class EditorCapabilitiesTests : IDisposable
         using var world = new EntityRepository();
         var (cgf, muscle, perception) = BuildPacks(world);
 
-        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, perception)
+        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
                                           .Resolve(EditorCapabilities.DefaultRole));
     }
 

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (slice 1, 2026-10-03; open: CE-3017, CE-3018, CE-3010) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
+build-state: BUILT (slice 1, 2026-10-03; open: CE-3018, CE-3010; CE-3017 closed 2026-10-03) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
 updated: 2026-10-03
 current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
@@ -312,11 +312,11 @@ graph TD
     SH_M["map: TerrainWorldGizmo"]
   end
   subgraph EdCgf["Editor = CGF (one host shape, ruling 66)"]
-    EC_L["TerrainLoadStep: world"]
+    EC_L["TerrainLoadStep: world + navmesh"]
     EC_M["map: TerrainWorldGizmo"]
     EC_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
     EC_K["CarKinematics reads SurfaceZ"]
-    EC_N["NavigationSolverModule — NOT COMPOSED (CE-3017)"]
+    EC_N["NavigationSolverModule (SimHost capability, CE-3017)"]
   end
   subgraph IG["IG (Map2D)"]
     IG_L["TerrainLoadStep: world"]
@@ -333,14 +333,15 @@ graph TD
   IG_L --> IG_M
   EC_L --> EC_P
   EC_L --> EC_K
-  EC_L -.->|no bake: solver absent| EC_N
-  style EC_N fill:#fdd,stroke:#900
+  EC_L --> EC_N
 ```
 
-*What the picture shows that the prose hid:* the one **dead edge** left (`2026-10-03`, as built) — 🔴 the editor
-DECLARES `NavigationSolver` in its role (`EditorCapabilities.DefaultRole`) but its plan registers no navigation
-capability, so nothing answers its path requests and no navmesh is baked there (`CE-3017`). ⭐ The earlier dead edge —
-the editor's load chain registered as Brain only — is fixed (`CE-3012`): the chain now uses `DefaultRole`.
+*What the picture shows that the prose hid:* **no dead edge is left** (`2026-10-03`, as built). ⭐ The editor's
+navigation edge was dead until `CE-3017`: its role DECLARED `NavigationSolver` but its plan carried no capability for it.
+Now the default arm composes SimHost's own `SimHostCapabilities.NavigationSolver` (`R-174`: shared, not copied) over the
+muscle pack's pool, one `SwitchableNavmeshProvider` and the editor's road holder; its residency bakes on every terrain
+load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-baked navigation. ⛔ SUPERSEDED: the dashed
+"no bake: solver absent" edge. The earlier dead edge — the load chain registered as Brain only — was fixed by `CE-3012`.
 
 | load part | who | why |
 |---|---|---|
@@ -380,7 +381,7 @@ the editor's load chain registered as Brain only — is fixed (`CE-3012`): the c
 | **W3** | every map draws the world, **CGF included** | the world becomes a **universal** load part (§5) |
 | **W4** | **editor ≡ CGF**, both load everything locally | the load chain is built from the host's **composed** role on both (`CE-3012`); no host-specific terrain path |
 | **W5** | sensor height follows posture | `SensorMount` per stance (Standing/Crouched/Prone) in the TKB sensor data, read through `StanceStatus.CurrentStance`; the target's silhouette height follows its stance too. ⚠ `StanceTransitionSystem` runs on **no** host today, so `StanceStatus` is never written — the strategy falls back to Standing until the stance runtime is composed (see the open row below) ⭐ **As built:** `SensorMount` (id 305) + `SensorCapabilitiesDto.EyeHeight*`; the strategy takes a stance READER — **null on every host today ⇒ Standing** (see W11) |
-| **W6** | SimHost composes the navigation solver | NavigationSolver capability composes `NavigationSolverModule` with the factory's provider + the shared pool; `EngineBackedNavigationModule.RegisterProviders` stops throwing when a provider already exists ⭐ **As built:** SimHost — the `NavigationSolver` capability registers `EngineBackedNavigationModule` **and** `NavigationSolverModule` over ONE `SwitchableNavmeshProvider` (singleton + the background solver's navmesh — a singleton swap would be invisible to a SlowBackground module); `TerrainResidency.AttachNavmesh(RecastNavmeshFactory, …)` bakes in Prepare, publishes in Commit (`CE-3006` closed). ⛔ **Editor/CGF: NOT composed** — its role DECLARES `NavigationSolver` but its plan carries no capability for it (`EditorCapabilities.cs` `BuildDefault`) → `CE-3017` |
+| **W6** | SimHost composes the navigation solver | NavigationSolver capability composes `NavigationSolverModule` with the factory's provider + the shared pool; `EngineBackedNavigationModule.RegisterProviders` stops throwing when a provider already exists ⭐ **As built:** SimHost — the `NavigationSolver` capability registers `EngineBackedNavigationModule` **and** `NavigationSolverModule` over ONE `SwitchableNavmeshProvider` (singleton + the background solver's navmesh — a singleton swap would be invisible to a SlowBackground module); `TerrainResidency.AttachNavmesh(RecastNavmeshFactory, …)` bakes in Prepare, publishes in Commit (`CE-3006` closed). ⭐ **Editor (≡ CGF solo): composed `2026-10-03` (`CE-3017`)** — `EditorCapabilities.BuildDefault` now REQUIRES SimHost's `NavigationSolver` capability (made public; appended after the EQS solver so the pinned system order is unchanged); `EditorSubsystem` attaches the Recast factory to its residency, registers the providers after kernel init, and adds the solver's modules to the hot-swap list `SwitchToExternalAsync` uninstalls. ⛔ SUPERSEDED: *"Editor/CGF: NOT composed"* |
 | **W7** | **every navigation/terrain API is Z-up; conversion only inside implementations** (DotRecast, the Stride boundary) | flip `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon`/`NavTestMap` to Z-up; `DotRecastNavmeshProvider` swizzles inside; remove the caller-side swizzles. 📐 Blast radius: **7 production files**, ~66 test call sites in ~46 files, **10 JSON navmaps**. Fixes the 4 mixed sites for free (`CE-3011`) ⭐ **As built (`ca1325385`, `CE-3011` closed):** `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`, fakes and navmaps are Z-up; `DotRecastNavmeshProvider` swizzles inside; `TerrainWorldGeometrySource` swizzles + re-winds the Z-up soup for the baker. ⚠ Stride edits compile-verified only |
 | **W8** | **no ground clamp**; the movement model sets Z to ground / roof / floor as it computes the position | `CarKinematicsSystem` and `LinearKinematicsSystem` write `Z = TerrainWorld.SurfaceZ(x, y, zHint = current Z)`; spawns at Z=0 settle on the first movement tick. `LinearKinematics` does this only for entities marked **`GroundFollow`** (set by the TKB translators from the entity's mobility) — ⛔ never for bullets ⭐ **As built (`399e6ffd3`): `CarKinematicsSystem` only.** ⛔ `LinearKinematicsSystem`/`GroundFollow` **NOT built** — measured: no ground mover runs `LinearKinematics` (SimHost infantry carry `VehicleState`, W10), so it would have no consumer; bullets keep their ballistic Z |
 
