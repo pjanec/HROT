@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core.Serialization.Migrations;
@@ -12,7 +13,11 @@ namespace Fdp.Core.Tests.Serialization.Migrations;
 public sealed class InMemoryMigrationStorageTests
 {
     // Canonical test path and derived base name.
-    private const string TestPath = @"C:\data\test.json";
+    // CE-2047 — a ROOTED path in the host's own syntax (C:\data\test.json on Windows, /data/test.json on Linux).
+    //   ⛔ The Windows literal it replaced is not a path on Linux: "\" is no separator there, so the base name came out as
+    //   "C:\data\test" and the three rails that hand-write a "test.v…" sidecar name never matched it (red only off Windows).
+    private static readonly string TestPath =
+        Path.Combine(Path.GetPathRoot(Path.GetTempPath())!, "data", "test.json");
 
     // ---------------------------------------------------------------
     // Helpers

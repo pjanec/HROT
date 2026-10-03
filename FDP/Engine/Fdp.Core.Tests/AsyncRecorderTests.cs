@@ -386,7 +386,10 @@ namespace Fdp.Tests
             repo.RegisterComponent<IntComponent>();
             var e = repo.CreateEntity();
             
-            string invalidPath = "Z:\\NonExistent\\Path\\file.fdp"; // Invalid path to force I/O error
+            // CE-2047 — a file under a directory that does not exist, on every host. ⛔ "Z:\\NonExistent\\Path\\file.fdp" is
+            //   only invalid on Windows: on Linux it is a legal FILE NAME, so the recorder created it in the working
+            //   directory and no I/O error ever occurred.
+            string invalidPath = Path.Combine(Path.GetTempPath(), "fdp-missing-" + Guid.NewGuid().ToString("N"), "Path", "file.fdp");
             
             try
             {

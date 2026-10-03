@@ -35,8 +35,8 @@ namespace Fbt.Tests.Unit
             return NodeStatus.Success;
         }
 
-        // ---- A blackboard struct that exceeds the 128-byte limit ----
-        // 33 int fields = 132 bytes > 128; used for the DtoTooLarge test.
+        // ---- A blackboard struct past the retired 128-byte cap ----
+        // 33 int fields = 132 bytes (CE-2049).
         [StructLayout(LayoutKind.Sequential)]
         private struct LargeBlackboard
         {
@@ -83,18 +83,24 @@ namespace Fbt.Tests.Unit
             Assert.Contains("nested", ex.Message);
         }
 
-        /// <summary>FBT-006 SC: expression binding with a DTO struct whose sizeof > 128 bytes
-        /// must throw BehaviorTreeBuildException at Compile() time.</summary>
+        /// <summary>
+        /// CE-2049 — the builder imposes NO blackboard size cap. The 128-byte cap this rail used to demand
+        /// (FBT-006, .dev/_DONE/fluent-btree BATCH-03) never reached this source tree — the rail was imported red
+        /// (877fc7c74) — and the design retired it: the blackboard is the behaviour's root-params occurrence slot,
+        /// sized from the DTO itself, and the one ceiling (16 096 bytes, the largest tier payload) is checked where
+        /// that slot is made — BehaviorParameterSizeAnalyzer at compile time, BehaviorRegistry.Register at startup
+        /// (CE-307; docs/designs/fluent-btree/DESIGN.md §2.2). ⭐ So it pins the retirement: a 132-byte blackboard
+        /// compiles, and a field past byte 128 projects.
+        /// </summary>
         [Fact]
-        public void DtoTooLarge_ThrowsBehaviorTreeBuildException()
+        public void ADtoOverTheRetired128ByteCap_Compiles()
         {
-            var ex = Assert.Throws<BehaviorTreeBuildException>(() =>
+            var ex = Record.Exception(() =>
                 new BTreeBuilder<LargeBlackboard, MockContext>()
-                    .Condition(bb => bb.F00, ReusableInt)
+                    .Condition(bb => bb.F32, ReusableInt)   // F32 sits at byte 128
                     .Compile("LargeDtoTree"));
 
-            // The message must mention the size limit so the developer knows what to fix.
-            Assert.Contains("128", ex.Message);
+            Assert.Null(ex);
         }
 
         /// <summary>FBT-006 SC: a correctly structured tree compiles without exception (control).</summary>
