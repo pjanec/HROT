@@ -885,7 +885,7 @@ Interface amended in place: no `INavmeshProvider2` façade. EQS template authors
 }
 ```
 
-**Per-layer separate navmesh**: each `NavLayerMask` value bakes a fundamentally separate navmesh with different rasterization parameters (radius, slope, step height). Infantry bake: 0.3 m radius, 60° max slope. Vehicle bake: 1.5 m radius, 20° max slope, 0.1 m step. Naval bake: water-surface polygons only.
+**Per-layer separate navmesh**: each `NavLayerMask` value bakes a fundamentally separate navmesh with different rasterization parameters (radius, slope, step height). Infantry bake: 0.3 m radius, 60° max slope. Vehicle bake: **1.8 m** radius (the widest hull's half-width — `CE-3027`, `2026-10-03`; ⛔ SUPERSEDED: 1.5 m, narrower than a 3.6 m-wide hull), 20° max slope, 0.1 m step. Naval bake: water-surface polygons only.
 
 `INavmeshProvider` implementation maintains an internal lookup table `{ NavLayerMask → dtNavMesh }` and dispatches queries against the right mesh per `layerMask` argument. The API surface stays unified — only baking diverges.
 

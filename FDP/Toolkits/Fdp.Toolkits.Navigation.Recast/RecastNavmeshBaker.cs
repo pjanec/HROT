@@ -67,9 +67,12 @@ public sealed class RecastNavmeshBaker
         AgentHeight   = 1.8f,
     };
 
+    // ⭐ CE-3027 (user-approved 2026-10-03): the Vehicle layer is baked at the widest vehicle class's hull half-width
+    //   (Bradley, 3.6 m wide ⇒ 1.8 m). ⛔ SUPERSEDED: 1.5 m (§10.1) — narrower than the hull, so planned paths let a
+    //   tank's side scrape building corners.
     private static readonly LayerParams VehicleParams = new()
     {
-        AgentRadius   = 1.5f,
+        AgentRadius   = 1.8f,
         MaxSlope      = 20f,
         MaxStepHeight = 0.1f,
         AgentHeight   = 2.0f,

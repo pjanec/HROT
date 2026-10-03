@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Navigation.Recast.Tests;
 /// <list type="bullet">
 ///   <item>T1-SC1: flat 20×20 m ground quad bakes to a non-empty DtNavMesh.</item>
 ///   <item>T1-SC2: per-layer params differ (Infantry vs Vehicle radius/slope).</item>
-///   <item>T1-SC3: Infantry radius 0.3 m walks a 0.8 m gap; Vehicle radius 1.5 m cannot.</item>
+///   <item>T1-SC3: Infantry radius 0.3 m walks a 0.8 m gap; Vehicle radius 1.8 m cannot.</item>
 ///   <item>T1-SC4: coordinate fidelity — a known ground point projects onto the baked mesh.</item>
 /// </list>
 /// </para>
@@ -149,8 +149,8 @@ public sealed class RecastNavmeshBakerTests
         Assert.Equal(0.3f, infantryP.AgentRadius, precision: 4);
         Assert.Equal(60f,  infantryP.MaxSlope,    precision: 4);
 
-        // Vehicle: 1.5 m radius, 20° slope.
-        Assert.Equal(1.5f, vehicleP.AgentRadius, precision: 4);
+        // Vehicle: 1.8 m radius (CE-3027: the widest hull's half-width), 20° slope.
+        Assert.Equal(1.8f, vehicleP.AgentRadius, precision: 4);
         Assert.Equal(20f,  vehicleP.MaxSlope,    precision: 4);
 
         // They must differ from each other.
@@ -161,14 +161,14 @@ public sealed class RecastNavmeshBakerTests
     // ── T1-SC3: gap walkability by radius ────────────────────────────────────
 
     /// <summary>
-    /// A 0.8 m gap (> 2×Infantry radius=0.6m, &lt; 2×Vehicle radius=3.0m).
-    /// Infantry (0.3 m radius) should be able to cross; Vehicle (1.5 m radius) should not.
+    /// A 0.8 m gap (> 2×Infantry radius=0.6m, &lt; 2×Vehicle radius=3.6m).
+    /// Infantry (0.3 m radius) should be able to cross; Vehicle (1.8 m radius) should not.
     /// </summary>
     [Fact]
     public void Bake_GapNarrowEnoughForInfantryNotVehicle()
     {
         // Gap of 0.8 m: passable for infantry (radius 0.3 m → corridor 0.2 m > 0)
-        //               not passable for vehicle (radius 1.5 m → needs 3 m clearance).
+        //               not passable for vehicle (radius 1.8 m → needs 3.6 m clearance).
         const float GapWidth = 0.8f;
         var (verts, indices) = MakeGroundWithGap(GapWidth);
 
