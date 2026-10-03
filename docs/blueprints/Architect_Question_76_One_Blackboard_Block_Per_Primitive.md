@@ -20,7 +20,8 @@ decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will
   carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
   ~200 lines and would park under the same rule. Reuse the rule on the next such question.
 stale-below: nothing.
-known-rot: ⛔ 2026-09-30 (CE-448) — the diagram/table rows naming BlueprintDefinition.Resolvers and
+known-rot: ⛔ 2026-10-03 (CE-2028 sweep) — §7 "nothing in it is serialised … NO save-file or replay migration" is WRONG for replays: the tiers are [DataPolicy(NoScenario)] only, so Flight Recorder recordings and checkpoints carry the raw slot bytes, and since MX-031 a saved scenario carries non-default Instance params + ParamsStructureHash. See DESIGN_Unified_Behaviour_Run.md "S8c as-built" (CE-2028 table).
+  ⛔ 2026-09-30 (CE-448) — the diagram/table rows naming BlueprintDefinition.Resolvers and
   BlueprintResolverEntry (§12.20 area) describe a publication index that is DELETED.
   known-rot: ⚠ 2026-09-30 (R-155, §12.26) — the resolver no longer runs AFTER an automatic copy.
   §12.3's "bake → supply → resolve" and §12.9c's "the resolver MODIFIES" describe the as-built

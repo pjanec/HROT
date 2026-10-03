@@ -48,6 +48,9 @@
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
              Link="Emit\Shared\HsmActionKey.cs" />
     <!-- ⭐ CE-417: the [WritesChannel] release block, shared with BTreeActionGenerator's 4-param wrapper. -->
+    <!-- ⭐⭐ CE-2027 — the ONE known-type (size, alignment) table; the packer's own KnownSizes copy is retired. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\KnownTypeLayouts.cs"
+             Link="Shared\KnownTypeLayouts.cs" />
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\ChannelClearEmit.cs"
              Link="Emit\Shared\ChannelClearEmit.cs" />
   </ItemGroup>

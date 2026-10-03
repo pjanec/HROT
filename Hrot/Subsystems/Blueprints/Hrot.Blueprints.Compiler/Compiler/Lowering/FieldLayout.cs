@@ -119,8 +119,20 @@ internal static class FieldLayout
         return AlignUp(end, 8);
     }
 
-    private static int TypeAlignment(IrTypeRef t)
-        => t.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
+    /// <summary>⭐ <c>CE-2027</c> — the same record size from bare field sizes, for a caller that has sizes before it has
+    /// <see cref="IrField"/>s (Stage 2's tier-budget check, which used to carry its own copy of this math).</summary>
+    internal static int RecordSize(IEnumerable<int> fieldSizesInOrder)
+    {
+        int offset = 0;
+        foreach (int size in fieldSizesInOrder)
+            offset = AlignUp(offset, AlignmentOf(size)) + size;
+        return AlignUp(offset, 8);
+    }
+
+    private static int TypeAlignment(IrTypeRef t) => AlignmentOf(t.SizeBytes);
+
+    private static int AlignmentOf(int sizeBytes)
+        => sizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
 
     private static int AlignUp(int offset, int align)
         => (offset + align - 1) & ~(align - 1);

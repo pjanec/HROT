@@ -865,6 +865,13 @@ compute struct field offsets.  This logic cannot be shared via a common helper a
 
 The duplication is therefore intentional and is documented with comments in the source files.
 
+> ⛔ **SUPERSEDED `2026-10-03` (CE-2027):** all three reasons are about ASSEMBLY references, and a linked source file adds
+> none. The layout math now lives ONCE in `Shared/RoslynStructLayout.cs` (with the known-type table in
+> `Shared/KnownTypeLayouts.cs`), compiled into this assembly and linked into `Hrot.AiEditor.Generators`,
+> `Hrot.Blueprints.Generators` and (the table only) `Hrot.AiEditor.Persistence` — the same mechanism as its `Shared/`
+> neighbours. ⚠ Unifying it showed the old math was not the CLR's (a 12-byte vector guessed 8-aligned, explicit layout
+> without trailing pad); it is now, pinned against `Unsafe.SizeOf`. 📄 `docs/blueprints/DESIGN_Unified_Behaviour_Run.md` "S8d".
+
 ### Why `ISourceGenerator` for gizmos and `IIncrementalGenerator` for BTree/HSM?
 
 `GizmoRegistrarGenerator` uses the older `ISourceGenerator` API because gizmo registrations

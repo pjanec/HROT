@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: S8c, one generated-type catalogue).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: S8d, one struct-layout algorithm).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1152,10 +1152,138 @@ whole block Sequential. 📐 Measured by the control in the rail below: the same
 with a Roslyn-visible params type. ⇒ S8c's exact size shows on a Tick-driven host today; an event-driven one gains it when
 CE-2028 lands.
 
+📐 **CE-2028 MEASURED (`2026-10-03`) — what fixing it would move.** Fixing it changes the event-fiber slots' sizes/offsets ⇒
+`StructureHash` (`StructureHashComputation`: name|type|offset|size of every field, fiber slots included) moves for exactly
+those assets.
+
+| consequence | evidence |
+|---|---|
+| ⭐ **shipped corpus affected: 1 of 35** — only `Demo_MissionPlan` carries event-fiber slots | grep `_Fiber_` over `Snapshots/Golden/Emit/*.cs.txt` |
+| live slots HARD-RESET once on the next tick (logged, never thrown) — the intended R-24 behaviour of any layout change | `BlueprintTickSystem.cs:128-139` · `OccurrenceWorkingState.cs:51-72` · `BrainTickSystem.cs:336-375` · ✅ `RULINGS.md` R-24 |
+| a SAVED SCENARIO's non-default params (`BlueprintAssignments[].ParamsStructureHash`) stop loading and fall back to defaults | `BlueprintStateTranslator.cs:182-199` writes it, `BlueprintMaterializationSystem.cs:171-181` refuses a mismatch · ⚠ no shipped scenario carries one |
+| replay `.fdp` recordings and checkpoints hold the raw tier bytes; replay readers read them at the CURRENT offsets with no hash check | `BlueprintBlackboard*` are `[DataPolicy(NoScenario)]` only · `PredicateCompiler.cs:236-254` · ⚠ pre-existing for ANY layout change — ⛔ searched `docs/`+`.dev/`, no ruling on cross-version replay of behaviour state |
+| network / DDS | ✅ never carries the bytes (`DESIGN_Occurrence_Scoped_Storage.md:763`) |
+| goldens | ⚠ Tier-1 goldens pin the hash and "never move undeclared" — a CE-2028 fix is a DECLARED move of the affected asset's goldens |
+
+⚠ **Doc conflict found by the sweep:** `Architect_Question_76` (lines ~415–417) and `OccurrenceKind.cs:24-26` say slot bytes
+"never reach a saved scenario or a replay"; the code and `Q37:60`/`DESIGN_Occurrence_Scoped_Storage.md:667-668` say they are
+RECORDED. ⇒ the recording side is right; filed with CE-2028.
+
 Rails: `BlueprintBehaviourTests.S8c_AParamsPinBoundToAGeneratedChild_KeepsTheHostsExactLayout_InTheRealGenerators` (Tick-driven
 host + a Roslyn-visible control), `HsmJsonGeneratorTests.S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild`,
 `BTreeJsonGeneratorTests.S8c_TheCatalogue_DeclaresSiblingGeneratedTypes_AndNothingElse`,
 `BTreeJsonGeneratorTests.S8c_AnInputsCycle_HasNoSize_AndDoesNotOverflow`.
+
+#### S8d design — ONE struct-layout algorithm, and it is the CLR's *(`2026-10-03`, CE-2027; user: "for sure lets unify struct size code")*
+
+📐 **INVENTORY** — `search_graph name_pattern=.*ComputeStructSize.*|.*GetTypeSize.*|.*KnownSizes.*` (label Method/Field) + grep
+`ComputeStructSize|GetTypeAlign` over `FDP/ Hrot/ Stride/` (⚠ `check_index_coverage` is not reachable through the CLI, so this
+set rests on graph + grep agreeing):
+
+| # | copy | assembly | input |
+|---|---|---|---|
+| 1 | `BehaviorParameterSizeAnalyzer.ComputeStructSize/GetTypeSize` | `Fdp.Toolkits.Analyzers` | Roslyn symbol |
+| 2 | `BTreeActionGenerator.ComputeStructSize/GetTypeSize/TryComputeFieldOffset` | same | Roslyn symbol |
+| 3 | `HsmActionGenerator` — byte-identical to 2 | same | Roslyn symbol |
+| 4 | `StructSizeResolver.ComputeStructSize/GetTypeSize/ComputeSequentialSize` (+ its `KnownSizes`) | `Hrot.AiEditor.Generators`, linked into `Hrot.Blueprints.Generators` | Roslyn symbol / type id |
+| 5 | `BTreeBlackboardPackHelper.KnownSizes` — a twin of 4's table | `Hrot.AiEditor.Persistence` | type id |
+| 6 | `Stage2_Validate.V_VariablesAndState.ComputeStructSize` — a copy of `FieldLayout`'s record math | `Hrot.Blueprints.Compiler` | registry `SizeBytes` |
+| — | ⛔ `Fbt.SourceGen.BTreeActionGenerator` (named by Batch 65's report) | — | **no longer exists** |
+| — | `BlackboardBinPacker` (editor) — a whole second PACKER over runtime `System.Type`s, `Marshal.SizeOf` for structs | `Hrot.Editor.AiShared` | ⚠ filed as CE-2029, not this slice |
+
+| claim | code | design basis |
+|---|---|---|
+| the duplication was deliberate | ✅ `BehaviorParameterSizeAnalyzer` header: *"Duplicated intentionally"* | ✅ `docs/projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md` "Why struct-layout math is duplicated" — ⭐ its three reasons are all about ASSEMBLY references; a linked source file adds none (`REPORT_Batch65_Track_B.md` §"What consolidating the remaining three would take" says the same and sizes it as one batch) |
+| ⛔ the shared math is NOT the CLR's | ✅ **measured by `CE2027_*` truth rails** (Roslyn vs `Unsafe.SizeOf`/`Marshal.OffsetOf` on the same source): 10 of 19 cases wrong — `{int; V3}` 24 vs 16, explicit `{int@0; byte@4}` **5 vs 8**, `{byte; Ex}` **10 vs 12**, `{byte; Empty; byte}` **2 vs 3**. Cause: alignment guessed as `min(size, 8)` (a 12-byte float vector is 4-aligned), no trailing pad on explicit layout, an empty struct sized 0 | ⛔ `BATCH-03-REPORT.md:92` called `{int, Vector3}` = 24 *"correct managed sequential behavior"* — refuted by the runtime |
+| an UNDER-estimate is the dangerous half | ✅ a too-small size under W4's explicit layout overlaps the next field; under the packer's explicit `[FieldOffset]` the same | ✅ `CSharpEmitter.UseExplicitLayout` header ("the oversized field would overlap its neighbour") |
+| the analyzers' field OFFSET reaches no output | ✅ `SharedAiEntry.Offset/CompoundKey` are assigned and never read (`BTreeActionGenerator`/`HsmActionGenerator`, since CE-417 a′ retired the DTO-offset adapters) — it only decides BHU003 "unknown field" | ✅ CE-417 B-2 (a′) comment in `BTreeActionGenerator` |
+| correcting SIZES keeps every packer correctly aligned | ✅ a CLR size is a multiple of its alignment, so the packers' own `min(size, 8)` (`BTreeBlackboardPackHelper.Pack`, `FieldLayout`) is never LESS aligned than the CLR — over-aligned is safe | ✅ `BTreeEmitCore.cs:166` states the same invariant |
+
+```mermaid
+classDiagram
+  class RoslynStructLayout { <<NEW, FDP Shared/>> +TypeSize(symbol) +TypeAlign(symbol) +StructSize(symbol) +FieldOffset(symbol, name) +SequentialSize(size-align pairs) }
+  class KnownTypeLayouts { <<NEW, FDP Shared/, Roslyn-free>> +TryGet(typeId) size+align +TryGetSize(typeId) }
+  class BehaviorParameterSizeAnalyzer { <<EXISTS, copy deleted>> FDP_001 }
+  class BTreeActionGenerator { <<EXISTS, copy deleted>> BHU003 }
+  class HsmActionGenerator { <<EXISTS, copy deleted>> BHU003 }
+  class StructSizeResolver { <<EXISTS, string front door only>> +Resolve +ResolveFieldSize +ResolveFieldLayout }
+  class BTreeBlackboardPackHelper { <<EXISTS, table deleted>> +TryGetSize +Pack }
+  class GeneratedBlueprintSchemaCatalog { <<EXISTS>> Params size from size+align pairs }
+  class FieldLayout { <<EXISTS>> +RecordSize(sizes) }
+  class Stage2_Validate { <<EXISTS, copy deleted>> tier budgets }
+  RoslynStructLayout --> KnownTypeLayouts
+  BehaviorParameterSizeAnalyzer --> RoslynStructLayout
+  BTreeActionGenerator --> RoslynStructLayout
+  HsmActionGenerator --> RoslynStructLayout
+  StructSizeResolver --> RoslynStructLayout
+  StructSizeResolver --> KnownTypeLayouts
+  BTreeBlackboardPackHelper --> KnownTypeLayouts
+  GeneratedBlueprintSchemaCatalog --> StructSizeResolver : ResolveFieldLayout
+  GeneratedBlueprintSchemaCatalog --> RoslynStructLayout : SequentialSize
+  Stage2_Validate --> FieldLayout : RecordSize
+```
+
+*What the picture shows that prose hid: every arrow into a size now ends in ONE of two boxes — the symbol algorithm or the
+type-id table — and the blueprint compiler's IR layout (`FieldLayout`) stays its own model, with Stage 2 reading it instead
+of a copy.*
+
+```mermaid
+graph TD
+  B[Hrot.AI.Behaviors build] -->|Analyzer| AN[Fdp.Toolkits.Analyzers]
+  B -->|Analyzer| AG[Hrot.AiEditor.Generators]
+  B -->|Analyzer| BG[Hrot.Blueprints.Generators]
+  B -->|Analyzer| P[Hrot.AiEditor.Persistence]
+  AN -->|compiles| SH[Shared/RoslynStructLayout.cs + Shared/KnownTypeLayouts.cs]
+  AG -.->|links| SH
+  BG -.->|links| SH
+  P -.->|links KnownTypeLayouts only, Roslyn-free| SH
+```
+
+*Who calls it: nobody per frame — it is BUILD-TIME only, inside the analyzers and generators Roslyn runs for
+`Hrot.AI.Behaviors` (and the in-process editor compile, which reaches the packer through Persistence). The dashed edges are
+the link mechanism every `Shared/` neighbour already uses.*
+
+```mermaid
+sequenceDiagram
+  participant G as a generator / analyzer
+  participant R as RoslynStructLayout
+  participant K as KnownTypeLayouts
+  G->>R: StructSize(Dto)
+  loop each instance field
+    R->>K: known type? (size, align)
+    R->>R: else enum ⇒ underlying · struct ⇒ recurse · fixed T[N] ⇒ N × T
+    R->>R: offset = AlignUp(offset, min(align, Pack))
+  end
+  R-->>G: AlignUp(end, maxAlign), ≥ [StructLayout Size], ≥ 1
+```
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| D1 | home | ⭐ `FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/` — FDP is the lower layer, and `Shared/` already holds three linked files Hrot consumes | the Hrot side (`StructSizeResolver`): FDP would then link a file out of the product tree |
+| D2 | mechanism | ⭐ `<Compile Link>` — no assembly edge, no analyzer-load item | a helper assembly: the very reason the doc gave for duplicating |
+| D3 | correctness | ⭐ the CLR's rules: alignment = largest field alignment capped by `Pack`/8, explicit layout padded to its alignment, `[StructLayout(Size)]` honoured, empty = 1, `fixed T[N]` = N × T | keep the old guess "to move nothing": it UNDER-sizes explicit and empty-member structs |
+| D4 | the type-id table | ⭐ one `KnownTypeLayouts` with ALIGNMENT, linked into Persistence too | keep three tables: two had already drifted from a third (none carried alignment) |
+| D5 | blueprint Params from schema | ⭐ (size, align) pairs via `StructSizeResolver.ResolveFieldLayout` | sizes only: cannot know a `Vector3` is 4-aligned |
+| D6 | Stage 2 budgets | ⭐ `FieldLayout.RecordSize(sizes)` — identical math, one copy | leave it: a fourth copy of the IR layout rule |
+| D7 | the editor's `BlackboardBinPacker` | ⭐ OUT — filed CE-2029 (a second PACKER, not a size helper) | fold in here: changes what the authoring window shows; its own slice |
+
+Rails: `StructSizeResolverEnumTests.CE2027_TheStructSize_IsTheClrsManagedSize` (17 shapes) and
+`…CE2027_AFieldOffset_IsTheClrsOffset` (9), both against the CLR — red on the moved-unchanged algorithm (10 of 19), green after D3.
+
+#### S8d as-built *(`2026-10-03`, CE-2027)*
+
+⭐ Built as D1–D7; the three diagrams above are true as drawn.
+
+| # | as-built fact | where |
+|---|---|---|
+| X1 | `RoslynStructLayout` (TypeSize · TypeAlign · StructSize · FieldOffset · SequentialSize) and `KnownTypeLayouts` (TryGet · TryGetSize) in `FDP/Toolkits/Fdp.Toolkits.Analyzers/Shared/` | the two new files |
+| X2 | the three analyzer copies DELETED (their call sites call the shared methods); `StructSizeResolver` keeps only its string front door (+ `ResolveFieldLayout`); `BTreeBlackboardPackHelper.KnownSizes` DELETED; `Stage2_Validate`'s copy routed to `FieldLayout.RecordSize(sizes)` | `BehaviorParameterSizeAnalyzer`, `BTreeActionGenerator`, `HsmActionGenerator`, `StructSizeResolver`, `BTreeBlackboardPackHelper`, `FieldLayout`, `Stage2_Validate` |
+| X3 | linked into `Hrot.AiEditor.Generators` + `Hrot.Blueprints.Generators` (both files) and `Hrot.AiEditor.Persistence` (the table) | the three csproj files |
+| X4 | ⭐ **measured the shipped blast radius by diffing `Hrot.AI.Behaviors`' generated sources at `2a2fea813` vs after** (`EmitCompilerGeneratedFiles`): **3 assets move, all toward the CLR** — `PlatoonHillAttack` Inputs 56 → **52** (`PlatoonHillAttackParams` = `Entity`(8, 4-aligned) + 11 floats; its own source comment says *"Total: 52 bytes"*), its CE-455 layout hash with it; `T32_ComposedGeneratedBlueprint`'s composed `EnumDemo` `Params` 0 → **1** (an empty struct), which also arms the generator's existing runtime drift check for it; `PlatoonHillAttackBp`'s `StructureHash` (its fixed-list element sizes) — emitted layout text unchanged | ⚠ one-time R-24 hard reset of those live slots on deploy, logged |
+| X5 | goldens: the blueprint corpus (in-process, no oracle) did NOT move; FOUR AI goldens moved — `PlatoonHillAttack` and `T32_ComposedGeneratedBlueprint`, `.Blackboard` + `.Registrar` each, +10/−4 lines, exactly the X4 real-build diff (declared regeneration); two BTree generator tests that pinned `{int; Vector3}` = 24 re-pinned to the CLR's 16 | `BTreeJsonGeneratorTests.StructDtoVariable_*` |
+
+Rails: the two CLR-truth theories above + `CE2027_AShippedStruct_IsSizedAsTheClrLaysItOut` (the real `PlatoonHillAttackParams`,
+`HillAttackMutableState` — fixed buffers, unsizeable before —, `HillAttackRunner`, `PickableGeoPoint`, `Entity`). 31 rails, all green.
 
 ## 5. Decisions — each with a lean
 

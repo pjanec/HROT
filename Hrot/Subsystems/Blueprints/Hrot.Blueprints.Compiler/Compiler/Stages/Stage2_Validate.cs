@@ -567,22 +567,10 @@ internal sealed class V_VariablesAndState : IValidator
         }
     }
 
+    /// <summary>⭐ <c>CE-2027</c> — the record size <c>FieldLayout</c> will lay these types out at (one copy of the math).</summary>
     private static int ComputeStructSize(IEnumerable<BlueprintTypeRef> types, ValidationContext ctx)
-    {
-        int offset = 0;
-        foreach (var typeRef in types)
-        {
-            if (!ctx.TypeRegistry.TryResolve(typeRef, out var resolved))
-                continue;
-            int align = resolved.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
-            int sz = resolved.SizeBytes;
-            offset = AlignUp(offset, align);
-            offset += sz;
-        }
-        return AlignUp(offset, 8);
-    }
-
-    private static int AlignUp(int offset, int align) => (offset + align - 1) & ~(align - 1);
+        => Lowering.FieldLayout.RecordSize(
+            types.Select(t => ctx.TypeRegistry.TryResolve(t, out var resolved) ? resolved.SizeBytes : -1).Where(size => size >= 0));
 }
 
 // ---------------------------------------------------------------------------

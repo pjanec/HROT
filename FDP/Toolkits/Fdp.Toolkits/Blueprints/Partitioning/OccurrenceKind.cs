@@ -23,8 +23,10 @@ namespace Fdp.Toolkit.Blueprints.Partitioning;
 ///
 /// <para>⚠ <b>Runtime-only, not an ABI.</b> Blackboard tier components are deliberately excluded from
 /// the scenario save (<c>BlueprintBlackboardNoSaveTests</c>), so these numbers never reach a saved
-/// scenario or a replay — unlike behavior ids, which <c>R-42</c> makes permanent. ⭐ They are still
-/// worth keeping stable across a session because a live HTTP/inspector read reports them.</para>
+/// scenario. ⛔ <b>They DO reach a replay</b>: the tiers are <c>NoScenario</c> only, not <c>NoReplay</c>, so recordings and
+/// checkpoints carry their raw bytes, header nibbles included (measured <c>2026-10-03</c>, CE-2028 —
+/// <c>DESIGN_Unified_Behaviour_Run.md</c> "S8c as-built"). ⇒ renumbering one makes an older recording read a different kind;
+/// keep them stable. Unlike behavior ids (<c>R-42</c>) nothing yet makes that a rule.</para>
 /// </summary>
 public enum OccurrenceKind : byte
 {
