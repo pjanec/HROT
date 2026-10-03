@@ -2843,6 +2843,9 @@ shape hash, the derivation) is the BTree's own code. ⭐ That is why there is no
 > (`JsonParamsDtoType` already carries it for every generated tier), shared with the Behaviour Task; `IBehaviorInputsContract`
 > below is retired. ⭐ Everything else here stands — the pick, the compose, the emitted binding, and the generators' sizing
 > catalogue (which answers at generation time).
+> ⚠ **`2026-10-03` — and the sizing catalogue by "S8c design" (CE-2026):** `GeneratedBehaviorSchemaCatalog` below is folded
+> into ONE `GeneratedTypeCatalog` that also reads `*.hsm.json` and is shared by all three generators (the blueprint
+> generator included).
 
 > Filed by `CE-431` (§11.7 as-built: *"the HSM host's registrar emits no bindings yet"*); §11.3 ③ ⑦ are the pieces. User `2026-10-01`:
 > ordering approved (`CE-416` → `CE-439` → `CE-417`).

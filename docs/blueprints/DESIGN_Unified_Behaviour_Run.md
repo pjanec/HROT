@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-02
+updated: 2026-10-03
 build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this enforces a true unification. great.
   Concurrency should be natively supported, and we should remove any blockers that prevent it. cycles needs
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: S7a + S7b, the Behaviour Task).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: S8c, one generated-type catalogue).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1037,6 +1037,98 @@ Slices: **S8b-1** (CE-2024) = U1 + rails · **S8b-2** (CE-2025) = U2 + U3 + re-h
 
 Rails: `BlueprintBehaviourTests.S8b_AGeneratedChild_AnswersWithItsInputsStruct_AndIsSeeded` (red-proved), `ChildInputTypesTests` (2),
 the re-homed CE-439 picker rails, `TheEqsBrainStartupIsSharedTests` (both hosts pass `ChildInputTypes.Lookup`).
+
+#### S8c design — ONE generated-type catalogue for every generator *(`2026-10-03`, CE-2026; user: "unify the generator catalogs too if that is possible; the more unification, the better"; this is S8b's U5 "candidate for its own unification")*
+
+📐 **Measured.** Three source generators run on ONE compilation (`Hrot.AI.Behaviors`: `*.bp.json`, `*.btree.json`, `*.hsm.json`
+are all its `AdditionalFiles`). ⛔ A generator never sees another's output in the same run, so a host variable typed as a
+SIBLING's generated struct must be sized — and recognised — from the sibling's JSON.
+
+| claim | code | design basis |
+|---|---|---|
+| BTree and HSM generators build the same size chain, by copy | ✅ `BTreeJsonGenerator.cs:241-246` ≡ `HsmJsonGenerator.cs:156-161` (Roslyn → blueprint `+Params` → BTree Inputs) | ✅ Q76 §12.28e |
+| an HSM child's Inputs struct is not sized | ✅ `GeneratedBehaviorSchemaCatalog.Parse` reads `*.btree.json` only; an HSM publishes its Inputs through `HsmBridgeEmitCore.BlackboardOwner` + `BTreeEmitCore.InputsStructTypeId` | ⛔ searched Q76 §12.28 + this doc: no ruling excludes it — never added |
+| the blueprint generator has NO catalogue | ✅ `BlueprintIncrementalGenerator.cs:124` — `StructSizeOracle` is Roslyn-only; it never reads `*.btree.json`/`*.hsm.json` | ✅ S8b table row ③ ("BTree / blueprint siblings") |
+| ⇒ S8's `Params` pin bound to a GENERATED child fails the real build | ✅ the hidden variable's type is the child's Inputs struct (S8), a dotted id the registry accepts verbatim ⇒ `Stage4_TypeResolve.cs:133` asks Roslyn `TypeExists` ⇒ **BP1671** | ✅ S8b-2 made the editor offer exactly that type (`ChildInputTypes.Lookup`) |
+| sharing the catalogue costs no new shipping edge | ✅ `Hrot.AiEditor.Persistence` has no project references and `Hrot.AI.Behaviors` already ships it as an Analyzer (with its package closure, CE-379) | ✅ the S2 note in `Hrot.Blueprints.Generators.csproj` refused that edge only because it "bought nothing" |
+
+```mermaid
+classDiagram
+  class GeneratedTypeCatalog { <<NEW, replaces GeneratedBehaviorSchemaCatalog>> +Parse(bp, btree, hsm) +Blueprints +Declares(typeId) bool +SizeResolver(compilation, fieldSizes) Func~typeId, int?~ }
+  class GeneratedBlueprintSchemaCatalog { <<EXISTS>> +Parse(bp) +TryResolveParamsSize() +FindByAssetId() }
+  class GeneratedBehaviorSchemaCatalog { <<RETIRED, folded in>> }
+  class StructSizeResolver { <<EXISTS, linked>> +MakeDelegate() +MakeFieldSizeDelegate() }
+  class BTreeEmitCore { <<EXISTS, Persistence>> +InputsStructTypeId(dto) }
+  class HsmBridgeEmitCore { <<EXISTS, Persistence>> +BlackboardOwner(hsm) }
+  class BTreeBlackboardPackHelper { <<EXISTS, Persistence>> +Pack() }
+  class BTreeJsonGenerator { <<EXISTS>> }
+  class HsmJsonGenerator { <<EXISTS>> }
+  class BlueprintIncrementalGenerator { <<EXISTS, gains the catalogue>> }
+  class RoslynClrSignatureResolver { <<EXISTS, widened>> TypeExists = Roslyn OR catalogue.Declares }
+  GeneratedTypeCatalog --> GeneratedBlueprintSchemaCatalog : blueprint Params
+  GeneratedTypeCatalog --> BTreeEmitCore : the one Inputs naming rule
+  GeneratedTypeCatalog --> HsmBridgeEmitCore : an HSM's Inputs view
+  GeneratedTypeCatalog --> BTreeBlackboardPackHelper : the one packing
+  GeneratedTypeCatalog --> StructSizeResolver : Roslyn first
+  BTreeJsonGenerator --> GeneratedTypeCatalog
+  HsmJsonGenerator --> GeneratedTypeCatalog
+  BlueprintIncrementalGenerator --> GeneratedTypeCatalog : size oracle
+  BlueprintIncrementalGenerator --> RoslynClrSignatureResolver
+  RoslynClrSignatureResolver --> GeneratedTypeCatalog : Declares
+```
+
+*What the picture shows that prose hid: before, the blueprint generator had no arrow into any catalogue at all, and the
+behaviour catalogue had no arrow to `HsmBridgeEmitCore` — the two gaps are the two missing edges.*
+
+```mermaid
+sequenceDiagram
+  participant R as Roslyn (one compilation, Hrot.AI.Behaviors)
+  participant G as any of the 3 generators (per asset)
+  participant C as GeneratedTypeCatalog
+  participant S as StructSizeResolver
+  R->>G: asset + every *.bp.json / *.btree.json / *.hsm.json + Compilation
+  G->>C: Parse(bp, btree, hsm)
+  G->>C: SizeResolver(compilation)
+  Note over G,C: Pack / Stage4 asks a size for typeId
+  C->>S: Roslyn size (a type that already exists)
+  S-->>C: null — a sibling's generated struct
+  C->>C: blueprint +Params ? else BTree/HSM Inputs (packed by Pack, recursively)
+  C-->>G: size
+  Note over G,C: blueprint Stage4 asks TypeExists(typeId)
+  G->>C: Declares(typeId) — Roslyn said no
+  C-->>G: true for a sibling's Inputs / generated blueprint class
+```
+
+**Who calls it each frame:** nobody — it is BUILD-TIME only. Roslyn runs each generator once per compilation of
+`Hrot.AI.Behaviors` (the one project whose `AdditionalFiles` carry all three asset kinds); each generator parses the catalogue
+once per asset, as `GeneratedBehaviorSchemaCatalog` and `GeneratedBlueprintSchemaCatalog` are parsed today.
+
+```mermaid
+graph TD
+  B[Hrot.AI.Behaviors build] -->|Analyzer| BG[Hrot.Blueprints.Generators]
+  B -->|Analyzer| AG[Hrot.AiEditor.Generators]
+  B -->|Analyzer, already shipped| P[Hrot.AiEditor.Persistence]
+  AG -->|compiles| CAT[GeneratedTypeCatalog.cs + GeneratedBlueprintSchemaCatalog.cs + StructSizeResolver.cs]
+  BG -.->|links the SAME files| CAT
+  BG -->|NEW ProjectReference, runtime excluded| P
+  AG --> P
+```
+
+*The dashed edge is the one new sharing: the same source files compiled into the blueprint generator (the S2 link
+precedent), plus a compile-only reference to the Persistence assembly the build already loads.*
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| C1 | one catalogue | ⭐ `GeneratedTypeCatalog` answers SIZE and EXISTENCE for every generated struct a sibling can name: blueprint `+Params`, BTree Inputs, HSM Inputs | two catalogues per generator: the copy-pasted chain is the duplicate |
+| C2 | HSM Inputs | ⭐ read `*.hsm.json` through `HsmBridgeEmitCore.BlackboardOwner` — the same view the HSM generator packs its own struct with — so the name and size cannot disagree | a second HSM naming rule: two producers (R-132) |
+| C3 | the blueprint generator | ⭐ links the catalogue files + a compile-only `Hrot.AiEditor.Persistence` reference; its `StructSizeOracle` and `TypeExists` both consult the catalogue | merge the generators: one generator cannot see its own output either |
+| C4 | `TypeExists` | ⭐ Roslyn OR `Declares` — a sibling-emitted type is exactly what the C# compile will see | skip BP1671 for any unknown dotted id: re-opens BP-228 |
+| C5 | the `.bp.json` parser | ⭐ `GeneratedBlueprintSchemaCatalog` stays the one generation-time `.bp.json` reader, now behind the catalogue | fold it into `BlueprintSignatureParser`: a different question (exported function I/O), its own callers |
+| C6 | FDP's three `ComputeStructSize` copies | ⭐ OUT — filed as their own row (the FDP analyzer tree; `StructSizeResolver` header) | fold in here: a second assembly family and its own analyzers' rules |
+
+Rails (red first): `BlueprintBehaviourTests.S8c_AParamsPinBoundToAGeneratedChild_BuildsInTheRealGenerators` (both generators,
+one driver, real Roslyn compile — red today on BP1671); `HsmJsonGeneratorTests.S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild`
+(red today: the catalogue reads no `*.hsm.json`). The existing CE-439 rails stay green unchanged.
 
 ## 5. Decisions — each with a lean
 
