@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -102,7 +103,7 @@ namespace Hrot.SimHost.Serializers
 
             repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = networkId,
+                CommanderNetworkId = new EntityRef(networkId),
                 Designation        = designation,
             });
         }

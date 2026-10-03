@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -68,7 +69,7 @@ namespace Hrot.SimHost.Tests
         {
             var vehicle = _repo.CreateEntity();
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(99L); // not in map yet
+            intent.PassengerNetworkIds.Add(new EntityRef(99L)); // not in map yet
             _repo.RegisterManagedComponent<InitialPassengersIntent>();
             _repo.SetManagedComponent(vehicle, intent);
 
@@ -89,7 +90,7 @@ namespace Hrot.SimHost.Tests
 
             var vehicle = _repo.CreateEntity();
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(42L);
+            intent.PassengerNetworkIds.Add(new EntityRef(42L));
             _repo.SetManagedComponent(vehicle, intent);
 
             var sys = CreateAndStartSystem();
@@ -110,7 +111,7 @@ namespace Hrot.SimHost.Tests
             var vehicle = CreateNetworkedEntity(77L);
 
             var soldier = _repo.CreateEntity();
-            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = 77L });
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -131,9 +132,9 @@ namespace Hrot.SimHost.Tests
             var entity = _repo.CreateEntity();
             _repo.SetManagedComponent(entity, new InitialHierarchyIntent
             {
-                ParentNetworkId     = 10L,
-                FirstChildNetworkId = 20L,
-                NextSiblingNetworkId = 0L, // null
+                ParentNetworkId     = new EntityRef(10L),
+                FirstChildNetworkId = new EntityRef(20L),
+                NextSiblingNetworkId = new EntityRef(0L), // null
             });
 
             var sys = CreateAndStartSystem();
@@ -155,7 +156,7 @@ namespace Hrot.SimHost.Tests
             var route = CreateNetworkedEntity(55L);
 
             var vehicle = _repo.CreateEntity();
-            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = 55L });
+            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = new EntityRef(55L) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -176,8 +177,8 @@ namespace Hrot.SimHost.Tests
 
             var entity = _repo.CreateEntity();
             var intent = new InitialTargetsIntent();
-            intent.Entries.Add(new TargetEntry { NetworkId = 111L, PosX = 1f, PosY = 2f, Score = 0.5f });
-            intent.Entries.Add(new TargetEntry { NetworkId = 222L, PosX = 3f, PosY = 4f, Score = 0.9f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(111L), PosX = 1f, PosY = 2f, Score = 0.5f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222L), PosX = 3f, PosY = 4f, Score = 0.9f });
             _repo.SetManagedComponent(entity, intent);
 
             var sys = CreateAndStartSystem();
@@ -205,7 +206,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = commanderNetId,
+                CommanderNetworkId = new EntityRef(commanderNetId),
                 Designation        = TacticalDesignation.SquadLeader,
             });
 
@@ -234,7 +235,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = 999L,
+                CommanderNetworkId = new EntityRef(999L),
                 Designation        = TacticalDesignation.Wingman,
             });
 
@@ -254,7 +255,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = 0L,
+                CommanderNetworkId = new EntityRef(0L),
                 Designation        = TacticalDesignation.SquadLeader,
             });
 
@@ -281,7 +282,7 @@ namespace Hrot.SimHost.Tests
             var subordinate = _repo.CreateEntity();
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = commanderNetId,
+                CommanderNetworkId = new EntityRef(commanderNetId),
                 Designation        = TacticalDesignation.Support,
             });
 

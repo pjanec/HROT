@@ -519,9 +519,9 @@ five geographic parameters authored via the mission editor:
 - `FiringLineStart`, `FiringLineEnd` — `PickableGeoPoint` values (map-pickable clicks).
 - `BaselineStart`, `BaselineEnd` — `PickableGeoPoint` values.
 - `TankSpacing` — float, default 30f.
-- `TargetAreaNetworkId` — long, decorated with `[RemapNetworkId]` (Orchestrator patches
-  the ID when transitioning from staging to live cluster) and
-  `[MapPickableEntity("tactical_graphics")]` (restricts UI picker to area overlay entities).
+- `TargetAreaNetworkId` — ⭐ an `EntityRef` *(`2026-10-03`, [DESIGN_Entity_Reference](../../blueprints/DESIGN_Entity_Reference.md))*:
+  the TYPE makes it pickable and remapped at scenario load; `[MapPickableEntity("tactical_graphics")]` only narrows the
+  picker to area overlay entities. ⛔ SUPERSEDED: *"long, decorated with `[RemapNetworkId]`"* — that attribute is deleted.
 
 The attack direction is NOT a user-authored field. It is computed at parse time as the
 left-hand perpendicular of the normalized firing line vector so the facing is always

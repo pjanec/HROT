@@ -11,9 +11,8 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
     /// JSON serialization DTO for the <c>MoveToLocation</c> behavior parameter block.
     /// JSON keys match what <c>MissionPanel.BuildMoveToLocationParams</c> produces.
     ///
-    /// <para>This DTO has no <see cref="Attributes.RemapNetworkIdAttribute"/>-tagged
-    /// members; it is used for UI rendering only (Phase 5) and does not participate
-    /// in scenario network-ID remapping.</para>
+    /// <para>This DTO has no <c>EntityRef</c> members; it is used for UI rendering only (Phase 5) and does not
+    /// participate in scenario network-ID remapping.</para>
     /// </summary>
     public class MoveToLocationParamsJsonDto
     {

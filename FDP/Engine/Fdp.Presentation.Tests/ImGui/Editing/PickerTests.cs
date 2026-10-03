@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Reflection;
 using Fdp.Core;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Replication;
 using Xunit;
 
 #pragma warning disable CS0649
@@ -19,12 +21,12 @@ public class PickerAttributesTests
     private struct TestComponent
     {
         [MapPickableEntity("tanks", "infantry")]
-        public int EntityWithPresets;
+        public EntityRef EntityWithPresets;
 
         [MapPickableEntity]
-        public int EntityNoPresets;
+        public EntityRef EntityNoPresets;
 
-        [MapPickableWorldLocation]
+        [Fdp.Presentation.Editing.MapPickableWorldLocation]
         public Vector3 WorldLocation;
     }
 
@@ -40,14 +42,14 @@ public class PickerAttributesTests
     }
 
     // -- T-CE04b --------------------------------------------------------------
-    // [MapPickableEntity] (no args) -> FilterPresets.Length == 0
+    // [MapPickableEntity] (no args) -> no filter (null)
     [Fact]
     public void T_CE04b_MapPickableEntity_NoArgs_FilterPresetsIsEmpty()
     {
         var field = typeof(TestComponent).GetField(nameof(TestComponent.EntityNoPresets))!;
         var attr = field.GetCustomAttribute<MapPickableEntityAttribute>()!;
 
-        Assert.Equal(0, attr.FilterPresets.Length);
+        Assert.Null(attr.FilterPresets);
     }
 
     // -- T-CE04c --------------------------------------------------------------
@@ -57,11 +59,11 @@ public class PickerAttributesTests
     public void T_CE04c_MapPickableWorldLocation_AttributePresentOnField()
     {
         var field = typeof(TestComponent).GetField(nameof(TestComponent.WorldLocation))!;
-        var attr = field.GetCustomAttribute<MapPickableWorldLocationAttribute>();
+        var attr = field.GetCustomAttribute<Fdp.Presentation.Editing.MapPickableWorldLocationAttribute>();
 
         Assert.NotNull(attr);
 
-        var usage = typeof(MapPickableWorldLocationAttribute)
+        var usage = typeof(Fdp.Presentation.Editing.MapPickableWorldLocationAttribute)
             .GetCustomAttribute<AttributeUsageAttribute>()!;
         Assert.True((usage.ValidOn & AttributeTargets.Field) != 0);
     }
@@ -79,9 +81,9 @@ public class IComponentPickerContextTests
         public bool IsPickPendingFor(string jsonPath) => false;
         public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
         public void RequestLocationPick(string jsonPath) { }
-        public bool TryConsumeEntityPick(string jsonPath, out Entity pickedEntity)
+        public bool TryConsumeEntityPick(string jsonPath, out EntityRef picked)
         {
-            pickedEntity = default;
+            picked = default;
             return false;
         }
         public bool TryConsumeLocationPick(string jsonPath, out Vector3 location)
@@ -108,15 +110,15 @@ public class IComponentPickerContextTests
 
     // -- T-CE05b --------------------------------------------------------------
     // TryConsumeEntityPick for a path with no pending pick returns false and
-    // out Entity is default(Entity).
+    // the out reference is none.
     [Fact]
     public void T_CE05b_TryConsumeEntityPick_NoPendingPick_ReturnsFalseAndDefault()
     {
         IComponentPickerContext ctx = new NopPickerContext();
 
-        bool result = ctx.TryConsumeEntityPick("$.Targets[0]", out Entity e);
+        bool result = ctx.TryConsumeEntityPick("$.Targets[0]", out EntityRef e);
 
         Assert.False(result);
-        Assert.Equal(default(Entity), e);
+        Assert.True(e.IsNone);
     }
 }

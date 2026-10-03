@@ -9,18 +9,19 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// <summary>Tests for TASK-C008 presentation attributes.</summary>
     public class PresentationAttributeTests
     {
-        /// <summary>C008 SC1: FireAtTarget.TargetNetworkId has both MapPickableEntityAttribute and RemapNetworkIdAttribute.</summary>
+        /// <summary>⭐ DESIGN_Entity_Reference.md D5 — the TYPE marks an entity reference (picker and remap); the attribute
+        /// only narrows the pick. (C008 SC1 asserted the old pair of attributes on a <c>long</c>.)</summary>
         [Fact]
-        public void C008_FireAtTarget_TargetNetworkId_HasBothPickAndRemapAttributes()
+        public void C008_FireAtTarget_TargetNetworkId_IsAnEntityRef()
         {
             var prop = typeof(FireAtTargetParamsJsonDto).GetProperty("TargetNetworkId");
             Assert.NotNull(prop);
-            Assert.NotNull(prop!.GetCustomAttribute<MapPickableEntityAttribute>());
-            Assert.NotNull(prop.GetCustomAttribute<RemapNetworkIdAttribute>());
+            Assert.Equal(typeof(Fdp.Toolkit.Replication.EntityRef), prop!.PropertyType);
+            Assert.True(Fdp.Toolkit.Replication.EntityRefRemap.HoldsRefs(typeof(FireAtTargetParamsJsonDto)));
         }
 
         /// <summary>C008 SC2: MoveToLocation has composite PickableLocation with MapPickableWorldLocationAttribute;
-        /// scalar TargetLat/TargetLon are plain properties without the pick attribute; no property has RemapNetworkIdAttribute.</summary>
+        /// scalar TargetLat/TargetLon are plain properties without the pick attribute; it holds no entity reference.</summary>
         [Fact]
         public void C008_MoveToLocation_PickableLocation_HasWorldLocationAttr_NoRemapAttr()
         {
@@ -36,10 +37,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Null(latProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
             Assert.Null(lonProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
 
-            var allProps = typeof(MoveToLocationParamsJsonDto)
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            foreach (var p in allProps)
-                Assert.Null(p.GetCustomAttribute<RemapNetworkIdAttribute>());
+            Assert.False(Fdp.Toolkit.Replication.EntityRefRemap.HoldsRefs(typeof(MoveToLocationParamsJsonDto)));
         }
 
         /// <summary>C008 SC3: MapPickableEntityAttribute stores filter presets correctly.</summary>

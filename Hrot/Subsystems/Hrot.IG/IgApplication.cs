@@ -532,7 +532,7 @@ public class IgApplication : IDisposable
                     // 🔒 UXI-07 step 4b — a RESOLVER: this adapter is built here, but _igToolController
                     //    is not assigned until the pack is built further down (:816). An instance would
                     //    be permanently null.
-                    tools: () => _igToolController), _world);
+                    tools: () => _igToolController));
         return _mapPickBridge;
     }
 

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -80,17 +81,17 @@ namespace Hrot.SimHost.Serializers
                 obj[fieldName] = resolver.Resolve(handle);
         }
 
-        private static long ReadNetworkId(
+        private static EntityRef ReadNetworkId(
             JsonObject obj, string fieldName,
             EntityRepository repo, IGuidResolver resolver)
         {
             var guidStr = obj[fieldName]?.GetValue<string?>();
-            if (string.IsNullOrEmpty(guidStr)) return 0L;
+            if (string.IsNullOrEmpty(guidStr)) return EntityRef.None;
 
             Entity resolved = resolver.Resolve(guidStr);
-            if (resolved.IsNull || !repo.IsAlive(resolved)) return 0L;
+            if (resolved.IsNull || !repo.IsAlive(resolved)) return EntityRef.None;
 
-            return repo.GetComponent<NetworkIdentity>(resolved).Value;
+            return new EntityRef(repo.GetComponent<NetworkIdentity>(resolved).Value);
         }
     }
 }

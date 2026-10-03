@@ -52,6 +52,8 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     public const string Byte         = "System.Byte";
     public const string UInt32       = "System.UInt32";
     public const string Entity       = "Fdp.Core.Entity";
+    /// <summary>⭐ <c>DESIGN_Entity_Reference.md</c> — an authored reference to another entity (its network id).</summary>
+    public const string EntityRef    = "Fdp.Toolkit.Replication.EntityRef";
     public const string FixedString32 = "Fdp.Core.FixedString32";
     public const string FixedString64 = "Fdp.Core.FixedString64";
     public const string FixedString128 = "Fdp.Core.FixedString128";
@@ -70,6 +72,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
         [Byte]    = (new Vector4(0.50f, 0.50f, 0.50f, 1f), "Byte"),
         [UInt32]  = (new Vector4(0.30f, 0.55f, 0.25f, 1f), "UInt32"),
         [Entity]  = (new Vector4(0.20f, 0.85f, 0.70f, 1f), "Entity"),
+        [EntityRef] = (new Vector4(0.20f, 0.70f, 0.85f, 1f), "EntityRef"),
         // EQS handle type
         ["FDP.Eqs.EqsSensorHandle"] = (new Vector4(0.78f, 0.50f, 0.10f, 1f), "EqsSensorHandle"),
         // Fdp.Core fixed-length string types (unmanaged, blittable; teal-green, string-ish)

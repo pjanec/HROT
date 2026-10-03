@@ -200,7 +200,6 @@ namespace Hrot.Editor.DebugApi
                     case "MapPickableEntityAttribute":        schema["picker"] = "entity"; break;
                     case "MapPickableWorldLocationAttribute": schema["picker"] = "worldLocation"; break;
                     case "MapPickableBoundingBoxAttribute":   schema["picker"] = "boundingBox"; break;
-                    case "RemapNetworkIdAttribute":           schema["remapNetworkId"] = true; break;
                 }
             }
 
@@ -243,6 +242,11 @@ namespace Hrot.Editor.DebugApi
 
             if (type == typeof(Vector3))
                 return new JsonObject { ["type"] = "object", ["format"] = "vector3", ["properties"] = XyzProperties() };
+
+            // ⭐ DESIGN_Entity_Reference D1/D5 — an authored entity reference: the bare network id in JSON, picked from the
+            // map, and remapped at scenario load. The TYPE says all three, so no attribute is needed.
+            if (type == typeof(Fdp.Toolkit.Replication.EntityRef))
+                return new JsonObject { ["type"] = "integer", ["format"] = "entityRef", ["picker"] = "entity" };
 
             if (type.IsArray)
                 return new JsonObject { ["type"] = "array", ["items"] = Describe(type.GetElementType()!) };

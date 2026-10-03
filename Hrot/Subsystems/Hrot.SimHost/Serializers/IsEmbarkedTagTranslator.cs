@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -64,7 +65,7 @@ namespace Hrot.SimHost.Serializers
             if (resolved.IsNull || !repo.IsAlive(resolved)) return;
 
             long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-            repo.SetManagedComponent(entity, new InitialVehicleIntent { VehicleNetworkId = networkId });
+            repo.SetManagedComponent(entity, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(networkId) });
         }
 
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();

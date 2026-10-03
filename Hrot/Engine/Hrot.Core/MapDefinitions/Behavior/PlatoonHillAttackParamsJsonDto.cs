@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Params;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -46,8 +47,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// Resolved to a local ECS entity via <c>NetworkEntityMap</c> at parse time.
         /// </summary>
         [JsonPropertyName("targetAreaNetworkId")]
-        [RemapNetworkId]
-        [MapPickableEntity("tactical_graphics")]
-        public long TargetAreaNetworkId { get; set; }
+        [MapPickableEntity("tactical_graphics")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
+        public EntityRef TargetAreaNetworkId { get; set; }
     }
 }

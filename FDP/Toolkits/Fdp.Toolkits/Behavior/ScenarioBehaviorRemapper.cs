@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Toolkit.Replication;
 
 namespace Fdp.Toolkit.Behavior
 {
@@ -15,9 +16,9 @@ namespace Fdp.Toolkit.Behavior
     /// </para>
     ///
     /// <para>
-    /// Delegates are compiled once per DTO type by
-    /// <see cref="BehaviorParamRemapperCompiler"/> and are cached globally across
-    /// all <see cref="ScenarioBehaviorRemapper"/> instances.
+    /// Delegates are compiled once per contract type by <see cref="EntityRefRemap.CompileJson"/> — every
+    /// <see cref="EntityRef"/> inside the contract (nested, in lists) — and cached globally.
+    /// 📄 <c>docs/blueprints/DESIGN_Entity_Reference.md</c> D3.
     /// </para>
     ///
     /// <para>
@@ -31,7 +32,7 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public sealed class ScenarioBehaviorRemapper
     {
-        private readonly Dictionary<string, Func<string?, Dictionary<long, long>, string?>> _registry = new();
+        private readonly Dictionary<string, Func<string?, IReadOnlyDictionary<long, long>, string?>> _registry = new();
         private readonly BehaviorRegistry? _behaviors;
 
         /// <param name="behaviors">
@@ -45,11 +46,10 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Registers a remapping delegate for the specified <paramref name="behaviorId"/>.
-        /// The delegate is compiled from <typeparamref name="TDto"/> by
-        /// <see cref="BehaviorParamRemapperCompiler.Compile{TDto}"/>.
+        /// The delegate is compiled from <typeparamref name="TDto"/> by <see cref="EntityRefRemap.CompileJson"/>.
         /// </summary>
-        /// <typeparam name="TDto">Behavior-param DTO class with <c>[RemapNetworkId]</c>
-        ///   properties.</typeparam>
+        /// <typeparam name="TDto">The behaviour's JSON contract (class or struct); its <see cref="EntityRef"/> members are
+        ///   remapped.</typeparam>
         /// <param name="behaviorId">The string identifier used in mission plan tasks.</param>
         /// <exception cref="InvalidOperationException">
         ///   Thrown if <paramref name="behaviorId"/> has already been registered.
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Behavior
                 throw new InvalidOperationException(
                     $"ScenarioBehaviorRemapper: behaviorId '{behaviorId}' is already registered.");
 
-            _registry[behaviorId] = BehaviorParamRemapperCompiler.Compile<TDto>();
+            _registry[behaviorId] = EntityRefRemap.CompileJson(typeof(TDto));
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Behavior
         /// <param name="idMap">Old-to-new network ID map built during two-pass extraction.</param>
         /// <returns>Remapped JSON, or the original <paramref name="json"/> when no mapping
         ///   applies.</returns>
-        public string? RemapJson(string behaviorId, string? json, Dictionary<long, long> idMap)
+        public string? RemapJson(string behaviorId, string? json, IReadOnlyDictionary<long, long> idMap)
         {
             if (behaviorId != null
                 && _behaviors != null
@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Behavior
                 && _behaviors.TryGetDefinition(id, out var definition)
                 && definition.JsonParamsDtoType is { } contract)
             {
-                return BehaviorParamRemapperCompiler.CompileFor(contract)(json, idMap);
+                return EntityRefRemap.CompileJson(contract)(json, idMap);
             }
 
             return behaviorId != null && _registry.TryGetValue(behaviorId, out var remap)

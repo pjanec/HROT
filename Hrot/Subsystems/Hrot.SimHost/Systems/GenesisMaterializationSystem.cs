@@ -71,7 +71,7 @@ namespace Hrot.SimHost.Systems
                 bool allResolved = true;
                 foreach (var netId in intent.PassengerNetworkIds)
                 {
-                    if (!_entityMap.TryGetEntity(netId, out var passenger) || !view.IsAlive(passenger))
+                    if (!_entityMap.TryGetEntity(netId.NetworkId, out var passenger) || !view.IsAlive(passenger))
                     {
                         allResolved = false;
                         break;
@@ -93,7 +93,7 @@ namespace Hrot.SimHost.Systems
             foreach (var entity in view.Query().WithManaged<InitialVehicleIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialVehicleIntent>(entity);
-                if (!_entityMap.TryGetEntity(intent.VehicleNetworkId, out var vehicle) || !view.IsAlive(vehicle))
+                if (!_entityMap.TryGetEntity(intent.VehicleNetworkId.NetworkId, out var vehicle) || !view.IsAlive(vehicle))
                     continue;
                 repo.SetComponent(entity, new IsEmbarkedTag { VehicleEntity = vehicle });
                 cmd.RemoveManagedComponent<InitialVehicleIntent>(entity);
@@ -110,19 +110,19 @@ namespace Hrot.SimHost.Systems
                 Entity firstChild  = Entity.Null;
                 Entity nextSibling = Entity.Null;
 
-                if (intent.ParentNetworkId != 0)
+                if (!intent.ParentNetworkId.IsNone)
                 {
-                    if (!_entityMap.TryGetEntity(intent.ParentNetworkId, out parent) || !view.IsAlive(parent))
+                    if (!_entityMap.TryGetEntity(intent.ParentNetworkId.NetworkId, out parent) || !view.IsAlive(parent))
                         continue;
                 }
-                if (intent.FirstChildNetworkId != 0)
+                if (!intent.FirstChildNetworkId.IsNone)
                 {
-                    if (!_entityMap.TryGetEntity(intent.FirstChildNetworkId, out firstChild) || !view.IsAlive(firstChild))
+                    if (!_entityMap.TryGetEntity(intent.FirstChildNetworkId.NetworkId, out firstChild) || !view.IsAlive(firstChild))
                         continue;
                 }
-                if (intent.NextSiblingNetworkId != 0)
+                if (!intent.NextSiblingNetworkId.IsNone)
                 {
-                    if (!_entityMap.TryGetEntity(intent.NextSiblingNetworkId, out nextSibling) || !view.IsAlive(nextSibling))
+                    if (!_entityMap.TryGetEntity(intent.NextSiblingNetworkId.NetworkId, out nextSibling) || !view.IsAlive(nextSibling))
                         continue;
                 }
 
@@ -141,7 +141,7 @@ namespace Hrot.SimHost.Systems
             foreach (var entity in view.Query().WithManaged<InitialRouteIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialRouteIntent>(entity);
-                if (!_entityMap.TryGetEntity(intent.RouteNetworkId, out var route) || !view.IsAlive(route))
+                if (!_entityMap.TryGetEntity(intent.RouteNetworkId.NetworkId, out var route) || !view.IsAlive(route))
                     continue;
                 repo.SetComponent(entity, new PersonalRouteRef { RouteEntity = route });
                 cmd.RemoveManagedComponent<InitialRouteIntent>(entity);
@@ -154,13 +154,13 @@ namespace Hrot.SimHost.Systems
             {
                 var intent = view.GetManagedComponentRO<InitialUnitSubordinateIntent>(entity);
 
-                if (intent.CommanderNetworkId == 0)
+                if (intent.CommanderNetworkId.IsNone)
                 {
                     cmd.RemoveManagedComponent<InitialUnitSubordinateIntent>(entity);
                     continue;
                 }
 
-                if (!_entityMap.TryGetEntity(intent.CommanderNetworkId, out var commander) || !view.IsAlive(commander))
+                if (!_entityMap.TryGetEntity(intent.CommanderNetworkId.NetworkId, out var commander) || !view.IsAlive(commander))
                 {
                     // Escape hatch: if the entity is already Active, the commander will never arrive.
                     if (repo.GetLifecycleState(entity) == EntityLifecycle.Active)
@@ -219,7 +219,7 @@ namespace Hrot.SimHost.Systems
                 foreach (var entry in intent.Entries)
                 {
                     if (count >= PerceptionConstants.MaxTrackedTargets) break;
-                    if (!_entityMap.TryGetEntity(entry.NetworkId, out var target) || !view.IsAlive(target))
+                    if (!_entityMap.TryGetEntity(entry.NetworkId.NetworkId, out var target) || !view.IsAlive(target))
                         continue;
                     ptr->EntityIds[count]    = (long)target.PackedValue;
                     ptr->PositionsX[count]   = entry.PosX;

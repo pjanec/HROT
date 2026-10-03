@@ -1874,7 +1874,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                   tools: () => _cgfToolController)   // 🔒 UXI-07 step 4b
             : null;
         MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
-            ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
+            ? new MapPickServiceBridge(cgfCanvasAdapter)
             : null;
 
         // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch

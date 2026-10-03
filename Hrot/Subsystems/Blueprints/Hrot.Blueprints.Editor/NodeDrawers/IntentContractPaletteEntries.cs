@@ -61,7 +61,7 @@ public sealed class ReflectionIntentContractProvider : IIntentContractProvider
 
     /// <summary>
     /// The members a pin can carry: public, readable AND writable, not <c>[JsonIgnore]</c>, of a primitive, string or
-    /// enum type. ⚠ Anything else (e.g. <c>PickableGeoPoint</c>) is left out and keeps the DTO's own default.
+    /// enum type, or an <c>EntityRef</c>. ⚠ Anything else (e.g. <c>PickableGeoPoint</c>) is left out and keeps the DTO's own default.
     /// </summary>
     public static IReadOnlyList<StructFieldDecl> PinnableMembers(Type t)
     {
@@ -83,7 +83,9 @@ public sealed class ReflectionIntentContractProvider : IIntentContractProvider
     private static bool IsJsonIgnored(MemberInfo m)
         => m.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "System.Text.Json.Serialization.JsonIgnoreAttribute");
 
-    private static bool IsPinnable(Type type) => type.IsPrimitive || type.IsEnum || type == typeof(string);
+    private static bool IsPinnable(Type type)
+        => type.IsPrimitive || type.IsEnum || type == typeof(string)
+           || type == typeof(Fdp.Toolkit.Replication.EntityRef);   // ⭐ DESIGN_Entity_Reference D6 — a reference pin
 
     /// <summary>An enum pin is spelled <c>global::Ns.Enum</c> (a bare FQN is <c>BP1500</c>) — the <c>NodePinSchema</c> rule.</summary>
     private static string PinTypeId(Type type)

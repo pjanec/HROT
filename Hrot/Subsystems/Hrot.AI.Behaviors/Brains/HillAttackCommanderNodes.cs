@@ -730,10 +730,12 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            PlatoonHillAttackParamsJsonDto? dto;
+            Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto? dto;
             try
             {
-                dto = JsonSerializer.Deserialize<PlatoonHillAttackParamsJsonDto>(
+                // ⭐ DESIGN_Entity_Reference.md — the CURATED contract, not a private parse twin (CE-447: "no private
+                //   parse DTOs"); its TargetAreaNetworkId is an EntityRef, so the remap and the picker see it too.
+                dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto>(
                     json,
                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
             }
@@ -838,14 +840,14 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Resolve target area entity.
-            if (dto.TargetAreaNetworkId != 0 && entityMap.TryGetEntity(dto.TargetAreaNetworkId, out var areaEntity))
+            if (!dto.TargetAreaNetworkId.IsNone && entityMap.TryGetEntity(dto.TargetAreaNetworkId.NetworkId, out var areaEntity))
             {
                 result.TargetAreaEntity = areaEntity;
             }
             else
             {
-                if (dto.TargetAreaNetworkId != 0)
-                    BehaviorLog.ParseWarn("TargetAreaNetworkId=" + dto.TargetAreaNetworkId + " not found in entity map; area entity set to null.");
+                if (!dto.TargetAreaNetworkId.IsNone)
+                    BehaviorLog.ParseWarn("TargetAreaNetworkId=" + dto.TargetAreaNetworkId.NetworkId + " not found in entity map; area entity set to null.");
                 result.TargetAreaEntity = Entity.Null;
             }
 
@@ -854,19 +856,4 @@ namespace Hrot.AI.Behaviors.Brains
 
     }
 
-    // ── ParseParams DTO (private to this assembly; cold path only) ───────────────
-
-    /// <summary>
-    /// Private JSON deserialization helper for <c>ParsePlatoonHillAttackParams</c>.
-    /// Must never be referenced from BTree hot-path nodes.
-    /// </summary>
-    internal sealed class PlatoonHillAttackParamsJsonDto
-    {
-        public PickableGeoPoint FiringLineStart    { get; set; }
-        public PickableGeoPoint FiringLineEnd      { get; set; }
-        public PickableGeoPoint BaselineStart      { get; set; }
-        public PickableGeoPoint BaselineEnd        { get; set; }
-        public float     TankSpacing        { get; set; }
-        public long      TargetAreaNetworkId { get; set; }
-    }
 }

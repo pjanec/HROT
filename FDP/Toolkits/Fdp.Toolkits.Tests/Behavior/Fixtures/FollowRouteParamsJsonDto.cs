@@ -17,8 +17,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
         /// Widened from <c>int</c> to <c>long</c> for uniform ID remapping.
         /// </summary>
         [JsonPropertyName("routeEntityId")]
-        [RemapNetworkId]
-        [MapPickableEntity("road_graphs")]
-        public long RouteEntityId { get; set; }
+        [MapPickableEntity("road_graphs")]   // narrows the picker only
+        public Fdp.Toolkit.Replication.EntityRef RouteEntityId { get; set; }
     }
 }

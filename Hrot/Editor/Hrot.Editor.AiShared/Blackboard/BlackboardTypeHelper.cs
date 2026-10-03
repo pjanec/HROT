@@ -38,6 +38,9 @@ public static class BlackboardTypeHelper
         { "Vector3",    typeof(Vector3)    },
         { "Vector4",    typeof(Vector4)    },
         { "Quaternion", typeof(Quaternion) },
+        // ⭐ DESIGN_Entity_Reference D6 — an authored reference to another entity (its network id): picked in the editor,
+        // remapped at scenario load, resolved with EntityRef.Resolve. Unmanaged, 8 bytes, so a blackboard field can hold it.
+        { "EntityRef",  typeof(Fdp.Toolkit.Replication.EntityRef) },
     };
 
     // Returns the CLR type for the given display name, or null if not a known type.
@@ -48,7 +51,7 @@ public static class BlackboardTypeHelper
     public static readonly IReadOnlyList<string> DefaultKnownTypeNames = new string[]
     {
         "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
-        "float", "double", "Vector2", "Vector3", "Vector4", "Quaternion",
+        "float", "double", "Vector2", "Vector3", "Vector4", "Quaternion", "EntityRef",
     };
 
     /// <summary>

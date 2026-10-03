@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Behavior.Tests.Fixtures;
 using Xunit;
@@ -16,15 +16,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         private class CachingProbeDto
         {
             [JsonPropertyName("entityId")]
-            [RemapNetworkId]
-            public long EntityId { get; set; }
+            public EntityRef EntityId { get; set; }
         }
 
         /// <summary>C005c SC1: FireAtTarget TargetNetworkId remapped; other fields unchanged.</summary>
         [Fact]
         public void C005c_FireAtTarget_TargetNetworkId_Remapped()
         {
-            var remap = BehaviorParamRemapperCompiler.Compile<FireAtTargetParamsJsonDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
             const string json = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}";
             var map = new Dictionary<long, long> { { 1001L, 2001L } };
 
@@ -40,7 +39,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void C005c_FollowRoute_RouteEntityId_Remapped()
         {
-            var remap = BehaviorParamRemapperCompiler.Compile<FollowRouteParamsJsonDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(FollowRouteParamsJsonDto));
             const string json = "{\"routeEntityId\":999}";
             var map = new Dictionary<long, long> { { 999L, 888L } };
 
@@ -54,7 +53,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void C005c_IdNotInMap_PassesThrough()
         {
-            var remap = BehaviorParamRemapperCompiler.Compile<FireAtTargetParamsJsonDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
             const string json = "{\"targetNetworkId\":1001,\"maxRounds\":3,\"cooldownSeconds\":0.5}";
             var map = new Dictionary<long, long>();  // empty map
 
@@ -68,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void C005c_NullOrEmptyJson_ReturnsUnchanged()
         {
-            var remap = BehaviorParamRemapperCompiler.Compile<FireAtTargetParamsJsonDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
             var map   = new Dictionary<long, long> { { 1L, 2L } };
 
             Assert.Null(remap(null, map));
@@ -80,7 +79,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void C005c_MoveToLocation_NoRemappableFields_IdentityDelegate()
         {
             const string json = "{\"targetLat\":1.0,\"targetLon\":2.0,\"speed\":10.0,\"arrivalRadius\":5.0}";
-            var remap = BehaviorParamRemapperCompiler.Compile<MoveToLocationParamsJsonDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(MoveToLocationParamsJsonDto));
             var map   = new Dictionary<long, long> { { 1L, 99L } };
 
             var result = remap(json, map);
@@ -94,14 +93,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void C005c_DelegateCompiledOnlyOnce_CachingVerified()
         {
             // Use a private DTO type unique to this test to guarantee a fresh cache entry.
-            int countBefore = BehaviorParamRemapperCompiler.CompileCallCount;
+            int countBefore = EntityRefRemap.JsonCompileCount;
 
-            var d1 = BehaviorParamRemapperCompiler.Compile<CachingProbeDto>();
-            var d2 = BehaviorParamRemapperCompiler.Compile<CachingProbeDto>();
-            var d3 = BehaviorParamRemapperCompiler.Compile<CachingProbeDto>();
+            var d1 = EntityRefRemap.CompileJson(typeof(CachingProbeDto));
+            var d2 = EntityRefRemap.CompileJson(typeof(CachingProbeDto));
+            var d3 = EntityRefRemap.CompileJson(typeof(CachingProbeDto));
 
             // CompileCallCount increments only on cache miss (first compile).
-            Assert.Equal(countBefore + 1, BehaviorParamRemapperCompiler.CompileCallCount);
+            Assert.Equal(countBefore + 1, EntityRefRemap.JsonCompileCount);
 
             // All three calls return the same cached delegate instance.
             Assert.True(ReferenceEquals(d1, d2), "second call must return cached delegate");
@@ -118,15 +117,15 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             public MoveDto Move;
             public FireDto Fire;
-            public long Plain;      // ⛔ no marker ⇒ never touched
-            [RemapNetworkId] public long Escort;
+            public long Plain;      // ⛔ a bare long is NOT a reference ⇒ never touched
+            public EntityRef Escort;
         }
 
         private struct MoveDto { public float X { get; set; } }
 
         private struct FireDto
         {
-            [JsonPropertyName("targetNetworkId")] [RemapNetworkId] public long TargetNetworkId { get; set; }
+            [JsonPropertyName("targetNetworkId")] public EntityRef TargetNetworkId { get; set; }
             [JsonPropertyName("maxRounds")] public int MaxRounds { get; set; }
         }
 
@@ -135,23 +134,23 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// <summary>
         /// ⭐⭐ The id one object down is rewritten; every other byte comes back as authored — no key added, none
         /// re-cased, no number reformatted. 🔴 Red before CE-2054: the old compiler saw no top-level
-        /// <c>[RemapNetworkId]</c> PROPERTY on <c>MissionParams</c> and returned the identity delegate.
+        /// reference PROPERTY on <c>MissionParams</c> and returned the identity delegate.
         /// </summary>
         [Fact]
         public void AnIdNestedInAContractTypedField_IsRemapped_AndNothingElseMoves()
         {
             const string json = "{\"move\":{\"x\":600.50},\"Fire\":{\"targetNetworkId\":1006,\"maxRounds\":3},\"plain\":1006}";
 
-            string? result = BehaviorParamRemapperCompiler.CompileFor(typeof(MissionParams))(json, Map);
+            string? result = EntityRefRemap.CompileJson(typeof(MissionParams))(json, Map);
 
             Assert.Equal("{\"move\":{\"x\":600.50},\"Fire\":{\"targetNetworkId\":1001,\"maxRounds\":3},\"plain\":1006}", result);
         }
 
-        /// <summary>⭐ A <c>[RemapNetworkId]</c> FIELD is an id too (C005a: "properties/fields").</summary>
+        /// <summary>⭐ An <c>EntityRef</c> FIELD is a reference too (C005a: "properties/fields").</summary>
         [Fact]
         public void ATaggedLongField_IsRemapped()
         {
-            string? result = BehaviorParamRemapperCompiler.CompileFor(typeof(MissionParams))("{\"escort\":7}", Map);
+            string? result = EntityRefRemap.CompileJson(typeof(MissionParams))("{\"escort\":7}", Map);
             Assert.Equal("{\"escort\":70}", result);
         }
 
@@ -163,7 +162,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void NoIdInTheMap_ReturnsTheSameString_WithNoKeyAdded()
         {
             const string json = "{\"Fire\":{\"maxRounds\":3}}";
-            string? result = BehaviorParamRemapperCompiler.CompileFor(typeof(MissionParams))(json, Map);
+            string? result = EntityRefRemap.CompileJson(typeof(MissionParams))(json, Map);
             Assert.Same(json, result);
         }
 
@@ -242,7 +241,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void CE2023_AStructContract_IsRemappedInPlace()
         {
-            var remap = BehaviorParamRemapperCompiler.Compile<StructRemapDto>();
+            var remap = EntityRefRemap.CompileJson(typeof(StructRemapDto));
             string? result = remap("{\"targetNetworkId\":42,\"maxRounds\":3}", new Dictionary<long, long> { [42] = 1042 });
             Assert.Contains("1042", result);
             Assert.Contains("\"maxRounds\":3", result);
@@ -251,8 +250,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private struct StructRemapDto
         {
             [System.Text.Json.Serialization.JsonPropertyName("targetNetworkId")]
-            [Fdp.Toolkit.Behavior.Attributes.RemapNetworkId]
-            public long TargetNetworkId { get; set; }
+            public EntityRef TargetNetworkId { get; set; }
 
             [System.Text.Json.Serialization.JsonPropertyName("maxRounds")]
             public int MaxRounds { get; set; }

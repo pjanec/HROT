@@ -53,7 +53,7 @@ public class CE472_IntentAndJsonNodeTests
         send.Pins.AddRange(new[] { sIn, sOut, DataPin("Target", "In", "Fdp.Core.Entity") });
         foreach (var f in send.Fields) send.Pins.Add(DataPin(f.Name, "In", f.TypeId));
         var slot = Literal("System.Single", "12.5", out var slotOut);
-        var target = Literal("System.Int64", "4242", out var targetOut);
+        var target = Literal("Fdp.Toolkit.Replication.EntityRef", "4242", out var targetOut);   // a reference literal (DESIGN_Entity_Reference)
 
         var entry = new EventEntryNode { Id = Guid.NewGuid() };
         var entryOut = ExecPin("ExecOut", "Out");
@@ -277,7 +277,7 @@ public class CE472_IntentAndJsonNodeTests
         var contracts = ReflectionIntentContractProvider.Compute(new[] { typeof(HullDownAttackIntentDto).Assembly });
         var hull = Assert.Single(contracts, c => c.Id == "HullDownAttack");
         Assert.Equal(DtoFqn, hull.DtoTypeFqn);
-        Assert.Contains(hull.Members, m => m.Name == "TargetNetworkId" && m.TypeId == "System.Int64");
+        Assert.Contains(hull.Members, m => m.Name == "TargetNetworkId" && m.TypeId == "Fdp.Toolkit.Replication.EntityRef");
 
         var move = Assert.Single(contracts, c => c.Id == "MoveToLocation");
         Assert.DoesNotContain(move.Members, m => m.Name == "PickableLocation");   // [JsonIgnore] + not pinnable

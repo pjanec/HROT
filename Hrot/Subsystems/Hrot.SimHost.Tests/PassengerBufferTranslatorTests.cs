@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -74,7 +75,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialPassengersIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(entity);
             Assert.Equal(1, intent!.PassengerNetworkIds.Count);
-            Assert.Equal(42L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(42L, intent.PassengerNetworkIds[0].NetworkId);
         }
 
         [Fact]

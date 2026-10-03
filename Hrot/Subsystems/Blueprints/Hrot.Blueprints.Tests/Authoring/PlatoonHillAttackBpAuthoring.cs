@@ -29,7 +29,8 @@ internal static class PlatoonHillAttackBpAuthoring
     private const string Geo    = "Fdp.Toolkit.Behavior.Params.PickableGeoPoint";
 
     private const string Flt = "System.Single", Int = "System.Int32", Lng = "System.Int64", Bool = "System.Boolean",
-                         Dbl = "System.Double", Ent = "Fdp.Core.Entity";
+                         Dbl = "System.Double", Ent = "Fdp.Core.Entity",
+                         Ref = "Fdp.Toolkit.Replication.EntityRef";   // DESIGN_Entity_Reference — an authored entity reference
 
     private static readonly (string, string)[] RunnerFields =
         { ("Unit", Ent), ("FiringSlot", Int), ("BaselineSlot", Int), ("Started", Bool) };
@@ -44,7 +45,7 @@ internal static class PlatoonHillAttackBpAuthoring
         a.Param("BaselineStart", Geo);
         a.Param("BaselineEnd", Geo);
         a.Param("TankSpacing", Flt, "30");
-        a.Param("TargetAreaNetworkId", Lng, "0");
+        a.Param("TargetAreaNetworkId", Ref, "0");   // ⭐ CE-2055 — the TYPE makes scenario load remap it
 
         // ── Variables: resolved geometry, phase, slot/runner lists, query state, per-step scratch ──
         foreach (var v in new[] { "StartX", "StartY", "EndX", "EndY", "BaseSX", "BaseSY", "BaseEX", "BaseEY",
@@ -56,7 +57,7 @@ internal static class PlatoonHillAttackBpAuthoring
                                   "CurSlot", "CurBase" })
             a.Var(v, Int);
         a.Var("Sensor", EqsHandle);
-        a.Var("CurNet", Lng);
+        a.Var("CurNet", Ref);
         a.Var("AllArrived", Bool);
         a.Var("FiringSlots", "global::" + SlotE, capacity: 16);
         a.Var("BaselineReserved", Bool, capacity: 16);
@@ -72,7 +73,7 @@ internal static class PlatoonHillAttackBpAuthoring
         var slotT    = a.Graph("SlotT", GraphKind.Function, new[] { ("index", Int), ("count", Int) }, new[] { ("T", Flt) });
         var pickFire = a.Graph("PickFiringSlot", GraphKind.Function, new[] { ("unit", Ent) }, new[] { ("Slot", Int) });
         var pickBase = a.Graph("PickBaselineSlot", GraphKind.Function, new[] { ("x", Flt), ("y", Flt) }, new[] { ("Slot", Int) });
-        var netId    = a.Graph("TargetNetId", GraphKind.Function, new[] { ("target", Ent) }, new[] { ("Net", Lng) });
+        var netId    = a.Graph("TargetNetId", GraphKind.Function, new[] { ("target", Ent) }, new[] { ("Net", Ref) });
         var dispatch = a.Graph("DispatchWave", GraphKind.Function);
         var update   = a.Graph("UpdateRunners", GraphKind.Function, outputs: new[] { ("Count", Int) });
 
@@ -120,8 +121,8 @@ internal static class PlatoonHillAttackBpAuthoring
         Then(g.Set("BaseSX", bs, "X")); Then(g.Set("BaseSY", bs, "Y"));
         Then(g.Set("BaseEX", be, "X")); Then(g.Set("BaseEY", be, "Y"));
 
-        // :799-808 — area entity by network id (unknown ⇒ Entity.Null)
-        Then(g.Set("TargetArea", g.Call(Lib, "EntityFromNetworkId", true, Ctx.View, (g.Param("TargetAreaNetworkId"), null))));
+        // :799-808 — area entity by reference (unknown or stale ⇒ Entity.Null)
+        Then(g.Set("TargetArea", g.Call(Lib, "EntityFromRef", true, Ctx.View, (g.Param("TargetAreaNetworkId"), null))));
 
         // :714 — spacing = TankSpacing > 0 ? TankSpacing : 30
         var spPos = g.Branch();
@@ -329,18 +330,14 @@ internal static class PlatoonHillAttackBpAuthoring
         g.X(pass2, r2, "Completed");
     }
 
-    // ── TargetNetId(target): C# :376-386 — the target's network id if it is alive and replicated, else 0 ──
+    // ── TargetNetId(target): C# :376-386 — the reference to the target if it is alive and replicated, else none ──
+    //    ⭐ Ref From Entity (NetworkIdResolver.RuntimeNetworkIdOf) is that rule — alive AND a NetworkIdentity — in one node.
     private static void BuildTargetNetId(BpGraph g)
     {
         var entry = g.Entry();
-        var id = g.GetComp("Fdp.Toolkit.Replication.Components.NetworkIdentity", ("Value", Lng));
-        g.D(entry, "target", id, "Target");
-        var ok = g.Branch();
-        g.D(g.And(Alive(g, entry, "target"), id, null, "Found"), ok, "Condition");
-        g.X(entry, ok);
-        var r1 = g.Ret(); g.D(id, "Value", r1, "Net");
-        var r2 = g.Ret(); g.D(g.L(0), r2, "Net");
-        g.X(ok, r1, "True"); g.X(ok, r2, "False");
+        var r = g.Ret();
+        g.D(g.Call(Lib, "RefFromEntity", true, Ctx.View, (entry, "target")), r, "Net");
+        g.X(entry, r);
     }
 
     /// <summary>The area sensor: EntitiesOfForceInArea, hostile mask, ContextSlot1 = the area (find-or-create).</summary>

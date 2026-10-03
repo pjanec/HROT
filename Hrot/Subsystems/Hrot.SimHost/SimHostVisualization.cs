@@ -369,8 +369,7 @@ namespace Hrot.SimHost
                 new CanvasMapPickAdapter(
                     _map, repo,
                     globalGizmoManager: _globalGizmoManager,
-                    tools: () => _toolController),
-                repo);
+                    tools: () => _toolController));
 
             // Seed a small initial scenario so the window isn't empty
             //_scenario.SpawnFastOne();

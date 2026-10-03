@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -76,7 +77,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate);
             Assert.NotNull(intent);
-            Assert.Equal(77L, intent!.CommanderNetworkId);
+            Assert.Equal(77L, intent!.CommanderNetworkId.NetworkId);
             Assert.Equal((TacticalDesignation)3, intent.Designation);
         }
 
@@ -103,7 +104,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate);
             Assert.NotNull(intent);
-            Assert.Equal(0L, intent!.CommanderNetworkId);
+            Assert.Equal(0L, intent!.CommanderNetworkId.NetworkId);
         }
 
         // CS013-T03: Extract with commander produces correct keys

@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialTargetsIntent>(entity);
             Assert.NotNull(intent);
             Assert.Equal(1, intent!.Entries.Count);
-            Assert.Equal(33L, intent.Entries[0].NetworkId);
+            Assert.Equal(33L, intent.Entries[0].NetworkId.NetworkId);
             Assert.Equal(10f, intent.Entries[0].PosX);
             Assert.Equal(20f, intent.Entries[0].PosY);
             Assert.Equal(0.8f, intent.Entries[0].Score, precision: 5);
@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialTargetsIntent>(entity);
             // Only the live entry should be added
             Assert.Equal(1, intent!.Entries.Count);
-            Assert.Equal(11L, intent.Entries[0].NetworkId);
+            Assert.Equal(11L, intent.Entries[0].NetworkId.NetworkId);
         }
     }
 }

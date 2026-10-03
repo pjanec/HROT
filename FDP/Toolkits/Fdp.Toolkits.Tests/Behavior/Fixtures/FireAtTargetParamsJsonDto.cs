@@ -14,9 +14,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
     {
         /// <summary>Network ID of the target entity. Remapped during scenario load.</summary>
         [JsonPropertyName("targetNetworkId")]
-        [RemapNetworkId]
-        [MapPickableEntity]
-        public long TargetNetworkId { get; set; }
+        public Fdp.Toolkit.Replication.EntityRef TargetNetworkId { get; set; }   // ⭐ the TYPE is the remap and picker marker
 
         /// <summary>Maximum number of rounds to fire.</summary>
         [JsonPropertyName("maxRounds")]

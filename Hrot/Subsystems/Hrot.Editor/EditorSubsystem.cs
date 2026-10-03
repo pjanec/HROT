@@ -1493,8 +1493,13 @@ namespace Hrot.Editor
             TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _roadNetworkHolder);
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
 
+            // ⭐ CE-2056 — the editor HOLDS a behaviour registry, so it passes a remapper built from it (the silent-default
+            //   rule): a scenario load that renumbers ids now rewrites the EntityRefs inside mission parameters too, as
+            //   CGF's step does. ⛔ Before, an edit load kept the file's STAGING ids in every task's params, and a save
+            //   or a run from the editor carried them on. 📄 docs/blueprints/DESIGN_Entity_Reference.md D4.
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
-                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator));
+                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator,
+                behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry)));
 
             clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
                 EditorCapabilities.DefaultRole, editorLoadProviders, _world,
@@ -5122,8 +5127,8 @@ namespace Hrot.Editor
                         TitleBarColor:  EditorWindowColor.TitleBar,
                         ArchitecturePanel: editorArchitecturePanel,
                         ExecutionStats:    editorExecutionStats,
-                        PickBridge: _mapPickAdapter != null && _world != null
-                            ? new MapPickServiceBridge(_mapPickAdapter, _world)
+                        PickBridge: _mapPickAdapter != null
+                            ? new MapPickServiceBridge(_mapPickAdapter)
                             : null)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));

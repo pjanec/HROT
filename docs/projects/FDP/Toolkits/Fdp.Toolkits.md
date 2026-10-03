@@ -195,8 +195,10 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 **File**: `Behavior/ScenarioBehaviorRemapper.cs`
 - `ScenarioBehaviorRemapper` -- remaps behavior GUIDs when loading saved scenarios
 
-**File**: `Behavior/BehaviorParamRemapperCompiler.cs`
-- `BehaviorParamRemapperCompiler` -- compiles parameter-remap rules for behavior assignment
+**File**: `Replication/EntityRef.cs`, `Replication/EntityRefRemap.cs`
+- `EntityRef` -- an authored reference to another entity (its network id); JSON is the bare number
+- `EntityRefRemap` -- one type plan that rewrites every `EntityRef` in behaviour JSON or in a component at scenario
+  load (replaced `BehaviorParamRemapperCompiler`, deleted `2026-10-03`; `docs/blueprints/DESIGN_Entity_Reference.md`)
 
 #### Components (`Behavior/Components/`)
 - `BehaviorState` -- active behavior name, brain tier, instance ID

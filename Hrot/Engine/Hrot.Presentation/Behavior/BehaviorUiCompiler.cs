@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text.Json;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Toolkit.Replication;
 using ImGuiNET;
 
 namespace Hrot.Presentation.Behavior
@@ -148,12 +149,13 @@ namespace Hrot.Presentation.Behavior
                 var pickLocation = prop.GetCustomAttribute<MapPickableWorldLocationAttribute>();
                 string propName  = prop.Name;
 
-                if (pickEntity != null)
+                if (prop.PropertyType == typeof(EntityRef))
                 {
-                    // Entity pick: consume any resolved async result first, then show UI.
-                    var filterPresets = pickEntity.FilterPresets;
-                    var getter        = BuildLongGetter<TDto>(prop);
-                    var setter        = BuildSetter<TDto, long>(prop);
+                    // ⭐ DESIGN_Entity_Reference D5 — the TYPE makes a field pickable; the optional attribute only narrows
+                    // the pick. Consume any resolved async result first, then show UI.
+                    var filterPresets = pickEntity?.FilterPresets ?? Array.Empty<string>();
+                    var getter        = BuildGetter<TDto, EntityRef>(prop);
+                    var setter        = BuildSetter<TDto, EntityRef>(prop);
 
                     renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
@@ -162,12 +164,12 @@ namespace Hrot.Presentation.Behavior
                         // 1. Consume any asynchronously resolved pick targeting this field.
                         if (ctx.TryConsumeEntityPick(taskIdx, propName, out long pickedId))
                         {
-                            setter(ref dto, pickedId);
+                            setter(ref dto, new EntityRef(pickedId));
                             changed = true;
                         }
 
                         // 2. Render standard UI.
-                        long val = getter(dto);
+                        var val = getter(dto);
                         ImGui.Text($"{propName}: {val}");
                         ImGui.SameLine();
                         if (ctx.IsPickPendingFor(taskIdx, propName))

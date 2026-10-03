@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Core;
+using Fdp.Toolkit.Replication;
 
 namespace Fdp.Presentation.Editing
 {
@@ -22,9 +22,10 @@ namespace Fdp.Presentation.Editing
 
         /// <summary>
         /// Attempts to consume a completed entity pick.
-        /// Returns <see langword="true"/> and sets <paramref name="pickedEntity"/> when a result is available.
+        /// Returns <see langword="true"/> and sets <paramref name="picked"/> — the picked entity's NETWORK id, the form an
+        /// authored field stores (<c>DESIGN_Entity_Reference.md</c> D1) — when a result is available.
         /// </summary>
-        bool TryConsumeEntityPick(string jsonPath, out Entity pickedEntity);
+        bool TryConsumeEntityPick(string jsonPath, out EntityRef picked);
 
         /// <summary>
         /// Attempts to consume a completed location pick.

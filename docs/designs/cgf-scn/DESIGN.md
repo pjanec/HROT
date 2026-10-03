@@ -404,6 +404,12 @@ Responsibilities:
 
 ### Task C005: Behavior Param Remapping
 
+> ⛔ **SUPERSEDED `2026-10-03` — C005a and C005c below are history.** `RemapNetworkIdAttribute` and
+> `BehaviorParamRemapperCompiler` are deleted: the authored id member is TYPED `EntityRef`, and one type plan
+> (`EntityRefRemap`) remaps it in behaviour JSON and in every extracted component, lists and nested structs included.
+> `ScenarioBehaviorRemapper` (C005b) survives and compiles through that plan. 📄
+> [DESIGN_Entity_Reference.md](../../blueprints/DESIGN_Entity_Reference.md) D3/D4.
+
 Define the remapping infrastructure used by `StagingEntityExtractor` to patch
 network IDs embedded in behavior JSON strings.
 

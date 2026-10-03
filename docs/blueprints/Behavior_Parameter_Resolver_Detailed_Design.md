@@ -188,7 +188,8 @@ This generalizes the pipeline already documented in `Blackboard_Authoring_Addend
 
 4. **Declare the authored fields.** A palette maps authorable field types onto the existing pickable attributes:
    - "World location" → `PickableGeoPoint` + `[MapPickableWorldLocation]`
-   - "Entity reference" → `long` + `[RemapNetworkId]` + `[MapPickableEntity("…")]`
+   - "Entity reference" → ⭐ an `EntityRef` member (+ optional `[MapPickableEntity("…")]` to narrow the pick).
+     ⛔ SUPERSEDED `2026-10-03`: *"`long` + `[RemapNetworkId]` + `[MapPickableEntity]`"* — [DESIGN_Entity_Reference](DESIGN_Entity_Reference.md).
    - number / enum / bool → scalar fields.
    These generate the authored DTO (the drawn equivalent of `PlatoonHillAttackParamsJsonDto`).
 

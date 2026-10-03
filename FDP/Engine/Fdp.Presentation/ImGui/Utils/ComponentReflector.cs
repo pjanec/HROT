@@ -121,6 +121,7 @@ public class ComponentReflector
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
             .RegisterFieldEditor<FixedString128>(new FixedString128FieldEditor())
             .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
+            .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new EntityRefFieldEditor())
             .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
         foreach (var p in _bufferViewProviders)
             builder = builder.RegisterBufferViewProvider(p);

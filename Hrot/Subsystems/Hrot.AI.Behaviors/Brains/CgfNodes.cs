@@ -200,14 +200,14 @@ namespace Hrot.AI.Behaviors.Brains
             Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
         {
             long targetPacked = 0;
-            if (authored.TargetNetworkId != 0
-                && entityMap.TryGetEntity(authored.TargetNetworkId, out var entity))
+            if (!authored.TargetNetworkId.IsNone
+                && entityMap.TryGetEntity(authored.TargetNetworkId.NetworkId, out var entity))
             {
                 targetPacked = (long)entity.PackedValue;
             }
-            else if (authored.TargetNetworkId != 0)
+            else if (!authored.TargetNetworkId.IsNone)
             {
-                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId + " not found in entity map; target will not fire.");
+                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId.NetworkId + " not found in entity map; target will not fire.");
             }
 
             return new FireAtTargetParams

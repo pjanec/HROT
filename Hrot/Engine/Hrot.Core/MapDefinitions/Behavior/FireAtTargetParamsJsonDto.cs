@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -14,11 +14,10 @@ namespace Hrot.Map.Definitions.Behavior
     {
         public const string BehaviorId = BehaviorNames.FireAtTarget;
 
-        /// <summary>Network ID of the target entity. Remapped during scenario load.</summary>
+        /// <summary>The target entity. ⭐ An <see cref="EntityRef"/>: picked on the map, remapped at scenario load
+        /// (<c>DESIGN_Entity_Reference.md</c>); JSON is still the bare network id.</summary>
         [JsonPropertyName("targetNetworkId")]
-        [RemapNetworkId]
-        [MapPickableEntity]
-        public long TargetNetworkId { get; set; }
+        public EntityRef TargetNetworkId { get; set; }
 
         /// <summary>Maximum number of rounds to fire.</summary>
         [JsonPropertyName("maxRounds")]

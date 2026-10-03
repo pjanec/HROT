@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Editing;
-using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.Presentation.Facades;
 
@@ -15,28 +15,19 @@ namespace Hrot.Presentation.Facades;
 public sealed class MapPickServiceBridge : IComponentPickerContext
 {
     private readonly Hrot.UI.Common.Facades.IMapPickService _pickService;
-    private readonly EntityRepository? _repo;
 
     private string? _pendingPath;
     private Task<int>? _entityPickTask;
     private Task<Hrot.Core.Mission.GeoPoint>? _locationPickTask;
 
-    /// <summary>
-    /// Creates a <see cref="MapPickServiceBridge"/>.
-    /// </summary>
-    /// <param name="pickService">The map pick service to delegate to.</param>
-    /// <param name="repo">
-    /// Optional entity repository used to reverse-look up an entity from a
-    /// network ID after an entity pick completes.
-    /// When <see langword="null"/>, <see cref="TryConsumeEntityPick"/> always
-    /// returns <see langword="false"/>.
-    /// </param>
-    public MapPickServiceBridge(
-        Hrot.UI.Common.Facades.IMapPickService pickService,
-        EntityRepository? repo = null)
+    /// <summary>Creates a <see cref="MapPickServiceBridge"/> over <paramref name="pickService"/>.</summary>
+    /// <remarks>⭐ <c>DESIGN_Entity_Reference.md</c> D5 — a pick yields the picked entity's NETWORK id as an
+    /// <see cref="EntityRef"/>, the form an authored field stores, so the bridge needs no repository: the old reverse
+    /// lookup to a local <see cref="Entity"/> fed only the deleted Fdp.Presentation attribute, which had no production
+    /// user.</remarks>
+    public MapPickServiceBridge(Hrot.UI.Common.Facades.IMapPickService pickService)
     {
         _pickService = pickService ?? throw new ArgumentNullException(nameof(pickService));
-        _repo        = repo;
     }
 
     /// <inheritdoc/>
@@ -62,7 +53,7 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
     }
 
     /// <inheritdoc/>
-    public bool TryConsumeEntityPick(string jsonPath, out Entity pickedEntity)
+    public bool TryConsumeEntityPick(string jsonPath, out EntityRef picked)
     {
         if (_pendingPath == jsonPath && _entityPickTask != null)
         {
@@ -71,8 +62,8 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
                 int networkId   = _entityPickTask.Result;
                 _pendingPath    = null;
                 _entityPickTask = null;
-                pickedEntity    = FindEntityByNetworkId(networkId);
-                return pickedEntity != Entity.Null;
+                picked          = networkId > 0 ? new EntityRef(networkId) : EntityRef.None;   // 0 / negative = no identity
+                return !picked.IsNone;
             }
 
             // Task cancelled or faulted — clear pending state silently.
@@ -83,7 +74,7 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
             }
         }
 
-        pickedEntity = Entity.Null;
+        picked = EntityRef.None;
         return false;
     }
 
@@ -112,15 +103,4 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
         location = default;
         return false;
     }
-
-    // ── Entity reverse-lookup ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⚠ This copy was the closest to
-    /// right and its guards are the ones the shared resolver keeps. ⛔ Its cached <c>_networkQuery</c> is
-    /// dropped: 📐 an <c>EntityQuery</c> holds masks plus the repo and walks it live, so <c>Build()</c>
-    /// costs a constructor — ⭐ the cache bought nothing and made the field look like a snapshot.
-    /// </summary>
-    private Entity FindEntityByNetworkId(long networkId)
-        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_repo, networkId);
 }

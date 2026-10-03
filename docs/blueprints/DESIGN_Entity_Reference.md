@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-build-state: BUILDING (user, 2026-10-03: "Approved, do all 3 steps … refactor freely")
+build-state: BUILT (all three steps, 2026-10-03 — §5)
 current-answer: §2 (the diagrams) and §3 (the decisions). §1 is the measured inventory; §5 is the as-built.
-stale-below: nothing yet.
+stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
@@ -52,14 +52,14 @@ classDiagram
     +NetworkId : long
     +IsNone : bool
     +Resolve(repo) Entity
-    +Of(entity, repo) EntityRef
+    +Of(repo, entity) EntityRef
   }
   class EntityRefJsonConverter {
     bare number, null is 0
   }
   class EntityRefRemap {
     <<static>>
-    +RemapJson(type, json, map) string
+    +CompileJson(type) json remapper
     +RemapObject(obj, map) bool
     -PlanFor(type) plan
   }
@@ -98,7 +98,7 @@ sequenceDiagram
   F->>X: entities + mission params (staging ids)
   X->>X: pass 1 - old to new id map
   X->>R: RemapObject(each component)
-  X->>R: RemapJson(task params type, json)
+  X->>R: CompileJson(task params type) applied to the json
   R-->>X: every EntityRef rewritten, nothing else touched
   X->>G: intents with runtime EntityRefs
   G->>G: ref.Resolve(repo) - live links
@@ -151,4 +151,32 @@ bind entities, not authored fields).
 
 ## 5. As-built
 
-*(filled per step)*
+### Step 1 — the type, the remap plan, the pickers *(2026-10-03)*
+
+| decision | as built | deviation from §2–§3 |
+|---|---|---|
+| D1 | `FDP/Toolkits/Fdp.Toolkits/Replication/EntityRef.cs` — readonly struct, `NetworkId`, `None`/`IsNone`, `Resolve(repo \| view)`, `TryResolve`, `Of(repo, entity)`, `Remap(map)`, explicit casts to and from `long` (C# code may cross, never silently); `EntityRefJsonConverter` reads a number, `null`, a numeric string or `{"NetworkId":n}`, writes the number | `Of` takes `(repo, entity)` (§2 corrected) |
+| D2 | `EntityRef.Resolve` → `NetworkIdResolver.ResolveNetworkId`; `BlueprintWorldLibrary.EntityFromNetworkId` now routes there (it gains the stale check); nodes *Entity From Ref* / *Ref From Entity* | — |
+| D3 | `EntityRefRemap` (same folder): one plan per type (`ConditionalWeakTable`), entry kinds `Ref · RefSequence · Nested · NestedSequence`, public fields and properties, JSON key = `[JsonPropertyName]` or the member name (case-insensitive), `[JsonIgnore]` skipped for JSON; appliers `CompileJson(Type)` and `RemapObject(object, map)` (a boxed struct is rewritten in its box, a list of structs is stored back element by element). ⛔ `BehaviorParamRemapperCompiler` and `[RemapNetworkId]` **deleted**; `ScenarioBehaviorRemapper` compiles through `EntityRefRemap` | the JSON applier was drawn as `RemapJson(type, json, map)`; it is `CompileJson(type)` returning a cached delegate — the shape the remapper's registry already stored (§2 corrected) |
+| D5 | ① mission panel: `BehaviorUiCompiler` draws the picker for a property **of type** `EntityRef`; `[MapPickableEntity]` only supplies the filter. ② component editor: `EntityRefFieldEditor` (`Fdp.Presentation/ImGui/Editing/`) collapses the struct into one `Scalar` leaf; `ComponentEditDrawer` shows *Pick Entity* for it and writes the picked reference; `IComponentPickerContext.TryConsumeEntityPick` yields an `EntityRef`, so `MapPickServiceBridge` lost its repository parameter (the reverse lookup to a local `Entity` fed only the deleted attribute). ③ `DtoJsonSchemaExtractor`: an `EntityRef` member is `{type:integer, format:entityRef, picker:entity}`; the `RemapNetworkIdAttribute` case is gone. ⛔ The Fdp.Presentation `MapPickableEntityAttribute` is **deleted**; the Fdp.Toolkits one now targets fields too | — |
+
+*Rails:* `Fdp.Toolkits.Tests/Replication/EntityRefTests.cs` (D1 every JSON form, the bare-number write, D2 resolve and `Of`, D3 both appliers over every shape) · `BehaviorRemappingTests` ported to the type · `ComponentEditDrawerTests.D5_AnEntityRefField_IsOneLeaf_AndAPickLandsInTheComponent` (draws a real ImGui frame) · `BehaviorUiCompilerTests.CE2023_AnEntityPickOnAStructContract_LandsInTheJson` (now keyed on the type, no attribute on `FireAtTarget`). 🔴 Red-proved: dropping the drawer's type check, and dropping the store-back of a rewritten struct element, each fail their rail.
+
+### Step 2 — palettes and the hill-attack blueprint *(2026-10-03)*
+
+| decision | as built |
+|---|---|
+| D6 | blueprint: `StaticTypeRegistry` type table + alias `EntityRef`, in `EditorOfferableTypeIds` (so `BlueprintTypeSystem.SelectableTypeIds` offers it); `DefaultLiteral` writes `new EntityRef(NL)` (a parameter default, a pin default and a Literal node); pin default editor = text (`StringPinEditor`, the id); its own pin colour; a SendIntent contract member of type `EntityRef` is a pin (`IntentContractPaletteEntries`). ⛔ **No `Int64`↔`EntityRef` coercion rung** — a rung is inserted silently and the table's invariant is "lossless numeric widenings only" (`CoercionTable_ContainsOnlyLosslessWidenings`); a silent number↔reference crossing is the very ambiguity the type removes, so a graph crosses with *Ref From Entity* / *Entity From Ref*. BTree/HSM: `BlackboardTypeHelper` offers `EntityRef` (primitive table and the Add-Variable list) |
+| CE-2055 | `PlatoonHillAttackBp.bp.json`, regenerated from its authoring script (`PlatoonHillAttackBpAuthoring`, `HILL_ATTACK_BP_REGENERATE=1`): the parameter `TargetAreaNetworkId`, the `CurNet` variable, the `TargetNetId` function's output and the `HullDownAttack` intent pin are `EntityRef`; the area resolves with *Entity From Ref*, and `TargetNetId` is one *Ref From Entity* call (the alive-and-replicated rule its old branch spelled out). The C# twin of the params DTO in `HillAttackCommanderNodes.cs` was deleted — the node parses the one `Hrot.Core` contract |
+
+### Step 3 — the intents, the extractor, the editor's remapper *(2026-10-03)*
+
+| decision | as built |
+|---|---|
+| D4 | the six `Initial*Intent` components (`Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs`) hold `EntityRef` / `List<EntityRef>`, and `TargetEntry.NetworkId` is an `EntityRef` — member names unchanged. Producers wrap the id they already resolved (six SimHost translators, `CreateEntityRequestSystem`); `GenesisMaterializationSystem` reads `.NetworkId` / `.IsNone` through the entity map it already used. ⭐ `StagingEntityExtractor.RemapComponentNetworkIds` keeps the mission-plan JSON pass and replaces the six hand-coded cases with ONE loop: `EntityRefRemap.RemapObject(component, oldToNew)` over every extracted component, in place. 🔴 The deleted target-memory case had dropped `PosZ` on every load (`CE-2062`) |
+| CE-2056 | `EditorSubsystem` builds its `ScenarioLoadStep` with `CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry)`. 📐 SimHost, Stride and IG pass no scenario extractor to `NodeBootstrapper.BuildOrchestration`, so their step is never built — the §2 module graph's "SimHost NodeBootstrapper" edge is dormant in production, not a gap |
+
+*Rails:* `StagingEntityExtractorTests.Extract_InitialTargetsIntent_RemapsTheReference_AndKeepsEveryOtherField` (new — the reference remapped AND `PosZ`/`Score` kept), the existing passenger/commander remap rails and every intent translator/materialisation rail, ported to the type. ⚠ CE-2056 has no composition-root rail (`EditorSubsystem.Initialize` needs a full host).
+
+*Out of scope, measured:* `JoinFormationParams.LeaderNetworkId` (an `int` in a contract with no authoring surface) and the EQS sensor wire keys (`ParentNetworkId` — runtime keys on a DDS topic, not authored data) stay as they are.
+
