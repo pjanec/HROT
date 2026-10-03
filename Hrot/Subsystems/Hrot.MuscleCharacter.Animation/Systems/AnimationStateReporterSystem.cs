@@ -40,32 +40,34 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             foreach (var entity in q)
             {
                 var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
-                ref var channel = ref repo.GetComponentRW<AnimationChannel>(entity);
+                // ⭐ CE-513 / R-180 — read the Brain's request, write only the Muscle's report.
+                var channel = repo.GetComponent<AnimationChannel>(entity);
+                ref var status = ref ChannelReports.Animation(repo, entity);
 
                 // Safety-net: if queue has run to completion (advance system sets TrackingActive=0 and
                 // CurrentEntryIndex=0xFF), ensure channel is Success even if advance system missed a frame.
                 // This check does not require a valid backend handle.
-                if (channel.Status == NodeStatus.Running && repo.HasComponent<AnimationMontageQueueState>(entity))
+                if (status.Status == NodeStatus.Running && repo.HasComponent<AnimationMontageQueueState>(entity))
                 {
                     ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
                     ref var queue = ref repo.GetComponentRW<AnimationMontageQueue>(entity);
 
                     if (queueState.CurrentEntryIndex == 0xFF && queue.Count == 0)
                     {
-                        channel.Status = NodeStatus.Success;
+                        status.Status = NodeStatus.Success;
                     }
                 }
 
                 // Check LookAtChannel completion — does not require a valid backend handle.
                 if (repo.HasComponent<LookAtChannel>(entity) && repo.HasComponent<LookAtExecutorState>(entity))
                 {
-                    ref var lookAtChannel = ref repo.GetComponentRW<LookAtChannel>(entity);
+                    ref var lookAtStatus = ref ChannelReports.LookAt(repo, entity);
                     ref var lookAtExec = ref repo.GetComponentRW<LookAtExecutorState>(entity);
 
                     if (lookAtExec.BlendOutWeight <= 0f && lookAtExec.TargetType != 0)
                     {
                         // Aim has fully blended out after release
-                        lookAtChannel.Status = NodeStatus.Success;
+                        lookAtStatus.Status = NodeStatus.Success;
                         lookAtExec.TargetType = 0;
                     }
                 }
@@ -89,20 +91,19 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 //        and the queue is empty (if enqueued entries exist, MontageQueueAdvanceSystem handles them).
                 bool noQueueEntries = !repo.HasComponent<AnimationMontageQueue>(entity) ||
                                       repo.GetComponent<AnimationMontageQueue>(entity).Count == 0;
-                if (channel.Status == NodeStatus.Running &&
+                if (status.Status == NodeStatus.Running &&
                     channel.ActiveAction == AnimationActionIds.PlayMontage &&
                     channel.ActionInstanceId != 0 &&
-                    channel.DispatchedInstanceId == channel.ActionInstanceId &&
+                    status.DispatchedInstanceId == channel.ActionInstanceId &&
                     !_backend.IsAnySlotActive(handle) &&
                     noQueueEntries)
                 {
                     unsafe
                     {
                         PlayMontageParams p;
-                        fixed (byte* src = channel.Params)
-                            p = *(PlayMontageParams*)src;
+                        p = *(PlayMontageParams*)channel.Params;   // a local copy is already fixed
 
-                        channel.Status = NodeStatus.Success;
+                        status.Status = NodeStatus.Success;
                         repo.Bus.Publish(new MontageEndedEvent(
                             target: entity,
                             montageId: p.MontageId,

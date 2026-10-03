@@ -103,7 +103,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             var repo = new EntityRepository();
             repo.RegisterComponent<AnimationChannel>();
+            repo.RegisterComponent<AnimationChannelStatus>();
             repo.RegisterComponent<LookAtChannel>();
+            repo.RegisterComponent<LookAtChannelStatus>();
             repo.RegisterComponent<StanceIntent>();
             repo.RegisterComponent<StanceStatus>();
             repo.RegisterComponent<AnimationMontageQueue>();
@@ -122,8 +124,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             ActorCapabilities caps = ActorCapabilities.CanPlayAnimations | ActorCapabilities.CanChangeStance | ActorCapabilities.CanAim)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new AnimationChannel { Status = NodeStatus.Failure });
-            repo.AddComponent(entity, new LookAtChannel { Status = NodeStatus.Failure });
+            repo.AddComponent(entity, new AnimationChannel());
+            repo.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+            repo.AddComponent(entity, new LookAtChannel());
+            repo.AddComponent(entity, new LookAtChannelStatus { Status = NodeStatus.Failure });
             repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Standing, BlendTime = 0.1f });
             repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, Phase = StanceTransitionPhase.Idle });
             repo.AddComponent(entity, new AnimationMontageQueue { Count = 0, QueueVersion = 0 });

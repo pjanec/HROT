@@ -485,6 +485,12 @@
         /// <summary><c>AnimationMontageQueueState</c> – queue playback progress (replicable, NoScenario).</summary>
         public const int AnimationMontageQueueState = 225;
 
+        /// <summary><c>AnimationChannelStatus</c> – the Muscle's report on the AnimationChannel request (replicable, NoScenario). CE-513 / R-180.</summary>
+        public const int AnimationChannelStatus = 226;
+
+        /// <summary><c>LookAtChannelStatus</c> – the Muscle's report on the LookAtChannel request (replicable, NoScenario). CE-513 / R-180.</summary>
+        public const int LookAtChannelStatus = 227;
+
         /// <summary><c>LookAtExecutorState</c> – internal look-at execution state (not replicable, NoScenario).</summary>
         public const int LookAtExecutorState = 237;
 
@@ -497,7 +503,7 @@
         /// <summary><c>FakeAnimBackendState</c> – fake backend per-entity state (not replicable, NoScenario). Placeholder for Phase 1.</summary>
         public const int FakeAnimBackendState = 240;
 
-        // IDs 215–219, 226–236, 241–255 are reserved for future animation/toolkit components.
+        // IDs 215–219, 228–236, 241–255 are reserved for future animation/toolkit components.
 
         // ---- Squad coordination components (256–299) ----------------------------
 

@@ -25,7 +25,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<AnimationChannel>();
+            repo.RegisterComponent<AnimationChannelStatus>();
             repo.RegisterComponent<LookAtChannel>();
+            repo.RegisterComponent<LookAtChannelStatus>();
             repo.RegisterComponent<StanceIntent>();
             repo.RegisterComponent<StanceStatus>();
             repo.RegisterComponent<AnimationMontageQueue>();

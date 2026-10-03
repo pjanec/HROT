@@ -32,9 +32,10 @@ namespace Hrot.MuscleCharacter.Animation.Components
     }
 
     /// <summary>
-    /// Animation channel component carrying one-shot montage playback intent.
-    /// Follows the existing LocomotionChannel/WeaponChannel pattern (DD-1 §5.1).
-    /// Total layout must fit within BehaviorConstants.MaxChannelSizeBytes (96 bytes).
+    /// Animation channel: the Brain's REQUEST for one-shot montage playback (DD-1 §5.1).
+    /// ⭐ <c>CE-513</c> / <c>R-180</c> (<c>Architect_Question_80</c>): only the Brain writes this component (Brain
+    /// ownership group, wire descriptor 100). The Muscle's report lives in <see cref="AnimationChannelStatus"/> —
+    /// one writer per component, the <see cref="StanceIntent"/>/<see cref="StanceStatus"/> shape.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationChannel)]
@@ -50,23 +51,33 @@ namespace Hrot.MuscleCharacter.Animation.Components
         /// <summary>Action instance token; bumped on each new action to preempt stale requests.</summary>
         public uint ActionInstanceId;
 
-        /// <summary>Dispatcher instance ID; synchronizes dispatcher state between ticks.</summary>
-        public uint DispatchedInstanceId;
-
-        /// <summary>Lifecycle status: Idle, Running, Success, Failure.</summary>
-        public NodeStatus Status;
-
         /// <summary>32-byte action parameter payload (PlayMontageParams, StopMontageParams, etc.).</summary>
         public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
-
-        /// <summary>32-byte executor state payload (current playback progress, blending weights, etc.).</summary>
-        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
     }
 
     /// <summary>
-    /// Look-at (aim) channel component carrying targeting intent for aim/look-at overlay.
-    /// Follows the same fixed-size shape as AnimationChannel (DD-1 §5.1).
-    /// Runs concurrently with montage playback to achieve simultaneous aiming.
+    /// The Muscle's REPORT on the <see cref="AnimationChannel"/> request it last picked up (MuscleGround ownership
+    /// group, wire descriptor 101). ⭐ <c>CE-513</c> / <c>R-180</c>.
+    /// <para>⚠ <see cref="Status"/> is only meaningful for the request whose <see cref="AnimationChannel.ActionInstanceId"/>
+    /// equals <see cref="DispatchedInstanceId"/>; the default (<see cref="NodeStatus.Failure"/> = 0) means "nothing
+    /// picked up yet".</para>
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.AnimationChannelStatus)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct AnimationChannelStatus
+    {
+        /// <summary>The <see cref="AnimationChannel.ActionInstanceId"/> the Muscle last dispatched.</summary>
+        public uint DispatchedInstanceId;
+
+        /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
+        public NodeStatus Status;
+    }
+
+    /// <summary>
+    /// Look-at (aim) channel: the Brain's REQUEST for the aim/look-at overlay (DD-1 §5.1), concurrent with montage
+    /// playback. ⭐ <c>CE-513</c> / <c>R-180</c>: Brain-written only (descriptor 102); the report is
+    /// <see cref="LookAtChannelStatus"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LookAtChannel)]
@@ -82,17 +93,46 @@ namespace Hrot.MuscleCharacter.Animation.Components
         /// <summary>Action instance token; bumped on each new action to preempt stale requests.</summary>
         public uint ActionInstanceId;
 
-        /// <summary>Dispatcher instance ID; synchronizes dispatcher state between ticks.</summary>
-        public uint DispatchedInstanceId;
-
-        /// <summary>Lifecycle status: Idle, Running, Success, Failure.</summary>
-        public NodeStatus Status;
-
         /// <summary>32-byte action parameter payload (LookAtPointParams, LookAtEntityParams, etc.).</summary>
         public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
+    }
 
-        /// <summary>32-byte executor state payload (blend weight, current target, transition progress, etc.).</summary>
-        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
+    /// <summary>The Muscle's REPORT on the <see cref="LookAtChannel"/> request (descriptor 103). ⭐ <c>CE-513</c>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.LookAtChannelStatus)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct LookAtChannelStatus
+    {
+        /// <summary>The <see cref="LookAtChannel.ActionInstanceId"/> the Muscle last dispatched.</summary>
+        public uint DispatchedInstanceId;
+
+        /// <summary>Lifecycle status of that action: Running, Success, Failure.</summary>
+        public NodeStatus Status;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-513</c> — the Muscle executors' working view of one montage action: the request (read-only by
+    /// convention) and the report the executor writes. NOT a component: the dispatcher builds it on the stack from
+    /// <see cref="AnimationChannel"/> + <see cref="AnimationChannelStatus"/> and writes back only
+    /// <see cref="Report"/>, so the generic <c>IActionExecutor&lt;TChannel&gt;</c> contract is unchanged.
+    /// </summary>
+    public struct AnimationChannelWork
+    {
+        /// <summary>The Brain's request (do not write).</summary>
+        public AnimationChannel Request;
+
+        /// <summary>The Muscle's report — what the executor writes.</summary>
+        public AnimationChannelStatus Report;
+    }
+
+    /// <summary>⭐ <c>CE-513</c> — the look-at executors' working view; see <see cref="AnimationChannelWork"/>.</summary>
+    public struct LookAtChannelWork
+    {
+        /// <summary>The Brain's request (do not write).</summary>
+        public LookAtChannel Request;
+
+        /// <summary>The Muscle's report — what the executor writes.</summary>
+        public LookAtChannelStatus Report;
     }
 
     /// <summary>

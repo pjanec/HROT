@@ -14,7 +14,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Egress translator: reads <see cref="AnimationChannel"/> from locally-owned entities
 /// and publishes DDS intent samples (Brain -> Muscle direction).
 /// Only publishes when <see cref="AnimationChannel.ActionInstanceId"/> changes.
-/// Does NOT replicate Muscle-authored fields (DispatchedInstanceId, Status, State).
+/// The Muscle's report is a separate component, <see cref="AnimationChannelStatus"/> (CE-513 / R-180).
 /// </summary>
 internal sealed class AnimationChannelIntentEgressTranslator : INetworkTranslator
 {

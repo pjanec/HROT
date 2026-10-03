@@ -50,6 +50,26 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(NodeRole.Perception, T.GroupOf(Fdp.Toolkit.Perception.PerceptionApplicationComponentIds.SensorContactList));
         }
 
+        /// <summary>
+        /// ⭐ CE-513 / R-180 (Architect_Question_80 §0 A) — a channel that crosses nodes is split: the Brain owns the
+        /// request, the Muscle owns the report, the same shape as stance and the montage queue. Red-proof: drop either
+        /// SetBit pair in <c>HrotOwnershipGroups</c> and this fails.
+        /// </summary>
+        [Fact]
+        public void AnAnimationChannelIsSplitIntoABrainRequestAndAMuscleReport_R180()
+        {
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.AnimationChannel));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.LookAtChannel));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.AnimationChannelStatus));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.LookAtChannelStatus));
+
+            // the existing pairs this follows
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.StanceIntent));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.StanceStatus));
+            Assert.Equal(NodeRole.Brain, T.GroupOf(GlobalComponentIds.AnimationMontageQueue));
+            Assert.Equal(NodeRole.MuscleGround, T.GroupOf(GlobalComponentIds.AnimationMontageQueueState));
+        }
+
         [Fact]
         public void NavigationSolverAndMap2DGroupsAreEmpty()
         {

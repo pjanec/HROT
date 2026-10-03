@@ -34,7 +34,9 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         _world = new EntityRepository();
         _world.RegisterComponent<AnimationChannel>();
+        _world.RegisterComponent<AnimationChannelStatus>();
         _world.RegisterComponent<LookAtChannel>();
+        _world.RegisterComponent<LookAtChannelStatus>();
         _world.RegisterComponent<NetworkIdentity>();
         _entityMap = new NetworkEntityMap();
     }
@@ -102,11 +104,12 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var entity = SpawnEntity(102L);
 
         _world.AddComponent(entity, new AnimationChannel { ActionInstanceId = 1 });
+        _world.AddComponent(entity, new AnimationChannelStatus());
         translator.ScanAndPublish(_world); // First call
         writer.Written.Clear();
 
-        // Simulate DispatchedInstanceId bumping without ActionInstanceId changing
-        _world.SetComponent(entity, new AnimationChannel { ActionInstanceId = 1, DispatchedInstanceId = 999 });
+        // The Muscle's report moves (CE-513: its own component) while the Brain's request does not.
+        _world.SetComponent(entity, new AnimationChannelStatus { DispatchedInstanceId = 999 });
         translator.ScanAndPublish(_world); // Should NOT publish
         Assert.Empty(writer.Written);
     }
@@ -120,7 +123,8 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var translator = new AnimationChannelStatusEgressTranslator(writer, _entityMap);
         var entity = SpawnEntity(200L);
 
-        _world.AddComponent(entity, new AnimationChannel
+        _world.AddComponent(entity, new AnimationChannel());
+        _world.AddComponent(entity, new AnimationChannelStatus
         {
             Status = NodeStatus.Running,
             DispatchedInstanceId = 3,
@@ -143,7 +147,8 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var translator = new AnimationChannelStatusEgressTranslator(writer, _entityMap);
         var entity = SpawnEntity(201L);
 
-        _world.AddComponent(entity, new AnimationChannel { Status = NodeStatus.Running });
+        _world.AddComponent(entity, new AnimationChannel());
+        _world.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Running });
         translator.ScanAndPublish(_world);
         writer.Written.Clear();
 
@@ -166,19 +171,20 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
             ActiveAction = 3,
             ActionInstanceId = 55,
             BehaviorInstanceId = 7,
-            DispatchedInstanceId = 0xDEAD, // Should be preserved by ingress
         });
 
         egressTranslator.ScanAndPublish(_world);
         var msg = egressWriter.Written[0];
 
-        // Ingress side: entity with existing DispatchedInstanceId
+        // Ingress side: entity with an existing Muscle report (CE-513: a separate component)
         var ingressEntityMap = new NetworkEntityMap();
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<AnimationChannel>();
+        ingressWorld.RegisterComponent<AnimationChannelStatus>();
 
         var ingressEntity = ingressWorld.CreateEntity();
-        ingressWorld.AddComponent(ingressEntity, new AnimationChannel { DispatchedInstanceId = 0xBEEF });
+        ingressWorld.AddComponent(ingressEntity, new AnimationChannel());
+        ingressWorld.AddComponent(ingressEntity, new AnimationChannelStatus { DispatchedInstanceId = 0xBEEF });
         ingressEntityMap.Register(300L, ingressEntity);
 
         var ingressTranslator = new AnimationChannelIntentIngressTranslator(
@@ -193,8 +199,8 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         Assert.Equal(3, result.ActiveAction);
         Assert.Equal(55u, result.ActionInstanceId);
         Assert.Equal(7u, result.BehaviorInstanceId);
-        // DispatchedInstanceId should be PRESERVED (not overwritten by ingress)
-        Assert.Equal(0xBEEFu, result.DispatchedInstanceId);
+        // The Muscle's report is untouched by the intent ingress (CE-513 / R-180: one writer per component)
+        Assert.Equal(0xBEEFu, ingressWorld.GetComponentRO<AnimationChannelStatus>(ingressEntity).DispatchedInstanceId);
 
         ingressWorld.Dispose();
     }
@@ -229,6 +235,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var ingressMap = new NetworkEntityMap();
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<LookAtChannel>();
+        ingressWorld.RegisterComponent<LookAtChannelStatus>();
 
         // The muscle-side entity receiving the intent
         var muscleEntity = ingressWorld.CreateEntity();
@@ -284,6 +291,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var ingressMap = new NetworkEntityMap();
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<LookAtChannel>();
+        ingressWorld.RegisterComponent<LookAtChannelStatus>();
 
         var muscleEntity = ingressWorld.CreateEntity();
         var originalChannel = new LookAtChannel

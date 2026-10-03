@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-build-state: READY-TO-BUILD — all of §0 APPROVED by the user 2026-10-03 (R-180); nothing built yet.
-current-answer: §0 (the APPROVED decisions, one row per sub-question); §3 the UML; §1b the measured Stride consequence (none).
+build-state: BUILT — 2026-10-03 (CE-513); §5 is the as-built, with one deviation (E) argued there.
+current-answer: §0 (the APPROVED decisions); §5 the AS-BUILT (read it with §3); §1b the measured Stride consequence (none).
 stale-below: nothing
 known-rot: docs/DESIGN_Ownership_Groups_And_Grants.md §5.10's first lean ("change IActionExecutor for every channel") was formed before §1's inventory — superseded by this question; §5.10 is updated to point here.
 related-designs:
@@ -88,10 +88,14 @@ classDiagram
     Params[32]
   }
   class AnimationChannelStatus {
-    NEW, MuscleGround group, wire 101
+    NEW 226, MuscleGround group, wire 101
     DispatchedInstanceId
     Status
-    State[32] (never sent)
+  }
+  class AnimationChannelWork {
+    stack only, not a component
+    Request
+    Report
   }
   class LookAtChannel { Brain group, wire 102 }
   class LookAtChannelStatus { NEW, MuscleGround group, wire 103 }
@@ -101,7 +105,8 @@ classDiagram
   class StanceStatus { existing template }
   AnimationDispatcherSystem ..> AnimationChannel : reads replica
   AnimationDispatcherSystem ..> AnimationChannelStatus : writes
-  AnimationDispatcherSystem ..> IActionExecutor~TChannel~ : runs on a stack copy
+  AnimationDispatcherSystem ..> AnimationChannelWork : builds per entity
+  AnimationDispatcherSystem ..> IActionExecutor~TChannel~ : TChannel = AnimationChannelWork
   StanceIntent ..> StanceStatus : same split
 ```
 *What the picture shows that prose hid:* every box keeps one writer, and the executor contract is untouched — only the dispatcher learns where the two halves live.
@@ -115,8 +120,8 @@ sequenceDiagram
   B->>W: intent (100)
   W->>M: AnimationChannel replica
   M->>M: dispatcher runs the executor on a copy (request + status)
-  M->>M: write AnimationChannelStatus (DispatchedInstanceId, Status, State)
-  M->>W: status (101), State not sent
+  M->>M: write AnimationChannelStatus (DispatchedInstanceId, Status)
+  M->>W: status (101)
   W->>B: AnimationChannelStatus replica
   B->>B: behaviour reads Status for its ActionInstanceId
 ```
@@ -141,6 +146,26 @@ graph TD
   class AMM,ARM dead
 ```
 *What the picture shows that prose hid:* no production host constructs either animation module (dashed, red), so the split is dormant by construction; and Stride reaches the backend through its own bridge, never through the dispatchers this decision changes.
+
+## 5. AS-BUILT *(`2026-10-03`, `CE-513`)*
+
+| decision | built | where |
+|---|---|---|
+| A | ✅ `AnimationChannel`/`LookAtChannel` hold only the request; new `AnimationChannelStatus` (id **226**) / `LookAtChannelStatus` (**227**) hold the report; groups: request → Brain, report → MuscleGround | `ReplicatedComponents.cs`, `GlobalComponentIds.cs`, `HrotOwnershipGroups.cs` |
+| B | ✅ `IActionExecutor<TChannel>` unchanged; the animation executors bind `TChannel = AnimationChannelWork` / `LookAtChannelWork` (request + report, stack only); the dispatchers store only the report | `AnimationDispatcherSystem`, `LookAtDispatcherSystem`, `Executors/*` |
+| C | ✅ locomotion/weapon/interaction untouched | — |
+| D | ✅ only the Brain writes the request. Teardown: the dispatcher `OnExit`s the action **it entered** (its own `_previousAction`, not the request's `ActiveAction`), reports `Failure`, and skips that entity for the rest of the frame — the Failure report replaces the old `ActiveAction = 0` as what stops the `Running` gate. Capability loss: `Failure` + `DispatchedInstanceId++` in the report (DD-1 §13 kept) | dispatchers, `AnimationCapabilityChangeReactorSystem` |
+| E | ⚠ **DEVIATION — `State[32]` deleted, not moved.** Measured: nothing ever read or wrote it (executor state lives in `AnimationExecutorState`/`LookAtExecutorState`), and the wire never carried it. ⇒ the report is `DispatchedInstanceId` + `Status` only | — |
+| F | ✅ built as a small backend batch | — |
+
+⭐ Also as built: the report is added on first use (`ChannelReports`) so a Muscle replica built from the request alone still gets one; the spawn translator adds both. The four status translators read/write the report component.
+
+⚠ **Found while building — NOT fixed here (out of Q80's scope), filed:**
+
+| finding | row |
+|---|---|
+| on capability loss the Muscle also clears the Brain's montage queue (`queue.Count = 0`, `AnimationCapabilityChangeReactorSystem`) — the same two-writer shape, on `AnimationMontageQueue` (Brain group); `SimultaneousCapabilityLoss_AndQueuePlay_IsRobust` pins it | `CE-3008` |
+| every egress translator in `AnimationReplicationModule` (channels, stance, queue) gates on ENTITY authority (`HasAuthority(entity)`), so a Muscle that is not the entity's primary owner would never publish its report; per-component ownership needs the descriptor-keyed check (`HasAuthority(entity, packedKey)`) — prerequisite for composing animation replication across nodes. Not a regression: the check was the same before | `CE-3009` |
 
 ## 4. Design docs checked
 

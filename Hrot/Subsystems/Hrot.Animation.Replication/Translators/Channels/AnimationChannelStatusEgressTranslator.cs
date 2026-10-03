@@ -12,7 +12,7 @@ using Hrot.MuscleCharacter.Animation.Components;
 namespace Hrot.Animation.Replication.Translators.Channels;
 
 /// <summary>
-/// Egress translator: reads <see cref="AnimationChannel"/> from locally-owned entities
+/// Egress translator: reads <see cref="AnimationChannelStatus"/> (the Muscle's report, CE-513 / R-180) from locally-owned entities
 /// and publishes DDS status samples (Muscle -> Brain direction).
 /// Only publishes when (Status, DispatchedInstanceId) changes.
 /// Does NOT replicate Brain-authored intent fields (ActiveAction, ActionInstanceId, etc.).
@@ -49,7 +49,7 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
     public void ScanAndPublish(ISimulationView view)
     {
         var query = view.Query()
-            .With<AnimationChannel>()
+            .With<AnimationChannelStatus>()
             .With<NetworkIdentity>()
             .Build();
 
@@ -57,12 +57,12 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
         {
             if (!view.HasAuthority(entity)) continue;
 
-            ref readonly var channel = ref view.GetComponentRO<AnimationChannel>(entity);
+            ref readonly var report = ref view.GetComponentRO<AnimationChannelStatus>(entity);
 
             // Fine-grained dirty filter: only publish when Status or DispatchedInstanceId changes.
             if (_lastPublished.TryGetValue(entity, out var last)
-                && last.Item1 == channel.Status
-                && last.Item2 == channel.DispatchedInstanceId)
+                && last.Item1 == report.Status
+                && last.Item2 == report.DispatchedInstanceId)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -73,11 +73,11 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
             _writer.Write(new DdsAnimationChannelStatus
             {
                 EntityId = netId.Value,
-                Status = (byte)channel.Status,
-                DispatchedInstanceId = channel.DispatchedInstanceId,
+                Status = (byte)report.Status,
+                DispatchedInstanceId = report.DispatchedInstanceId,
             });
             SentSampleCount++;
-            _lastPublished[entity] = (channel.Status, channel.DispatchedInstanceId);
+            _lastPublished[entity] = (report.Status, report.DispatchedInstanceId);
         }
     }
 }

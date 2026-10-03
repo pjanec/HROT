@@ -61,7 +61,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         Assert.True(_fixture.World.HasComponent<ActorCapabilityState>(entity));
 
         var ch = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Failure, ch.Status); // initial idle state
+        Assert.Equal(NodeStatus.Failure, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status); // initial idle state
 
         var caps = _fixture.World.GetComponentRO<ActorCapabilityState>(entity);
         Assert.True(caps.Capabilities.HasFlag(ActorCapabilities.CanPlayAnimations));
@@ -140,7 +140,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
             () =>
             {
                 var ch = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-                return ch.Status == NodeStatus.Success;
+                return _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status == NodeStatus.Success;
             },
             maxFrames: Budget,
             conditionName: "AnimationChannel.Status == Success",
@@ -149,7 +149,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
 
         // --- Assert: channel is Success ---
         var chFinal = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Success, chFinal.Status);
+        Assert.Equal(NodeStatus.Success, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status);
         Assert.Equal(AnimationActionIds.PlayMontage, chFinal.ActiveAction);
 
         // --- Assert: MontageEndedEvent published ---
@@ -234,7 +234,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         // --- Verify montage continues (pump a few more frames) ---
         _fixture.PumpFrames(10);
         var chContinues = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.NotEqual(NodeStatus.Failure, chContinues.Status); // still running or completed
+        Assert.NotEqual(NodeStatus.Failure, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status); // still running or completed
 
         _fixture.ResetWorld();
     }
@@ -273,7 +273,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         _fixture.PumpFrames(15);
 
         var chBeforeStop = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Running, chBeforeStop.Status);
+        Assert.Equal(NodeStatus.Running, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status);
 
         // --- Issue StopMontage ---
         AnimationTestHelpers.IssueStopMontage(entity, _fixture.World, blendOutTime: 0.2f);
@@ -314,7 +314,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
 
         // --- Assert: channel is now Success (stopped and blended out) ---
         var chFinal = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Success, chFinal.Status);
+        Assert.Equal(NodeStatus.Success, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status);
 
         _fixture.ResetWorld();
     }
@@ -519,7 +519,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         _fixture.PumpFrames(15);
 
         var chBeforeEnqueue = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Running, chBeforeEnqueue.Status);
+        Assert.Equal(NodeStatus.Running, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status);
 
         // --- Enqueue Run (append to queue, no ActionInstanceId bump) ---
         AnimationTestHelpers.IssueEnqueueMontage(entity, TestData.RunMontageId, _fixture.World);
@@ -619,7 +619,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
                 }
 
                 var ch = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-                return ch.Status == NodeStatus.Success;
+                return _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status == NodeStatus.Success;
             },
             maxFrames: Budget,
             conditionName: "Walk montage completes",
@@ -668,7 +668,7 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
 
         // --- Assert: initial status is Failure (idle) ---
         var lookAtInitial = _fixture.World.GetComponentRO<LookAtChannel>(entity);
-        Assert.Equal(NodeStatus.Failure, lookAtInitial.Status);
+        Assert.Equal(NodeStatus.Failure, _fixture.World.GetComponent<LookAtChannelStatus>(entity).Status);
 
         // --- Issue AcquireLookAt ---
         AnimationTestHelpers.IssueAcquireLookAt(entity, 10f, 0f, 0f, _fixture.World, blendInTime: 0.1f);
@@ -676,12 +676,12 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         // --- Pump 1 frame and verify Status == Running ---
         _fixture.PumpFrame();
         var lookAtAcquired = _fixture.World.GetComponentRO<LookAtChannel>(entity);
-        Assert.Equal(NodeStatus.Running, lookAtAcquired.Status);
+        Assert.Equal(NodeStatus.Running, _fixture.World.GetComponent<LookAtChannelStatus>(entity).Status);
 
         // --- Pump several more frames (running state continues) ---
         _fixture.PumpFrames(10);
         var lookAtRunning = _fixture.World.GetComponentRO<LookAtChannel>(entity);
-        Assert.Equal(NodeStatus.Running, lookAtRunning.Status);
+        Assert.Equal(NodeStatus.Running, _fixture.World.GetComponent<LookAtChannelStatus>(entity).Status);
 
         // --- Issue ReleaseLookAt ---
         AnimationTestHelpers.IssueReleaseLookAt(entity, _fixture.World);
@@ -689,11 +689,11 @@ public sealed class AnimationIntegrationScenarios : IClassFixture<AnimationInteg
         // --- Pump 1 frame and verify Status == Success ---
         _fixture.PumpFrame();
         var lookAtReleased = _fixture.World.GetComponentRO<LookAtChannel>(entity);
-        Assert.Equal(NodeStatus.Success, lookAtReleased.Status);
+        Assert.Equal(NodeStatus.Success, _fixture.World.GetComponent<LookAtChannelStatus>(entity).Status);
 
         // --- Verify animation channel unaffected ---
         var chFinal = _fixture.World.GetComponentRO<AnimationChannel>(entity);
-        Assert.Equal(NodeStatus.Failure, chFinal.Status); // no PlayMontage issued; channel stays at default Failure (=0)
+        Assert.Equal(NodeStatus.Failure, _fixture.World.GetComponent<AnimationChannelStatus>(entity).Status); // no PlayMontage issued; channel stays at default Failure (=0)
 
         _fixture.ResetWorld();
     }
