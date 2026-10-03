@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n-2 cluster run" — the §7 capstone live on a `--mode all` cluster).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8o" — scenario load remaps a blueprint behaviour's ids).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -25,6 +25,9 @@ related-designs:
   - DESIGN_Behavior_Action_Binding.md — owns the C# binding forms; unaffected.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12.28 — owns the BTree/HSM subtree pick (CE-439) whose
     child-input lookup "S8b" here routes through the registry (its IBehaviorInputsContract is retired by S8b-2).
+  - ../designs/fluent-btree/DESIGN.md — owns the C# BTreeBuilder and the BTree action generator (FbtActionRegistrar).
+  - ../designs/cgf-scn/DESIGN.md — Decision 7 / C005 owns the scenario-load remapper (per-name delegates,
+    `[RemapNetworkId]`); "S8o" here extends it to blueprint behaviours.
   - DESIGN_Typed_Event_Nodes.md — owns the AUTHORED shape of Event graphs (any number of typed event nodes, split into
     one handler each before Stage 5). Each handler is one fiber graph here, unchanged.
 -->
@@ -2250,10 +2253,126 @@ hostile at (668, 427). Read on the `Scenario` (CGF) perspective every ~5 s of si
 Zero exceptions or module faults in the log. ⚠ What the run found, both FILED, neither blocking:
 ① **CE-2054** — scenario load renumbered the entities (tank 1001 → 1000, hostile 1006 → 1001) and did NOT remap the id
 nested in the blueprint behaviour's `Fire` parameter ⇒ first run: *"FireAtTarget TargetNetworkId=1006 not found in entity
-map"*, Defend failed ⇒ Retreat. The scenario now uses the ids load assigns. ② at 111 m the tank's perception reported no
+map"*, Defend failed ⇒ Retreat. The scenario then used the ids load assigns (⛔ SUPERSEDED by "S8o": its authored ids are back and load remaps them). ② at 111 m the tank's perception reported no
 contact (`TargetMemory` empty), so Defend waited — `FireAtTarget` requires a visible target; the engagement point moved to
 68 m, the range `test-fire` uses. ⚠ After `FireAtTarget` succeeds the weapon channel stays the executor's until it ends
 (here `Failure`, target dead) — the same as a root `FireAtTarget` (no instance change releases it); not changed here.
+
+#### S8o design — scenario load remaps an entity id wherever the behaviour's own contract TYPE says one lives *(`2026-10-03`, CE-2054; user: "Go autonomously")*
+
+📐 **Measured.** `StagingEntityExtractor.RemapComponentNetworkIds` (`StagingEntityExtractor.cs:421`) asks
+`ScenarioBehaviorRemapper.RemapJson(task.BehaviorName, …)`, whose delegates are keyed by NAME and registered only by
+`BehaviorSchemaDiscovery.AutoRegister` — one per `[BehaviorContract]` DTO. ⛔ A blueprint behaviour's contract is its
+generated `Params` struct (`JsonParamsDtoType = typeof(X.Params)`, `CSharpEmitter.cs:642`), so nothing is registered
+under `Demo_MissionPlan`. ⛔ And registering it would not help: `BehaviorParamRemapperCompiler` reads only TOP-LEVEL
+`[RemapNetworkId]` PROPERTIES, while `Params` has FIELDS whose types are contracts (`Fire : FireAtTargetParamsJsonDto`).
+
+*What the picture shows that prose hid: the remap plan is a property of a TYPE, so it nests — and the registry already
+knows each behaviour's type, so the name-keyed table is only the fallback.*
+
+```mermaid
+classDiagram
+  class StagingEntityExtractor {
+    RemapComponentNetworkIds(comps, map, remapper)
+  }
+  class ScenarioBehaviorRemapper {
+    -registry : BehaviorRegistry
+    -explicit : name to delegate
+    +Register~TDto~(name)
+    +RemapJson(name, json, map) string
+  }
+  class BehaviorParamRemapperCompiler {
+    +Compile~TDto~() delegate
+    +CompileFor(Type) delegate
+    -PlanFor(Type) RemapPlan
+  }
+  class RemapPlan {
+    keys : json key to entry
+    entry : Id or Nested plan
+  }
+  class BehaviorRegistry {
+    +TryGetId(name)
+    +TryGetDefinition(id)
+  }
+  class BehaviorDefinition {
+    JsonParamsDtoType : Type
+  }
+  class Demo_MissionPlan_Params {
+    Move : MoveToLocationParamsJsonDto
+    Fire : FireAtTargetParamsJsonDto
+    Home : MoveToLocationParamsJsonDto
+  }
+  class FireAtTargetParamsJsonDto {
+    TargetNetworkId : long [RemapNetworkId]
+  }
+  StagingEntityExtractor --> ScenarioBehaviorRemapper : per mission task
+  ScenarioBehaviorRemapper --> BehaviorRegistry : name to contract type
+  BehaviorRegistry --> BehaviorDefinition
+  ScenarioBehaviorRemapper --> BehaviorParamRemapperCompiler : CompileFor
+  BehaviorParamRemapperCompiler --> RemapPlan : one per type, cached
+  RemapPlan ..> Demo_MissionPlan_Params : Fire is Nested
+  RemapPlan ..> FireAtTargetParamsJsonDto : targetNetworkId is Id
+```
+
+```mermaid
+sequenceDiagram
+  participant X as StagingEntityExtractor
+  participant R as ScenarioBehaviorRemapper
+  participant B as BehaviorRegistry
+  participant C as BehaviorParamRemapperCompiler
+  X->>R: RemapJson("Demo_MissionPlan", json, map)
+  R->>B: TryGetId + TryGetDefinition
+  B-->>R: JsonParamsDtoType = Demo_MissionPlan.Params
+  R->>C: CompileFor(Params) - cached per type
+  C-->>R: walk delegate
+  R->>R: walk JSON - "Fire" is Nested, "targetNetworkId" is Id
+  R-->>X: json with 1006 rewritten to 1001, every other byte as authored
+```
+
+*Who calls it: only the CGF node's load step carries a remapper. The editor's step is drawn as the dead edge it is
+(filed, not changed here).*
+
+```mermaid
+graph TD
+  CGF["CgfSubsystem composition"] -- "CreateBehaviorRemapper(registry)" --> RM["ScenarioBehaviorRemapper"]
+  CGF --> STEP["ScenarioLoadStep (CGF)"]
+  STEP --> EX["StagingEntityExtractor.Extract"]
+  EX --> RC["RemapComponentNetworkIds"]
+  RC --> RM
+  ED["EditorSubsystem"] --> STEP2["ScenarioLoadStep (editor) - no remapper"]
+  APP["CgfApplication (test host)"] -- "no registry: explicit table only" --> RM2["ScenarioBehaviorRemapper"]
+  style STEP2 stroke:#c00,stroke-dasharray: 5 5
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| ① what drives the remap | ⭐ the contract TYPE: a plan of JSON keys per type — `[RemapNetworkId]` `long`/`int` field or property ⇒ rewrite the number; a member whose type has a non-empty plan ⇒ recurse into that object. Keys match the JSON name (`[JsonPropertyName]` or the member name) case-insensitively, as `ParseParams` does | a per-blueprint `Register` emitted into the registrar — a second producer of what the type already says, and it misses generated BTree/HSM contracts · ids recognised by key name (`*NetworkId`) — a guess |
+| ② how the JSON is rewritten | ⭐ in place (`JsonNode`): only a remapped number changes; the ORIGINAL string comes back when nothing did. One walker — `Compile<TDto>` becomes `CompileFor(typeof(TDto))` | keep the DTO round-trip — re-serialising a generated `Params` writes EVERY member, so an absent key comes back as `0` and overrides the declared Parameter default (`InstanceEmitter` overlay: "an absent key keeps its default"); fixed-list fields do not even serialise. Two walkers would break ruling 9 |
+| ③ where the type comes from | ⭐ the `BehaviorRegistry`, by name, LAZILY (`JsonParamsDtoType` already settles curated-vs-generated precedence, CE-235); the explicit `Register` table is the fallback for a host with no registry | a startup snapshot of the registry — a blueprint authored or hot-reloaded after load would be missed |
+| ④ a plain `Int64` Parameter (`PlatoonHillAttackBp.TargetAreaNetworkId`) | ⏸ **not in this slice** — nothing in the asset says it is an entity id; it needs an authoring marker ⇒ S8o-2 | — |
+
+**Design docs checked:** `docs/designs/cgf-scn/DESIGN.md` Decision 7 + C005c/C005d — applies: "remapper delegates
+registered per BehaviorId", "reflect DTO type for all properties/FIELDS with `[RemapNetworkId]`"; this keeps the per-name
+seam and the type as the schema, and adds fields and nesting (its round-trip step 3 is SUPERSEDED, noted there) ·
+`Behavior_Parameter_Resolver_Detailed_Design.md` §4.2 — applies to ④: an authored "Entity reference" is `long` +
+`[RemapNetworkId]` + `[MapPickableEntity]`, i.e. the marker belongs to the authored field · `docs/designs/hill-attack/DESIGN.md`
+§6.1 — the curated `PlatoonHillAttackParamsJsonDto.TargetAreaNetworkId` carries `[RemapNetworkId]`; the blueprint twin
+lost it · S8n (above) — the contracts are structs; the walker never constructs one, so struct-vs-class no longer matters.
+
+#### S8o as-built *(`2026-10-03`, CE-2054)*
+
+Built as designed: `BehaviorParamRemapperCompiler.CompileFor(Type)` (one walker; `Compile<TDto>` delegates to it, cache
+weak per type), `ScenarioBehaviorRemapper(BehaviorRegistry?)` resolving the contract type lazily by name with the
+`Register` table as fallback, `CgfBehaviorSetup.CreateBehaviorRemapper(registry)`, `CgfSubsystem` passing `_behaviorRegistry`,
+and `[RemapNetworkId]` on fields. One deviation: an `int` id is written back narrowed, as C005a specified.
+`scenarios/mission-demo-bp` now carries its AUTHORED ids again (tank 1001, hostile 1006, `Fire.targetNetworkId` 1006), so
+every load exercises the remap (load assigns 1000/1001). Rails: `Fdp.Toolkits.Tests` `CE2054_NestedContractRemapTests` ×4
+(nested field, tagged field, same-string-when-unchanged, registry lookup; the two the mutation could reach went red with
+nesting and the registry lookup removed), `Hrot.SimHost.Tests` `CgfBehaviorSetupTests.CE2054_*` on the real `Demo_MissionPlan`.
+⏸ ④ (a plain `long` Parameter) is CE-2055; the editor's load step without a remapper is CE-2056.
+✅ **Live, `--mode all`, fresh cluster:** loading the scenario with authored ids 1001/1006 gave the tank 1000 and the hostile
+1001, and the CGF world's task params read `"Fire":{"targetNetworkId":1001,…}`. The tank drove (446 → 598, 427) and the
+hostile's Health fell 50 → 0 at sim t ≈ 34 s. Zero "not found in entity map" lines (the same run failed before the fix).
 
 ## 5. Decisions — each with a lean
 

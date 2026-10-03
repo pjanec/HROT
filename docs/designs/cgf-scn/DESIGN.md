@@ -19,7 +19,8 @@ related-designs:
   - ../replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN).
   - ../../DESIGN_Distributed_Scenario_Persistence.md — owns which FILE(S) each node LOADS in a
     distributed run (per-node files, brain-canonical) and re-ownership at load. This file owns the
-    genesis PIPELINE that materialises them.
+    genesis PIPELINE that materialises them.  - ../../blueprints/DESIGN_Unified_Behaviour_Run.md — "S8o" owns the remap of a BLUEPRINT behaviour's params
+    (contract type from the behaviour registry, nested contracts); this file owns the per-name remapper seam.
 -->
 # Design: CGF Scenario Loading via Genesis Pipeline
 
@@ -447,6 +448,15 @@ Compile steps at startup (cold path):
 
 Both `int` and `long` fields decorated with `[RemapNetworkId]` must be handled
 (safe widening from `long` → value is applied back as `int` after clamping).
+
+> ⛔ **SUPERSEDED in part, `2026-10-03` (CE-2054)** — steps 2–3 (expression-tree mutator + deserialize → mutate →
+> re-serialize) are replaced by a JSON walk per contract TYPE: `[RemapNetworkId]` `long`/`int` fields AND properties,
+> recursing into a member whose type holds ids, rewriting the JSON in place and returning the original string when
+> nothing changed. ⭐ Why: a blueprint behaviour's contract is its generated `Params` struct, whose fields are curated
+> contracts (the id is one object down), and re-serialising it would write absent keys back as `0` over the
+> Parameter's declared defaults. C005d gains a registry source: given a `BehaviorRegistry`, `RemapJson` takes the
+> behaviour's `JsonParamsDtoType`; the per-name `Register` table is the fallback. 📄
+> [`DESIGN_Unified_Behaviour_Run.md`](../../blueprints/DESIGN_Unified_Behaviour_Run.md) "S8o".
 
 #### C005d — ScenarioBehaviorRemapper
 

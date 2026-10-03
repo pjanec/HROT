@@ -1177,7 +1177,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   from `Hrot.Orchestrator` (not reachable) ⇒ ⛔ no second authority, and `SaveAs` on CGF
             //   lands where the picker lists and where the loader stages from.
             () => OrchestrationConstants.GetSharedScenariosRoot());
-        var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
+        // ⭐ CE-2054 — with the registry, a blueprint behaviour's params are remapped by their own contract type.
+        var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry);
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
         // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
