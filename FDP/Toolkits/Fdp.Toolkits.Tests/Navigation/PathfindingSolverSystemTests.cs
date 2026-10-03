@@ -98,6 +98,44 @@ namespace Fdp.Toolkit.Navigation.Tests
             pool.Dispose();
         }
 
+        // ── CE-2059: a road route ends at the requested point ──────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-2059</c> — a road route ENDS AT THE REQUESTED POINT: the nodes, then a connector to <c>req.End</c>.
+        /// 🔴 Red before: the trajectory ended at the road node nearest the destination, and the vehicle reported
+        /// <c>Arrived</c> there (measured live 14.8 m out on a 5 m arrival radius). A destination ON the last node adds no
+        /// zero-length segment.
+        /// </summary>
+        [Theory]
+        [InlineData(100f, 14f, 3, 114f)]   // 14 m off the last node: a connector is appended
+        [InlineData(100f,  0f, 2, 100f)]   // on the last node: none
+        public void CE2059_ARoadRoute_EndsAtTheRequestedPoint(float endX, float endY, int expectedWaypoints, float expectedLength)
+        {
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+            var pool    = new TrajectoryPoolManager();
+
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 1, from: Vector3.Zero, to: new Vector3(endX, endY, 0f));
+            var r = RunSolverPipeline(new PathfindingSolverSystem(roadNet, pool), requestId);
+
+            Assert.True(r.IsReachable);
+            Assert.True(pool.TryGetTrajectory(r.RouteHandle, out var traj));
+            Assert.Equal(expectedWaypoints, traj.Waypoints.Length);
+            var last = traj.Waypoints[traj.Waypoints.Length - 1].Position;
+            Assert.Equal(endX, last.X, 3);
+            Assert.Equal(endY, last.Y, 3);
+            Assert.Equal(expectedLength, traj.TotalLength, 1);
+
+            roadNet.Dispose();
+            pool.Dispose();
+        }
+
         // ── Test 2: empty network -> unreachable ──────────────────────────────────
 
         [Fact]

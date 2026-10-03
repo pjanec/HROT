@@ -176,6 +176,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                     case NavigationMode.FollowRoute:
                         nav.Mode         = KinematicsMode.CustomTrajectory;
                         nav.TrajectoryId = intent.TrajectoryId;
+                        nav.TargetSpeed  = intent.TargetSpeed;   // ⭐ CE-2060 — caps the route's speeds (0 = uncapped); was left from the previous move
                         nav.HasArrived   = 0;
                         nav.ProgressS    = 0f; 
                         break;

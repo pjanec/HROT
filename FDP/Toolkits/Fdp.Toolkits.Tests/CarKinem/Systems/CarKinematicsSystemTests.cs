@@ -381,5 +381,115 @@ namespace CarKinem.Tests.Systems
             trajectoryPool.Dispose();
             repo.Dispose();
         }
+    
+        // ── CE-2059 / CE-2060: a planned path is driven at the requested speed and stops at its end ──────────────
+
+        private static (EntityRepository repo, Entity e, TrajectoryPoolManager pool) TrajectoryWorld(float targetSpeed, float startSpeed, Quaternion? facing = null)
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 1f / 60f, TimeScale = 1.0f });
+
+            var pool = new TrajectoryPoolManager();
+            // ⭐ The solver's registration: a flat 10 m/s per waypoint (TrajectoryPoolManager.RegisterTrajectoryWithKey).
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(100f, 0f, 0f) }, 7);
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new VehicleState { Speed = startSpeed });
+            repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = facing ?? SimMath.FacingEast });
+            repo.SetAuthority<SimTransform>(e, true);
+            repo.AddComponent(e, new SimVelocity { Linear = new Vector3(startSpeed, 0, 0) });
+            repo.AddComponent(e, new VehicleParams
+            {
+                WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = 0.8f,
+                MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 2.5f,
+            });
+            repo.AddComponent(e, new NavState
+            {
+                Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 7, ProgressS = 0f,
+                TargetSpeed = targetSpeed, ArrivalRadius = 5f, FinalDestination = new Vector3(100f, 0f, 0f),
+            });
+            return (repo, e, pool);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2060</c> — a path is driven at the move's requested speed (<c>NavState.TargetSpeed</c>), not the solver's flat
+        /// 10 m/s; 0 means uncapped. 🔴 Red before: measured live 10.0 m/s for a requested 5.
+        /// </summary>
+        [Theory]
+        [InlineData(5f, 5.2f)]
+        [InlineData(0f, 10.2f)]
+        public void CE2060_APath_IsDrivenAtTheRequestedSpeed(float targetSpeed, float maxAllowed)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed, startSpeed: 0f);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 6 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, maxAllowed - 1.5f, maxAllowed);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2059</c> — a vehicle on a one-shot path brakes on the approach and comes to rest within the arrival radius of
+        /// the path's end — the same standard as Direct mode's rail above (the speed controller's lag is the residue).
+        /// 🔴 Red before: it commanded 0 only at the end and rolled on (measured live 11 m past the end node).
+        /// </summary>
+        [Fact]
+        public void CE2059_APath_BrakesToItsEnd_WithoutOvershooting()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 10f, startSpeed: 10f);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float farthest = 0f;
+            for (int i = 0; i < 40 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                farthest = MathF.Max(farthest, repo.GetComponent<SimTransform>(e).Position.X);
+            }
+            var nav = repo.GetComponent<NavState>(e);
+            Assert.Equal(1, nav.HasArrived);
+            Assert.True(farthest <= 105f, $"overshot the path's end at x=100 to x={farthest:F1} (arrival radius 5 m)");
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed < 0.5f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+    
+        /// <summary>
+        /// ⭐ <c>CE-2059</c> — a vehicle that must TURN AROUND to start its path still ends at the path's end. 🔴 Measured live
+        /// (`--mode all`, the Return leg): progress is integrated from speed, so the U-turn counted as progress along the path
+        /// and the vehicle "arrived" 23 m short of home. Arrival is now confirmed by POSITION: a vehicle whose progress says
+        /// "end" but which is outside the arrival radius homes on the end point.
+        /// </summary>
+        [Fact]
+        public void CE2059_AVehicleThatMustTurnAround_StillEndsAtThePathsEnd()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f, facing: SimMath.FromYaw(0.75f * MathF.PI));   // facing north-west, away from the path (as the live Return leg)
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var p = repo.GetComponent<SimTransform>(e).Position;
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            float d = Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(100f, 0f));
+            Assert.True(d <= 5f, $"came to rest {d:F1} m from the path's end (100, 0) at ({p.X:F1}, {p.Y:F1}); arrival radius 5 m");
+            pool.Dispose();
+            repo.Dispose();
+        }
     }
 }

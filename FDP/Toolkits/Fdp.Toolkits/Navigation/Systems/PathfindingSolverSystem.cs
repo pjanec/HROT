@@ -70,6 +70,10 @@ namespace Fdp.Toolkit.Navigation.Systems
         // Maximum waypoints a navmesh / volumetric path may produce per request.
         private const int MaxNavWaypoints = 128;
 
+        /// <summary>⭐ CE-2059 — a road route gets a final connector to the requested point when that point is farther than
+        /// this from the last road node (closer is "on" the node: no zero-length segment).</summary>
+        private const float EndConnectorMinMeters = 0.5f;
+
         /// <summary>
         /// Initialises the solver with the road network and trajectory pool.
         /// </summary>
@@ -328,12 +332,21 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             // Convert to 3D waypoints (Sim Z-up). Road nodes are 2D (ground plane), so altitude
             // is 0 here; the navmesh/volumetric backends below carry real altitude (P3D-303).
-            var waypoints = new Vector3[nodePath.Count];
+            // ⭐ CE-2059 — the route ENDS AT THE REQUESTED POINT: the road nodes, then a straight connector to req.End when it
+            //   is off the last node. ⛔ Without it the vehicle "arrived" at the road node NEAREST the destination (measured
+            //   14.8 m out on a 5 m arrival radius). Navigation design §3.1 (CE-2059) · §5.2 (the full navmesh splice is
+            //   the Hybrid target, not built — there is no navmesh on a road-only map).
+            var endNodeXY  = _activeRoadNetwork.Nodes[nodePath[nodePath.Count - 1]].Position;
+            float connector = Vector2.Distance(endNodeXY, end2D);
+            bool appendEnd  = connector > EndConnectorMinMeters;
+            var waypoints  = new Vector3[nodePath.Count + (appendEnd ? 1 : 0)];
             for (int k = 0; k < nodePath.Count; k++)
             {
                 var np = _activeRoadNetwork.Nodes[nodePath[k]].Position;
                 waypoints[k] = new Vector3(np.X, np.Y, 0f);
             }
+            if (appendEnd)
+                waypoints[^1] = new Vector3(req.End.X, req.End.Y, 0f);
 
             _trajectoryPool.RegisterTrajectoryWithKey(waypoints, handle);
 
@@ -341,7 +354,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             {
                 RequestId           = req.RequestId,
                 IsReachable         = true,
-                TotalDistanceMeters = dist[endNode],
+                TotalDistanceMeters = dist[endNode] + (appendEnd ? connector : 0f),
                 RouteHandle         = handle,
                 SourceNodeId        = req.SourceNodeId,
                 PrimaryBackend      = NavigationBackend.NavRoadGraph,
