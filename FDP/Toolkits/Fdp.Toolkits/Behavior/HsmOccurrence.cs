@@ -57,7 +57,7 @@ public static unsafe class HsmOccurrence
                 "kernel dispatch.");
 
         // ⭐ The host identity comes from the instance the kernel just handed us — its header carries
-        //   the HSM definition's StructureHash. No literal to bake, no new plumbing (§24.9).
+        //   the HSM definition's MachineId (identity + shape since CE-2001). No literal to bake, no new plumbing (§24.9).
         uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
 
         return Shared.OccurrenceSlotKey.ComputeHsmStateKey(machineId, region, state, childAssetId);

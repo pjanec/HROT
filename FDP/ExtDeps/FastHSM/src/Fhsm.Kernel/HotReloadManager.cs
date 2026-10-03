@@ -63,7 +63,7 @@ namespace Fhsm.Kernel
                     // If machineId param is the "Registry ID" (user key), then header.MachineId usually stores StructureHash.
                     // So we should check if header.MachineId matches oldBlob.Header.StructureHash.
                     
-                    if (header.MachineId == oldBlob.Header.StructureHash)
+                    if (header.MachineId == oldBlob.MachineId)   // ⭐ CE-2001 — what the instance was stamped with
                     {
                         HardReset(ref inst, newBlob);
                     }
@@ -101,8 +101,8 @@ namespace Fhsm.Kernel
                 header->ActiveTail = 0;
                 header->DeferredTail = 0;
                 
-                // 3. Update machine ID (to new StructureHash)
-                header->MachineId = newBlob.Header.StructureHash;
+                // 3. Update machine ID (⭐ CE-2001 — the new blob's identity at its new shape)
+                header->MachineId = newBlob.MachineId;
                 
                 // 4. Clear tier-specific state
                 int instanceSize = sizeof(TInstance);

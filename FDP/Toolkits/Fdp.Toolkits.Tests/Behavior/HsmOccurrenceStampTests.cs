@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static HsmInstance128 FreshInstance(HsmDefinitionBlob blob, InstancePhase phase, ushort leaf)
         {
             var inst = new HsmInstance128();
-            inst.Header.MachineId = blob.Header.StructureHash;
+            inst.Header.MachineId = blob.MachineId;   // CE-2001
             inst.Header.Phase = phase;
             for (int r = 0; r < HsmInstance128RegionSlots; r++)
                 inst.ActiveLeafIds[r] = 0xFFFF;

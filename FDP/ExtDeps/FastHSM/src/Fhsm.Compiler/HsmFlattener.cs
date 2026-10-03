@@ -16,6 +16,8 @@ namespace Fhsm.Compiler
             public GlobalTransitionDef[] GlobalTransitions { get; set; } = Array.Empty<GlobalTransitionDef>();
             public ushort[] ActionIds { get; set; } = Array.Empty<ushort>();
             public ushort[] GuardIds { get; set; } = Array.Empty<ushort>();
+            /// <summary>⭐ <c>CE-2001</c> — the graph's name; the emitter hashes it into the blob's machine identity.</summary>
+            public string? MachineName { get; set; }
         }
         
         /// <summary>
@@ -25,7 +27,7 @@ namespace Fhsm.Compiler
         {
             if (graph == null) throw new ArgumentNullException(nameof(graph));
             
-            var result = new FlattenedData();
+            var result = new FlattenedData { MachineName = graph.Name };
             
             // 1. Build function dispatch tables first (needed for IDs)
             var actionTable = BuildActionTable(graph);

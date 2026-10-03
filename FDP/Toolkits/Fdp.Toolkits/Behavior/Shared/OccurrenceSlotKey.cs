@@ -327,7 +327,7 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// </summary>
         /// <summary>
         /// ⭐⭐ The HOSTING MACHINE's identity, from the kernel's own <c>InstanceHeader.MachineId</c>
-        /// (the HSM definition's <c>StructureHash</c>).
+        /// (<c>HsmDefinitionBlob.MachineId</c> — the machine's identity at its shape, <c>CE-2001</c>; it was the topology-only <c>StructureHash</c>).
         ///
         /// <para>⛔ <b>Not a <c>Guid</c>, and that is deliberate.</b> The BTree side identifies its host
         /// by asset id because the emitter bakes it; an HSM thunk has no such literal — but it DOES

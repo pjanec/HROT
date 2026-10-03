@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8i as-built" — utility EQS inputs keyed by template AssetId).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8j as-built" — an HSM's MachineId names the machine; S8k designed).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1730,6 +1730,190 @@ templates' real ids. 🔴 Red-proof: restoring the name hash fails 8 — the 4 n
 (`Hurt_With_Cover_Available_Takes_Cover`, `NearDeath_With_Escape_Flees`, `Trace_Records_PerConsideration_Breakdown_For_Winner`,
 `Wounded_Member_Vetoes_Assignment_And_Breaks_Off`). Folded into Utility §6.6 (the reader sketch marked SUPERSEDED), the
 Utility Editor design §6.2 and `Fdp.Toolkits.Utility.md`. Open: CE-2051 (`FindSafeRetreatPoint` itself).
+
+#### S8j design — an HSM's `MachineId` names the machine, its `StructureHash` keeps naming the shape *(`2026-10-03`, CE-2001; user: "do … the 2001 … Autonomously")*
+
+**The defect.** The kernel stamps `InstanceHeader.MachineId = blob.Header.StructureHash`, and `StructureHash` hashes
+topology only. Every table that uses `MachineId` as "which machine" therefore merges two machines of one shape.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| `StructureHash` is shape only, ON PURPOSE | ✅ `HsmEmitter.ComputeStructureHash` (`Fhsm.Compiler/HsmEmitter.cs:172`) — counts, parents, depths, lanes, flags; a FastHSM rail pins *"same structure, different names ⇒ equal"* (`FlattenerEmitterTests.cs:296`) | ✅ FastHSM hot reload: a `StructureHash` change = hard reset, a `ParameterHash` change = soft (`HotReloadManager.cs:38`) |
+| `MachineId` is that hash, stamped and validated | ✅ `HsmInstanceManager.cs:86`, `HsmKernelCore.ValidateInstance:77`, `HsmValidator.cs:85`, `HotReloadManager.cs:66/105`, `AiHotReloadCoordinator.cs:634` | ⚠ `Fhsm.Compiler.md` item 5 *"StructureHash is the primary identity of a machine"* — the conflation, written down |
+| the toolkit uses `MachineId` as "which machine" | ✅ `HsmParamBindings` key `(MachineId, state, site)` (`:56/:116`) — the state-wide site is `Guid.Empty`, so two same-shape machines' seeds overwrite; `HsmOccurrence.KeyFor` → `OccurrenceSlotKey.ComputeHsmHostIdentity(MachineId)` (`:365`); `HsmHostedSubtrees._byMachine` (`:46`, test readers only — the runtime moved to `_byBlob` in CE-2000) | ✅ `DESIGN_Occurrence_Scoped_Storage.md` §24.9 *"`MachineId` is the host's `StructureHash` — free, per dispatch"*: the HOST identity; its uniqueness was assumed, never measured |
+| a machine's name is its identity | ✅ every production graph is `new HsmBuilder(name)` (`HsmEmitCore.cs:301` = `dto.Name`; `CuratedMachines.cs:37`); the behaviour id is `FromName(name)` (CE-2037) | ✅ R-42 — behaviour ids are the name's hash and permanent |
+| the blob header has no room | ✅ `HsmDefinitionHeader` is `Size = 32`, every byte assigned (`Reserved1/2` are two non-adjacent `ushort`s) | — |
+| the header is mutable after construction | ✅ `public HsmDefinitionHeader Header;` (a field); FastHSM tests set `blob.Header.StructureHash` after `new` | ⇒ `MachineId` must be COMPUTED, never cached |
+
+```mermaid
+classDiagram
+  class HsmDefinitionBlob {
+    +HsmDefinitionHeader Header
+    +uint IdentityHash
+    +uint MachineId
+    +MachineMetadata Metadata
+  }
+  class HsmDefinitionHeader {
+    +uint StructureHash  shape only, unchanged
+    +uint ParameterHash
+  }
+  class HsmFlattener_FlattenedData {
+    +string MachineName
+  }
+  class HsmEmitter {
+    +Emit(FlattenedData) HsmDefinitionBlob
+    +IdentityHashOf(string name)$ uint
+  }
+  class InstanceHeader {
+    +uint MachineId  stamped from blob.MachineId
+  }
+  HsmEmitter ..> HsmFlattener_FlattenedData : reads MachineName
+  HsmEmitter ..> HsmDefinitionBlob : sets IdentityHash
+  HsmDefinitionBlob *-- HsmDefinitionHeader
+  InstanceHeader ..> HsmDefinitionBlob : MachineId must equal
+```
+*What the picture shows that prose hid: the shape and the identity become two values with two owners — the header keeps
+the shape (hot reload reads it), the blob carries the identity (every "which machine" reads it). `MachineId` with no
+name (`IdentityHash == 0`, a hand-built blob) IS `StructureHash`, so nothing unnamed moves.*
+
+```mermaid
+sequenceDiagram
+  participant R as generated HSM registrar
+  participant G as StateMachineGraph.Compile
+  participant F as HsmFlattener
+  participant E as HsmEmitter
+  participant I as BehaviorIngressSystem / RootHsmAccess
+  participant K as HsmKernelCore (per tick)
+  participant P as HsmParamBindings / HsmOccurrence
+  R->>G: CreateBuilder().Build().Compile()
+  G->>F: Flatten(graph) — MachineName = graph.Name
+  F-->>E: FlattenedData
+  E-->>R: blob {StructureHash = shape, IdentityHash = hash(name)}
+  R->>P: Register(blob) keyed by blob.MachineId
+  I->>K: Initialize — header.MachineId = blob.MachineId
+  K->>K: ValidateInstance — header.MachineId == blob.MachineId
+  K->>P: thunk reads ((InstanceHeader*)inst)->MachineId — now per machine
+```
+
+```mermaid
+graph TD
+  REG["generated HSM registrar (startup)"] --> COMPILE["StateMachineGraph.Compile → Flatten → Emit"]
+  ING["BehaviorIngressSystem (assign)"] --> INIT["HsmInstanceManager.Initialize / ResetInstance"]
+  BRAIN["BrainTickSystem (per tick)"] --> KERN["HsmKernelCore.ValidateInstance + dispatch"]
+  KERN --> THUNK["action/guard thunks → HsmParamBindings · HsmOccurrence"]
+  HR["AiHotReloadCoordinator (editor reload)"] --> WALK["slot walk: MachineId != blob.MachineId ⇒ re-initialise"]
+  FHR["HotReloadManager (FastHSM, tests only)"] --> WALK2["same predicate"]
+```
+*Who calls it: the identity is hashed once per compile; the per-tick cost is one property read (a branch and a
+four-step mix) where a field read was.*
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| J1 where the identity lives | ⭐ `HsmDefinitionBlob.IdentityHash` (set by the emitter) and a computed `MachineId` (= `StructureHash` when 0, else a mix of both, never 0) | fold the name INTO `StructureHash` — breaks the hot-reload meaning FastHSM pins (a rename would read as a reshape) · a header field — the 32-byte header has no free 4 bytes · key each table by the blob instance (as CE-2000 did for hosting) — a thunk holds only the instance POINTER, whose header carries a `uint`, so the occurrence key cannot reach a blob reference |
+| J2 the identity | ⭐ the machine's NAME (`StateMachineGraph.Name`), carried by `FlattenedData.MachineName` so EVERY graph path gets it, hashed with the emitter's XxHash64 | the asset GUID — `HsmBuilder` never sees it (it is on the `[HsmDefinition]` attribute), and the name is already the behaviour identity |
+| J3 who switches | ⭐ every STAMP and every "which machine" compare reads `blob.MachineId`: `HsmInstanceManager.Initialize`, `ValidateInstance`, `HsmValidator`, `HotReloadManager` (stamp + instance match; its "structure changed" test stays on `StructureHash`), `HsmDefinitionRegistry`, `HsmParamBindings`, `HsmHostedSubtrees`, `AiHotReloadCoordinator` | leave hot reload on `StructureHash` — an instance stamped with the new id would then never match and never reload |
+| J4 what moves | ⭐ every NAMED machine's `MachineId` ⇒ its occurrence keys and param-binding keys (runtime-computed, never persisted beyond replays — user: *"replays are disposable"*). Unnamed (hand-built) blobs keep `MachineId == StructureHash` | — |
+
+**Design docs checked:** `DESIGN_Occurrence_Scoped_Storage.md` §24.9 — applies: it chose `MachineId` as the host identity,
+which this makes true · `Fhsm.Compiler.md` item 5 — overturned (folded) · `btree-hsm-unif/DESIGN.md` (ingress must stamp
+`MachineId` or validation rejects) — applies, the stamp now reads `blob.MachineId` · `Architect_Question_33` §1.5.4 (hosting
+is non-blocking) — does not apply, no scheduling changes · CE-2002 (nesting an HSM child's occurrences) — builds on this:
+the host identity it nests under must be unique first.
+
+#### S8j as-built *(`2026-10-03`, CE-2001)*
+
+Built as designed — no deviation. `HsmDefinitionBlob.IdentityHash` / `MachineId` / `CombineMachineId` (`Fhsm.Kernel/Data/HsmDefinitionBlob.cs`),
+`FlattenedData.MachineName` (set by `HsmFlattener.Flatten`), `HsmEmitter.IdentityHashOf`. Every site in J3 reads `blob.MachineId`;
+`HotReloadManager`'s "structure changed" test and `HsmQuickReloadHasher` stay on `StructureHash` (the shape). FastHSM rails that
+hand-stamp an instance now stamp `blob.MachineId` (what `Initialize` stamps). Rails: `FlattenerEmitterTests.CE2001_*` (same
+shape ⇒ same `StructureHash`, different `MachineId`; an unnamed blob keeps `MachineId == StructureHash`),
+`HsmOccurrenceKeyTests.CE2001_*` (two same-shape machines seed from their own variables; a hosted child keys apart).
+🔴 Red-proof: `MachineId` ignoring the identity fails 3 of the 4 (the unnamed-blob rail is the "nothing unnamed moves" pin and
+passes either way). Gates: Fhsm 345/0, Toolkits 2464/0, Generators 378/0, Hsm.Editor 622/0, Editor 453/0/2, SimHost 1057/0/3,
+Blueprints 4129/0/17 — no golden moved (registrars compile the blob at runtime). Folded into `Fhsm.Compiler.md` item 5 and
+`Fhsm.Kernel.md`.
+
+#### S8k design — an HSM child's lazy occurrences nest under the site that hosts it *(`2026-10-03`, CE-2002; the S5b residue)*
+
+**The defect.** A hosted child runs under its own occurrence key (`HostedKeyAt(parent, siteSlot)`, S5b). A BTree child's
+thunks nest their slots under it through `BTreeContext.OccurrenceKey`. An HSM child's blueprint actions key their slots with
+`HsmOccurrence.KeyFor(instance, asset, writer)` = `(MachineId, region, state, asset)` — no occurrence key, because the kernel
+bridge the thunk receives does not carry one. ⇒ the same HSM child at two sites shares those working states.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the HSM runner already knows its occurrence key | ✅ `HsmRunner.Tick` gets `ctx.OccurrenceKey` and passes it to its OWN hosted children (`HsmRunner.cs:190`) | ✅ S5b: a host nests each child under the occurrence it runs as |
+| the kernel bridge does not carry it | ✅ `HsmKernelBridge` = `Self`, `WorldHandle`, `TraceContext` (`HsmKernelBridge.cs:24`); built once per tick at `HsmRunner.cs:123` | ✅ Occurrence §24: *"the kernel supplies IDENTITY, the thunk does the LOOKUP"* — the bridge is OUR side of the seam, so the key belongs there, not in the kernel's writer |
+| the thunk has the bridge | ✅ every HSM thunk is `(void* instance, void* context, …)` and the emitted body already casts `context` to `HsmKernelBridge*` (`AiPrimitiveEmitter.cs:543`) | — |
+| one production caller of the key | ✅ graph + grep: `AiPrimitiveEmitter.EmitHsmOccurrenceBody:549`; the rest are rails | — |
+| store demand already counts per occurrence | ✅ `BehaviorIngressSystem.WithDescendantDemand` / `HostedSubtree.HostedDescendants` (one entry per occurrence, S5b) | ✅ S5b row "ingress sizes the store for every hosted descendant's lazily-attached occurrences" |
+| root keys do not move | ✅ `ComputeHostedAt(0, k) == k` (`OccurrenceSlots.HostedKeyAt`, "0 = the root ⇒ the template itself") | ✅ S5b |
+
+```mermaid
+classDiagram
+  class HsmKernelBridge {
+    +Entity Self
+    +IntPtr WorldHandle
+    +HsmTraceContext* TraceContext
+    +int OccurrenceKey  NEW, 0 = root
+  }
+  class HsmRunner {
+    +Tick(ctx, instance, block) NodeStatus
+  }
+  class HsmOccurrence {
+    +KeyFor(instance, context, childAssetId, writer)$ int
+    +KeyFor(hostMachineId, childAssetId, region, state)$ int
+  }
+  class OccurrenceSlots {
+    +HostedKeyAt(parentKey, templateKey)$ int
+  }
+  HsmRunner ..> HsmKernelBridge : fills OccurrenceKey from ctx
+  HsmOccurrence ..> HsmKernelBridge : reads OccurrenceKey
+  HsmOccurrence ..> OccurrenceSlots : nests the state key
+```
+*What the picture shows that prose hid: the key travels on the bridge the runner already builds, not through the kernel —
+the kernel stays ignorant of occurrences (§24).*
+
+```mermaid
+sequenceDiagram
+  participant H as HostedSubtree.TickHosted (site A / site B)
+  participant R as HsmRunner.Tick
+  participant K as HsmKernel.Update
+  participant T as emitted HSM thunk
+  participant O as HsmOccurrence.KeyFor
+  H->>R: ctx.OccurrenceKey = HostedKeyAt(parent, siteSlot)
+  R->>K: &bridge { OccurrenceKey = ctx.OccurrenceKey }
+  K->>T: (instance, &bridge, writer stamped region/state)
+  T->>O: KeyFor(instance, context, AssetId, writer)
+  O-->>T: HostedKeyAt(bridge.OccurrenceKey, (MachineId, region, state, asset))
+```
+
+```mermaid
+graph TD
+  ING["BehaviorIngressSystem (assign) — sizes the store per occurrence"] --> STORE["occurrence store"]
+  BRAIN["BrainTickSystem (per tick)"] --> RUN["HsmRunner.Tick (root, key 0)"]
+  HOST["HostedSubtree.TickHosted (per hosted site)"] --> RUN2["HsmRunner.Tick (child, nested key)"]
+  RUN --> KERN["HsmKernel.Update"]
+  RUN2 --> KERN
+  KERN --> THUNK["emitted thunk → HsmOccurrence.KeyFor(…, context, …)"]
+  THUNK --> STORE
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| K1 where the key travels | ⭐ `HsmKernelBridge.OccurrenceKey`, set by `HsmRunner` from `ctx.OccurrenceKey` | stamp it on `HsmCommandWriter` — that is the KERNEL's type; the kernel must not learn about occurrences (§24) · a thread-static "current occurrence" — hidden state, and wrong under nesting re-entrancy |
+| K2 the key function | ⭐ ONE `KeyFor(instance, context, asset, writer)` that nests; the old 3-argument form is REMOVED and a null `context` throws | keep the 3-argument form as "root" — a hand-written host could call it and silently share (the silent-default pattern) |
+| K3 the emitter | ⭐ passes `context` (one token per HSM blueprint thunk; four goldens move by that token) | — |
+| K4 the debugger's inverse | ⚠ `TryDescribe` searches root keys only, so a NESTED occurrence is labelled by its raw key — exact or absent, never a wrong label (its own contract) | search every site key too — a per-inspection cost for a case with no shipped asset; revisit with one |
+
+**Design docs checked:** `DESIGN_Occurrence_Scoped_Storage.md` §24 — applies (identity from the kernel, lookup on our
+side; the bridge is ours) · §32 (E5, an HSM state hosts a BTree) — applies, `HsmRunner` already nests ITS children; this
+nests its own thunks the same way · this document's S5b — applies, the residue it names · S8j (CE-2001) — prerequisite:
+the `MachineId` inside the state key is unique now.
 
 ## 5. Decisions — each with a lean
 
