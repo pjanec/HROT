@@ -1174,18 +1174,11 @@ public static class StridePhysicsHarnessCases
         }
 
         // ── Plan the navmesh path ──────────────────────────────────────────
-        // Inputs to PlanPath are in navmesh-query space = Stride space (X=East, Y=Up, Z=North).
-        // FDP→Stride swizzle: Stride = (fdp.X, fdp.Z, fdp.Y).
-        var startStride = FdpStrideTransform.ToStridePosition(NavDriveStartFdp);
-        var goalStride  = FdpStrideTransform.ToStridePosition(NavDriveGoalFdp);
-
-        // Convert Stride.Vector3 → System.Numerics.Vector3 for the provider.
-        var startNav = new SNum.Vector3(startStride.X, startStride.Y, startStride.Z);
-        var goalNav  = new SNum.Vector3(goalStride.X,  goalStride.Y,  goalStride.Z);
-
+        // INavmeshProvider is engine space (Z-up, FDP) — pass FDP directly; the provider converts to
+        // Recast internally (R-182 / W7).
         var navWaypoints = new NavWaypoint[256];
         int cornerCount  = navmeshProvider.PlanPath(
-            startNav, goalNav,
+            NavDriveStartFdp, NavDriveGoalFdp,
             navWaypoints.AsSpan(),
             layerMask: (uint)NavLayerMask.Vehicle);
 
@@ -1193,20 +1186,18 @@ public static class StridePhysicsHarnessCases
         {
             ctx.Log("[Navmesh Drive] FAILURE — PlanPath returned 0 corners (no path found). " +
                     "Check that the navmesh was baked successfully and that start/goal are on-mesh. " +
-                    "Start (Stride): " + startStride + "  Goal (Stride): " + goalStride);
+                    "Start (FDP): " + NavDriveStartFdp + "  Goal (FDP): " + NavDriveGoalFdp);
             return;
         }
 
-        // Convert corner positions from navmesh-query (=Stride) space back to FDP space.
+        // Corner positions come back in FDP space already (Z-up).
         var cornersFdp = new SNum.Vector2[cornerCount];
         var sb         = new System.Text.StringBuilder();
         sb.Append($"[Navmesh Drive] Path planned: {cornerCount} corners. ");
         for (int ci = 0; ci < cornerCount; ci++)
         {
-            // navWaypoints[ci].Position is in Stride/navmesh space: (East, Up, North).
-            // FDP: (East, North, Up) = (nav.X, nav.Z, nav.Y).
-            var nav = navWaypoints[ci].Position;
-            var fdp = FdpStrideTransform.ToFdpPosition(new SMath.Vector3(nav.X, nav.Y, nav.Z));
+            // navWaypoints[ci].Position is engine/FDP space: (East, North, Up).
+            var fdp = navWaypoints[ci].Position;
             cornersFdp[ci] = new SNum.Vector2(fdp.X, fdp.Y); // 2D: X=East, Y=North
             sb.Append($"C{ci}=({fdp.X:F1},{fdp.Y:F1}) ");
         }

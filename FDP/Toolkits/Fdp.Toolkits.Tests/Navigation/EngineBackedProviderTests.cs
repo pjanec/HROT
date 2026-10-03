@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void IsWalkable_AnyPoint_ReturnsTrue()
         {
             var p = new EngineBackedNavmeshProvider();
-            Assert.True(p.IsWalkable(new Vector3(999f, 0f, 999f)));
+            Assert.True(p.IsWalkable(new Vector3(999f, 999f, 0f)));
         }
 
         [Fact]
@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var p    = new EngineBackedNavmeshProvider();
             var from = new Vector3(0f, 0f, 0f);
-            var to   = new Vector3(3f, 0f, 4f); // 5 metres away
+            var to   = new Vector3(3f, 4f, 0f); // 5 metres away
             Assert.Equal(5f, p.PathCost(from, to), precision: 4);
         }
 
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void IsFlyable_AnyPoint_ReturnsTrue()
         {
             var p = new EngineBackedVolumetricPathProvider();
-            Assert.True(p.IsFlyable(new Vector3(0f, 100f, 0f)));
+            Assert.True(p.IsFlyable(new Vector3(0f, 0f, 100f)));
         }
 
         [Fact]
@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var p   = new EngineBackedVolumetricPathProvider();
             var buf = new NavWaypoint[4];
-            int cnt = p.PlanPath(Vector3.Zero, new Vector3(0f, 10f, 0f), buf);
+            int cnt = p.PlanPath(Vector3.Zero, new Vector3(0f, 0f, 10f), buf);
             Assert.Equal(2, cnt);
         }
 

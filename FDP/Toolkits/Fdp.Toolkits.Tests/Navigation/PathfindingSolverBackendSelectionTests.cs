@@ -5,6 +5,7 @@ using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Fake;
 using Fdp.Toolkit.Navigation.Systems;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
@@ -293,6 +294,84 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(NavigationBackend.Navmesh, events[0].PrimaryBackend);
 
             roadNet.Dispose();
+        }
+
+        // ── CE-3011 / W7 rail: every navigation API is Z-up ────────────────────────
+
+        /// <summary>
+        /// CE-3011 (the solver passed Sim Z-up positions to a Y-up provider and swizzled only the output):
+        /// a request whose goal lies NORTH (+Y) of the start, with a blocked polygon (a wall) between them, must come
+        /// back as a Z-up path — the detour waypoints carry the polygon ELEVATION in Z and the NORTH distance in Y,
+        /// and the final waypoint is the goal itself (Y≈50, Z≈0). Before W7 the swizzle put north into Z.
+        /// </summary>
+        [Fact]
+        public void Navmesh_ZUpRequest_NorthGoalBehindWall_ReturnsZUpWaypoints()
+        {
+            const float Elev = 2f; // every polygon floats 2 m above the ground (Z), so Z can only come from the mesh
+            static Vector3[] Quad(float cx, float cy, float h)
+                => new[]
+                {
+                    new Vector3(cx - h, cy - h, Elev), new Vector3(cx + h, cy - h, Elev),
+                    new Vector3(cx + h, cy + h, Elev), new Vector3(cx - h, cy + h, Elev),
+                };
+
+            var map = new NavTestMapBuilder()
+                .Layer(NavLayerMask.Vehicle, b => b
+                    .Polygon(0, Quad(0f,   5f, 5f))   // start
+                    .Polygon(1, Quad(0f,  15f, 5f))   // the wall: blocked below
+                    .Polygon(2, Quad(0f,  25f, 5f))
+                    .Polygon(3, Quad(10f, 15f, 5f))   // bypass east of the wall
+                    .Polygon(4, Quad(0f,  50f, 5f))   // goal polygon, far north
+                    .Adjacent(0, 1).Adjacent(1, 2).Adjacent(0, 3).Adjacent(3, 2).Adjacent(2, 4))
+                .Build();
+            map.Layers[0].Polygons[1].IsBlocked = true;
+
+            var navmesh = new FakeNavmeshProvider(map);
+            var solver  = new PathfindingSolverSystem(default(RoadNetworkBlob), _pool, navmesh: navmesh);
+
+            var start = new Vector3(0f, 5f, 0f);
+            var goal  = new Vector3(0f, 50f, 0f);
+            long requestId = ((long)21 << 32) | _world.GlobalVersion;
+            _world.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId    = requestId,
+                Start        = start,
+                End          = goal,
+                BackendForce = NavigationBackend.Navmesh,
+                NavLayerMask = (int)NavLayerMask.Vehicle,
+            });
+
+            RunSolverPipeline(_world, solver);
+
+            var events = ((ISimulationView)_world).ReadEvents<PathfindingResultEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.True(events[0].IsReachable, "A path around the blocked polygon must exist");
+            Assert.Equal(NavigationBackend.Navmesh, events[0].PrimaryBackend);
+
+            Assert.True(_pool.TryGetTrajectory(events[0].RouteHandle, out var traj));
+            var wps = traj.Waypoints;
+            Assert.True(wps.Length >= 3, $"Expected start + detour + goal, got {wps.Length} waypoints");
+
+            // First / last waypoints are the request endpoints, untouched (north stays in Y).
+            var last = wps[wps.Length - 1].Position;
+            Assert.Equal(start, wps[0].Position);
+            Assert.Equal(50f, last.Y, precision: 3);
+            Assert.Equal(0f,  last.Z, precision: 3);
+            Assert.Equal(0f,  last.X, precision: 3);
+
+            // The route went around the wall (east bypass centroid (10,15)), and the in-between waypoints
+            // carry the polygon elevation in Z — never north (that was the CE-3011 mix-up).
+            bool viaBypass = false;
+            for (int i = 1; i < wps.Length - 1; i++)
+            {
+                var p = wps[i].Position;
+                Assert.Equal(Elev, p.Z, precision: 3);
+                viaBypass |= MathF.Abs(p.X - 10f) < 0.01f && MathF.Abs(p.Y - 15f) < 0.01f;
+            }
+            Assert.True(viaBypass, "The path must detour through the east bypass polygon (centroid (10,15))");
+
+            // Arc length is measured in the XY ground plane: 0->bypass(10,15)->(0,25)->(0,50) is > 45 m.
+            Assert.True(events[0].TotalDistanceMeters > 45f, $"Ground-plane arc length too short: {events[0].TotalDistanceMeters}");
         }
 
         // ── Stub implementations ─────────────────────────────────────────────────

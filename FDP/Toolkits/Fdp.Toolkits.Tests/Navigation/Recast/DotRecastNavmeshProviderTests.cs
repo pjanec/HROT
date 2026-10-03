@@ -20,8 +20,9 @@ namespace Fdp.Toolkit.Navigation.Recast.Tests;
 /// </para>
 ///
 /// <para>
-/// Coordinate convention: all <see cref="Vector3"/> values in navmesh-query space =
-/// Stride world space: X=East, Y=altitude(up), Z=North.
+/// Coordinate convention: every <see cref="Vector3"/> passed to or returned by the provider is ENGINE space,
+/// Z-up (R-182 / W7): X=East, Y=North, Z=altitude. The baked soups below are Recast space (Y-up) — the
+/// baker's input — and the provider swizzles between the two internally.
 /// </para>
 ///
 /// <para>
@@ -45,7 +46,7 @@ public sealed class DotRecastNavmeshProviderTests
 
     // ── Fixture: bake once per test class ────────────────────────────────────
 
-    // Flat ground quad: X ∈ [-10,10], Z ∈ [-10,10], Y=0 (navmesh-query space).
+    // Flat ground quad: X ∈ [-10,10], Z ∈ [-10,10], Y=0 (Recast space: Y is up; engine space: Y ∈ [-10,10], Z=0).
     private static readonly (float[] verts, int[] indices) GroundQuad =
         MakeGroundQuad(-10f, 10f, -10f, 10f, 0f);
 
@@ -69,7 +70,7 @@ public sealed class DotRecastNavmeshProviderTests
     public void IsWalkable_PointOnGround_ReturnsTrue()
     {
         var provider = BuildProvider(GroundQuad);
-        // Ground centre (0, 0, 0) — Y=0 is the ground surface.
+        // Ground centre (0, 0, 0) — Z=0 is the ground surface (Z-up).
         Assert.True(provider.IsWalkable(new Vector3(0f, 0f, 0f)),
             "Centre of ground quad must be walkable");
     }
@@ -79,7 +80,7 @@ public sealed class DotRecastNavmeshProviderTests
     {
         var provider = BuildProvider(GroundQuad);
         // Point 1 m above ground — within search extents (2 m horizontal, 4 m vertical).
-        Assert.True(provider.IsWalkable(new Vector3(0f, 1f, 0f)),
+        Assert.True(provider.IsWalkable(new Vector3(0f, 0f, 1f)),
             "Point 1 m above ground must still be walkable (within search extents)");
     }
 
@@ -106,23 +107,25 @@ public sealed class DotRecastNavmeshProviderTests
     public void ProjectToNavmesh_AboveGroundPoint_SnapsToSurface()
     {
         var provider = BuildProvider(GroundQuad);
-        // Query at (0, 2, 0) — 2 m above ground.
-        bool snapped = provider.ProjectToNavmesh(new Vector3(0f, 2f, 0f), out Vector3 result);
+        // Query at (0, 0, 2) — 2 m above ground (Z-up).
+        bool snapped = provider.ProjectToNavmesh(new Vector3(0f, 0f, 2f), out Vector3 result);
 
         Assert.True(snapped, "ProjectToNavmesh must succeed for point above ground");
-        // Snapped Y should be ≈ 0 (the ground surface altitude).
-        Assert.True(MathF.Abs(result.Y) < Tol,
-            $"Snapped Y should be ≈0 (ground surface), got {result.Y}");
-        // X and Z should remain close to the query point.
+        // Snapped Z should be ≈ 0 (the ground surface altitude; Z-up).
+        Assert.True(MathF.Abs(result.Z) < Tol,
+            $"Snapped Z should be ≈0 (ground surface), got {result.Z}");
+        // X and Y (ground plane) should remain close to the query point.
         Assert.True(MathF.Abs(result.X) < Tol + 0.5f,
             $"Snapped X should remain near 0, got {result.X}");
+        Assert.True(MathF.Abs(result.Y) < Tol + 0.5f,
+            $"Snapped Y (north) should remain near 0, got {result.Y}");
     }
 
     [Fact]
     public void ProjectToNavmesh_PointOffMesh_ReturnsFalse()
     {
         var provider = BuildProvider(GroundQuad);
-        bool snapped = provider.ProjectToNavmesh(new Vector3(50f, 0f, 50f), out _);
+        bool snapped = provider.ProjectToNavmesh(new Vector3(50f, 50f, 0f), out _);
         Assert.False(snapped, "ProjectToNavmesh must fail for point far off mesh");
     }
 
@@ -137,7 +140,7 @@ public sealed class DotRecastNavmeshProviderTests
         // From (-8, 0, 0) to (8, 0, 0) — clear path across the ground quad.
         int count = provider.PlanPath(
             new Vector3(-8f, 0f, 0f),
-            new Vector3( 8f, 0f, 0f),
+            new Vector3(8f, 0f, 0f),
             waypoints.AsSpan());
 
         Assert.True(count >= 2,
@@ -150,6 +153,27 @@ public sealed class DotRecastNavmeshProviderTests
         // Last waypoint should be near 'to'.
         Assert.True(Vector3.Distance(waypoints[count - 1].Position, new Vector3(8f, 0f, 0f)) < Tol + 1f,
             $"Last waypoint should be near end (8,0,0), got {waypoints[count - 1].Position}");
+    }
+
+    [Fact]
+    public void PlanPath_NorthSouth_ReturnsZUpWaypoints()
+    {
+        // CE-3011 / W7: north is +Y, altitude is +Z in the provider's API; the Recast swizzle is internal.
+        var provider  = BuildProvider(GroundQuad);
+        var waypoints = new NavWaypoint[64];
+
+        int count = provider.PlanPath(
+            new Vector3(0f, -8f, 0f),
+            new Vector3(0f,  8f, 0f),
+            waypoints.AsSpan());
+
+        Assert.True(count >= 2, $"North-south path must exist, got {count} waypoints");
+        var last = waypoints[count - 1].Position;
+        Assert.True(MathF.Abs(last.Y - 8f) < Tol + 1f, $"Final waypoint must be at Y≈8 (north), got {last}");
+        Assert.True(MathF.Abs(last.Z) < Tol, $"Final waypoint altitude Z must be ≈0 (ground), got {last}");
+        for (int i = 0; i < count; i++)
+            Assert.True(MathF.Abs(waypoints[i].Position.Z) < Tol,
+                $"Waypoint {i} must stay on the ground (Z≈0), got {waypoints[i].Position}");
     }
 
     [Fact]
@@ -203,7 +227,7 @@ public sealed class DotRecastNavmeshProviderTests
     {
         var provider = BuildProvider(GroundQuad);
         // Start is off-mesh.
-        float cost = provider.PathCost(new Vector3(50f, 0f, 50f), new Vector3(5f, 0f, 0f));
+        float cost = provider.PathCost(new Vector3(50f, 50f, 0f), new Vector3(5f, 0f, 0f));
         Assert.Equal(float.MaxValue, cost);
     }
 
@@ -253,10 +277,10 @@ public sealed class DotRecastNavmeshProviderTests
                     IsBlocked = false,
                     Vertices  = new[]
                     {
-                        new Vector3(-10f, 0f, -10f),
-                        new Vector3( 10f, 0f, -10f),
-                        new Vector3( 10f, 0f,  10f),
-                        new Vector3(-10f, 0f,  10f),
+                        new Vector3(-10f, -10f, 0f),
+                        new Vector3(10f, -10f, 0f),
+                        new Vector3(10f, 10f, 0f),
+                        new Vector3(-10f, 10f, 0f),
                     },
                 }
             },
@@ -271,7 +295,7 @@ public sealed class DotRecastNavmeshProviderTests
         var testPts = new[]
         {
             new Vector3(0f, 0f, 0f),       // centre — walkable
-            new Vector3(8f, 0f, 8f),       // near corner — walkable
+            new Vector3(8f, 8f, 0f),       // near corner — walkable
         };
 
         foreach (var pt in testPts)
@@ -283,7 +307,7 @@ public sealed class DotRecastNavmeshProviderTests
         }
 
         // Off-mesh point — both should return false.
-        var offPt = new Vector3(50f, 0f, 50f);
+        var offPt = new Vector3(50f, 50f, 0f);
         Assert.False(fake.IsWalkable(offPt),     "Fake: off-mesh must be false");
         Assert.False(provider.IsWalkable(offPt), "Real: off-mesh must be false");
     }
@@ -298,11 +322,11 @@ public sealed class DotRecastNavmeshProviderTests
             Polygons = new[]
             {
                 new NavPolygon { Id=1, Vertices = new[] {
-                    new Vector3(-10f,0f,-10f), new Vector3(0f,0f,-10f),
-                    new Vector3(0f,0f,10f),    new Vector3(-10f,0f,10f) } },
+                    new Vector3(-10f, -10f, 0f), new Vector3(0f, -10f, 0f),
+                    new Vector3(0f, 10f, 0f),    new Vector3(-10f, 10f, 0f) } },
                 new NavPolygon { Id=2, Vertices = new[] {
-                    new Vector3(0f,0f,-10f),  new Vector3(10f,0f,-10f),
-                    new Vector3(10f,0f,10f),  new Vector3(0f,0f,10f) } },
+                    new Vector3(0f, -10f, 0f),  new Vector3(10f, -10f, 0f),
+                    new Vector3(10f, 10f, 0f),  new Vector3(0f, 10f, 0f) } },
             },
             Adjacency    = new[] { new[] { 1 }, new[] { 0 } },
             OffMeshLinks = Array.Empty<OffMeshLink>(),
@@ -313,12 +337,12 @@ public sealed class DotRecastNavmeshProviderTests
 
         bool fakeExists = fake.PathExists(
             new Vector3(-8f, 0f, 0f),
-            new Vector3( 8f, 0f, 0f),
+            new Vector3(8f, 0f, 0f),
             (uint)NavLayerMask.Infantry);
 
         bool realExists = provider.PathExists(
             new Vector3(-8f, 0f, 0f),
-            new Vector3( 8f, 0f, 0f),
+            new Vector3(8f, 0f, 0f),
             (uint)NavLayerMask.Infantry);
 
         // Both must say a path exists across the connected ground.

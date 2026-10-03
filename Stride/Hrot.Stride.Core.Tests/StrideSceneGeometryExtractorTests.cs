@@ -285,10 +285,11 @@ public sealed class StrideSceneGeometryExtractorTests
         var provider  = new DotRecastNavmeshProvider(meshes);
         var waypoints = new NavWaypoint[64];
 
-        // Start: (0,0,0) south of wall. Goal: (0,0,10) north of wall.
+        // PlanPath is engine space, Z-up (R-182 / W7); the soup above is Recast space (Y-up).
+        // Start: (0,0,0) south of wall. Goal: engine (0,10,0) = Recast (0,0,10), north of wall.
         int count = provider.PlanPath(
             new Vector3(0f, 0f, 0f),
-            new Vector3(0f, 0f, 10f),
+            new Vector3(0f, 10f, 0f),
             waypoints.AsSpan(),
             layerMask: (uint)NavLayerMask.Vehicle);
 
@@ -329,7 +330,7 @@ public sealed class StrideSceneGeometryExtractorTests
 
         int count = provider.PlanPath(
             new Vector3(0f, 0f, 0f),
-            new Vector3(0f, 0f, 10f),
+            new Vector3(0f, 10f, 0f),
             waypoints.AsSpan());
 
         Assert.Equal(0, count);

@@ -60,8 +60,8 @@ public sealed class EqsRoundTripTests : IDisposable
         public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
         public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
-            float dx = from.X - to.X; float dz = from.Z - to.Z;
-            return MathF.Sqrt(dx * dx + dz * dz);
+            float dx = from.X - to.X; float dy = from.Y - to.Y; // XY ground plane (Z-up)
+            return MathF.Sqrt(dx * dx + dy * dy);
         }
         public uint QueryVersion() => 1;
         public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;

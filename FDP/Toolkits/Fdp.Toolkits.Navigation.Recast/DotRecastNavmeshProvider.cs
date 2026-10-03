@@ -325,11 +325,11 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// Engine (Z-up: X east, Y north, Z up) → DotRecast (Y-up: X east, Y up, Z north): <c>(x, y, z) → (x, z, y)</c>.
     /// The ONLY place an input leaves the engine's coordinate system.
     /// </summary>
-    private static RcVec3f ToRcVec(Vector3 v) => new(v.X, v.Y, v.Z);
+    private static RcVec3f ToRcVec(Vector3 v) => new(v.X, v.Z, v.Y);
 
     /// <summary>
     /// DotRecast (Y-up) → engine (Z-up): <c>(x, y, z) → (x, z, y)</c>. The ONLY place an output enters the engine's
     /// coordinate system.
     /// </summary>
-    private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Y, v.Z);
+    private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Z, v.Y);
 }

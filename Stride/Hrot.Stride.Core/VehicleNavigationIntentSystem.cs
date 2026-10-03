@@ -6,7 +6,6 @@ using CarKinem.Core;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
-using SMath = Stride.Core.Mathematics;
 
 namespace Hrot.Stride.Core;
 
@@ -34,9 +33,8 @@ namespace Hrot.Stride.Core;
 /// <b>Per-intent (IntentId changed, Mode = DirectPoint).</b>
 /// Calls <see cref="INavmeshProvider.PlanPath"/> on the <see cref="NavLayerMask.Vehicle"/> layer
 /// from the vehicle's current position to <see cref="NavigationIntent.FinalDestination"/>.
-/// Inputs/outputs are converted FDP↔navmesh-query space (the provider operates in Stride/navmesh
-/// space, X=East, Y=Up, Z=North; FDP is X=East, Y=North, Z=Up — swizzle via
-/// <see cref="FdpStrideTransform"/>).  The resulting corner list (2-D FDP X/Y) and a
+/// Inputs/outputs are engine space (Z-up) — the provider converts to Recast internally (R-182 / W7), so
+/// nothing is swizzled here.  The resulting corner list (2-D FDP X/Y) and a
 /// current-corner index are stored in a small managed dictionary keyed by the full
 /// <see cref="Entity"/> handle.  On a 0-corner result (no path) the system writes a failed
 /// <see cref="NavigationStatus"/>, halts the vehicle, and logs loudly.
@@ -358,16 +356,10 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
             };
         }
 
-        // PlanPath operates in navmesh-query (= Stride) space. Convert FDP→Stride; the provider's
-        // Vector3 contract is (X=East, Y=Up, Z=North) which equals FdpStrideTransform.ToStridePosition.
-        var startStride = FdpStrideTransform.ToStridePosition(curPos);
-        var goalStride  = FdpStrideTransform.ToStridePosition(intent.FinalDestination);
-
-        var startNav = new Vector3(startStride.X, startStride.Y, startStride.Z);
-        var goalNav  = new Vector3(goalStride.X,  goalStride.Y,  goalStride.Z);
-
+        // INavmeshProvider is engine space (Z-up) — the same space as curPos / FinalDestination (R-182 / W7).
+        // The provider converts to Recast internally, so nothing is swizzled here (CE-3011).
         var buf   = new NavWaypoint[MaxCorners];
-        int count = navmesh.PlanPath(startNav, goalNav, buf.AsSpan(), (uint)NavLayerMask.Vehicle);
+        int count = navmesh.PlanPath(curPos, intent.FinalDestination, buf.AsSpan(), (uint)NavLayerMask.Vehicle);
 
         if (count == 0)
         {
@@ -387,8 +379,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
         var corners = new List<Vector2>(count);
         for (int i = 0; i < count; i++)
         {
-            var nav = buf[i].Position; // Stride/navmesh space (East, Up, North)
-            var fdp = FdpStrideTransform.ToFdpPosition(new SMath.Vector3(nav.X, nav.Y, nav.Z));
+            var fdp = buf[i].Position; // engine space (East, North, Up)
             corners.Add(new Vector2(fdp.X, fdp.Y));
         }
 
