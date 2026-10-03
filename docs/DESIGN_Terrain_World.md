@@ -1,39 +1,44 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the decisions are APPROVED (Q81 §0, R-181); §7 carries the design calls this doc adds, each with a lean, for the user's nod before READY-TO-BUILD.
+build-state: DESIGN — Q81 §0 APPROVED (R-181); §7 W2–W8 RULED by the user 2026-10-03 (R-182); W1, W9, W10 carry leans awaiting the nod, then READY-TO-BUILD.
 updated: 2026-10-03
-current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the open design calls, §8 the slice plan.
-stale-below: nothing — new document.
+current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §7 the rulings + the three open leans, §8 the slice plan.
+stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: nothing yet.
-known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here adds Perception (Q81 T4) and Map2D (the map layer). That doc must be updated when slice step 1 lands.
+known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. docs/designs/navig-2/Navigation_Design_v2_0.md and INavmeshProvider document a Y-up contract; W7 makes every navigation API Z-up. Both must be updated when the slice lands.
 related-designs:
   - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — the WHY and the approved decisions T1–T10; THIS doc is the WHAT.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT a terrain asset is (named, JSON definition §2.1e), zones, and the asset build for static obstacles (§2.1c); this doc fills the content its §7 postponed.
-  - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract; §5 here extends the role list.
-  - docs/DESIGN_Node_Roles_And_Policies.md — owns the role→data table (§3.2) that Perception and Map2D now join.
-  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns INavmeshProvider, per-layer navmesh and "the solver lives on the Muscle".
+  - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract; §5 here makes the world part universal.
+  - docs/DESIGN_Node_Roles_And_Policies.md — owns the role→data table (§3.2) that the world now joins for every role.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns INavmeshProvider, per-layer navmesh and "the solver lives on the Muscle"; W7 flips its coordinate contract to Z-up.
   - docs/DESIGN_Subsystem_Composition_Unification.md — owns CE-210 (the 3-D LOS seam, §4.1ab), which §3/§4.3 here builds, and B5 (role composition).
-  - docs/DESIGN_Gizmo_Renderer_Seam.md — owns the gizmo builder→buffer→renderer seam the map layer draws through.
+  - docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md — owns "the editor is a one-node cluster / CGF is as capable as the editor" (ruling 66); W3/W4 apply it to terrain.
+  - docs/DESIGN_Gizmo_Renderer_Seam.md — owns the gizmo builder→buffer→renderer seam the map layer draws through; W2 adds one shape to it.
   - docs/DESIGN_Map_Rendering_And_Interaction.md — owns the map canvas and IMapLayer (the legacy path this doc does NOT use).
-  - docs/DESIGN_Stride_Node_Modes.md — owns the Stride host's scene-baked navmesh (stays as it is in slice 1).
-  - docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns "SimTransform.Position.Z is authoritative".
+  - docs/DESIGN_Stride_Node_Modes.md — owns the Stride host's scene-baked navmesh (stays as it is in slice 1; its coordinate conversion moves inside the implementations, W7).
+  - docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns "SimTransform.Position.Z is authoritative"; W8 is how SimHost honours it.
+  - docs/designs/anim-ctrl/AnimationControl_BrainMuscle_MiniDesign_v0_3.md — owns StanceIntent/StanceStatus, which W5's posture-driven eye height reads.
 -->
 
 # DESIGN — **the terrain world** *(SimHost's test terrain: one file, one model, every query derived)*
 
-> **The one rule:** a terrain is **one world file**, parsed into **one `TerrainWorld` model** per node; the navmesh,
-> the ground height, line of sight and the 2D map drawing are **all derived from it** and cannot disagree.
+> **The one rule:** a terrain is **one world file**, parsed into **one `TerrainWorld` model** on every ECS node; the
+> navmesh, the ground height, line of sight and the 2D map drawing are **all derived from it** and cannot disagree.
+> ⭐ Every API is in the engine's **Z-up** space; conversion happens only inside an implementation (W7).
 
-## 1. INVENTORY — measured `2026-10-03` (graph CLI + grep; four sweeps, summarised)
+## 1. INVENTORY — measured `2026-10-03` (graph CLI + grep; five sweeps, summarised)
 
-| area | exists | ⛔ missing |
+| area | exists | ⛔ missing / wrong |
 |---|---|---|
-| terrain asset | `TerrainDefinition` (v1: `Name`, `RoadNetworks`), `TerrainDefinitionParser`, `TerrainResidency` (`Prepare`/`Commit`, `Hrot.Core/Services/TerrainResidency.cs:94,162`), `TerrainLoadStep`, role filter `RoleLoadRequirements.cs:54-59` | any geometry; no terrain file was ever authored |
+| terrain asset | `TerrainDefinition` (v1: `Name`, `RoadNetworks`), `TerrainDefinitionParser`, `TerrainResidency` (`Prepare`/`Commit`, `Hrot.Core/Services/TerrainResidency.cs:94,162`), `TerrainLoadStep`, role filter `RoleLoadRequirements.cs:54-59`; the knowledge base is already a **universal** part (`:34`) | any geometry; no terrain file was ever authored |
 | navmesh | `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `StrideNavmeshBaker`, `ISceneGeometrySource` — ⭐ **no Stride type used** (namespace `Hrot.Stride.Core`, TFM net8.0-windows; DotRecast 2026.1.3 ships net8.0) | a headless home; a headless geometry source |
-| solver | `NavigationSolverModule` / `PathfindingSolverSystem` (navmesh backend `:376`), `EngineBackedPathResponseSystem` writes `NavState.CustomTrajectory`, `CarKinematicsSystem` follows it | ⛔ composed on no host (`CE-3006`); 🔴 `:382` passes Z-up input to the Y-up `PlanPath` (`CE-3011`) |
-| height | `ITerrainProvider.QueryBatch` + 4 `TerrainQuery*` systems; request carries `ReferenceSimZ` (a ready floor hint) | ⛔ no production provider; composed nowhere (`InstallGroundClamping` has no caller); batch capped at 64 |
-| LOS | `LosRequestBatchingSystem` 2-D segment-vs-circle (`:94-131`), built by `CognitiveSpatialModule` on 3 hosts; `IRaycastBackend` (3-D, Z-up, never wired) | ⛔ the strategy seam (`CE-210` (b)); any eye height; collider height |
-| map | gizmo seam: `IGlobalStatelessGizmo.Draw(view, builder)` registered by `[GizmoProjector]` reflection on **all five hosts** via `MapInteractionPack`; `IDebugDrawBuilder.DrawLine(LineStyle…)`, `DrawText` | ⛔ no filled-polygon primitive; `SimHostRoadLayer` reads a node-config file, never the terrain's roads |
+| coordinates | `IDtCrowdProvider`, `CrowdMotorIntent`, EQS results, `RouteWaypoint` are Z-up | 🔴 `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon` are **Y-up**; 4 places already mix the two (`CE-3011`), one of them LIVE (`CE-3013`) |
+| solver | `NavigationSolverModule` / `PathfindingSolverSystem`, `EngineBackedPathResponseSystem` writes `NavState.CustomTrajectory`, `CarKinematicsSystem` follows it | ⛔ composed on no host (`CE-3006`) |
+| height | position writers: `CarKinematicsSystem.cs:287` keeps Z, `LinearKinematicsSystem.cs:110` integrates `vel.Z`; spawns write Z=0 (`VehicleCommandSystem.cs:64`, `SimHostScenarioManager.cs`, editor placement) | ⛔ nothing on SimHost/Editor/CGF ever reads a ground height |
+| posture | `StanceIntent` (Brain) / `StanceStatus { CurrentStance }` (Muscle), `StanceId` Standing/Crouched/Prone | ⛔ `StanceTransitionSystem` runs on **no** host ⇒ `StanceStatus` is never written; no eye-height field anywhere |
+| LOS | `LosRequestBatchingSystem` 2-D segment-vs-circle (`:94-131`), built by `CognitiveSpatialModule` on 3 hosts; `IRaycastBackend` (3-D, Z-up, never wired) | ⛔ the strategy seam (`CE-210` (b)); collider height |
+| map | gizmo seam: `IGlobalStatelessGizmo.Draw(view, builder)` registered on **all five hosts** via `MapInteractionPack`; **filled** circles (`Sphere`) and **filled rotated rectangles** (`Box2D`) exist (`DebugPrimitiveRenderer2D.cs:234-296`); primitive = fixed 64-byte slot | ⛔ no filled POLYGON; 🔴 `MapOverlayStyle.FillColor` is authored (`SpawnerPanel`) and **never drawn** (`MapOverlayGizmo` strokes only, `CE-3014`) |
 | geometry utils | `PointInPolygon` ×2 (SimHost-internal, nav-fake private), `BoundingBox3D.IntersectsLine`, `Intersection2D.RaycastCircle` | no shared polygon library |
 
 ## 2. THE FILE — GeoJSON in local metres (✅ T2)
@@ -90,14 +95,15 @@ classDiagram
     +Prism[] Prisms
     +Slab[] Slabs
     +Surface[] Surfaces
-    +HeightAt(x, y, zHint) float
+    +Triangle2[] FillTriangles
+    +SurfaceZ(x, y, zHint) float
     +SegmentBlocked(a, b) bool
   }
   class TerrainWorldParser {
     +Parse(json) TerrainWorld
   }
   class TerrainResidency {
-    +Prepare(name) Staged
+    +Prepare(name, bakeNavmesh) Staged
     +Commit(world, staged)
   }
   class INavmeshFactory {
@@ -111,14 +117,17 @@ classDiagram
     +TryGetTriangles(verts, indices) bool
   }
   class RecastNavmeshBaker
-  class DotRecastNavmeshProvider
+  class DotRecastNavmeshProvider {
+    -ToRecast(Vector3) swizzle
+  }
   class INavmeshProvider {
     <<interface>>
+    Z-up
   }
-  class TerrainWorldHeightProvider
-  class ITerrainProvider {
-    <<interface>>
-    +QueryBatch(req, n, res)
+  class CarKinematicsSystem
+  class LinearKinematicsSystem
+  class GroundFollow {
+    +float LastSurfaceZ
   }
   class ILosStrategy {
     <<interface>>
@@ -126,6 +135,11 @@ classDiagram
   }
   class PlanarCircleLosStrategy
   class TerrainWorldLosStrategy
+  class SensorMount {
+    +float StandingZ
+    +float CrouchedZ
+    +float ProneZ
+  }
   class LosRequestBatchingSystem
   class TerrainWorldGizmo
   class IGlobalStatelessGizmo {
@@ -133,7 +147,7 @@ classDiagram
     +Draw(view, builder)
   }
   TerrainResidency --> TerrainWorldParser : Prepare
-  TerrainResidency --> INavmeshFactory : Prepare, optional by role
+  TerrainResidency --> INavmeshFactory : Prepare, NavSolver role only
   TerrainWorldParser --> TerrainWorld
   RecastNavmeshFactory ..|> INavmeshFactory
   RecastNavmeshFactory --> TerrainWorldGeometrySource
@@ -142,29 +156,33 @@ classDiagram
   TerrainWorldGeometrySource --> TerrainWorld
   DotRecastNavmeshProvider ..|> INavmeshProvider
   RecastNavmeshBaker --> DotRecastNavmeshProvider
-  TerrainWorldHeightProvider ..|> ITerrainProvider
-  TerrainWorldHeightProvider --> TerrainWorld
+  CarKinematicsSystem --> TerrainWorld : SurfaceZ when writing Position
+  LinearKinematicsSystem --> TerrainWorld : SurfaceZ, GroundFollow entities only
+  LinearKinematicsSystem --> GroundFollow
   PlanarCircleLosStrategy ..|> ILosStrategy
   TerrainWorldLosStrategy ..|> ILosStrategy
   TerrainWorldLosStrategy --> TerrainWorld
+  TerrainWorldLosStrategy --> SensorMount : eye height by StanceStatus
   LosRequestBatchingSystem --> ILosStrategy
   TerrainWorldGizmo ..|> IGlobalStatelessGizmo
   TerrainWorldGizmo --> TerrainWorld
-  note for TerrainWorld "NEW. ECS singleton, NoScenario|NoReplay, like TerrainDefinition"
-  note for RecastNavmeshBaker "MOVED from Hrot.Stride.Core (was StrideNavmeshBaker); provider, crowd and ISceneGeometrySource move too"
-  note for PlanarCircleLosStrategy "today's 2-D sweep, extracted unchanged — the default"
+  note for TerrainWorld "NEW. ECS singleton, NoScenario|NoReplay. FillTriangles = polygons triangulated ONCE at parse, for the map"
+  note for DotRecastNavmeshProvider "MOVED from Hrot.Stride.Core. Z-up API, swizzles to Recast Y-up INSIDE (W7)"
+  note for PlanarCircleLosStrategy "today's 2-D sweep, extracted unchanged — the default where no world is loaded"
 ```
 
-*What the picture shows that the prose hid:* **every consumer points at `TerrainWorld` and nothing points back** —
-the model is a leaf, so a consumer can be added or removed without touching the others. ⭐ The only new
-interfaces are `INavmeshFactory` (keeps DotRecast out of `Hrot.Core`) and `ILosStrategy` (`CE-210` (b)); the rest
-is existing seams getting their first headless implementation.
+*What the picture shows that the prose hid:* **every consumer points at `TerrainWorld` and nothing points back**, and
+**there is no ground-clamp class** — the two movement models ask the world for the surface Z while they compute the
+position (W8). ⭐ New interfaces: only `INavmeshFactory` (keeps DotRecast out of `Hrot.Core`) and `ILosStrategy`
+(`CE-210` (b)).
 
 | type | home | new / moved |
 |---|---|---|
-| `TerrainWorld`, `TerrainWorldParser`, `TerrainWorldHeightProvider`, `TerrainWorldLosStrategy`, `INavmeshFactory`, `ISceneGeometrySource`, `ILosStrategy`, `PlanarCircleLosStrategy` | `Fdp.Toolkits` (`Terrain/`, `Navigation/`, `Perception/`) | new (`ISceneGeometrySource` moved) |
-| `RecastNavmeshBaker`, `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `RecastNavmeshFactory`, `TerrainWorldGeometrySource` | **new `Fdp.Toolkits.Navigation.Recast`** (net8.0) — §7 W1 | moved + new |
+| `TerrainWorld`, `TerrainWorldParser`, `GroundFollow`, `INavmeshFactory`, `ISceneGeometrySource`, `ILosStrategy`, `PlanarCircleLosStrategy`, `TerrainWorldLosStrategy` | `Fdp.Toolkits` (`Terrain/`, `Navigation/`, `Perception/`, `CarKinem/`) | new (`ISceneGeometrySource` moved) |
+| `SensorMount` | TKB `SensorCapabilitiesDto` (per-stance heights), projected by `PerceptionTkbTranslator` | new fields |
+| `RecastNavmeshBaker`, `DotRecastNavmeshProvider`, `DotRecastDtCrowdProvider`, `RecastNavmeshFactory`, `TerrainWorldGeometrySource` | **new `Fdp.Toolkits.Navigation.Recast`** (net8.0) — W1 | moved + new |
 | `TerrainWorldGizmo` | `Hrot.Presentation` (beside `TerrainZoneGizmo`) | new |
+| `DebugPrimitiveShape.FilledTriangle` | `GizmoMap.Contracts` + one renderer case | new enum value, same 64-byte slot (W2) |
 
 ## 4. SEQUENCES
 
@@ -179,9 +197,9 @@ sequenceDiagram
   participant F as INavmeshFactory
   participant W as ECS world
   C->>S: prepare (off main thread)
-  S->>R: Prepare(terrainName)
+  S->>R: Prepare(terrainName, bakeNavmesh = has NavigationSolver)
   R->>P: Parse(world.geojson)
-  P-->>R: TerrainWorld
+  P-->>R: TerrainWorld (+ fill triangles)
   opt node has NavigationSolver role
     R->>F: Build(TerrainWorld)
     F-->>R: DotRecastNavmeshProvider (baked)
@@ -190,14 +208,14 @@ sequenceDiagram
   C->>S: commit (main thread)
   S->>R: Commit(world, staged)
   R->>W: set TerrainDefinition, TerrainWorld
-  R->>W: set INavmeshProvider (if baked), ITerrainProvider
+  R->>W: set INavmeshProvider (if baked)
   R->>W: publish road graph (exists)
 ```
 
-*What it shows:* the bake rides **`Prepare`**, whose contract is already "off-thread, no ECS mutation"
-(`IClusterStateHandler`); the swap is one `Commit`. No new phase, no new op.
+*What it shows:* the bake rides **`Prepare`**, whose contract is already "off-thread, no ECS mutation"; the swap is one
+`Commit`. No new phase, no new op. The world part runs on **every** ECS node (§5).
 
-### 4.2 A move order — Brain to wheels
+### 4.2 A move order — Brain to wheels, Z from the world
 
 ```mermaid
 sequenceDiagram
@@ -207,19 +225,21 @@ sequenceDiagram
   participant N as DotRecastNavmeshProvider
   participant PR as EngineBackedPathResponseSystem
   participant K as CarKinematicsSystem
-  participant G as TerrainQuery systems
+  participant W as TerrainWorld
   B->>BR: LocomotionChannel MoveTo
   BR->>NS: PathfindingRequestEvent (Z-up)
-  NS->>N: PlanPath(swizzled Y-up)
-  N-->>NS: waypoints (Y-up)
+  NS->>N: PlanPath (Z-up)
+  N->>N: swizzle to Recast and back, inside
+  N-->>NS: waypoints (Z-up)
   NS-->>PR: PathfindingResultEvent + trajectory in the shared pool
   PR->>K: NavState = CustomTrajectory
-  K->>K: follow trajectory in XY
-  G->>K: SimTransform.Z = HeightAt(x, y, zHint)
+  K->>K: next XY along the trajectory
+  K->>W: SurfaceZ(x, y, zHint = current Z)
+  K->>K: write Position (x, y, surfaceZ)
 ```
 
-*What it shows:* everything left of the provider **already exists**; the slice adds the provider, composes the
-solver, fixes the swizzle (`CE-3011`) and clamps Z.
+*What it shows:* everything left of the provider **already exists**; the slice adds the provider, composes the solver,
+and makes the movement model set Z itself — ground, roof or the floor nearest the current Z.
 
 ### 4.3 Line of sight
 
@@ -227,18 +247,20 @@ solver, fixes the swizzle (`CE-3011`) and clamps Z.
 sequenceDiagram
   participant V as VisionBroadphaseSystem
   participant L as LosRequestBatchingSystem
-  participant S as ILosStrategy
+  participant S as TerrainWorldLosStrategy
   participant W as TerrainWorld
   V->>L: LosCheckRequestEvent
   L->>S: IsVisible(view, observer, target)
+  S->>S: eye = Z + SensorMount[StanceStatus]
+  S->>S: aim = target Z + height for its stance
   S->>W: SegmentBlocked(eye, aim)
   S->>S: dynamic colliders with height
   S-->>L: visible?
   L-->>V: TargetVisibleEvent (if visible)
 ```
 
-*What it shows:* the system keeps its events; only the inner test moves behind a strategy. Eye = observer
-`Position.Z + MountHeight`; aim = target `Position.Z + Height/2` (§7 W5).
+*What it shows:* the system keeps its events; only the inner test moves behind a strategy. A prone soldier's eye and
+silhouette are low, so a 0.5 m wall now hides him (W5).
 
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 
@@ -247,85 +269,102 @@ graph TD
   subgraph SimHost["SimHost (Muscle, Perception, NavSolver)"]
     SH_L["TerrainLoadStep: world + navmesh"]
     SH_N["NavigationSolverModule (NEW composition)"]
-    SH_G["GroundClamp module (NEW on SimHost)"]
+    SH_K["Car/Linear kinematics read SurfaceZ"]
     SH_P["CognitiveSpatialModule + TerrainWorldLosStrategy"]
+    SH_M["map: TerrainWorldGizmo"]
   end
-  subgraph Editor["Editor (Brain, Muscle, Perception, NavSolver)"]
-    ED_L["TerrainLoadStep: world + navmesh"]
-    ED_M["map: TerrainWorldGizmo"]
+  subgraph EdCgf["Editor = CGF (one host shape, ruling 66)"]
+    EC_L["TerrainLoadStep: world (+ navmesh where NavSolver composed)"]
+    EC_M["map: TerrainWorldGizmo"]
   end
   subgraph IG["IG (Map2D)"]
-    IG_L["TerrainLoadStep: world only (NEW role)"]
+    IG_L["TerrainLoadStep: world"]
     IG_M["map: TerrainWorldGizmo"]
-  end
-  subgraph CGF["CGF (Brain)"]
-    CG_M["map: TerrainWorldGizmo - draws NOTHING"]
   end
   subgraph Stride["Stride (NavSolver, Map2D)"]
     ST_N["scene-baked navmesh (unchanged slice 1)"]
   end
   SH_L --> SH_N
-  SH_L --> SH_G
+  SH_L --> SH_K
   SH_L --> SH_P
-  ED_L --> ED_M
+  SH_L --> SH_M
+  EC_L --> EC_M
   IG_L --> IG_M
   ED_X["Editor chain registered as Brain ONLY - EditorSubsystem.cs:1453"]
-  ED_X -.->|today: no terrain load| ED_L
+  ED_X -.->|today: no terrain load| EC_L
   style ED_X fill:#fdd,stroke:#900
-  style CG_M fill:#fdd,stroke:#900
 ```
 
-*What the picture shows that the prose hid:* two **dead edges**. 🔴 The editor composes MuscleGround +
+*What the picture shows that the prose hid:* the one **dead edge** — 🔴 the editor composes MuscleGround +
 NavigationSolver (`EditorCapabilities.cs:60-61`) but registers its load chain with **`NodeRole.Brain` only**
-(`EditorSubsystem.cs:1453`) ⇒ the editor's own vehicles never get terrain, and its map would draw nothing (`CE-3012`).
-⚠ CGF is Brain-only, loads no terrain, and its map draws nothing — **acceptable** (CGF's map shows tactics, not
-ground) unless you want the world there too (§7 W3).
+(`EditorSubsystem.cs:1453`) ⇒ its own vehicles get no ground and its map would draw nothing (`CE-3012`).
 
-| role | load part after this design | why |
+| load part | who | why |
 |---|---|---|
-| MuscleGround | world + road graph | height clamp, road kinematics |
-| NavigationSolver | world + road graph + **navmesh bake** | the solver |
-| Perception | **world** (NEW, ✅ T4) | LOS |
-| Map2D | **world** (NEW) | the map layer |
-| Brain | nothing (unchanged) | — |
+| knowledge base | every ECS node (exists) | — |
+| ⭐ **terrain world + road graph** | **every ECS node** (NEW — universal, like the knowledge base) | map on every host (user: *"Cgf must render the map as well"*), LOS, movement Z |
+| **navmesh bake** | nodes that compose **NavigationSolver** | the solver |
 
 ## 6. WHY — what the diagrams cannot carry
 
 - **Why one model and not per-consumer files:** navmesh, height and LOS built from separate sources diverge silently
-  (a wall on the map that a unit walks through). One model makes that impossible by construction (`R-132`'s
-  one-producer rule applied to geometry).
-- **Why GeoJSON:** the only standard text format that carries polygons + lines + arbitrary properties + optional Z, is
-  hand-authorable and viewable in common tools (geojson.io, QGIS). The local-metres deviation is the user's choice.
+  (a wall on the map that a unit walks through). One model makes that impossible by construction (`R-132`).
+- **Why GeoJSON:** the only standard text format carrying polygons + lines + properties + optional Z that is
+  hand-authorable and viewable in common tools. Local metres are the user's choice.
 - **Why DotRecast and not the fake navmesh:** one implementation for SimHost and Stride (ruling 9); it handles agent
-  radius/height/climb and stacked floors natively (T7), and the bake is already written and tested.
-- **Why the strategy, not a new LOS system:** `CE-210` already designed it; the event flow and the debounce stay.
-- **Why prisms are solid in v1:** enterable buildings need doors/stairs (indoor nav); garages cover multi-level
-  through explicit slabs + ramps instead.
+  radius/height/climb and stacked floors natively, and the bake is already written and tested.
+- **Why the movement model sets Z (no clamp step):** the model is the only place that knows where the entity is going
+  and which floor it is on; a separate clamp would be a second writer of `Position` (user ruling, W8).
+- **Why Z-up everywhere:** a Y-up API leaks the library's convention into every caller — and already produced four
+  mixed sites, one of them a live route bug (`CE-3013`).
+- **Why prisms are solid in v1:** enterable buildings need doors/stairs; garages cover multi-level through slabs+ramps.
 
-## 7. ⛔ OPEN — the design calls this document adds *(leans for the user's nod)*
+## 7. DESIGN CALLS
+
+### 7.1 ✅ RULED by the user `2026-10-03` (`R-182`)
+
+> 🔒 **User, verbatim:** *"Cgf must render the map as well. What filled shapes, dont we have already? Cgf==editor,
+> there should be no diffwrence. Editor loads terrain, percwption, navigation, kinematics etc all locally. Note
+> infantry can lay on geound or squat, sensor height must follow posture. Simhoat for sure needs navig solver.
+> Terrain coordinate system and nav solver and all similar apis should follow engines coordinate system which is
+> z-up. All conversiin just inside the implementations (including on the boundary to stride). Simhost provides
+> height based on world hwight as it calcylatws worls pos, there is nothing simhoat ahould ground clamp, entity
+> movement model clamps them to ground height or on top of buikding or to buikding floor."*
+
+| # | ruling | what it means here |
+|---|---|---|
+| **W2** | fills | 📐 we HAVE filled circles and filled rotated rectangles; we do NOT have a filled polygon. ⇒ add **`FilledTriangle`** (fits the existing 64-byte slot: 3×2 floats + fill colour, no format change); `TerrainWorldParser` triangulates every footprint/surface **once**; the gizmo emits triangles. ⭐ The same shape then lets `MapOverlayGizmo` draw the fill colour it has always carried and never drawn (`CE-3014`) |
+| **W3** | every map draws the world, **CGF included** | the world becomes a **universal** load part (§5) |
+| **W4** | **editor ≡ CGF**, both load everything locally | the load chain is built from the host's **composed** role on both (`CE-3012`); no host-specific terrain path |
+| **W5** | sensor height follows posture | `SensorMount` per stance (Standing/Crouched/Prone) in the TKB sensor data, read through `StanceStatus.CurrentStance`; the target's silhouette height follows its stance too. ⚠ `StanceTransitionSystem` runs on **no** host today, so `StanceStatus` is never written — the strategy falls back to Standing until the stance runtime is composed (see the open row below) |
+| **W6** | SimHost composes the navigation solver | NavigationSolver capability composes `NavigationSolverModule` with the factory's provider + the shared pool; `EngineBackedNavigationModule.RegisterProviders` stops throwing when a provider already exists |
+| **W7** | **every navigation/terrain API is Z-up; conversion only inside implementations** (DotRecast, the Stride boundary) | flip `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile`, `NavPolygon`/`NavTestMap` to Z-up; `DotRecastNavmeshProvider` swizzles inside; remove the caller-side swizzles. 📐 Blast radius: **7 production files**, ~66 test call sites in ~46 files, **10 JSON navmaps**. Fixes the 4 mixed sites for free (`CE-3011`) |
+| **W8** | **no ground clamp**; the movement model sets Z to ground / roof / floor as it computes the position | `CarKinematicsSystem` and `LinearKinematicsSystem` write `Z = TerrainWorld.SurfaceZ(x, y, zHint = current Z)`; spawns at Z=0 settle on the first movement tick. `LinearKinematics` does this only for entities marked **`GroundFollow`** (set by the TKB translators from the entity's mobility) — ⛔ never for bullets |
+
+### 7.2 ⏳ still open — leans for the nod
 
 | # | question | ⭐ lean | rejected (one fact each) |
 |---|---|---|---|
 | **W1** | home of the DotRecast code | **new `Fdp.Toolkits.Navigation.Recast` project** (net8.0); `Hrot.Stride.Core` and SimHost reference it; 5 of its 7 Stride tests move with it | into `Fdp.Toolkits`: DotRecast would ride into all 49 projects that reference it |
-| **W2** | how the map draws the world | **`TerrainWorldGizmo : IGlobalStatelessGizmo`** on the gizmo seam ⇒ every host with a map, one class. **v1 = outlines** coloured by height band + a height/floors label; filled polygons as a separate UI-lane item (a new primitive is a wire-contract change) | `IMapLayer` like `SimHostRoadLayer`: SimHost-only legacy Raylib path |
-| **W3** | which hosts draw it | every host that loads the world (SimHost, Editor, IG; CGF draws nothing — Brain loads no terrain) | load terrain on CGF too: a Brain-only node has no other reader |
-| **W4** | the editor's load chain | **register it with the editor's composed role** (`DefaultRole`), not a literal `Brain` (`CE-3012`) | keep Brain-only: the editor's local muscle runs on no ground |
-| **W5** | eye and target heights | `SensorCapabilitiesDto.MountHeight` (TKB, default 1.7 m infantry / from vehicle height) + **`PhysicsCollider.Height`** filled by the same translators that set `Radius` | a service-wide 1.5 m constant: exactly what `CE-210` forbids |
-| **W6** | solver composition on SimHost | NavigationSolver capability composes **`NavigationSolverModule` with the factory's provider and the shared pool**; `EngineBackedNavigationModule.RegisterProviders` stops throwing when a provider exists (it keeps the response system) | a second solver module: two producers of `PathfindingResultEvent` |
-| **W7** | the coordinate bug | swizzle in `PathfindingSolverSystem.SolveNavmesh` (Z-up → Y-up) (`CE-3011`) | swizzle inside the provider: Stride callers already pass Y-up |
-| **W8** | ground clamp on SimHost | one shared `GroundClampingModule` (the `IgGroundClampingModule` body, moved to `Fdp.Toolkits`) with `TerrainWorldHeightProvider`; raise the batch cap from 64 to the entity count | IG-only clamp: SimHost stays flat |
-| **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside them |
-| **W10** | infantry on SimHost | v1 follows the trajectory on the existing bicycle model (they carry `VehicleState` on SimHost); DotRecast crowd for infantry later | crowd in slice 1: a second motion model to bring up at once |
+| **W9** | grid extents | perception grid and collider grid sized from `TerrainWorld.Bounds` (+ margin) at commit | fixed constants: entities silently invisible outside [0,1000) / [-750,750) |
+| **W10** | infantry motion on SimHost | v1 follows the trajectory on the existing bicycle model (they carry `VehicleState` on SimHost); DotRecast crowd later | crowd in slice 1: a second motion model at once |
+| **W11** | the stance runtime (for W5) | compose `StanceTransitionSystem` on the Muscle (SimHost, Editor=CGF) in slice step 3, so posture is real when LOS reads it | leave it out: W5 would read Standing forever |
+
+### ⛔ HISTORY — first-draft leans the user overturned (do not quote)
+
+W2 *"outlines only, fill as a separate UI-lane item"* · W3 *"CGF draws nothing"* · W7 *"swizzle in the solver, keep the
+Y-up provider contract"* · W8 *"move the IG ground-clamp pipeline to SimHost"* · W5 *"one mount height per sensor"*.
 
 ## 8. SLICE 1 (✅ Q81: steps 1–3 + the map layer)
 
 | step | builds | acceptance |
 |---|---|---|
-| **1a** | `TerrainWorld` + parser + definition v2 + `TerrainWorldHeightProvider` + role parts (§5) + `CE-3012` | a hand-written `test-town` loads on SimHost, Editor, IG; `HeightAt` rails incl. a slab with a Z hint |
-| **1b** | `TerrainWorldGizmo` (outlines, height colour, labels) | the world draws on the Editor, SimHost and IG maps |
-| **2** | the Recast project (move), `TerrainWorldGeometrySource`, factory, solver composition, `CE-3011` swizzle, ground clamp | a CGF tank given MoveTo drives **around** a building to the goal (`NavState = CustomTrajectory`), Z follows a ramp; closes `CE-3006`, unblocks `CE-524` |
-| **3** | `ILosStrategy` seam (default = today's sweep, unchanged), `TerrainWorldLosStrategy`, `MountHeight`, `PhysicsCollider.Height` | a soldier behind a 12 m building does not see a target; one behind a 0.5 m wall does |
+| **0** | `CE-3013` — the live route axis swap (one line + a rail with Z-up waypoints) | a SimHost route with north ≠ 0 is driven where it was drawn |
+| **1a** | `TerrainWorld` + parser + definition v2 + universal world part + `CE-3012` | a hand-written `test-town` loads on SimHost, Editor, CGF, IG; `SurfaceZ` rails incl. a slab picked by Z hint |
+| **1b** | `FilledTriangle` + `TerrainWorldGizmo` (filled footprints shaded by height, labels) + `CE-3014` | the world draws on every map; an area overlay shows its fill |
+| **2** | W7 Z-up flip, the Recast project (move), geometry source, factory, solver composition, W8 movement Z | a CGF tank given MoveTo drives **around** a building to the goal, and its Z follows a ramp; closes `CE-3006` + `CE-3011`, unblocks `CE-524` |
+| **3** | `ILosStrategy` seam (default = today's sweep), `TerrainWorldLosStrategy`, `SensorMount`, `PhysicsCollider.Height`, stance runtime (W11) | a soldier behind a 12 m building does not see a target; a standing one sees over a 0.5 m wall, a prone one does not |
 
 ⚠ Each step names its feature suites first (T-1): `TerrainLoadStepTests`, `TerrainDefinitionTests`,
-`PathfindingSolverSystemTests`, `NavmeshWalkIntegrationTests` (after the move), the perception suites, and the
-cluster integration rail for nav (row 8).
+`RouteTrajectorySyncSystemTests` (its fixtures feed Y-up today — they pin the bug), `PathfindingSolverSystemTests`,
+`NavmeshWalkIntegrationTests` (after the move), the perception suites, and the cluster integration rail for nav.

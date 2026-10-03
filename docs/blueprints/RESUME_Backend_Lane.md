@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-03
-current-answer: §2 — the terrain-world design (CE-3006 row) waits on the user's nod to §7 W1–W10 of docs/DESIGN_Terrain_World.md; nothing is building.
+current-answer: §2 — the terrain-world design (CE-3006 row) waits on the user's nod to §7.2 W1/W9/W10/W11 of docs/DESIGN_Terrain_World.md; nothing is building.
 stale-below: nothing yet
 related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the programme's owning design (push-only ownership, S1–S8, §5.7.1 live matrix, §5.9/§5.10 deferred designs).
@@ -16,13 +16,13 @@ related-designs:
 - Branch **`backend`**. Last batch: [`HANDOFF_Ownership_Remaining_Work.md`](batches/HANDOFF_Ownership_Remaining_Work.md) → report [`REPORT_Ownership_Remaining_Work.md`](batches/REPORT_Ownership_Remaining_Work.md).
 - Ownership programme: S1–S8 built; live matrix §5.7.1 **E1–E8 all ✅** (E8 = the multi-process crash reclaim, +10.2 s, no message).
 - Done this batch: `CE-3003` (debug writes ask the owner), `CE-3004` (CGF polls mission acks), `CE-516` (editor uses the injected offline factory), `CE-518`'s 11 unit reds (all stale tests).
-- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3013`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
+- Backend id block `CE-3000`–`CE-3999`, **next free `CE-3015`**. Every `behaviors` merge conflicts on the id-block table: keep their behaviors row and our backend row.
 
 ## 2. Waiting on the user
 
 | id | question | lean |
 |---|---|---|
-| `CE-3006` | no host composes `NavigationSolverModule` ⇒ path requests are never answered, vehicles steer `Direct` | ⭐ DESIGNED `2026-10-03`: [`Q81`](Architect_Question_81_SimHost_Test_Terrain_World.md) approved (`R-181`); [`DESIGN_Terrain_World.md`](../DESIGN_Terrain_World.md) §7 W1–W10 await the user's nod; slice = steps 1a/1b/2/3 (§8). Found on the way: `CE-3011` (solver coordinate swizzle), `CE-3012` (editor never loads terrain) |
+| `CE-3006` | no host composes `NavigationSolverModule` ⇒ path requests are never answered, vehicles steer `Direct` | ⭐ DESIGNED `2026-10-03`: [`Q81`](Architect_Question_81_SimHost_Test_Terrain_World.md) approved (`R-181`); [`DESIGN_Terrain_World.md`](../DESIGN_Terrain_World.md) §7.1 W2–W8 RULED (`R-182`); W1/W9/W10/W11 await the nod; slice = steps 0/1a/1b/2/3 (§8). Found on the way: `CE-3011` (Y-up nav APIs), `CE-3012` (editor never loads terrain), `CE-3013` (LIVE route axis swap on SimHost), `CE-3014` (area fill never drawn) |
 | `CE-3007` | after a crash an IG creator reclaims Muscle/Perception descriptors it has no components for ⇒ nothing publishes them, other nodes keep stale samples | to be handled later (user `2026-10-03`) |
 | `CE-524` | where the `NavState` write belongs | wait for `CE-3006`; then the writer goes under MuscleGround and the scale-out hop reuses `PathRequestBatch`/`PathResponseBatch` (design §5.9) |
 | `CE-513 (backend)` | ✅ DONE `2026-10-03` (Q80 §5) | — |
