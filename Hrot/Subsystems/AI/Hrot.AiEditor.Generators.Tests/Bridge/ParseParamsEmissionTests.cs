@@ -333,7 +333,7 @@ public sealed class ParseParamsEmissionTests
 
         // (1) Layout-drift guard for the composed Params (predicted 8).
         bridge.Should().Contain(
-            "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() != 8",
+            "global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() != 8",
             "the composed node must still emit its predicted-vs-reflected layout-drift guard");
 
         // (2) AiPrimitive thunk dispatching to the blueprint's TickCore.

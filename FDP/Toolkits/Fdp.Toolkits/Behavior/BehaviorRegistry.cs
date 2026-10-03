@@ -408,7 +408,7 @@ namespace Fdp.Toolkit.Behavior
             //   has no room. This catches the case that is impossible to satisfy, at registration.
             if (definition.BlackboardLayoutType != null)
             {
-                int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.BlackboardLayoutType);
+                int dtoSize = Fdp.Core.TypeLayout.SizeOf(definition.BlackboardLayoutType);
                 if (dtoSize > BehaviorConstants.MaxRootParamsByteSize)
                     throw new InvalidOperationException(
                         $"Behavior '{name}' params DTO '{definition.BlackboardLayoutType.Name}' requires {dtoSize} bytes, " +
@@ -719,10 +719,10 @@ namespace Fdp.Toolkit.Behavior
                 && def.ManagedBlackboardVariables != null)
             {
                 int inputRegion = RootParamsAccess.InputBytes(def);
-                int resolverWrites = System.Runtime.InteropServices.Marshal.SizeOf(overlay.BlackboardLayoutType);
+                int resolverWrites = Fdp.Core.TypeLayout.SizeOf(overlay.BlackboardLayoutType);
                 if (resolverWrites <= inputRegion) return;
 
-                int layoutBytes = System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
+                int layoutBytes = Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType);
                 if (layoutBytes > inputRegion)
                     throw new InvalidOperationException(
                         $"Behavior '{def.Name}': its curated resolver writes '{overlay.BlackboardLayoutType.Name}' "

@@ -38,10 +38,10 @@ public static class T35_SharedWorkingStateRegistrar
 
         // I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from
         // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
-        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
             throw new global::System.InvalidOperationException(
                 "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params compiled size (" +
-                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
                 ") != predicted 4 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@1452493810",
@@ -58,10 +58,10 @@ public static class T35_SharedWorkingStateRegistrar
                     return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
                 }
             });
-        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
             throw new global::System.InvalidOperationException(
                 "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params compiled size (" +
-                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
                 ") != predicted 4 bytes baked at offset 4. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@4@1452493810",
@@ -78,10 +78,10 @@ public static class T35_SharedWorkingStateRegistrar
                     return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
                 }
             });
-        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
             throw new global::System.InvalidOperationException(
                 "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params compiled size (" +
-                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
                 ") != predicted 4 bytes baked at offset 8. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@8@935647214",
@@ -197,7 +197,7 @@ public static class T35_SharedWorkingStateRegistrar
             BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(935647214, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitive_Control"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(935647214, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitive_Control"),
             },
         });
     }

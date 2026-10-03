@@ -40,7 +40,7 @@ public static class HsmStatefulBindingDemoRegistrar
             BlueprintStructureHash = 4499027199497400620UL,   // CE-455: the root block's layout
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1929956752, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>(), unchecked(905393697u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>()), typeof(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState), "steps", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1929956752, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>(), unchecked(905393697u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState>()), typeof(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedStepState), "steps", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
             },
         });
     }

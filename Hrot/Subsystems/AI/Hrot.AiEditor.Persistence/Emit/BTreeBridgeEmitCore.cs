@@ -981,10 +981,10 @@ public static class BTreeBridgeEmitCore
             // nothing to corrupt — skip the guard rather than emit a check that always throws.
             if (predictedSize > 0)
             {
-                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
                 sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
-                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
@@ -1061,10 +1061,10 @@ public static class BTreeBridgeEmitCore
             // layout baked into the offset, or every projection at this offset corrupts the AAR schema.
             if (predictedSize > 0)
             {
-                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
                 sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
-                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.SizeOf<{dtoTypeFqn}>() +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
@@ -1239,15 +1239,15 @@ public static class BTreeBridgeEmitCore
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
             // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
             // WorkingState struct grows or changes layout (not just the type name).
-            // Strategy: XOR the FNV-1a-32 type-name hash with Marshal.SizeOf<T>() at
+            // Strategy: XOR the FNV-1a-32 type-name hash with Unsafe.SizeOf<T>() (CE-2041: the managed size, was Marshal.SizeOf) at
             // registration time so the hash changes whenever the struct's byte size changes.
-            // Marshal.SizeOf is evaluated at registration time (not emit time), so this
+            // Unsafe.SizeOf is evaluated at registration time (not emit time), so this
             // correctly reflects the loaded struct's actual unmanaged size.
             // Primary guard: PayloadSize mismatch already catches size-growth ghost-slot cases.
             // Hash guard: catches same-size layout changes (field type/order changes).
             uint typeNameHash = ComputeTypeNameHash(wsTypeId);
-            // PayloadSize: emitted as Marshal.SizeOf<T>() call (evaluated at registration time).
-            // StructureHash: also folds in Marshal.SizeOf<T>() so it changes when struct grows.
+            // PayloadSize: emitted as Unsafe.SizeOf<T>() call (evaluated at registration time).
+            // StructureHash: also folds in Unsafe.SizeOf<T>() so it changes when struct grows.
             // WorkingStateType: typeof(global::...) so the inspector can project typed values.
             // NodeLabel: the node's DisplayLabel for a friendly row label in the inspector.
             string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -1263,7 +1263,7 @@ public static class BTreeBridgeEmitCore
             string roleScopeArgs = (role != 0 || scope != 0)
                 ? $", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}"
                 : string.Empty;
-            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
 
         sb.AppendLine(appendHostedSlots ? $"{pad}{Indent}}}, __hosted.Slots)," : $"{pad}}},");

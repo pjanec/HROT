@@ -1567,6 +1567,63 @@ helper allocates nothing unless an escaped key exceeds 256 bytes); editors when 
 | G6 · CE-2039 | `BlueprintDocumentFactory` and `BlackboardNameValidator` call `Identifiers.IsReservedKeyword` (the validator keeps rejecting `var`) | ⚠ the validator is STRICTER: it now refuses `lock`, `goto`, `throw`, `try`, … — names that would have emitted invalid C# fields |
 | G7 · CE-2040 | `BlueprintTestFixture.SanitizeNameForClass` calls the compiler's `Sanitizer.SanitizeName` | ✅ Blueprints 4128/0 |
 
+#### S8h design + as-built — the interop size stops sizing managed bytes *(`2026-10-03`, CE-2041)*
+
+📐 **INVENTORY** — grep `Marshal\.SizeOf` over production (graph `search_code` returned 0 — it does not index this text form)
+→ ~30 sites, classified in the CE-2041 row. 📐 **MEASURED** (throwaway probe over every unmanaged struct in `Hrot.AI.Behaviors`,
+`Fdp.Toolkits`, `Fbt.Kernel`, `Fdp.Core`): **15 of 518** differ — every blueprint `Vars`/`Block` with a bool (the blueprint emitter
+injects no `[MarshalAs(I1)]`; PlatoonHillAttackBp `Block` 696 vs 648), `__List/__Buf<bool>`, a few toolkit events, `Fbt.PathResult`/
+`RaycastResult`. **No working-state type differs** (the AI emitters inject `[MarshalAs(I1)]`).
+
+| claim | code | design basis |
+|---|---|---|
+| a blueprint's root params slot is sized from `Marshal.SizeOf(Block)` | ✅ `CSharpEmitter.cs:629` registers `BlackboardLayoutType = typeof(…Block)`; `RootParamsAccess.RootParamsBytes` | ✅ S8e C — *"runtime managed size = build-time computed size"* (CE-2027/2030) |
+| switching the generated slot sizes moves no hash | ✅ the probe: no working-state type differs | ✅ DEBT-AIB-027 — the hash folds "the struct's size"; the managed one is the struct's size |
+
+```mermaid
+classDiagram
+  class TypeLayout { <<EXISTS, Fdp.Core>> +SizeOf(Type) +Read(bytes, offset, Type) NEW +ContainsReferences(Type) NEW }
+  class RootParamsAccess { <<EXISTS>> RootParamsBytes InputBytes }
+  class BehaviorRegistry { <<EXISTS>> capacity and overlay guards }
+  class EmittedRegistrars { <<GENERATED>> StatefulSlotInfo size and hash, Params drift guard }
+  class LiveBlackboardValueProvider { <<EXISTS, editor>> ProjectBytes ProjectAndFormat }
+  class RawValueDecoder { <<EXISTS, editor>> Decode }
+  RootParamsAccess --> TypeLayout
+  BehaviorRegistry --> TypeLayout
+  LiveBlackboardValueProvider --> TypeLayout
+  RawValueDecoder --> TypeLayout
+  EmittedRegistrars ..> TypeLayout : Unsafe.SizeOf, same answer
+```
+
+*What the picture shows: the runtime sizing, the generated registrars and the editor decoders all now ask the MANAGED layout —
+the one the bytes are actually in. ⛔ What stays on `Marshal` is self-consistent interop (marshalled both ways), the flight
+recorder's schema (a recording format — its owner's call), wire structs and Win32 P/Invoke.*
+
+```mermaid
+sequenceDiagram
+  participant I as BehaviorIngressSystem
+  participant R as RootParamsAccess
+  participant T as TypeLayout
+  participant W as Watch / Details (editor)
+  I->>R: RootParamsBytes(def)
+  R->>T: SizeOf(Block)
+  T-->>R: 648 (was 696 via Marshal)
+  R-->>I: slot size, tier
+  W->>T: Read(rootParams, offset, varType)
+  T-->>W: the value, read at managed offsets
+```
+
+**Who calls it:** ingress / brain tick / hosted-subtree provisioning (per assign or per hosted slot, not per frame for sizing);
+the editor's Watch and Details on draw.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| H1 runtime region sizing | ⭐ `TypeLayout.SizeOf` in `RootParamsAccess` (×3) and `BehaviorRegistry` (×3) | inject `[MarshalAs]` into blueprint structs: patches one producer, leaves `char` and hand-written types wrong |
+| H2 generated code | ⭐ emit `Unsafe.SizeOf<T>()` for slot size, hash fold and the Params drift guard (measured: no value moves) | keep `Marshal`: the drift guard compares it to the MANAGED prediction — a false throw for any bool Params |
+| H3 editor decoders | ⭐ `TypeLayout.Read` (a cached `Unsafe.ReadUnaligned<T>` per type, references refused) | keep `PtrToStructure` + the bare-bool special case: still mis-reads a struct |
+| H4 not now | `FixedListBufferViewProvider` (`Marshal.OffsetOf` — needs a managed offset helper), the recorder, wire types, `ComponentReflector` | — they stay in the CE-2041 row, classified |
+
+
 ## 5. Decisions — each with a lean
 
 | # | decision | lean | rejected |

@@ -38,10 +38,10 @@ public static class T34_ComposedAiPrimitiveConditionRegistrar
 
         // E2: blueprint AiPrimitive condition thunks — Params at baked offset + WorkingState from
         // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
-        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
+        if (global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() != 4)
             throw new global::System.InvalidOperationException(
                 "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params compiled size (" +
-                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
+                global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>() +
                 ") != predicted 4 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@690319695",
@@ -135,7 +135,7 @@ public static class T34_ComposedAiPrimitiveConditionRegistrar
             BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(690319695, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitiveCondition"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(690319695, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitiveCondition"),
             },
         });
     }

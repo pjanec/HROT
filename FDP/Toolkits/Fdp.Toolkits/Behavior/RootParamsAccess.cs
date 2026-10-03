@@ -268,13 +268,16 @@ public static unsafe class RootParamsAccess
     /// <para>⛔ Returns 0 when neither exists, which correctly means "this behaviour has no params"
     /// rather than "allocate something just in case".</para>
     /// </summary>
+    /// <para>⭐ <c>CE-2041</c> — the layout type is sized by its MANAGED size (<c>Fdp.Core.TypeLayout</c>): the bytes the slot really
+    /// holds. <c>Marshal.SizeOf</c> counted a blueprint <c>Block</c>'s bools as 4 bytes (PlatoonHillAttackBp: 696 for a 648-byte block),
+    /// over-allocating its slot; a <c>char</c> would have under-allocated it.</para>
     public static int RootParamsBytes(BehaviorDefinition def)
     {
         if (def is null) return 0;
 
         int inputs = ManifestExtent(def.ManagedBlackboardVariables);
         int layout = def.BlackboardLayoutType != null
-            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
+            ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)
             : 0;
         if (inputs > 0 || layout > 0) return Math.Max(inputs, layout);
 
@@ -320,7 +323,7 @@ public static unsafe class RootParamsAccess
         if (def is null) return 0;
         if (def.ManagedBlackboardVariables != null) return ManifestExtent(def.ManagedBlackboardVariables);
         return def.BlackboardLayoutType != null
-            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
+            ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)
             : 0;
     }
 
@@ -332,7 +335,7 @@ public static unsafe class RootParamsAccess
         {
             var v = manifest[i];
             if (v.Type == null) continue;
-            int end = v.ByteOffset + System.Runtime.InteropServices.Marshal.SizeOf(v.Type);
+            int end = v.ByteOffset + Fdp.Core.TypeLayout.SizeOf(v.Type);
             if (end > extent) extent = end;
         }
         return extent;

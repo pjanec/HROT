@@ -630,14 +630,15 @@ public static class HsmBridgeEmitCore
         foreach (var (slotKey, typeId, label, role, scope) in slots)
         {
             string typeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(typeId);
-            // DEBT-AIB-027: the structure hash folds in Marshal.SizeOf<T>() at REGISTRATION time so it
-            // changes when the struct grows — identical to the BTree emission, by calling the same helper.
+            // DEBT-AIB-027: the structure hash folds in the struct's size at REGISTRATION time so it changes when the struct
+            // grows — identical to the BTree emission. ⭐ CE-2041: Unsafe.SizeOf, the MANAGED size the slot holds (was
+            // Marshal.SizeOf, the interop size; equal for every shipped working state, measured).
             uint typeNameHash  = BTreeBridgeEmitCore.ComputeTypeNameHash(typeId);
             string escapedLabel = label.Replace("\\", "\\\\").Replace("\"", "\\\"");
             sb.AppendLine(
                 $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
-                $"global::System.Runtime.InteropServices.Marshal.SizeOf<{typeFqn}>(), " +
-                $"unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{typeFqn}>()), " +
+                $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>(), " +
+                $"unchecked({typeNameHash}u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<{typeFqn}>()), " +
                 $"typeof({typeFqn}), \"{escapedLabel}\", " +
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, " +
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}),");
@@ -655,9 +656,9 @@ public static class HsmBridgeEmitCore
             string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"") + " (hosted)";
             sb.AppendLine(
                 $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
-                "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>(), " +
+                "global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fbt.BehaviorTreeState>(), " +
                 $"unchecked({BTreeBridgeEmitCore.ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
-                "(uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>()), " +
+                "(uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fbt.BehaviorTreeState>()), " +
                 $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
                 "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
                 "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
