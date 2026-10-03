@@ -527,7 +527,7 @@ namespace Fdp.Toolkit.Scenario
                 var fillCalls = new List<Expression>();
                 foreach (var (fbField, elemType, length) in fixedBufferFields)
                 {
-                    nint offset = Marshal.OffsetOf(componentType, fbField.Name);
+                    nint offset = Fdp.Core.TypeLayout.OffsetOf(componentType, fbField.Name); // ⭐ CE-2043 — the MANAGED offset
                     var itemAccess = Expression.Property(
                         jsonObjVar, _jsonObjectIndexer, Expression.Constant(fbField.Name));
                     var arrExpr = Expression.Convert(itemAccess, typeof(JsonArray));
@@ -537,7 +537,7 @@ namespace Fdp.Toolkit.Scenario
                 }
                 foreach (var (iaField, elemType, length) in inlineArrayFields)
                 {
-                    nint offset = Marshal.OffsetOf(componentType, iaField.Name);
+                    nint offset = Fdp.Core.TypeLayout.OffsetOf(componentType, iaField.Name); // ⭐ CE-2043 — the MANAGED offset
                     var itemAccess = Expression.Property(
                         jsonObjVar, _jsonObjectIndexer, Expression.Constant(iaField.Name));
                     var arrExpr = Expression.Convert(itemAccess, typeof(JsonArray));

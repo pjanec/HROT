@@ -99,9 +99,11 @@ public sealed class FixedListBufferViewProvider : IBufferViewProvider
         {
             if (request.BufferBinding.TryGetSpan(out var bufferBytes))
             {
-                var image = new byte[Marshal.SizeOf(wrapperType)];
-                int countOffset = (int)Marshal.OffsetOf(wrapperType, "Count");
-                int itemsOffset = (int)Marshal.OffsetOf(wrapperType, bufferField.Name);
+                // ⭐ CE-2043 — the MANAGED image: the formatter reads managed offsets (was Marshal.SizeOf/OffsetOf)
+                if (global::Fdp.Core.TypeLayout.ContainsReferences(wrapperType)) throw new ArgumentException("non-blittable wrapper");
+                var image = new byte[global::Fdp.Core.TypeLayout.SizeOf(wrapperType)];
+                int countOffset = global::Fdp.Core.TypeLayout.OffsetOf(wrapperType, "Count");
+                int itemsOffset = global::Fdp.Core.TypeLayout.OffsetOf(wrapperType, bufferField.Name);
                 BitConverter.GetBytes(count).CopyTo(image, countOffset);
                 bufferBytes.Slice(0, Math.Min(bufferBytes.Length, image.Length - itemsOffset))
                     .CopyTo(image.AsSpan(itemsOffset));

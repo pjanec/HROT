@@ -49,14 +49,18 @@ internal static class SharedStructFieldReflector
         if (string.IsNullOrEmpty(fqn)) return null;
         var type = ResolveType(fqn!);
         if (type is null || !type.IsValueType) return null;
+        // non-blittable → per-field offset write impossible; keep whole-struct (Marshal.OffsetOf used to throw here)
+        if (global::Fdp.Core.TypeLayout.ContainsReferences(type)) return null;
 
         var decls = new List<SharedFieldDecl>();
         foreach (var f in type.GetFields(
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
         {
             int offset;
-            try { offset = (int)System.Runtime.InteropServices.Marshal.OffsetOf(type, f.Name); }
-            catch { return null; } // non-blittable field → per-field offset write impossible; keep whole-struct
+            // ⭐ CE-2043 — the MANAGED offset: SetMembers writes the field at it, into managed bytes. Marshal.OffsetOf gave the
+            //   INTEROP offset — for Fbt.RaycastResult.HitPoint 8 where the field sits at 4 — so the write landed in Hit/padding.
+            try { offset = global::Fdp.Core.TypeLayout.OffsetOf(type, f.Name); }
+            catch { return null; }
             decls.Add(new SharedFieldDecl
             {
                 Name   = f.Name,
