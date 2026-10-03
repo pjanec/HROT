@@ -135,9 +135,8 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                     var tw = traj.Waypoints[start + i];
                     dest[i] = new NavWaypoint
                     {
-                        // Sim (Z-up) trajectory waypoint -> Recast (Y-up) NavWaypoint: altitude
-                        // (Sim Z) goes into the Recast Y slot, not 0f (§0.1, P3D-404 sweep fix).
-                        Position  = new Vector3(tw.Position.X, tw.Position.Z, tw.Position.Y),
+                        // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
+                        Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
                         Traversal = TraversalKind.Walk,
                         Surface   = SurfaceType.Generic,
                     };
@@ -198,8 +197,8 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 var tw = traj.Waypoints[i];
                 dest[i] = new NavWaypoint
                 {
-                    // Sim (Z-up) -> Recast (Y-up): altitude (Sim Z) into Recast Y (§0.1, P3D-404 sweep fix).
-                    Position  = new Vector3(tw.Position.X, tw.Position.Z, tw.Position.Y),
+                    // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
+                    Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
                     Traversal = TraversalKind.Walk,
                     Surface   = SurfaceType.Generic,
                 };

@@ -1,23 +1,22 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
 using DotRecast.Detour;
 using Fdp.Toolkit.Navigation;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
-/// Headless tests for <see cref="StrideNavmeshBaker"/> (STR-P2-T1).
+/// Headless tests for <see cref="RecastNavmeshBaker"/> (STR-P2-T1).
 ///
 /// <para>
 /// All tests operate on a synthetic triangle soup in navmesh-query space:
-/// X=East, Y=altitude(up), Z=North (same as Stride world space, same as
-/// <see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/> convention).
-/// FDP-originated positions must be swizzled via
-/// <see cref="FdpStrideTransform.ToStridePosition"/> before being placed in the soup.
+/// X=East, Y=altitude(up), Z=North — RECAST space, the baker's input. ⚠ NOT the
+/// <see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/> convention, which is engine Z-up since CE-3011 (W7);
+/// engine-space positions are swizzled (x, y, z) → (x, z, y) before being placed in the soup.
 /// </para>
 ///
 /// <para>
@@ -25,12 +24,12 @@ namespace Hrot.Stride.Core.Tests;
 /// <list type="bullet">
 ///   <item>T1-SC1: flat 20×20 m ground quad bakes to a non-empty DtNavMesh.</item>
 ///   <item>T1-SC2: per-layer params differ (Infantry vs Vehicle radius/slope).</item>
-///   <item>T1-SC3: Infantry radius 0.3 m walks a 0.8 m gap; Vehicle radius 1.5 m cannot.</item>
+///   <item>T1-SC3: Infantry radius 0.3 m walks a 0.8 m gap; Vehicle radius 1.8 m cannot.</item>
 ///   <item>T1-SC4: coordinate fidelity — a known ground point projects onto the baked mesh.</item>
 /// </list>
 /// </para>
 /// </summary>
-public sealed class StrideNavmeshBakerTests
+public sealed class RecastNavmeshBakerTests
 {
     private const float Tol = 0.5f;  // generous tolerance for navmesh projection
 
@@ -108,7 +107,7 @@ public sealed class StrideNavmeshBakerTests
     public void Bake_FlatGroundQuad_ProducesNonEmptyNavmesh()
     {
         var (verts, indices) = MakeGroundQuad();
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
 
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
@@ -136,7 +135,7 @@ public sealed class StrideNavmeshBakerTests
     public void Bake_InfantryAndVehicle_HaveDifferentAgentParams()
     {
         var (verts, indices) = MakeGroundQuad(-20f, 20f, -20f, 20f);  // bigger for vehicle
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
 
         baker.Bake(verts, indices, NavLayerMask.Infantry | NavLayerMask.Vehicle);
 
@@ -150,8 +149,8 @@ public sealed class StrideNavmeshBakerTests
         Assert.Equal(0.3f, infantryP.AgentRadius, precision: 4);
         Assert.Equal(60f,  infantryP.MaxSlope,    precision: 4);
 
-        // Vehicle: 1.5 m radius, 20° slope.
-        Assert.Equal(1.5f, vehicleP.AgentRadius, precision: 4);
+        // Vehicle: 1.8 m radius (CE-3027: the widest hull's half-width), 20° slope.
+        Assert.Equal(1.8f, vehicleP.AgentRadius, precision: 4);
         Assert.Equal(20f,  vehicleP.MaxSlope,    precision: 4);
 
         // They must differ from each other.
@@ -162,18 +161,18 @@ public sealed class StrideNavmeshBakerTests
     // ── T1-SC3: gap walkability by radius ────────────────────────────────────
 
     /// <summary>
-    /// A 0.8 m gap (> 2×Infantry radius=0.6m, &lt; 2×Vehicle radius=3.0m).
-    /// Infantry (0.3 m radius) should be able to cross; Vehicle (1.5 m radius) should not.
+    /// A 0.8 m gap (> 2×Infantry radius=0.6m, &lt; 2×Vehicle radius=3.6m).
+    /// Infantry (0.3 m radius) should be able to cross; Vehicle (1.8 m radius) should not.
     /// </summary>
     [Fact]
     public void Bake_GapNarrowEnoughForInfantryNotVehicle()
     {
         // Gap of 0.8 m: passable for infantry (radius 0.3 m → corridor 0.2 m > 0)
-        //               not passable for vehicle (radius 1.5 m → needs 3 m clearance).
+        //               not passable for vehicle (radius 1.8 m → needs 3.6 m clearance).
         const float GapWidth = 0.8f;
         var (verts, indices) = MakeGroundWithGap(GapWidth);
 
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry | NavLayerMask.Vehicle);
 
         // Infantry must produce a mesh (gap is walkable).
@@ -207,7 +206,7 @@ public sealed class StrideNavmeshBakerTests
         // Ground quad at Y=0, X ∈ [-10,10], Z ∈ [-10,10].
         // A query point at (0, 1, 0) — above centre — should snap to Y≈0.
         var (verts, indices) = MakeGroundQuad();
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var result = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         Assert.True(result.ContainsKey(NavLayerMask.Infantry));
@@ -243,7 +242,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_NullVerts_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentNullException>(() =>
             baker.Bake(null!, new int[0]));
     }
@@ -251,7 +250,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_NullIndices_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentNullException>(() =>
             baker.Bake(new float[0], null!));
     }
@@ -259,7 +258,7 @@ public sealed class StrideNavmeshBakerTests
     [Fact]
     public void Bake_VertsNotMultipleOf3_Throws()
     {
-        var baker = new StrideNavmeshBaker();
+        var baker = new RecastNavmeshBaker();
         Assert.Throws<ArgumentException>(() =>
             baker.Bake(new float[7], new int[3]));
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation.EngineBacked;
+using Fdp.Toolkit.Navigation.Modules;
 using Fdp.Toolkit.Physics.Components;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
@@ -33,7 +34,7 @@ namespace Hrot.SimHost;
 /// split preserves it exactly rather than guessing. ⇒ <b>a follow-up should establish whether the two
 /// halves can be merged</b>; until then, the shape here is the honest one.</para>
 /// </remarks>
-internal static class SimHostCapabilities
+public static class SimHostCapabilities
 {
     /// <summary>The Muscle-tier ground simulation: the core logic pack's systems and its module.</summary>
     /// <remarks>
@@ -81,11 +82,23 @@ internal static class SimHostCapabilities
     }
 
     /// <summary>On-demand pathfinding, backed by the engine's navmesh and road graph.</summary>
-    internal sealed class NavigationSolver : INodeCapability
+    /// <remarks>⭐ <c>CE-3017</c> — public so the editor (≡ CGF solo, <c>R-182</c>) composes THIS capability rather than a
+    /// copy of it (<c>R-174</c>). The other SimHost capabilities stay internal.</remarks>
+    public sealed class NavigationSolver : INodeCapability
     {
         private readonly EngineBackedNavigationModule _module;
+        private readonly Func<NavigationSolverModule>? _solverFactory;
+        private readonly List<IEcsModule> _registered = new();
 
-        internal NavigationSolver(EngineBackedNavigationModule module) => _module = module;
+        /// <param name="solverFactory">⭐ W6 (docs/DESIGN_Terrain_World.md §5) — builds the path SOLVER. Before it,
+        /// no production host composed <see cref="NavigationSolverModule"/>, so a <c>PathfindingRequestEvent</c>
+        /// was published and never answered. A factory, not an instance: the road holder it needs exists only
+        /// after orchestration is built.</param>
+        public NavigationSolver(EngineBackedNavigationModule module, Func<NavigationSolverModule>? solverFactory = null)
+        {
+            _module = module;
+            _solverFactory = solverFactory;
+        }
 
         public string Key => CapabilityKeys.NavigationSolver;
 
@@ -97,8 +110,17 @@ internal static class SimHostCapabilities
         /// </remarks>
         public IReadOnlyList<string> Needs { get; } = new[] { ResourceKeys.TrajectoryPool };
 
+        /// <summary>The modules <see cref="Register"/> registered, in order — what a host that hot-swaps its logic tier
+        /// (the editor's <c>SwitchToExternalAsync</c>) must uninstall with it. Empty before <see cref="Register"/>.</summary>
+        public IReadOnlyList<IEcsModule> RegisteredModules => _registered;
+
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(_module);
+        {
+            _registered.Clear();
+            _registered.Add(_module);
+            if (_solverFactory != null) _registered.Add(_solverFactory());
+            foreach (IEcsModule module in _registered) context.Kernel.RegisterModule(module);
+        }
     }
 
     /// <summary>Perception's spatial half: the cognitive grid systems.</summary>
@@ -114,10 +136,9 @@ internal static class SimHostCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
-            var module = new CognitiveSpatialModule(
-                colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
-                    ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                    : 0f);
+            // ⭐ 3-D sight through the resident terrain world (§4.3, R-182) and a perception grid that follows it (§4.4,
+            //    CE-3018) — one factory for every terrain host (docs/DESIGN_Terrain_World.md).
+            var module = CognitiveSpatialModule.ForTerrainHost(context.World);
 
             // The host still exposes this module publicly (diagnostics read it), so hand it back.
             // ⚠ Migration boundary, like NodeBootPlan.Value<T> — it should disappear once the

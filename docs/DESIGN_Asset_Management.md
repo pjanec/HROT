@@ -6,13 +6,14 @@ build-state: ⭐ A and C are READY-TO-BUILD. ⚠ B is buildable ONLY WITH §7.3b
   Carries the INVENTORY (§1), a classDiagram (§3), two sequenceDiagrams (§4, §5) and a
   module-relationship graph TD (§6). Every decision here is RULED in Architect_Question_72 — including
   §7.3a's adapter, which the 2026-09-19 review forced and which AQ-72 now carries as Q72-M.
-updated: 2026-09-30 (§7.3a's as-built limit CORRECTED: the BaseFolder seam has ZERO production readers,
+updated: 2026-10-03 (A, B, C BUILT — CE-3019/3020/3021; §10 D1–D7 carry the leans the build took. Earlier, 2026-09-30: §7.3a's as-built limit CORRECTED: the BaseFolder seam has ZERO production readers,
   not "one of three" — prior wording in §HISTORY round 4. Earlier, 2026-09-20:
   REVISED after review ROUND 4 — the first driven by the codebase-memory GRAPH, which
   found the six-contributors-over-four-kinds enumeration grep had missed. §1.2 is NEW; §7.3a gains the
   AGGREGATION RULE and an AS-BUILT block. Earlier: round 1 six corrections; round 2 §7.3b's
   author-subtraction, the BaseFolder predicate, the merged AUTH/BRAIN box)
 owner: the BACKEND lane (`backend`) owns this design as of 2026-09-20 (user ruling).
+scope: IN THE BACKEND LANE'S BUILD SCOPE since 2026-10-03 (user) — §10 carries the terrain-world deltas D1/D2.
 current-answer: §2 is the model in one table (the three forms, the two directions) — ⭐ read its
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
   §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
@@ -20,7 +21,23 @@ current-answer: §2 is the model in one table (the three forms, the two directio
   read them as one rule, and ⭐ §7.3c is the explicit REFRESH that closes their loop. §8 is the increment
   split. §9 is under-specified (W1-W4 live; W5 and W6 CLOSED).
   ⛔ §HISTORY is what the two reviews measured FALSE — never quote it.
-stale-below: everything under `## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
+stale-below: everything under `## 10. ⭐ THE TERRAIN WORLD'S DELTAS — **added `2026-10-03`, when the user put this programme in the backend lane's scope**
+
+🔒 *User, `2026-10-03`: "Pls include to scope the asset management implementation that was parked recently."* ⇒ the
+programme is BUILDING (increments A → B → C, `CE-3019` / `CE-3020` / `CE-3021`). Two facts changed under it while it
+waited; both are leans the builder follows, stated so a reader can push on them.
+
+| # | what changed | ⭐ lean (followed) | basis |
+|---|---|---|---|
+| **D1** | a terrain is a **FOLDER** (`<root>/<name>/terrain.json` + world + roads), and the terrain part is **UNIVERSAL** | `LoadPart.Terrain` ⇒ **the whole folder**, as ONE tree asset, to **every** ECS node — §7.3a's row and §6 updated | `DESIGN_Terrain_World.md` §7.3 W12, §5; `RoleLoadRequirements.UniversalParts = {KnowledgeBase, Terrain}` |
+| **D2** | `StorageGatewayModule.StageFolder` (`BP-557`) already copied the terrain folder recursively on prefetch, with the BUILT skip | ✅ **DONE** — `A` routed its loop through the walker, then `B` **retired the method**: the terrain folder now travels by `AssetTreeSync` (mirror) inside `StageNamedArtifacts` — one copier | `StorageGatewayModule.cs` `StageNamedArtifacts`; rail `…BP557` |
+| **D3** | §7.3b ② says the authors token is CONFIGURED but names no DEFAULT — and the default decides whether a forgotten setting costs **staleness** or **unpublished work** | ⭐ **default = author every rooted kind**; `HROT_ASSET_AUTHORING=none` (or a kind list) turns a host into a runtime brain that receives the mirror. ⭐ A missing setting then degrades to add-only — the failure mode §7.3b itself prefers (*"a warning beats data loss"*) | `AssetAuthoring.Parse`; `CgfSubsystem.AssetAuthoring` |
+| **D4** | the orchestrator writes node disks (§7.6) but cannot know where a node's behaviour-asset ROOT is — the design names none | ⭐ the node **advertises** it: `hrot.asset.root.<kind>=<path>`, built from its catalog contributors' `BaseFolder` by the §7.3a **ANY** rule ⇒ ⭐ **the first production reader of that seam** (§7.3a AS-BUILT predicted it would be `C2`; it is `B`) | `AssetNeeds.Tokens`; `ClusterSlave.AppendCapabilities` (the catalog is built after the slave, before its one publish) |
+| **D5** | the NAS layout for behaviour assets was unnamed | `{nas}/assets/<kind>/` with lower-case kind ids (`blueprint`, `btree`, `hsm`) | `OrchestrationConstants.GetNasAssetRoot` |
+| **D6** | §5 says publish copies *"the differing set"* and refresh copies it back *"overwriting"* — but with SEVERAL authors the differing set includes files where the OTHER side is NEWER | ⭐ **publish and refresh both write only files that are NEW or NEWER on the source** (`AssetSyncMode.UpdateNewer`); ⛔ never delete, ⛔ never put an older file over a newer one. Refresh's preview lists the author-newer files it leaves alone. ⇒ a publish cannot wipe or roll back another author's NAS work, and a refresh cannot destroy an edit made after the NAS copy | `AssetTreeSync.PlanUpdateNewer`; rails `…_C1`, `…_C5` |
+| **D7** | §5's *"user-triggerable any time"* names no surface | ⭐ two cluster ops, **`PublishAssets = 19` / `RefreshAssets = 20`** in BOTH enums (permanent wire values, `R-42`), payload `AssetOpPayloadDto {Kind, NodeId}`, routed by `ClusterMaster` to `AssetSyncService` — the same path `BuildTerrainAsset` (E4) uses, so the editor's offline master and the cluster answer alike. ⭐ **Panel (as built `2026-10-03`):** `ClusterScenarioPanel` → *Assets* section — node + kind combos, *Publish to NAS*, *Refresh from NAS (overwrites older local files)*, a status line (`AssetOpStatusTracker`). In-process it publishes `AssetOpIntent` on the bus; remote, it sends the `ClusterOpRequest`, which `ClusterOpEgressTranslator`/`ClusterOpMasterTranslator` carry across the wire (the same fix made E4's op remote-capable — `CE-3022`). ✅ a same-frame burst of ops and of statuses now crosses intact (`CE-3023` fixed: request KeepAll, status KeepLast 64) | `ClusterMaster.ProcessAssetOp`; rails `…_C4`, `RemotePanelOps_CrossTheWire_…_CE3022` |
+
+## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
   each is named there with what measured it false.
 known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — read §7.3a with it,
   which measures the vocabulary gap and carries the ruled adapter. ⚠ §7.6 records an inherited
@@ -174,6 +191,23 @@ classDiagram
         +hrot.asset.needs.*
         +hrot.asset.authors.*
     }
+    class AssetTreeSync {
+        <<AS BUILT · Fdp.Toolkits>>
+        +Sync(source, dest, Mirror or AddOnly)
+    }
+    class AssetTokens {
+        <<AS BUILT · Fdp.Toolkits>>
+        +Parse(tokens) NodeAssetProfile
+    }
+    class AssetNeeds {
+        <<AS BUILT · Hrot.Core>>
+        +Tokens(roles, contributors, AssetAuthoring)
+        +HostCapabilities(roles)
+    }
+    AssetNeeds ..> RoleLoadRequirements : DERIVED from
+    AssetNeeds ..> AssetTokens : emits
+    AssetTreeSync --> AssetManifest : diffs
+    AssetTreeSync --> TransportPartitioner : packs
     AssetSyncService --> AssetManifest : diffs
     AssetSyncService --> TransportPartitioner : packs
     AssetSyncService --> StorageGatewayModule : copies
@@ -183,6 +217,8 @@ classDiagram
     AssetSyncService ..> AssetNeedTokens : filters targets
 ```
 
+> ⭐ **AS BUILT `2026-10-03` (B):** the planned `AssetSyncService` is split by layer — the pure engine `AssetTreeSync` (Fdp.Toolkits, reused by C's publish/refresh), the per-node mapping `AssetPrefetchProcessManager.AssetSyncsFor` and the gateway step `StorageGatewayModule.SyncBehaviourAssets` (orchestrator, inside the saga). `AssetNeedTokens` is built as `AssetNeeds` + `AssetTokens`. The planned boxes stay as the intent.
+>
 > **What the picture shows that prose hid:** `AssetNeedTokens` has a **dashed derive edge**, not a
 > composition edge — ⭐ it is **computed** from `RoleLoadRequirements`, never hand-authored beside it
 > (`Q72-L`). And `ITkbStorageStrategy` **narrows** the new seam rather than being replaced (`Q72-D`).
@@ -268,6 +304,8 @@ sequenceDiagram
     end
 ```
 
+> ⭐ **AS BUILT `2026-10-03` (C):** `AssetSyncService` (orchestrator) — `PublishToNasAsync` through `PullToNasAsync` (whose `FileManifestEntry` now carries `Length`/`LastWriteUtc` and skips an already-current NAS copy), `PreviewRefresh` + `RefreshFromNasAsync`, and `Probe`, which the prefetch saga runs on every load (`AssetPrefetchProcessManager.ProbeOnLoad`). The user's trigger is the cluster op of §10 D7. The FAIL arm (*named artifact missing*) is the BUILT node-side failure `B6` preserved — not a second route.
+>
 > **What the picture shows that prose hid:** the two arms end **differently on purpose** (`Q72-I`) — an
 > unpublished blueprint edit **warns**, a missing named artifact **fails**. ⭐ The probe returns a
 > **summary**, never a manifest, which is what keeps it cheap enough to run on every load.
@@ -294,13 +332,13 @@ graph TD
     SY["AssetSyncService (orchestrator)"]
     BRAIN["Brain host that does NOT author<br/>e.g. SimHost with Brain role"]
     MUSCLE["Muscle / Perception - terrain parts"]
-    MAP["Map2D - knowledge base ONLY"]
+    MAP["Map2D - knowledge base + terrain world"]
     EXT -->|publishes directly| NAS
     AUTH -->|explicit publish only| NAS
     NAS --> SY
     SY -->|"AI kinds + KnowledgeBase"| BRAIN
     SY -->|needs-filtered| MUSCLE
-    SY -->|"KnowledgeBase only - NO terrain"| MAP
+    SY -->|"KnowledgeBase + terrain folder"| MAP
     SY -.->|"AI kinds ADD-ONLY - it authors them"| AUTH
     AUTH -.->|"never node-to-node"| BRAIN
     style MAP fill:#eee,stroke:#999
@@ -308,6 +346,10 @@ graph TD
     style EXT fill:#dfd,stroke:#0a0
 ```
 
+> ⚠ **SUPERSEDED IN PART `2026-10-03` (§10 D1):** terrain is now a UNIVERSAL part — every map draws the terrain
+> world — so `Map2D` receives the knowledge base **and the terrain folder**. The paragraph below is the 2026-09-20
+> reading, kept for its subtraction argument, which still holds for the AI kinds.
+>
 > **Caption — what the picture shows that prose hid.** ⭐ `Map2D` is the **sharp** case, not the empty
 > one: it receives **the knowledge base and nothing else.** `UniversalParts = { KnowledgeBase }` is
 > 🔒 *"required by every ECS node, whatever its roles — not role-derived at all"*
@@ -385,7 +427,7 @@ duplication §7.3 warns against; it is railed and it is stated here.
 | the map — **the whole of it** | asset kind(s) reaching the node |
 |---|---|
 | `LoadPart.KnowledgeBase` | the scenario's named **TKB artifact** |
-| `LoadPart.Terrain` | the **terrain definition** and its road graph |
+| `LoadPart.Terrain` | ⭐ **the terrain FOLDER** `<name>/` — `terrain.json` + the world file + its road graph(s) *(since `2026-10-03`, §10 D1; ⛔ was: "the terrain definition and its road graph")* · ⭐ **universal** — every ECS node |
 | `LoadPart.ScenarioEntities` | the **scenario** ⚠ *(already travels by the prefetch path — see `§9-W3`)* |
 | ⭐ **`NodeRole.Brain`**, not a `LoadPart` | ⭐⭐ **every kind whose catalog contributor exposes a non-null `BaseFolder`** — today `Blueprint`, `BTree`, `Hsm` |
 
@@ -600,9 +642,9 @@ as **planned** rather than left to be discovered in a batch.
 
 | # | what | why this boundary |
 |---|---|---|
-| **A — the manifest and the recursive walk** | `AssetManifest` (three-set `Diff`) + recursive enumeration on **both** sides. ⛔⛔ **NOT the `FileManifestEntry` fields** — they moved to **C**, see below | ⭐⭐ **everything else needs it**, and ① says it exists nowhere. ⛔ Landing anything else first builds on sand |
-| **B — needs-filtered sync with the partition** | `AssetSyncService` NAS→node, tokens derived from `RoleLoadRequirements`, `TransportPartitioner`, the skip kept verbatim | ⭐ this is the increment that makes *"nodes keep just copies they really need"* true |
-| **C — publish, the probe, and the refresh** | explicit publish node→NAS, the summary probe, the warn/fail split, ⭐ **and `C5`'s explicit refresh NAS→author** | ⭐ independent of B and **safe to defer**; ⛔ it is the only part that touches authoring hosts. ⚠ **`C5` is what closes §7.3b's loop** — deferring C leaves an authoring station with no route to an update |
+| **A — the manifest and the recursive walk** ✅ *built `2026-10-03`, `CE-3019`* | `AssetManifest` (three-set `Diff`) + recursive enumeration on **both** sides. ⛔⛔ **NOT the `FileManifestEntry` fields** — they moved to **C**, see below | ⭐⭐ **everything else needs it**, and ① says it exists nowhere. ⛔ Landing anything else first builds on sand |
+| **B — needs-filtered sync with the partition** ✅ *built `2026-10-03`, `CE-3020`* | `AssetSyncService` NAS→node, tokens derived from `RoleLoadRequirements`, `TransportPartitioner`, the skip kept verbatim | ⭐ this is the increment that makes *"nodes keep just copies they really need"* true |
+| **C — publish, the probe, and the refresh** ✅ *built `2026-10-03`, `CE-3021`* | explicit publish node→NAS, the summary probe, the warn/fail split, ⭐ **and `C5`'s explicit refresh NAS→author** | ⭐ independent of B and **safe to defer**; ⛔ it is the only part that touches authoring hosts. ⚠ **`C5` is what closes §7.3b's loop** — deferring C leaves an authoring station with no route to an update |
 
 ⭐ **`Q72-D`'s seam extraction rides with B** — it is what lets a tree asset be read without caring whether
 it is a directory or an archive.
@@ -619,10 +661,10 @@ increments before its first caller** and bills `A` as *"the enabler"* for someth
 
 | # | what | who settles it |
 |---|---|---|
-| **W1** | the **standalone threshold** (size) and the default extension/path rule set | ⭐ implementer, with a configurable default. ⚠ `Q72-H1` ruled the SHAPE; the number is a tuning value |
-| **W2** | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
-| **W3** | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
-| **W4** | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
+| **W1** ✅ *as built: **64 MiB**, plus pre-compressed extensions (`.zip .7z .gz .rar .png .jpg .jpeg .dds .ktx .ktx2 .mp4 .mkv .webm`), both configurable on `TransportPartitioner`* | the **standalone threshold** (size) and the default extension/path rule set | ⭐ implementer, with a configurable default. ⚠ `Q72-H1` ruled the SHAPE; the number is a tuning value |
+| **W2** ✅ *as built: per call, uncached — a stat-only scan* | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
+| **W3** ✅ *as built: it does NOT — a scenario has no `BaseFolder`, so no root token, so the probe never sees it; scenarios keep travelling by the prefetch path* | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
+| **W4** ✅ *as built: **MIRROR deletes** (railed `TreeSync_Mirrors_…_B4`); **ADD-ONLY never deletes** (railed `…_B2`)* | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
 | ~~**W6**~~ | ✅ **CLOSED `2026-09-19`** — the explicit **refresh from NAS** | ✅ **the USER ruled it** (*"w6 — yes, seems useful"*) ⇒ **it is task `C5`**, §7.3c is the design. ⛔ Not an open row |
 | ~~**W5**~~ | ✅ **CLOSED `2026-09-19`** — the `LoadPart → AssetKind` adapter and `Brain ⇒ all AI kinds` | ✅ **the USER ruled it** (*"ok accepting your lean"*). 📄 **§7.3a carries the map; `Q72-M` carries the ruling.** ⇒ **`B1` is unblocked** |
 

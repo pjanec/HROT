@@ -52,6 +52,9 @@ public static class CgfEditorShellToolbar
     /// <summary>⭐ <c>CE-460</c> (E4) — File / New Behavior…: the New-Asset tree rooted at the product.</summary>
     public const string NewBehaviorId = "shell.newBehavior";
 
+    /// <summary>⭐ The scenario's terrain picker — File / Terrain… (docs/DESIGN_Terrain_World.md §7.3 W13).</summary>
+    public const string PickTerrainId = "shell.pickTerrain";
+
     /// <summary>⭐ <c>CE-460</c> (E4) — File / New Action….</summary>
     public const string NewActionId = "shell.newAction";
 
@@ -102,6 +105,8 @@ public static class CgfEditorShellToolbar
         new(NewBehaviorId,     0, MenuPath: "File/New Behavior…",  MenuOrder: 2, MenuOnly: true),
         new(NewActionId,       0, MenuPath: "File/New Action…",    MenuOrder: 3, MenuOnly: true),
         new(NewConditionId,    0, MenuPath: "File/New Condition…", MenuOrder: 4, MenuOnly: true),
+        // ⭐ W13 (2026-10-03) — the scenario's terrain, MenuOnly like the product-first New entries.
+        new(PickTerrainId,     0, MenuPath: "File/Terrain…",       MenuOrder: 6, MenuOnly: true),
         // ⛔⛔ NO SaveAll SLOT, and that is a DELIBERATE DEVIATION from the design's §3 subset sentence
         //    ("Save · SaveAll · Open Asset · New Asset · QuickReload"). 📐 Measured: the editor's toolbar
         //    has NO Save-All button — only `shell.save` at -9. ⇒ adding one here would emit it on the
@@ -176,7 +181,8 @@ public static class CgfEditorShellToolbar
         Action? CompileReload = null,
         Action? FullRebuild = null,
         Func<bool>? CompileReloadEnabled = null,
-        Action<Hrot.Editor.AiShared.Recipes.AuthoringProduct>? NewProduct = null);
+        Action<Hrot.Editor.AiShared.Recipes.AuthoringProduct>? NewProduct = null,
+        Action? PickTerrain = null);
 
     /// <summary>
     /// Registers the common-core descriptors this helper owns, then emits a toolbar entry for every
@@ -260,6 +266,18 @@ public static class CgfEditorShellToolbar
                     _ => newProduct(p));
             }
         }
+
+        if (services.PickTerrain is { } pickTerrain)
+            shell.Register(
+                new EditorCommandDescriptor(
+                    Id:          PickTerrainId,
+                    DisplayName: "Terrain…",
+                    Category:    "File",
+                    Description: "Choose the scenario's terrain (docs/DESIGN_Terrain_World.md §7.3)",
+                    IconKey:     "browser/open",
+                    DefaultKey:  null,
+                    IsEnabled:   () => true),
+                _ => pickTerrain());
 
         if (services.CompileReload is { } compileReload)
             shell.Register(

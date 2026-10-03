@@ -12,7 +12,7 @@ using Hrot.MuscleCharacter.Animation.Components;
 namespace Hrot.Animation.Replication.Translators.Channels;
 
 /// <summary>
-/// Egress translator: reads <see cref="LookAtChannel"/> from locally-owned entities
+/// Egress translator: reads <see cref="LookAtChannelStatus"/> (the Muscle's report, CE-513 / R-180) from locally-owned entities
 /// and publishes DDS status samples (Muscle -> Brain direction).
 /// Only publishes when (Status, DispatchedInstanceId) changes.
 /// </summary>
@@ -48,7 +48,7 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
     public void ScanAndPublish(ISimulationView view)
     {
         var query = view.Query()
-            .With<LookAtChannel>()
+            .With<LookAtChannelStatus>()
             .With<NetworkIdentity>()
             .Build();
 
@@ -56,11 +56,11 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
         {
             if (!view.HasAuthority(entity)) continue;
 
-            ref readonly var channel = ref view.GetComponentRO<LookAtChannel>(entity);
+            ref readonly var report = ref view.GetComponentRO<LookAtChannelStatus>(entity);
 
             if (_lastPublished.TryGetValue(entity, out var last)
-                && last.Item1 == channel.Status
-                && last.Item2 == channel.DispatchedInstanceId)
+                && last.Item1 == report.Status
+                && last.Item2 == report.DispatchedInstanceId)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -71,11 +71,11 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
             _writer.Write(new DdsLookAtChannelStatus
             {
                 EntityId = netId.Value,
-                Status = (byte)channel.Status,
-                DispatchedInstanceId = channel.DispatchedInstanceId,
+                Status = (byte)report.Status,
+                DispatchedInstanceId = report.DispatchedInstanceId,
             });
             SentSampleCount++;
-            _lastPublished[entity] = (channel.Status, channel.DispatchedInstanceId);
+            _lastPublished[entity] = (report.Status, report.DispatchedInstanceId);
         }
     }
 }

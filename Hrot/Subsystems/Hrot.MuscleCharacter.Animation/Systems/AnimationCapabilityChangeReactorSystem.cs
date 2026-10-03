@@ -80,7 +80,8 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             if (!repo.HasComponent<AnimationChannel>(entity))
                 return;
 
-            ref var channel = ref repo.GetComponentRW<AnimationChannel>(entity);
+            // ⭐ CE-513 / R-180 — the failure is reported in the Muscle's component, never in the Brain's request.
+            ref var report = ref ChannelReports.Animation(repo, entity);
 
             // Force-stop all active slots with short blend-out (0.1s configurable)
             if (repo.HasComponent<CharacterAnimationDefRuntime>(entity) &&
@@ -93,11 +94,11 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 StageForceStop(ref execState, blendOutTime: 0.1f);
             }
 
-            // Set channel status to Failure
-            channel.Status = NodeStatus.Failure;
+            // Report the action failed
+            report.Status = NodeStatus.Failure;
 
             // Bump DispatchedInstanceId so next command isn't ignored as duplicate
-            channel.DispatchedInstanceId++;
+            report.DispatchedInstanceId++;
 
             // Clear queue if present
             if (repo.HasComponent<AnimationMontageQueueState>(entity))
@@ -115,7 +116,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             if (!repo.HasComponent<LookAtChannel>(entity))
                 return;
 
-            ref var channel = ref repo.GetComponentRW<LookAtChannel>(entity);
+            ref var report = ref ChannelReports.LookAt(repo, entity);
 
             // Stage ReleaseAim if executor present
             if (repo.HasComponent<LookAtExecutorState>(entity))
@@ -125,11 +126,11 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 exec.BlendOutWeight = 1.0f; // Start blending out
             }
 
-            // Set channel status to Failure
-            channel.Status = NodeStatus.Failure;
+            // Report the action failed
+            report.Status = NodeStatus.Failure;
 
             // Bump DispatchedInstanceId
-            channel.DispatchedInstanceId++;
+            report.DispatchedInstanceId++;
         }
 
         private static unsafe void StageForceStop(ref AnimationExecutorState state, float blendOutTime)

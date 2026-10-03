@@ -327,11 +327,6 @@ namespace Hrot.Editor.DebugApi
         //   node's transform passes it; one that does not falls through to the world singleton rather
         //   than to a private, origin-less WGS84Transform.
         private readonly IGeographicTransform? _geoTransform;
-        private readonly float                 _spatialGridCellSize;
-        private readonly float                 _spatialGridOriginX;
-        private readonly float                 _spatialGridOriginY;
-        private readonly int                   _spatialGridWidth;
-        private readonly int                   _spatialGridHeight;
 
         // Group G — Breakpoints
         private readonly IDataBreakpointManager? _bpManager;
@@ -558,11 +553,6 @@ namespace Hrot.Editor.DebugApi
             Func<ClusterState>              clusterState,
             Fdp.Interfaces.ITkbDatabase?    tkbDb              = null,
             IGeographicTransform?           geoTransform       = null,
-            float                           spatialGridCellSize = 5.0f,
-            float                           spatialGridOriginX  = 0f,
-            float                           spatialGridOriginY  = 0f,
-            int                             spatialGridWidth    = 200,
-            int                             spatialGridHeight   = 200,
             IDataBreakpointManager?         bpManager          = null,
             IComponentDiffService?          diffService        = null,
             Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null,
@@ -601,11 +591,6 @@ namespace Hrot.Editor.DebugApi
             _editorRequestTransition = requestTransition;
             _editorTkbDb       = tkbDb            ?? new TkbDatabase();   // ⭐ the editor DOES pass one; kept non-null so its shape is unchanged
             _geoTransform      = geoTransform;   // ⭐ CE-236: no origin-less default — see GeoTransform
-            _spatialGridCellSize = spatialGridCellSize;
-            _spatialGridOriginX  = spatialGridOriginX;
-            _spatialGridOriginY  = spatialGridOriginY;
-            _spatialGridWidth    = spatialGridWidth;
-            _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
             _behaviorRegistryValue  = behaviorRegistry;
             _missionService    = missionService;
@@ -678,11 +663,6 @@ namespace Hrot.Editor.DebugApi
             //    singleton — the one the simulation itself converts with.
             _geoTransform = geoTransform;
 
-            _spatialGridCellSize = 5.0f;
-            _spatialGridOriginX  = 0f;
-            _spatialGridOriginY  = 0f;
-            _spatialGridWidth    = 200;
-            _spatialGridHeight   = 200;
 
             _diffService       = new ComponentDiffService();
             _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());   // diagnostics MD-001: lazy Func
@@ -2147,45 +2127,12 @@ namespace Hrot.Editor.DebugApi
 
         // ── Group N — world/coordinate info ───────────────────────────────────
 
-        /// <summary>GET /world/info — geo origin, spatial grid extent, terrain/navmesh null.</summary>
-        public JsonNode GetWorldInfo()
-        {
-            var origin = GeoTransform.Origin;
-            float extentMinX = _spatialGridOriginX;
-            float extentMaxX = _spatialGridOriginX + _spatialGridWidth * _spatialGridCellSize;
-            float extentMinY = _spatialGridOriginY;
-            float extentMaxY = _spatialGridOriginY + _spatialGridHeight * _spatialGridCellSize;
-
-            return new JsonObject
-            {
-                ["geo"] = new JsonObject
-                {
-                    ["origin"] = new JsonObject
-                    {
-                        ["lat"] = origin.lat,
-                        ["lon"] = origin.lon,
-                        ["alt"] = origin.alt,
-                    },
-                },
-                ["spatialGrid"] = new JsonObject
-                {
-                    ["cellSize"] = _spatialGridCellSize,
-                    ["originX"]  = _spatialGridOriginX,
-                    ["originY"]  = _spatialGridOriginY,
-                    ["width"]    = _spatialGridWidth,
-                    ["height"]   = _spatialGridHeight,
-                    ["extent"]   = new JsonObject
-                    {
-                        ["minX"] = extentMinX,
-                        ["maxX"] = extentMaxX,
-                        ["minY"] = extentMinY,
-                        ["maxY"] = extentMaxY,
-                    },
-                },
-                ["terrain"]  = JsonValue.Create<object?>(null),
-                ["navmesh"]  = JsonValue.Create<object?>(null),
-            };
-        }
+        /// <summary>
+        /// GET /world/info — geo origin, the spatial grids, the resident terrain and the navmesh, read LIVE from the
+        /// active perspective's world. ⭐ CE-3028: <c>terrain</c>/<c>navmesh</c> were hard-coded null, and
+        /// <c>spatialGrid</c> reported composition constants that CE-3018's terrain rebase had made wrong.
+        /// </summary>
+        public JsonNode GetWorldInfo() => WorldInfoReport.Build(_world, GeoTransform.Origin);
 
         /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
         public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)

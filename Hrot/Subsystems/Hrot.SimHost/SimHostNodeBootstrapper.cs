@@ -58,6 +58,20 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private EngineBackedNavigationModule? _navModule;
 
     /// <summary>
+    /// ⭐⭐ W6 — THE node's navmesh (docs/DESIGN_Terrain_World.md §4.1): the <c>INavmeshProvider</c> singleton, the
+    /// path solver's navmesh, and what a terrain commit publishes its bake into — one instance, so the background
+    /// solver sees a terrain load. Straight lines until a terrain is baked.
+    /// </summary>
+    public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider Navmesh { get; } = new();
+
+    /// <summary>
+    /// ⭐ W6 — bakes the navmesh from each loaded terrain (DotRecast by default — this host composes the solver, so
+    /// it must bake; silent-default rule). Null ⇒ no bake: the solver keeps straight lines (a test that wants no bake).
+    /// </summary>
+    public Fdp.Toolkit.Navigation.INavmeshFactory? NavmeshFactory { get; set; } =
+        new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory();
+
+    /// <summary>
     /// Core simulation systems pack. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
     /// </summary>
     public SimHostCoreLogicPack? CoreLogicPack { get; private set; }
@@ -302,13 +316,20 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // see the same capability instances.
         _navModule = new EngineBackedNavigationModule(
             RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            TrajectoryPool.Pool);
+            TrajectoryPool.Pool,
+            Navmesh);
+
+        // ⭐ W6 — the SOLVER, sharing the navmesh, the pool and (once orchestration built it) the road holder.
+        var solverRoad = RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob);
+        var solverPool = TrajectoryPool.Pool;
+        Fdp.Toolkit.Navigation.Modules.NavigationSolverModule BuildSolver()
+            => new(solverRoad, solverPool, Navmesh, roadNetworkHolder: _nodeBootstrapper?.RoadNetworkHolder);
 
         var plan = new Hrot.Common.Infrastructure.NodeCompositionPlan()
             .Provider(TrajectoryPool)
             .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
-            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule))
+            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule, BuildSolver))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m))
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
@@ -415,6 +436,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         CheckpointWorker = new CheckpointIOWorker(checkpointPath, context.NodeId);
 
         _nodeBootstrapper = new NodeBootstrapper(_networkFactory);
+        // ⭐ W6 — the terrain this node loads bakes into the shared navmesh (silent-default rule: we hold it, so pass it).
+        if (NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
             _role,
             writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");

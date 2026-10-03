@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-10-03 (CE-3023 as-built QoS note at the Control-Plane topic block)
 current-answer: §8.10 "Distributed Entity Lifecycle During Replay" + §8.5 are the RULING on what runs
   during replay. The rest of this document is the drill-management / DSM design.
 known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
@@ -229,6 +229,14 @@ public partial struct SystemStateTopic
     public long     StateStartWallTicks;  // wall-clock start of current state
     public int      TransactionEpoch; // Increments on each successful transition
 }
+
+> ⭐ **AS-BUILT QoS `2026-10-03` (`CE-3023`) — the block below omits HISTORY, and that omission was a defect.** With
+> the DDS default (KeepLast 1) a same-frame burst collapsed to its newest sample on BOTH legs (measured: requests
+> lost; 1 of 5 statuses delivered), which breaks the "consume the `ClusterOpRequest` queue" contract (§ the
+> process-manager loop) and leaves a remote panel waiting on a completion that was overwritten. As built
+> (`OrchestrationMessages.cs`): `ClusterOpRequest` = Reliable · Volatile · **KeepAll** (the `NodeOpCommand` shape);
+> `ClusterOpStatus` (topic `SysOpStatus`) = Reliable · **TransientLocal** · **KeepLast 64** — bounded because a late
+> joiner replays it; readers match by `RequestId`. Rails: `ClusterOpMasterTranslatorTests.SameFrameBurst_*_CE3023`.
 
 // ─── IOS → Master ────────────────────────────────────────────────────────────
 [DdsTopic("ClusterOpRequest")]

@@ -40,7 +40,18 @@ public sealed record NodeDistributionTarget
     /// rather than failing, so an un-migrated caller degrades to the previous behaviour.</para>
     /// </summary>
     public string TkbDestinationPath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — the behaviour-asset trees this node receives, from its advertised tokens
+    /// (docs/DESIGN_Asset_Management.md §4, §7.3a/§7.3b): kind, the node's root for it, and MIRROR or ADD-ONLY.
+    /// Empty = none (every non-Brain node, and any node that advertised none).
+    /// </summary>
+    public IReadOnlyList<AssetSyncTarget> AssetSyncs { get; init; } = Array.Empty<AssetSyncTarget>();
 }
+
+/// <summary>One behaviour-asset tree a node receives: <paramref name="Kind"/> from <c>{nas}/assets/&lt;kind&gt;</c> into
+/// <paramref name="DestinationRoot"/>, by <paramref name="Mode"/>.</summary>
+public sealed record AssetSyncTarget(string Kind, string DestinationRoot, Fdp.Toolkit.Orchestration.Assets.AssetSyncMode Mode);
 
 /// <summary>
 /// ⭐⭐ <c>S2a</c> — the artifact names the staged scenario slices AGREE on.
@@ -151,6 +162,18 @@ public sealed class StorageGatewayModule
                         var destDir  = Path.GetDirectoryName(destPath);
                         if (!string.IsNullOrEmpty(destDir))
                             Directory.CreateDirectory(destDir);
+
+                        // ⭐ C1 — an entry that carries its (length, mtime) and whose NAS copy already matches is skipped
+                        //   by the ONE freshness rule (IsAlreadyCurrent's) — nothing re-transfers.
+                        if (entry.LastWriteUtc is DateTime mtime && File.Exists(destPath))
+                        {
+                            var d = new FileInfo(destPath);
+                            if (d.Length == entry.Length && d.LastWriteTimeUtc == mtime)
+                            {
+                                Interlocked.Increment(ref successCount);
+                                return;
+                            }
+                        }
 
                         partial.Add(destPath);
                         File.Copy(entry.SourceUnc, destPath, overwrite: true);
@@ -372,6 +395,10 @@ public sealed class StorageGatewayModule
         // ⭐⭐⭐ S2b + S2c — stage the named ARTIFACTS beside the scenario slices.
         StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
 
+        // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
+        //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
+        SyncBehaviourAssets(targets, nasBasePath, ref success, ref failure);
+
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
     }
 
@@ -444,12 +471,40 @@ public sealed class StorageGatewayModule
             }
         }
 
+        // ⭐⭐ BP-557 (2026-10-03) — the named TERRAIN, a FOLDER {nas}/terrain/<name>/ (definition + world +
+        //   roads), staged beside the TKB to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
+        //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the shared root
+        //   and the terrains shipped with the build, and the node fails loudly itself if none has it.
+        string? terrainSource = null;
+        if (!string.IsNullOrEmpty(names.TerrainName))
+        {
+            var candidate = Path.Combine(nasBasePath, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName,
+                names.TerrainName);
+            if (File.Exists(Path.Combine(candidate, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName)))
+                terrainSource = candidate;
+            else
+                FdpLog<StorageGatewayModule>.Info(
+                    "[Gateway] PrefetchScenario: terrain '{0}' is not published under '{1}'; nodes resolve it "
+                  + "from their shared root or the terrains shipped with the build.",
+                    names.TerrainName, candidate);
+        }
+
         foreach (var target in targets)
         {
             if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
 
             try
             {
+                if (terrainSource != null)
+                {
+                    var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+                    var terrainDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
+                        names.TerrainName!);
+                    // ⭐ D2 — the terrain folder travels by the asset sync (mirror), not a second copier.
+                    var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(terrainSource, terrainDest);
+                    Interlocked.Add(ref success, Math.Max(1, r.Writes));
+                }
+
                 Directory.CreateDirectory(target.TkbDestinationPath);
 
                 // S2c — the header the node reads its names out of.
@@ -480,6 +535,49 @@ public sealed class StorageGatewayModule
                     "[Gateway] PrefetchScenario: failed to stage artifacts → '{0}': {1}",
                     target.TkbDestinationPath, ex.Message);
                 Interlocked.Increment(ref failure);
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3020 — sync every behaviour-asset tree each target receives (docs/DESIGN_Asset_Management.md §4, B4/B4a):
+    /// <c>{nas}/assets/&lt;kind&gt;</c> → the node's root for the kind, MIRROR or ADD-ONLY (§7.3b ③). Targets sharing one root
+    /// (several nodes on one machine) sync it once. ⚠ A kind with no NAS tree is skipped and logged, never a failure —
+    /// "nobody published K" is legal (§7.3b, the external-tool case). A sync that throws counts as a FAILURE, which the
+    /// saga turns into the L8 failure path (B6 — no second failure route).
+    /// </summary>
+    private static void SyncBehaviourAssets(
+        IReadOnlyList<NodeDistributionTarget> targets, string nasBasePath, ref int success, ref int failure)
+    {
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+        foreach (var target in targets)
+        {
+            foreach (var a in target.AssetSyncs)
+            {
+                var source = OrchestrationConstants.GetNasAssetRoot(nasBasePath, a.Kind);
+                if (!done.Add(a.Kind + "|" + Path.GetFullPath(a.DestinationRoot))) continue;
+                if (!Directory.Exists(source))
+                {
+                    FdpLog<StorageGatewayModule>.Info(
+                        "[Gateway] Asset sync: no '{0}' tree published at '{1}' — nothing to send to node {2}.",
+                        a.Kind, source, target.NodeId);
+                    continue;
+                }
+                try
+                {
+                    var r = sync.Sync(source, a.DestinationRoot, a.Mode);
+                    Interlocked.Increment(ref success);
+                    FdpLog<StorageGatewayModule>.Info(
+                        $"[Gateway] Asset sync {a.Kind} → node {target.NodeId} ({a.Mode}): {r.CopiedStandalone} copied, "
+                      + $"{r.Unpacked} unpacked, {r.Deleted} deleted, {r.HeldBackChanged} changed held back (author).");
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] Asset sync {0} → node {1} at '{2}' FAILED: {3}", a.Kind, target.NodeId, a.DestinationRoot, ex.Message);
+                    Interlocked.Increment(ref failure);
+                }
             }
         }
     }

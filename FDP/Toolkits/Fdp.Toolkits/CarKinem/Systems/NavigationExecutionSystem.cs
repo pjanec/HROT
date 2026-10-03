@@ -208,6 +208,8 @@ namespace CarKinem.Systems
                                 Start       = tf.Position,
                                 End         = intent.FinalDestination, // real destination Z (Sim Z-up, P3D-302)
                                 RouteHandle = intent.RouteHandle,
+                                // ⭐ CE-3025 follow-up — the replan planned on "all layers" too, i.e. the infantry mesh.
+                                NavLayerMask = (int)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0),
                             });
 
                             repo.Bus.Publish(new PathReplannedEvent

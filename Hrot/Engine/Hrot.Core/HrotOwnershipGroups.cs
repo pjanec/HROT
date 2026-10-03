@@ -55,6 +55,9 @@ public static class HrotOwnershipGroups
         // Animation intents (dormant: no production host composes animation replication — design §1.5).
         brain.SetBit(GlobalComponentIds.StanceIntent);
         brain.SetBit(GlobalComponentIds.AnimationMontageQueue);
+        // ⭐ CE-513 / R-180 — an animation channel crosses nodes, so it is split: the Brain owns the REQUEST.
+        brain.SetBit(GlobalComponentIds.AnimationChannel);
+        brain.SetBit(GlobalComponentIds.LookAtChannel);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);
@@ -68,6 +71,9 @@ public static class HrotOwnershipGroups
         // Animation statuses (dormant, as above).
         muscle.SetBit(GlobalComponentIds.StanceStatus);
         muscle.SetBit(GlobalComponentIds.AnimationMontageQueueState);
+        // ⭐ CE-513 / R-180 — …and the Muscle owns the REPORT (Architect_Question_80 §0 A).
+        muscle.SetBit(GlobalComponentIds.AnimationChannelStatus);
+        muscle.SetBit(GlobalComponentIds.LookAtChannelStatus);
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

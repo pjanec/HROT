@@ -28,6 +28,19 @@ namespace Hrot.ScenarioEditor.Gizmos
             int n = polyline.Points.Count;
             int segCount = style.IsClosed ? n : n - 1;
 
+            // ⭐ CE-3014 (2026-10-03) — the fill colour the overlay always carried, finally drawn: a closed
+            //   area with a visible FillColor is triangulated and filled UNDER its border.
+            //   📄 docs/DESIGN_Terrain_World.md §7.1 W2.
+            if (style.IsClosed && style.FillColor.A > 0 && n >= 3)
+            {
+                var abs = new Vector2[n];
+                for (int i = 0; i < n; i++) abs[i] = origin + polyline.Points[i];
+                var tris = Fdp.Toolkit.Terrain.PolygonMath.Triangulate(abs);
+                var fill = new Rgba32(style.FillColor.R, style.FillColor.G, style.FillColor.B, style.FillColor.A);
+                for (int t = 0; t + 2 < tris.Length; t += 3)
+                    draw.DrawFilledTriangle(abs[tris[t]], abs[tris[t + 1]], abs[tris[t + 2]], fill);
+            }
+
             for (int i = 0; i < segCount; i++)
             {
                 var a = origin + polyline.Points[i];

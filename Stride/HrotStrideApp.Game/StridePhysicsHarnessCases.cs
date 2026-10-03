@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using CarKinem.Core;
@@ -1173,18 +1174,11 @@ public static class StridePhysicsHarnessCases
         }
 
         // ── Plan the navmesh path ──────────────────────────────────────────
-        // Inputs to PlanPath are in navmesh-query space = Stride space (X=East, Y=Up, Z=North).
-        // FDP→Stride swizzle: Stride = (fdp.X, fdp.Z, fdp.Y).
-        var startStride = FdpStrideTransform.ToStridePosition(NavDriveStartFdp);
-        var goalStride  = FdpStrideTransform.ToStridePosition(NavDriveGoalFdp);
-
-        // Convert Stride.Vector3 → System.Numerics.Vector3 for the provider.
-        var startNav = new SNum.Vector3(startStride.X, startStride.Y, startStride.Z);
-        var goalNav  = new SNum.Vector3(goalStride.X,  goalStride.Y,  goalStride.Z);
-
+        // INavmeshProvider is engine space (Z-up, FDP) — pass FDP directly; the provider converts to
+        // Recast internally (R-182 / W7).
         var navWaypoints = new NavWaypoint[256];
         int cornerCount  = navmeshProvider.PlanPath(
-            startNav, goalNav,
+            NavDriveStartFdp, NavDriveGoalFdp,
             navWaypoints.AsSpan(),
             layerMask: (uint)NavLayerMask.Vehicle);
 
@@ -1192,20 +1186,18 @@ public static class StridePhysicsHarnessCases
         {
             ctx.Log("[Navmesh Drive] FAILURE — PlanPath returned 0 corners (no path found). " +
                     "Check that the navmesh was baked successfully and that start/goal are on-mesh. " +
-                    "Start (Stride): " + startStride + "  Goal (Stride): " + goalStride);
+                    "Start (FDP): " + NavDriveStartFdp + "  Goal (FDP): " + NavDriveGoalFdp);
             return;
         }
 
-        // Convert corner positions from navmesh-query (=Stride) space back to FDP space.
+        // Corner positions come back in FDP space already (Z-up).
         var cornersFdp = new SNum.Vector2[cornerCount];
         var sb         = new System.Text.StringBuilder();
         sb.Append($"[Navmesh Drive] Path planned: {cornerCount} corners. ");
         for (int ci = 0; ci < cornerCount; ci++)
         {
-            // navWaypoints[ci].Position is in Stride/navmesh space: (East, Up, North).
-            // FDP: (East, North, Up) = (nav.X, nav.Z, nav.Y).
-            var nav = navWaypoints[ci].Position;
-            var fdp = FdpStrideTransform.ToFdpPosition(new SMath.Vector3(nav.X, nav.Y, nav.Z));
+            // navWaypoints[ci].Position is engine/FDP space: (East, North, Up).
+            var fdp = navWaypoints[ci].Position;
             cornersFdp[ci] = new SNum.Vector2(fdp.X, fdp.Y); // 2D: X=East, Y=North
             sb.Append($"C{ci}=({fdp.X:F1},{fdp.Y:F1}) ");
         }
@@ -1536,7 +1528,7 @@ public static class StridePhysicsHarnessCases
     private const float NavWalkTimeoutSec   = 60.0f;   // generous timeout for real navmesh
     private const float NavWalkArrivalRadiusM = 1.5f;  // m — same as F4 vehicle tolerance
 
-    // Infantry crowd agent parameters (matching StrideNavmeshBaker.InfantryParams).
+    // Infantry crowd agent parameters (matching RecastNavmeshBaker.InfantryParams).
     private const float InfantryAgentRadius  = 0.3f;   // m
     private const float InfantryAgentHeight  = 1.8f;   // m
     private const float InfantryMaxAccel     = 20f;    // m/s²
@@ -2059,7 +2051,7 @@ public static class StridePhysicsHarnessCases
                         ? ctx.World.GetComponent<NavigationIntent>(target)
                         : default;
                     intent.IntentId++;
-                    intent.Mode             = NavigationMode.DirectPoint;
+                    intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — mirrors MoveToExecutor
                     intent.FinalDestination = effectiveGoal;
                     intent.TargetSpeed      = MoveOrderCharSpeed;
                     intent.ArrivalRadius    = MoveOrderCharArrivalRadius;
@@ -2076,7 +2068,7 @@ public static class StridePhysicsHarnessCases
 
                 orderIssued = true;
                 ctx.Log($"[FDP Move Order char] PRODUCTION ORDER issued via LocomotionChannel " +
-                        $"(ActiveAction=ActionIdMoveTo) + NavigationIntent (Mode=DirectPoint, goal " +
+                        $"(ActiveAction=ActionIdMoveTo) + NavigationIntent (Mode=PathToPoint, goal " +
                         $"({effectiveGoal.X:F2},{effectiveGoal.Y:F2})). preAgentRegistered={preAgentCount==1}. " +
                         $"NavigationIntentBridgeSystem will auto-register the crowd agent this tick.");
             }
@@ -2134,7 +2126,7 @@ public static class StridePhysicsHarnessCases
 
                 // STR-D21 F6 fix diagnostics: also show crowd-init status and CrowdAgent
                 // component presence so GPU operator can diagnose registration issues.
-                bool crowdInit    = infantryCrowd is Hrot.Stride.Core.DotRecastDtCrowdProvider dp
+                bool crowdInit    = infantryCrowd is Fdp.Toolkit.Navigation.Recast.DotRecastDtCrowdProvider dp
                                     && dp.IsInitialized;
                 bool hasCrowdComp = ctx.World.IsComponentTypeRegistered<CrowdAgent>()
                                     && ctx.World.HasComponent<CrowdAgent>(target);
@@ -2313,7 +2305,7 @@ public static class StridePhysicsHarnessCases
                 var intent = ctx.World.HasComponent<NavigationIntent>(target)
                     ? ctx.World.GetComponent<NavigationIntent>(target) : default;
                 intent.IntentId++;
-                intent.Mode             = NavigationMode.DirectPoint;
+                intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — mirrors MoveToExecutor
                 intent.FinalDestination = new SNum.Vector3(MoveOrderVehGoalFdp.X, MoveOrderVehGoalFdp.Y, 0f);
                 intent.TargetSpeed      = MoveOrderVehSpeed;
                 intent.ArrivalRadius    = MoveOrderVehArrivalRadius;

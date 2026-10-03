@@ -124,8 +124,11 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var intent = ref view.GetComponentRO<EcsNavigationIntent>(entity);
 
-                // Skip entities with no active navigation command (Mode=None means idle).
-                if (intent.Mode == EcsNavMode.None)
+                // Skip an entity that was never commanded (the default intent). ⭐ CE-3026 — a Mode=None WITH an IntentId is a
+                //   STOP (MoveToExecutor.OnExit, a cancelled behavior) and must cross the wire: it used to be skipped too, so on a
+                //   cluster the vehicle kept driving after the Brain finished or aborted the move (live run 2026-10-03: ~10 m
+                //   past the destination), while in the editor the same stop was applied — two behaviours for one command.
+                if (intent.Mode == EcsNavMode.None && intent.IntentId == 0)
                     continue;
 
                 // 2. Fine-grained per-entity filter: only publish when IntentId changed.
@@ -150,7 +153,12 @@ namespace Hrot.Map.Common.Replication.Egress
                     FinalDestination = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
                     TargetSpeed      = intent.TargetSpeed,
                     ArrivalRadius    = intent.ArrivalRadius,
-                    RouteHandle      = intent.RouteHandle
+                    RouteHandle      = intent.RouteHandle,
+                    LayerMask        = intent.LayerMask,
+                    BackendForce     = intent.BackendForce,
+                    Flags            = intent.Flags,
+                    MaxReplans       = intent.MaxReplans,
+                    ReverseAllowed   = intent.ReverseAllowed,
                 });
 
                 SentSampleCount++;
@@ -175,12 +183,13 @@ namespace Hrot.Map.Common.Replication.Egress
 
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private static ENavigationMode MapMode(EcsNavMode mode) => mode switch
+        internal static ENavigationMode MapMode(EcsNavMode mode) => mode switch
         {
             EcsNavMode.DirectPoint   => ENavigationMode.NAV_DIRECT_POINT,
             EcsNavMode.FollowRoute   => ENavigationMode.NAV_FOLLOW_ROUTE,
             EcsNavMode.JoinFormation => ENavigationMode.NAV_JOIN_FORMATION,
             EcsNavMode.RoadGraph     => ENavigationMode.NAV_ROAD_GRAPH,
+            EcsNavMode.PathToPoint   => ENavigationMode.NAV_PATH_TO_POINT,
             _                        => ENavigationMode.NAV_NONE,
         };
     }

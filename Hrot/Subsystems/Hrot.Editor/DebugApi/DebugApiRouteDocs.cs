@@ -1902,12 +1902,14 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/world/info")] = new RouteDoc(
             Tool:    "get_world_info",
             Group:   "N — World / coordinates",
-            Summary: "World metadata: geo origin, spatial grid extent. terrain and navmesh are null in editor mode.",
-            Returns: "{ geo:{origin:{lat,lon,alt}}, spatialGrid:{...extent}, terrain:null, navmesh:null }",
+            Summary: "World metadata: geo origin, the perception and collider grids (live, placed over the terrain), the resident terrain and the navmesh.",
+            Returns: "{ geo:{origin:{lat,lon,alt}}, spatialGrid:{cellSize,originX,originY,width,height,extent}, colliderGrid:{...}, terrain:{name,bounds,groundZ,prisms,walkables,surfaces}|null, navmesh:{provider,baked,version}|null }",
             Hint:    "No params. Example: get_world_info({})",
             Notes: new[]
             {
-                "terrain and navmesh are null in editor mode.",
+                "Reads the ACTIVE PERSPECTIVE's world (on --mode all set the perspective first, e.g. SimHost).",
+                "terrain is null when no terrain is resident; navmesh is null on a node that composes no navigation solver.",
+                "navmesh.baked is false until a terrain's navmesh is published (the provider is then the straight-line fallback).",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "get world geo origin and spatial grid extent"),

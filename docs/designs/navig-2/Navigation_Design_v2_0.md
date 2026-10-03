@@ -1,4 +1,23 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host)
+current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; the rest is the
+  architectural contract.
+stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
+  the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
+known-rot: the top banner supersedes any Y-up wording (CE-3011).
+related-designs:
+  - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver).
+  - docs/designs/brain-death/BD1-DESIGN.md — owns the Brain lifecycle; §1.1 is why MoveToExecutor.OnExit's STOP must reach the
+    Muscle (the egress publishes a Mode None with an IntentId since CE-3026).
+-->
 # Navigation Subsystem — Architectural Design
+
+> ⭐⭐ **COORDINATE CONTRACT — `2026-10-03` (`CE-3011`, R-182):** every navigation API in this document —
+> `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile` (altitude = **Z**), the fakes and the test
+> navmaps — is **engine space, Z-up** (X east, Y north, Z up). ⛔ Any Y-up wording below is SUPERSEDED. The Recast Y-up
+> swizzle lives only INSIDE `DotRecastNavmeshProvider` / `TerrainWorldGeometrySource`, and at the Stride boundary.
+> 📄 [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §7.1 W7.
 
 > **Status.** **Canonical architectural contract.** This is the single
 > altitude statement of the navigation subsystem's Brain ↔ Muscle (+
@@ -98,6 +117,59 @@ Three key invariants this pipeline preserves:
 3. **The `RouteHandle` is the through-line identifier.** When Brain wants to introspect or refer back to a path, it allocates a nonzero `int` handle, sends it via `NavigationIntent`, and both Brain (in `BrainPathRegistry`) and Muscle (in its `TrajectoryPoolManager`) key the path's data by the same value. For pure fire-and-forget `MoveTo`, Brain passes `RouteHandle = 0` and never sees a handle.
 
 ### 3.1 Default flow — `MoveTo` (fire-and-forget)
+
+> ⭐⭐ **AS-BUILT — `2026-10-03` (`CE-3026`): ONE path for a `MoveTo` on every host.** The ASCII flow below is the
+> original intent shape (the action id riding the intent). ⭐ As built, the Brain's `LocomotionChannel` **never leaves
+> the Brain node** (R-180), and the Brain→Muscle command is the replicated **`NavigationIntent`** component, whose
+> `Mode` says how to move:
+>
+> | `NavigationMode` | meaning on the vehicle side |
+> |---|---|
+> | `DirectPoint` | ⭐ **straight** to the point — no planning (flee, debug click, test hooks) |
+> | `PathToPoint` *(new, wire `NAV_PATH_TO_POINT = 5`)* | ⭐ **plan first**; drive the planned path; **no path ⇒ `FailedUnreachable`, the vehicle stops** — ⛔ never a straight fallback |
+>
+> 🔴 **Why it changed:** `NavigationIntentBridgeSystem` used to plan a `MoveTo` by reading the Brain's channel
+> directly. That works only where Brain and Muscle share one world (the editor); on a cluster the channel never
+> arrives, the intent said `DirectPoint`, and SimHost drove a tank straight through a building (live run
+> `2026-10-03`, `tt-nav-los`). ⭐ Now the editor and a cluster run the **same** code; only the transport differs.
+> The intent also carries `LayerMask` + `BackendForce` (new on the wire) and `Flags`/`MaxReplans`/`ReverseAllowed`
+> (sent, previously dropped by the ingress, as were `RouteHandle` and the `RoadGraph` mode).
+>
+> ⭐ **The STOP crosses the wire too.** `MoveToExecutor.OnExit` writes `Mode None` with a new `IntentId` (BD1-DESIGN §1.1);
+> the egress used to skip every `Mode None`, so on a cluster the vehicle kept driving after the Brain finished or aborted.
+> It now skips only the never-commanded default (`IntentId 0`).
+
+```mermaid
+sequenceDiagram
+    participant BT as BTree MoveTo (Brain)
+    participant EX as MoveToExecutor (Brain)
+    participant W as NavigationIntent egress/ingress
+    participant BR as NavigationIntentBridgeSystem (vehicle side)
+    participant SO as PathfindingSolverSystem
+    participant RS as EngineBackedPathResponseSystem
+    participant MZ as PathfindingResultMaterializationSystem
+    participant NE as NavigationExecutionSystem
+    BT->>EX: LocomotionChannel{MoveTo, MoveToParams}
+    EX->>W: NavigationIntent{PathToPoint, IntentId++, LayerMask, BackendForce}
+    Note over W: DDS on a cluster (TransientLocal, R-136) · same world in the editor
+    W->>BR: NavigationIntent (delta query)
+    BR->>BR: NavState.Mode=None (wait, no straight start) · infantry joins the crowd
+    BR->>SO: PathfindingRequestEvent{NavLayerMask=NavLayerSelection.For}
+    SO-->>RS: PathfindingResultEvent
+    alt reachable
+        RS->>RS: NavState=CustomTrajectory
+        SO-->>MZ: corridor + Following
+    else unreachable
+        SO-->>MZ: NavState.Mode=None, Status{IntentId, FailedUnreachable}
+    end
+    NE->>W: NavigationStatus (Arrived / Failed*)
+    W-->>EX: NavigationStatus
+    EX-->>BT: Success / Failure
+```
+
+*What the picture shows that the prose hid:* the Brain's channel stops at `MoveToExecutor` — nothing on the vehicle side
+reads it for a `MoveTo`, which is what makes the editor and the cluster identical. A node with no path solver (Stride's
+vehicles, which plan in `VehicleNavigationIntentSystem`) publishes a request nobody answers and plans itself.
 
 The simplest and most common case: a BTree wants the entity to go somewhere and only cares about whether it arrived.
 
@@ -639,6 +711,13 @@ enum KinematicsMode : byte {
 
 > ⛔ **`CE-498` (`2026-10-01`) — the bridge must see an intent written while the entity is still CONSTRUCTING.** It reads through a DELTA query ("components changed since my last scan"). With the query's default lifecycle filter (Active only), an intent written before activation was never applied: becoming Active changes no component version, so the delta never revisited the entity — a spawn-then-move order never moved (measured: `NavState.Mode` stayed `None`). ⭐ The bridge now includes `Constructing` entities; motion still starts at activation (the kinematics run on Active entities only). ⚠ **Open:** the same blind spot exists for a GHOST promoted to Active with an intent already present, and for any delta-query system that assumes activation re-dirties components (15 production delta-query users) — whether activation should bump versions is an engine decision, not made here.
 
+> ⭐ **AS-BUILT `2026-10-03` (`CE-3026`):** the bridge keys a `MoveTo` on **`NavigationIntent.Mode == PathToPoint`
+> and a new `IntentId`**, not on the Brain's `ActionInstanceId` (see §3.1). Every kind publishes the path request; an
+> infantry agent (no `VehicleState`) on a crowd host also joins the crowd (retried every tick until the crowd exists —
+> STR-D21 F6). `NavState` is NOT required for `PathToPoint` (crowd infantry has none). The other channel actions
+> below (`PlanRoute`/`FollowPath`/`FetchPathDetails`/`ReleasePath`) still read the channel and are dormant — no
+> production writer yet (§13.6).
+
 ```
 on ActionInstanceId mismatch (new intent):
   switch (intent.ActiveAction):
@@ -806,7 +885,7 @@ Interface amended in place: no `INavmeshProvider2` façade. EQS template authors
 }
 ```
 
-**Per-layer separate navmesh**: each `NavLayerMask` value bakes a fundamentally separate navmesh with different rasterization parameters (radius, slope, step height). Infantry bake: 0.3 m radius, 60° max slope. Vehicle bake: 1.5 m radius, 20° max slope, 0.1 m step. Naval bake: water-surface polygons only.
+**Per-layer separate navmesh**: each `NavLayerMask` value bakes a fundamentally separate navmesh with different rasterization parameters (radius, slope, step height). Infantry bake: 0.3 m radius, 60° max slope. Vehicle bake: **1.8 m** radius (the widest hull's half-width — `CE-3027`, `2026-10-03`; ⛔ SUPERSEDED: 1.5 m, narrower than a 3.6 m-wide hull), 20° max slope, 0.1 m step. Naval bake: water-surface polygons only.
 
 `INavmeshProvider` implementation maintains an internal lookup table `{ NavLayerMask → dtNavMesh }` and dispatches queries against the right mesh per `layerMask` argument. The API surface stays unified — only baking diverges.
 

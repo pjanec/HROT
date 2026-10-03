@@ -33,6 +33,12 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Navigate to a target road-graph node using the road network.</summary>
         RoadGraph = 4,
+        /// <summary>
+        /// ⭐ CE-3026 — FIND A PATH to <see cref="NavigationIntent.FinalDestination"/> (the vehicle side's solver), then
+        /// follow it. ⛔ No straight-line fallback: no path ⇒ <c>NavigationStatus.Result = FailedUnreachable</c>.
+        /// Written by <c>MoveToExecutor</c>; <see cref="DirectPoint"/> keeps meaning "drive straight".
+        /// </summary>
+        PathToPoint = 5,
     }
 
     /// <summary>
@@ -280,6 +286,15 @@ namespace Fdp.Toolkit.Navigation
         /// Set by <c>MoveToExecutor.OnEnter</c>; defaults to 0 (unlimited).
         /// </summary>
         public float ReplanTimeBudget;
+
+        /// <summary>
+        /// ⭐ CE-3026 — the navmesh layer to plan on (copied from <c>MoveToParams.LayerMask</c>); 0 ⇒ the entity's own
+        /// layer (<c>NavLayerSelection</c>). Carried so a MoveTo on the vehicle side keeps what the Brain asked for.
+        /// </summary>
+        public uint LayerMask;
+
+        /// <summary>⭐ CE-3026 — force a backend (0 Auto, 1 NavMesh, 2 RoadGraph, 3 Volumetric), from <c>MoveToParams.BackendForce</c>.</summary>
+        public byte BackendForce;
     }
 
     /// <summary>

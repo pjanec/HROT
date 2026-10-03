@@ -40,5 +40,11 @@ namespace Fdp.Toolkit.Orchestration
         // ⛔ PERMANENT WIRE VALUE (R-42). Ruled 2026-09-17 after 17 was found occupied.
         // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
         BuildTerrainAsset = 18,
+
+        // ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-03 — the next free values in BOTH enums.
+        // ⭐ CE-3021 — the explicit, user-triggered asset operations (docs/DESIGN_Asset_Management.md §5, C4/C5):
+        //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
+        PublishAssets = 19,
+        RefreshAssets = 20,
     }
 }

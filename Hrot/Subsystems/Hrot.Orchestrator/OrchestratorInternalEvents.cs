@@ -20,6 +20,9 @@ internal struct ExecutePrefetchIntent
     public string ScenarioId;
     /// <summary>Active node IDs captured at fan-out time (for PrefetchFiles fan-out).</summary>
     public List<int> ActiveNodeIds;
+    /// <summary>⭐ CE-3020 — each active node's advertised capability tokens, so the saga knows which asset kinds each
+    /// node needs or authors and where they live (docs/DESIGN_Asset_Management.md §4, §7.3a). Null = none known.</summary>
+    public Dictionary<int, string[]>? NodeCapabilities;
 }
 
 /// <summary>

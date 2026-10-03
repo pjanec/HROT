@@ -11,7 +11,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Ingress translator: receives <see cref="DdsAnimationChannelIntent"/> from DDS
 /// and updates only the Brain-authored intent fields on the Muscle ghost's
 /// <see cref="AnimationChannel"/> component.
-/// Muscle-local fields (DispatchedInstanceId, Status, State) are preserved via read-modify-write.
+/// The Muscle's report is the separate <see cref="AnimationChannelStatus"/> (CE-513 / R-180), so nothing here is Muscle-owned.
 /// </summary>
 internal sealed class AnimationChannelIntentIngressTranslator : INetworkTranslator
 {
@@ -48,7 +48,7 @@ internal sealed class AnimationChannelIntentIngressTranslator : INetworkTranslat
     }
 
     /// <summary>
-    /// Updates only the intent fields; preserves Muscle-local fields via read-modify-write.
+    /// Updates only the intent fields; the request component holds only Brain-written fields since CE-513 (R-180).
     /// Exposed internal for unit testing without a live DDS reader.
     /// </summary>
     internal unsafe void ProcessSample(
@@ -56,7 +56,7 @@ internal sealed class AnimationChannelIntentIngressTranslator : INetworkTranslat
     {
         if (!_entityMap.TryGetEntity(msg.EntityId, out var entity)) return;
 
-        // Read existing component to preserve Muscle-local fields.
+        // Read-modify-write keeps any field the message does not carry.
         AnimationChannel updated = view.HasComponent<AnimationChannel>(entity)
             ? view.GetComponentRO<AnimationChannel>(entity)
             : default;
@@ -72,7 +72,6 @@ internal sealed class AnimationChannelIntentIngressTranslator : INetworkTranslat
         DdsAnimationChannelIntent* pMsg = &m;
         Buffer.MemoryCopy(pMsg->ActionParams, pUpd->Params, 32, 32);
 
-        // DispatchedInstanceId, Status, State are NOT touched.
         cmd.SetComponent(entity, updated);
         ReceivedSampleCount++;
     }

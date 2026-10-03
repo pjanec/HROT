@@ -58,7 +58,10 @@ public sealed class TerrainLoadStepTests : IDisposable
     private string WriteTerrainDefinition(string name, string? roadNetworkRelative = null)
     {
         string roads = roadNetworkRelative == null ? "[]" : $"[\"{roadNetworkRelative}\"]";
-        string path = Path.Combine(_terrainDir, $"{name}.json");
+        // ⭐ W12 (2026-10-03) — a terrain is a FOLDER: {staging}/Terrain/<name>/terrain.json.
+        string folder = Path.Combine(_terrainDir, name);
+        Directory.CreateDirectory(folder);
+        string path = Path.Combine(folder, TerrainCatalog.DefinitionFileName);
         File.WriteAllText(path,
             $"{{\"schemaVersion\":1,\"name\":\"{name}\",\"roadNetworks\":{roads}}}",
             new UTF8Encoding(false));
@@ -66,9 +69,12 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
     /// <summary>A two-node road network in the JSON shape <c>RoadNetworkLoader</c> reads.</summary>
-    private string WriteRoadNetwork(string fileName)
+    private string WriteRoadNetwork(string fileName, string terrainName = "kandahar")
     {
-        string path = Path.Combine(_terrainDir, fileName);
+        // The road network lives in the terrain's own folder, beside its definition (W12).
+        string folder = Path.Combine(_terrainDir, terrainName);
+        Directory.CreateDirectory(folder);
+        string path = Path.Combine(folder, fileName);
         // ⚠ The property names are lowercase on purpose — RoadNetworkJson carries explicit
         //   [JsonPropertyName("nodes")] / ("position") / ("p0") … and System.Text.Json is case-SENSITIVE
         //   by default, so PascalCase here binds to nothing and yields a silently EMPTY network.
@@ -186,6 +192,95 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
     // ── the happy path ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ docs/DESIGN_Terrain_World.md §4.1 — a v2 definition naming a WORLD file makes the TerrainWorld
+    /// singleton resident at commit (never at prepare), and the definition remembers the name the scenario
+    /// resolved it by, which is what a save writes back (CE-3015).
+    /// </summary>
+    [Fact]
+    public void AV2DefinitionWithAWorld_PublishesTheTerrainWorld_AndTheResolvedName()
+    {
+        WriteScenarioHeader("kandahar");
+        string folder = Path.Combine(_terrainDir, "kandahar");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+            """{"schemaVersion":2,"name":"self-name","world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+
+        var (handler, holder) = NewHandler();
+        using var world = NewWorld();
+        using (holder)
+        {
+            var intent = Intent();
+            Prepare(handler, intent);
+            Assert.False(world.HasSingletonManaged<TerrainWorld>());
+
+            handler.Commit(intent, world);
+
+            var tw = world.GetSingletonManaged<TerrainWorld>()!;
+            Assert.Single(tw.Prisms);
+            Assert.Equal(10f, tw.SurfaceZ(5, 5, 0f));
+            Assert.Equal("kandahar", TerrainDefinition.ResidentName(world));
+        }
+    }
+
+
+    private sealed class CountingNavmeshFactory : Fdp.Toolkit.Navigation.INavmeshFactory
+    {
+        public int Calls;
+        public int CallingThread;
+        public Fdp.Toolkit.Navigation.INavmeshProvider? Build(TerrainWorld world)
+        {
+            Calls++;
+            CallingThread = Environment.CurrentManagedThreadId;
+            return new Fdp.Toolkit.Navigation.Fake.FakeNavmeshProvider();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ W6 — docs/DESIGN_Terrain_World.md §4.1: on a navigation-solver node the bake runs in PREPARE and the node's
+    /// navmesh switches at COMMIT, never before; a node that attached no factory bakes nothing.
+    /// </summary>
+    [Fact]
+    public void AnAttachedNavmesh_IsBakedAtPrepare_AndPublishedAtCommit_W6()
+    {
+        string folder = Path.Combine(_terrainDir, "blocks");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+            """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var factory = new CountingNavmeshFactory();
+        var navmesh = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        residency.AttachNavmesh(factory, navmesh);
+
+        var staged = residency.Prepare("blocks");
+        Assert.Equal(1, factory.Calls);
+        Assert.False(navmesh.HasBakedMesh);          // ⛔ not before commit
+
+        residency.Commit(world, staged);
+        Assert.True(navmesh.HasBakedMesh);
+
+        residency.Unload(world);
+        Assert.False(navmesh.HasBakedMesh);          // unload reverts to straight lines
+
+        // A node that attached nothing never bakes.
+        var plain = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        plain.Commit(world, plain.Prepare("blocks"));
+        Assert.Equal(1, factory.Calls);
+    }
 
     [Fact]
     public void ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection()

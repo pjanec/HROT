@@ -485,6 +485,12 @@
         /// <summary><c>AnimationMontageQueueState</c> – queue playback progress (replicable, NoScenario).</summary>
         public const int AnimationMontageQueueState = 225;
 
+        /// <summary><c>AnimationChannelStatus</c> – the Muscle's report on the AnimationChannel request (replicable, NoScenario). CE-513 / R-180.</summary>
+        public const int AnimationChannelStatus = 226;
+
+        /// <summary><c>LookAtChannelStatus</c> – the Muscle's report on the LookAtChannel request (replicable, NoScenario). CE-513 / R-180.</summary>
+        public const int LookAtChannelStatus = 227;
+
         /// <summary><c>LookAtExecutorState</c> – internal look-at execution state (not replicable, NoScenario).</summary>
         public const int LookAtExecutorState = 237;
 
@@ -497,7 +503,7 @@
         /// <summary><c>FakeAnimBackendState</c> – fake backend per-entity state (not replicable, NoScenario). Placeholder for Phase 1.</summary>
         public const int FakeAnimBackendState = 240;
 
-        // IDs 215–219, 226–236, 241–255 are reserved for future animation/toolkit components.
+        // IDs 215–219, 228–236, 241–255 are reserved for future animation/toolkit components.
 
         // ---- Squad coordination components (256–299) ----------------------------
 
@@ -558,6 +564,20 @@
         /// load, so persisting it would create a second place the truth can live — and singletons ARE
         /// written to a recording unless the policy excludes them.</summary>
         public const int TerrainDefinition = 301;
+
+        /// <summary><c>TerrainWorld</c> — ECS SINGLETON holding the parsed terrain WORLD (prisms, floor slabs,
+        /// ramps, surface areas) every derived query reads: navmesh build, movement surface Z, line of sight,
+        /// the 2D map. ⛔ <c>[DataPolicy(NoScenario | NoReplay)]</c> for the same reason as
+        /// <see cref="TerrainDefinition"/>. 304 is free by a census of every <c>*Ids*.cs</c> and every
+        /// <c>[ComponentId(30x)]</c> (only a test uses 310) — <c>R-44</c>.
+        /// 📄 docs/DESIGN_Terrain_World.md §3.</summary>
+        public const int TerrainWorld = 304;
+
+        /// <summary><c>SensorMount</c> — an entity's per-posture sensor EYE heights (standing / crouched / prone),
+        /// projected from the TKB <c>SensorCapabilitiesDto</c>; the 3-D sight line starts there
+        /// (🔒 R-182 <i>"sensor height must follow posture"</i>). 305 is free by a census of every
+        /// <c>*Ids*.cs</c> and every <c>[ComponentId(30x)]</c> — <c>R-44</c>. 📄 docs/DESIGN_Terrain_World.md §7.1 W5.</summary>
+        public const int SensorMount = 305;
 
         /// <summary><c>BrainInterrupts</c> — ⭐ <b>the entity-fact tail split out of <c>BrainBlackboard</c></b>
         /// by `O2` (2026-09-20): <c>ExpectedThreatLevel</c> and the edge-triggered interrupt registers.

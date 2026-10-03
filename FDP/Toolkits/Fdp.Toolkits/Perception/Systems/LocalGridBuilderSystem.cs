@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Terrain;
 
 namespace Fdp.Toolkit.Perception.Systems
 {
@@ -71,6 +73,11 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly Dictionary<Entity, Vector2> _prevPositions;
         private int _lastEntityCount = -1;
 
+        // ⭐ CE-3018 — the terrain the grid is fitted to, and the placement it had at composition.
+        private readonly Func<TerrainWorld?>? _terrainSource;
+        private readonly GridGeometry _defaultGeometry;
+        private TerrainWorld? _fittedTo;
+
         // Maps entity Index → the currently live entity occupying that index.
         // Used during the incremental path to detect and evict stale grid slots left
         // when an old entity is destroyed and a new one reuses the same index at a
@@ -81,9 +88,14 @@ namespace Fdp.Toolkit.Perception.Systems
         /// Initialises the builder with a copy of the module's private grid.
         /// Ownership of the underlying native memory remains with <see cref="PerceptionModule"/>.
         /// </summary>
-        public LocalGridBuilderSystem(SpatialHashGrid grid)
+        /// <param name="terrainSource">⭐ CE-3018 (W9) — the live resident terrain (<see cref="TerrainWorldSource.Live"/>). When it
+        /// changes, this system — the perception grid's only writer, on the perception thread — REBASES the grid to cover it
+        /// and rebuilds. Null ⇒ the grid keeps its composition-time placement (a host with no terrain).</param>
+        public LocalGridBuilderSystem(SpatialHashGrid grid, Func<TerrainWorld?>? terrainSource = null)
         {
             _grid = grid;
+            _terrainSource = terrainSource;
+            _defaultGeometry = new GridGeometry(grid.OriginX, grid.OriginY, grid.CellSize);
             _prevPositions = new Dictionary<Entity, Vector2>();
             _liveByIndex   = new Dictionary<int, Entity>();
         }
@@ -92,6 +104,22 @@ namespace Fdp.Toolkit.Perception.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             var query = view.Query().With<SimTransform>().Build();
+
+            // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: VisionBroadphaseSystem's copy sees the shared
+            //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
+            if (_terrainSource != null)
+            {
+                var world = _terrainSource();
+                if (!ReferenceEquals(world, _fittedTo))
+                {
+                    _fittedTo = world;
+                    var g = SpatialGridFit.For(new System.Numerics.Vector2(_defaultGeometry.OriginX, _defaultGeometry.OriginY),
+                        _grid.Width, _grid.Height, _defaultGeometry.CellSize, world);
+                    _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+                    FullRebuild(view, query);
+                    return;
+                }
+            }
 
             // ── Count pass — O(n) reads, no grid mutations ────────────────────
             // Count entities and detect whether the entity set has changed.

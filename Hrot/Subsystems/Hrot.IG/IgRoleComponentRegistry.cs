@@ -32,6 +32,7 @@ public static class IgRoleComponentRegistry
         //    Max while this node kept its own TKB-seeded one. The EntityDamage descriptor now carries
         //    Current+Max and the ingress writes the real Health component registered below.
         world.RegisterComponent<PerceptionReceptor>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
         world.RegisterComponent<TargetMemory>();
         world.RegisterComponent<WeaponState>();
         world.RegisterComponent<Health>();

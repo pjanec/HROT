@@ -7,6 +7,7 @@ namespace Fdp.Toolkit.Navigation
     /// <summary>
     /// Provides 3-D path planning for entities that move through volumetric space
     /// (e.g., aircraft, drones). Implementations must be thread-safe.
+    /// ⭐ All positions are engine space, <b>Z-up</b> (X east, Y north, altitude = Z) — R-182 / W7.
     /// </summary>
     public interface IVolumetricPathProvider
     {

@@ -11,7 +11,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Executor for LookAtActionIds.LookAtPoint (ANC-P3-02, DD-1 §8).
     /// Stages look-at point intent in LookAtExecutorState for bridge to apply.
     /// </summary>
-    public sealed class LookAtPointExecutor : IActionExecutor<LookAtChannel>
+    public sealed class LookAtPointExecutor : IActionExecutor<LookAtChannelWork>
     {
         private readonly IAnimationBackend _backend;
 
@@ -20,10 +20,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _backend = backend;
         }
 
-        public unsafe void OnEnter(Entity entity, ref LookAtChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref LookAtChannelWork channel, EntityRepository world)
         {
             LookAtPointParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(LookAtPointParams*)src;
 
             if (world.HasComponent<LookAtExecutorState>(entity))
@@ -37,12 +37,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.TargetType = 1; // point
             }
 
-            channel.Status = NodeStatus.Running;
+            channel.Report.Status = NodeStatus.Running;
         }
 
-        public void Execute(Entity entity, ref LookAtChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref LookAtChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref LookAtChannel channel, EntityRepository world)
+        public void OnExit(Entity entity, ref LookAtChannelWork channel, EntityRepository world)
         {
             if (world.HasComponent<LookAtExecutorState>(entity))
             {
@@ -56,7 +56,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Executor for LookAtActionIds.LookAtEntity (ANC-P3-02, DD-1 §8).
     /// Stores target entity ID in LookAtExecutorState for resolution by bridge.
     /// </summary>
-    public sealed class LookAtEntityExecutor : IActionExecutor<LookAtChannel>
+    public sealed class LookAtEntityExecutor : IActionExecutor<LookAtChannelWork>
     {
         private readonly IAnimationBackend _backend;
 
@@ -65,10 +65,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _backend = backend;
         }
 
-        public unsafe void OnEnter(Entity entity, ref LookAtChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref LookAtChannelWork channel, EntityRepository world)
         {
             LookAtEntityParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(LookAtEntityParams*)src;
 
             if (world.HasComponent<LookAtExecutorState>(entity))
@@ -81,12 +81,12 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.TargetType = 2; // entity
             }
 
-            channel.Status = NodeStatus.Running;
+            channel.Report.Status = NodeStatus.Running;
         }
 
-        public void Execute(Entity entity, ref LookAtChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref LookAtChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref LookAtChannel channel, EntityRepository world)
+        public void OnExit(Entity entity, ref LookAtChannelWork channel, EntityRepository world)
         {
             if (world.HasComponent<LookAtExecutorState>(entity))
             {
@@ -102,7 +102,7 @@ namespace Hrot.MuscleCharacter.Animation.Executors
     /// Sets blend-out intent in LookAtExecutorState.
     /// Does NOT require CanAim capability.
     /// </summary>
-    public sealed class ReleaseLookExecutor : IActionExecutor<LookAtChannel>
+    public sealed class ReleaseLookExecutor : IActionExecutor<LookAtChannelWork>
     {
         private readonly IAnimationBackend _backend;
 
@@ -111,10 +111,10 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             _backend = backend;
         }
 
-        public unsafe void OnEnter(Entity entity, ref LookAtChannel channel, EntityRepository world)
+        public unsafe void OnEnter(Entity entity, ref LookAtChannelWork channel, EntityRepository world)
         {
             ReleaseLookParams p;
-            fixed (byte* src = channel.Params)
+            fixed (byte* src = channel.Request.Params)
                 p = *(ReleaseLookParams*)src;
 
             if (world.HasComponent<LookAtExecutorState>(entity))
@@ -124,11 +124,11 @@ namespace Hrot.MuscleCharacter.Animation.Executors
                 state.TargetType = 0; // releasing
             }
 
-            channel.Status = NodeStatus.Success;
+            channel.Report.Status = NodeStatus.Success;
         }
 
-        public void Execute(Entity entity, ref LookAtChannel channel, EntityRepository world, float dt) { }
+        public void Execute(Entity entity, ref LookAtChannelWork channel, EntityRepository world, float dt) { }
 
-        public void OnExit(Entity entity, ref LookAtChannel channel, EntityRepository world) { }
+        public void OnExit(Entity entity, ref LookAtChannelWork channel, EntityRepository world) { }
     }
 }

@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
                     Destination   = new Vector3(destination.X, destination.Y, 0f),
                     ArrivalRadius = arrivalRadius,
                     Speed         = speed,
+                    LayerMask     = (uint)NavLayerMask.Vehicle,
+                    BackendForce  = (byte)NavigationBackend.Navmesh,
                 };
                 Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
             }
@@ -57,7 +59,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
         /// <summary>
         /// MOD1-P1T2 T2: <see cref="MoveToExecutor.OnEnter"/> must increment
-        /// <see cref="NavigationIntent.IntentId"/>, set Mode to DirectPoint, and copy the
+        /// <see cref="NavigationIntent.IntentId"/>, set Mode to PathToPoint (CE-3026: a MoveTo is PLANNED), and copy the
         /// raw Cartesian destination directly — no geo conversion.
         /// </summary>
         [Fact]
@@ -73,7 +75,9 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             var intent = world.GetComponent<NavigationIntent>(entity);
 
             Assert.Equal(6u, intent.IntentId);                        // incremented from 5
-            Assert.Equal(NavigationMode.DirectPoint, intent.Mode);    // set to DirectPoint
+            Assert.Equal(NavigationMode.PathToPoint, intent.Mode);    // ⭐ CE-3026 — planned, never straight
+            Assert.Equal((uint)NavLayerMask.Vehicle, intent.LayerMask);              // ⭐ rides the intent across the wire
+            Assert.Equal((byte)NavigationBackend.Navmesh, intent.BackendForce);
             Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(5f,  intent.ArrivalRadius);
@@ -185,7 +189,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             // Verify OnEnter set Mode and speed.
             var intentAfterEnter = world.GetComponent<NavigationIntent>(entity);
-            Assert.Equal(NavigationMode.DirectPoint, intentAfterEnter.Mode);
+            Assert.Equal(NavigationMode.PathToPoint, intentAfterEnter.Mode);
             Assert.Equal(10f, intentAfterEnter.TargetSpeed);
 
             executor.OnExit(entity, ref channel, world);

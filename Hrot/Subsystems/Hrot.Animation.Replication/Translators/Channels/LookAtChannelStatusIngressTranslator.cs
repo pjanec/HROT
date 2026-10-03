@@ -51,14 +51,12 @@ internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
     {
         if (!_entityMap.TryGetEntity(msg.EntityId, out var entity)) return;
 
-        LookAtChannel updated = view.HasComponent<LookAtChannel>(entity)
-            ? view.GetComponentRO<LookAtChannel>(entity)
-            : default;
-
-        updated.Status = (NodeStatus)msg.Status;
-        updated.DispatchedInstanceId = msg.DispatchedInstanceId;
-
-        cmd.SetComponent(entity, updated);
+        // ⭐ CE-513 / R-180 — the report is its own component; the Brain's request is not touched.
+        cmd.SetComponent(entity, new LookAtChannelStatus
+        {
+            Status = (NodeStatus)msg.Status,
+            DispatchedInstanceId = msg.DispatchedInstanceId,
+        });
         ReceivedSampleCount++;
     }
 

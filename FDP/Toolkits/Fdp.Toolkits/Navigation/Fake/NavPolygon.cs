@@ -4,7 +4,7 @@ namespace Fdp.Toolkit.Navigation.Fake
 {
     /// <summary>
     /// A convex (or simple) polygon in the fake navmesh. Vertices listed in order.
-    /// Walkability checks use the (X, Z) plane.
+    /// Engine space is Z-up: walkability checks use the (X, Y) ground plane and Z is the surface elevation.
     /// </summary>
     public sealed class NavPolygon
     {

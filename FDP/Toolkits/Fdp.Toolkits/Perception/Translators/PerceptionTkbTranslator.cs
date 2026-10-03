@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Perception.Translators
             yield return typeof(TargetMemory);
             yield return typeof(SensorContactList);
             yield return typeof(ActiveSensorTracks);
+            yield return typeof(SensorMount);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -45,6 +46,20 @@ namespace Fdp.Toolkit.Perception.Translators
                     HearingRange     = dto.HearingRange,
                     FieldOfViewCos   = fovCos
                 });
+
+            // ⭐ Posture eye heights — only when the template states any; otherwise the LOS strategy's default
+            // soldier mount applies (docs/DESIGN_Terrain_World.md §7.1 W5).
+            if ((dto.EyeHeightStanding > 0f || dto.EyeHeightCrouched > 0f || dto.EyeHeightProne > 0f)
+                && repo.IsComponentTypeRegistered<SensorMount>() && !repo.HasComponent<SensorMount>(entity))
+            {
+                float standing = dto.EyeHeightStanding > 0f ? dto.EyeHeightStanding : 1.7f;
+                repo.AddComponent(entity, new SensorMount
+                {
+                    Standing = standing,
+                    Crouched = dto.EyeHeightCrouched > 0f ? dto.EyeHeightCrouched : standing,
+                    Prone    = dto.EyeHeightProne    > 0f ? dto.EyeHeightProne    : standing,
+                });
+            }
 
             if (dto.VisionRange > 0f)
             {

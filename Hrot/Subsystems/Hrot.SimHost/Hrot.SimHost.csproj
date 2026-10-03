@@ -42,6 +42,8 @@
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- W6 (docs/DESIGN_Terrain_World.md §4.1): SimHost solves navigation over a navmesh baked from the terrain world. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit (contracts, StatusCode, TkClusterStateChangedEvent) -->
 

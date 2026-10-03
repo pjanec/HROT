@@ -6,8 +6,10 @@ namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
     /// Navmesh query interface consumed by EQS tests, generators, and navigation systems.
-    /// All coordinates are in 3-D world space; for flat-earth queries map 2D (x, y_north) as
-    /// <c>new Vector3(x, 0f, y_north)</c> and extract back via <c>(v.X, v.Z)</c>.
+    /// ⭐ All coordinates are in the engine's <b>Z-up</b> 3-D world space — X east, Y north, Z up (R-182,
+    /// DESIGN_Terrain_World W7). For flat-earth queries use <c>new Vector3(x, y_north, 0f)</c> and read the ground-plane
+    /// position back as <c>(v.X, v.Y)</c>. An implementation whose solver is Y-up (DotRecast) converts INSIDE itself,
+    /// for every input and every output; callers never swizzle.
     /// </summary>
     [ComponentId(GlobalComponentIds.INavmeshProvider)]
     public interface INavmeshProvider

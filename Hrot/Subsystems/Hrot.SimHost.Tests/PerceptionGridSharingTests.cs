@@ -49,4 +49,19 @@ public sealed class PerceptionGridSharingTests
         module.Dispose();
         module.Dispose();   // idempotent
     }
+
+    /// <summary>
+    /// ⭐ CE-3018 — the factory every terrain host uses (SimHost, editor ≡ CGF, Stride) composes a perception grid that
+    /// FOLLOWS the resident terrain. A module built with the bare constructor does not — that is the silent default
+    /// the factory exists to remove (`AX-012`).
+    /// </summary>
+    [Fact]
+    public void TheTerrainHostFactory_ComposesAGridThatFollowsTheTerrain_CE3018()
+    {
+        using var world = new EntityRepository();
+        using var module = CognitiveSpatialModule.ForTerrainHost(world);
+        Assert.True(module.FollowsTerrain);
+        using var bare = new CognitiveSpatialModule();
+        Assert.False(bare.FollowsTerrain);
+    }
 }

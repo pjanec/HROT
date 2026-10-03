@@ -79,20 +79,28 @@ public static class EditorCapabilities
         //    ⭐ On the INJECTED arm the muscle tier also declares these (Stride resolves them into
         //    this plan); Resolve de-duplicates by Key in declaration order, so the Brain-side
         //    instance below wins — the same first-wins rule DistinctByType already encoded.
+    /// <param name="navigationSolver">⭐ <c>CE-3017</c> — SimHost's own <see cref="SimHostCapabilities.NavigationSolver"/>
+    /// (never a copy, <c>R-174</c>), built over the muscle pack's trajectory pool and the editor's navmesh. ⛔ Required:
+    /// the role DECLARES <c>NavigationSolver</c>, and a plan without it left every editor path request unanswered.</param>
     public static NodeCompositionPlan BuildDefault(
         CgfLogicPack cgfPack,
         SimHostCoreLogicPack musclePack,
-        CognitiveSpatialModule perceptionModule)
+        CognitiveSpatialModule perceptionModule,
+        SimHostCapabilities.NavigationSolver navigationSolver)
     {
         if (cgfPack is null)          throw new ArgumentNullException(nameof(cgfPack));
         if (musclePack is null)       throw new ArgumentNullException(nameof(musclePack));
         if (perceptionModule is null) throw new ArgumentNullException(nameof(perceptionModule));
+        if (navigationSolver is null) throw new ArgumentNullException(nameof(navigationSolver));
 
+        // ⭐ CE-3017 — the solver is APPENDED after the EQS solver: it contributes modules only (no PopulateSystems), so
+        //    every system sequence the order rails pin is unchanged, and every module registered before it keeps its slot.
         return new NodeCompositionPlan()
             .Capability(NodeRole.Brain,        new Brain(cgfPack))
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
             .Capability(NodeRole.Perception,   new PerceptionSpatial(perceptionModule))
             .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
+            .Capability(NodeRole.NavigationSolver, navigationSolver)
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.Brain,        new EqsResultUpdateCapability());
     }

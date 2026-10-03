@@ -178,12 +178,9 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,
-  patchJson:{...}}` (unregistered keys ignored). ⭐ **Works from ANY perspective** *(`CE-3003`)*: what the
-  active node owns lands here, the rest is sent to its owner — read `write.route` (`direct` · `requested` ·
-  `noMatch`), and for `requested` read the result back from the **owner's** perspective after a tick.
+  patchJson:{...}}` (authority-aware; unregistered keys ignored).
 - Escape hatch (any component field): `edit_component {networkId, componentType, patch:{...}}` (validated;
-  invalid values rejected with 400). ⛔ **Owner only** — on a node that does not own the component it refuses
-  with 400 rather than edit a replica the owner overwrites; use `patch_attribute`, or switch perspective.
+  invalid values rejected with 400).
 
 ### I. Author a scenario
 1. `list_entity_types` → choose a `tkbType`. `get_entity_type {tkbType}` for its components.
@@ -356,11 +353,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).
   Notes: Use patch_attribute to apply a patch using these paths.; Paths not in registeredPaths are silently ignored by patch_attribute..
   Example: `get_attributes_schema({})` — discover patchable attribute paths before calling patch_attribute.
-- **`patch_attribute`** — Apply a JSON attribute patch to an entity. Req `networkId` (number), Req `patchJson`. Returns Updated entity dump on success.
-  Notes: Authority-aware; unregistered keys are silently ignored (no error).; patchJson may be a nested JSON object like {"Name":"Alpha"} or a JSON string..
+- **`patch_attribute`** — Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not. Req `networkId` (number), Req `patchJson`. Returns Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.
+  Notes: Unregistered keys are silently ignored (no error) — write.route is then noMatch.; CE-3003: a key on a component this node does NOT own is sent to its owner as an UpdateEntityAttributeRequest (the JSON arm the owner already applies) — write.route is requested, and the change is in the OWNER's world, not yet in this dump: read it back from the owner's perspective after a tick. Components this node owns in the same patch are applied here.; CE-3003 / CE-191: a key on a component this node does not own and no network descriptor carries (a node-local component, or a networkless host) has no owner to ask — the route REFUSES with 400 instead of answering ok.; patchJson may be a nested JSON object like {"Name":"Alpha"} or a JSON string..
   Example: `patch_attribute({"networkId":1000,"patchJson":{"Name":"Alpha"}})` — rename entity 1000 to Alpha.
 - **`edit_component`** — StructEdit escape hatch for arbitrary component fields. Req `networkId` (number), Req `componentType` (string), Req `patch` (object). Returns Updated entity component state. Invalid values → 400, component unchanged.
-  Notes: Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.; Invalid values → 400, component unchanged.; For fields registered in the attribute schema, prefer patch_attribute..
+  Notes: Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.; Invalid values → 400, component unchanged.; CE-3003: a component another node owns (a network descriptor carries it and this node holds no authority) is REFUSED with 400 — writing it here would change only this node's replica, which the owner overwrites. Use patch_attribute (it asks the owner) or select the owner's perspective (get_entity_ownership names it).; For fields registered in the attribute schema, prefer patch_attribute..
   Example: `edit_component({"networkId":1000,"componentType":"SimTransform","patch":{"Position":{"X":999,"Y":0,"Z":0}}})` — set SimTransform Position.X to 999 for entity 1000.
 
 ### Group M (TKB) — Entity-type catalog
@@ -373,8 +370,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`geo_to_local`** — Convert geographic coordinates to local ENU {x,y,z}. Req `lat` (number), Req `lon` (number), Req `alt` (number), `headingDeg?` (number). Returns { x, y, z, rotation? } — optional rotation if headingDeg was provided.
   Notes: Optional headingDeg → adds rotation quaternion to response..
   Example: `geo_to_local({"lat":50.0755,"lon":14.4378,"alt":200})` — convert Prague geo coords to local ECS metres.
-- **`get_world_info`** — World metadata: geo origin, spatial grid extent. terrain and navmesh are null in editor mode. No params. Returns { geo:{origin:{lat,lon,alt}}, spatialGrid:{...extent}, terrain:null, navmesh:null }
-  Notes: terrain and navmesh are null in editor mode..
+- **`get_world_info`** — World metadata: geo origin, the perception and collider grids (live, placed over the terrain), the resident terrain and the navmesh. No params. Returns { geo:{origin:{lat,lon,alt}}, spatialGrid:{cellSize,originX,originY,width,height,extent}, colliderGrid:{...}, terrain:{name,bounds,groundZ,prisms,walkables,surfaces}|null, navmesh:{provider,baked,version}|null }
+  Notes: Reads the ACTIVE PERSPECTIVE's world (on --mode all set the perspective first, e.g. SimHost).; terrain is null when no terrain is resident; navmesh is null on a node that composes no navigation solver.; navmesh.baked is false until a terrain's navmesh is published (the provider is then the straight-line fallback)..
   Example: `get_world_info({})` — get world geo origin and spatial grid extent.
 - **`local_to_geo`** — Convert local ENU {x,y,z} to geographic coordinates. Req `x` (number), Req `y` (number), Req `z` (number), `rotation?` (object). Returns { lat, lon, alt, headingDeg? } — Heading: North=0°, East=90°.
   Notes: Optional rotation quaternion {x,y,z,w} → adds headingDeg to response.; Heading convention: North=0°, East=90°..

@@ -11,16 +11,16 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
     /// </summary>
     public class NavmeshProviderTests
     {
-        // T-NP1: StubNavmeshProvider.PathCost returns flat-earth Euclidean (XZ) distance.
+        // T-NP1: StubNavmeshProvider.PathCost returns flat-earth Euclidean (XY ground plane, Z-up) distance.
         [Fact]
         public void StubNavmeshProvider_PathCost_ReturnsEuclideanDistance()
         {
             var nav = new StubNavmeshProvider();
-            // 3-4-5 right triangle in the XZ plane; Y is intentionally non-zero to confirm it is ignored.
-            var from = new Vector3(0f, 99f, 0f);
-            var to   = new Vector3(3f, 99f, 4f);
+            // 3-4-5 right triangle in the XY ground plane; Z (altitude) is equal at both ends so it adds nothing.
+            var from = new Vector3(0f, 0f, 99f);
+            var to   = new Vector3(3f, 4f, 99f);
             float cost = nav.PathCost(from, to);
-            Assert.True(Math.Abs(cost - 5f) < 0.001f, "Expected flat-earth XZ distance 5");
+            Assert.True(Math.Abs(cost - 5f) < 0.001f, "Expected flat-earth XY distance 5");
         }
 
         // T-NP2: StubNavmeshProvider.PlanPath returns two waypoints (start + end).
@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var nav  = new StubNavmeshProvider();
             var from = new Vector3(0f, 0f, 0f);
-            var to   = new Vector3(10f, 0f, 5f);
+            var to   = new Vector3(10f, 5f, 0f);
             Span<NavWaypoint> waypoints = stackalloc NavWaypoint[4];
             int count = nav.PlanPath(from, to, waypoints);
             Assert.Equal(2, count);

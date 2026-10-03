@@ -174,6 +174,29 @@ namespace Hrot.Editor
     {
         private const int EditorNodeId = 0;
 
+        /// <summary>
+        /// ⭐ The editor's terrain residency — the one its load chain commits through and the terrain picker
+        /// (W13) switches. 📄 docs/DESIGN_Terrain_World.md §7.3. Null until the cluster handlers are composed.
+        /// </summary>
+        public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
+
+        /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
+        private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
+
+        /// <summary>
+        /// ⭐ CE-3017 — the editor's navmesh: ONE provider shared by the <c>INavmeshProvider</c> singleton and the background
+        /// <c>NavigationSolverModule</c>; each terrain load re-bakes it (<c>TerrainResidency.AttachNavmesh</c>). Same shape as
+        /// SimHost's (docs/DESIGN_Terrain_World.md §7.1 W6) — CGF ≡ editor (R-182).
+        /// </summary>
+        private readonly Fdp.Toolkit.Navigation.SwitchableNavmeshProvider _navmesh = new();
+
+        /// <summary>⭐ CE-3017 — the composed navigation module; its providers go in after kernel Initialize. Null on the
+        /// injected (Stride) arm, which brings its own navigation.</summary>
+        private Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule? _navModule;
+
+        /// <summary>⭐ CE-3017 — the solver capability, kept so its modules join the hot-swappable logic packs.</summary>
+        private SimHostCapabilities.NavigationSolver? _navSolverCapability;
+
         /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
         public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
@@ -540,6 +563,25 @@ namespace Hrot.Editor
         // Separate from adapterBundle.PickerRegistry (which is DrawFrame()-ed by canvas windows)
         // to avoid double-DrawFrame on the same registry instance.
         private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
+        private Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher? _terrainPicker;
+
+        /// <summary>
+        /// W13 — make the picked terrain resident on this node through the same residency the load chain
+        /// commits through. ⛔ A bad terrain is reported, never thrown into the UI loop.
+        /// </summary>
+        private void ApplyPickedTerrain(string name)
+        {
+            try
+            {
+                TerrainResidency?.EnsureTerrain(_world, name);
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
+                    $"[Terrain] Scenario terrain set to '{name}' — saved into the scenario header on the next save.");
+            }
+            catch (Exception ex)
+            {
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Error($"[Terrain] Could not load terrain '{name}': {ex.Message}");
+            }
+        }
 
         // BATCH-42 (MTB2-T8b): Save-As browser dialog host for the New-asset flow.
         private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
@@ -1437,20 +1479,25 @@ namespace Hrot.Editor
             //    unresolved. ⚠ Not carelessness: those DTO types lived in an assembly this one cannot see,
             //    which is why they moved down to Hrot.Core with the step.
             //
-            // ⭐ The editor carries the Brain role: knowledge base (every ECS node) + scenario entities.
-            //   ⛔ No terrain step — nothing here reads the road graph.
-            // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+            // ⭐⭐ CE-3012 (2026-10-03) — the chain is composed from the editor's COMPOSED role
+            //   (EditorCapabilities.DefaultRole: Brain | MuscleGround | Perception | NavigationSolver), not a
+            //   literal Brain: the editor is a one-node cluster that runs kinematics, perception and
+            //   navigation locally, so it loads what those need. ⛔ SUPERSEDED: "No terrain step — nothing here
+            //   reads the road graph" — the editor's CarKinematicsSystem reads it, and its map draws the
+            //   terrain world (R-182). 📄 docs/DESIGN_Terrain_World.md §5, §7.1 W4.
             var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
             {
                 new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
                     tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
             };
+            TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _roadNetworkHolder);
+            editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
 
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
                 scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator));
 
             clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-                Fdp.Core.NodeRole.Brain, editorLoadProviders, _world,
+                EditorCapabilities.DefaultRole, editorLoadProviders, _world,
                 recordingController: rrController,
                 storageDirectory:    isolatedTempRoot,
                 hostLabel:           "Editor"));
@@ -1510,15 +1557,26 @@ namespace Hrot.Editor
             if (MuscleCapabilitiesFactory == null)
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-                perceptionMod    = new CognitiveSpatialModule(
-                    colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
-                        ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
-                        : 0f);
+                // ⭐ 3-D sight through the resident terrain world and a perception grid that follows it — CGF ≡ editor,
+                //    the same factory as SimHost and Stride (R-182; docs/DESIGN_Terrain_World.md §4.3, §4.4, CE-3018).
+                perceptionMod    = CognitiveSpatialModule.ForTerrainHost(_world!);
                 _perceptionMod = perceptionMod;
 
                 muscleInputSystems   = simHostCorePack.InputSystems;
                 muscleSimSystems     = simHostCorePack.SimulationSystems;
                 musclePostSimSystems = simHostCorePack.PostSimulationSystems;
+
+                // ⭐⭐ CE-3017 — the path SOLVER, as SimHost composes it (CE-3006, W6): one navmesh shared by the
+                //    singleton and the background solver, the muscle pack's OWN trajectory pool (two pools ⇒ routes
+                //    resolve into memory the kinematics never read — CE-180), and the live road holder (a
+                //    SlowBackground module cannot read ZoneEnvironmentData). Each terrain load re-bakes the navmesh.
+                var navPool = simHostCorePack.TrajectoryPool;
+                _navModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(
+                    default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh);
+                _navSolverCapability = new SimHostCapabilities.NavigationSolver(_navModule,
+                    () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(
+                        default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh, roadNetworkHolder: _roadNetworkHolder));
+                TerrainResidency?.AttachNavmesh(new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory(), _navmesh);
             }
             else
             {
@@ -1546,7 +1604,7 @@ namespace Hrot.Editor
             //    a null capability registered as if it were real is the silent-default shape this
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
-                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!)
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!, _navSolverCapability!)
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
@@ -1722,6 +1780,10 @@ namespace Hrot.Editor
             if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
             if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
             foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
+            // ⭐ CE-3017 — the solver's modules are registered by its Register hook (SimHost's capability, unchanged), so
+            //    they are not in _capabilityModules; add them so SwitchToExternalAsync uninstalls them with the rest.
+            if (_navSolverCapability != null)
+                foreach (var mod in _navSolverCapability.RegisteredModules) logicPacks.Add(mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -1975,6 +2037,14 @@ namespace Hrot.Editor
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
             actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
+            // ⭐ CE-3024 (E2) — "Load zone" on a terrain zone publishes the CLUSTER op on the orchestration bus; the
+            //    editor's in-process master drains it and runs the PrepareZone/CommitZone round (design §9.6).
+            actionRegistry.Register(GlobalActionIds.LoadZone, (view, target) =>
+            {
+                if (target == Entity.Null || view is not EntityRepository repo) return;
+                var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
+                if (intent is { } i) _orchestrationBus?.PublishManaged(i);
+            });
             actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -2117,6 +2187,10 @@ namespace Hrot.Editor
             // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();
 
+            // ⭐ CE-3017 — the navigation singletons (INavmeshProvider, IPathRegistry) exist only after the module's
+            //    RegisterSystems ran inside Initialize — the same post-Initialize step SimHost takes.
+            _navModule?.RegisterProviders(_world!);
+
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
                 fileService, _world.Bus, _orchestrationBus!, _world, _kernel, logicPacks,
@@ -2165,6 +2239,10 @@ namespace Hrot.Editor
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
                 OrchestrationConstants.ResolveStagingRoot());
+            // ⭐ CE-3021 — the editor's offline master answers publish / refresh too (silent-default rule).
+            var offlineMaster = _clusterMaster!;
+            offlineMaster.AssetSync = new Hrot.Orchestrator.AssetSyncService(
+                _storageGateway!, ClusterConfiguration.Default.NasBasePath, offlineMaster.ActiveNodeCapabilitySnapshot);
             _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
             _fileDialogService = FileDialogServiceFactory.Create();
@@ -4153,6 +4231,14 @@ namespace Hrot.Editor
             _iconProvider = adapterBundle.IconProvider;
             _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 
+            // ⭐ W13 (2026-10-03) — the scenario's terrain picker, the SAME class CGF composes (CGF == editor).
+            //   📄 docs/DESIGN_Terrain_World.md §7.3.
+            _terrainPicker = new Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher(
+                openPicker:      _shellPickers.OpenPicker,
+                listTerrains:    () => TerrainResidency?.Catalog.List() ?? Array.Empty<string>(),
+                residentTerrain: () => Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world),
+                applyTerrain:    ApplyPickedTerrain);
+
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
@@ -4892,6 +4978,7 @@ namespace Hrot.Editor
                     NewAsset:      () => newAssetLauncher?.Open(),
                     // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
                     NewProduct:    newAssetLauncher != null ? p => newAssetLauncher.Open(p) : null,
+                    PickTerrain:   () => _terrainPicker?.Open(),
                     // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
                     //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
                     CompileReload: () => ReloadActiveAiDocument(

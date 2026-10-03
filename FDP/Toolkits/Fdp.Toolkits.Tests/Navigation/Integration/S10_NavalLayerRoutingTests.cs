@@ -25,12 +25,11 @@ namespace Fdp.Toolkit.Navigation.Tests.Integration
         [Fact]
         public void S10_NavalEntity_RoutesOnWaterLayer_AndArrives()
         {
-            // LoadNaval: 3 polygons centred at (5,5), (15,5), (25,5) in XZ plane.
-            // Harness positions: Vector2(x,y) -> Vector3(x,y,0). PointInPolygon uses X,Z.
-            // Vector2(5,5) -> Vector3(5,5,0): PointInPolygon(X=5, Z=0) on polygon 0 (X=0..10, Z=0..10) does not match.
-            // Use Vector2(5,0) so Vector3(5,0,0): X=5 in [0..10], Z=0 in [0..10] -> inside polygon 0.
-            var e = _h.SpawnNaval(new Vector2(5f, 0f));
-            _h.IssueMoveTo(e, new Vector2(28f, 0f), layerMask: (uint)NavLayerMask.Naval);
+            // LoadNaval: 3 polygons centred at (5,5), (15,5), (25,5) in the XY ground plane (Z-up).
+            // Harness positions: Vector2(x,y) -> Vector3(x,y,0); the provider's point-in-polygon uses X,Y,
+            // so (5,5) is inside polygon 0 (X=0..10, Y=0..10) and (28,5) inside polygon 2.
+            var e = _h.SpawnNaval(new Vector2(5f, 5f));
+            _h.IssueMoveTo(e, new Vector2(28f, 5f), layerMask: (uint)NavLayerMask.Naval);
 
             _h.PumpUntil(
                 () => _h.EventLog.MoveCompleted.Any(c => c.Target == e),

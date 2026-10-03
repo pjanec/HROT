@@ -49,12 +49,16 @@ namespace Fdp.Toolkit.Navigation.Systems
                 var entity = repo.GetEntityByIndex(entityIndex);
                 if (!repo.IsAlive(entity)) continue;
 
-                // Determine which action is active (requires LocomotionChannel).
-                if (!repo.HasComponent<LocomotionChannel>(entity)) continue;
-                ref readonly var loco = ref repo.GetComponent<LocomotionChannel>(entity);
-                ushort action = loco.ActiveAction;
+                // ⭐ CE-3026 — a MoveTo is a PathToPoint INTENT, which exists on the vehicle side on every host; it used to be
+                //   keyed on the Brain's LocomotionChannel, which only the editor's fused world has. PlanRoute (dormant,
+                //   design §7) still arrives on the channel.
+                bool pathToPoint = repo.HasComponent<NavigationIntent>(entity)
+                    && repo.GetComponent<NavigationIntent>(entity).Mode == NavigationMode.PathToPoint;
+                ushort action = repo.HasComponent<LocomotionChannel>(entity)
+                    ? repo.GetComponent<LocomotionChannel>(entity).ActiveAction
+                    : (ushort)0;
 
-                if (action == NavigationConstants.ActionIdMoveTo)
+                if (pathToPoint)
                 {
                     if (evt.IsReachable)
                     {
@@ -85,10 +89,19 @@ namespace Fdp.Toolkit.Navigation.Systems
                     }
                     else
                     {
+                        // ⭐ CE-3026 — no path ⇒ FAIL, never a straight-line fallback: stop the vehicle and report it for
+                        //   THIS intent (the status writer resets a status whose IntentId does not match).
+                        if (repo.HasComponent<global::CarKinem.Core.NavState>(entity))
+                        {
+                            ref var nav = ref repo.GetComponentRW<global::CarKinem.Core.NavState>(entity);
+                            nav.Mode        = global::CarKinem.Core.KinematicsMode.None;
+                            nav.TargetSpeed = 0f;
+                        }
                         if (repo.HasComponent<NavigationStatus>(entity))
                         {
                             ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
-                            status.Result = NavigationResult.FailedUnreachable;
+                            status.IntentId = repo.GetComponent<NavigationIntent>(entity).IntentId;
+                            status.Result   = NavigationResult.FailedUnreachable;
                         }
                     }
                 }

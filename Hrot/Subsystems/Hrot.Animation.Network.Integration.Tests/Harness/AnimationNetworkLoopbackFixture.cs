@@ -146,7 +146,9 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Brain world
         BrainWorld = new EntityRepository();
         BrainWorld.RegisterComponent<AnimationChannel>();
+        BrainWorld.RegisterComponent<AnimationChannelStatus>();
         BrainWorld.RegisterComponent<LookAtChannel>();
+        BrainWorld.RegisterComponent<LookAtChannelStatus>();
         BrainWorld.RegisterComponent<StanceIntent>();
         BrainWorld.RegisterComponent<StanceStatus>();
         BrainWorld.RegisterComponent<AnimationMontageQueue>();
@@ -161,7 +163,9 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Muscle world
         MuscleWorld = new EntityRepository();
         MuscleWorld.RegisterComponent<AnimationChannel>();
+        MuscleWorld.RegisterComponent<AnimationChannelStatus>();
         MuscleWorld.RegisterComponent<LookAtChannel>();
+        MuscleWorld.RegisterComponent<LookAtChannelStatus>();
         MuscleWorld.RegisterComponent<StanceStatus>();
         MuscleWorld.RegisterComponent<StanceIntent>();
         MuscleWorld.RegisterComponent<AnimationMontageQueue>();
@@ -274,8 +278,10 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Brain entity: intent components + NetworkIdentity
         var brainEntity = BrainWorld.CreateEntity();
         BrainWorld.AddComponent(brainEntity, new NetworkIdentity(networkId));
-        BrainWorld.AddComponent(brainEntity, new AnimationChannel { Status = NodeStatus.Failure });
-        BrainWorld.AddComponent(brainEntity, new LookAtChannel { Status = NodeStatus.Failure });
+        BrainWorld.AddComponent(brainEntity, new AnimationChannel());
+        BrainWorld.AddComponent(brainEntity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+        BrainWorld.AddComponent(brainEntity, new LookAtChannel());
+        BrainWorld.AddComponent(brainEntity, new LookAtChannelStatus { Status = NodeStatus.Failure });
         BrainWorld.AddComponent(brainEntity, new StanceIntent
         {
             TargetStance = StanceId.Standing,
@@ -293,8 +299,10 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
         // Muscle entity: full animation pipeline components + NetworkIdentity
         var muscleEntity = MuscleWorld.CreateEntity();
         MuscleWorld.AddComponent(muscleEntity, new NetworkIdentity(networkId));
-        MuscleWorld.AddComponent(muscleEntity, new AnimationChannel { Status = NodeStatus.Failure });
-        MuscleWorld.AddComponent(muscleEntity, new LookAtChannel { Status = NodeStatus.Failure });
+        MuscleWorld.AddComponent(muscleEntity, new AnimationChannel());
+        MuscleWorld.AddComponent(muscleEntity, new AnimationChannelStatus { Status = NodeStatus.Failure });
+        MuscleWorld.AddComponent(muscleEntity, new LookAtChannel());
+        MuscleWorld.AddComponent(muscleEntity, new LookAtChannelStatus { Status = NodeStatus.Failure });
         MuscleWorld.AddComponent(muscleEntity, new StanceStatus
         {
             CurrentStance = StanceId.Standing,

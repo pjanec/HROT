@@ -7,21 +7,18 @@ using DotRecast.Recast;
 using DotRecast.Recast.Geom;
 using Fdp.Toolkit.Navigation;
 
-namespace Hrot.Stride.Core;
+namespace Fdp.Toolkit.Navigation.Recast;
 
 /// <summary>
 /// Bakes per-<see cref="NavLayerMask"/> DotRecast navmeshes from a triangle soup.
 ///
 /// <para>
 /// <b>Coordinate convention (the #1 risk).</b>
-/// All input vertices and all baked/query coordinates are in <b>navmesh-query space</b>:
-/// <c>System.Numerics.Vector3(x_east, altitude_up, z_north)</c> — the same as Stride world
-/// space (X=East, Y=Up, Z=North) and the same convention as
-/// <see cref="INavmeshProvider"/>'s doc comment.
-/// FDP world positions (X=East, Y=North, Z=Up) must be swizzled by
-/// <see cref="FdpStrideTransform.ToStridePosition"/> before being passed as input
-/// vertices. The synthetic soups used in headless tests are authored directly in
-/// navmesh-query space (Y-up, X-East, Z-North).
+/// ⭐ The baker's input is in <b>RECAST space</b> (Y-up): <c>Vector3(x_east, up, z_north)</c> — the same as Stride world
+/// space. It is NOT a navigation API: the engine-wide navigation contract is Z-up (R-182 / W7) and the swizzle
+/// <c>(x, y, z) → (x, z, y)</c> happens inside <see cref="DotRecastNavmeshProvider"/> (queries) and in whichever
+/// <see cref="ISceneGeometrySource"/> produces the triangles (a Stride source gets Y-up for free; an engine-space source
+/// must swizzle itself). The synthetic soups used in headless tests are authored directly in Recast space.
 /// </para>
 ///
 /// <para>
@@ -39,7 +36,7 @@ namespace Hrot.Stride.Core;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class StrideNavmeshBaker
+public sealed class RecastNavmeshBaker
 {
     // ── Layer parameter table ────────────────────────────────────────────────
 
@@ -70,9 +67,12 @@ public sealed class StrideNavmeshBaker
         AgentHeight   = 1.8f,
     };
 
+    // ⭐ CE-3027 (user-approved 2026-10-03): the Vehicle layer is baked at the widest vehicle class's hull half-width
+    //   (Bradley, 3.6 m wide ⇒ 1.8 m). ⛔ SUPERSEDED: 1.5 m (§10.1) — narrower than the hull, so planned paths let a
+    //   tank's side scrape building corners.
     private static readonly LayerParams VehicleParams = new()
     {
-        AgentRadius   = 1.5f,
+        AgentRadius   = 1.8f,
         MaxSlope      = 20f,
         MaxStepHeight = 0.1f,
         AgentHeight   = 2.0f,
@@ -112,9 +112,7 @@ public sealed class StrideNavmeshBaker
     /// </summary>
     /// <param name="verts">
     /// Flat vertex array in navmesh-query space: <c>[x0, y0, z0, x1, y1, z1, …]</c>.
-    /// This is X=East, Y=altitude(up), Z=North — Stride/navmesh space, not raw FDP.
-    /// FDP positions must be swizzled via <see cref="FdpStrideTransform.ToStridePosition"/>
-    /// before being placed in this array.
+    /// RECAST space (Y-up): X=East, Y=up, Z=North — not engine (Z-up) space; see the class remarks.
     /// </param>
     /// <param name="indices">
     /// Flat triangle index array: <c>[i0, i1, i2, …]</c> (one triangle per 3 elements).

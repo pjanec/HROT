@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -7,10 +8,9 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Systems;
-using Hrot.Stride.Core;
 using Xunit;
 
-namespace Hrot.Stride.Core.Tests;
+namespace Fdp.Toolkit.Navigation.Recast.Tests;
 
 /// <summary>
 /// Headless integration tests for the BATCH-19 Infantry navmesh walk pipeline
@@ -126,7 +126,7 @@ public sealed class NavmeshWalkIntegrationTests : IDisposable
         // NOT connected at Z<+5 (the gap is X=[0,+12], Z=[-5,+5]).
         AddQuad(0f, 5f, 12f, 15f);
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(vertList.ToArray(), indexList.ToArray(), NavLayerMask.Infantry);
 
         Assert.True(meshes.ContainsKey(NavLayerMask.Infantry),
@@ -148,7 +148,7 @@ public sealed class NavmeshWalkIntegrationTests : IDisposable
         };
         int[] indices = { 0, 2, 1, 0, 3, 2 };  // CCW from above
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         Assert.True(meshes.ContainsKey(NavLayerMask.Infantry),
@@ -175,7 +175,7 @@ public sealed class NavmeshWalkIntegrationTests : IDisposable
         };
         int[] indices = { 0, 2, 1, 0, 3, 2 };
 
-        var baker  = new StrideNavmeshBaker();
+        var baker  = new RecastNavmeshBaker();
         var meshes = baker.Bake(verts, indices, NavLayerMask.Infantry);
 
         // Wrap in DotRecastNavmeshProvider

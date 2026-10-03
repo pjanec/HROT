@@ -12,7 +12,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Ingress translator: receives <see cref="DdsLookAtChannelIntent"/> from DDS
 /// and updates only the Brain-authored intent fields on the Muscle ghost's
 /// <see cref="LookAtChannel"/> component.
-/// Muscle-local fields (DispatchedInstanceId, Status, State) are preserved.
+/// The Muscle's report is the separate <see cref="LookAtChannelStatus"/> (CE-513 / R-180), so nothing here is Muscle-owned.
 /// </summary>
 internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
 {
@@ -48,7 +48,7 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
     }
 
     /// <summary>
-    /// Updates only the intent fields; preserves Muscle-local fields via read-modify-write.
+    /// Updates only the intent fields; the request component holds only Brain-written fields since CE-513 (R-180).
     /// For LookAtEntity actions, remaps TargetEntityId from network ID to local entity ID via
     /// NetworkEntityMap. If the target is not in the map, the channel is left unchanged.
     /// Exposed internal for unit testing.

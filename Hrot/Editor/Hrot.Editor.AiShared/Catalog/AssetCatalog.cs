@@ -8,6 +8,10 @@ public sealed class AssetCatalog : IAssetCatalog
 
     public IReadOnlyList<IEditableAsset> All => _cache;
 
+    /// <summary>The registered contributors — read by the asset tokens (docs/DESIGN_Asset_Management.md §7.3a: a kind is
+    /// syncable iff ANY of its contributors has a <see cref="IAssetCatalogContributor.BaseFolder"/>).</summary>
+    public IReadOnlyList<IAssetCatalogContributor> Contributors => _contributors;
+
     public event Action<AssetKind>? Changed;
 
     public void AddContributor(IAssetCatalogContributor contributor)

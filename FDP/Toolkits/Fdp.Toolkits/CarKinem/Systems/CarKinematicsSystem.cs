@@ -60,6 +60,12 @@ namespace CarKinem.Systems
                 ? repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork
                 : default; // empty blob -- safe for non-road scenarios
             
+            // ⭐ W8 (docs/DESIGN_Terrain_World.md §7.1) — the terrain world the movement model stands on. Read
+            //   once per tick; SurfaceZ is read-only, so the parallel update may share it. Null = flat world.
+            _terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                : null;
+
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
             
@@ -114,6 +120,9 @@ namespace CarKinem.Systems
         }
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
+        /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
+        private Fdp.Toolkit.Terrain.TerrainWorld? _terrain;
+
         private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)
         {
@@ -284,7 +293,14 @@ namespace CarKinem.Systems
             }
             
             // Output conversion
-            tf.Position = new Vector3(pos2D.X, pos2D.Y, tf.Position.Z);
+            // ⭐⭐ W8 (R-182) — the movement model itself puts the vehicle on the surface under it: the
+            //   ground, a roof, or the floor nearest its current Z (a garage deck). There is NO separate
+            //   ground-clamp step. Without a terrain world the Z is kept, as before.
+            float z = _terrain != null
+                ? _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)
+                : tf.Position.Z;
+            float dz = z - tf.Position.Z;
+            tf.Position = new Vector3(pos2D.X, pos2D.Y, z);
             float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
             
             // X-forward, Y-left, Z-up convention.
@@ -292,7 +308,7 @@ namespace CarKinem.Systems
             // We use CreateFromAxisAngle directly because CreateFromYawPitchRoll uses Y-axis for Yaw.
             tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
 
-            vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, 0);
+            vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, dt > 0f ? dz / dt : 0f);
             vel.Angular = new Vector3(0, 0, (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle)); // Yaw rate around Z
 
             // Write back state
@@ -327,8 +343,8 @@ namespace CarKinem.Systems
             }
 
             // SampleTrajectory returns the 3D position; project to XY for steering. The trajectory
-            // Z is carried for fidelity/replication but does NOT drive vehicle dynamics or override
-            // SimTransform.Position.Z (owned by TerrainQueryResolutionSystem, P3D-102/303).
+            // Z is carried for fidelity/replication but does NOT drive vehicle dynamics: the vehicle's Z is
+            // set by THIS system from the terrain world's surface (W8, docs/DESIGN_Terrain_World.md).
             var (pos, tangent, speed) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS);
             return (new Vector2(pos.X, pos.Y), tangent, speed);
         }

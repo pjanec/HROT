@@ -384,13 +384,13 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (count < 2)
                 return Unreachable(in req, handle, NavigationBackend.Navmesh);
 
-            // Convert NavWaypoint positions (Recast Y-up: X=east, Y=altitude, Z=north) to Sim
-            // (Z-up) 3D waypoints: X=east, Y=north, Z=altitude (§0.1, P3D-303). Arc length is XY.
+            // INavmeshProvider speaks the engine's Z-up space (R-182 / W7): req.Start/End go in as they are and the
+            // NavWaypoints come back as Sim (Z-up) waypoints unchanged — NO swizzle here (CE-3011). Arc length is XY.
             var positions = new Vector3[count];
             float totalDist = 0f;
             for (int k = 0; k < count; k++)
             {
-                positions[k] = new Vector3(span[k].Position.X, span[k].Position.Z, span[k].Position.Y);
+                positions[k] = span[k].Position;
                 if (k > 0)
                     totalDist += Vector2.Distance(
                         new Vector2(positions[k - 1].X, positions[k - 1].Y),
@@ -428,7 +428,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             float totalDist = 0f;
             for (int k = 0; k < count; k++)
             {
-                positions[k] = new Vector3(span[k].Position.X, span[k].Position.Z, span[k].Position.Y);
+                positions[k] = span[k].Position;
                 if (k > 0)
                     totalDist += Vector2.Distance(
                         new Vector2(positions[k - 1].X, positions[k - 1].Y),

@@ -505,7 +505,7 @@ ExerciseId/dir come from `ClusterStateUpdateEvent.ExerciseId` + `OrchestrationCo
 ### Group N — World / Coordinate Info (scenario authoring)
 | HTTP | MCP tool | Behaviour |
 |---|---|---|
-| `GET /world/info` | `get_world_info` | `{ geo:{origin:{lat,lon,alt}}, spatialGrid:{cellSize, originX, originY, width, height, extent:{minX,maxX,minY,maxY}}, terrain:null, navmesh:null }` |
+| `GET /world/info` | `get_world_info` | `{ geo:{origin:{lat,lon,alt}}, spatialGrid:{cellSize, originX, originY, width, height, extent:{minX,maxX,minY,maxY}}, colliderGrid:{…same}, terrain:{name,bounds,groundZ,prisms,walkables,surfaces}\|null, navmesh:{provider,baked,version}\|null }` — ⭐ **as built `2026-10-03` (`CE-3028`)**: read LIVE from the active perspective's world; the grids are the terrain-rebased placements (`CE-3018`). ⛔ SUPERSEDED: `terrain:null, navmesh:null` hard-coded, `spatialGrid` = composition constants |
 | `POST /world/geo-to-local {lat,lon,alt, headingDeg?}` | `geo_to_local` | `IGeographicTransform.ToCartesian` → `{x,y,z}`; optional `headingDeg` → `rotation` (quaternion) via `SimTransformBridgeSystem.HeadingDegToRotation` |
 | `POST /world/local-to-geo {x,y,z, rotation?}` | `local_to_geo` | `IGeographicTransform.ToGeodetic` → `{lat,lon,alt}`; optional `rotation` → `headingDeg` via `SimTransformBridgeSystem.RotationToHeadingDeg` |
 

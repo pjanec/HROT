@@ -25,8 +25,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            // Sim (Z-up) → Recast (Y-up): altitude goes in the middle (Y) slot (§0.1, P3D-205).
-            var obsPos = new Vector3(tf.Position.X, tf.Position.Z, tf.Position.Y);
+            // INavmeshProvider is Z-up like Sim (R-182 / W7): no swizzle (P3D-205).
+            var obsPos = tf.Position;
 
             float maxDist = sensor.SearchRadius;
             if (maxDist <= 0f) return;
@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // Skip already-rejected candidates.
                 if (candidate.EntityId == -1L) continue;
 
-                var targetPos = new Vector3(candidate.PositionX, candidate.PositionZ, candidate.PositionY);
+                var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, candidate.PositionZ);
 
                 // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
                 float pathDist = navmesh.PathCost(obsPos, targetPos);

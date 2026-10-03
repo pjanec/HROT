@@ -106,9 +106,11 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                 for (int i = 0; i < routePlan.Waypoints.Count; i++)
                 {
                     var wp      = routePlan.Waypoints[i];
-                    // RoutePlan waypoints are Recast (Y-up); map to Sim (Z-up): X=east, Y=north(Z),
-                    // Z=altitude(Y) so the carried altitude survives into the trajectory pool (§0.1, P3D-303).
-                    positions[i] = new Vector3(wp.Position.X, wp.Position.Z, wp.Position.Y);
+                    // RoutePlan waypoints are Sim Z-up (ENU: X=east, Y=north, Z=altitude) — the contract of
+                    // RouteWaypoint and what every producer writes (ToCartesian, ScenarioSpawnAdapter,
+                    // PersonalRouteAuthoringSystem). ⛔ CE-3013: this used to swizzle them as Recast Y-up
+                    // (P3D-303's assumption), driving every route with north = 0. R-182: Z-up everywhere.
+                    positions[i] = wp.Position;
                     speeds[i]    = wp.TargetSpeed > 0f ? wp.TargetSpeed : DefaultSpeed;
                 }
 

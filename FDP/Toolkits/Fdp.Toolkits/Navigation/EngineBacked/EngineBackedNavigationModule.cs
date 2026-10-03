@@ -33,14 +33,20 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
 
         private readonly TrajectoryPoolManager  _pool;
 
-        private EngineBackedNavmeshProvider?        _navmesh;
+        private INavmeshProvider?                   _navmesh;
+        private readonly INavmeshProvider?          _injectedNavmesh;
         private EngineBackedDtCrowdProvider?        _crowd;
         private EngineBackedVolumetricPathProvider? _volumetric;
         private EngineBackedPathRegistry?           _registry;
         private EngineBackedPathResponseSystem?     _responseSystem;
 
-        public EngineBackedNavigationModule(RoadNetworkBlob roadNetwork, TrajectoryPoolManager pool)
+        /// <param name="navmesh">⭐ The node's navmesh — on a terrain host the <see cref="SwitchableNavmeshProvider"/> a
+        /// terrain commit publishes into (docs/DESIGN_Terrain_World.md W6). Null ⇒ the straight-line
+        /// <see cref="EngineBackedNavmeshProvider"/>, as before.</param>
+        public EngineBackedNavigationModule(
+            RoadNetworkBlob roadNetwork, TrajectoryPoolManager pool, INavmeshProvider? navmesh = null)
         {
+            _injectedNavmesh = navmesh;
             _roadNetwork = roadNetwork;
             _pool = pool ?? throw new ArgumentNullException(nameof(pool));
         }
@@ -48,7 +54,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
         /// <inheritdoc/>
         public void RegisterSystems(ISystemRegistry reg)
         {
-            _navmesh        = new EngineBackedNavmeshProvider();
+            _navmesh        = _injectedNavmesh ?? new EngineBackedNavmeshProvider();
             _crowd          = new EngineBackedDtCrowdProvider();
             _volumetric     = new EngineBackedVolumetricPathProvider();
             _registry       = new EngineBackedPathRegistry(_pool);

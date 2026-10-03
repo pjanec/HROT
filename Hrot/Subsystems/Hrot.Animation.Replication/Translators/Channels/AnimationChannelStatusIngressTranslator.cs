@@ -10,9 +10,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 
 /// <summary>
 /// Ingress translator: receives <see cref="DdsAnimationChannelStatus"/> from DDS
-/// and updates only the Muscle-authored status fields on the Brain ghost's
-/// <see cref="AnimationChannel"/> component.
-/// Brain-local intent fields (ActiveAction, ActionInstanceId, etc.) are preserved.
+/// and writes the Brain ghost's <see cref="AnimationChannelStatus"/> (CE-513 / R-180); the Brain's request component is not touched.
 /// </summary>
 internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslator
 {
@@ -56,16 +54,12 @@ internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslat
     {
         if (!_entityMap.TryGetEntity(msg.EntityId, out var entity)) return;
 
-        AnimationChannel updated = view.HasComponent<AnimationChannel>(entity)
-            ? view.GetComponentRO<AnimationChannel>(entity)
-            : default;
-
-        // Overwrite only Muscle-authored status fields.
-        updated.Status = (NodeStatus)msg.Status;
-        updated.DispatchedInstanceId = msg.DispatchedInstanceId;
-
-        // ActiveAction, ActionInstanceId, BehaviorInstanceId, Params, State are NOT touched.
-        cmd.SetComponent(entity, updated);
+        // ⭐ CE-513 / R-180 — the report is its own component; the Brain's request is not touched.
+        cmd.SetComponent(entity, new AnimationChannelStatus
+        {
+            Status = (NodeStatus)msg.Status,
+            DispatchedInstanceId = msg.DispatchedInstanceId,
+        });
         ReceivedSampleCount++;
     }
 

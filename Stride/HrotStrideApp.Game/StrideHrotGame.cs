@@ -1,4 +1,5 @@
 #nullable enable
+using Fdp.Toolkit.Navigation.Recast;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -932,7 +933,7 @@ public sealed class StrideHrotGame : Game
         if (!world.IsComponentTypeRegistered<NavigationIntent>()) return;
         var intent = world.HasComponent<NavigationIntent>(entity)
             ? world.GetComponent<NavigationIntent>(entity) : default;
-        intent.Mode             = NavigationMode.DirectPoint;
+        intent.Mode             = NavigationMode.PathToPoint;   // CE-3026 — a click order plans
         intent.FinalDestination = targetFdp;
         intent.TargetSpeed      = Speed;
         intent.ArrivalRadius    = ArrivalRadius;
@@ -1834,7 +1835,7 @@ public sealed class StrideHrotGame : Game
     private void BakeNavmesh(
         global::Stride.Engine.Scene scene,
         Fdp.Core.EntityRepository? world,
-        Hrot.Stride.Core.DotRecastDtCrowdProvider? infantryCrowdProvider)
+        Fdp.Toolkit.Navigation.Recast.DotRecastDtCrowdProvider? infantryCrowdProvider)
     {
         if (world == null)
         {
@@ -1854,7 +1855,7 @@ public sealed class StrideHrotGame : Game
             }
 
             // Bake Vehicle + Infantry layers.
-            var baker  = new StrideNavmeshBaker();
+            var baker  = new RecastNavmeshBaker();
             var meshes = baker.Bake(verts, indices,
                 NavLayerMask.Vehicle | NavLayerMask.Infantry);
 

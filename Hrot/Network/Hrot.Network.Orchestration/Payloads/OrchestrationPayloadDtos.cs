@@ -92,6 +92,16 @@ public record TerrainAssetBuildPayloadDto(
     string[]?     Kinds
 );
 
+/// <summary>
+/// ⭐ CE-3021 — payload for <c>ClusterOpType.PublishAssets</c> / <c>RefreshAssets</c>: which behaviour-asset
+/// <c>Kind</c> (<c>blueprint</c>, <c>btree</c>, <c>hsm</c>) and which authoring <c>NodeId</c>.
+/// 📄 docs/DESIGN_Asset_Management.md §5, §7.3c.
+/// </summary>
+public record AssetOpPayloadDto(
+    [property: JsonPropertyName("Kind")]   string Kind,
+    [property: JsonPropertyName("NodeId")] int    NodeId
+);
+
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
 public record SeekReplayPayloadDto(
     [property: JsonPropertyName("TargetWallTicks")]
@@ -181,6 +191,13 @@ public sealed record FileManifestEntry
     /// (e.g. the <c>.fdp</c> archive), which are not merged.
     /// </summary>
     public string? DocType { get; init; }
+
+    /// <summary>⭐ C1 (docs/DESIGN_Asset_Management.md §1 ②, §8) — the source file's length, so the receiver can tell an
+    /// already-current copy without opening it. 0 with a null <see cref="LastWriteUtc"/> = not carried (older senders).</summary>
+    public long Length { get; init; }
+
+    /// <summary>⭐ C1 — the source file's last-write time (UTC). Null = not carried; the receiver then always copies.</summary>
+    public DateTime? LastWriteUtc { get; init; }
 }
 
 /// <summary>

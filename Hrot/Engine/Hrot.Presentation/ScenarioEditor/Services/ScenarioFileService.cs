@@ -103,7 +103,8 @@ public sealed class ScenarioFileService
         //   runs on every host through HrotScenarioSaveHandler. ⚠ The former migration-journal branch was
         //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
         //   writer), so collapsing it here is behaviour-preserving.
-        var header = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
+        var header = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName,
+            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo));   // CE-3015
         ScenarioSaveCore.Write(_serializer, repo, filePath, header);
     }
 

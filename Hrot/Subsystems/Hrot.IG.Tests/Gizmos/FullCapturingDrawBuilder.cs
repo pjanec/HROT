@@ -22,6 +22,11 @@ namespace Hrot.IG.Tests.Gizmos
         /// <c>.Start/.End/.Color</c> read still compiles.
         /// </summary>
         public readonly List<(Vector3 Start, Vector3 End, Rgba32 Color, LineStyle Style, float Thickness)> LineCalls = new();
+        public readonly List<(Vector2 A, Vector2 B, Vector2 C, Rgba32 Color, byte Layer)> TriangleCalls = new();
+
+        public void DrawFilledTriangle(Vector2 a, Vector2 b, Vector2 c, Rgba32 color, byte layer = 0,
+            PipelineTarget target = PipelineTarget.All)
+            => TriangleCalls.Add((a, b, c, color, layer));
         public readonly List<(Vector3 Center, float Radius, Rgba32 Color)> SphereCalls = new();
         public readonly List<(Entity Target, FixedString32 Text)> BadgeCalls        = new();
 

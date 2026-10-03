@@ -105,6 +105,14 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public const string NasTkbDirectoryName = "tkb";
 
+        /// <summary>⭐ The NAS folder holding the behaviour-asset trees, one sub-folder per kind id —
+        /// <c>{nas}/assets/&lt;kind&gt;/</c> (docs/DESIGN_Asset_Management.md §10 D5).</summary>
+        public const string NasAssetsDirectoryName = "assets";
+
+        /// <summary>The NAS tree of one behaviour-asset kind (<c>{nas}/assets/&lt;kind&gt;</c>).</summary>
+        public static string GetNasAssetRoot(string nasBasePath, string kind)
+            => System.IO.Path.Combine(nasBasePath, NasAssetsDirectoryName, kind);
+
         /// <summary>Extension of a published TKB artifact. ⛔ One definition.</summary>
         public const string TkbArtifactExtension = ".zip";
 

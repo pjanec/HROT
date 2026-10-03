@@ -216,6 +216,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// terrain loader. It still has to EXIST: the loader publishes through it, and a blob published with
     /// no owner is a leak plus a generation that is never retired.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐ This node's terrain residency — the one the load chain commits through and the terrain picker
+    /// (W13) switches. Null until the cluster handlers are composed. 📄 docs/DESIGN_Terrain_World.md §7.3.
+    /// </summary>
+    public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
+
+    private Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher? _terrainPicker;
+
     private readonly CarKinem.Road.RoadNetworkHolder _cgfRoadNetworkHolder =
         new CarKinem.Road.RoadNetworkHolder();
 
@@ -233,6 +241,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <c>new AssetCatalog()</c>, which is why every AiShared window could only render its empty state.
     /// </summary>
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder? _aiCatalogBuilder;
+
+    /// <summary>
+    /// ⭐ Which behaviour-asset kinds this CGF AUTHORS (docs/DESIGN_Asset_Management.md §7.3b ②, §10 D3) — CONFIGURED,
+    /// from <c>HROT_ASSET_AUTHORING</c> (<c>all</c> = default, <c>none</c> for a runtime-only brain, or a kind list).
+    /// The default makes a missing setting cost staleness, never unpublished work.
+    /// </summary>
+    public Hrot.Map.Common.ClusterLoad.AssetAuthoring AssetAuthoring { get; set; } =
+        Hrot.Map.Common.ClusterLoad.AssetAuthoring.Parse(Environment.GetEnvironmentVariable("HROT_ASSET_AUTHORING"));
 
     // ⭐⭐⭐ CGF'S COPIES OF THE TWO RESOLVERS ARE GONE (2026-09-26, §32.17).
     //    🔴 CE-338 gave CGF these rules by COPYING EditorSubsystem's two private methods verbatim
@@ -1077,8 +1093,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
         // Create a fresh ClusterSlave manually to strictly control handler registration order.
         // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+        // ⭐ + the asset tokens (CE-3020); the behaviour-asset half is appended once the catalog exists (BuildAssetCatalog).
         var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
-            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
+            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(DefaultRole));
 
         var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
         Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
@@ -1124,6 +1141,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   failure, and far better than the silence it replaces.
         cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
             _context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot));
+
+        // ⭐⭐ 2026-10-03 — terrain is UNIVERSAL (R-182, CGF == editor): CGF's map draws the terrain world and
+        //   its own residency is what the terrain picker (W13) and a save (CE-3015) read. The holder is the one
+        //   this host already carries. 📄 docs/DESIGN_Terrain_World.md §5, §7.3.
+        TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _cgfRoadNetworkHolder);
+        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
@@ -1599,6 +1622,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    (measured live, --mode all). ⭐ Mirrors the editor, which composes its catalogue in Initialize right
         //    after its sessions. Nothing in BuildAssetCatalog touches a window.
         _aiCatalogBuilder = BuildAssetCatalog();
+
+        // ⭐⭐ CE-3020 — the BEHAVIOUR half of the asset tokens (docs/DESIGN_Asset_Management.md §7.3a/§7.3b, §10 D3/D4):
+        //    every kind a contributor roots on disk, with its root, as NEEDS (mirror) or AUTHORS (add-only) by the
+        //    configured authorship. Appended now because the slave publishes its capabilities on its first tick.
+        _context.ClusterSlave.AppendCapabilities(Hrot.Map.Common.ClusterLoad.AssetNeeds.Tokens(
+            DefaultRole,
+            _aiCatalogBuilder.Catalog.Contributors.Select(c =>
+                (Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.FromAssetKindName(c.Kind.ToString()), c.BaseFolder)),
+            AssetAuthoring));
 
         _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
         _context.Kernel.RegisterGlobalSystem(_bpSystem);
@@ -2578,6 +2610,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             catalog:    catalog,
             router:     router);
 
+        // ⭐ W13 (2026-10-03) — the scenario's terrain picker, the SAME class the editor composes.
+        //   Picking loads the terrain on THIS node; the other nodes take it at the next scenario load (the
+        //   save stamps the resident terrain into the header, CE-3015). 📄 docs/DESIGN_Terrain_World.md §7.3.
+        _terrainPicker = new Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher(
+            openPicker:      _shellPickers.OpenPicker,
+            listTerrains:    () => TerrainResidency?.Catalog.List() ?? Array.Empty<string>(),
+            residentTerrain: () => Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_context?.World),
+            applyTerrain:    name =>
+            {
+                try
+                {
+                    TerrainResidency?.EnsureTerrain(_context?.World, name);
+                    FdpLog<CgfSubsystem>.Info($"[Terrain] Scenario terrain set to '{name}' on CGF; the cluster takes it at the next scenario load.");
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<CgfSubsystem>.Error($"[Terrain] Could not load terrain '{name}': {ex.Message}");
+                }
+            });
+
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs
         //    immediately before this method (see the ordering note at its call site).
@@ -2886,6 +2938,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 NewProduct:           _newAssetLauncher != null
                     ? p => _newAssetLauncher.Open(p)
                     : null,
+                PickTerrain:          () => _terrainPicker?.Open(),
                 CompileReload:        () => ReloadActiveAiDocument(),
                 CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
             // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.

@@ -45,7 +45,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         plan.Mutate(wps =>
         {
             for (int i = 0; i < waypointCount; i++)
-                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, 0f, i * 10f), TargetSpeed = 5f });
+                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, i * 10f, 0f), TargetSpeed = 5f });
         });
         return plan;
     }
@@ -72,6 +72,29 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         Assert.True(cache.TrajectoryId > 0, "TrajectoryId must be a positive integer after sync.");
         Assert.True(_pool.TryGetTrajectory(cache.TrajectoryId, out _),
             "Trajectory must be findable in the pool.");
+    }
+
+    /// <summary>
+    /// CE-3013: a route waypoint is Sim Z-up (ENU) and must reach the trajectory pool unchanged — north
+    /// stays north, altitude stays altitude. The old swizzle drove every route with north = 0.
+    /// </summary>
+    [Fact]
+    public void Sync_KeepsZUpWaypointsUnchanged_CE3013()
+    {
+        var plan = new RoutePlan { IsLoop = false };
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 300f, 2f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(40f, 320f, 5f), TargetSpeed = 5f });
+        });
+        var entity = CreateRouteEntity(plan);
+
+        _system.Execute(_repo, 0.016f);
+
+        var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);
+        Assert.True(_pool.TryGetTrajectory(cache.TrajectoryId, out var traj));
+        Assert.Equal(new Vector3(10f, 300f, 2f), traj.Waypoints[0].Position);
+        Assert.Equal(new Vector3(40f, 320f, 5f), traj.Waypoints[1].Position);
     }
 
     [Fact]
@@ -111,7 +134,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var firstId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
         // Mutate: adds a waypoint and bumps version.
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f }));
+        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 100f, 0f), TargetSpeed = 5f }));
 
         _system.Execute(_repo, 0.016f);
         var newCache = _repo.GetComponent<RouteTrajectoryCache>(entity);

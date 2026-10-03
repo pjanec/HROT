@@ -51,6 +51,13 @@ public static class NavigationSolverComponentRegistry
         world.RegisterEvent<PathfindingRequestEvent>();
         world.RegisterEvent<PathfindingResultEvent>();
 
+        // ⭐ The corridor the solver's PathfindingResultMaterializationSystem ADDS on a reachable MoveTo. 🔴 Found by the
+        //   2026-10-03 live run: no production registry registered it, and it never mattered while the solver ran only
+        //   on SimHost (no Brain ⇒ no LocomotionChannel ⇒ the write branch is skipped). The editor fuses Brain and
+        //   Muscle (CE-3017), so its first path result threw "NavigationCorridorMuscle is not registered" and aborted
+        //   the process. ⇒ registered beside the system that writes it.
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationCorridorMuscle>();
+
         // ⛔ AreaQueryBatchData + EqsTargetPool + the two AreaQuery events were registered here until the
         //   AreaQuery pipeline was retired (2026-10-01, EQS design §18). Their component ids stay reserved
         //   in GlobalComponentIds (Fdp.Core) and must not be reused.

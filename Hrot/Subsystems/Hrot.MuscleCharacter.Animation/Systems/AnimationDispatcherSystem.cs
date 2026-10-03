@@ -19,7 +19,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// to their executors after capability checking.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    public sealed class AnimationDispatcherSystem : DispatcherSystemBase<AnimationChannel>
+    public sealed class AnimationDispatcherSystem : DispatcherSystemBase<AnimationChannelWork>
     {
         public AnimationDispatcherSystem(
             IAnimationBackend backend,
@@ -52,18 +52,25 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 throw new InvalidOperationException(
                     $"{nameof(AnimationDispatcherSystem)} requires direct EntityRepository access.");
 
-            // Clean up entities entering teardown
+            // ⭐ CE-513 / R-180 — this system writes ONLY AnimationChannelStatus (the Muscle's report). The Brain's AnimationChannel
+            //   request is read, never written; executors run on a stack AnimationChannelWork and only its Report is stored.
+            _tornDown.Clear();
+
+            // Teardown: exit the action this dispatcher last entered and report it failed. ⛔ The request is NOT
+            //   cleared any more (it belongs to the Brain); the Failure report is what stops the Running gate below.
             foreach (var evt in view.ReadEvents<DestructionOrder>())
             {
-                if (repo.HasComponent<AnimationChannel>(evt.Entity))
-                {
-                    ref var ch = ref repo.GetComponentRW<AnimationChannel>(evt.Entity);
-                    if (ch.ActiveAction != 0)
-                    {
-                        _executors[ch.ActiveAction]?.OnExit(evt.Entity, ref ch, repo);
-                        ch.ActiveAction = 0;
-                    }
-                }
+                if (!repo.HasComponent<AnimationChannel>(evt.Entity)) continue;
+                int index = evt.Entity.Index;
+                ushort entered = index < _previousAction.Length ? _previousAction[index] : (ushort)0;
+                if (entered == 0) continue;
+
+                var work = Load(repo, evt.Entity);
+                _executors[entered]?.OnExit(evt.Entity, ref work, repo);
+                work.Report.Status = NodeStatus.Failure;
+                Store(repo, evt.Entity, work.Report);
+                _previousAction[index] = 0;
+                _tornDown.Add(index);
             }
 
             var q = repo.Query()
@@ -73,32 +80,57 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
             foreach (var entity in q)
             {
-                ref var channel = ref repo.GetComponentRW<AnimationChannel>(entity);
+                if (_tornDown.Contains(entity.Index)) continue;
+
+                var work = Load(repo, entity);
+                var before = work.Report;
                 var caps = repo.GetComponent<ActorCapabilityState>(entity);
 
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanPlayAnimations))
                 {
-                    channel.Status = NodeStatus.Failure;
-                    continue;
+                    work.Report.Status = NodeStatus.Failure;
                 }
-
-                if (channel.ActionInstanceId != channel.DispatchedInstanceId)
+                else
                 {
-                    EnsurePreviousActionCapacity(entity.Index + 1);
-                    ushort oldAction = _previousAction[entity.Index];
+                    if (work.Request.ActionInstanceId != work.Report.DispatchedInstanceId)
+                    {
+                        EnsurePreviousActionCapacity(entity.Index + 1);
+                        ushort oldAction = _previousAction[entity.Index];
 
-                    _executors[oldAction]?.OnExit(entity, ref channel, repo);
-                    _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
+                        _executors[oldAction]?.OnExit(entity, ref work, repo);
+                        _executors[work.Request.ActiveAction]?.OnEnter(entity, ref work, repo);
 
-                    channel.DispatchedInstanceId = channel.ActionInstanceId;
-                    _previousAction[entity.Index] = channel.ActiveAction;
+                        work.Report.DispatchedInstanceId = work.Request.ActionInstanceId;
+                        _previousAction[entity.Index] = work.Request.ActiveAction;
+                    }
+
+                    if (work.Request.ActiveAction != 0 && work.Report.Status == NodeStatus.Running)
+                    {
+                        _executors[work.Request.ActiveAction]?.Execute(entity, ref work, repo, deltaTime);
+                    }
                 }
 
-                if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
-                {
-                    _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
-                }
+                if (work.Report.Status != before.Status || work.Report.DispatchedInstanceId != before.DispatchedInstanceId)
+                    Store(repo, entity, work.Report);
             }
+        }
+
+        private readonly System.Collections.Generic.HashSet<int> _tornDown = new();
+
+        /// <summary>The request (copied) and the current report — a missing report is the default one.</summary>
+        private static AnimationChannelWork Load(EntityRepository repo, Entity entity) => new AnimationChannelWork
+        {
+            Request = repo.GetComponent<AnimationChannel>(entity),
+            Report  = repo.HasComponent<AnimationChannelStatus>(entity) ? repo.GetComponent<AnimationChannelStatus>(entity) : default,
+        };
+
+        /// <summary>Writes the report; adds the component on first use (a replica built from the request alone).</summary>
+        private static void Store(EntityRepository repo, Entity entity, AnimationChannelStatus report)
+        {
+            if (repo.HasComponent<AnimationChannelStatus>(entity))
+                repo.GetComponentRW<AnimationChannelStatus>(entity) = report;
+            else
+                repo.AddComponent(entity, report);
         }
     }
 }

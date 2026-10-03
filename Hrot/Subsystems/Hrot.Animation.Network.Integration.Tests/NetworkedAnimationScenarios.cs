@@ -71,14 +71,14 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
         // Pump until Brain sees Running (intent arrived at Muscle, Muscle acked, status replicated back)
         // Stage-1 budget: 5 frames. Add RoundTripBuffer.
         _fix.PumpUntil(
-            () => _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity).Status == NodeStatus.Running,
+            () => _fix.BrainWorld.GetComponentRO<AnimationChannelStatus>(brainEntity).Status == NodeStatus.Running,
             maxFrames: 5 + RoundTripBuffer,
             conditionName: "Brain.AnimationChannel.Status == Running");
 
         var chRunning = _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Running, chRunning.Status);
+        Assert.Equal(NodeStatus.Running, _fix.BrainWorld.GetComponent<AnimationChannelStatus>(brainEntity).Status);
         // DispatchedInstanceId must have been replicated from Muscle to Brain.
-        Assert.NotEqual(0u, chRunning.DispatchedInstanceId);
+        Assert.NotEqual(0u, _fix.BrainWorld.GetComponent<AnimationChannelStatus>(brainEntity).DispatchedInstanceId);
 
         // Pump until Brain sees Success AND receives the MontageEndedEvent.
         // Events have an extra 1-tick bus-swap delay vs component status (Muscle write buffer
@@ -93,14 +93,14 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
                         accumulatedEnded.Add(e);
                 }
                 return accumulatedEnded.Count >= 1
-                    && _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity).Status == NodeStatus.Success;
+                    && _fix.BrainWorld.GetComponentRO<AnimationChannelStatus>(brainEntity).Status == NodeStatus.Success;
             },
             maxFrames: 100 + RoundTripBuffer,
             conditionName: "Brain.AnimationChannel.Status == Success AND MontageEndedEvent received");
 
         // Brain-side assertions on replicated status
         var chFinal = _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Success, chFinal.Status);
+        Assert.Equal(NodeStatus.Success, _fix.BrainWorld.GetComponent<AnimationChannelStatus>(brainEntity).Status);
 
         // Brain-side assertion on replicated event
         Assert.True(accumulatedEnded.Count >= 1,
@@ -169,7 +169,7 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
 
         // Wait for Brain to see Running (montage started and replicated)
         _fix.PumpUntil(
-            () => _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity).Status == NodeStatus.Running,
+            () => _fix.BrainWorld.GetComponentRO<AnimationChannelStatus>(brainEntity).Status == NodeStatus.Running,
             maxFrames: 10 + RoundTripBuffer,
             conditionName: "Brain.AnimationChannel.Status == Running before stop");
 
@@ -198,7 +198,7 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
 
         // Brain-side assertion on replicated status
         var chFinal = _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity);
-        Assert.NotEqual(NodeStatus.Running, chFinal.Status);
+        Assert.NotEqual(NodeStatus.Running, _fix.BrainWorld.GetComponent<AnimationChannelStatus>(brainEntity).Status);
     }
 
     // ── Scenario 4: Stance transition observed on Brain side ──────────────────
@@ -348,7 +348,7 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
 
         // Wait for Brain to see Running
         _fix.PumpUntil(
-            () => _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity).Status == NodeStatus.Running,
+            () => _fix.BrainWorld.GetComponentRO<AnimationChannelStatus>(brainEntity).Status == NodeStatus.Running,
             maxFrames: 15 + RoundTripBuffer,
             conditionName: "Brain sees Running before enqueue");
 
@@ -417,7 +417,7 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
                     }
                 }
                 // Walk completes at ~0.5s (30 frames); check for success after accumulating footsteps
-                return _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity).Status == NodeStatus.Success;
+                return _fix.BrainWorld.GetComponentRO<AnimationChannelStatus>(brainEntity).Status == NodeStatus.Success;
             },
             maxFrames: 50 + RoundTripBuffer,
             conditionName: "Walk montage completes with footsteps replicated to Brain");
@@ -453,41 +453,41 @@ public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetwork
 
         // Verify initial LookAt status on Brain side
         var lookAtInitial = _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Failure, lookAtInitial.Status);
+        Assert.Equal(NodeStatus.Failure, _fix.BrainWorld.GetComponent<LookAtChannelStatus>(brainEntity).Status);
 
         // Brain issues AcquireLookAt
         AnimationTestHelpers.IssueAcquireLookAt(brainEntity, 10f, 0f, 0f, _fix.BrainWorld, blendInTime: 0.1f);
 
         // Wait for Brain to see Running (LookAt status replicated from Muscle)
         _fix.PumpUntil(
-            () => _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity).Status == NodeStatus.Running,
+            () => _fix.BrainWorld.GetComponentRO<LookAtChannelStatus>(brainEntity).Status == NodeStatus.Running,
             maxFrames: 5 + RoundTripBuffer,
             conditionName: "Brain.LookAtChannel.Status == Running");
 
         var lookAtRunning = _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Running, lookAtRunning.Status);
+        Assert.Equal(NodeStatus.Running, _fix.BrainWorld.GetComponent<LookAtChannelStatus>(brainEntity).Status);
         // DispatchedInstanceId must have been replicated from Muscle
-        Assert.NotEqual(0u, lookAtRunning.DispatchedInstanceId);
+        Assert.NotEqual(0u, _fix.BrainWorld.GetComponent<LookAtChannelStatus>(brainEntity).DispatchedInstanceId);
 
         // Hold a few more frames in Running
         _fix.PumpFrames(5);
         Assert.Equal(NodeStatus.Running,
-            _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity).Status);
+            _fix.BrainWorld.GetComponentRO<LookAtChannelStatus>(brainEntity).Status);
 
         // Brain issues ReleaseLookAt
         AnimationTestHelpers.IssueReleaseLookAt(brainEntity, _fix.BrainWorld);
 
         // Wait for Brain to see Success (LookAt status replicated from Muscle after release)
         _fix.PumpUntil(
-            () => _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity).Status == NodeStatus.Success,
+            () => _fix.BrainWorld.GetComponentRO<LookAtChannelStatus>(brainEntity).Status == NodeStatus.Success,
             maxFrames: 5 + RoundTripBuffer,
             conditionName: "Brain.LookAtChannel.Status == Success");
 
         var lookAtSuccess = _fix.BrainWorld.GetComponentRO<LookAtChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Success, lookAtSuccess.Status);
+        Assert.Equal(NodeStatus.Success, _fix.BrainWorld.GetComponent<LookAtChannelStatus>(brainEntity).Status);
 
         // Animation channel must be unaffected (no PlayMontage was issued)
         var animChannel = _fix.BrainWorld.GetComponentRO<AnimationChannel>(brainEntity);
-        Assert.Equal(NodeStatus.Failure, animChannel.Status);
+        Assert.Equal(NodeStatus.Failure, _fix.BrainWorld.GetComponent<AnimationChannelStatus>(brainEntity).Status);
     }
 }

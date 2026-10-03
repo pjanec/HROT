@@ -54,6 +54,8 @@ cluster op.**
 
 ### Increment A — the manifest and the recursive walk *(the enabler — ⛔ nothing else starts first)*
 
+> ✅ **BUILT `2026-10-03` (`CE-3019`)** — `Fdp.Toolkit.Orchestration.Assets.AssetManifest` (`Scan` = the one recursive walker, `Diff` = added/changed/removed, `AssetManifestEntry.IsSameContentAs` = the built skip's exact rule); `StorageGatewayModule.StageFolder` now walks with it (design §10 D2). Rails in `StorageGatewayTests.cs` (`…_A1`, `…_A2`, `…_A3`), Orchestrator suite 186/0. ⚠ A3's archive arm stays homed in `B4`.
+
 | # | task | success condition | owning chapter |
 |---|---|---|---|
 | **A1** | `AssetManifestEntry` + `AssetManifest.Diff` returning **THREE sets — added / changed / removed**. ⛔⛔ **NOT the `FileManifestEntry` fields — they moved to `C1`** | `Diff` returns exactly the entries that differ **and** the ones present only on the node. ⭐ Rail the **removed** set explicitly: a one-sided diff passes an added/changed fixture and fails this | design **§3**, **§8**; ⚠ **see §3-W4** |
@@ -61,6 +63,8 @@ cluster op.**
 | **A3** | Prove the manifest's freshness semantics against the BUILT skip | a file copied with `File.Copy` compares **equal**; a modified file compares **unequal**. ⭐ This is the rail that shows §2's "one predicate" is true, ⛔ not a new predicate. ⚠ **The ARCHIVE arm is NOT railed here** — it is red until `B4` restores the mtime, and 🔒 **gate row 6 says a new skip is a finding, not a fix** ⇒ ⛔ batch ① must not ship a skip it then files against itself. ⭐ **Say so in the report and point at `B4`**; the case is not forgotten, it is homed | design **§2**, **§7.1**; `DESIGN_Artifact_Staging` §6 |
 
 ### Increment B — needs-filtered sync with the transport partition
+
+> ✅ **BUILT `2026-10-03` (`CE-3020`)** — B1/B2 `AssetNeeds` + `AssetTokens` (rails in `LoadPhaseChainTests`, `…_B1`/`…_B2`/`…_D3`), B3 `TransportPartitioner`, B4 `AssetTreeSync` (mtime restore red-proven), B4a `SyncBehaviourAssets` inside `PrefetchScenarioAsync` fed by `AssetSyncsFor` from `ClusterMaster`'s tokens, B5 `IAssetStorageStrategy` (⚠ **finding, as the row asked:** the two TKB providers each gained the two read members — an interface cannot default them without the root), B6 railed (`…_B6`). Design §10 D2–D5 carry the leans the build took.
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
@@ -73,6 +77,8 @@ cluster op.**
 | **B6** | ⭐⭐ **PRESERVE AND RAIL** — do **not** add: failing the load on any sync failure for a **named** artifact is **ALREADY BUILT** | 📐 `L8`: `IsSuccess:false` ⇒ `ClusterMaster` drops the parked entry, publishes `Failure`, fans out **nothing** (rail `A_failed_distribution_fails_the_request_and_fans_out_nothing`). ⇒ the deliverable is a rail proving the **new** sync's failures travel the **same** path — ⛔ a second failure route is a finding | design **§4**, **§7.5**; `Q72-F`; `DESIGN_Cluster_Load_Phase` §7.4 |
 
 ### Increment C — publish and the staleness probe *(independent of B; safe to defer)*
+
+> ✅ **BUILT `2026-10-03` (`CE-3021`)** — `AssetSyncService`: C1 publish (new/newer only, design §10 D6; `FileManifestEntry.Length`/`LastWriteUtc` + the skip in `PullToNasAsync`), C2/C3 `Probe` on every load via the saga (four arms railed in `…_C3`), C4 the `PublishAssets`/`RefreshAssets` cluster ops (§10 D7, `…_C4`), C5 `PreviewRefresh` + `RefreshFromNasAsync` (the pair railed in `…_C5`). Orchestrator suite 196/0.
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|

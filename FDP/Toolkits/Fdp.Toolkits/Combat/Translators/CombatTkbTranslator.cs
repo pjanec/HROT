@@ -71,7 +71,8 @@ namespace Fdp.Toolkit.Combat.Translators
                         repo.AddComponent(entity, new PhysicsCollider
                         {
                             Radius         = DefaultColliderRadius,
-                            CollisionLayer = CombatCollisionLayer
+                            CollisionLayer = CombatCollisionLayer,
+                            Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                         });
                     }
                 }

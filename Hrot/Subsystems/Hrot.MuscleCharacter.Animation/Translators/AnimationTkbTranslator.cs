@@ -90,10 +90,12 @@ namespace Hrot.MuscleCharacter.Animation.Translators
                     ActiveAction = 0,
                     BehaviorInstanceId = 0,
                     ActionInstanceId = 0,
-                    DispatchedInstanceId = 0,
-                    Status = NodeStatus.Failure,
                 });
             }
+
+            // ⭐ CE-513 / R-180 — the Muscle's report beside the Brain's request (DispatchedInstanceId 0, Failure = nothing picked up).
+            if (repo.IsComponentTypeRegistered<AnimationChannelStatus>())
+                repo.AddComponent(entity, new AnimationChannelStatus { DispatchedInstanceId = 0, Status = NodeStatus.Failure });
 
             // LookAtChannel only if AimConfig is present
             if (repo.IsComponentTypeRegistered<LookAtChannel>() && def.AimConfig != null)
@@ -103,10 +105,12 @@ namespace Hrot.MuscleCharacter.Animation.Translators
                     ActiveAction = 0,
                     BehaviorInstanceId = 0,
                     ActionInstanceId = 0,
-                    DispatchedInstanceId = 0,
-                    Status = NodeStatus.Failure,
                 });
             }
+
+            // ⭐ CE-513 / R-180 — the Muscle's report beside the Brain's request (DispatchedInstanceId 0, Failure = nothing picked up).
+            if (repo.IsComponentTypeRegistered<LookAtChannelStatus>() && def.AimConfig != null)
+                repo.AddComponent(entity, new LookAtChannelStatus { DispatchedInstanceId = 0, Status = NodeStatus.Failure });
 
             // Stance components
             if (repo.IsComponentTypeRegistered<StanceIntent>())

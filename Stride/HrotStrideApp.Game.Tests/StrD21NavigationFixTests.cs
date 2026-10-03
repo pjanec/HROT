@@ -513,6 +513,7 @@ internal sealed class SpyDeferredCrowd : IDtCrowdProvider
 /// <summary>
 /// Spy <see cref="INavmeshProvider"/> that returns a fixed corner list.
 /// Lets <see cref="VehicleNavigationIntentSystem"/> plan without a real baked navmesh.
+/// Corners are ENGINE space (FDP, Z-up: X east, Y north, Z up) like every INavmeshProvider output (R-182 / W7).
 /// </summary>
 internal sealed class SpyNavmeshProvider : INavmeshProvider
 {

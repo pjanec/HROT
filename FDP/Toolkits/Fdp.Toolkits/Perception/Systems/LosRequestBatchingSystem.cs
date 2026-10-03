@@ -18,8 +18,9 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="ThreatEvaluationSystem"/> processes the resulting visible-target events.
     /// </para>
     /// <para>
-    /// <b>Production mode (default):</b> For each <see cref="LosCheckRequestEvent"/>, performs
-    /// an inline 2-D segment-circle sweep using a caller-supplied
+    /// <b>Production mode (default):</b> For each <see cref="LosCheckRequestEvent"/>, asks an
+    /// <see cref="LineOfSight.ILosStrategy"/>. Without an injected one it performs
+    /// the original 2-D segment-circle sweep using a caller-supplied
     /// <see cref="ColliderRadiusReader"/> delegate to obtain each candidate entity's bounding
     /// radius.  If the delegate is <c>null</c> all candidates are treated as point entities
     /// (radius zero) which creates a degenerate check: only the exact centre point of an
@@ -55,21 +56,36 @@ namespace Fdp.Toolkit.Perception.Systems
         /// </summary>
         public Func<ISimulationView, Entity, float>? ColliderRadiusReader { get; set; }
 
+        /// <summary>
+        /// ⭐ The line-of-sight test, when a host injects one (<see cref="LineOfSight.TerrainWorldLosStrategy"/> on
+        /// every host with a terrain world). Null ⇒ <see cref="LineOfSight.PlanarCircleLosStrategy"/> over
+        /// <see cref="ColliderRadiusReader"/> — the 2-D sweep this system always did. 📄 docs/DESIGN_Terrain_World.md §4.3.
+        /// </summary>
+        private readonly LineOfSight.ILosStrategy _strategy;
+
         /// <param name="mockMode">
         /// <c>true</c> to bypass ray submission and directly emit <see cref="TargetVisibleEvent"/>;
         /// <c>false</c> for production (inline SoD raycast).
         /// </param>
         /// <param name="colliderRadiusReader">
         /// Optional delegate for reading the bounding radius of each candidate collider entity.
-        /// See <see cref="ColliderRadiusReader"/>.
+        /// See <see cref="ColliderRadiusReader"/>. Used only when <paramref name="losStrategy"/> is null.
         /// </param>
+        /// <param name="losStrategy">The sight test; null ⇒ the planar 2-D sweep.</param>
         public LosRequestBatchingSystem(
             bool mockMode = false,
-            Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
+            Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
+            LineOfSight.ILosStrategy? losStrategy = null)
         {
             _mockMode = mockMode;
             ColliderRadiusReader = colliderRadiusReader;
+            // The planar default reads the PROPERTY on each call, so a reader assigned after construction still applies.
+            _strategy = losStrategy ?? new LineOfSight.PlanarCircleLosStrategy(
+                (view, e) => ColliderRadiusReader?.Invoke(view, e) ?? 0f);
         }
+
+        /// <summary>The sight test this system runs (diagnostics, rails).</summary>
+        public LineOfSight.ILosStrategy Strategy => _strategy;
 
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
@@ -87,14 +103,8 @@ namespace Fdp.Toolkit.Perception.Systems
                 return;
             }
 
-            // ── Production mode: inline SoD raycast ────────────────────────────────────────
-            // For each LOS request, sweep every entity that has a SimTransform and a collider
-            // radius > 0 (as reported by ColliderRadiusReader).  The target itself is excluded
-            // so its own collider cannot self-occlude.
-            var colliderQuery = view.Query()
-                .With<SimTransform>()
-                .WithComponentId(GlobalComponentIds.PhysicsCollider)
-                .Build();
+            // ── Production mode: ask the strategy ─────────────────────────────────────────
+            _strategy.BeginBatch(view);
 
             foreach (ref readonly var req in requests)
             {
@@ -102,57 +112,9 @@ namespace Fdp.Toolkit.Perception.Systems
                 if (!view.HasComponent<SimTransform>(req.Observer))            continue;
                 if (!view.HasComponent<SimTransform>(req.Target))              continue;
 
-                ref readonly var obsTf = ref view.GetComponentRO<SimTransform>(req.Observer);
-                ref readonly var tgtTf = ref view.GetComponentRO<SimTransform>(req.Target);
-
-                var obsPos2D = new Vector2(obsTf.Position.X, obsTf.Position.Y);
-                var tgtPos2D = new Vector2(tgtTf.Position.X, tgtTf.Position.Y);
-
-                bool blocked = false;
-
-                foreach (var candidate in colliderQuery)
-                {
-                    // The target's own collider must not block the ray to itself.
-                    if (candidate.Index == req.Target.Index) continue;
-                    // The observer's own collider must not self-occlude.
-                    if (candidate.Index == req.Observer.Index) continue;
-
-                    if (!view.IsAlive(candidate)) continue;
-
-                    float radius = ColliderRadiusReader?.Invoke(view, candidate) ?? 0f;
-
-                    ref readonly var cTf = ref view.GetComponentRO<SimTransform>(candidate);
-                    var cPos = new Vector2(cTf.Position.X, cTf.Position.Y);
-
-                    if (IntersectsSegmentCircle(obsPos2D, tgtPos2D, cPos, radius))
-                    {
-                        blocked = true;
-                        break;
-                    }
-                }
-
-                if (!blocked)
+                if (_strategy.IsVisible(view, req.Observer, req.Target))
                     cmds.PublishEvent(new TargetVisibleEvent { Observer = req.Observer, Target = req.Target });
             }
         }
-
-        // ── Inline 2-D segment-circle intersection ──────────────────────────────────────
-        // Mirrors Intersection2D.RaycastCircle from FDP.Toolkit.Physics without referencing
-        // that assembly (circular dependency guard).
-        private static bool IntersectsSegmentCircle(Vector2 start, Vector2 end, Vector2 center, float radius)
-        {
-            Vector2 d = end - start;
-            Vector2 f = start - center;
-            float a = Vector2.Dot(d, d);
-            float b = 2f * Vector2.Dot(f, d);
-            float c = Vector2.Dot(f, f) - radius * radius;
-            float disc = b * b - 4f * a * c;
-            if (disc < 0f) return false;
-            float sqrtDisc = MathF.Sqrt(disc);
-            float t1 = (-b - sqrtDisc) / (2f * a);
-            float t2 = (-b + sqrtDisc) / (2f * a);
-            return (t1 >= 0f && t1 <= 1f) || (t2 >= 0f && t2 <= 1f);
-        }
     }
 }
-    /// in mock mode, directly confirms visibility for all requests).

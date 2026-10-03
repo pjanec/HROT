@@ -54,6 +54,9 @@ namespace Fdp.Toolkit.Navigation.Systems
         // we do NOT update this dict so the bridge retries on the next tick.
         private readonly Dictionary<Entity, uint> _lastAppliedActionInstanceId = new();
 
+        // ⭐ CE-3026 — PathToPoint intents whose crowd registration is waiting for the crowd provider (by IntentId).
+        private readonly Dictionary<Entity, uint> _pendingCrowd = new();
+
         private readonly TrajectoryPoolManager? _trajectoryPool;
         private readonly IDtCrowdProvider? _dtCrowd;
 
@@ -104,9 +107,10 @@ namespace Fdp.Toolkit.Navigation.Systems
             //   spawn-then-move order never moved). Applying NavState early is safe: the kinematics run on Active entities
             //   only, so motion still starts at activation. ⚠ Ghost → Active PROMOTION has the same blind spot and is NOT
             //   covered here (whether a ghost may take NavState is the navigation design's call) — filed with CE-498.
+            // ⭐ CE-3026 — NavState is NOT required here: a PathToPoint for infantry (no kinematic NavState — the crowd moves
+            //   it) must still reach RequestPath/JoinCrowd below. Every other mode only writes NavState, so it skips without one.
             var query = repo.Query()
                 .With<NavigationIntent>()
-                .With<NavState>()
                 .IncludeAll()
                 .Build();
 
@@ -126,7 +130,9 @@ namespace Fdp.Toolkit.Navigation.Systems
                     continue;
                 }
 
-                var nav = repo.GetComponent<NavState>(entity);
+                bool hasNav = repo.HasComponent<NavState>(entity);
+                if (!hasNav && intent.Mode != NavigationMode.PathToPoint) continue;   // nothing to drive (as before)
+                var nav = hasNav ? repo.GetComponent<NavState>(entity) : default;
 
                 switch (intent.Mode)
                 {
@@ -144,6 +150,18 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
                         nav.ReverseAllowed   = intent.ReverseAllowed;
+                        nav.HasArrived       = 0;
+                        break;
+
+                    case NavigationMode.PathToPoint:
+                        // ⭐ CE-3026 — wait (no straight-line start) until the path arrives; the request is published
+                        //   below once the NavState is stored. Speed/arrival are kept for the trajectory follower.
+                        nav.Mode             = KinematicsMode.None;
+                        nav.FinalDestination = intent.FinalDestination;
+                        nav.TargetSpeed      = intent.TargetSpeed;
+                        nav.ArrivalRadius    = intent.ArrivalRadius;
+                        nav.ReverseAllowed   = intent.ReverseAllowed;
+                        nav.TrajectoryId     = 0;
                         nav.HasArrived       = 0;
                         break;
 
@@ -171,13 +189,33 @@ namespace Fdp.Toolkit.Navigation.Systems
                         break;
                 }
 
-                repo.SetComponent(entity, nav);
+                if (hasNav) repo.SetComponent(entity, nav);
+
+                if (intent.Mode == NavigationMode.PathToPoint)
+                {
+                    RequestPath(repo, entity, in intent);
+                    if (!JoinCrowd(repo, entity, in intent))
+                        _pendingCrowd[entity] = intent.IntentId;   // crowd not ready yet — retried every tick below
+                }
             
                 // Cache against the generation-safe handle
                 _lastAppliedIntentId[entity] = intent.IntentId;
             }
 
             _lastScanTick = repo.GlobalVersion;
+
+            // ⭐ CE-3026 — retry a PathToPoint whose crowd registration was deferred (the crowd provider exists only once a
+            //   navmesh is baked). Replaces the old ActionInstanceId non-caching trick (STR-D21 F6) of the removed branch.
+            if (_pendingCrowd.Count > 0)
+            {
+                foreach (var (pending, pendingIntentId) in new List<KeyValuePair<Entity, uint>>(_pendingCrowd))
+                {
+                    if (!repo.IsAlive(pending) || !repo.HasComponent<NavigationIntent>(pending)) { _pendingCrowd.Remove(pending); continue; }
+                    var pendingIntent = repo.GetComponent<NavigationIntent>(pending);
+                    if (pendingIntent.IntentId != pendingIntentId || pendingIntent.Mode != NavigationMode.PathToPoint) { _pendingCrowd.Remove(pending); continue; }
+                    if (JoinCrowd(repo, pending, in pendingIntent)) _pendingCrowd.Remove(pending);
+                }
+            }
 
             // ── Route LocomotionChannel actions into the nav v2 pipeline ──────────────
             // Iterate ALL entities with LocomotionChannel each tick; use the
@@ -210,117 +248,10 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                 switch (ch.ActiveAction)
                 {
-                    case NavigationConstants.ActionIdMoveTo:
-                    {
-                        var p = Unsafe.ReadUnaligned<MoveToParams>(ref ch.Params[0]);
-
-                        var from = repo.HasComponent<SimTransform>(entity)
-                            ? repo.GetComponent<SimTransform>(entity).Position
-                            : Vector3.Zero;
-
-                        var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
-                            ? repo.GetComponent<NavAgentProfile>(entity)
-                            : default;
-
-                        long reqId = ((long)entity.Index << 32) | (uint)repo.GlobalVersion;
-                        repo.Bus.Publish(new PathfindingRequestEvent
-                        {
-                            RequestId       = reqId,
-                            Start           = from,
-                            End             = p.Destination, // real destination Z (Sim Z-up, P3D-302)
-                            MobilityProfile = agentProfile.MobilityProfile,
-                            BackendForce    = (NavigationBackend)p.BackendForce,
-                            RouteHandle     = p.RouteHandle,
-                            NavLayerMask    = (int)p.LayerMask,
-                        });
-
-                        // Crowd registration for infantry (entities without VehicleState).
-                        // STR-D21 F6 fix: if RegisterAgent returns false (crowd provider not yet
-                        // initialized — the DotRecastDtCrowdProvider is deferred until BakeNavmesh
-                        // supplies the navmesh), do NOT cache ActionInstanceId so we retry next tick.
-                        //
-                        // BATCH-27 belt-and-suspenders diagnostic: log when crowd registration is
-                        // skipped because VehicleState is present.  On a correctly-configured GPU
-                        // run this branch should NEVER fire for InfantrySoldier entities (TKB 2002)
-                        // after the BATCH-26 VehicleKinematicsTkbTranslator fix (ShapeKind=Capsule →
-                        // no VehicleState injected).  If it does fire, the translator fix is absent.
-                        if (_dtCrowd != null && repo.HasComponent<VehicleState>(entity))
-                        {
-                            Log.Warn("[BridgeReg] entity #{0} has VehicleState — crowd registration SKIPPED " +
-                                     "(BATCH-26 VehicleKinematicsTkbTranslator fix missing? ShapeKind must be " +
-                                     "CollisionShapeKind.Capsule to prevent VehicleState injection on infantry). " +
-                                     "actionId={1}",
-                                entity.Index, ch.ActionInstanceId);
-                        }
-                        if (_dtCrowd != null && !repo.HasComponent<VehicleState>(entity))
-                        {
-                            var profile = repo.HasComponent<NavAgentProfile>(entity)
-                                ? repo.GetComponent<NavAgentProfile>(entity)
-                                : default;
-
-                            float radius  = profile.AgentRadius > 0f ? profile.AgentRadius : 0.4f;
-                            float maxSpd  = p.Speed > 0f ? p.Speed : 5f;
-
-                            // BATCH-26 / STR-D20: pass the entity's current SimTransform position as
-                            // the agent start position so DtCrowd places the agent at a valid navmesh
-                            // polygon from frame 1.  Without this the agent starts at (0,0,0) — the
-                            // crowd may plan a path from the wrong polygon and produce zero velocity
-                            // until the agent teleports to the real position on the first Update() call.
-                            bool registered = _dtCrowd.RegisterAgent(entity, new CrowdAgentParams
-                            {
-                                Radius          = radius,
-                                Height          = profile.AgentHeight > 0f ? profile.AgentHeight : 1.8f,
-                                MaxSpeed        = maxSpd,
-                                MaxAcceleration = 20f,
-                                SeparationWeight = 2,
-                            }, from);
-
-                            if (registered)
-                            {
-                                // Tag the entity as crowd-managed.
-                                if (!repo.HasComponent<CrowdAgent>(entity))
-                                    repo.AddComponent(entity, default(CrowdAgent));
-
-                                // Set the target in the crowd provider (carry real Z, P3D-302).
-                                _dtCrowd.SetAgentTarget(entity, p.Destination);
-
-                                // Diagnostic: log successful registration (once per entity).
-                                // [BridgeReg] tag allows GPU operator to grep for F6 confirmation.
-                                Log.Info("[BridgeReg] entity #{0} crowd-registered: " +
-                                         "radius={1:F2} maxSpd={2:F1} dest=({3:F1},{4:F1}) actionId={5}",
-                                    entity.Index, radius, maxSpd,
-                                    p.Destination.X, p.Destination.Y, ch.ActionInstanceId);
-                            }
-                            else
-                            {
-                                // RegisterAgent returned false — either the crowd is not yet
-                                // initialized (navmesh not baked yet) or the entity was already
-                                // registered.
-                                bool alreadyRegistered = _dtCrowd.TryGetAgentSnapshot(entity, out _);
-                                if (alreadyRegistered)
-                                {
-                                    // Entity already in crowd — just update the target.
-                                    _dtCrowd.SetAgentTarget(entity, p.Destination);
-                                    if (!repo.HasComponent<CrowdAgent>(entity))
-                                        repo.AddComponent(entity, default(CrowdAgent));
-                                    Log.Debug("[BridgeReg] entity #{0} already crowd-registered — " +
-                                              "updated target to ({1:F1},{2:F1}).",
-                                        entity.Index, p.Destination.X, p.Destination.Y);
-                                }
-                                else
-                                {
-                                    // Crowd not yet initialized; do NOT cache ActionInstanceId —
-                                    // bridge will retry on every subsequent tick until ready.
-                                    Log.Debug("[BridgeReg] entity #{0} RegisterAgent deferred " +
-                                              "(crowd not initialized yet). Will retry next tick.",
-                                        entity.Index);
-                                    cacheActionId = false;
-                                }
-                            }
-                        }
-                        break;
-                    }
-
+                    // ⛔ CE-3026 — the MoveTo branch is GONE from here. It read the Brain's LocomotionChannel directly, which
+                    //   only works when Brain and Muscle share a world (the editor) — so the editor planned and a cluster
+                    //   drove straight through buildings. A MoveTo now reaches the vehicle side the same way on every host:
+                    //   MoveToExecutor → NavigationIntent{PathToPoint} → (wire on a cluster) → the PathToPoint case above.
                     case NavigationConstants.ActionIdPlanRoute:
                     {
                         var p = Unsafe.ReadUnaligned<PlanRouteParams>(ref ch.Params[0]);
@@ -348,7 +279,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
                             RouteHandle     = routeHandle,
-                            NavLayerMask    = (int)p.LayerMask,
+                            NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                             MaxCost         = p.MaxCost,
                         });
                         break;
@@ -416,6 +347,72 @@ namespace Fdp.Toolkit.Navigation.Systems
                 if (cacheActionId)
                     _lastAppliedActionInstanceId[entity] = ch.ActionInstanceId;
             }
+        }
+    
+        /// <summary>
+        /// ⭐ CE-3026 — a <see cref="NavigationMode.PathToPoint"/> is planned on THIS node (the vehicle side), the same way on
+        /// every host. Infantry also joins the crowd (<see cref="JoinCrowd"/>). The path solver's answer puts the entity on the
+        /// trajectory (<c>EngineBackedPathResponseSystem</c>) or reports <c>FailedUnreachable</c>
+        /// (<c>PathfindingResultMaterializationSystem</c>); a node with no solver (Stride) leaves it to its own planner.
+        /// </summary>
+        private static void RequestPath(EntityRepository repo, Entity entity, in NavigationIntent intent)
+        {
+            var from = repo.HasComponent<SimTransform>(entity)
+                ? repo.GetComponent<SimTransform>(entity).Position
+                : Vector3.Zero;
+            var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
+                ? repo.GetComponent<NavAgentProfile>(entity)
+                : default;
+            repo.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId       = ((long)entity.Index << 32) | (uint)repo.GlobalVersion,
+                Start           = from,
+                End             = intent.FinalDestination,   // real destination Z (Sim Z-up, P3D-302)
+                MobilityProfile = agentProfile.MobilityProfile,
+                BackendForce    = (NavigationBackend)intent.BackendForce,
+                RouteHandle     = intent.RouteHandle,
+                NavLayerMask    = (int)NavLayerSelection.For(repo, entity, intent.LayerMask),
+            });
+        }
+
+        /// <summary>Infantry (no <see cref="VehicleState"/>) on a crowd host joins the crowd, targeted at the intent's
+        /// destination. Returns false only when the crowd is not initialised yet (no navmesh baked) — retry next tick.</summary>
+        private bool JoinCrowd(EntityRepository repo, Entity entity, in NavigationIntent intent)
+        {
+            if (_dtCrowd == null || repo.HasComponent<VehicleState>(entity)) return true;
+            var from = repo.HasComponent<SimTransform>(entity)
+                ? repo.GetComponent<SimTransform>(entity).Position
+                : Vector3.Zero;
+            var profile = repo.HasComponent<NavAgentProfile>(entity)
+                ? repo.GetComponent<NavAgentProfile>(entity)
+                : default;
+            float radius = profile.AgentRadius > 0f ? profile.AgentRadius : 0.4f;
+            float maxSpd = intent.TargetSpeed > 0f ? intent.TargetSpeed : 5f;
+
+            // BATCH-26 / STR-D20: start the agent at its real position, or DtCrowd plans from (0,0,0).
+            bool registered = _dtCrowd.RegisterAgent(entity, new CrowdAgentParams
+            {
+                Radius           = radius,
+                Height           = profile.AgentHeight > 0f ? profile.AgentHeight : 1.8f,
+                MaxSpeed         = maxSpd,
+                MaxAcceleration  = 20f,
+                SeparationWeight = 2,
+            }, from);
+
+            if (!registered && !_dtCrowd.TryGetAgentSnapshot(entity, out _))
+            {
+                // Crowd not initialised yet (no navmesh baked) — the caller retries every tick (STR-D21 F6).
+                Log.Debug("[BridgeReg] entity #{0} RegisterAgent deferred (crowd not initialized yet).", entity.Index);
+                return false;
+            }
+
+            // Registered now, or already registered: (re)target it and tag it crowd-managed.
+            _dtCrowd.SetAgentTarget(entity, intent.FinalDestination);   // carries real Z (P3D-302)
+            if (!repo.HasComponent<CrowdAgent>(entity))
+                repo.AddComponent(entity, default(CrowdAgent));
+            Log.Info("[BridgeReg] entity #{0} crowd target: radius={1:F2} maxSpd={2:F1} dest=({3:F1},{4:F1}) intent={5}",
+                entity.Index, radius, maxSpd, intent.FinalDestination.X, intent.FinalDestination.Y, intent.IntentId);
+            return true;
         }
     }
 }

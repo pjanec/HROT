@@ -236,6 +236,15 @@ public sealed class ClusterMaster : IDisposable
     public IWorldIdAuthority? IdAuthority { get; set; }
 
     /// <summary>
+    /// ⭐ CE-3021 — the explicit asset operations (publish / refresh, docs/DESIGN_Asset_Management.md §5). ⛔ A composition
+    /// root that holds the gateway and the NAS path MUST set it (the silent-default rule) — null rejects both ops loudly.
+    /// </summary>
+    public AssetSyncService? AssetSync { get; set; }
+
+    /// <summary>The active nodes' advertised capability tokens — what <see cref="AssetSyncService"/> reads.</summary>
+    public IReadOnlyDictionary<int, string[]> ActiveNodeCapabilitySnapshot() => ActiveNodeCapabilities();
+
+    /// <summary>
     /// ⭐ Test/diagnostic hook: how many times a world boundary has reset the authority.
     /// <para>📌 Exists so the guard can be asserted from the OUTSIDE — a rail proving the reset does NOT
     /// fire on replay/preview/step needs to observe non-firing, and "nothing happened" is only checkable
@@ -348,6 +357,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessDiagnosticDumpIntents();
         ProcessLoadZoneIntents();
         ProcessBuildTerrainAssetIntents();
+        ProcessAssetOpIntents();   // ⭐ CE-3021 — publish / refresh arriving on the bus (remote panel)
 
         ConsumeNodeOpStatuses();
     }
@@ -528,6 +538,15 @@ public sealed class ClusterMaster : IDisposable
                 ProcessBuildTerrainAssetIntent(
                     ClusterOpRequestAdapter.ToBuildTerrainAssetIntent(req));
                 break;
+
+            // ⭐ CE-3021 — the user-triggered asset operations, any time (C4/C5).
+            case ClusterOpType.PublishAssets:
+            case ClusterOpType.RefreshAssets:
+            {
+                var dto = ClusterOpRequestAdapter.ToAssetOpPayload(req);
+                ProcessAssetOp(req.RequestId, req.OperationType == ClusterOpType.RefreshAssets, dto?.Kind, dto?.NodeId ?? 0);
+                break;
+            }
         }
     }
 
@@ -558,6 +577,55 @@ public sealed class ClusterMaster : IDisposable
     /// heartbeat can re-apply it (the heartbeat rebuilds the profile). A late advert also immediately corrects
     /// an already-present profile's <see cref="NodeHealthProfile.Capabilities"/> + derived
     /// <see cref="NodeHealthProfile.Roles"/> without waiting for the next heartbeat.</summary>
+    /// <summary>⭐ CE-3020 — every active node's capability tokens, for the prefetch saga's asset sync
+    /// (docs/DESIGN_Asset_Management.md §4).</summary>
+    private Dictionary<int, string[]> ActiveNodeCapabilities()
+    {
+        var map = new Dictionary<int, string[]>();
+        foreach (var id in _roster.ActiveNodes.Keys)
+            map[id] = _nodeCapabilities.TryGetValue(id, out var t) ? t : System.Array.Empty<string>();
+        return map;
+    }
+
+    /// <summary>
+    /// ⭐ CE-3021 — run a publish or refresh off the main thread and report it on the op-status channel. ⛔ Never
+    /// automatic: only a <see cref="ClusterOpRequest"/> reaches here (docs/DESIGN_Asset_Management.md §7.5, Q72-I).
+    /// </summary>
+    private void ProcessAssetOpIntents()
+    {
+        foreach (var intent in _eventBus.ReadManaged<AssetOpIntent>())
+            ProcessAssetOp(intent.RequestId, intent.Refresh, intent.Kind, intent.NodeId);
+    }
+
+    private void ProcessAssetOp(Guid requestId, bool refresh, string? kind, int nodeId)
+    {
+        string op = refresh ? "RefreshAssets" : "PublishAssets";
+        if (AssetSync == null || string.IsNullOrWhiteSpace(kind))
+        {
+            FdpLog<ClusterMaster>.Warn(
+                $"[Orchestrator] {op} {requestId} rejected: "
+              + (AssetSync == null ? "this orchestrator composes no AssetSyncService." : "payload must be {\"Kind\":…, \"NodeId\":…}."));
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+
+        PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
+        System.Threading.Tasks.Task<bool> work = !refresh
+            ? AssetSync.PublishToNasAsync(kind, nodeId).ContinueWith(t => t.Result.FailureCount == 0,
+                  System.Threading.Tasks.TaskContinuationOptions.OnlyOnRanToCompletion)
+            : AssetSync.RefreshFromNasAsync(kind, nodeId).ContinueWith(_ => true,
+                  System.Threading.Tasks.TaskContinuationOptions.OnlyOnRanToCompletion);
+
+        work.ContinueWith(t =>
+        {
+            bool ok = t.Status == System.Threading.Tasks.TaskStatus.RanToCompletion && t.Result;
+            if (!ok)
+                FdpLog<ClusterMaster>.Error(
+                    $"[Orchestrator] asset op {requestId} failed: {t.Exception?.GetBaseException().Message ?? "copy failures"}");
+            PublishOpStatus(requestId, ok ? OrchestrationStatusCode.Success : OrchestrationStatusCode.Failure);
+        }, System.Threading.Tasks.TaskScheduler.Default);
+    }
+
     private void IngestCapabilities()
     {
         foreach (var caps in _eventBus.ReadManaged<NodeCapabilitiesEvent>())
@@ -1108,6 +1176,7 @@ public sealed class ClusterMaster : IDisposable
                 RequestId     = requestId,
                 ScenarioId    = prefetchScenarioId,
                 ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
+                NodeCapabilities = ActiveNodeCapabilities(),
             });
 
             FdpLog<ClusterMaster>.Info(
@@ -1381,6 +1450,7 @@ public sealed class ClusterMaster : IDisposable
                     RequestId     = requestId,
                     ScenarioId    = (string?)prefetch.DomainPayload ?? string.Empty,
                     ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
+                    NodeCapabilities = ActiveNodeCapabilities(),
                 });
             }
             else if (step is OperationStep { Operation: ClusterOpType.ManageEpisode })

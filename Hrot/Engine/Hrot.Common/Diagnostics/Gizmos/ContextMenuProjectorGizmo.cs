@@ -81,6 +81,23 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
             }, SerializerOptions);
 
+        /// <summary>
+        /// ⭐ CE-3024 (E2) — the area menu plus "Load zone", for a TERRAIN ZONE (<c>TkbEntityTypes.TerrainZone</c>).
+        /// ⛔ Always enabled: the load is cluster-wide and this node's local marker cannot speak for the cluster
+        /// (design §9.7 ③b) — the same ruling the shared populator obeys.
+        /// </summary>
+        private static readonly string MenuJsonZone = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.EditOverlay,    Label = "Edit Shape",   Shortcut = "E" },
+                new ContextMenuItemDto { Id = GlobalActionIds.LoadZone,       Label = "Load zone",    Shortcut = "L" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
+            }, SerializerOptions);
+
         /// <summary>Menu for a tactical route graphic.</summary>
         private static readonly string MenuJsonRoute = JsonSerializer.Serialize(
             new ContextMenuItemDto[]
@@ -101,11 +118,23 @@ namespace Hrot.Common.Diagnostics.Gizmos
             long networkId = netId.Value;
             if (networkId == 0) return;
 
+            draw.DrawContextMenuBinding(networkId, MenuJsonFor(view, entity));
+        }
+
+        /// <summary>
+        /// The menu permutation for <paramref name="entity"/> — what <see cref="Draw"/> binds. ⭐ CE-3024: factored out so a
+        /// rail can assert WHICH menu an entity gets (the zone menu is the only one carrying "Load zone").
+        /// </summary>
+        public static string MenuJsonFor(ISimulationView view, Entity entity)
+        {
             string menuJson;
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
-                menuJson = MenuJsonArea;
+                // ⭐ CE-3024 — a terrain zone is an area that can also be LOADED.
+                bool isZone = view.HasComponent<TkbIdentity>(entity)
+                    && view.GetComponentRO<TkbIdentity>(entity).TkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone;
+                menuJson = isZone ? MenuJsonZone : MenuJsonArea;
             }
             else if (view.HasManagedComponent<RoutePlan>(entity))
             {
@@ -126,7 +155,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 }
             }
 
-            draw.DrawContextMenuBinding(networkId, menuJson);
+            return menuJson;
         }
     }
 }

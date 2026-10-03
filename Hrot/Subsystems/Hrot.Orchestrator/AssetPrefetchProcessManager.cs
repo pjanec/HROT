@@ -90,7 +90,15 @@ public sealed class AssetPrefetchProcessManager
                 continue;
             }
 
-            var targets = BuildNodeDistributionTargets(intent.ActiveNodeIds, intent.ScenarioId);
+            var targets = BuildNodeDistributionTargets(intent.ActiveNodeIds, intent.ScenarioId, intent.NodeCapabilities);
+
+            // ⭐⭐ C3 — the staleness probe on every load (docs/DESIGN_Asset_Management.md §5): AHEAD or BEHIND only WARNS,
+            //   the load continues and NOTHING transfers; an offline author is not in the roster and is not probed.
+            foreach (var f in ProbeOnLoad(_nasBasePath, intent.NodeCapabilities))
+                FdpLog<AssetPrefetchProcessManager>.Warn(
+                    f.State == AssetStaleness.Ahead
+                        ? $"[AssetSync] node {f.NodeId} has UNPUBLISHED '{f.Kind}' changes ({f.Node.Count} files, newest {f.Node.NewestUtc:u}; NAS {f.Nas.Count}, {f.Nas.NewestUtc:u}). Load continues — publish to share them."
+                        : $"[AssetSync] NAS has NEWER '{f.Kind}' assets than node {f.NodeId} ({f.Nas.Count} files, newest {f.Nas.NewestUtc:u}; node {f.Node.Count}, {f.Node.NewestUtc:u}). Load continues, nothing is overwritten — refresh to take them.");
 
             FdpLog<AssetPrefetchProcessManager>.Info(
                 "[AssetPrefetchProcessManager] PrefetchScenario started for '{0}' (requestId={1}).",
@@ -226,7 +234,36 @@ public sealed class AssetPrefetchProcessManager
             scenarioId, originRequestId, isSuccess ? "success" : "FAILURE");
     }
 
-    private List<NodeDistributionTarget> BuildNodeDistributionTargets(List<int> nodeIds, string scenarioId)
+    /// <summary>
+    /// ⭐⭐ CE-3020 — the behaviour-asset trees a node receives, from its advertised tokens (docs/DESIGN_Asset_Management.md
+    /// §7.3a/§7.3b, §10 D4): every kind it advertised a ROOT for and either NEEDS (mirror) or AUTHORS (add-only).
+    /// ⭐ The load-part kinds (tkb, terrain, scenario) are not here — they travel by the scenario/artifact staging above.
+    /// </summary>
+    /// <summary>⭐ C3 — the probe a load runs; never throws, never transfers (a probe failure is logged and ignored).</summary>
+    public static IReadOnlyList<AssetProbeFinding> ProbeOnLoad(string nasBasePath, IReadOnlyDictionary<int, string[]>? capabilities)
+    {
+        try { return AssetSyncService.Probe(nasBasePath, capabilities); }
+        catch (Exception ex)
+        {
+            FdpLog<AssetPrefetchProcessManager>.Warn($"[AssetSync] staleness probe skipped: {ex.Message}");
+            return Array.Empty<AssetProbeFinding>();
+        }
+    }
+
+    public static IReadOnlyList<AssetSyncTarget> AssetSyncsFor(IEnumerable<string>? tokens)
+    {
+        var profile = Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(tokens);
+        var list = new List<AssetSyncTarget>();
+        foreach (var (kind, root) in profile.Roots)
+        {
+            var mode = profile.ModeFor(kind);
+            if (mode != null) list.Add(new AssetSyncTarget(kind, root, mode.Value));
+        }
+        return list;
+    }
+
+    private List<NodeDistributionTarget> BuildNodeDistributionTargets(
+        List<int> nodeIds, string scenarioId, IReadOnlyDictionary<int, string[]>? capabilities)
     {
         var targets = new List<NodeDistributionTarget>(nodeIds.Count);
         foreach (var nodeId in nodeIds)
@@ -246,6 +283,9 @@ public sealed class AssetPrefetchProcessManager
                 TkbDestinationPath =
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
                         _localStagingRoot, nodeId),
+
+                // ⭐⭐ CE-3020 — what this node advertised it needs / authors (docs/DESIGN_Asset_Management.md §4).
+                AssetSyncs = AssetSyncsFor(capabilities != null && capabilities.TryGetValue(nodeId, out var t) ? t : null),
             });
         }
         return targets;

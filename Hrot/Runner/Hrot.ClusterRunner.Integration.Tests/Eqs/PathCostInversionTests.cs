@@ -22,7 +22,7 @@ public sealed class PathCostInversionTests : IDisposable
     private readonly EditorHarness _harness;
 
     // Mock navmesh: A at (0,5) costs 50, B at (0,10) costs 10, C at (0,2) unreachable.
-    // Note: 2D (x, y_north) maps to 3D as (X, 0, Z), so 2D y_north == 3D Z.
+    // Note: INavmeshProvider is engine space, Z-up (R-182 / W7): 2D (x, y_north) is 3D (X, Y, 0), so 2D y_north == 3D Y.
     private sealed class MockNavmeshProvider : INavmeshProvider
     {
         public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => true;
@@ -30,17 +30,17 @@ public sealed class PathCostInversionTests : IDisposable
         public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
         public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
-            // Unreachable only for the entity at (0, 0, 2) [2D: (0,2)].
-            return !(Math.Abs(to.Z - 2f) < 0.1f && Math.Abs(to.X) < 0.1f);
+            // Unreachable only for the entity at (0, 2, 0) [2D: (0,2)].
+            return !(Math.Abs(to.Y - 2f) < 0.1f && Math.Abs(to.X) < 0.1f);
         }
         public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
             if (!PathExists(from, to)) return float.MaxValue;
-            // A at (0, 0, 5) [2D: (0,5)]: path = 50. B at (0, 0, 10) [2D: (0,10)]: path = 10.
-            if (Math.Abs(to.Z - 5f) < 0.1f)  return 50f;
-            if (Math.Abs(to.Z - 10f) < 0.1f) return 10f;
-            float dx = from.X - to.X; float dz = from.Z - to.Z;
-            return MathF.Sqrt(dx * dx + dz * dz);
+            // A at (0, 5, 0) [2D: (0,5)]: path = 50. B at (0, 10, 0) [2D: (0,10)]: path = 10.
+            if (Math.Abs(to.Y - 5f) < 0.1f)  return 50f;
+            if (Math.Abs(to.Y - 10f) < 0.1f) return 10f;
+            float dx = from.X - to.X; float dy = from.Y - to.Y;
+            return MathF.Sqrt(dx * dx + dy * dy);
         }
         public uint QueryVersion() => 1;
         public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;

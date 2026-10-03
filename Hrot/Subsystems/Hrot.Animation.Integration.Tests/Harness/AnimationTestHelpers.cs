@@ -223,7 +223,7 @@ public static class AnimationTestHelpers
         if (repo.TryGetComponent<AnimationChannel>(entity, out var ch))
         {
             sb.AppendLine($"AnimationChannel:");
-            sb.AppendLine($"  Status: {ch.Status}");
+            sb.AppendLine($"  Status: {(repo.TryGetComponent<AnimationChannelStatus>(entity, out var report) ? report.Status.ToString() : "(no report)")}");
             sb.AppendLine($"  ActiveAction: {ch.ActiveAction}");
             sb.AppendLine($"  ActionInstanceId: {ch.ActionInstanceId}");
         }
@@ -288,13 +288,17 @@ public class AnimationTestHelpersTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<AnimationChannel>();
+        repo.RegisterComponent<AnimationChannelStatus>();
         repo.RegisterComponent<LookAtChannel>();
+        repo.RegisterComponent<LookAtChannelStatus>();
         repo.RegisterComponent<StanceStatus>();
         repo.RegisterComponent<AnimationMontageQueue>();
 
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new AnimationChannel { Status = (NodeStatus)0 }); // NodeStatus.Failure
-        repo.AddComponent(entity, new LookAtChannel { Status = (NodeStatus)0 }); // NodeStatus.Failure
+        repo.AddComponent(entity, new AnimationChannel());
+        repo.AddComponent(entity, new AnimationChannelStatus { Status = (NodeStatus)0 }); // NodeStatus.Failure
+        repo.AddComponent(entity, new LookAtChannel());
+        repo.AddComponent(entity, new LookAtChannelStatus { Status = (NodeStatus)0 }); // NodeStatus.Failure
         repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, Phase = StanceTransitionPhase.Idle });
         repo.AddComponent(entity, new AnimationMontageQueue { Count = 0, QueueVersion = 0 });
 

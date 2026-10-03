@@ -350,7 +350,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // P1/CE-285: advertise the declared role (as fdp.role.* tokens, derived back to the mask at ingest —
         // CE-286) + the fdp.reliable-init feature token, since every NED node runs the reliable-init gateway.
         var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus, Fdp.Core.NodeRole.Map2D,
-            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
+            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(Fdp.Core.NodeRole.Map2D));   // + asset tokens, CE-3020
 
         // ⛔ CE-164 — the hand-built `new NodeOpSlaveTranslator(...)` that stood here is DELETED.
         //    context.SlaveTranslator already IS a NodeOpSlaveTranslator + ClusterOpEgressTranslator on this
@@ -386,6 +386,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //   the knowledge base is required by being an ECS node rather than by the Map2D role.
             new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
                 context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), storageDirectory),
+
+            // ⭐⭐ 2026-10-03 — terrain is now UNIVERSAL (R-182): IG's map draws the terrain world, so the
+            //   holder this host always carried finally has a producer. 📄 docs/DESIGN_Terrain_World.md §5.
+            new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
+                new Hrot.Map.Common.Services.TerrainResidency(storageDirectory, RoadNetworkHolder), storageDirectory),
         };
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(

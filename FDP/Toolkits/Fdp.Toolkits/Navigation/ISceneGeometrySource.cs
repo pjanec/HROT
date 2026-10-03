@@ -1,15 +1,15 @@
 #nullable enable
-namespace Hrot.Stride.Core;
+namespace Fdp.Toolkit.Navigation;
 
 /// <summary>
-/// Seam for providing scene triangle geometry to <see cref="StrideNavmeshBaker"/>.
+/// Seam for providing scene triangle geometry to <see cref="Fdp.Toolkit.Navigation.Recast.RecastNavmeshBaker"/>.
 ///
 /// <para>
-/// The geometry is in <b>navmesh-query space</b>, i.e. the same convention as
-/// <see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/>:
-/// <c>System.Numerics.Vector3(x_east, altitude, z_north)</c> — identical to Stride world space
-/// (X=East, Y=Up, Z=North), obtained by swizzling FDP positions through
-/// <see cref="FdpStrideTransform.ToStridePosition"/>.
+/// ⭐ <b>The triangles are in RECAST space (Y-up): X=East, Y=Up, Z=North</b> — the baker's input, <b>not</b> a navigation
+/// API. The engine-wide navigation contract (<see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/>) is Z-up
+/// (DESIGN_Terrain_World W7 / R-182); the swizzle engine ⇄ Recast lives only INSIDE the Recast implementation and at the
+/// Stride boundary. A Stride source gets Y-up for free (<c>FdpStrideTransform.ToStridePosition</c>); a source built from
+/// engine (Z-up) geometry must swizzle <c>(x, y, z)</c> to <c>(x, z, y)</c> itself.
 /// </para>
 ///
 /// <para>
@@ -36,7 +36,7 @@ public interface ISceneGeometrySource
     /// </summary>
     /// <param name="verts">
     /// Flat array of vertex positions: <c>[x0, y0, z0, x1, y1, z1, …]</c> in
-    /// navmesh-query space (X=East, Y=altitude, Z=North).
+    /// RECAST space (X=East, Y=Up, Z=North).
     /// </param>
     /// <param name="indices">
     /// Flat array of triangle indices (3 indices per triangle): <c>[i0, i1, i2, …]</c>.

@@ -32,6 +32,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Terrain_World.md — the LOS-against-terrain reader §3.2 named as its reopen trigger now exists (Q81 T4): Perception and Map2D load the terrain world.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file, the
     ECS singleton, the zone ops, the asset build). ⚠ CORRECTED 2026-09-18: an earlier version of this
     line said terrain is consumed by "MuscleGround, Perception, NavigationSolver; the brain loads none
@@ -196,6 +197,13 @@ would **ignore a scenario's `TkbName` entirely**. That is a live violation of `Q
 happens not to need one. 📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §2.2, §4.1.
 
 #### ⭐ What each role additionally requires — **measured `2026-09-18`, by CONSUMER, not by assumption**
+
+⭐⭐ **SUPERSEDED IN PART `2026-10-03` — the consumer appeared, exactly as the ruling below anticipated.** The terrain
+**world** is now **universal on every ECS node**, like the knowledge base (`RoleLoadRequirements.UniversalParts`):
+the map on every host draws it (🔒 *"Cgf must render the map as well"*), Perception's line of sight is tested against it,
+and the movement model takes its Z from it (R-181/R-182). ⭐ Only the **navmesh bake** stays role-derived — nodes that
+compose `NavigationSolver` (`TerrainResidency.AttachNavmesh`). The table below is the 2026-09-18 measurement, kept as
+HISTORY for its terrain column. 📄 [`DESIGN_Terrain_World.md`](DESIGN_Terrain_World.md) §5.
 
 | role | knowledge base | terrain / road graph | scenario entities | the consumer that proves it |
 |---|---|---|---|---|

@@ -62,6 +62,34 @@ namespace Hrot.Core.Tests.Services
             return e;
         }
 
+        // ── CE-3024 — the "Load zone" menu action ───────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ CE-3024 (E2) — the one rule every host's "Load zone" handler uses: a TERRAIN ZONE with a network id yields
+        /// the cluster op, keyed by the same id the node-side round filters on (<see cref="TerrainLoadService.ZoneIdOf"/>);
+        /// any other area, or a zone with no id, yields nothing — never a request the master would reject.
+        /// </summary>
+        [Fact]
+        public void LoadZoneIntentFor_IsTheZonesNetworkId_AndNothingForANonZone_CE3024()
+        {
+            using var repo = NewRepo();
+            repo.RegisterComponent<NetworkIdentity>();
+            var zone = NewZone(repo, Vector3.Zero, Triangle());
+            repo.AddComponent(zone, new NetworkIdentity { Value = 777 });
+            var area = NewZone(repo, Vector3.Zero, Triangle(), tkbType: TkbEntityTypes.TerrainZone + 1);
+            repo.AddComponent(area, new NetworkIdentity { Value = 778 });
+            var unreplicated = NewZone(repo, Vector3.Zero, Triangle());
+
+            var intent = TerrainLoadService.LoadZoneIntentFor(repo, zone);
+            Assert.NotNull(intent);
+            Assert.Equal("777", intent!.Value.ZoneId);
+            Assert.Equal(TerrainLoadService.ZoneIdOf(repo, zone), intent.Value.ZoneId);
+            Assert.NotEqual(System.Guid.Empty, intent.Value.RequestId);
+
+            Assert.Null(TerrainLoadService.LoadZoneIntentFor(repo, area));
+            Assert.Null(TerrainLoadService.LoadZoneIntentFor(repo, unreplicated));
+        }
+
         // ── Idempotency ──────────────────────────────────────────────────────────────────────
 
         [Fact]

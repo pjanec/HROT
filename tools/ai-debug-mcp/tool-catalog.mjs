@@ -1601,7 +1601,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "patch_attribute",
     "group": "L — Mutation / fault injection",
-    "summary": "Apply a JSON attribute patch to an entity.",
+    "summary": "Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/attribute"
@@ -1619,9 +1619,11 @@ export const TOOLS_CATALOG = [
         "description": "Patch as a JSON object {\"Name\":\"Alpha\"} or as a JSON string"
       }
     ],
-    "returns": "Updated entity dump on success.",
+    "returns": "Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.",
     "notes": [
-      "Authority-aware; unregistered keys are silently ignored (no error).",
+      "Unregistered keys are silently ignored (no error) — write.route is then noMatch.",
+      "CE-3003: a key on a component this node does NOT own is sent to its owner as an UpdateEntityAttributeRequest (the JSON arm the owner already applies) — write.route is requested, and the change is in the OWNER's world, not yet in this dump: read it back from the owner's perspective after a tick. Components this node owns in the same patch are applied here.",
+      "CE-3003 / CE-191: a key on a component this node does not own and no network descriptor carries (a node-local component, or a networkless host) has no owner to ask — the route REFUSES with 400 instead of answering ok.",
       "patchJson may be a nested JSON object like {\"Name\":\"Alpha\"} or a JSON string."
     ],
     "example": {
@@ -1669,6 +1671,7 @@ export const TOOLS_CATALOG = [
     "notes": [
       "Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.",
       "Invalid values → 400, component unchanged.",
+      "CE-3003: a component another node owns (a network descriptor carries it and this node holds no authority) is REFUSED with 400 — writing it here would change only this node's replica, which the owner overwrites. Use patch_attribute (it asks the owner) or select the owner's perspective (get_entity_ownership names it).",
       "For fields registered in the attribute schema, prefer patch_attribute."
     ],
     "example": {
@@ -1800,15 +1803,17 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_world_info",
     "group": "N — World / coordinates",
-    "summary": "World metadata: geo origin, spatial grid extent. terrain and navmesh are null in editor mode.",
+    "summary": "World metadata: geo origin, the perception and collider grids (live, placed over the terrain), the resident terrain and the navmesh.",
     "http": {
       "method": "GET",
       "path": "/world/info"
     },
     "params": [],
-    "returns": "{ geo:{origin:{lat,lon,alt}}, spatialGrid:{...extent}, terrain:null, navmesh:null }",
+    "returns": "{ geo:{origin:{lat,lon,alt}}, spatialGrid:{cellSize,originX,originY,width,height,extent}, colliderGrid:{...}, terrain:{name,bounds,groundZ,prisms,walkables,surfaces}|null, navmesh:{provider,baked,version}|null }",
     "notes": [
-      "terrain and navmesh are null in editor mode."
+      "Reads the ACTIVE PERSPECTIVE's world (on --mode all set the perspective first, e.g. SimHost).",
+      "terrain is null when no terrain is resident; navmesh is null on a node that composes no navigation solver.",
+      "navmesh.baked is false until a terrain's navmesh is published (the provider is then the straight-line fallback)."
     ],
     "example": {
       "args": {},

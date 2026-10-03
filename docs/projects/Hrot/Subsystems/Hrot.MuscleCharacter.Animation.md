@@ -63,15 +63,17 @@ Components replicated cross-node (Brain → Muscle) are defined in
 
 ### ECS Channel Pattern
 
-Animation commands follow the same channel pattern as `LocomotionChannel` and
-`WeaponChannel` in Fdp.Toolkits. Each channel component carries:
+⭐ **Split since `CE-513` / `R-180` (`2026-10-03`, [`Architect_Question_80`](../../../blueprints/Architect_Question_80_Animation_Channel_Ownership_Split.md)):**
+an animation channel crosses nodes, so each one is TWO components with one writer each.
 
-- `ActiveAction` (ushort) — the current action ID (0 = idle)
-- `BehaviorInstanceId` / `ActionInstanceId` — for dispatcher routing and preemption
-- `DispatchedInstanceId` — synchronization between dispatcher ticks
-- `Status` (NodeStatus) — Idle / Running / Success / Failure
-- `Params[32]` — action parameter payload (fixed-size struct)
-- `State[32]` — executor state payload (progress, blend weights)
+| component | writer (ownership group) | fields |
+|---|---|---|
+| `AnimationChannel` / `LookAtChannel` | Brain — the request | `ActiveAction` (0 = idle) · `BehaviorInstanceId` · `ActionInstanceId` (bumped per request) · `Params[32]` |
+| `AnimationChannelStatus` / `LookAtChannelStatus` | Muscle (MuscleGround) — the report | `DispatchedInstanceId` (the request it last picked up) · `Status` (NodeStatus; trust it only when `DispatchedInstanceId == ActionInstanceId`) |
+
+The Muscle dispatchers run executors on a stack `AnimationChannelWork` / `LookAtChannelWork` (request + report) and
+store only the report; `IActionExecutor<TChannel>` is unchanged. ⛔ The old 32-byte `State` buffer is gone — nothing
+used it (executor state lives in `AnimationExecutorState` / `LookAtExecutorState`).
 
 ### System Execution Order
 
@@ -199,8 +201,10 @@ Replicated/contractual components (defined in `ReplicatedComponents.cs`, replica
 
 | Component | ComponentId | Description |
 |-----------|-------------|-------------|
-| `AnimationChannel` | 220 | Montage playback intent channel; carries ActiveAction, BehaviorInstanceId, ActionInstanceId, Status, Params[32], State[32] |
-| `LookAtChannel` | 221 | Look-at/aim intent channel; same layout as AnimationChannel |
+| `AnimationChannel` | 220 | Montage playback REQUEST (Brain); ActiveAction, BehaviorInstanceId, ActionInstanceId, Params[32] |
+| `LookAtChannel` | 221 | Look-at/aim REQUEST (Brain); same layout as AnimationChannel |
+| `AnimationChannelStatus` | 226 | the Muscle's REPORT on the montage request; DispatchedInstanceId, Status (CE-513) |
+| `LookAtChannelStatus` | 227 | the Muscle's REPORT on the look-at request (CE-513) |
 | `StanceIntent` | 222 | Brain-authored stance request: TargetStance + Version counter |
 | `StanceStatus` | 223 | Muscle-authored acknowledgment: CurrentStance + AckVersion |
 | `AnimationMontageQueue` | 224 | Fixed-size (max 8) queue of chained montage entries (MontageId, BlendIn, BlendOut, PlayRate) |
@@ -226,7 +230,7 @@ Enumerations used by components:
 | System | Phase | Responsibility |
 |--------|-------|----------------|
 | `AnimationCapabilityChangeReactorSystem` | Simulation (1st) | Detects `CanPlayAnimations` / `CanAim` capability loss; force-stops dispatchers, releases aim, writes Failure status |
-| `AnimationDispatcherSystem` | Simulation (2nd) | Extends `DispatcherSystemBase<AnimationChannel>`; capability-gates commands; routes to PlayMontage/StopMontage/Queue executors |
+| `AnimationDispatcherSystem` | Simulation (2nd) | Extends `DispatcherSystemBase<AnimationChannelWork>`; reads the request, writes only `AnimationChannelStatus` (CE-513); capability-gates commands; routes to PlayMontage/StopMontage/Queue executors |
 | `LookAtDispatcherSystem` | Simulation (3rd) | Extends `DispatcherSystemBase<LookAtChannel>`; routes LookAtPoint/LookAtEntity/ReleaseLook executors |
 | `StanceTransitionSystem` | Simulation (4th) | Compares `StanceIntent.Version` vs `StanceStatus.AckVersion`; calls `backend.RequestStanceChange` on mismatch |
 | `MontageQueueAdvanceSystem` | Simulation (5th) | Pops next queue entry when slot becomes free; stages next montage onto `AnimationChannel` |

@@ -101,6 +101,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(48)] public Rgba32 EndColor;       // 4 bytes (48-51) — gradient end
 
         // Sphere payload (overlaps Line at 24)
+        // FilledTriangle — three world-space corners on the map plane (X east, Y north); Color is the fill.
+        [FieldOffset(24)] public Vector2 TriA;
+        [FieldOffset(32)] public Vector2 TriB;
+        [FieldOffset(40)] public Vector2 TriC;
+
         [FieldOffset(24)] public Vector3 SphereCenter;
         [FieldOffset(36)] public float SphereRadius;
 
@@ -293,6 +298,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.ThicknessU16 = (ushort)(thickness * 10f);
             p.SphereCenter = center;
             p.SphereRadius = radius;
+            return p;
+        }
+
+        /// <summary>
+        /// A filled triangle on the map plane (world metres). ⭐ The building block for filled polygons — a
+        /// producer triangulates once and emits one primitive per triangle, so the fixed 64-byte slot never
+        /// has to carry a variable vertex list. 📄 docs/DESIGN_Terrain_World.md §7.1 W2.
+        /// </summary>
+        public static DebugPrimitive MakeFilledTriangle(
+            Vector2 a, Vector2 b, Vector2 c, Rgba32 color,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape = DebugPrimitiveShape.FilledTriangle;
+            p.Space = CoordinateSpace.World;
+            p.Color = color;
+            p.TargetView = target;
+            p.DebugLayer = layer;
+            p.SizeMode = SizeMode.WorldMeters;
+            p.TriA = a;
+            p.TriB = b;
+            p.TriC = c;
             return p;
         }
 
