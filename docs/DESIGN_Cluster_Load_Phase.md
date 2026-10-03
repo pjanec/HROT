@@ -18,6 +18,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/DESIGN_Terrain_World.md — owns the terrain's CONTENT; its §5 adds Perception and Map2D to the roles that load terrain (and the navmesh bake for NavigationSolver) — this doc's §4.1a role table must follow when that lands.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file,
     the ECS singleton, the zone ops, the asset build). This document owns only WHEN it loads and WHO
     runs it during the cluster's Loading* phase.

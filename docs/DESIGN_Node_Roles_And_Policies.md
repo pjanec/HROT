@@ -32,6 +32,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Terrain_World.md — the LOS-against-terrain reader §3.2 named as its reopen trigger now exists (Q81 T4): Perception and Map2D load the terrain world.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file, the
     ECS singleton, the zone ops, the asset build). ⚠ CORRECTED 2026-09-18: an earlier version of this
     line said terrain is consumed by "MuscleGround, Perception, NavigationSolver; the brain loads none

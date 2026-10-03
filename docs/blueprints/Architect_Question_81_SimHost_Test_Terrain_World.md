@@ -7,6 +7,7 @@ stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: docs/DESIGN_Node_Roles_And_Policies.md §3.2 and docs/DESIGN_Cluster_Load_Phase.md §4.1a give terrain to MuscleGround + NavigationSolver only; T4 adds Perception (the reopen trigger §3.2 itself names). Both must be updated when the design lands.
 related-designs:
+  - docs/DESIGN_Terrain_World.md — ⭐ THE WHAT for this question (file format, classes, sequences, module diagram, open calls W1–W10).
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain is (a named asset with a JSON definition, §2.1e) and the asset build for static obstacles (§2.1c); this question fills in the content it postponed (§7) and extends the definition.
   - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the WHY of zones and the asset build; ruled the heavy asset semantics POSTPONED (§5), which is what this answers.
   - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and WHICH ROLES load it (§4.1a); T4 extends the role list.
@@ -91,4 +92,4 @@ ground height, line of sight and the 2D map drawing all read the same primitives
 
 ## 3. T10 — the 2D map layer
 
-*(lean filled in by the design's map-layer inventory)*
+📄 **The WHAT is [`DESIGN_Terrain_World.md`](../DESIGN_Terrain_World.md)** (§3 classes, §4 sequences, §5 module diagram). The map layer is `TerrainWorldGizmo : IGlobalStatelessGizmo` on the existing gizmo seam, so every host with a map draws it from one class (design §7 W2); v1 draws outlines coloured by height, because the seam has no filled-polygon primitive yet.
