@@ -1049,7 +1049,9 @@ SIBLING's generated struct must be sized — and recognised — from the sibling
 | BTree and HSM generators build the same size chain, by copy | ✅ `BTreeJsonGenerator.cs:241-246` ≡ `HsmJsonGenerator.cs:156-161` (Roslyn → blueprint `+Params` → BTree Inputs) | ✅ Q76 §12.28e |
 | an HSM child's Inputs struct is not sized | ✅ `GeneratedBehaviorSchemaCatalog.Parse` reads `*.btree.json` only; an HSM publishes its Inputs through `HsmBridgeEmitCore.BlackboardOwner` + `BTreeEmitCore.InputsStructTypeId` | ⛔ searched Q76 §12.28 + this doc: no ruling excludes it — never added |
 | the blueprint generator has NO catalogue | ✅ `BlueprintIncrementalGenerator.cs:124` — `StructSizeOracle` is Roslyn-only; it never reads `*.btree.json`/`*.hsm.json` | ✅ S8b table row ③ ("BTree / blueprint siblings") |
-| ⇒ S8's `Params` pin bound to a GENERATED child fails the real build | ✅ the hidden variable's type is the child's Inputs struct (S8), a dotted id the registry accepts verbatim ⇒ `Stage4_TypeResolve.cs:133` asks Roslyn `TypeExists` ⇒ **BP1671** | ✅ S8b-2 made the editor offer exactly that type (`ChildInputTypes.Lookup`) |
+| ⇒ S8's `Params` pin bound to a GENERATED child DEGRADES its host's layout | ✅ **measured by the red rail:** the hidden variable is `global::`-typed (`RunBehaviorNode.ParamsPinTypeId`), so the registry's AN2 arm takes it with a GUESSED 4 bytes; the Roslyn-only oracle cannot correct it ⇒ `SizeReliable = false` ⇒ `CSharpEmitter.LayoutFromRuntime` drops the WHOLE host `Vars`/`Block` to Sequential with runtime offsets, and the debug map's state layout with it. It still compiles | ✅ S8b-2 made the editor offer exactly that type (`ChildInputTypes.Lookup`); W4 (`CSharpEmitter.UseExplicitLayout`) is what the guess turns off |
+| ⛔ CORRECTED `2026-10-03`: the row above first read *"fails the real build with **BP1671**"* | ⛔ predicted from `Stage4_TypeResolve.cs:133` without reading `ParamsPinTypeId` — BP1671 guards only the bare dotted arm, and the hidden variable is never bare | — |
+| a bare dotted id naming a sibling's generated type DOES hit BP1671 | ✅ `Stage4_TypeResolve.cs:133` → `RoslynClrSignatureResolver.TypeExists` (Roslyn only) — e.g. a variable an author types as a child's Inputs in the dotted form | ✅ BP-228 (U-7) |
 | sharing the catalogue costs no new shipping edge | ✅ `Hrot.AiEditor.Persistence` has no project references and `Hrot.AI.Behaviors` already ships it as an Analyzer (with its package closure, CE-379) | ✅ the S2 note in `Hrot.Blueprints.Generators.csproj` refused that edge only because it "bought nothing" |
 
 ```mermaid
@@ -1122,13 +1124,38 @@ precedent), plus a compile-only reference to the Persistence assembly the build 
 | C1 | one catalogue | ⭐ `GeneratedTypeCatalog` answers SIZE and EXISTENCE for every generated struct a sibling can name: blueprint `+Params`, BTree Inputs, HSM Inputs | two catalogues per generator: the copy-pasted chain is the duplicate |
 | C2 | HSM Inputs | ⭐ read `*.hsm.json` through `HsmBridgeEmitCore.BlackboardOwner` — the same view the HSM generator packs its own struct with — so the name and size cannot disagree | a second HSM naming rule: two producers (R-132) |
 | C3 | the blueprint generator | ⭐ links the catalogue files + a compile-only `Hrot.AiEditor.Persistence` reference; its `StructSizeOracle` and `TypeExists` both consult the catalogue | merge the generators: one generator cannot see its own output either |
-| C4 | `TypeExists` | ⭐ Roslyn OR `Declares` — a sibling-emitted type is exactly what the C# compile will see | skip BP1671 for any unknown dotted id: re-opens BP-228 |
+| C4 | `TypeExists` | ⭐ Roslyn OR `Declares` — a sibling-emitted type is exactly what the C# compile will see (the bare dotted arm) | skip BP1671 for any unknown dotted id: re-opens BP-228 |
 | C5 | the `.bp.json` parser | ⭐ `GeneratedBlueprintSchemaCatalog` stays the one generation-time `.bp.json` reader, now behind the catalogue | fold it into `BlueprintSignatureParser`: a different question (exported function I/O), its own callers |
 | C6 | FDP's three `ComputeStructSize` copies | ⭐ OUT — filed as their own row (the FDP analyzer tree; `StructSizeResolver` header) | fold in here: a second assembly family and its own analyzers' rules |
 
-Rails (red first): `BlueprintBehaviourTests.S8c_AParamsPinBoundToAGeneratedChild_BuildsInTheRealGenerators` (both generators,
-one driver, real Roslyn compile — red today on BP1671); `HsmJsonGeneratorTests.S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild`
+Rails (red first): `BlueprintBehaviourTests.S8c_AParamsPinBoundToAGeneratedChild_KeepsTheHostsExactLayout_InTheRealGenerators`
+(both generators, one driver, real Roslyn compile — red today: the host's `Vars` is Sequential); `HsmJsonGeneratorTests.S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild`
 (red today: the catalogue reads no `*.hsm.json`). The existing CE-439 rails stay green unchanged.
+
+#### S8c as-built *(`2026-10-03`, CE-2026)*
+
+⭐ Built as C1–C6; the class, sequence and module diagrams above are true as drawn.
+
+| # | as-built fact | where |
+|---|---|---|
+| W1 | `GeneratedTypeCatalog` = `Provider(context)` (the ONE wiring: every `*.bp.json`/`*.btree.json`/`*.hsm.json`, parsed once per change, not once per asset) · `Parse` · `Blueprints` · `Declares` · `SizeResolver(compilation, fieldSizes)` | `Hrot.AiEditor.Generators/GeneratedTypeCatalog.cs` |
+| W2 | `GeneratedBehaviorSchemaCatalog` DELETED; the BTree and HSM generators take `siblings.Blueprints` and `siblings.SizeResolver(compilation)` — the copy-pasted chain is gone | `BTreeJsonGenerator`, `HsmJsonGenerator` |
+| W3 | the blueprint generator LINKS `GeneratedTypeCatalog.cs` + `GeneratedBlueprintSchemaCatalog.cs` and references `Hrot.AiEditor.Persistence` compile-only; `StructSizeOracle = SizeResolver(…, fieldSizes: true)`; `RoslynClrSignatureResolver.TypeExists` = Roslyn OR `Declares` | `Hrot.Blueprints.Generators.csproj`, `BlueprintIncrementalGenerator`, `RoslynClrSignatureResolver` |
+| W4 | ⭐ the cycle guard now WORKS: one visited-set per resolver. `GeneratedBehaviorSchemaCatalog` made a fresh set on every recursive call, so an A ⊃ B ⊃ A Inputs layout recursed until the generator's stack overflowed | `GeneratedTypeCatalog.SizeResolver` |
+| W5 | the test harness grew the real-build shape: `AuthoringPath.Generate(assets, siblingFiles)` runs the blueprint + BTree + HSM generators in ONE driver | `Hrot.Blueprints.Tests/Integration/AuthoringPath.cs` |
+
+⚠ **Finding, filed as CE-2028 (not fixed here):** an EVENT-driven host is runtime-layout whatever its variables are. An event
+fiber keeps its payload in a slot typed from the event pin (`global::{Event}`), and the size oracle is consulted for
+DECLARATIONS only (`Stage4_TypeResolve.ResolveFieldTypes`), never for pin/local types ⇒ the fiber record is
+`SizeReliable = false` (`Fibers.cs`, `record.All(f => f.Type.SizeReliable)`) ⇒ `CSharpEmitter.LayoutFromRuntime` holds the
+whole block Sequential. 📐 Measured by the control in the rail below: the same host driven from an event is Sequential even
+with a Roslyn-visible params type. ⇒ S8c's exact size shows on a Tick-driven host today; an event-driven one gains it when
+CE-2028 lands.
+
+Rails: `BlueprintBehaviourTests.S8c_AParamsPinBoundToAGeneratedChild_KeepsTheHostsExactLayout_InTheRealGenerators` (Tick-driven
+host + a Roslyn-visible control), `HsmJsonGeneratorTests.S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild`,
+`BTreeJsonGeneratorTests.S8c_TheCatalogue_DeclaresSiblingGeneratedTypes_AndNothingElse`,
+`BTreeJsonGeneratorTests.S8c_AnInputsCycle_HasNoSize_AndDoesNotOverflow`.
 
 ## 5. Decisions — each with a lean
 

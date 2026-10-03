@@ -2789,6 +2789,73 @@ namespace Stub
             "the schema-driven Params size must match the shared ComputeSequentialSize primitive directly — same alignment math, no second copy");
     }
 
+    // ── ⭐⭐ CE-2026 (S8c) — ONE generated-type catalogue ─────────────────────────────────────────────────────────
+
+    private static Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto InputsTree(string name, params (string Name, string TypeId)[] inputs)
+    {
+        var dto = new Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = name };
+        dto.Blackboard.Managed = true;
+        foreach (var (n, t) in inputs)
+            dto.Blackboard.Variables.Add(new BlackboardVariableDto { Name = n, Type = new BlackboardTypeRefDto { TypeId = t } });
+        return dto;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2026</c> — <c>Declares</c> names exactly the types a SIBLING generator emits in this run: a BTree's and an HSM's
+    /// Inputs struct and a generated blueprint class or a type nested in it — in either spelling — and nothing else.
+    /// </summary>
+    [Fact]
+    public void S8c_TheCatalogue_DeclaresSiblingGeneratedTypes_AndNothingElse()
+    {
+        const string bpJson = @"{ ""AssetId"": ""11111111-1111-1111-1111-111111111111"", ""Name"": ""TestBp"", ""Dispatch"": ""AiPrimitive"", ""Parameters"": [] }";
+        var tree = InputsTree("CatTree", ("Speed", "System.Single"));
+        var hsm = new Hrot.AiEditor.Persistence.Hsm.HsmAssetDto { AssetId = Guid.NewGuid(), Name = "CatMachine" };
+        hsm.Blackboard.Managed = true;
+        hsm.Blackboard.Variables.Add(new Hrot.AiEditor.Persistence.Hsm.HsmBlackboardVariableDto
+        { Name = "Laps", Type = new Hrot.AiEditor.Persistence.Hsm.HsmBlackboardTypeRefDto { TypeId = "System.Int32" } });
+
+        var catalog = GeneratedTypeCatalog.Parse(
+            ImmutableArray.Create(("/p/TestBp.bp.json", bpJson)),
+            ImmutableArray.Create(("/p/CatTree.btree.json", BTreeJsonServices.Serialize(tree))),
+            ImmutableArray.Create(("/p/CatMachine.hsm.json", Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(hsm))));
+
+        string treeInputs = BTreeEmitCore.InputsStructTypeId(tree)!;
+        string hsmInputs  = BTreeEmitCore.InputsStructTypeId(HsmBridgeEmitCore.BlackboardOwner(hsm))!;
+        catalog.Declares(treeInputs).Should().BeTrue();
+        catalog.Declares("global::" + hsmInputs).Should().BeTrue("the editor's global:: spelling names the same type");
+        catalog.Declares("Stub.Generated.TestBp_07CD46B5_Bp").Should().BeTrue();
+        catalog.Declares("Stub.Generated.TestBp_07CD46B5_Bp+Params").Should().BeTrue("a type nested in a generated blueprint class");
+        catalog.Declares("Stub.Generated.Other_07CD46B5_Bp").Should().BeFalse("no sibling blueprint has that name");
+        catalog.Declares("Made.Up.Type").Should().BeFalse();
+
+        var size = catalog.SizeResolver(CreateCompilation());
+        size(hsmInputs).Should().Be(4, "the HSM child's Inputs are sized by the packing its own generator emits with");
+        size("global::" + treeInputs).Should().Be(4);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2026</c> — a child whose Inputs hold its PARENT's Inputs (A ⊃ B ⊃ A) has no size: the catalogue answers
+    /// <c>null</c> (the asset is then skipped loudly, BTREE0002) instead of recursing until the generator's stack overflows.
+    /// 🔴 <c>GeneratedBehaviorSchemaCatalog</c>'s guard made a FRESH visited-set on every recursive call, so it never fired.
+    /// </summary>
+    [Fact]
+    public void S8c_AnInputsCycle_HasNoSize_AndDoesNotOverflow()
+    {
+        var a = InputsTree("CycleA", ("Speed", "System.Single"));
+        var b = InputsTree("CycleB", ("Laps", "System.Int32"));
+        string aInputs = BTreeEmitCore.InputsStructTypeId(a)!, bInputs = BTreeEmitCore.InputsStructTypeId(b)!;
+        a.Blackboard.Variables.Add(new BlackboardVariableDto { Name = "Child", Type = new BlackboardTypeRefDto { TypeId = bInputs } });
+        b.Blackboard.Variables.Add(new BlackboardVariableDto { Name = "Parent", Type = new BlackboardTypeRefDto { TypeId = aInputs } });
+
+        var catalog = GeneratedTypeCatalog.Parse(
+            ImmutableArray<(string Path, string Text)>.Empty,
+            ImmutableArray.Create(("/p/CycleA.btree.json", BTreeJsonServices.Serialize(a)),
+                                  ("/p/CycleB.btree.json", BTreeJsonServices.Serialize(b))),
+            ImmutableArray<(string Path, string Text)>.Empty);
+
+        catalog.SizeResolver(CreateCompilation())(aInputs).Should().BeNull();
+    }
+
     /// <summary>
     /// Option A: an unresolvable managed variable that merely LOOKS unrelated to any generated
     /// blueprint (no matching .bp.json, or not a "_Bp+Params"-shaped TypeId) must still fall through

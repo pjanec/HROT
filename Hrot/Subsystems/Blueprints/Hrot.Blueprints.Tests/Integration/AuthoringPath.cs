@@ -303,11 +303,30 @@ internal static class AuthoringPath
     /// </para>
     /// </summary>
     public static MatrixResult Generate(params BlueprintAsset[] assets)
+        => Generate(assets, Array.Empty<(string Path, string Text)>());
+
+    /// <summary>
+    /// ⭐ <c>CE-2026</c> (S8c) — the same, with SIBLING behaviour assets (<c>*.btree.json</c> / <c>*.hsm.json</c>) in the same
+    /// compilation and the BTree + HSM generators running beside the blueprint one — the shape of <c>Hrot.AI.Behaviors</c>, whose
+    /// <c>AdditionalFiles</c> carry all three. ⚠ No generator sees another's output, so this is where a blueprint naming a
+    /// sibling's generated struct is proved to BUILD.
+    /// </summary>
+    public static MatrixResult Generate(
+        IReadOnlyList<BlueprintAsset> assets, IReadOnlyList<(string Path, string Text)> siblingFiles)
     {
         var texts = assets
             .Select(a => (AdditionalText)new InMemoryAdditionalText(
                 $"/authoring/{a.Name}.bp.json", SaveToText(a)))
+            .Concat(siblingFiles.Select(f => (AdditionalText)new InMemoryAdditionalText(f.Path, f.Text)))
             .ToImmutableArray();
+
+        // ⚠ The references are the LOADED assemblies; a sibling behaviour's emitted builder names Fbt.Compiler / Fhsm.Compiler,
+        //   which nothing in a blueprint-only run has loaded yet.
+        if (siblingFiles.Count > 0)
+        {
+            _ = typeof(Fbt.Compiler.BTreeBuilder<,>).Assembly;
+            _ = typeof(Fhsm.Compiler.HsmBuilder).Assembly;
+        }
 
         var references = Hrot.Blueprints.Core.Compiler.Roslyn.MetadataReferenceResolver
             .ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies())
@@ -319,8 +338,16 @@ internal static class AuthoringPath
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 
+        var generators = siblingFiles.Count == 0
+            ? new IIncrementalGenerator[] { new Hrot.Blueprints.Generators.BlueprintIncrementalGenerator() }
+            : new IIncrementalGenerator[]
+            {
+                new Hrot.Blueprints.Generators.BlueprintIncrementalGenerator(),
+                new Hrot.AiEditor.Generators.BTreeJsonGenerator(),
+                new Hrot.AiEditor.Generators.HsmJsonGenerator(),
+            };
         var driver = (CSharpGeneratorDriver)CSharpGeneratorDriver
-            .Create(new Hrot.Blueprints.Generators.BlueprintIncrementalGenerator())
+            .Create(generators)
             .AddAdditionalTexts(texts)
             .RunGenerators(seed);
 

@@ -49,6 +49,9 @@ internal sealed class TypedEventGraph
         return node;
     }
 
+    /// <summary>A graph's plain entry (no event type, no payload) — a behaviour's <c>Tick</c> graph opens with it.</summary>
+    public EventEntryNode Entry() => Add(new EventEntryNode { EventTypeId = "" }, P("Out", "Out"));
+
     /// <summary>An event node for <paramref name="fqn"/> with one <c>int</c> field per name.</summary>
     public EventEntryNode Event(string fqn, params string[] intFields)
         => Add(new EventEntryNode

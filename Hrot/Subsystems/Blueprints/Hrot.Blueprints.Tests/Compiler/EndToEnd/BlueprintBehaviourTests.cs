@@ -1279,9 +1279,9 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
 
     /// <summary>OnHit: Task(child) with Params = Make S8TaskParams { Value = hit.Damage }; <paramref name="alongside"/> wires
     /// Started (→ Ticks + 1), else the task is waited for; Succeeded → Done + 1.</summary>
-    private static BlueprintAsset ParamsHost(string name, string child, bool alongside)
+    private static BlueprintAsset ParamsHost(string name, string child, bool alongside, string? paramsTypeId = null)
     {
-        string hitFqn = typeof(Runtime.WhenTestHitEvent).FullName!, paramsFqn = typeof(Runtime.S8TaskParams).FullName!;
+        string hitFqn = typeof(Runtime.WhenTestHitEvent).FullName!, paramsFqn = paramsTypeId ?? typeof(Runtime.S8TaskParams).FullName!;
         return TaskHostWith(name, (t, v) =>
         {
             var hit  = t.Event(hitFqn);
@@ -1294,6 +1294,71 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
              .Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
             if (alongside) t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.StartedPin);
         });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-2026</c> (S8c) — a <c>Params</c> pin bound to a GENERATED child keeps its host's exact layout, in the real
+    /// generators.</b>
+    ///
+    /// <para>
+    /// 🔴 RED before: the hidden host variable is typed as the child's generated Inputs struct — a type the BTree generator emits
+    /// in the SAME run, which the blueprint generator cannot see. Its size oracle was Roslyn-only ⇒ the AN2 4-byte GUESS,
+    /// <c>SizeReliable = false</c> ⇒ <c>CSharpEmitter.LayoutFromRuntime</c> dropped the WHOLE host block (<c>Vars</c>/<c>Block</c>) to Sequential with
+    /// runtime offsets (and the debug map's state layout with it). ⭐ It still compiled — the measured effect is the layout, not a
+    /// build break. ⭐ S8b-2 made the editor offer exactly that type. Now <c>GeneratedTypeCatalog</c> sizes it from the sibling
+    /// <c>*.btree.json</c> and the host stays Explicit.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void S8c_AParamsPinBoundToAGeneratedChild_KeepsTheHostsExactLayout_InTheRealGenerators()
+    {
+        var child = new Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "S8cChild" };
+        child.Blackboard.Managed = true;
+        child.Blackboard.Variables.Add(new Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto
+        { Name = "Value", Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = "System.Single" } });
+        string childInputs = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.InputsStructTypeId(child)!;
+
+        var result = Integration.AuthoringPath.Generate(
+            new[] { TickParamsHost("S8cHost", "S8cChild", childInputs) },
+            new[] { ("/authoring/S8cChild.btree.json", Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(child)) });
+
+        Assert.True(result.Clean, result.Report());
+        string host = result.GeneratedSources.Single(src => src.Contains("class S8cHost"));
+        Assert.Contains("public global::" + childInputs + " __TaskParams_", host);   // the hidden variable IS the child's struct
+
+        // CONTROL: the same host over a params type Roslyn CAN see is Explicit — so a Sequential host below is the sibling type's doing.
+        var control = Integration.AuthoringPath.Generate(TickParamsHost("S8cControl", "S8cChild", typeof(Runtime.S8TaskParams).FullName!));
+        Assert.True(control.Clean, control.Report());
+        Assert.Contains("LayoutKind.Explicit", VarsLayout(control.GeneratedSources.Single(src => src.Contains("class S8cControl"))));
+
+        // ⭐ the hidden variable's size is EXACT (the sibling's own packing), so the host keeps its declared layout
+        Assert.Contains("LayoutKind.Explicit", VarsLayout(host));
+
+        static string VarsLayout(string source)
+        {
+            string[] lines = source.Split('\n');
+            int vars = Array.FindIndex(lines, l => l.Trim() == "public struct Vars");
+            Assert.True(vars > 0, "the host declares its Vars struct");
+            return lines[vars - 1];
+        }
+    }
+
+    /// <summary>
+    /// <c>Tick</c>: Task(child) with Params = Make {paramsTypeId} (its <c>Value</c> left at default); Succeeded → Done + 1. ⚠ Driven
+    /// from the Tick graph, not an event: an event fiber keeps its payload in a slot whose size is never oracle-checked (pin
+    /// types), which alone drops a host to runtime layout — so only a Tick host shows what the PARAMS variable does to it.
+    /// </summary>
+    private static BlueprintAsset TickParamsHost(string name, string child, string paramsTypeId)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name).WithVariable("Done", typeof(int)).Build();
+        var t = new Runtime.TypedEventGraph("Tick", GraphKind.Function);
+        var entry = t.Entry();
+        var task = t.RunBehaviorWithParams(child, paramsTypeId);
+        var make = t.MakeStruct(paramsTypeId, "System.Single", "Value");
+        t.Then(entry, task).Data(make, "Value", task, RunBehaviorNode.ParamsPin)
+         .Then(task, t.Increment(asset.Variables.Single(v => v.Name == "Done")), RunBehaviorNode.SucceededPin);
+        asset.Graphs.Add(t.Graph);
+        return asset;
     }
 
     private static BlueprintAsset TaskHostWith(string name, Action<Runtime.TypedEventGraph, Func<string, VariableDecl>> build)

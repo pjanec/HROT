@@ -57,47 +57,26 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   unresolvable by symbol "not even in a fully successful real build"
         //   (GeneratedBlueprintSchemaCatalog's own header). ⭐ Same providers the BTree generator
         //   already collects for the AiPrimitiveTickCore composition path.
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
-            context.AdditionalTextsProvider
-                .Where(static at => at.Path.EndsWith(".bp.json",
-                    System.StringComparison.OrdinalIgnoreCase))
-                .Select(static (at, ct) =>
-                {
-                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
-                    return (at.Path, text);
-                })
-                .Collect();
+        //   ⭐ CE-2026 (S8c) — every sibling asset (*.bp.json, *.btree.json, *.hsm.json) as ONE catalogue, the wiring
+        //   all three generators share (DESIGN_Unified_Behaviour_Run "S8c design").
+        IncrementalValueProvider<GeneratedTypeCatalog> siblings = GeneratedTypeCatalog.Provider(context);
 
-        // ⭐ CE-439 — every *.btree.json, so a host can size a sibling behaviour's Inputs struct (GeneratedBehaviorSchemaCatalog).
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> btreeJsonCollected =
-            context.AdditionalTextsProvider
-                .Where(static at => at.Path.EndsWith(".btree.json",
-                    System.StringComparison.OrdinalIgnoreCase))
-                .Select(static (at, ct) =>
-                {
-                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
-                    return (at.Path, text);
-                })
-                .Collect();
-
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles, ImmutableArray<(string Path, string Text)> BTreeJsonFiles)> combined =
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, GeneratedTypeCatalog Siblings)> combined =
             rawFiles.Combine(context.CompilationProvider)
-                    .Combine(bpJsonCollected)
-                    .Combine(btreeJsonCollected)
+                    .Combine(siblings)
                     .Select(static (pair, _) =>
-                        (pair.Left.Left.Left.Path, pair.Left.Left.Left.Text, pair.Left.Left.Right, pair.Left.Right, pair.Right));
+                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles, item.BTreeJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.Siblings);
         });
     }
 
     private static void GenerateOneAsset(
         SourceProductionContext spc, string path, string text, Compilation compilation,
-        ImmutableArray<(string Path, string Text)> bpJsonFiles,
-        ImmutableArray<(string Path, string Text)> btreeJsonFiles)
+        GeneratedTypeCatalog siblings)
     {
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         HsmAssetDto? dto;
@@ -132,9 +111,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   ⛔ Returns null for an unknown asset id rather than 0: a 0 would be a VALID action id and
         //   would silently mis-dispatch, which is the failure mode this whole id story exists to
         //   avoid. The emitter then emits nothing and the validator is what complains.
-        //   ⚠ Built even when there are no blueprints — Parse() on an empty array is empty, and the
+        //   ⚠ Built even when there are no blueprints — the catalogue's list is then empty, and the
         //   emitted output is byte-identical because no DTO names a blueprint.
-        var blueprintSchemas = GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+        var blueprintSchemas = siblings.Blueprints;
 
         // BP-281 / E7b: the Roslyn-backed struct-size resolver, built once and used by BOTH
         // emitters — the topology core bakes expression-target offsets into action keys and the
@@ -151,15 +130,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         System.Func<string, int?>? sizeResolver = null;
         if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
-            System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
-            // ⭐ CE-439 — and a SIBLING behaviour's Inputs struct (a hosted subtree's bound params variable).
-            var behaviorSchemas = GeneratedBehaviorSchemaCatalog.Parse(btreeJsonFiles);
-            System.Func<string, int?>? self = null;
-            self = typeId =>
-                roslynResolver(typeId)
-                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation)
-                ?? GeneratedBehaviorSchemaCatalog.TryResolveInputsSize(typeId, behaviorSchemas, self!);
-            sizeResolver = self;
+            // ⭐ CE-439, CE-2026 — and a SIBLING behaviour's Inputs struct (BTree or HSM: a hosted subtree's bound params
+            //   variable). The ONE resolver every generator injects (GeneratedTypeCatalog.SizeResolver).
+            sizeResolver = siblings.SizeResolver(compilation);
         }
 
         System.Func<System.Guid, ushort?> blueprintIdResolver = assetId =>

@@ -41,27 +41,16 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                     return (at.Path, text);
                 });
 
-        // Provider: raw file text from *.bp.json AdditionalTexts (Blueprint assets).
+        // Provider: every sibling asset, as ONE catalogue (CE-2026, S8c — DESIGN_Unified_Behaviour_Run "S8c design").
         //
         // Option A (I2/I3 gap fix): the Blueprint source generator and this generator are sibling
         // IIncrementalGenerators that cannot see each other's generated output within one generation
         // pass — a blueprint's generated `{Name}_{Id:X8}_Bp` class (Params/WorkingState/TickCore) is
-        // never resolvable via Compilation.GetTypeByMetadataName from here. Collecting the SAME
-        // *.bp.json AdditionalTexts the Blueprint generator itself parses lets this generator derive
-        // just enough of that generated shape (class identity + Params field schema) from the JSON
-        // source of truth instead — see GeneratedBlueprintSchemaCatalog.
-        IncrementalValuesProvider<(string Path, string Text)> bpJsonFiles =
-            context.AdditionalTextsProvider
-                .Where(static at => at.Path.EndsWith(".bp.json",
-                    System.StringComparison.OrdinalIgnoreCase))
-                .Select(static (at, ct) =>
-                {
-                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
-                    return (at.Path, text);
-                });
-
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
-            bpJsonFiles.Collect();
+        // never resolvable via Compilation.GetTypeByMetadataName from here, and neither is a sibling
+        // behaviour's Inputs struct. GeneratedTypeCatalog derives just enough of those generated shapes
+        // from the JSON sources of truth (*.bp.json, *.btree.json, *.hsm.json) — the one wiring all three
+        // generators share.
+        IncrementalValueProvider<GeneratedTypeCatalog> siblings = GeneratedTypeCatalog.Provider(context);
 
         // ⛔ CE-337 (2026-09-26) — the SIBLING-TREE collection is GONE, with GeneratedBTreeSchemaCatalog.
         //    It existed for Q49 option D: a generator cannot load assets, so a master tree could not ask
@@ -78,41 +67,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
         // This is acceptable for the small *.btree.json asset set.  A fancier
         // incremental symbol extraction is deferred (VE-DEBT-003).
-        // ⭐ CE-439 — every *.btree.json, so a host can size a sibling behaviour's Inputs struct (GeneratedBehaviorSchemaCatalog).
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> btreeJsonCollected =
-            context.AdditionalTextsProvider
-                .Where(static at => at.Path.EndsWith(".btree.json",
-                    System.StringComparison.OrdinalIgnoreCase))
-                .Select(static (at, ct) =>
-                {
-                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
-                    return (at.Path, text);
-                })
-                .Collect();
 
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles, ImmutableArray<(string Path, string Text)> BTreeJsonFiles)> combined =
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, GeneratedTypeCatalog Siblings)> combined =
             rawFiles.Combine(context.CompilationProvider)
-                    .Combine(bpJsonCollected)
-                    .Combine(btreeJsonCollected)
+                    .Combine(siblings)
                     .Select(static (pair, _) =>
-                        (pair.Left.Left.Left.Path, pair.Left.Left.Left.Text, pair.Left.Left.Right, pair.Left.Right, pair.Right));
+                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → validate bound methods → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles, item.BTreeJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.Siblings);
         });
     }
 
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
-        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles,
-        ImmutableArray<(string Path, string Text)> btreeJsonFiles)
+        Compilation compilation, GeneratedTypeCatalog siblings)
     {
-        // Option A: parse the blueprint schemas once, up front — used both by the method-compatibility
-        // validator (AiPrimitiveTickCore method-resolution fallback) and the struct-size resolver
-        // (AiPrimitiveTickCore Params-size fallback) below.
-        System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
-            GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+        // Option A: the blueprint schemas — used both by the method-compatibility validator
+        // (AiPrimitiveTickCore method-resolution fallback) and, through the catalogue, the struct-size resolver below.
+        System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas = siblings.Blueprints;
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try
@@ -230,21 +204,10 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         System.Func<string, int?>? structSizeResolver = null;
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
-            System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
-
-            // Option A: when the Roslyn resolver can't see a type (e.g. a blueprint's generated
-            // `{Name}_{Id:X8}_Bp+Params` — never visible to this sibling generator, see
-            // GeneratedBlueprintSchemaCatalog), fall back to computing its size from the matching
-            // .bp.json's parameter schema using the SAME Sequential-alignment math
-            // (StructSizeResolver.ComputeSequentialSize) the Roslyn path itself uses.
-            // ⭐ CE-439 — and a SIBLING behaviour's Inputs struct (a hosted subtree's bound params variable).
-            var behaviorSchemas = GeneratedBehaviorSchemaCatalog.Parse(btreeJsonFiles);
-            System.Func<string, int?>? self = null;
-            self = typeId =>
-                roslynResolver(typeId)
-                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation)
-                ?? GeneratedBehaviorSchemaCatalog.TryResolveInputsSize(typeId, behaviorSchemas, self!);
-            structSizeResolver = self;
+            // Option A, CE-439, CE-2026: Roslyn first; a type it cannot see because a SIBLING generator emits it in this
+            // run (a blueprint's `{Name}_{Id:X8}_Bp+Params`, a BTree's or an HSM's Inputs struct) is sized from that
+            // sibling's JSON with the same math its own generator uses — the ONE resolver every generator injects.
+            structSizeResolver = siblings.SizeResolver(compilation);
 
             // Check for any unresolvable managed variable BEFORE emitting anything.
             // An unresolvable type means we cannot guarantee the struct layout, so skip

@@ -325,7 +325,7 @@ public sealed class HsmJsonGeneratorTests
     /// 🔴 RED before (two holes): the HSM registrar passed no bindings to <c>HsmHostedSubtrees.Register</c>, AND the host
     /// variable typed as the child's generated Inputs struct was unsizeable in this generator run (Roslyn cannot see a type
     /// the same run emits), so <c>Pack</c> threw and the host emitted no params at all. ⭐ Now
-    /// <c>GeneratedBehaviorSchemaCatalog</c> sizes it from the child's <c>.btree.json</c> and the shared
+    /// <c>GeneratedTypeCatalog</c> (then <c>GeneratedBehaviorSchemaCatalog</c>) sizes it from the child's <c>.btree.json</c> and the shared
     /// <c>EmitSiteBindings</c> bakes <c>[stableId] = new(offset, size)</c>.
     /// </summary>
     [Fact]
@@ -357,5 +357,43 @@ public sealed class HsmJsonGeneratorTests
         registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
             "the binding is the host variable's (offset, size), and its size came from the sibling's own packing");
         registrar.Should().Contain("case \"PatrolTreeParams\":", "the host's params path is emitted — Pack did not throw");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2026</c> (S8c) — the same binding when the child is an HSM.</b> 🔴 RED before: the sibling catalogue read
+    /// <c>*.btree.json</c> only, so a host variable typed as an HSM child's Inputs struct was unsizeable, <c>Pack</c> threw and the
+    /// host emitted no params. ⭐ <c>GeneratedTypeCatalog</c> reads the HSM through <c>HsmBridgeEmitCore.BlackboardOwner</c> — the
+    /// view the child's own generator packs its struct with — so the name and the size cannot disagree.
+    /// </summary>
+    [Fact]
+    public void S8c_AHostingStatesBinding_IsSizedFromASiblingHsmChild()
+    {
+        // The child: an HSM publishing two Role=Input fields (4 + 4 bytes).
+        var child = HsmAssetMapper.ToDto(LoadSampleGuard());
+        child.AssetId = Guid.NewGuid();
+        child.Name    = "PatrolMachine";
+        child.Blackboard.Managed = true;
+        child.Blackboard.Variables.Clear();
+        foreach (var (n, t) in new[] { ("Speed", "System.Single"), ("Laps", "System.Int32") })
+            child.Blackboard.Variables.Add(new HsmBlackboardVariableDto { Name = n, Type = new HsmBlackboardTypeRefDto { TypeId = t } });
+        string childInputs = BTreeEmitCore.InputsStructTypeId(HsmBridgeEmitCore.BlackboardOwner(child))!;
+
+        var host  = HsmAssetMapper.ToDto(LoadSampleGuard());
+        var state = host.States.First(s => s.Name != null && !s.Name.StartsWith("__", StringComparison.Ordinal));
+        state.SubtreeAssetId        = child.AssetId;
+        state.SubtreeName           = "PatrolMachine";
+        state.SubtreeParamsVariable = "PatrolMachineParams";
+        host.Blackboard.Managed = true;
+        host.Blackboard.Variables.Add(new HsmBlackboardVariableDto
+        { Name = "PatrolMachineParams", Type = new HsmBlackboardTypeRefDto { TypeId = childInputs } });
+
+        var result = RunGenerator(
+            MakeAdditionalText("/p/SampleGuard.hsm.json", HsmJsonServices.Serialize(host)),
+            MakeAdditionalText("/p/PatrolMachine.hsm.json", HsmJsonServices.Serialize(child)));
+
+        string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
+        registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
+            "the binding's size came from the sibling HSM's own packing");
+        registrar.Should().Contain("case \"PatrolMachineParams\":", "the host's params path is emitted — Pack did not throw");
     }
 }

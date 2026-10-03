@@ -30,10 +30,25 @@
          no analyzer-load risk. ⚠ StructSizeResolver.cs must therefore stay dependency-free. -->
     <Compile Include="..\..\AI\Hrot.AiEditor.Generators\StructSizeResolver.cs"
              Link="Shared\StructSizeResolver.cs" />
+    <!-- ⭐⭐ CE-2026 (S8c, DESIGN_Unified_Behaviour_Run "S8c design") — the ONE generated-type catalogue, by the same link.
+         A blueprint variable typed as a SIBLING's generated struct (a BTree/HSM child's Inputs — the Behaviour Task's
+         Params pin — or another blueprint's +Params) is invisible to Roslyn here; the catalogue sizes it from the sibling's
+         JSON with the math that sibling's own generator uses, and answers TypeExists for it. -->
+    <Compile Include="..\..\AI\Hrot.AiEditor.Generators\GeneratedTypeCatalog.cs"
+             Link="Shared\GeneratedTypeCatalog.cs" />
+    <Compile Include="..\..\AI\Hrot.AiEditor.Generators\GeneratedBlueprintSchemaCatalog.cs"
+             Link="Shared\GeneratedBlueprintSchemaCatalog.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj"
+                      PrivateAssets="all"
+                      ExcludeAssets="runtime" />
+    <!-- ⭐ CE-2026 — the catalogue reads *.btree.json / *.hsm.json through the one parser and naming rule per format.
+         ⚠ The S2 note above refused this edge because it "bought nothing" for one static method; it now buys the
+         catalogue. Compile-only, exactly as Hrot.AiEditor.Generators references it: Hrot.AI.Behaviors already ships
+         Hrot.AiEditor.Persistence (and its package closure, CE-379) as an Analyzer, so no new load-context item. -->
+    <ProjectReference Include="..\..\AI\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj"
                       PrivateAssets="all"
                       ExcludeAssets="runtime" />
   </ItemGroup>

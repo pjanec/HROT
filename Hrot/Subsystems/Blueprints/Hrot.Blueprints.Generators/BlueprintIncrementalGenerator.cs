@@ -44,13 +44,17 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         // curated helper types in the assembly currently being compiled. (Combining CompilationProvider
         // costs fine-grained incrementality, but this generator already collapses on any sibling change
         // via siblingCatalog.Collect(), so the tradeoff is consistent with the existing design.)
+        //
+        // ⭐⭐ CE-2026 (S8c) — plus the ONE generated-type catalogue every generator shares: a variable typed as a SIBLING's
+        //   generated struct (a BTree/HSM child's Inputs, another blueprint's +Params) is invisible to the Compilation here.
         IncrementalValuesProvider<CompileResult> compileResults =
             rawFiles.Combine(siblingCatalog)
                     .Combine(context.CompilationProvider)
+                    .Combine(Hrot.AiEditor.Generators.GeneratedTypeCatalog.Provider(context))
                     .Select((pair, ct) =>
                     {
-                        var ((rawFile, siblings), compilation) = pair;
-                        return CompileOneAsset(rawFile.Path, rawFile.Text, siblings, compilation, ct);
+                        var (((rawFile, siblings), compilation), generated) = pair;
+                        return CompileOneAsset(rawFile.Path, rawFile.Text, siblings, compilation, generated, ct);
                     });
 
         // Register source output
@@ -88,6 +92,7 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         string text,
         ImmutableArray<BlueprintSignature> siblings,
         Compilation compilation,
+        Hrot.AiEditor.Generators.GeneratedTypeCatalog generated,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -118,11 +123,12 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: siblings.ToList(),
             EmitPdbWithEmbeddedSource: false,
-            ClrSignatureResolver: new RoslynClrSignatureResolver(compilation),
+            ClrSignatureResolver: new RoslynClrSignatureResolver(compilation, generated.Declares),
             // ⭐⭐ S2 — the struct-size oracle. Same semantic model, same shipped algorithm as the
             //     BTree blackboard packer; injected as Func<string,int?> per the design mandate.
-            StructSizeOracle: Hrot.AiEditor.Generators.StructSizeResolver
-                .MakeFieldSizeDelegate(compilation));
+            // ⭐⭐ CE-2026 — through the shared catalogue, so a sibling-generated struct gets its EXACT size instead of the
+            //     4-byte guess that dropped the whole block to runtime layout.
+            StructSizeOracle: generated.SizeResolver(compilation, fieldSizes: true));
 
         try
         {

@@ -53,6 +53,9 @@
          Analyzer) because the test constructs BlueprintIncrementalGenerator directly and runs it
          through CSharpGeneratorDriver. -->
     <ProjectReference Include="..\Hrot.Blueprints.Generators\Hrot.Blueprints.Generators.csproj" />
+    <!-- CE-2026 (S8c): the BTree + HSM generators run beside the blueprint one in AuthoringPath.Generate(assets,
+         siblingFiles) — a blueprint naming a sibling behaviour's generated struct is proved to build in one driver. -->
+    <ProjectReference Include="..\..\AI\Hrot.AiEditor.Generators\Hrot.AiEditor.Generators.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- WHEN-M11-T4: Reference Hrot.AI.Behaviors to enable production recipe discovery in tests -->
     <ProjectReference Include="..\..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
