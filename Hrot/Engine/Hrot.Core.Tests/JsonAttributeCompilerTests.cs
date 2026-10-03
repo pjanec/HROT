@@ -483,6 +483,33 @@ public class FnvHashTests
         Assert.True(cInvoked,
             "Top-level path 'C' should have been invoked after depth was restored by EndObject.");
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2038</c> — a key written with a JSON escape routes like the plain key. Registration hashes the UNESCAPED
+    /// UTF-8 (<see cref="JsonAttributeCompiler.HashPath"/>); the streaming compile hashed <c>reader.ValueSpan</c> — the raw,
+    /// still-escaped bytes — so <c>{"\u0043":1}</c> (which IS <c>{"C":1}</c>) and an escaped non-ASCII key never reached their
+    /// routes. Any JSON writer may escape (System.Text.Json escapes non-ASCII by default).
+    /// </summary>
+    [Theory]
+    [InlineData("{\"\\u0043\":1}", "C")]
+    [InlineData("{\"A\":{\"\\u0042\":1}}", "A.B")]
+    [InlineData("{\"Gr\\u00f6\\u00dfe\":1}", "Gr\u00f6\u00dfe")]
+    public void CE2038_AnEscapedKey_RoutesLikeThePlainKey(string json, string path)
+    {
+        bool invoked = false;
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterValuePath<TestWeaponState>(path,
+                (ref TestWeaponState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    invoked = true;
+                    c.Count = r.GetInt32();
+                })
+            .Build();
+
+        compiler.Compile(json, new ListPatchContext(null));
+
+        Assert.True(invoked, $"'{json}' names '{path}' and must reach its route.");
+    }
 }
 // ─────────────────────────────────────────────────────────────
 // EcsPatchContext authority tests

@@ -45,6 +45,9 @@
     <!-- CE-2036: the ONE asset-id hash. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs"
              Link="Compiler\Shared\BlueprintIdFnv.cs" />
+    <!-- CE-2035: the ONE utility-id hash (ScoreDecision bakes a decision id). -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\UtilityIdHash.cs"
+             Link="Compiler\Shared\UtilityIdHash.cs" />
   </ItemGroup>
 
   <ItemGroup>

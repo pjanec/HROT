@@ -97,6 +97,8 @@
     <Compile Include="..\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs" Link="Behavior\Shared\HsmActionKey.cs" />
     <!-- CE-2036: the ONE asset-id hash (BlueprintIdHash.Compute is a façade over it). -->
     <Compile Include="..\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs" Link="Behavior\Shared\BlueprintIdFnv.cs" />
+    <!-- CE-2035: the ONE utility-id hash (In.Fnv1a32 is a façade over it). -->
+    <Compile Include="..\Fdp.Toolkits.Analyzers\Shared\UtilityIdHash.cs" Link="Behavior\Shared\UtilityIdHash.cs" />
   </ItemGroup>
 
 </Project>

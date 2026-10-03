@@ -224,6 +224,7 @@ public sealed class JsonAttributeCompiler
         //    ⚠ Bytes, not a string: materialising one on every property would break the zero-allocation
         //    mandate. A string is built ONLY when a key turns out to be unknown AND unseen.
         Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        Span<byte> keyScratch = stackalloc byte[JsonAttributeCompiler.KeyScratchBytes];   // CE-2038 — unescape target
         int lastKeyLen = 0;
 
         contextStack[0] = FnvOffset;
@@ -259,7 +260,8 @@ public sealed class JsonAttributeCompiler
 
                 case JsonTokenType.PropertyName:
                 {
-                    ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
+                    // ⭐ CE-2038 — the UNESCAPED name: registration hashes plain UTF-8 (HashPath), and "\u0043" IS "C".
+                    ReadOnlySpan<byte> nameBytes = JsonAttributeCompiler.PropertyNameBytes(in reader, keyScratch);
 
                     // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
                     lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);
@@ -376,6 +378,25 @@ public sealed class JsonAttributeCompiler
     }
 
     // ── Internal hashing helpers (used by AttributeCompilerBuilder) ──────
+
+    /// <summary>Stack scratch for unescaping a property name; a longer escaped name falls back to the heap (rare).</summary>
+    internal const int KeyScratchBytes = 256;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2038</c> — the property name's UNESCAPED UTF-8 bytes, the form <see cref="HashPath"/> hashes at registration.
+    /// <c>reader.ValueSpan</c> is the RAW token, so a key written <c>"\u0043"</c> (any JSON writer may escape; System.Text.Json
+    /// escapes non-ASCII by default) hashed differently from the <c>"C"</c> it denotes and never reached its route.
+    /// <para>⭐ Zero-allocation for the common case: an unescaped name is returned as-is; an escaped one is copied into
+    /// <paramref name="scratch"/> (unescaped is never longer than escaped).</para>
+    /// </summary>
+    internal static ReadOnlySpan<byte> PropertyNameBytes(in Utf8JsonReader reader, Span<byte> scratch)
+    {
+        if (!reader.ValueIsEscaped) return reader.ValueSpan;
+        int max = reader.HasValueSequence ? checked((int)reader.ValueSequence.Length) : reader.ValueSpan.Length;
+        Span<byte> dst = max <= scratch.Length ? scratch : new byte[max];
+        int written = reader.CopyString(dst);
+        return dst[..written];
+    }
 
     /// <summary>
     /// Computes the FNV-1a hash for a dot-separated JSON path string.

@@ -77,6 +77,7 @@ public sealed class JsonToRecordCompiler
         // ⭐⭐ Q59-N4 — the last property name, so an UNROUTED value can name the key it ignored.
         //    ⚠ Bytes, not a string: a string per property would break the zero-allocation mandate.
         Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        Span<byte> keyScratch = stackalloc byte[JsonAttributeCompiler.KeyScratchBytes];   // CE-2038 — unescape target
         int lastKeyLen = 0;
         // Per-depth flag: was a numeric index key consumed at this depth.
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1];
@@ -127,7 +128,8 @@ public sealed class JsonToRecordCompiler
 
                 case JsonTokenType.PropertyName:
                 {
-                    ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
+                    // ⭐ CE-2038 — the UNESCAPED name: registration hashes plain UTF-8 (HashPath), and "\u0043" IS "C".
+                    ReadOnlySpan<byte> nameBytes = JsonAttributeCompiler.PropertyNameBytes(in reader, keyScratch);
 
                     // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
                     lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);

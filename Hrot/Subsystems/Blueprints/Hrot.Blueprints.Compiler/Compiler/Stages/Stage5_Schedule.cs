@@ -5162,16 +5162,9 @@ internal sealed class GraphScheduler
     // Decision ID hash (FNV-1a-32 over chars -- matches UtilityDecisionCatalog.ComputeId)
     // -----------------------------------------------------------------------
 
-    private static int ComputeDecisionId(string assetId)
-    {
-        uint hash = 2166136261u;
-        foreach (char c in assetId)
-        {
-            hash ^= (byte)c;
-            hash *= 16777619u;
-        }
-        return (int)hash;
-    }
+    // ⭐ CE-2035 — THE utility decision id (linked Shared/UtilityIdHash), so a ScoreDecision node bakes exactly the id
+    //   UtilityDecisionCatalog registers under. It was an inlined mirror that XOR'd only each char's low byte.
+    private static int ComputeDecisionId(string assetId) => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.DecisionId(assetId);
 
     // -----------------------------------------------------------------------
     // BlockBuilder: mutable accumulator for one IrBlock

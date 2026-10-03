@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8f as-built" — one asset-id hash, one behaviour-id scheme).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8g" — utility ids, JSON keys, identifier sanitizers).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1478,6 +1478,89 @@ startup; `EqsSolverSystem` per frame (lookup only); generated registrars at regi
 | F2 · CE-2034 | `EqsTemplateGenerator` hashes the GUID bytes; a non-GUID `AssetId` stages nothing (as `EqsTemplateRegistry.Discover` skips it); the local is `template_{index}` | ⚠ the rail `EqsTemplateGeneratorTests.T-EGN1` now asserts the id equals `EqsTemplateRegistry.BlueprintIdOf` — it used to restate the generator's own text-hash, which is how the split stayed green. Red-proved (text hash restored ⇒ red), as is F3's pin (old constant ⇒ red) |
 | F3 · CE-2034 | `FindCoverFromTarget.AssetId` + `BlueprintId = 0x082E6DADu`, pinned by `EqsModuleTests.CE2034_*`; the EQS flat-terrain golden's `BlueprintId` field moves `2134518556 → 137260461` (the only change; its 8 tests pass) | ⚠ the registry's "also register under the template's own id" branch stays: generic, now inert for this template |
 | F4 · CE-2037 | the JSON HSM registrar emits `BehaviorHash.FromName("name")`; `DeterministicIdFromGuid` and the dead BTree local are deleted | 📐 **10 HSM registrar goldens moved, one line each, the id expression only** (all 10 shipped JSON HSMs). Rail folded into `Hsm_SampleGuard_Bridge_Register_RegistersHsmDefinition` (the test that runs the real emitted registrar); red-proved by re-emitting the GUID id ⇒ *found 718053693*, the old golden's value. Replays recorded before this carry the old ids — 🔒 user: disposable, no alias |
+
+#### S8g design — one utility-id hash, unescaped JSON keys, one identifier sanitizer *(`2026-10-03`, CE-2035 · CE-2038 · CE-2039 · CE-2040; user: "go autonomously as long as it is clear how")*
+
+📐 **INVENTORY** — utility ids: grep `Fnv1a32|ComputeId|ComputeDecisionId` + the FNV sweep's pairs 4/5 → 5 copies in two forms
+(generators `hash ^= c`; `In.Fnv1a32`, `UtilityDecisionCatalog/DefBuilder.ComputeId` (via `In`), `Stage5.ComputeDecisionId`
+`hash ^= (byte)c`) · JSON keys: both streaming compilers (`JsonAttributeCompiler`, `JsonToRecordCompiler`) hash
+`reader.ValueSpan`; registration (`HashPath`) hashes unescaped UTF-8 · sanitizers: the sanitizer sweep (graph
+`search_graph .*(Sanitiz|ToIdentifier|…).*` → 161, mostly unrelated "sanitize" methods; + `IsLetterOrDigit` loop grep) → **19 sites,
+4 shapes** + 2 keyword lists (`BlueprintDocumentFactory` complete, `BlackboardNameValidator` partial).
+
+| claim | code | design basis |
+|---|---|---|
+| a decision's runtime id is the catalog's | ✅ `UtilityDecisionCatalog.cs:118`; Stage 5 mirrors it | ✅ `.dev/_DONE/utility-ai/batches/BATCH-07-INSTRUCTIONS.md:54` *"`UtilityDecisionCatalog.ComputeId(sdn.AssetId)`"* (mirrored only because the compiler can't reference the runtime) |
+| the utility id formula is `hash ^= c` | ✅ both generators | ✅ `Utility_AI_SourceGenerator_Design_v1_1.md:147` |
+| no shipped utility id is non-ASCII | ✅ asset ids are GUID strings; input names are C# identifiers | ⛔ searched, no ruling — measured only |
+| a JSON key's route is its unescaped path | ✅ `JsonAttributeCompiler.HashPath` | ⛔ searched `docs/`+`.dev/`, no design names escapes — the JSON spec does |
+| each sanitizer SHAPE is persisted or pinned | ✅ blueprint `…_Bp+Params` ids, auto-managed variable names, goldens | ✅ sanitizer sweep §3; `R-50` (emitted source is regenerated whole) |
+| a keyword/leading-digit name never compiled | ✅ `public static class class` (CS1001); `2Fast_…_Bp` | — |
+
+```mermaid
+classDiagram
+  class UtilityIdHash { <<NEW, Analyzers/Shared, linked>> +Fnv1a32(string) +DecisionId(string) +InputId(string) }
+  class In { <<EXISTS, runtime>> +Fnv1a32 facade }
+  class UtilityDecisionGenerator { <<EXISTS>> }
+  class UtilityInputGenerator { <<EXISTS>> }
+  class Stage5_Schedule { <<EXISTS>> ComputeDecisionId }
+  class JsonAttributeCompiler { <<EXISTS>> +PropertyNameBytes(in reader, scratch) NEW }
+  class JsonToRecordCompiler { <<EXISTS>> }
+  class IdentifierSanitizer { <<NEW, Analyzers/Shared, linked>> +ReplaceInvalid +StripInvalid +PascalJoin +IsReservedKeyword }
+  class Identifiers { <<NEW, Persistence, public facade>> }
+  class EmitCores { <<EXISTS>> BTree HSM bridges }
+  class Sanitizer { <<EXISTS, compiler>> SanitizeName }
+  class BlueprintClassNaming { <<EXISTS>> SanitizeName }
+  class EditorSites { <<EXISTS>> HsmAsset UtilityFluentEmitter AutoManagedVariables validators }
+  In --> UtilityIdHash
+  UtilityDecisionGenerator --> UtilityIdHash
+  UtilityInputGenerator --> UtilityIdHash
+  Stage5_Schedule --> UtilityIdHash
+  JsonToRecordCompiler --> JsonAttributeCompiler : PropertyNameBytes
+  EmitCores --> IdentifierSanitizer
+  Sanitizer --> IdentifierSanitizer
+  BlueprintClassNaming --> IdentifierSanitizer
+  Identifiers --> IdentifierSanitizer
+  EditorSites --> Identifiers
+```
+
+*What the picture shows: three more "one formula, many spellings" collapse to one box each — and the editor reaches the
+sanitizer only through a public facade, because the shared file is internal on purpose (the netstandard2.0 wall).*
+
+```mermaid
+sequenceDiagram
+  participant W as JSON writer (escapes non-ASCII)
+  participant R as Utf8JsonReader
+  participant C as JsonAttributeCompiler.Compile
+  participant H as PropertyNameBytes
+  participant T as route table (HashPath keys)
+  W->>R: {"Gr\u00f6\u00dfe":1}
+  R->>C: PropertyName token (escaped)
+  C->>H: in reader, stack scratch
+  H-->>C: unescaped UTF-8 (CopyString) or ValueSpan as-is
+  C->>T: lookup FNV(context, name)
+  T-->>C: the route registered for "Größe"
+```
+
+**Who calls it:** generators and the blueprint compiler at build time; the JSON compilers per patch/record (hot path — the
+helper allocates nothing unless an escaped key exceeds 256 bytes); editors when they name or validate.
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| G1 | CE-2035 utility ids | ⭐ `Shared/UtilityIdHash.cs` (`hash ^= c`, the designed formula) for decision AND input ids; `In.Fnv1a32` a façade | low byte everywhere: contradicts the design's formula; UTF-8: a third form, still no design basis |
+| G2 | CE-2038 escaped keys | ⭐ `JsonAttributeCompiler.PropertyNameBytes(in reader, scratch)` in both compilers | unescape in `HashPath` instead: registration is already right |
+| G3 | CE-2039 sanitizers | ⭐ `Shared/IdentifierSanitizer.cs` with the three shapes (+ empty/fallback parameter) — byte-identical output, goldens prove it; public `Persistence.Emit.Identifiers` for net8 editors | one rule for all: renames persisted blueprint type ids and variable names |
+| G4 | the HSM split | ⭐ an HSM's class uses the strip shape, as its own `_Block`/`_Blackboard` structs already do (`Guard-Patrol` + `GuardPatrol` collided on `_Block`) | make the structs replace instead: that is the BTree path, shared |
+| G5 | the guards | ⭐ a leading digit gets `_` in every shape; a reserved keyword gets `_` only where emitted BARE (the four emit-core class names) | guard every call: renames valid persisted names (`classParams`, `Getclass`) |
+| G6 | keyword lists | ⭐ the complete reserved list lives in the shared file; `BlueprintDocumentFactory` and `BlackboardNameValidator` call it (the validator keeps rejecting `var`) | keep two lists: the partial one already let `lock`, `goto`, `throw` … through |
+| G7 | CE-2040 | ⭐ `BlueprintTestFixture.SanitizeNameForClass` calls the compiler's `Sanitizer` | — |
+
+#### S8g as-built *(`2026-10-03`)*
+
+| item | as-built | ⚠ note |
+|---|---|---|
+| G1 · CE-2035 | `Shared/UtilityIdHash.cs` (linked into Fdp.Toolkits and the compiler); both generators, `In.Fnv1a32` (⇒ catalog, `DefBuilder`, the editor preview's input ids) and `Stage5.ComputeDecisionId` route to it | ✅ no shipped id moved (all ASCII). The generator rail `BlueprintId_MatchesFnv1a32OfAssetId` now compares against `UtilityDecisionCatalog.ComputeId` and carries a non-ASCII case; red-proved by restoring the low-byte `In.Fnv1a32` |
+| G2 · CE-2038 | `JsonAttributeCompiler.PropertyNameBytes(in reader, scratch)` — a 256-byte stack scratch per compile, heap only for a longer escaped key; both compilers call it | ⚠ `in`, not `ref`: with `ref` the compiler (rightly) refuses a stack buffer beside a ref-struct reader the callee could write it into. Rail `FnvHashTests.CE2038_*` (3 cases), red-proved |
 
 ## 5. Decisions — each with a lean
 
