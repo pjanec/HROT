@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n-2 as-built" — the §7 demos on the real children, CE-2052/2053).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n-2 cluster run" — the §7 capstone live on a `--mode all` cluster).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -2232,7 +2232,28 @@ Built as designed, with ONE compiler gap and ONE latent compiler defect the buil
 🔴 Red-proofs: no release ⇒ the mission rail fails (the Return leg never drives — ONE destination); no Parameter binding ⇒ 3 of
 4 demo rails fail (the children start from defaults: no destination, no target) and the 4th was tightened to require Engage
 FIRING before the abort (it had passed for the wrong reason); CE-2052 unit rail 1 activation for 2 legs; CE-2053 "Fire @4
-overlaps Move @0 (+40)". Gates: Blueprints 4128/0/17, SimHost 1061/0/3, Toolkits 2468/0, Generators 378/0, Editor 453/0/2. ⏳ The capstone on a `--mode all` cluster: see "S8n-2 cluster run" below.
+overlaps Move @0 (+40)". Gates: Blueprints 4128/0/17, SimHost 1061/0/3, Toolkits 2468/0, Generators 378/0, Editor 453/0/2. ✅ The capstone on a `--mode all` cluster: "S8n-2 cluster run" below.
+
+#### S8n-2 cluster run — the capstone, live *(`2026-10-03`, `ClusterRunner --mode all`, HTTP, fresh cluster per run)*
+
+`scenarios/mission-demo-bp`: one tank (from `hill-attack-close-bp`) whose mission is `Demo_MissionPlan` with
+`{"Move":{"x":600,"y":427,…},"Fire":{"targetNetworkId":1001,"maxRounds":3,…},"Home":{"x":446.3,"y":420.9,…}}`, and one
+hostile at (668, 427). Read on the `Scenario` (CGF) perspective every ~5 s of sim time:
+
+| sim t | tank 1000 | channels | hostile 1001 |
+|---|---|---|---|
+| 0 → 30 s | drives (446, 421) → (594, 427) | locomotion `MoveTo/Running` | Health 50 |
+| ≈ 35 s | arrived (605, 430) — **Advance** done; locomotion released (`0/Success`) at Defend's start (CE-2052) | weapon `AimAndFire/Running` | **Health 0** — **Defend** |
+| 40 → 83 s | drives back (585 → 449, 421) — **Return**, the SECOND `MoveToLocation` child, from `Home` | locomotion `MoveTo/Running` | dead |
+| 83 s | home (449.2, 421.2), within the 5 m radius; behaviour finished (hash 0); `MissionPlanQueue` past its one task | — | — |
+
+Zero exceptions or module faults in the log. ⚠ What the run found, both FILED, neither blocking:
+① **CE-2054** — scenario load renumbered the entities (tank 1001 → 1000, hostile 1006 → 1001) and did NOT remap the id
+nested in the blueprint behaviour's `Fire` parameter ⇒ first run: *"FireAtTarget TargetNetworkId=1006 not found in entity
+map"*, Defend failed ⇒ Retreat. The scenario now uses the ids load assigns. ② at 111 m the tank's perception reported no
+contact (`TargetMemory` empty), so Defend waited — `FireAtTarget` requires a visible target; the engagement point moved to
+68 m, the range `test-fire` uses. ⚠ After `FireAtTarget` succeeds the weapon channel stays the executor's until it ends
+(here `Failure`, target dead) — the same as a root `FireAtTarget` (no instance change releases it); not changed here.
 
 ## 5. Decisions — each with a lean
 
