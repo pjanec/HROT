@@ -30,8 +30,13 @@ public static class RoleLoadRequirements
     /// FULL genesis pipeline with no opt-out, so a node that can be asked to create an entity must be able
     /// to resolve its template. A node without the scenario's knowledge base holds a creation pipeline it
     /// cannot actually use, and silently resolves against whatever catalogue it built locally.</para>
+    /// <para>⭐⭐ <b>Terrain joined it <c>2026-10-03</c></b> (<c>R-182</c>/<c>R-183</c>, docs/DESIGN_Terrain_World.md §5):
+    /// the terrain WORLD has a reader on every ECS node — the 2D map draws it on every host (🔒 <i>"Cgf must
+    /// render the map as well"</i>), perception sights through it, the movement model stands on it. ⛔ The
+    /// former rule "only MuscleGround / NavigationSolver load terrain" is SUPERSEDED; only the navmesh BAKE
+    /// stays role-derived (NavigationSolver), inside the terrain step itself.</para>
     /// </summary>
-    public static readonly IReadOnlyList<LoadPart> UniversalParts = new[] { LoadPart.KnowledgeBase };
+    public static readonly IReadOnlyList<LoadPart> UniversalParts = new[] { LoadPart.KnowledgeBase, LoadPart.Terrain };
 
     /// <summary>
     /// ⭐⭐ The parts a node with <paramref name="roles"/> must make resident, in the order they must run:
@@ -51,12 +56,8 @@ public static class RoleLoadRequirements
         // ⭐ Unconditional, and FIRST — see UniversalParts.
         parts.AddRange(UniversalParts);
 
-        // ⭐ Role-derived: the two roles with a measured road-graph consumer.
-        //   📐 CarKinematicsSystem (MuscleGround) and PathfindingSolverSystem / NavigationSolverModule
-        //   (NavigationSolver). ⛔ Brain, Perception and Map2D have NO reader — Map2D even holds a
-        //   RoadNetworkHolder nothing on that host reads. 🔒 "load nothing where nothing reads it".
-        if (roles.HasFlag(NodeRole.MuscleGround) || roles.HasFlag(NodeRole.NavigationSolver))
-            parts.Add(LoadPart.Terrain);
+        // ⛔ SUPERSEDED 2026-10-03 — terrain was role-derived here (MuscleGround / NavigationSolver only). It is
+        //   now universal (above): every ECS node reads the terrain world.
 
         // ⭐ Role-derived: Brain is the only role that reads the scenario file, because it is the only one
         //   that also edits and saves it. Every other role receives a replicated world.

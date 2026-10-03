@@ -174,6 +174,15 @@ namespace Hrot.Editor
     {
         private const int EditorNodeId = 0;
 
+        /// <summary>
+        /// ⭐ The editor's terrain residency — the one its load chain commits through and the terrain picker
+        /// (W13) switches. 📄 docs/DESIGN_Terrain_World.md §7.3. Null until the cluster handlers are composed.
+        /// </summary>
+        public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
+
+        /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
+        private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
+
         /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
         public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
@@ -540,6 +549,25 @@ namespace Hrot.Editor
         // Separate from adapterBundle.PickerRegistry (which is DrawFrame()-ed by canvas windows)
         // to avoid double-DrawFrame on the same registry instance.
         private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
+        private Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher? _terrainPicker;
+
+        /// <summary>
+        /// W13 — make the picked terrain resident on this node through the same residency the load chain
+        /// commits through. ⛔ A bad terrain is reported, never thrown into the UI loop.
+        /// </summary>
+        private void ApplyPickedTerrain(string name)
+        {
+            try
+            {
+                TerrainResidency?.EnsureTerrain(_world, name);
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
+                    $"[Terrain] Scenario terrain set to '{name}' — saved into the scenario header on the next save.");
+            }
+            catch (Exception ex)
+            {
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Error($"[Terrain] Could not load terrain '{name}': {ex.Message}");
+            }
+        }
 
         // BATCH-42 (MTB2-T8b): Save-As browser dialog host for the New-asset flow.
         private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
@@ -1437,20 +1465,25 @@ namespace Hrot.Editor
             //    unresolved. ⚠ Not carelessness: those DTO types lived in an assembly this one cannot see,
             //    which is why they moved down to Hrot.Core with the step.
             //
-            // ⭐ The editor carries the Brain role: knowledge base (every ECS node) + scenario entities.
-            //   ⛔ No terrain step — nothing here reads the road graph.
-            // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+            // ⭐⭐ CE-3012 (2026-10-03) — the chain is composed from the editor's COMPOSED role
+            //   (EditorCapabilities.DefaultRole: Brain | MuscleGround | Perception | NavigationSolver), not a
+            //   literal Brain: the editor is a one-node cluster that runs kinematics, perception and
+            //   navigation locally, so it loads what those need. ⛔ SUPERSEDED: "No terrain step — nothing here
+            //   reads the road graph" — the editor's CarKinematicsSystem reads it, and its map draws the
+            //   terrain world (R-182). 📄 docs/DESIGN_Terrain_World.md §5, §7.1 W4.
             var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
             {
                 new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
                     tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
             };
+            TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _roadNetworkHolder);
+            editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
 
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
                 scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator));
 
             clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-                Fdp.Core.NodeRole.Brain, editorLoadProviders, _world,
+                EditorCapabilities.DefaultRole, editorLoadProviders, _world,
                 recordingController: rrController,
                 storageDirectory:    isolatedTempRoot,
                 hostLabel:           "Editor"));
@@ -4153,6 +4186,14 @@ namespace Hrot.Editor
             _iconProvider = adapterBundle.IconProvider;
             _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 
+            // ⭐ W13 (2026-10-03) — the scenario's terrain picker, the SAME class CGF composes (CGF == editor).
+            //   📄 docs/DESIGN_Terrain_World.md §7.3.
+            _terrainPicker = new Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher(
+                openPicker:      _shellPickers.OpenPicker,
+                listTerrains:    () => TerrainResidency?.Catalog.List() ?? Array.Empty<string>(),
+                residentTerrain: () => Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world),
+                applyTerrain:    ApplyPickedTerrain);
+
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
@@ -4892,6 +4933,7 @@ namespace Hrot.Editor
                     NewAsset:      () => newAssetLauncher?.Open(),
                     // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
                     NewProduct:    newAssetLauncher != null ? p => newAssetLauncher.Open(p) : null,
+                    PickTerrain:   () => _terrainPicker?.Open(),
                     // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
                     //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
                     CompileReload: () => ReloadActiveAiDocument(

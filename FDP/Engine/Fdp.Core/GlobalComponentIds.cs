@@ -565,6 +565,14 @@
         /// written to a recording unless the policy excludes them.</summary>
         public const int TerrainDefinition = 301;
 
+        /// <summary><c>TerrainWorld</c> — ECS SINGLETON holding the parsed terrain WORLD (prisms, floor slabs,
+        /// ramps, surface areas) every derived query reads: navmesh build, movement surface Z, line of sight,
+        /// the 2D map. ⛔ <c>[DataPolicy(NoScenario | NoReplay)]</c> for the same reason as
+        /// <see cref="TerrainDefinition"/>. 304 is free by a census of every <c>*Ids*.cs</c> and every
+        /// <c>[ComponentId(30x)]</c> (only a test uses 310) — <c>R-44</c>.
+        /// 📄 docs/DESIGN_Terrain_World.md §3.</summary>
+        public const int TerrainWorld = 304;
+
         /// <summary><c>BrainInterrupts</c> — ⭐ <b>the entity-fact tail split out of <c>BrainBlackboard</c></b>
         /// by `O2` (2026-09-20): <c>ExpectedThreatLevel</c> and the edge-triggered interrupt registers.
         /// They are PER ENTITY and never per occurrence, so they must stop travelling inside a struct

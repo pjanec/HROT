@@ -444,12 +444,38 @@ public sealed class StorageGatewayModule
             }
         }
 
+        // ⭐⭐ BP-557 (2026-10-03) — the named TERRAIN, a FOLDER {nas}/terrain/<name>/ (definition + world +
+        //   roads), staged beside the TKB to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
+        //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the shared root
+        //   and the terrains shipped with the build, and the node fails loudly itself if none has it.
+        string? terrainSource = null;
+        if (!string.IsNullOrEmpty(names.TerrainName))
+        {
+            var candidate = Path.Combine(nasBasePath, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName,
+                names.TerrainName);
+            if (File.Exists(Path.Combine(candidate, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName)))
+                terrainSource = candidate;
+            else
+                FdpLog<StorageGatewayModule>.Info(
+                    "[Gateway] PrefetchScenario: terrain '{0}' is not published under '{1}'; nodes resolve it "
+                  + "from their shared root or the terrains shipped with the build.",
+                    names.TerrainName, candidate);
+        }
+
         foreach (var target in targets)
         {
             if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
 
             try
             {
+                if (terrainSource != null)
+                {
+                    var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+                    var terrainDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
+                        names.TerrainName!);
+                    StageFolder(terrainSource, terrainDest, ref success);
+                }
+
                 Directory.CreateDirectory(target.TkbDestinationPath);
 
                 // S2c — the header the node reads its names out of.
@@ -481,6 +507,22 @@ public sealed class StorageGatewayModule
                     target.TkbDestinationPath, ex.Message);
                 Interlocked.Increment(ref failure);
             }
+        }
+    }
+
+    /// <summary>
+    /// Copies every file under <paramref name="sourceDir"/> to <paramref name="destDir"/>, skipping files the
+    /// node already holds byte-for-byte by the same (length, mtime) rule as the TKB (§6) — BP-557.
+    /// </summary>
+    private static void StageFolder(string sourceDir, string destDir, ref int success)
+    {
+        foreach (var src in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            var dest = Path.Combine(destDir, Path.GetRelativePath(sourceDir, src));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            if (!IsAlreadyCurrent(src, dest))
+                File.Copy(src, dest, overwrite: true);
+            Interlocked.Increment(ref success);
         }
     }
 

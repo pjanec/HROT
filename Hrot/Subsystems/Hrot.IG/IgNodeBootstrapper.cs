@@ -386,6 +386,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //   the knowledge base is required by being an ECS node rather than by the Map2D role.
             new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
                 context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), storageDirectory),
+
+            // ⭐⭐ 2026-10-03 — terrain is now UNIVERSAL (R-182): IG's map draws the terrain world, so the
+            //   holder this host always carried finally has a producer. 📄 docs/DESIGN_Terrain_World.md §5.
+            new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
+                new Hrot.Map.Common.Services.TerrainResidency(storageDirectory, RoadNetworkHolder), storageDirectory),
         };
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(

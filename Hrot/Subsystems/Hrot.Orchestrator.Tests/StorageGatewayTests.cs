@@ -667,6 +667,41 @@ public sealed class StorageGatewayTkbConsensusTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ BP-557 (2026-10-03) — a scenario naming a TERRAIN leaves that terrain's whole FOLDER
+    /// (definition + world + nested files) on EVERY target node, at <c>{node}/Terrain/&lt;name&gt;/</c> —
+    /// where the node's <c>TerrainCatalog</c> looks first. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_StagesTheNamedTerrainFolder_OnEveryNode_BP557()
+    {
+        const string scenarioId = "s-terrain";
+        var nas  = MakeNas(scenarioId, null, "test-town", out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var src  = Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, "test-town");
+        Directory.CreateDirectory(Path.Combine(src, "roads"));
+        File.WriteAllText(Path.Combine(src, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), "{}");
+        File.WriteAllText(Path.Combine(src, "w.geojson"), "{}");
+        File.WriteAllText(Path.Combine(src, "roads", "r.json"), "{}");
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId), TargetIn(root, 2, scenarioId) };
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            foreach (var t in targets)
+            {
+                var nodeTerrain = Path.Combine(Path.GetDirectoryName(t.TkbDestinationPath)!,
+                    Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName, "test-town");
+                Assert.True(File.Exists(Path.Combine(nodeTerrain, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName)),
+                    $"node {t.NodeId} did not receive the terrain definition");
+                Assert.True(File.Exists(Path.Combine(nodeTerrain, "w.geojson")));
+                Assert.True(File.Exists(Path.Combine(nodeTerrain, "roads", "r.json")));
+            }
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>S2c</c> — the header the node reads its names out of now EXISTS, and in the shape the node
     /// actually parses: a FLAT object with PascalCase keys.
     ///

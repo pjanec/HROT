@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 2,
+  "name": "test-town",
+  "world": "test-town.world.geojson"
+}

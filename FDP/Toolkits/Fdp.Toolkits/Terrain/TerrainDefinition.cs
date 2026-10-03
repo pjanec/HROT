@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Terrain
     public sealed class TerrainDefinition
     {
         /// <summary>The schema version this code writes and understands.</summary>
-        public const int CurrentSchemaVersion = 1;
+        public const int CurrentSchemaVersion = 2;
 
         /// <summary>
         /// Version of the definition-file schema this instance was parsed from. ⭐ A versioned root is
@@ -69,7 +69,13 @@ namespace Fdp.Toolkit.Terrain
             return string.IsNullOrEmpty(def?.ResolvedName) ? null : def!.ResolvedName;
         }
 
+        /// <summary>
+        /// ⭐ Schema v2 — the terrain's WORLD file (GeoJSON, local metres), relative to the definition's folder,
+        /// or empty when the terrain has no world geometry (roads only). 📄 docs/DESIGN_Terrain_World.md §2.
+        /// </summary>
+        public string World { get; init; } = string.Empty;
+
         /// <summary>True when this definition declares nothing to load — legal, and not an error.</summary>
-        public bool IsEmpty => RoadNetworks.Count == 0;
+        public bool IsEmpty => RoadNetworks.Count == 0 && string.IsNullOrEmpty(World);
     }
 }

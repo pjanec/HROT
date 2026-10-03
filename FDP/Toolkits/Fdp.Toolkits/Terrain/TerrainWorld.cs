@@ -1,0 +1,190 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Core;
+
+namespace Fdp.Toolkit.Terrain
+{
+    /// <summary>What a solid terrain prism is — drives only the default draw style and label.</summary>
+    public enum TerrainPrismKind : byte { Building = 0, Wall = 1 }
+
+    /// <summary>What a walkable terrain surface with its own Z is.</summary>
+    public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
+
+    /// <summary>The ground cover of a flat surface area.</summary>
+    public enum TerrainSurfaceType : byte { Open = 0, Road = 1, Forest = 2, Water = 3 }
+
+    /// <summary>
+    /// A SOLID extruded polygon — a building or a wall: blocks movement and sight from <see cref="BaseZ"/>
+    /// to <see cref="TopZ"/>; its roof is walkable at <see cref="TopZ"/>.
+    /// </summary>
+    public sealed class TerrainPrism
+    {
+        public TerrainPrismKind Kind { get; init; }
+        /// <summary>Footprint, counter-clockwise, no repeated closing point (engine X east / Y north).</summary>
+        public Vector2[] Footprint { get; init; } = Array.Empty<Vector2>();
+        public float BaseZ { get; init; }
+        public float TopZ { get; init; }
+        /// <summary>Storeys, for the label only in v1 (a prism is solid).</summary>
+        public int Floors { get; init; }
+        public string? Label { get; init; }
+        /// <summary>Footprint triangulated once at parse (index triples into <see cref="Footprint"/>).</summary>
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+        public float Height => TopZ - BaseZ;
+    }
+
+    /// <summary>
+    /// A walkable polygon with its own per-vertex Z — a floor slab (multi-level) or a ramp linking levels.
+    /// Thin: it blocks a sight line that crosses it, and it is a surface an entity can stand on.
+    /// </summary>
+    public sealed class TerrainWalkable
+    {
+        public TerrainWalkableKind Kind { get; init; }
+        /// <summary>Outline, counter-clockwise in plan view, each vertex carrying its Z.</summary>
+        public Vector3[] Vertices { get; init; } = Array.Empty<Vector3>();
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+        public float MinZ { get; init; }
+        public float MaxZ { get; init; }
+    }
+
+    /// <summary>A flat ground-cover area at ground level (road, open, forest, water).</summary>
+    public sealed class TerrainSurface
+    {
+        public TerrainSurfaceType Type { get; init; }
+        public Vector2[] Polygon { get; init; } = Array.Empty<Vector2>();
+        public int[] Triangles { get; init; } = Array.Empty<int>();
+        public Vector2 Min { get; init; }
+        public Vector2 Max { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ THE TERRAIN WORLD — the one in-memory model a terrain's world file is parsed into, on every
+    /// ECS node. Navigation (the navmesh is built from it), movement (the surface Z), perception (sight lines)
+    /// and the 2D map all read THIS, so they cannot disagree.
+    ///
+    /// <para>⭐ Engine space throughout: X east, Y north, Z up, local metres.</para>
+    /// <para>⛔ Never persisted — <c>[DataPolicy(NoScenario | NoReplay)]</c>: it is re-derived from the
+    /// named terrain asset on every load, like <see cref="TerrainDefinition"/>.</para>
+    /// 📄 docs/DESIGN_Terrain_World.md §2–§4.
+    /// </summary>
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    [ComponentId(GlobalComponentIds.TerrainWorld)]
+    public sealed class TerrainWorld
+    {
+        /// <summary>How far above its current Z an entity may step onto a surface (a kerb, a ramp start).</summary>
+        public const float StepHeight = 0.6f;
+
+        public Vector2 BoundsMin { get; init; }
+        public Vector2 BoundsMax { get; init; }
+        public float GroundZ { get; init; }
+        public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
+        public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
+        public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
+
+        /// <summary>
+        /// ⭐ The Z an entity at (<paramref name="x"/>, <paramref name="y"/>) stands on — the ground, a roof or
+        /// a floor. <paramref name="zHint"/> is the entity's current Z: the highest surface no more than
+        /// <see cref="StepHeight"/> above it wins, so a unit on the second deck of a garage stays on that deck
+        /// and a unit walking under it stays on the ground. When every candidate is above the reach (a unit
+        /// spawned at Z=0 inside a building footprint), the LOWEST candidate wins.
+        /// </summary>
+        public float SurfaceZ(float x, float y, float zHint)
+        {
+            var p = new Vector2(x, y);
+            float best = float.NegativeInfinity;
+            float lowest = float.PositiveInfinity;
+            float reach = zHint + StepHeight;
+            bool insideSolid = false;
+
+            foreach (var prism in Prisms)
+            {
+                if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
+                insideSolid = true;
+                Consider(prism.TopZ, reach, ref best, ref lowest);
+            }
+
+            foreach (var w in Walkables)
+            {
+                if (!InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? z = PolygonMath.HeightOnTriangle(x, y,
+                        w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (z.HasValue) { Consider(z.Value, reach, ref best, ref lowest); break; }
+                }
+            }
+
+            // The ground is a candidate unless the point is inside a solid prism (you cannot stand under a
+            // building's footprint at ground level — it is solid in v1).
+            if (!insideSolid) Consider(GroundZ, reach, ref best, ref lowest);
+
+            if (!float.IsNegativeInfinity(best)) return best;
+            return float.IsPositiveInfinity(lowest) ? GroundZ : lowest;
+        }
+
+        /// <summary>
+        /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
+        /// terrain: a prism it passes through within the prism's height, a slab/ramp it crosses, or the ground
+        /// it dips under. Dynamic obstacles (entities) are not part of the world — the LOS strategy adds them.
+        /// </summary>
+        public bool SegmentBlocked(Vector3 from, Vector3 to)
+        {
+            // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
+            // dips below the flat ground between two points above it is impossible, so no ground test needed
+            // until a heightfield exists.
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+
+            foreach (var prism in Prisms)
+            {
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                {
+                    float z0 = from.Z + ((to.Z - from.Z) * t0);
+                    float z1 = from.Z + ((to.Z - from.Z) * t1);
+                    if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ) return true;
+                }
+            }
+
+            foreach (var w in Walkables)
+            {
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    if (PolygonMath.SegmentCrossesTriangle(from, to,
+                            w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
+        public TerrainSurfaceType SurfaceTypeAt(float x, float y)
+        {
+            var p = new Vector2(x, y);
+            var result = TerrainSurfaceType.Open;
+            foreach (var s in Surfaces)
+                if (InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p)) result = s.Type;
+            return result;
+        }
+
+        private static void Consider(float z, float reach, ref float best, ref float lowest)
+        {
+            if (z <= reach && z > best) best = z;
+            if (z < lowest) lowest = z;
+        }
+
+        private static bool InBox(Vector2 p, Vector2 min, Vector2 max)
+            => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
+
+        private static bool BoxesOverlap(Vector2 aMin, Vector2 aMax, Vector2 bMin, Vector2 bMax)
+            => aMin.X <= bMax.X && aMax.X >= bMin.X && aMin.Y <= bMax.Y && aMax.Y >= bMin.Y;
+    }
+}

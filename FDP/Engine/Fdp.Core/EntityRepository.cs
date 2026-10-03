@@ -2018,11 +2018,21 @@ namespace Fdp.Core
         /// <summary>
         /// Ensures singleton array has capacity for the given type ID.
         /// </summary>
+        /// <summary>The singleton slot count — the width of <c>_borrowedSingletons</c> (BitMask512).</summary>
+        private const int MaxSingletonSlots = 512;
+
         private void EnsureSingletonCapacity(int typeId)
         {
             if (typeId >= _singletons.Length)
             {
-                int newSize = Math.Max(_singletons.Length * 2, typeId + 1);
+                // ⛔ CE-3016 — the slot array must never outgrow the 512-bit borrowed-singletons mask that
+                //   Dispose (and Sync) index by the same position. `len*2` from an odd length (64→302→604)
+                //   overshot it, and Dispose threw ArgumentOutOfRange on slot 512 under FDP_PARANOID_MODE.
+                //   Component ids are < 512 (BitMask512), so 512 slots always suffice.
+                if (typeId >= MaxSingletonSlots)
+                    throw new ArgumentOutOfRangeException(nameof(typeId),
+                        $"Component id {typeId} is outside the singleton range (0..{MaxSingletonSlots - 1}).");
+                int newSize = Math.Min(Math.Max(_singletons.Length * 2, typeId + 1), MaxSingletonSlots);
                 Array.Resize(ref _singletons, newSize);
             }
         }

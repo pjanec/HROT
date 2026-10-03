@@ -213,6 +213,11 @@ namespace Hrot.CGF
                         //   then replaces it through the step.
                         new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
                             Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot),
+                        // ⭐ Terrain is universal (R-182). This root holds no road-network holder of its
+                        //   own, so the step gets a fresh one. 📄 docs/DESIGN_Terrain_World.md §5.
+                        new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
+                            new Hrot.Map.Common.Services.TerrainResidency(
+                                localTempRoot, new CarKinem.Road.RoadNetworkHolder()), localTempRoot),
                         new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
                             scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource,
                             cgfIdAllocator, behaviorRemapper: behaviorRemapper),

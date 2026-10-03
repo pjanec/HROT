@@ -69,6 +69,7 @@ namespace Fdp.Toolkit.Terrain
                 SchemaVersion = version,
                 Name          = obj["name"]?.GetValue<string>() ?? string.Empty,
                 RoadNetworks  = roads,
+                World         = obj["world"]?.GetValue<string>() ?? string.Empty,
             };
         }
     }

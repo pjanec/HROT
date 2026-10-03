@@ -77,36 +77,30 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ And it must be handed a <c>RoadNetworkHolder</c>, which is why the ctor rejects a null one:
-        /// publishing a blob with no owner is a leak plus a generation that is never retired.
+        /// ⭐⭐ Terrain is UNIVERSAL (2026-10-03, R-182/R-183 — docs/DESIGN_Terrain_World.md §5): every ECS host
+        /// offers a terrain step, because every one has a reader of the terrain WORLD (the map on every host,
+        /// LOS, the movement model). ⛔ SUPERSEDED: "IG (Map2D) and CGF (Brain) load no terrain at all".
+        /// ⭐ And each step is handed a <c>RoadNetworkHolder</c> — the ctor rejects null, because publishing a
+        /// blob with no owner is a leak plus a generation that is never retired.
         /// </summary>
         [Fact]
-        public void OnlyAHostWhoseROLEReadsTheRoadGraph_OwnsARoadNetworkHolder()
+        public void EveryEcsHost_OffersTheTerrainStep_WithAHolder()
         {
-            // ⭐ SimHost carries MuscleGround and NavigationSolver — the two roles with a measured
-            //   road-graph consumer — so it owns a holder and offers a terrain step.
-            var simHost = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource("Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs"));
-
-            Assert.True(CompositionRootSource.ConstructsType(simHost, "RoadNetworkHolder"),
-                "SimHost carries the roles that read the road graph, so it owns the holder it publishes through.");
-            Assert.True(CompositionRootSource.ConstructsType(simHost, "TerrainLoadStep"),
-                "SimHost must offer the terrain part its roles require.");
-
-            // ⛔ IG (Map2D) and CGF (Brain) have NO road-graph consumer, so they load no terrain at all.
-            //   🔒 "load nothing where nothing reads it" (user, 2026-09-18). ⚠ IG previously held a
-            //   RoadNetworkHolder that nothing on that host ever read.
             foreach (var path in new[]
             {
+                "Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+                "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
             })
             {
-                var code = CompositionRootSource.StripComments(
-                    CompositionRootSource.ReadRepoSource(path));
+                var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));
 
-                Assert.False(CompositionRootSource.ConstructsType(code, "TerrainLoadStep"),
-                    $"{path} has no role that reads the road graph, so it must make no terrain resident.");
+                Assert.True(CompositionRootSource.ConstructsType(code, "TerrainLoadStep"),
+                    $"{path} must offer the terrain part — every ECS node reads the terrain world.");
+                Assert.True(CompositionRootSource.ConstructsType(code, "RoadNetworkHolder")
+                         || code.Contains("RoadNetworkHolder", StringComparison.Ordinal),
+                    $"{path} must hand its terrain step a RoadNetworkHolder.");
             }
         }
 

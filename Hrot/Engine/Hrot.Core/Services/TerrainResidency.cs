@@ -39,6 +39,7 @@ public sealed class TerrainResidency
     public sealed class Staged
     {
         internal TerrainDefinition? Definition;
+        internal TerrainWorld?      World;
         internal RoadNetworkBlob    RoadNetwork;
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
@@ -51,34 +52,43 @@ public sealed class TerrainResidency
         public string? Name => TerrainName;
     }
 
-    private readonly string _terrainRoot;
+    private readonly TerrainCatalog _catalog;
     private readonly RoadNetworkHolder _roadNetworkHolder;
 
-    // ⭐ The idempotency branch, and the only implementation of it: same name + same file ⇒ no work.
+    // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
 
-    /// <param name="localStagingRoot">
-    /// The node's own staging root. Terrain definitions are read from <c>{root}/Terrain/</c>.
-    /// </param>
-    /// <param name="roadNetworkHolder">
-    /// ⭐ <b>Required.</b> The holder owns published graphs and is what makes a swap safe against a
-    /// background reader still inside the old one. ⛔ Passing none is not "no road support" — it is a
-    /// silent never-reload plus an unowned blob.
-    /// </param>
+    /// <summary>
+    /// The production constructor: resolves terrains through the standard node search list —
+    /// <c>{staging}/Terrain</c>, then the shared NAS stand-in, then the shipped terrains (W12).
+    /// </summary>
     public TerrainResidency(string localStagingRoot, RoadNetworkHolder roadNetworkHolder)
+        : this(BuildNodeCatalog(localStagingRoot), roadNetworkHolder)
     {
-        if (string.IsNullOrWhiteSpace(localStagingRoot))
-            throw new ArgumentException("A local staging root is required.", nameof(localStagingRoot));
+    }
 
-        _terrainRoot = Path.Combine(localStagingRoot, "Terrain");
+    /// <summary>Resolves through an explicit <paramref name="catalog"/> (tests, tools).</summary>
+    public TerrainResidency(TerrainCatalog catalog, RoadNetworkHolder roadNetworkHolder)
+    {
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _roadNetworkHolder = roadNetworkHolder
             ?? throw new ArgumentNullException(nameof(roadNetworkHolder),
                 "The terrain loader must be given a RoadNetworkHolder: it owns the published road graph "
               + "and keeps a retired graph alive while a background solver is still inside it.");
     }
 
-    /// <summary>⭐ The terrain currently resident, or <c>null</c>. Read by the identity check.</summary>
+    private static TerrainCatalog BuildNodeCatalog(string localStagingRoot)
+    {
+        if (string.IsNullOrWhiteSpace(localStagingRoot))
+            throw new ArgumentException("A local staging root is required.", nameof(localStagingRoot));
+        return TerrainCatalog.ForNode(
+            localStagingRoot, Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot());
+    }
+
+    /// <summary>The catalog this residency resolves terrain names through.</summary>
+    public TerrainCatalog Catalog => _catalog;
+
     public string? ResidentTerrainName => _lastLoadedTerrainName;
 
     /// <summary>
@@ -101,11 +111,17 @@ public sealed class TerrainResidency
             return new Staged();
         }
 
-        string definitionPath = Path.Combine(_terrainRoot, $"{terrainName}.json");
+        // ⭐ W12 — a terrain is a FOLDER, resolved by the one catalog (staging → shared → shipped).
+        string? definitionPath = _catalog.ResolveDefinition(terrainName);
+        if (definitionPath == null)
+            throw new FileNotFoundException(
+                $"[Terrain] Terrain '{terrainName}' was not found: no '{terrainName}/{TerrainCatalog.DefinitionFileName}' "
+              + $"under any of [{string.Join(", ", _catalog.Roots)}]. The scenario names this terrain; loading the "
+              + "terrain a scenario names is mandatory, so this is a broken configuration rather than a "
+              + "terrain-less scenario.",
+                terrainName);
 
-        DateTime currentFileTime = File.Exists(definitionPath)
-            ? File.GetLastWriteTimeUtc(definitionPath)
-            : DateTime.MinValue;
+        DateTime currentFileTime = LatestWriteTime(definitionPath);
 
         if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime)
         {
@@ -115,13 +131,6 @@ public sealed class TerrainResidency
             return new Staged();
         }
 
-        if (!File.Exists(definitionPath))
-            throw new FileNotFoundException(
-                $"[Terrain] Terrain definition not found at '{definitionPath}'. The scenario names terrain "
-              + $"'{terrainName}'; loading the terrain a scenario names is mandatory, so this is a broken "
-              + "configuration rather than a terrain-less scenario.",
-                definitionPath);
-
         var definition = TerrainDefinitionParser.Parse(File.ReadAllText(definitionPath));
 
         var staged = new Staged
@@ -130,6 +139,17 @@ public sealed class TerrainResidency
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
         };
+
+        // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
+        if (!string.IsNullOrEmpty(definition.World))
+        {
+            string worldPath = ResolveRelative(definitionPath, definition.World);
+            if (!File.Exists(worldPath))
+                throw new FileNotFoundException(
+                    $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
+                  + $"at '{worldPath}'.", worldPath);
+            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath));
+        }
 
         // ── The road network(s) the terrain declares: roads are a property of the TERRAIN, not of a zone.
         if (definition.RoadNetworks.Count > 0)
@@ -175,6 +195,12 @@ public sealed class TerrainResidency
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
         world.SetSingletonManaged(staged.Definition!);
 
+        // ⭐ The world model — every ECS node holds it (map, LOS, movement Z, navmesh source). A terrain
+        //   with no world file still publishes an EMPTY world, so a re-load never leaves the previous
+        //   terrain's buildings behind.
+        world.RegisterManagedComponent<TerrainWorld>();
+        world.SetSingletonManaged(staged.World ?? new TerrainWorld());
+
         if (staged.HasRoadNetwork)
         {
             // ⛔ The previous blob is NOT disposed here — the holder retires it and frees it once its last
@@ -187,9 +213,11 @@ public sealed class TerrainResidency
         _lastLoadedTimestamp   = staged.FileTimestamp;
 
         FdpLog<TerrainResidency>.Info(
-            "[Terrain] Terrain '{0}' committed ({1} road network(s) declared, {2}).",
-            staged.TerrainName ?? "(unnamed)", staged.Definition!.RoadNetworks.Count,
-            staged.HasRoadNetwork ? "road graph published" : "no road graph");
+            $"[Terrain] Terrain '{staged.TerrainName ?? "(unnamed)"}' committed "
+          + $"({staged.Definition!.RoadNetworks.Count} road network(s) declared, "
+          + (staged.HasRoadNetwork ? "road graph published" : "no road graph")
+          + $"; world: {staged.World?.Prisms.Count ?? 0} prism(s), {staged.World?.Walkables.Count ?? 0} walkable(s), "
+          + $"{staged.World?.Surfaces.Count ?? 0} surface(s)).");
     }
 
     /// <summary>
@@ -236,11 +264,30 @@ public sealed class TerrainResidency
 
         if (world != null && world.HasSingleton<ZoneEnvironmentData>())
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
+        if (world != null && world.HasSingletonManaged<TerrainWorld>())
+            world.SetSingletonManaged(new TerrainWorld());
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released (standby).");
+    }
+
+    /// <summary>
+    /// The newest write time of anything in the terrain folder — the idempotency key, so editing the world
+    /// file (not just the definition) makes the next load re-ingest.
+    /// </summary>
+    private static DateTime LatestWriteTime(string definitionPath)
+    {
+        var folder = Path.GetDirectoryName(definitionPath);
+        var latest = File.GetLastWriteTimeUtc(definitionPath);
+        if (folder != null)
+            foreach (var f in Directory.EnumerateFiles(folder))
+            {
+                var t = File.GetLastWriteTimeUtc(f);
+                if (t > latest) latest = t;
+            }
+        return latest;
     }
 
     /// <summary>Resolves a definition-relative asset path against the definition's own folder.</summary>
