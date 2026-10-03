@@ -334,7 +334,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[componentId] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),
@@ -343,7 +343,7 @@ namespace Fdp.Core.FlightRecorder
                 }
                 catch
                 {
-                    // Skip empty marker/tag structs that Marshal.SizeOf cannot handle.
+                    // Skip a type the layout cannot be computed for (an open generic, a pointer, …).
                 }
             }
 
@@ -372,7 +372,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[attr.Id] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),

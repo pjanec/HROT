@@ -1,3 +1,4 @@
+using System.Linq;
 using StructEdit.Core;
 using StructEdit.Core.Attributes;
 using StructEdit.Core.Memory;
@@ -27,6 +28,7 @@ file record TestRecord(int X, float Y);
 
 file struct TwoFieldStruct { public int X; public int Y; }
 file struct ThreeFieldStruct { public int X; public int Y; public int Z; }
+file struct FlagsThenFloat { public bool A; public bool B; public float C; }   // CE-2044: C at 4 in memory, 8 by Marshal
 
 file struct MetaStruct
 {
@@ -68,6 +70,19 @@ file static class BufferHelper
 public class DocumentBuilderTests
 {
     private static readonly ReflectionEditDocumentBuilder Builder = new();
+
+    // CE-2044 — a field after two bools is bound at its MANAGED offset. Marshal.OffsetOf said 8 for C, which sits at 4 —
+    //   the binding read past the 8-byte struct instead of C. (Sizes were already managed; only offsets were interop.)
+    [Fact]
+    public void CE2044_AFieldAfterBools_IsBoundAtItsManagedOffset()
+    {
+        using var buf = BufferHelper.NativeFor(new FlagsThenFloat { A = true, B = false, C = 2.5f });
+        var doc = Builder.Build(buf, typeof(FlagsThenFloat), EditScope.WholeComponent, null);
+
+        var c = doc.Root.Children.Single(n => n.Name == "C");
+        Assert.Equal(2.5f, c.Binding!.GetBoxed());
+        Assert.Equal(true, doc.Root.Children.Single(n => n.Name == "A").Binding!.GetBoxed());
+    }
 
     // 1 — Scalar primitive
     [Fact]

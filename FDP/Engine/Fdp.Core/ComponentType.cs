@@ -445,6 +445,9 @@ namespace Fdp.Core
                 if (marshalAs != null && marshalAs.Value == UnmanagedType.I1)
                     continue;
 
+                // ⭐ CE-2044 (2026-10-03): the in-repo tools named below now read the MANAGED layout (Fdp.Core.TypeLayout /
+                //   ManagedLayout), so they no longer depend on this guard. ⭐ It is KEPT: a component's interop layout still
+                //   matters to anything that marshals it, and one rule both layouts agree on is the cheaper invariant.
                 // CRITICAL ECS MEMORY ALIGNMENT:
                 // By default, the .NET interop marshaller assumes a C# bool is a 4-byte Win32 BOOL, 
                 // whereas the CLR's internal managed memory model (Unsafe.SizeOf<T>) treats it as 1 byte.

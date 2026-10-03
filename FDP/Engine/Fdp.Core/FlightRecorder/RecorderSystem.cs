@@ -529,8 +529,7 @@ namespace Fdp.Core.FlightRecorder
             // Or use the formula directly since we know CHUNK_SIZE_BYTES
             if (type.IsValueType)
             {
-                 int size = System.Runtime.InteropServices.Marshal.SizeOf(type); // Safe for unmanaged
-                 return FdpConfig.CHUNK_SIZE_BYTES / size;
+                 return FdpConfig.GetChunkCapacity(type);   // ⭐ CE-2044 — the table's own formula (was CHUNK_SIZE / Marshal.SizeOf)
             }
             throw new InvalidOperationException($"Cannot determine chunk capacity for managed type {type.Name} in unmanaged path.");
         }

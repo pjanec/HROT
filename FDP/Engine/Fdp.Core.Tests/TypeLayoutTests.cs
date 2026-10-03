@@ -50,6 +50,18 @@ namespace Fdp.Core.Tests
             Assert.Equal(2.5f, v.C);
         }
 
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct WithChars { public int Id; public char A; public char B; public char C; public char D; }   // managed 12, Marshal 8
+
+        /// <summary>
+        /// ⭐ <c>CE-2044</c> — the flight recorder walks a table by TYPE; its chunk capacity must be the table's own. It divided by
+        /// <c>Marshal.SizeOf</c> (8 here) where the table divides by the managed 12, so it treated chunk <c>c</c> as the wrong
+        /// entity range.
+        /// </summary>
+        [Fact]
+        public void ChunkCapacity_ByType_IsTheTablesOwn()
+            => Assert.Equal(FdpConfig.GetChunkCapacity<WithChars>(), FdpConfig.GetChunkCapacity(typeof(WithChars)));
+
         [Fact]
         public void OffsetOf_RefusesANonStructOrAMissingField()
         {
