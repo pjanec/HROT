@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Perception-specific components.
             world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<ActiveSensorTracks>();

@@ -14,10 +14,9 @@ namespace Fdp.Toolkit.Navigation.Recast.Tests;
 ///
 /// <para>
 /// All tests operate on a synthetic triangle soup in navmesh-query space:
-/// X=East, Y=altitude(up), Z=North (same as Stride world space, same as
-/// <see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/> convention).
-/// FDP-originated positions must be swizzled via
-/// <see cref="FdpStrideTransform.ToStridePosition"/> before being placed in the soup.
+/// X=East, Y=altitude(up), Z=North — RECAST space, the baker's input. ⚠ NOT the
+/// <see cref="Fdp.Toolkit.Navigation.INavmeshProvider"/> convention, which is engine Z-up since CE-3011 (W7);
+/// engine-space positions are swizzled (x, y, z) → (x, z, y) before being placed in the soup.
 /// </para>
 ///
 /// <para>

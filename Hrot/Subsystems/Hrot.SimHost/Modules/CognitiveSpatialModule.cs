@@ -29,6 +29,9 @@ namespace Hrot.SimHost.Modules
 
         private readonly Func<ISimulationView, Entity, float>? _colliderRadiusReader;
 
+        // ⭐ The sight test; null ⇒ the planar 2-D sweep over _colliderRadiusReader. 📄 docs/DESIGN_Terrain_World.md §4.3.
+        private readonly Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? _losStrategy;
+
         /// <summary>
         /// <b>B3 — the capability RECEIVES its grid.</b>
         /// </summary>
@@ -40,9 +43,12 @@ namespace Hrot.SimHost.Modules
         /// allocates the grid twice.
         /// </param>
         /// <param name="colliderRadiusReader">Optional collider-radius reader for LOS batching.</param>
+        /// <param name="losStrategy">The sight test (<c>TerrainWorldLosStrategy</c> on a terrain host); null ⇒
+        /// the planar 2-D sweep over <paramref name="colliderRadiusReader"/>.</param>
         public CognitiveSpatialModule(
             PerceptionGridProvider? gridProvider = null,
-            Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
+            Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
+            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null)
         {
 
             // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
@@ -56,6 +62,7 @@ namespace Hrot.SimHost.Modules
             _scopedBus.Register<SensorTrackStateEvent>();
 
             _colliderRadiusReader = colliderRadiusReader;
+            _losStrategy          = losStrategy;
         }
 
         public FdpEventBus ScopedBus => _scopedBus;
@@ -66,7 +73,8 @@ namespace Hrot.SimHost.Modules
             _visionBroadphase = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
             _losRequestBatching = registry.RegisterManualSystem(new LosRequestBatchingSystem(
                 mockMode: false,
-                colliderRadiusReader: _colliderRadiusReader));
+                colliderRadiusReader: _colliderRadiusReader,
+                losStrategy: _losStrategy));
             _sensorTrackDebounce = registry.RegisterManualSystem(new SensorTrackDebounceSystem());
         }
 

@@ -44,6 +44,7 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
+        internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
 
         /// <summary>⭐ True when this staged result would actually change residency.</summary>
         public bool HasWork => Definition != null;
@@ -54,6 +55,11 @@ public sealed class TerrainResidency
 
     private readonly TerrainCatalog _catalog;
     private readonly RoadNetworkHolder _roadNetworkHolder;
+
+    // ⭐ W6 — set only on a node that solves navigation (AttachNavmesh). Null ⇒ no bake, which is correct for a
+    //   node without the NavigationSolver role (IG, a viewer).
+    private Fdp.Toolkit.Navigation.INavmeshFactory?            _navmeshFactory;
+    private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider?  _navmesh;
 
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
@@ -90,6 +96,23 @@ public sealed class TerrainResidency
     public TerrainCatalog Catalog => _catalog;
 
     public string? ResidentTerrainName => _lastLoadedTerrainName;
+
+    /// <summary>
+    /// ⭐⭐ <b>W6 — make this node bake a navmesh from every terrain it loads</b> (docs/DESIGN_Terrain_World.md §4.1).
+    /// The bake runs in <see cref="Prepare"/> (off the main thread); <see cref="Commit"/> publishes it into
+    /// <paramref name="target"/> — the one provider the node's navigation singleton and its background solver
+    /// share. ⛔ A host that composes a navigation solver MUST call this (the silent-default rule): without it the
+    /// solver plans straight lines through buildings.
+    /// </summary>
+    public void AttachNavmesh(
+        Fdp.Toolkit.Navigation.INavmeshFactory factory, Fdp.Toolkit.Navigation.SwitchableNavmeshProvider target)
+    {
+        _navmeshFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _navmesh        = target  ?? throw new ArgumentNullException(nameof(target));
+    }
+
+    /// <summary>The navmesh this residency publishes into, when attached.</summary>
+    public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? Navmesh => _navmesh;
 
     /// <summary>
     /// ⭐⭐ <b>The I/O half — safe off the main thread, touches no ECS.</b>
@@ -149,6 +172,16 @@ public sealed class TerrainResidency
                     $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
                   + $"at '{worldPath}'.", worldPath);
             staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath));
+
+            // ⭐ W6 — the bake rides Prepare, whose contract is already "off-thread, no ECS mutation".
+            if (_navmeshFactory != null)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                staged.Navmesh = _navmeshFactory.Build(staged.World);
+                FdpLog<TerrainResidency>.Info(
+                    $"[Terrain] Navmesh for '{terrainName}' baked in {sw.ElapsedMilliseconds} ms"
+                  + (staged.Navmesh == null ? " — nothing walkable." : "."));
+            }
         }
 
         // ── The road network(s) the terrain declares: roads are a property of the TERRAIN, not of a zone.
@@ -200,6 +233,15 @@ public sealed class TerrainResidency
         //   terrain's buildings behind.
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(staged.World ?? new TerrainWorld());
+
+        // ⭐ W9 — the spatial grids are fixed at composition; a world that leaves them is reported LOUDLY.
+        if (staged.World != null)
+            foreach (var problem in TerrainGridCoverage.Problems(staged.World))
+                FdpLog<TerrainResidency>.Warn($"[Terrain] '{staged.TerrainName}': {problem}");
+
+        // ⭐ W6 — publish the bake (null ⇒ the straight-line fallback, so a terrain without a world never
+        //   keeps the previous terrain's navmesh).
+        _navmesh?.Publish(staged.Navmesh);
 
         if (staged.HasRoadNetwork)
         {
@@ -266,6 +308,7 @@ public sealed class TerrainResidency
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
         if (world != null && world.HasSingletonManaged<TerrainWorld>())
             world.SetSingletonManaged(new TerrainWorld());
+        _navmesh?.Publish(null);
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;

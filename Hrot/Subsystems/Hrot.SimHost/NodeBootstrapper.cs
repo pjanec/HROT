@@ -66,6 +66,20 @@ namespace Hrot.SimHost
         public TerrainLoadService TerrainLoadService { get; } =
             new TerrainLoadService(new AnnouncingZoneTileLoader());
 
+        private Fdp.Toolkit.Navigation.INavmeshFactory?           _navmeshFactory;
+        private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? _navmeshTarget;
+
+        /// <summary>
+        /// ⭐ W6 — make the terrain this node loads bake a navmesh into <paramref name="target"/>
+        /// (docs/DESIGN_Terrain_World.md §4.1). Call before <c>BuildOrchestration</c>.
+        /// </summary>
+        public void AttachNavmesh(
+            Fdp.Toolkit.Navigation.INavmeshFactory factory, Fdp.Toolkit.Navigation.SwitchableNavmeshProvider target)
+        {
+            _navmeshFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+            _navmeshTarget  = target  ?? throw new ArgumentNullException(nameof(target));
+        }
+
         /// <param name="networkFactory">Optional network factory (reserved for future use).</param>
         public NodeBootstrapper(INetworkFactory? networkFactory = null)
         {
@@ -352,8 +366,9 @@ namespace Hrot.SimHost
             loadProviders.Add(new KnowledgeBaseLoadStep(
                 tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot));
 
-            loadProviders.Add(new TerrainLoadStep(
-                new TerrainResidency(localTempRoot, RoadNetworkHolder), localTempRoot));
+            var residency = new TerrainResidency(localTempRoot, RoadNetworkHolder);
+            if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
+            loadProviders.Add(new TerrainLoadStep(residency, localTempRoot));
 
             // ⭐⭐⭐ D3 — the ONE terrain/zone OP handler, via the shared registrar. Unconditional on every
             //   ECS host: a host with nothing to make resident still ACKs, which is what removes the

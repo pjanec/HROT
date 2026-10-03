@@ -78,6 +78,9 @@ namespace Fdp.Toolkit.Perception.Modules
         // Stored so the systems can be instantiated lazily in RegisterSystems.
         private readonly Func<ISimulationView, Entity, float>? _colliderRadiusReader;
 
+        // ⭐ The sight test; null ⇒ the planar 2-D sweep over _colliderRadiusReader. 📄 docs/DESIGN_Terrain_World.md §4.3.
+        private readonly Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? _losStrategy;
+
         /// <summary>
         /// Initialises the module and allocates the module-private spatial grid.
         /// </summary>
@@ -96,7 +99,8 @@ namespace Fdp.Toolkit.Perception.Modules
         /// </param>
         public AutonomousPerceptionModule(
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
-            PerceptionGridProvider? gridProvider = null)
+            PerceptionGridProvider? gridProvider = null,
+            Fdp.Toolkit.Perception.LineOfSight.ILosStrategy? losStrategy = null)
         {
             // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
             // Dispose frees exactly what this module allocated and never what it borrowed.
@@ -109,6 +113,7 @@ namespace Fdp.Toolkit.Perception.Modules
             _scopedBus.Register<SensorTrackStateEvent>();
 
             _colliderRadiusReader = colliderRadiusReader;
+            _losStrategy          = losStrategy;
         }
 
         /// <summary>
@@ -120,7 +125,8 @@ namespace Fdp.Toolkit.Perception.Modules
             _visionBroadphase    = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
             _losRequestBatching  = registry.RegisterManualSystem(new LosRequestBatchingSystem(
                 mockMode: false,
-                colliderRadiusReader: _colliderRadiusReader));
+                colliderRadiusReader: _colliderRadiusReader,
+                losStrategy: _losStrategy));
             _sensorTrackDebounce = registry.RegisterManualSystem(new SensorTrackDebounceSystem());
         }
 

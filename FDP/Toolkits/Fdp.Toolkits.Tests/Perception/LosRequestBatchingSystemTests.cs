@@ -2,7 +2,12 @@ using System;
 using System.Numerics;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Perception.LineOfSight;
 using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Terrain;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -170,6 +175,114 @@ namespace Fdp.Toolkit.Perception.Tests
             // Assert — wall blocks LOS → no TargetVisibleEvent.
             var events = world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(0, events.Length);
+        }
+        // ── 3-D sight through the terrain world (docs/DESIGN_Terrain_World.md §4.3, R-181/R-182) ─────────────
+
+        private const string TwelveMetreBuildingAt50 = """
+            {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"building","height":12},
+             "geometry":{"type":"Polygon","coordinates":[[[45,-5],[55,-5],[55,5],[45,5],[45,-5]]]}}]}
+            """;
+
+        private const string HalfMetreWallAt10 = """
+            {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"wall","height":0.5,"thickness":0.3},
+             "geometry":{"type":"LineString","coordinates":[[10,-5],[10,5]]}}]}
+            """;
+
+        private static (EntityRepository World, Entity Obs, Entity Tgt) TwoSoldiers(float targetX)
+        {
+            var world = CreateWorldWithPhysics();
+            var obs = world.CreateEntity();
+            world.AddComponent(obs, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
+            var tgt = world.CreateEntity();
+            world.AddComponent(tgt, new SimTransform { Position = new Vector3(targetX, 0f, 0f) });
+            return (world, obs, tgt);
+        }
+
+        private static int VisibleCount(EntityRepository world, ILosStrategy strategy, Entity obs, Entity tgt)
+        {
+            var sys = new LosRequestBatchingSystem(mockMode: false, losStrategy: strategy);
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = obs, Target = tgt });
+            world.Bus.SwapBuffers();
+            ISimulationView view = world;
+            sys.Execute(view, 0f);
+            FlushEcbAndSwap(view, world);
+            return world.Bus.Read<TargetVisibleEvent>().Length;
+        }
+
+        private static TerrainWorldLosStrategy Strategy(TerrainWorld? terrain, StanceId observerStance = StanceId.Standing,
+            StanceId targetStance = StanceId.Standing, Entity observer = default)
+            => new(() => terrain, PhysicsRadiusReader(),
+                (v, e) => v.HasComponent<PhysicsCollider>(e) ? v.GetComponentRO<PhysicsCollider>(e).Height : 0f,
+                (v, e) => e.Index == observer.Index ? observerStance : targetStance);
+
+        [Fact]
+        public void TerrainLos_ABuildingBetween_BlocksSight_AndOpenGroundDoesNot()
+        {
+            var (world, obs, tgt) = TwoSoldiers(100f);
+            Assert.Equal(0, VisibleCount(world, Strategy(TerrainWorldParser.Parse(TwelveMetreBuildingAt50)), obs, tgt));
+
+            var (open, o2, t2) = TwoSoldiers(100f);
+            Assert.Equal(1, VisibleCount(open, Strategy(TerrainWorldParser.Parse("""{"type":"FeatureCollection","features":[]}""")), o2, t2));
+        }
+
+        /// <summary>🔒 R-182 — <i>"infantry can lay on ground or squat, sensor height must follow posture"</i>:
+        /// over a 0.5 m wall a STANDING observer sees a prone target, a PRONE observer does not.</summary>
+        [Fact]
+        public void TerrainLos_EyeHeightFollowsPosture_StandingSeesOverALowWall_ProneDoesNot()
+        {
+            var wall = TerrainWorldParser.Parse(HalfMetreWallAt10);
+
+            var (w1, o1, t1) = TwoSoldiers(20f);
+            Assert.Equal(1, VisibleCount(w1, Strategy(wall, StanceId.Standing, StanceId.Prone, o1), o1, t1));
+
+            var (w2, o2, t2) = TwoSoldiers(20f);
+            Assert.Equal(0, VisibleCount(w2, Strategy(wall, StanceId.Prone, StanceId.Prone, o2), o2, t2));
+        }
+
+        [Fact]
+        public void TerrainLos_ASensorMount_OverridesTheDefaultEyeHeight()
+        {
+            var wall = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            var (world, obs, tgt) = TwoSoldiers(20f);
+            // A prone sensor mounted HIGH (a periscope) sees over the wall the default prone eye cannot.
+            world.AddComponent(obs, new SensorMount { Standing = 1.7f, Crouched = 1.1f, Prone = 1.5f });
+            Assert.Equal(1, VisibleCount(world, Strategy(wall, StanceId.Prone, StanceId.Prone, obs), obs, tgt));
+        }
+
+        /// <summary>A collider blocks only within its HEIGHT; height 0 (unknown) blocks at every height, as the
+        /// 2-D sweep always did.</summary>
+        [Fact]
+        public void TerrainLos_ACollider_BlocksWithinItsHeight_AndUnknownHeightBlocksAlways()
+        {
+            foreach (var (height, visible) in new[] { (1.0f, 1), (2.5f, 0), (0f, 0) })
+            {
+                var (world, obs, tgt) = TwoSoldiers(20f);
+                var car = world.CreateEntity();
+                world.AddComponent(car, new SimTransform { Position = new Vector3(10f, 0f, 0f) });
+                world.AddComponent(car, new PhysicsCollider { Radius = 2f, Height = height });
+                Assert.Equal(visible, VisibleCount(world, Strategy(null), obs, tgt));
+            }
+        }
+
+        [Fact]
+        public void PerceptionTkbTranslator_ProjectsPostureEyeHeights_IntoASensorMount()
+        {
+            var world = CreateWorldWithPhysics();
+            var e = world.CreateEntity();
+            var template = new TkbTemplate("Scout", 1);
+            template.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 300f, EyeHeightStanding = 1.8f, EyeHeightProne = 0.3f });
+            new PerceptionTkbTranslator().Inject(world, e, template);
+
+            var mount = world.GetComponentRO<SensorMount>(e);
+            Assert.Equal(1.8f, mount.Standing);
+            Assert.Equal(1.8f, mount.Crouched);   // unset ⇒ the standing height
+            Assert.Equal(0.3f, mount.Prone);
+
+            var bare = world.CreateEntity();
+            var plain = new TkbTemplate("Plain", 2);
+            plain.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 300f });
+            new PerceptionTkbTranslator().Inject(world, bare, plain);
+            Assert.False(world.HasComponent<SensorMount>(bare));   // ⇒ the strategy's default mount
         }
     }
 }

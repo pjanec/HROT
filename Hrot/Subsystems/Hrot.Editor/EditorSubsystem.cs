@@ -1543,10 +1543,11 @@ namespace Hrot.Editor
             if (MuscleCapabilitiesFactory == null)
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
+                // ⭐ 3-D sight through the resident terrain world — CGF ≡ editor, same as SimHost (R-182;
+                // docs/DESIGN_Terrain_World.md §4.3).
                 perceptionMod    = new CognitiveSpatialModule(
-                    colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
-                        ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
-                        : 0f);
+                    colliderRadiusReader: Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Radius,
+                    losStrategy: Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(_world!));
                 _perceptionMod = perceptionMod;
 
                 muscleInputSystems   = simHostCorePack.InputSystems;

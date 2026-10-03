@@ -59,7 +59,10 @@ namespace CarKinem.Tkb
                 repo.AddComponent(entity, new PhysicsCollider
                 {
                     Radius         = System.Math.Max(dto.Length, dto.Width) / 2f,
-                    CollisionLayer = 1
+                    CollisionLayer = 1,
+                    // ⭐ Height's home is the render/collider descriptor (see VehicleParametersDto remarks);
+                    // 0 when absent = unknown height, which blocks sight at every height as before.
+                    Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                 });
 
             if (repo.IsComponentTypeRegistered<NavigationIntent>() && !repo.HasComponent<NavigationIntent>(entity))

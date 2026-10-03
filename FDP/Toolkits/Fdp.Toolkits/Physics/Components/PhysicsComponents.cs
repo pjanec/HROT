@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.Collections;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Physics.Components
 {
@@ -23,6 +24,27 @@ namespace Fdp.Toolkit.Physics.Components
         /// Layer bitmask. Rays only hit this entity if (request.LayerMask &amp; CollisionLayer) != 0.
         /// </summary>
         public int CollisionLayer;
+
+        /// <summary>
+        /// Height of the collider above the entity's Z (metres). ⭐ <c>0 = unknown</c>, which a 3-D sight line
+        /// treats as blocking at EVERY height — exactly the 2-D behaviour from before this field existed, so an
+        /// unset value never makes something see-through. Filled from <c>StrideRenderModelDefDto.ShapeHeight</c>
+        /// by the TKB translators that stamp the collider. 📄 docs/DESIGN_Terrain_World.md §4.3.
+        /// </summary>
+        public float Height;
+    }
+
+    /// <summary>
+    /// ⭐ The ONE pair of collider readers every host hands perception — radius and height of an entity's
+    /// <see cref="PhysicsCollider"/>, 0 when it has none. (Three hosts used to inline the radius lambda.)
+    /// </summary>
+    public static class PhysicsColliderReaders
+    {
+        public static float Radius(ISimulationView view, Entity e)
+            => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Radius : 0f;
+
+        public static float Height(ISimulationView view, Entity e)
+            => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Height : 0f;
     }
 
     // ── RaycastRequest ────────────────────────────────────────────────────────────

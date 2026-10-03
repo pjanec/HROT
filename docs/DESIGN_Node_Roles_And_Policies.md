@@ -198,6 +198,13 @@ happens not to need one. 📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Lo
 
 #### ⭐ What each role additionally requires — **measured `2026-09-18`, by CONSUMER, not by assumption**
 
+⭐⭐ **SUPERSEDED IN PART `2026-10-03` — the consumer appeared, exactly as the ruling below anticipated.** The terrain
+**world** is now **universal on every ECS node**, like the knowledge base (`RoleLoadRequirements.UniversalParts`):
+the map on every host draws it (🔒 *"Cgf must render the map as well"*), Perception's line of sight is tested against it,
+and the movement model takes its Z from it (R-181/R-182). ⭐ Only the **navmesh bake** stays role-derived — nodes that
+compose `NavigationSolver` (`TerrainResidency.AttachNavmesh`). The table below is the 2026-09-18 measurement, kept as
+HISTORY for its terrain column. 📄 [`DESIGN_Terrain_World.md`](DESIGN_Terrain_World.md) §5.
+
 | role | knowledge base | terrain / road graph | scenario entities | the consumer that proves it |
 |---|---|---|---|---|
 | — *every ECS node* — | ⭐⭐⭐ ✅ **unconditional** *(above)* | — | — | `Q65-A′` / §3.1, not a consumer measurement |

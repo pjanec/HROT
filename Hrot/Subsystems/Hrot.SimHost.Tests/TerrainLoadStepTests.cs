@@ -230,6 +230,58 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
 
+    private sealed class CountingNavmeshFactory : Fdp.Toolkit.Navigation.INavmeshFactory
+    {
+        public int Calls;
+        public int CallingThread;
+        public Fdp.Toolkit.Navigation.INavmeshProvider? Build(TerrainWorld world)
+        {
+            Calls++;
+            CallingThread = Environment.CurrentManagedThreadId;
+            return new Fdp.Toolkit.Navigation.Fake.FakeNavmeshProvider();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ W6 — docs/DESIGN_Terrain_World.md §4.1: on a navigation-solver node the bake runs in PREPARE and the node's
+    /// navmesh switches at COMMIT, never before; a node that attached no factory bakes nothing.
+    /// </summary>
+    [Fact]
+    public void AnAttachedNavmesh_IsBakedAtPrepare_AndPublishedAtCommit_W6()
+    {
+        string folder = Path.Combine(_terrainDir, "blocks");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+            """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var factory = new CountingNavmeshFactory();
+        var navmesh = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        residency.AttachNavmesh(factory, navmesh);
+
+        var staged = residency.Prepare("blocks");
+        Assert.Equal(1, factory.Calls);
+        Assert.False(navmesh.HasBakedMesh);          // ⛔ not before commit
+
+        residency.Commit(world, staged);
+        Assert.True(navmesh.HasBakedMesh);
+
+        residency.Unload(world);
+        Assert.False(navmesh.HasBakedMesh);          // unload reverts to straight lines
+
+        // A node that attached nothing never bakes.
+        var plain = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        plain.Commit(world, plain.Prepare("blocks"));
+        Assert.Equal(1, factory.Calls);
+    }
+
     [Fact]
     public void ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection()
     {

@@ -573,6 +573,12 @@
         /// 📄 docs/DESIGN_Terrain_World.md §3.</summary>
         public const int TerrainWorld = 304;
 
+        /// <summary><c>SensorMount</c> — an entity's per-posture sensor EYE heights (standing / crouched / prone),
+        /// projected from the TKB <c>SensorCapabilitiesDto</c>; the 3-D sight line starts there
+        /// (🔒 R-182 <i>"sensor height must follow posture"</i>). 305 is free by a census of every
+        /// <c>*Ids*.cs</c> and every <c>[ComponentId(30x)]</c> — <c>R-44</c>. 📄 docs/DESIGN_Terrain_World.md §7.1 W5.</summary>
+        public const int SensorMount = 305;
+
         /// <summary><c>BrainInterrupts</c> — ⭐ <b>the entity-fact tail split out of <c>BrainBlackboard</c></b>
         /// by `O2` (2026-09-20): <c>ExpectedThreatLevel</c> and the edge-triggered interrupt registers.
         /// They are PER ENTITY and never per occurrence, so they must stop travelling inside a struct

@@ -28,6 +28,7 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<WeaponState>();

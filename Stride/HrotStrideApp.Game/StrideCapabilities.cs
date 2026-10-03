@@ -230,10 +230,10 @@ public static class StrideCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
+            // ⭐ 3-D sight through the resident terrain world, as every ECS host (docs/DESIGN_Terrain_World.md §4.3).
             var module = new CognitiveSpatialModule(
-                colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
-                    ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                    : 0f);
+                colliderRadiusReader: PhysicsColliderReaders.Radius,
+                losStrategy: Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(context.World));
 
             _publishModule?.Invoke(module);
             context.Kernel.RegisterModule(module);

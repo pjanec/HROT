@@ -53,6 +53,81 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(6, building.Triangles.Length);      // a quad → two triangles
         }
 
+        // ── the navmesh input soup (docs/DESIGN_Terrain_World.md §4.1) ───────────────────────────────────
+
+        private static (Vector3[] V, int[] I) Mesh()
+        {
+            TerrainWorldMesh.Build(Parse(), out var v, out var i, cellSize: 2f);
+            return (v, i);
+        }
+
+        private static Vector3 Normal(Vector3[] v, int[] idx, int t)
+            => Vector3.Cross(v[idx[t + 1]] - v[idx[t]], v[idx[t + 2]] - v[idx[t]]);
+
+        [Fact]
+        public void Mesh_EveryHorizontalTriangleFacesUp_AndWallsAreVertical()
+        {
+            var (v, idx) = Mesh();
+            Assert.True(idx.Length > 0 && idx.Length % 3 == 0);
+            for (int t = 0; t < idx.Length; t += 3)
+            {
+                var n = Vector3.Normalize(Normal(v, idx, t));
+                Assert.True(n.Z >= -1e-4f, $"triangle {t / 3} faces down: {n}");
+            }
+        }
+
+        [Fact]
+        public void Mesh_GroundSkipsBuildingsAndWater_ButKeepsTheGarageGroundFloor()
+        {
+            var (v, idx) = Mesh();
+            bool GroundAt(float x, float y)
+            {
+                for (int t = 0; t < idx.Length; t += 3)
+                {
+                    var a = v[idx[t]]; var b = v[idx[t + 1]]; var c = v[idx[t + 2]];
+                    if (a.Z != 0f || b.Z != 0f || c.Z != 0f) continue;
+                    if (PolygonMath.HeightOnTriangle(x, y, a, b, c) is not null) return true;
+                }
+                return false;
+            }
+            Assert.True(GroundAt(10, 100));     // open ground
+            Assert.False(GroundAt(65, 65));     // inside the 12 m building
+            Assert.False(GroundAt(165, 115));   // the pond
+            Assert.True(GroundAt(120, 20));     // under the deck: the garage's ground floor
+        }
+
+        [Fact]
+        public void Mesh_CarriesTheRoof_TheDeck_AndTheRamp()
+        {
+            var (v, idx) = Mesh();
+            float? TopAt(float x, float y, float near)
+            {
+                for (int t = 0; t < idx.Length; t += 3)
+                {
+                    var z = PolygonMath.HeightOnTriangle(x, y, v[idx[t]], v[idx[t + 1]], v[idx[t + 2]]);
+                    if (z is float h && MathF.Abs(h - near) < 0.01f) return h;
+                }
+                return null;
+            }
+            Assert.NotNull(TopAt(65, 65, 12f));   // building roof
+            Assert.NotNull(TopAt(120, 20, 3f));   // garage deck
+            Assert.NotNull(TopAt(95, 5, 1.5f));   // halfway up the ramp
+        }
+
+        /// <summary>W9 — a world inside both fixed grids reports nothing; one that leaves them is named, per grid.</summary>
+        [Fact]
+        public void GridCoverage_NamesEveryGridTheWorldLeaves_W9()
+        {
+            Assert.Empty(TerrainGridCoverage.Problems(Parse()));   // [0,200]² fits both
+
+            var big = TerrainWorldParser.Parse(
+                """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-100,0,1200,500]},"features":[]}""");
+            var problems = TerrainGridCoverage.Problems(big);
+            Assert.Equal(2, problems.Count);
+            Assert.Contains(problems, p => p.Contains("perception"));
+            Assert.Contains(problems, p => p.Contains("collider"));
+        }
+
         [Fact]
         public void SurfaceZ_OpenGround_IsGround()
             => Assert.Equal(0f, Parse().SurfaceZ(10, 100, 0f));

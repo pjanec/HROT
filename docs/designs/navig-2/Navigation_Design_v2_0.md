@@ -1,5 +1,11 @@
 # Navigation Subsystem — Architectural Design
 
+> ⭐⭐ **COORDINATE CONTRACT — `2026-10-03` (`CE-3011`, R-182):** every navigation API in this document —
+> `INavmeshProvider`, `NavWaypoint`, `IVolumetricPathProvider`/`FlyProfile` (altitude = **Z**), the fakes and the test
+> navmaps — is **engine space, Z-up** (X east, Y north, Z up). ⛔ Any Y-up wording below is SUPERSEDED. The Recast Y-up
+> swizzle lives only INSIDE `DotRecastNavmeshProvider` / `TerrainWorldGeometrySource`, and at the Stride boundary.
+> 📄 [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §7.1 W7.
+
 > **Status.** **Canonical architectural contract.** This is the single
 > altitude statement of the navigation subsystem's Brain ↔ Muscle (+
 > optional NavigationSolver) interface, and the entry point for

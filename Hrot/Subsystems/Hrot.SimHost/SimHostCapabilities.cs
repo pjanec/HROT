@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation.EngineBacked;
+using Fdp.Toolkit.Navigation.Modules;
 using Fdp.Toolkit.Physics.Components;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
@@ -84,8 +85,17 @@ internal static class SimHostCapabilities
     internal sealed class NavigationSolver : INodeCapability
     {
         private readonly EngineBackedNavigationModule _module;
+        private readonly Func<NavigationSolverModule>? _solverFactory;
 
-        internal NavigationSolver(EngineBackedNavigationModule module) => _module = module;
+        /// <param name="solverFactory">⭐ W6 (docs/DESIGN_Terrain_World.md §5) — builds the path SOLVER. Before it,
+        /// no production host composed <see cref="NavigationSolverModule"/>, so a <c>PathfindingRequestEvent</c>
+        /// was published and never answered. A factory, not an instance: the road holder it needs exists only
+        /// after orchestration is built.</param>
+        internal NavigationSolver(EngineBackedNavigationModule module, Func<NavigationSolverModule>? solverFactory = null)
+        {
+            _module = module;
+            _solverFactory = solverFactory;
+        }
 
         public string Key => CapabilityKeys.NavigationSolver;
 
@@ -98,7 +108,10 @@ internal static class SimHostCapabilities
         public IReadOnlyList<string> Needs { get; } = new[] { ResourceKeys.TrajectoryPool };
 
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(_module);
+        {
+            context.Kernel.RegisterModule(_module);
+            if (_solverFactory != null) context.Kernel.RegisterModule(_solverFactory());
+        }
     }
 
     /// <summary>Perception's spatial half: the cognitive grid systems.</summary>
@@ -114,10 +127,10 @@ internal static class SimHostCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
+            // ⭐ 3-D sight through the resident terrain world (docs/DESIGN_Terrain_World.md §4.3, R-182).
             var module = new CognitiveSpatialModule(
-                colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
-                    ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                    : 0f);
+                colliderRadiusReader: PhysicsColliderReaders.Radius,
+                losStrategy: Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(context.World));
 
             // The host still exposes this module publicly (diagnostics read it), so hand it back.
             // ⚠ Migration boundary, like NodeBootPlan.Value<T> — it should disappear once the
