@@ -214,15 +214,17 @@ internal static class StatementEmitter
             {
                 if (idx < 0) break;
                 // Never null, never throws in a tick (decision E): a bad/empty payload ⇒ new T() and __fjok = false.
-                e.WriteLine($"global::{op.TypeFqn} __t{idx} = null!;");
+                // ⭐ CE-2023 ③ ("S8n") — an explicit ok flag, so a STRUCT contract compiles too (no `null!`, no `??=`).
+                e.WriteLine($"global::{op.TypeFqn} __t{idx} = default!;");
+                e.WriteLine($"bool __fjok{idx} = false;");
                 e.WriteLine($"if (!string.IsNullOrEmpty(__t{op.Json.Index}))");
                 e.WriteLine("{");
-                e.WriteLine($"    try {{ __t{idx} = global::System.Text.Json.JsonSerializer.Deserialize<global::{op.TypeFqn}>(__t{op.Json.Index}, "
-                          + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed); }");
+                e.WriteLine($"    try {{ var __fj{idx} = global::System.Text.Json.JsonSerializer.Deserialize<global::{op.TypeFqn}>(__t{op.Json.Index}, "
+                          + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
+                e.WriteLine($"          if (__fj{idx} is {{ }} __fjv{idx}) {{ __t{idx} = __fjv{idx}; __fjok{idx} = true; }} }}");
                 e.WriteLine("    catch (global::System.Text.Json.JsonException) { }");
                 e.WriteLine("}");
-                e.WriteLine($"bool __fjok{idx} = __t{idx} != null;");
-                e.WriteLine($"__t{idx} ??= new global::{op.TypeFqn}();");
+                e.WriteLine($"if (!__fjok{idx}) __t{idx} = new global::{op.TypeFqn}();");
                 break;
             }
 

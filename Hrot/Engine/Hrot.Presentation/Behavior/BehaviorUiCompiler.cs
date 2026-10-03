@@ -36,7 +36,7 @@ namespace Hrot.Presentation.Behavior
         /// <typeparam name="TDto">A JSON-serializable DTO that drives the ImGui rendering.</typeparam>
         /// <param name="behaviorId">Behavior identifier string (must be unique per registry).</param>
         /// <exception cref="InvalidOperationException">Thrown if <paramref name="behaviorId"/> is already registered.</exception>
-        public void Register<TDto>(string behaviorId) where TDto : class, new()
+        public void Register<TDto>(string behaviorId) where TDto : new()   // CE-2023 ③ — a struct contract too
         {
             if (_registry.ContainsKey(behaviorId))
                 throw new InvalidOperationException(
@@ -89,7 +89,7 @@ namespace Hrot.Presentation.Behavior
         /// performed and expression trees are compiled and cached.
         /// </summary>
         /// <typeparam name="TDto">A JSON-serializable DTO class with a public parameterless constructor.</typeparam>
-        public static BehaviorUiDrawDelegate Compile<TDto>() where TDto : class, new()
+        public static BehaviorUiDrawDelegate Compile<TDto>() where TDto : new()
             => _cache.GetOrAdd(typeof(TDto), _ => BuildDelegate<TDto>());
 
         /// <summary>
@@ -97,17 +97,18 @@ namespace Hrot.Presentation.Behavior
         /// the re-serialized JSON.  Allows verifying JSON round-trip logic without requiring
         /// an active ImGui context.
         /// </summary>
-        internal static string TestHook_ApplyChange<TDto>(string json, Action<TDto> mutate)
-            where TDto : class, new()
+        internal static string TestHook_ApplyChange<TDto>(string json, RefAction<TDto> mutate)
+            where TDto : new()
         {
-            var dto = JsonSerializer.Deserialize<TDto>(json, _jsonOptions) ?? new TDto();
-            mutate(dto);
+            var dto = JsonSerializer.Deserialize<TDto>(json, _jsonOptions);
+            if (dto is null) dto = new TDto();
+            mutate(ref dto);
             return JsonSerializer.Serialize(dto, _jsonOptions);
         }
 
         // ── Private implementation ────────────────────────────────────────────
 
-        private static BehaviorUiDrawDelegate BuildDelegate<TDto>() where TDto : class, new()
+        private static BehaviorUiDrawDelegate BuildDelegate<TDto>() where TDto : new()
         {
             CompileCallCount++;
 
@@ -121,21 +122,20 @@ namespace Hrot.Presentation.Behavior
                     return json;
 
                 var dto = string.IsNullOrEmpty(json) ? new TDto() :  JsonSerializer.Deserialize<TDto>(json, _jsonOptions);
-                if (dto == null)
+                if (dto is null)
                     return json;
 
                 bool anyChanged = false;
                 foreach (var renderer in renderers)
-                    anyChanged |= renderer(dto, taskIndex, context);
+                    anyChanged |= renderer(ref dto, taskIndex, context);
 
                 return anyChanged ? JsonSerializer.Serialize(dto, _jsonOptions) : json;
             };
         }
 
-        private static List<Func<TDto, int, IPickInteractionContext, bool>> BuildPropertyRenderers<TDto>()
-            where TDto : class
+        private static List<Renderer<TDto>> BuildPropertyRenderers<TDto>()
         {
-            var renderers = new List<Func<TDto, int, IPickInteractionContext, bool>>();
+            var renderers = new List<Renderer<TDto>>();
 
             var props = typeof(TDto)
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -155,14 +155,14 @@ namespace Hrot.Presentation.Behavior
                     var getter        = BuildLongGetter<TDto>(prop);
                     var setter        = BuildSetter<TDto, long>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         bool changed = false;
 
                         // 1. Consume any asynchronously resolved pick targeting this field.
                         if (ctx.TryConsumeEntityPick(taskIdx, propName, out long pickedId))
                         {
-                            setter(dto, pickedId);
+                            setter(ref dto, pickedId);
                             changed = true;
                         }
 
@@ -184,14 +184,14 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, PickableGeoPoint>(prop);
                     var setter = BuildSetter<TDto, PickableGeoPoint>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         bool changed = false;
 
                         // 1. Consume any asynchronously resolved location pick.
                         if (ctx.TryConsumeLocationPick(taskIdx, propName, out var pickedLoc))
                         {
-                            setter(dto, pickedLoc);
+                            setter(ref dto, pickedLoc);
                             changed = true;
                         }
 
@@ -216,12 +216,12 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, float>(prop);
                     var setter = BuildSetter<TDto, float>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         float val = getter(dto);
                         if (ImGui.InputFloat($"{propName}##{propName}_{taskIdx}", ref val))
                         {
-                            setter(dto, val);
+                            setter(ref dto, val);
                             return true;
                         }
                         return false;
@@ -232,12 +232,12 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, double>(prop);
                     var setter = BuildSetter<TDto, double>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         double val = getter(dto);
                         if (ImGui.InputDouble($"{propName}##{propName}_{taskIdx}", ref val))
                         {
-                            setter(dto, val);
+                            setter(ref dto, val);
                             return true;
                         }
                         return false;
@@ -248,12 +248,12 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, int>(prop);
                     var setter = BuildSetter<TDto, int>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         int val = getter(dto);
                         if (ImGui.InputInt($"{propName}##{propName}_{taskIdx}", ref val))
                         {
-                            setter(dto, val);
+                            setter(ref dto, val);
                             return true;
                         }
                         return false;
@@ -264,14 +264,14 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildLongGetter<TDto>(prop);
                     var setter = BuildSetter<TDto, long>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         string strVal = getter(dto).ToString();
                         if (ImGui.InputText($"{propName}##{propName}_{taskIdx}", ref strVal, 64))
                         {
                             if (long.TryParse(strVal, out long parsed))
                             {
-                                setter(dto, parsed);
+                                setter(ref dto, parsed);
                                 return true;
                             }
                         }
@@ -283,12 +283,12 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, bool>(prop);
                     var setter = BuildSetter<TDto, bool>(prop);
 
-                    renderers.Add((dto, taskIdx, ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IPickInteractionContext ctx) =>
                     {
                         bool val = getter(dto);
                         if (ImGui.Checkbox($"{propName}##{propName}_{taskIdx}", ref val))
                         {
-                            setter(dto, val);
+                            setter(ref dto, val);
                             return true;
                         }
                         return false;
@@ -302,7 +302,7 @@ namespace Hrot.Presentation.Behavior
 
         // ── Expression-tree helper builders ──────────────────────────────────
 
-        private static Func<TDto, long> BuildLongGetter<TDto>(PropertyInfo prop) where TDto : class
+        private static Func<TDto, long> BuildLongGetter<TDto>(PropertyInfo prop)
         {
             var param    = Expression.Parameter(typeof(TDto), "dto");
             var propExpr = Expression.Property(param, prop);
@@ -312,19 +312,27 @@ namespace Hrot.Presentation.Behavior
             return Expression.Lambda<Func<TDto, long>>(asLong, param).Compile();
         }
 
-        private static Func<TDto, TProp> BuildGetter<TDto, TProp>(PropertyInfo prop) where TDto : class
+        private static Func<TDto, TProp> BuildGetter<TDto, TProp>(PropertyInfo prop)
         {
             var param    = Expression.Parameter(typeof(TDto), "dto");
             var propExpr = Expression.Property(param, prop);
             return Expression.Lambda<Func<TDto, TProp>>(propExpr, param).Compile();
         }
 
-        private static Action<TDto, TProp> BuildSetter<TDto, TProp>(PropertyInfo prop) where TDto : class
+        /// <summary>⭐ CE-2023 ③ — the setter takes the DTO BY REF, so a struct contract is written in place (a by-value
+        /// <c>Action&lt;TDto, TProp&gt;</c> would write a copy). Identical for a class.</summary>
+        private static RefSetter<TDto, TProp> BuildSetter<TDto, TProp>(PropertyInfo prop)
         {
-            var dtoParam = Expression.Parameter(typeof(TDto), "dto");
+            var dtoParam = Expression.Parameter(typeof(TDto).MakeByRefType(), "dto");
             var valParam = Expression.Parameter(typeof(TProp), "val");
             var assign   = Expression.Assign(Expression.Property(dtoParam, prop), valParam);
-            return Expression.Lambda<Action<TDto, TProp>>(assign, dtoParam, valParam).Compile();
+            return Expression.Lambda<RefSetter<TDto, TProp>>(assign, dtoParam, valParam).Compile();
         }
+
+        private delegate void RefSetter<TDto, in TProp>(ref TDto dto, TProp val);
+        private delegate bool Renderer<TDto>(ref TDto dto, int taskIndex, IPickInteractionContext context);
+
+        /// <summary>A mutation of a DTO in place — <see cref="TestHook_ApplyChange{TDto}"/>.</summary>
+        internal delegate void RefAction<TDto>(ref TDto dto);
     }
 }

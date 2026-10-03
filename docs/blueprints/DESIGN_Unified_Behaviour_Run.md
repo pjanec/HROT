@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8l as-built"; "S8m" is an OPEN decision — CE-2023 ③).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8n as-built" — N-1, the struct contracts; N-2 next).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1996,7 +1996,7 @@ bool, bool}` Inputs struct is 8, not its extent 6) and `BlueprintBehaviourTests.
 🔴 Red-proof: the extent width fails both. The S3 rail's `Marshal.SizeOf` pin of the Input width is now `TypeLayout.SizeOf`
 (the CE-2041 rule). Gates: Toolkits 2466/0, Blueprints 4130/0/17, SimHost 1057/0/3, Generators 378/0.
 
-#### S8m — CE-2023 ③ needs a decision: a curated child with a CLASS authored contract cannot be hosted with params *(`2026-10-03`)*
+#### S8m — CE-2023 ③ needs a decision *(DECIDED `2026-10-03`: A — see "S8n")*: a curated child with a CLASS authored contract cannot be hosted with params *(`2026-10-03`)*
 
 **Measured.** `MoveToLocation` and `FireAtTarget` resolve JSON into `MoveToLocationParamsJsonDto` / `FireAtTargetParamsJsonDto`
 — sealed CLASSES (`Hrot.Core/MapDefinitions/Behavior/*.cs`), deliberately: `BehaviorParams.ResolveBlock` documents them as
@@ -2020,6 +2020,202 @@ of the `Demo_*` step children, and the capstone runs as a scenario on a `--mode 
 `Behavior_Parameter_Resolver_Detailed_Design.md` §3.2 (the "two shapes on divergence" MoveTo case) — applies, it is why the
 DTO and the block differ · CE-438 (closed by CE-443: *"keep the typed delegate alongside the JSON adapter"*) — applies, A is
 that lean carried to the two shipped contracts.
+
+#### S8n design — the two curated authored contracts become STRUCTS, so a host can start them with parameters *(`2026-10-03`, CE-2023 ③; user: "(A) approved")*
+
+⭐ Decides "S8m" (option A). Two parts: **N-1** the contracts (this section's diagrams) and **N-2** the §7 demos on the real
+children plus the capstone on a cluster (section "S8n-2" below, written when N-1 is built).
+
+**Claim table**
+
+| the change rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the JSON keys survive a class → struct move | ✅ both DTOs are auto-properties with `[JsonPropertyName]`; the JSON arm deserialises with `BehaviorParams.JsonOptions` = `DefaultRelaxed` (field-aware, case-insensitive) | ✅ the DTO IS the authored contract (CE-235, `[BehaviorContract]`) |
+| a typed resolver gets BOTH arms for free | ✅ `CuratedBehaviorGenerator.cs:300-312` emits `RegisterResolver(FromBlockResolver<A,B>)` + `RegisterSourceResolver(FromBlockResolverSource<A,B>, typeof(A))`; the source arm is null only for a reference-type `A` | ✅ CE-438/CE-443 lean *"keep the typed delegate alongside the JSON adapter"* |
+| a host then knows what to bind | ✅ `BehaviorRegistry.TryGetHostedInputType` returns the source type first (`:782`); `StartChild` hands the resolver the host bytes (`HostedSubtree.cs:386`) | ✅ §P.2 *"the host variable IS the child's authored input"* |
+| the two compilers assume a reference | ✅ `BehaviorUiCompiler` and `BehaviorParamRemapperCompiler` are `where TDto : class, new()` and compile `Action<TDto,TProp>` setters — on a struct those write a COPY | — |
+| who registers into them | ✅ only `BehaviorSchemaDiscovery.AutoRegister` (reflection over `[BehaviorContract]`, `MakeGenericMethod`) + rails | — |
+| nothing else needs a class | ✅ the only production readers: `CgfNodes` parse (replaced), Send Intent emission `new global::Dto { … }` (works for a struct), `GET /behaviors` schema (property reflection) | — |
+| an empty payload | ⚠ the JSON arm passes `default(A)` for an empty string, so "no JSON" and `{}` become one case. The old parse wrote ZEROS for empty and DEFAULTS (speed, 5 m radius) for `{}`; the typed resolver applies the defaults to both | ⛔ searched `docs/`: no ruling on an empty MoveTo payload — the defaults are the authored meaning of "not given" |
+
+```mermaid
+classDiagram
+  class MoveToLocationParamsJsonDto {
+    <<struct, was class>>
+    +double TargetLat
+    +double TargetLon
+    +double Speed
+    +double ArrivalRadius
+    +float X
+    +float Y
+    +PickableGeoPoint PickableLocation  JsonIgnore facade
+  }
+  class FireAtTargetParamsJsonDto {
+    <<struct, was class>>
+    +long TargetNetworkId
+    +int MaxRounds
+    +float CooldownSeconds
+  }
+  class CgfNodes {
+    +ResolveMoveTo(in MoveToLocationParamsJsonDto, ref MoveToLocationParams, world, self)$
+    +ResolveFireAtTarget(in FireAtTargetParamsJsonDto, ref FireAtTargetParams, world, self)$
+  }
+  class BehaviorUiCompiler {
+    +Compile~TDto~() where new()
+    -RefSetter~TDto,TProp~(ref TDto, TProp)
+  }
+  class BehaviorParamRemapperCompiler {
+    +Compile~TDto~() where new()
+    -RefSetter~TDto,long~(ref TDto, long)
+  }
+  class BehaviorRegistry {
+    +RegisterResolver(name, ParseParamsDelegate)
+    +RegisterSourceResolver(name, ResolveStageDelegate, Type)
+    +TryGetHostedInputType(name) Type
+  }
+  CgfNodes ..> MoveToLocationParamsJsonDto : authored
+  CgfNodes ..> FireAtTargetParamsJsonDto : authored
+  BehaviorRegistry ..> CgfNodes : both arms, generated
+  BehaviorUiCompiler ..> MoveToLocationParamsJsonDto : ref setters
+  BehaviorParamRemapperCompiler ..> FireAtTargetParamsJsonDto : ref setters
+```
+*What the picture shows: one contract per behaviour, and three readers of it — the JSON arm, the host-bytes arm, the two
+editor compilers — none of which needs it to be a class any more.*
+
+```mermaid
+sequenceDiagram
+  participant BP as blueprint host (Behaviour Task, Params pin)
+  participant HS as HostedSubtree.StartChild
+  participant R as source arm (FromBlockResolverSource)
+  participant C as CgfNodes.ResolveMoveTo
+  participant B as child block (MoveToLocationParams)
+  BP->>HS: bind host var (MoveToLocationParamsJsonDto bytes)
+  HS->>R: (source, sourceBytes, block)
+  R->>C: in authored (read from the bytes), ref block
+  C->>C: geo to Cartesian via the world IGeographicTransform, default speed and radius
+  C->>B: X, Y, Speed, ArrivalRadius
+```
+
+```mermaid
+graph TD
+  GEN["CuratedBehaviorRegistrar.g.cs (startup)"] --> REG["BehaviorRegistry: JSON arm + source arm + source type"]
+  ING["BehaviorIngressSystem (root assign, JSON)"] --> JSONARM["FromBlockResolver → ResolveMoveTo"]
+  HOST["HostedSubtree.StartChild (hosted start, bytes)"] --> SRC["FromBlockResolverSource → ResolveMoveTo"]
+  DISC["BehaviorSchemaDiscovery.AutoRegister (CGF / editor setup)"] --> UI["BehaviorUiCompiler (mission panel form)"]
+  DISC --> RM["ScenarioBehaviorRemapper (scenario load)"]
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| N1 the contracts | ⭐ `public struct` with the SAME auto-properties and attributes (`PickableLocation` stays a `[JsonIgnore]` facade) | fields instead of properties — the two compilers and schema discovery reflect over PROPERTIES |
+| N2 the resolvers | ⭐ typed `(in Dto, ref Block, world, self)`; the parse bodies move into them unchanged except the empty case (above) | keep the 5-param JSON resolvers and add a source resolver by hand — two registrations to keep in step, the generator already pairs them |
+| N3 the compilers | ⭐ `where TDto : new()`; setters compiled over a `ref TDto` parameter (a custom delegate), the delegate keeps the DTO in a local and passes it by `ref` — identical for a class | box to `object` — a second path per type and an allocation per frame in the mission panel |
+| N4 the test hook | ⭐ `TestHook_ApplyChange<TDto>(json, RefAction<TDto>)` | `Action<TDto>` mutates a copy for a struct |
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2/§P.8 — applies · `Behavior_Parameter_Resolver_Detailed_Design.md`
+§3.2 — applies (why the DTO and the block differ; unchanged) · `BehaviorParams.ResolveBlock`'s note *"the two shipped
+two-shape authored DTOs … are CLASSES … never stored in a slot"* — overturned here (folded) · CE-235 (the DTO is published as
+`paramSchema`) — applies, unchanged.
+
+#### S8n as-built — N-1, the struct contracts *(`2026-10-03`)*
+
+Built as designed, plus TWO consumers the inventory missed — both found by the gates, both a class assumption:
+
+| what | as built |
+|---|---|
+| N1 | both DTOs are `public struct`, same properties/attributes; `[BehaviorContract]` now allows `Struct` |
+| N2 | `CgfNodes.ResolveMoveTo` / `ResolveFireAtTarget` (typed) over `ConvertMoveTo` / `ConvertFireAtTarget`; the generator emits both arms (verified in `CuratedBehaviorRegistrar.g.cs`) |
+| N3 | `BehaviorUiCompiler` and `BehaviorParamRemapperCompiler` (+ `ScenarioBehaviorRemapper.Register`) are `where TDto : new()` with setters/renderers over `ref TDto` |
+| N4 | `TestHook_ApplyChange(json, RefAction<TDto>)` |
+| ⚠ missed ① | the blueprint **intent palette** (`IntentContractPaletteEntries.Compute`) took only classes ⇒ MoveToLocation/FireAtTarget vanished from Send Intent / To JSON / From JSON. Now value types too (a struct needs no explicit ctor) |
+| ⚠ missed ② | the **From JSON** emission (`StatementEmitter`, `IrOp_FromJson`) was `T x = null!; … x ??= new T();` — uncompilable for a struct. Now an explicit `__fjok` flag and `is { } v` (legal for both); no corpus golden moved |
+| pin moved | `ABehaviourAdvertisesItsRealParametersTests` asserted the authored contract `IsClass` — now that it round-trips through JSON |
+
+Rails (each red-proved): `BehaviorUiCompilerTests.CE2023_*` (an entity / a location PICK on a struct contract reaches the JSON —
+a headless ImGui frame; red when the renderer writes a copy), `ScenarioBehaviorRemapperTests.CE2023_AStructContract_IsRemappedInPlace`,
+`CE472_IntentAndJsonNodeTests.ToJson_ThenFromJson_OverAStructContract_RoundTrips` (red: CS0037 under the old emission) and the
+existing `Palette_OffersEachContract_WithPinnableMembersOnly` (red until missed ① was fixed). Gates: Toolkits 2467/0, Presentation
+300/0, Core 183/0, SimHost 1057/0/3, ExCon 105/0, Generators 378/0, Blueprints 4131/0/17, Editor 453/0/2.
+
+#### S8n-2 design — the §7 demos on the real children, and the channel a second child inherits *(`2026-10-03`, CE-2023 ③ · CE-2052)*
+
+**① The demos.** `Demo_MissionPlan` declares three Parameters typed as the child contracts — `Move`, `Fire`, `Home` — and its
+Advance / Defend / Return tasks become `MoveToLocation` / `FireAtTarget` / `MoveToLocation` with `ParamsVariable` pointing at
+them (a Task's `ParamsVariable` may be authored directly — `RunBehaviorNode`). `Demo_TaskChain` does the same for Advance /
+Engage (`Move`, `Fire`). Retreat and Take Cover stay demo children (no curated "retreat" exists). One JSON assign carries the
+whole mission: `{"Move":{"x":…},"Fire":{"targetNetworkId":…},"Home":{…}}` — each part the child's own published contract.
+
+**② The rails move to SimHost** (`BehaviourTaskDemoTests`): only there does the registry hold the curated children
+(`CgfBehaviorSetup.LoadFromAiAssembly`, as `HillAttackBlueprintTests`). The rail plays the executors — it sets the locomotion
+channel's `Status` when the destination is the one the parameters named, and gives the shooter a visible target and a weapon
+off cooldown so `FireAtTarget` reaches `MaxRounds`. The Blueprints-side `Demo_*` timing rails are RE-HOMED there (their claims —
+order, abort ⇒ retreat, cover alongside, low health aborts — each kept), not deleted.
+
+**③ CE-2052 — found designing ②: a second hosted child inherits the first one's FINISHED channel.**
+
+| claim | code | design |
+|---|---|---|
+| a channel is released only when the entity's behaviour INSTANCE changes | ✅ `ChannelArbitrationSystem.cs:38` (`BehaviorInstanceId != behavior.InstanceId`) | ✅ channels belong to one running behaviour |
+| a hosted child runs under its HOST's InstanceId | ✅ `HostedSubtree.TickHosted` (`InstanceId = ctx._instanceId`) | ✅ U-10 *"the host's (channels reset with the host)"* — ⛔ searched: no record considers two children using ONE channel in sequence |
+| MoveTo / FireAtTarget treat a terminal channel of their own kind as their result | ✅ `Action_WriteMoveToChannel`: `ActiveAction == MoveTo && Status == Success ⇒ Success` without activating; `Action_FireAtTarget` propagates `Success` the same way | — |
+| ⇒ Advance then Return (two MoveTo children of one host) | the Return leg ends on its FIRST tick, never driving home | — |
+
+⭐ **Fix: a hosted child's fresh START releases what its host's earlier children left FINISHED** — every channel on the entity
+with `ActiveAction != 0`, `BehaviorInstanceId ==` the host's instance and a TERMINAL `Status` gets `ActiveAction = 0` and a new
+`ActionInstanceId` (exactly what arbitration does on an instance change). A channel still `Running` is untouched, so a sibling
+running alongside keeps its action. ⚠ Edge, accepted: a sibling whose action finished in the same frame re-activates once (and
+finishes again at once).
+
+```mermaid
+sequenceDiagram
+  participant H as host (Demo_MissionPlan)
+  participant T as HostedSubtree.TickHosted
+  participant C as LocomotionChannel
+  participant M as MoveToLocation child
+  H->>T: Advance (fresh start)
+  T->>M: tick: activate MoveTo(Move)
+  Note over C: executor ⇒ Status = Success
+  M-->>H: Succeeded
+  H->>T: Return (fresh start)
+  T->>C: release: terminal + this host ⇒ ActiveAction = 0
+  T->>M: tick: activate MoveTo(Home), not the stale Success
+```
+
+```mermaid
+classDiagram
+  class HostedSubtree {
+    +TickHosted(hostBlock, ctx, slot, binding)$ NodeStatus
+    -ReleaseFinishedChannels(world, self, instanceId)$
+  }
+  class ChannelArbitrationSystem {
+    +Execute(view, dt)  releases on an instance change
+  }
+  class LocomotionChannel
+  class WeaponChannel
+  class InteractionChannel
+  HostedSubtree ..> LocomotionChannel : releases if terminal
+  HostedSubtree ..> WeaponChannel : releases if terminal
+  HostedSubtree ..> InteractionChannel : releases if terminal
+```
+*What the picture shows: the same release rule arbitration applies on an instance change, applied at the one moment it
+cannot see — a new child of the same instance.*
+
+```mermaid
+graph TD
+  BRAIN["BrainTickSystem (per tick)"] --> HOSTRUN["host runner (BTree / HSM / blueprint)"]
+  HOSTRUN --> TH["HostedSubtree.TickHosted"]
+  TH -- "fresh start only" --> REL["ReleaseFinishedChannels"]
+  ARB["ChannelArbitrationSystem (ActionDispatchModule, per tick)"] -- "instance change" --> REL2["release"]
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| where | ⭐ the child's fresh START in `TickHosted` (the one place every host tier passes) | the child's END — it does not know which channels it used either, and a release at start is local to the child about to activate · give each hosted child its own InstanceId — reverses U-10 |
+| what | ⭐ only TERMINAL channels of this instance | every channel of this instance — would cancel a sibling running alongside (S7 "Started") |
+
+**Design docs checked:** U-10 (this document §5) — applies; its intent ("channels reset with the host") is kept and the
+missed case added · `DESIGN_Behavior_Action_Binding.md` (the `WritesChannels` clear, failure-only) — does not cover success,
+and curated actions do not declare it · §7 table — applies, this is its curated-children promise.
 
 ## 5. Decisions — each with a lean
 

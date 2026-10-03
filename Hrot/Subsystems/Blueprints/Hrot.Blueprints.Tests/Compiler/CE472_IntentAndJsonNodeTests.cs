@@ -27,8 +27,8 @@ public class CE472_IntentAndJsonNodeTests
     private static Pin DataPin(string name, string direction, string typeId) =>
         new() { Id = Guid.NewGuid(), Name = name, Direction = direction, IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = typeId } };
 
-    private static List<StructFieldDecl> Members() => ReflectionIntentContractProvider
-        .PinnableMembers(typeof(HullDownAttackIntentDto))
+    private static List<StructFieldDecl> Members(Type? dto = null) => ReflectionIntentContractProvider
+        .PinnableMembers(dto ?? typeof(HullDownAttackIntentDto))
         .Select(m => new StructFieldDecl { Name = m.Name, TypeId = m.TypeId }).ToList();
 
     private static LiteralNode Literal(string typeId, string json, out Pin outPin)
@@ -82,14 +82,16 @@ public class CE472_IntentAndJsonNodeTests
     /// or, with <paramref name="badJson"/>, FromJson(literal) with no ToJson. ⚠ A string can never be a function
     /// input/output (the Library ABI marshals I/O through bytes) — the JSON lives inside the graph, decision B.
     /// </summary>
-    private static Graph RoundTrip(string name, string member, string memberType, string? badJson = null)
+    private static Graph RoundTrip(string name, string member, string memberType, string? badJson = null,
+                                   Type? dto = null, string inMember = "SlotX")
     {
+        string dtoFqn = (dto ?? typeof(HullDownAttackIntentDto)).FullName!;
         var entry = new EventEntryNode { Id = Guid.NewGuid() };
         var entryOut = ExecPin("ExecOut", "Out");
         var slotIn = DataPin("slotX", "Out", "System.Single");
         entry.Pins.AddRange(new[] { entryOut, slotIn });
 
-        var fromJson = new FromJsonNode { Id = Guid.NewGuid(), DtoTypeFqn = DtoFqn, Fields = Members() };
+        var fromJson = new FromJsonNode { Id = Guid.NewGuid(), DtoTypeFqn = dtoFqn, Fields = Members(dto) };
         var jsonIn = DataPin("Json", "In", "System.String");
         fromJson.Pins.Add(jsonIn);
         foreach (var f in fromJson.Fields) fromJson.Pins.Add(DataPin(f.Name, "Out", f.TypeId));
@@ -115,12 +117,12 @@ public class CE472_IntentAndJsonNodeTests
             return g;
         }
 
-        var toJson = new ToJsonNode { Id = Guid.NewGuid(), DtoTypeFqn = DtoFqn, Fields = Members() };
+        var toJson = new ToJsonNode { Id = Guid.NewGuid(), DtoTypeFqn = dtoFqn, Fields = Members(dto) };
         foreach (var f in toJson.Fields) toJson.Pins.Add(DataPin(f.Name, "In", f.TypeId));
         var jsonOut = DataPin("Json", "Out", "System.String");
         toJson.Pins.Add(jsonOut);
         g.Nodes.Add(toJson);
-        g.Links.Add(new Link { FromNodeId = entry.Id, FromPinId = slotIn.Id, ToNodeId = toJson.Id, ToPinId = toJson.Pins.Single(p => p.Name == "SlotX").Id });
+        g.Links.Add(new Link { FromNodeId = entry.Id, FromPinId = slotIn.Id, ToNodeId = toJson.Id, ToPinId = toJson.Pins.Single(p => p.Name == inMember).Id });
         g.Links.Add(new Link { FromNodeId = toJson.Id, FromPinId = jsonOut.Id, ToNodeId = fromJson.Id, ToPinId = jsonIn.Id });
         return g;
     }
@@ -138,6 +140,23 @@ public class CE472_IntentAndJsonNodeTests
             RoundTrip("EmptyOk", "Ok", "System.Boolean", badJson: ""),
         },
     };
+
+    /// <summary>⭐ CE-2023 ③ ("S8n") — the same round trip over a STRUCT contract (MoveToLocation's).</summary>
+    private static BlueprintAsset StructRoundTripLibrary()
+    {
+        var dto = typeof(Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto);
+        return new()
+        {
+            AssetId = Guid.NewGuid(), Name = "Ce2023StructRoundTrip", Dispatch = BlueprintDispatchKind.Library,
+            Graphs =
+            {
+                RoundTrip("X", "X", "System.Single", dto: dto, inMember: "X"),
+                RoundTrip("Ok", "Ok", "System.Boolean", dto: dto, inMember: "X"),
+                RoundTrip("BadOk", "Ok", "System.Boolean", badJson: "not json", dto: dto, inMember: "X"),
+                RoundTrip("BadX", "X", "System.Single", badJson: "not json", dto: dto, inMember: "X"),
+            },
+        };
+    }
 
     // ── coverage fixtures for NodeCoverageTests (each node kind must appear in a compiling asset) ──
     internal static BlueprintAsset CoverageRoundTrip() => RoundTripLibrary();
@@ -215,6 +234,27 @@ public class CE472_IntentAndJsonNodeTests
         Assert.Equal(false, Call("BadOk"));    // decision E: a flag, not a throw
         Assert.Equal(0f, Call("BadSlotX"));    // members at the DTO's defaults
         Assert.Equal(false, Call("EmptyOk"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2023</c> ③ ("S8n") — To JSON / From JSON over a STRUCT contract compiles and round-trips. 🔴 The From JSON
+    /// emission was <c>T x = null!; … x ??= new T();</c>, which does not compile for a struct.
+    /// </summary>
+    [Fact]
+    public void ToJson_ThenFromJson_OverAStructContract_RoundTrips()
+    {
+        var asset = StructRoundTripLibrary();
+        var result = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(result.Succeeded, Diags(result));
+
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asm = fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        object Call(string fn) => Method(asm, fn).Invoke(null, new object[] { 3.5f })!;
+
+        Assert.Equal(3.5f, Call("X"));
+        Assert.Equal(true, Call("Ok"));
+        Assert.Equal(false, Call("BadOk"));
+        Assert.Equal(0f, Call("BadX"));
     }
 
     [Theory]

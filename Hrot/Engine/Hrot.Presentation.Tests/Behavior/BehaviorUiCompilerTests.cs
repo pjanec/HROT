@@ -57,6 +57,74 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.True(ReferenceEquals(d1, d3), "d3 must return cached delegate from d1");
         }
 
+        // ── CE-2023 ③ (S8n): the contracts are STRUCTS — a pick must land in the JSON, not in a copy ──
+
+        private sealed class PickingContext : IPickInteractionContext
+        {
+            public long Entity;
+            public PickableGeoPoint? Location;
+            public bool IsPickPendingFor(int taskIndex, string propertyName) => false;
+            public bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
+            { entityId = Entity; return Entity != 0; }
+            public bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
+            { location = Location ?? default; return Location.HasValue; }
+            public void RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets) { }
+            public void RequestLocationPick(int taskIndex, string propertyName) { }
+        }
+
+        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, IPickInteractionContext pick)
+        {
+            var ctx = ImGuiNET.ImGui.CreateContext();
+            ImGuiNET.ImGui.SetCurrentContext(ctx);
+            var io = ImGuiNET.ImGui.GetIO();
+            io.DisplaySize = new System.Numerics.Vector2(1024, 768);
+            io.DeltaTime   = 1.0f / 60.0f;
+            io.Fonts.AddFontDefault();
+            io.Fonts.Build();
+            try
+            {
+                ImGuiNET.ImGui.NewFrame();
+                ImGuiNET.ImGui.Begin("CE2023");
+                string result = draw(json, 0, pick);
+                ImGuiNET.ImGui.End();
+                ImGuiNET.ImGui.Render();
+                return result;
+            }
+            finally { ImGuiNET.ImGui.DestroyContext(ctx); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2023</c> ③ — an entity pick on the (now struct) <c>FireAtTarget</c> contract is written into the JSON the
+        /// mission panel stores. 🔴 With a by-value setter the pick lands in a COPY and the old id comes back.
+        /// </summary>
+        [Fact]
+        public void CE2023_AnEntityPickOnAStructContract_LandsInTheJson()
+        {
+            Assert.True(typeof(FireAtTargetParamsJsonDto).IsValueType);
+            var draw = BehaviorUiCompiler.Compile<FireAtTargetParamsJsonDto>();
+
+            string result = DrawOneFrame(draw, "{\"targetNetworkId\":42,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                new PickingContext { Entity = 99 });
+
+            Assert.Contains("\"targetNetworkId\":99", result);
+            Assert.Contains("\"maxRounds\":5", result);
+        }
+
+        /// <summary>⭐ <c>CE-2023</c> ③ — the same for a location pick on the struct <c>MoveToLocation</c> contract.</summary>
+        [Fact]
+        public void CE2023_ALocationPickOnAStructContract_LandsInTheJson()
+        {
+            Assert.True(typeof(MoveToLocationParamsJsonDto).IsValueType);
+            var draw = BehaviorUiCompiler.Compile<MoveToLocationParamsJsonDto>();
+
+            string result = DrawOneFrame(draw, "{\"targetLat\":1,\"targetLon\":2,\"speed\":5}",
+                new PickingContext { Location = new PickableGeoPoint(50.5, 14.25) });
+
+            Assert.Contains("\"targetLat\":50.5", result);
+            Assert.Contains("\"targetLon\":14.25", result);
+            Assert.Contains("\"speed\":5", result);
+        }
+
         // ── C009 SC3: TestHook_ApplyChange verifies JSON round-trip ──────────
 
         /// <summary>C009 SC3: JSON round-trip — updated value is reflected, other fields preserved.</summary>
@@ -68,7 +136,7 @@ namespace Hrot.Presentation.Tests.Behavior
 
             string result = BehaviorUiCompiler.TestHook_ApplyChange<FireAtTargetParamsJsonDto>(
                 json,
-                dto => dto.CooldownSeconds = 2.5f);
+                (ref FireAtTargetParamsJsonDto dto) => dto.CooldownSeconds = 2.5f);   // CE-2023 ③ — by ref: the contract is a struct
 
             Assert.NotNull(result);
             Assert.Contains("\"cooldownSeconds\":2.5", result);

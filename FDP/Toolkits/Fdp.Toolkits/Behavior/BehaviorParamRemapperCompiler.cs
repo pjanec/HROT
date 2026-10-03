@@ -60,17 +60,20 @@ namespace Fdp.Toolkit.Behavior
         ///     unchanged.</item>
         /// </list>
         /// </summary>
-        /// <typeparam name="TDto">A JSON-serializable DTO class with a public parameterless
+        /// <typeparam name="TDto">A JSON-serializable DTO (class or struct) with a public parameterless
         ///   constructor.</typeparam>
         public static Func<string?, Dictionary<long, long>, string?> Compile<TDto>()
-            where TDto : class, new()
+            where TDto : new()   // ⭐ CE-2023 ③ — a class or a STRUCT contract ("S8n"): the setters take the DTO by ref
         {
             return (Func<string?, Dictionary<long, long>, string?>)
                 _cache.GetOrAdd(typeof(TDto), _ => BuildDelegate<TDto>());
         }
 
+        /// <summary>⭐ CE-2023 ③ — a setter over the DTO BY REF, so a struct contract is written in place, not as a copy.</summary>
+        private delegate void RefSetter<TDto>(ref TDto dto, long newVal);
+
         private static Func<string?, Dictionary<long, long>, string?> BuildDelegate<TDto>()
-            where TDto : class, new()
+            where TDto : new()
         {
             CompileCallCount++;
 
@@ -91,7 +94,7 @@ namespace Fdp.Toolkit.Behavior
             }
 
             // Build expression-tree-compiled getter/setter pairs — no PropertyInfo.GetValue/SetValue.
-            var accessors = new (Func<TDto, long> getter, Action<TDto, long> setter)[remappable.Length];
+            var accessors = new (Func<TDto, long> getter, RefSetter<TDto> setter)[remappable.Length];
             for (int i = 0; i < remappable.Length; i++)
             {
                 var prop = remappable[i];
@@ -104,14 +107,14 @@ namespace Fdp.Toolkit.Behavior
                     : Expression.Convert(propRead, typeof(long));
                 var getter    = Expression.Lambda<Func<TDto, long>>(asLong, getParam).Compile();
 
-                // setter: (TDto dto, long newVal) => dto.Property = (propType)newVal
-                var setParam    = Expression.Parameter(typeof(TDto), "dto");
+                // setter: (ref TDto dto, long newVal) => dto.Property = (propType)newVal
+                var setParam    = Expression.Parameter(typeof(TDto).MakeByRefType(), "dto");
                 var newValParam = Expression.Parameter(typeof(long), "newVal");
                 var setValueExpr = prop.PropertyType == typeof(long)
                     ? (Expression)newValParam
                     : Expression.Convert(newValParam, prop.PropertyType);
                 var assignExpr  = Expression.Assign(Expression.Property(setParam, prop), setValueExpr);
-                var setter      = Expression.Lambda<Action<TDto, long>>(assignExpr, setParam, newValParam).Compile();
+                var setter      = Expression.Lambda<RefSetter<TDto>>(assignExpr, setParam, newValParam).Compile();
 
                 accessors[i] = (getter, setter);
             }
@@ -123,14 +126,14 @@ namespace Fdp.Toolkit.Behavior
                     return json;
 
                 var dto = JsonSerializer.Deserialize<TDto>(json, _jsonOptions);
-                if (dto == null)
+                if (dto is null)
                     return json;
 
                 foreach (var (getter, setter) in accessors)
                 {
                     long oldId = getter(dto);
                     if (map.TryGetValue(oldId, out long newId))
-                        setter(dto, newId);
+                        setter(ref dto, newId);
                 }
 
                 return JsonSerializer.Serialize(dto, _jsonOptions);

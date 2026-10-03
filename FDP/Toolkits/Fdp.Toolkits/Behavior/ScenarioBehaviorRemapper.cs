@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Behavior
         ///   Thrown if <paramref name="behaviorId"/> has already been registered.
         /// </exception>
         public void Register<TDto>(string behaviorId)
-            where TDto : class, new()
+            where TDto : new()   // CE-2023 ③ — a struct contract too ("S8n")
         {
             if (_registry.ContainsKey(behaviorId))
                 throw new InvalidOperationException(

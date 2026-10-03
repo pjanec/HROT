@@ -155,5 +155,28 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Contains("FireAtTarget", ex.Message);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2023</c> ③ (S8n) — a STRUCT contract is remapped in place. 🔴 With a by-value setter the new id was written
+        /// into a copy and the JSON came back with the old one.
+        /// </summary>
+        [Fact]
+        public void CE2023_AStructContract_IsRemappedInPlace()
+        {
+            var remap = BehaviorParamRemapperCompiler.Compile<StructRemapDto>();
+            string? result = remap("{\"targetNetworkId\":42,\"maxRounds\":3}", new Dictionary<long, long> { [42] = 1042 });
+            Assert.Contains("1042", result);
+            Assert.Contains("\"maxRounds\":3", result);
+        }
+
+        private struct StructRemapDto
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("targetNetworkId")]
+            [Fdp.Toolkit.Behavior.Attributes.RemapNetworkId]
+            public long TargetNetworkId { get; set; }
+
+            [System.Text.Json.Serialization.JsonPropertyName("maxRounds")]
+            public int MaxRounds { get; set; }
+        }
     }
 }

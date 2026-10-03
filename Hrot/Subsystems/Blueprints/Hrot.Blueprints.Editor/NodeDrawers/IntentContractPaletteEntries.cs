@@ -43,8 +43,10 @@ public sealed class ReflectionIntentContractProvider : IIntentContractProvider
 
             foreach (var t in types)
             {
-                if (!t.IsClass || t.IsAbstract || t.FullName is not { Length: > 0 } fqn) continue;
-                if (t.GetConstructor(Type.EmptyTypes) is null) continue;   // From JSON / new T() need one
+                // ⭐ CE-2023 ③ ("S8n") — a STRUCT contract too (MoveToLocation / FireAtTarget are structs so a host can bind them).
+                if (!(t.IsClass || (t.IsValueType && !t.IsEnum && !t.IsPrimitive)) || t.IsAbstract
+                    || t.FullName is not { Length: > 0 } fqn) continue;
+                if (t.IsClass && t.GetConstructor(Type.EmptyTypes) is null) continue;   // From JSON / new T() need one (a struct always has it)
                 var attr = t.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "BehaviorContractAttribute");
                 if (attr is null || attr.ConstructorArguments.Count == 0 || attr.ConstructorArguments[0].Value is not string id
                     || id.Length == 0) continue;
