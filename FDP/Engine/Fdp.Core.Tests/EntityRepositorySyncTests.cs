@@ -116,7 +116,8 @@ namespace Fdp.Tests
             Assert.False(dest.IsAlive(e));
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 50 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_MeetsTarget()
         {
              using var source = new EntityRepository();

@@ -91,7 +91,8 @@ namespace Fdp.Tests
             Assert.Null(dest.GetRO(0));
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_Benchmark()
         {
              using var source = new ManagedComponentTable<TestRecord>();

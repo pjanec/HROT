@@ -132,7 +132,8 @@ namespace Fdp.Tests
             public int Damage;
         }
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock FPS, and playback-faster-than-recording with no margin (344.3 vs 344.8 FPS measured, CE-2058)")]
+        [Trait("Category", "Flaky")]
         public void RealisticMilitrarySimulation_CompleteScenario_MeasuresPerformance()
         {
             // Realistic scenario:

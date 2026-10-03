@@ -121,7 +121,7 @@ namespace Hrot.Editor.Tests
 
         // ⚠ GC timing: whether the old AssemblyLoadContext is collected within the wait is not deterministic, and this
         //   failed intermittently in full-suite runs while passing alone. Opt-in only (FlakyFact).
-        [FlakyFact("GC timing decides whether the old ALC is collected within the wait")]
+        [Fdp.Testing.FlakyFact("GC timing decides whether the old ALC is collected within the wait")]
         [Trait("Category", "Integration")]
         [Trait("Category", "Flaky")]
         public void TwoReloadCycles_OldAlcIsCollected()

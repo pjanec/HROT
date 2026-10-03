@@ -126,7 +126,8 @@ namespace Fdp.Tests
             Assert.Equal(0u, dest.GetChunkVersion(0));
         }
         
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void Performance_1000Chunks_30PercentDirty()
         {
             // Performance test

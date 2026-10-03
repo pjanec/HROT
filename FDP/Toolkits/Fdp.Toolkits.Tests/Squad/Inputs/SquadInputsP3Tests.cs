@@ -188,7 +188,8 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
 
         // ── SC-P3-02-5: Zero-alloc ────────────────────────────────────────────────
 
-        [Fact]
+        [Fdp.Testing.FlakyFact("per-thread allocation bound; JIT tier-up allocates on the measuring thread under load (CE-2049)")]
+        [Trait("Category", "Flaky")]
         public void AllReaders_ZeroAlloc_After1MillionCalls()
         {
             const int Iterations = 1_000_000;

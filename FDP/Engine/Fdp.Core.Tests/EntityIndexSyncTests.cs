@@ -63,7 +63,8 @@ namespace Fdp.Tests
              Assert.Equal(source.MaxIssuedIndex, dest.MaxIssuedIndex);
         }
         
-        [Fact]
+        [Fdp.Testing.FlakyFact("wall-clock 10 ms threshold on a cold 10 MB first-touch copy (14 ms on a 4-core VM, CE-2058)")]
+        [Trait("Category", "Flaky")]
         public void Performance_100K_Entities()
         {
              using var source = new EntityIndex();
