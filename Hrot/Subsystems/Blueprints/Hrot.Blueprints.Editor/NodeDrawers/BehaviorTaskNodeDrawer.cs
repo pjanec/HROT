@@ -18,8 +18,9 @@ public sealed class BehaviorTaskNodeDrawer : IBlueprintNodeDrawer
 
     /// <param name="behaviourNames">The host's registered behaviour names. ⛔ A production host HAS a
     /// <c>BehaviorRegistry</c> and must pass it (the silent-default rule); null lists nothing.</param>
-    /// <param name="paramsTypeOf">⭐ S8 / CE-2022 — a child's hosted input type id (<see cref="ParamsTypeLookup"/>), baked
-    /// on pick so the node shows a typed <c>Params</c> pin. ⛔ A production host must pass it too; null = no pin.</param>
+    /// <param name="paramsTypeOf">⭐ S8 / CE-2022 — a child's hosted input type id (S8b-2: <c>ChildInputTypes.Lookup</c>, the one
+    /// answer every behaviour picker shares), baked on pick so the node shows a typed <c>Params</c> pin. ⛔ A production host
+    /// must pass it too; null = no pin.</param>
     public BehaviorTaskNodeDrawer(IEditService editService, Func<IReadOnlyList<string>>? behaviourNames = null,
                                   Func<string, string?>? paramsTypeOf = null)
     {
@@ -32,15 +33,6 @@ public sealed class BehaviorTaskNodeDrawer : IBlueprintNodeDrawer
 
     public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset)
         => new BehaviorTaskNodeSession((RunBehaviorNode)node, parentAsset, _editService, _behaviourNames, _paramsTypeOf);
-
-    /// <summary>
-    /// ⭐ S8 / <c>CE-2022</c> — the ONE lookup both hosts pass: <c>BehaviorRegistry.TryGetHostedInputType</c>, spelled as a
-    /// blueprint type id (a nested type's <c>+</c> becomes <c>.</c>, as C# writes it).
-    /// </summary>
-    public static Func<string, string?> ParamsTypeLookup(Func<Fdp.Toolkit.Behavior.BehaviorRegistry?> registry)
-        => name => registry() is { } r && r.TryGetHostedInputType(name, out var type) && type.FullName is { } full
-            ? full.Replace('+', '.')
-            : null;
 }
 
 internal sealed class BehaviorTaskNodeSession : INodeEditSession

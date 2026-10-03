@@ -41,13 +41,19 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     public HsmFacetDispatcher(
         HsmAsset asset,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
-        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null)
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,
+        Func<string, string?>? childInputsTypeOf = null)
     {
-        _asset         = asset ?? throw new ArgumentNullException(nameof(asset));
-        _catalog       = catalog;
-        _actionSchema  = actionSchema;
-        _mapper        = new HsmFacetMapper(asset);
+        _asset             = asset ?? throw new ArgumentNullException(nameof(asset));
+        _catalog           = catalog;
+        _actionSchema      = actionSchema;
+        _childInputsTypeOf = childInputsTypeOf;
+        _mapper            = new HsmFacetMapper(asset);
     }
+
+    /// <summary>⭐ S8b-2 (CE-2025) — a picked child's Inputs type id (<c>ChildInputTypes.Lookup</c>, the one answer every
+    /// behaviour picker shares). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</summary>
+    private readonly Func<string, string?>? _childInputsTypeOf;
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
 
@@ -152,8 +158,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         //   author deleted.
         if (changed)
             s.SubtreeParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
-                _asset, pickedName!,
-                (_catalog?.FindByAssetId(s.SubtreeAssetId) as Hrot.Editor.AiShared.IBehaviorInputsContract)?.InputsTypeId);
+                _asset, pickedName!, _childInputsTypeOf?.Invoke(pickedName!));   // ⭐ S8b-2: the one child-inputs lookup
     }
 
     /// <summary>

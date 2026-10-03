@@ -1395,7 +1395,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     /// <summary>
     /// ⭐⭐ S8 (P5) — <c>BehaviorRegistry.TryGetHostedInputType</c>, the one answer the drawer asks: a child with a block
     /// layout and no manifest binds its layout; a blueprint behaviour binds its generated <c>Params</c>; one with no
-    /// parameters binds nothing. ⭐ And the drawer's lookup spells a nested type the C# way (<c>.</c>, not <c>+</c>).
+    /// parameters binds nothing.
     /// </summary>
     [Fact]
     public void S8_TheHostedInputType_IsTheChildsAuthoredInput()
@@ -1414,12 +1414,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.True(reg.TryGetHostedInputType("S8TypeBpWithParams", out var bp));
         Assert.Equal("Params", bp.Name);
         Assert.False(reg.TryGetHostedInputType("S8TypeBpNoParams", out _));
-
-        var lookup = Hrot.Blueprints.Editor.NodeDrawers.BehaviorTaskNodeDrawer.ParamsTypeLookup(() => reg);
-        Assert.Equal(typeof(Runtime.S8TaskParams).FullName, lookup("S8TypeLayoutChild"));
-        Assert.EndsWith(".Params", lookup("S8TypeBpWithParams"));
-        Assert.DoesNotContain("+", lookup("S8TypeBpWithParams"));
-        Assert.Null(lookup("S8TypeBpNoParams"));
+        // ⭐ S8b-2: the editor's spelling of this answer is ChildInputTypes (Hrot.Editor.Tests, ChildInputTypesTests).
     }
 
     /// <summary>

@@ -39,7 +39,7 @@ public sealed class TheEqsBrainStartupIsSharedTests
         //   BehaviorTaskNodeDrawerTests.TheRegistry_ForwardsTheBehaviourNames_ToTheDrawerItBuilds).
         Assert.Matches(@"BehaviourNames\s*=\s*\(\)\s*=>\s*_behaviorRegistry", text);
         // ⭐ S8 / CE-2022 — and the child's parameter type, so the task shows its typed Params pin.
-        Assert.Matches(@"BehaviourParamsType\s*=\s*Hrot\.Blueprints\.Editor\.NodeDrawers\.BehaviorTaskNodeDrawer\.ParamsTypeLookup\(\(\)\s*=>\s*_behaviorRegistry\)", text);
+        Assert.Matches(@"BehaviourParamsType\s*=\s*Hrot\.Editor\.AiComposition\.ChildInputTypes\.Lookup\(\(\)\s*=>\s*_behaviorRegistry\)", text);
     }
 
     [Theory]

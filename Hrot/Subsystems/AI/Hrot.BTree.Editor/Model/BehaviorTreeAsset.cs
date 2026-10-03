@@ -207,13 +207,10 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset, Hrot.Editor.AiShared.IBehaviorInputsContract
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
-    /// <summary>⭐ CE-439 — this behaviour's generated Inputs struct, as a host binding it as a subtree sees it
-    /// (<see cref="Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.InputsStructTypeId"/> — the one naming rule).</summary>
-    public string? InputsTypeId
-        => Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.InputsStructTypeId(
-               Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(this));
+    // ⛔ S8b-2 (CE-2025): the CE-439 `InputsTypeId` / IBehaviorInputsContract is RETIRED — a host's pickers ask the ONE
+    //   child-inputs lookup (Hrot.Editor.AiComposition.ChildInputTypes, over BehaviorRegistry), which answers for every tier.
 
     /// <summary>
     /// ⭐ <c>CE-428</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20), or <c>null</c>. ⚠ Must round-trip

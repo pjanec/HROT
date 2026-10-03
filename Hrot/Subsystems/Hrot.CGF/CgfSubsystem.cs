@@ -1522,7 +1522,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐ S7a — the Behaviour Task picker lists what this host's registry can actually run.
                 BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
                 // ⭐ S8 / CE-2022 — and what each one takes as parameters (the task's typed Params pin).
-                BehaviourParamsType = Hrot.Blueprints.Editor.NodeDrawers.BehaviorTaskNodeDrawer.ParamsTypeLookup(() => _behaviorRegistry),
+                BehaviourParamsType = Hrot.Editor.AiComposition.ChildInputTypes.Lookup(() => _behaviorRegistry),
             });
         var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
         _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);

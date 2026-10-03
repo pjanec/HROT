@@ -1832,7 +1832,7 @@ namespace Hrot.Editor
                     // ⭐ S7a — the Behaviour Task picker lists what this host's registry can actually run.
                     BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
                     // ⭐ S8 / CE-2022 — and what each one takes as parameters (the task's typed Params pin).
-                    BehaviourParamsType = Hrot.Blueprints.Editor.NodeDrawers.BehaviorTaskNodeDrawer.ParamsTypeLookup(() => _behaviorRegistry),
+                    BehaviourParamsType = Hrot.Editor.AiComposition.ChildInputTypes.Lookup(() => _behaviorRegistry),
                 });
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action

@@ -74,6 +74,8 @@ public static class AiFacetPickerBinder
         if (services is null) throw new ArgumentNullException(nameof(services));
 
         var editService = services.FacetEditService;
+        // ⭐ S8b-2 (CE-2025) — ONE answer to "what does this child take?" for both pickers (and the Behaviour Task).
+        var childInputsTypeOf = ChildInputTypes.Lookup(() => services.BehaviorRegistry);
 
         if (active?.Kind == AssetKind.BTree
             && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
@@ -84,7 +86,8 @@ public static class AiFacetPickerBinder
 
             services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
-                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, services.Catalog, services.ActionSchema));   // CE-439, CE-417 4c
+                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, services.Catalog, services.ActionSchema,   // CE-439, CE-417 4c
+                                                                childInputsTypeOf));
         }
         else if (active?.Kind == AssetKind.Hsm
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
@@ -101,7 +104,7 @@ public static class AiFacetPickerBinder
             //   so it composes no variable and the author is back to hand-mirroring a byte layout.
             services.HsmRegistrar?.NodeProperties.SetFacetDispatcher(
                 new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(
-                    hsmAsset, services.Catalog, services.ActionSchema));
+                    hsmAsset, services.Catalog, services.ActionSchema, childInputsTypeOf));
         }
         else
         {

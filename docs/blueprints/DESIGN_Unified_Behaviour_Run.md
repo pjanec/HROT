@@ -959,7 +959,7 @@ Rails: `BlueprintBehaviourTests.S8_TheParamsPin_SeedsTheChild_AtItsStart`, `…S
 `…S8_AnUnwiredParamsPin_BindsNothing`, `…S8_TheHostedInputType_IsTheChildsAuthoredInput`; `BehaviorTaskNodeDrawerTests.Picking_BakesTheChildsParamsType_AndProjectsAParamsPin_Undoably`,
 `…TheRegistry_ForwardsTheParamsTypeLookup_ToTheDrawerItBuilds`; `TheEqsBrainStartupIsSharedTests` (both hosts pass the lookup).
 
-#### S8b design — ONE answer to *"what does this child take?"* *(`2026-10-03`, CE-2024/CE-2025; user: "plan to do 1 and then 2. document it first")*
+#### S8b design — ONE answer to *"what does this child take?"* *(`2026-10-03`, CE-2024/CE-2025; user: "plan to do 1 and then 2. document it first"; BUILT — as-built below)*
 
 📐 **Measured:** three producers answered the same question, two of them in the live editor.
 
@@ -1023,6 +1023,20 @@ sequenceDiagram
 
 Slices: **S8b-1** (CE-2024) = U1 + rails · **S8b-2** (CE-2025) = U2 + U3 + re-homed tests + the host lookup routed through
 `ChildInputTypes`.
+
+#### S8b as-built *(`2026-10-03`, CE-2024 + CE-2025)*
+
+⭐ Built as U1–U5; the class and sequence diagrams above are true as drawn.
+
+| # | as-built fact | where |
+|---|---|---|
+| V1 | the rule: a curated typed resolver's `TAuthored` · else ANY child with a manifest → `JsonParamsDtoType` (none when it has no Inputs half) · else a curated child's `BlackboardLayoutType` | `BehaviorRegistry.TryGetHostedInputType` |
+| V2 | `ChildInputTypes.Lookup(Func<BehaviorRegistry?>)` reads the registry when asked (a child registered later is found) and spells a nested type with `.` | `Hrot.Editor.AiComposition/ChildInputTypes.cs` |
+| V3 | the BTree mapper and HSM dispatcher take it as an optional `childInputsTypeOf`; `AiFacetPickerBinder` builds it from the `BehaviorRegistry` the hosts already pass; both hosts pass the same lookup to the Behaviour Task drawer (S8's `BehaviorTaskNodeDrawer.ParamsTypeLookup` moved here) | `BTreeFacetMapper`, `HsmFacetDispatcher`, `AiFacetPickerBinder`, `EditorSubsystem`, `CgfSubsystem` |
+| V4 | `IBehaviorInputsContract` and `BehaviorTreeAsset.InputsTypeId` DELETED; the catalogue now gives only the asset id (rename heal). Its two test files keep every claim, with the lookup standing in for the registry | `BTreeFacetMapperTests`, `HsmSubtreeAuthoringTests` |
+
+Rails: `BlueprintBehaviourTests.S8b_AGeneratedChild_AnswersWithItsInputsStruct_AndIsSeeded` (red-proved), `ChildInputTypesTests` (2),
+the re-homed CE-439 picker rails, `TheEqsBrainStartupIsSharedTests` (both hosts pass `ChildInputTypes.Lookup`).
 
 ## 5. Decisions — each with a lean
 

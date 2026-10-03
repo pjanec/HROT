@@ -27,9 +27,9 @@ namespace Hrot.Hsm.Editor.Tests.Validation;
 /// </summary>
 public sealed class HsmSubtreeAuthoringTests
 {
-    private sealed class Tree : IEditableAsset, IBehaviorInputsContract
+    private sealed class Tree : IEditableAsset
     {
-        public string? InputsTypeId { get; init; }   // ⭐ CE-439: the child's Inputs struct, as the compose step reads it
+        public string? InputsTypeId { get; init; }   // ⭐ S8b-2: what the ONE child-inputs lookup answers (stands in for the registry)
         public Guid AssetId { get; init; } = Guid.NewGuid();
         public string Name { get; init; } = "PatrolTree";
         public AssetKind Kind { get; init; } = AssetKind.BTree;
@@ -232,7 +232,8 @@ public sealed class HsmSubtreeAuthoringTests
     private static (HsmAsset Hsm, StateNode State, HsmFacetDispatcher D) Pick(Tree tree, string name = "PatrolTree")
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, new FakeCatalog(tree));
+        var d   = new HsmFacetDispatcher(hsm, new FakeCatalog(tree),
+                                         childInputsTypeOf: n => n == tree.Name ? tree.InputsTypeId : null);
         var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
         facet.SubtreeName = name;
         d.ApplyFacet(new HsmStateSelection(state.StableId), facet);

@@ -216,7 +216,7 @@ public sealed class BTreeFacetMapperTests
 
     public struct PatrolInputs { public float Speed; public int Laps; }
 
-    private sealed class ChildTree : Hrot.Editor.AiShared.IEditableAsset, Hrot.Editor.AiShared.IBehaviorInputsContract
+    private sealed class ChildTree : Hrot.Editor.AiShared.IEditableAsset
     {
         public Guid AssetId { get; } = Guid.NewGuid();
         public string Name => "PatrolTree";
@@ -224,6 +224,7 @@ public sealed class BTreeFacetMapperTests
         public string SourceFilePath => "/patrol.btree.json";
         public bool IsDirty => false;
         public bool IsEditorOwned => false;
+        // ⭐ S8b-2: what the ONE child-inputs lookup answers for this child (the test stands in for the registry).
         public string? InputsTypeId { get; init; }
 #pragma warning disable 67
         public event Action? Changed;
@@ -269,7 +270,8 @@ public sealed class BTreeFacetMapperTests
     {
         var child  = new ChildTree { InputsTypeId = typeof(PatrolInputs).FullName };
         var asset  = MakeAsset(RootHostingOneSubtree());
-        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(child));
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(child),
+                                          childInputsTypeOf: name => name == child.Name ? child.InputsTypeId : null);
         var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
         var sel    = new BTreeNodeSelection(node.VisualId);
 
@@ -288,7 +290,7 @@ public sealed class BTreeFacetMapperTests
     public void CE439_PickingASubtreeWithNoInputs_LandsAndBindsNothing()
     {
         var asset  = MakeAsset(RootHostingOneSubtree());
-        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(new ChildTree()));
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(new ChildTree()), childInputsTypeOf: _ => null);
         var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
         var sel    = new BTreeNodeSelection(node.VisualId);
 

@@ -16,7 +16,7 @@ namespace Hrot.BTree.Editor.Inspector;
 public sealed class BTreeFacetMapper : IFacetDispatcher
 {
     private readonly BehaviorTreeAsset    _asset;
-    // ⭐ CE-439 — the catalogue the subtree pick resolves against (asset id + the child's Inputs contract). ⚠ Optional so a
+    // ⭐ CE-439 — the catalogue the subtree pick resolves against (the asset id; S8b-2: the Inputs type is the lookup's). ⚠ Optional so a
     //   headless fixture need not supply one; ⛔ a production host HAS one and passes it (AiFacetPickerBinder).
     private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
@@ -27,13 +27,19 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <param name="actionSchema">⭐ <c>CE-417</c> slice 4c — resolves a blueprint picked in the inspector to its generated
     /// Params/WorkingState types so the pick COMPOSES its variables (the palette-drop rule). ⚠ Optional for headless fixtures;
     /// ⛔ a production host HAS one and passes it (<c>AiFacetPickerBinder</c>).</param>
+    /// <param name="childInputsTypeOf">⭐ S8b-2 (CE-2025) — a picked child's Inputs type id (<c>ChildInputTypes.Lookup</c>, the
+    /// one answer every behaviour picker shares). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</param>
     public BTreeFacetMapper(BehaviorTreeAsset asset, Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
-                            Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null)
+                            Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,
+                            Func<string, string?>? childInputsTypeOf = null)
     {
-        _asset        = asset ?? throw new ArgumentNullException(nameof(asset));
-        _catalog      = catalog;
-        _actionSchema = actionSchema;
+        _asset             = asset ?? throw new ArgumentNullException(nameof(asset));
+        _catalog           = catalog;
+        _actionSchema      = actionSchema;
+        _childInputsTypeOf = childInputsTypeOf;
     }
+
+    private readonly Func<string, string?>? _childInputsTypeOf;
 
     private readonly Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? _actionSchema;
 
@@ -169,8 +175,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         (st.SubtreeAssetId, st.IsResolved) = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.ResolvePick(
             _catalog, pickedName!, Hrot.Editor.AiShared.AssetKind.BTree, st.SubtreeAssetId);
         st.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
-            _asset, pickedName!,
-            (_catalog?.FindByAssetId(st.SubtreeAssetId) as Hrot.Editor.AiShared.IBehaviorInputsContract)?.InputsTypeId);
+            _asset, pickedName!, _childInputsTypeOf?.Invoke(pickedName!));   // ⭐ S8b-2: the one child-inputs lookup
     }
 
     // ── Private builders ──────────────────────────────────────────────────────
