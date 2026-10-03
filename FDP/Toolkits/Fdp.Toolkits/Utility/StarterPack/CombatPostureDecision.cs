@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Spatial.Eqs;
+
 namespace Fdp.Toolkit.Utility
 {
     /// <summary>
@@ -5,6 +7,11 @@ namespace Fdp.Toolkit.Utility
     /// Selects one of five tactical postures based on health, ammo, situational inputs,
     /// and EQS query scores. Applies a 0.08 hysteresis bonus to reduce flickering.
     /// </summary>
+    /// <remarks>
+    /// ⭐ <c>CE-2046</c>: the EQS considerations name their templates by AssetId. ⚠ <c>Flee</c>'s escape gate names
+    /// <see cref="FindSafeRetreatPoint"/>, whose template is not built yet (<c>CE-2051</c>) — until it is, no sensor
+    /// carries that id and, the option being a weighted product, <c>Flee</c> scores 0.
+    /// </remarks>
     [UtilityDecision(
         assetId:         "3c6f9e42-5d10-6f3a-ac23-posture0000001",
         displayName:     "Combat posture",
@@ -22,7 +29,7 @@ namespace Fdp.Toolkit.Utility
                 .Consider(In.HaveLiveTarget(),     1.0f, Curve.Step))
             .Option((ushort)Posture.TakeCover, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),              0.8f, Curve.InverseLinear)
-                .Consider(In.EqsTopScore("CoverQuery"),     1.0f, Curve.Linear)
+                .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.Linear)
                 .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic))
             .Option((ushort)Posture.Suppress, ScoringMode.WeightedProduct, o => o
                 .Consider(In.AmmoFraction(),        0.9f, Curve.Linear)
@@ -30,7 +37,7 @@ namespace Fdp.Toolkit.Utility
                 .Consider(In.AllyAdvancingNearby(), 0.7f, Curve.Linear))
             .Option((ushort)Posture.Flee, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),               1.0f, Curve.InverseQuadratic)
-                .Consider(In.EqsTopScore("RetreatQuery"),    0.8f, Curve.Linear)
+                .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), 0.8f, Curve.Linear)
                 .Consider(In.EnemyStrengthRatio(),           0.7f, Curve.Logistic))
             .Option((ushort)Posture.Hold, ScoringMode.WeightedSum, o => o
                 .Consider(In.HealthFraction(), 0.3f, Curve.Linear)

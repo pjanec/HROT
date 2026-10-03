@@ -436,7 +436,7 @@ In.AmmoFraction()               // Group A
 In.HealthFraction()
 In.DistanceToContext(ctx)       // ctx defaults to InputContext.Candidate
 In.HasLineOfSight()             // Group B
-In.EqsTopScore("CoverQuery")   // Group C -- reads named EQS sensor result
+In.EqsTopScore(FindCoverFromTarget.AssetId)   // Group C -- the EQS sensor running that template (by AssetId, CE-2046)
 In.IsAssignedTarget()           // Group D
 In.Constant(0.2f)
 ```
@@ -612,9 +612,9 @@ Selects one of five tactical postures using `Posture` enum values as option IDs.
 | Posture | Key inputs |
 |---|---|
 | `AdvanceAndAttack` (1) | HealthFraction, AmmoFraction, EnemyStrengthRatio, HaveLiveTarget |
-| `TakeCover` (2) | HealthFraction (inverse), EqsTopScore("CoverQuery"), EnemyStrengthRatio |
+| `TakeCover` (2) | HealthFraction (inverse), EqsTopScore(`FindCoverFromTarget`), EnemyStrengthRatio |
 | `Suppress` (3) | AmmoFraction, HaveLiveTarget, AllyAdvancingNearby |
-| `Flee` (4) | HealthFraction (inverse quad), EqsTopScore("RetreatQuery"), EnemyStrengthRatio |
+| `Flee` (4) | HealthFraction (inverse quad), EqsTopScore(`FindSafeRetreatPoint`) — ⚠ template not built (CE-2051), so 0 in production, EnemyStrengthRatio |
 | `Hold` (5) | HealthFraction, Constant(0.2) (WeightedSum) |
 
 ### LeaderAssignmentDecision

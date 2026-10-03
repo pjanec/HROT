@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Tests
             var enemy = _world.Repo.CreateEntity();
             _world.SeedContact(self, enemy, 90f, 0.6f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 1.0f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"), topScore: 0.55f,
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.55f,
                                  count: 2, instanceId: 0);
 
             var node = new UtilitySelectorNode(

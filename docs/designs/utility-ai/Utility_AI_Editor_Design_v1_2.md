@@ -293,7 +293,8 @@ inputs that exist, and emission is just the accessor name.
 Each catalog entry advertises its `AllowedContexts` (from the attribute) and its parameter shape.
 Picking an input that requires a context shows a context dropdown limited to the allowed set; picking
 a parameterized input (e.g. `EqsTopScore`) shows its param sub-control (a sensor-name dropdown
-populated from the EQS template registry). Choosing a disallowed context is impossible by
+populated from the EQS template registry; ⭐ the choice is stored as the template's AssetId — `InputParamsModel.TemplateAssetId`,
+CE-2046 — and shown by name). Choosing a disallowed context is impossible by
 construction, so `UT0121` can't be tripped from the editor — the UI enforces what the analyzer checks.
 
 ### 6.3 Cross-assembly inputs
@@ -377,7 +378,7 @@ public sealed class CombatPostureDecision : IUtilityDecisionDefinition
     public static void Build(IUtilityDecisionBuilder b) => b
         .Option(Posture.TakeCover, Mode.WeightedProduct, o => o
             .Consider(In.HealthFraction(Ctx.Self),  w: 0.8f, Curve.InverseLinear)
-            .Consider(In.EqsTopScore("CoverQuery"), w: 1.0f, Curve.Linear)
+            .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId), w: 1.0f, Curve.Linear)
             .Consider(In.EnemyStrengthRatio(),      w: 0.6f, Curve.Logistic))
         // ... emitted in VisualId order
         ;

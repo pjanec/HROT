@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8g as-built" — utility ids, JSON keys, identifier sanitizers).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8i as-built" — utility EQS inputs keyed by template AssetId).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -1627,6 +1627,109 @@ the editor's Watch and Details on draw.
 | H7 · CE-2042 (as-built) | ⭐ `AnimationNodeRegistrar.ComputeStructureHash` = `ComponentLayoutHasher.ComputeHash` — the engine's existing "did this struct's layout change" hash, now on managed offsets | 🔴 it folded `string.GetHashCode()` (randomised per process) and the interop size — no two runs registered the same `StructureHash` |
 | H8 · CE-2045 (as-built) | ⭐ the recorder's capture path now meets `Fdp.Core.md`'s "no heap allocation on the hot path": main thread 376 → ~72 B/frame (only the dispatch `Task`; a persistent worker thread would remove it). Reusable per-buffer stream/writer, no boxed enumerators or `yield` iterators per frame, a cached managed recorder per table type, an allocation-free wait. 📐 the "rotating" `Fdp.Core.Tests` reds were three accidental `[ComponentId]` collisions between fixtures (order-dependent in a serial run), now pinned by `TestComponentIdUniquenessTests` | ⚠ the allocation test measured ALL threads (incl. the LZ4 worker, 4.6 KB/frame by design) — it now measures the main thread, which is what "hot path" means there |
 
+
+#### S8i design — a utility EQS input names its template by its AssetId *(`2026-10-03`, CE-2046; user: "do eqs defect … Autonomously")*
+
+**The defect.** Every EQS sensor carries `EqsSensor.BlueprintId` = FNV-1a over the template AssetId's 16 bytes. The
+utility input that reads a sensor's result looked for FNV-1a over a template NAME string, so it never found one.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| every sensor producer keys by the GUID-bytes id | ✅ `EqsTemplateRegistry.cs:40` (`BlueprintIdOf`), `HillAttackCommanderNodes.cs:58`, `EntitiesInAreaGenerator.cs:126`, `EqsLifecycleNodes.cs:97/196` (the id arrives from the blueprint compiler's `SpawnEqsSensor`), `FindCoverFromTarget.cs:22` | ✅ EQS §6.2 *"`BlueprintId` = FNV-1a 32-bit hash of `AssetId`. This is what crosses the DDS wire"*; EQS §17.4 |
+| the utility input keys by the NAME hash | ✅ `UtilityDecisionBuilderInfra.cs:87/95` | ⚠ Utility §6.6's reader sketch says *"FNV-1a-32 of the EQS template name"* — ⛔ but the same section's author-UX note says *"`AssetId` is the stable id, not the display name"*; EQS §6.2 settles it |
+| no template is named `CoverQuery` / `RetreatQuery` | ✅ graph + grep: one `[EqsTemplate]` class (`FindCoverFromTarget`) plus the hand-built `EntitiesOfForceInArea` | ✅ EQS §6.6 starter list: #4 `FindCoverFromTarget` (built), #6 `FindSafeRetreatPoint` (designed, **deferred** — `.dev/_DONE/eqs-2/TASK-DETAIL.md:955`) |
+| ⇒ `TakeCover`/`Flee` score 0 in production | ✅ both are `ScoringMode.WeightedProduct` (`CombatPostureDecision.cs:23/31`); a 0 consideration zeroes the product | — |
+| the rails could not see it | ✅ they spawn sensors under `UtilityTestWorld.Fnv1a32("CoverQuery")` — the reader's own wrong key | — |
+| the editor holds two copies of one param | ✅ `InputParamsModel.BlueprintId` (read only by the preview, set by nothing) and `.TemplateName` (read only by the emitter) | ✅ Utility Editor design: the picker is *"populated from the EQS template registry"* |
+
+```mermaid
+classDiagram
+  class In {
+    +EqsTopScore(string templateAssetId, InputContext) InputRef
+    +EqsResultCount(string templateAssetId, InputContext) InputRef
+    +EqsTemplateId(string templateAssetId) uint
+  }
+  class EqsTemplateRegistry {
+    +BlueprintIdOf(Guid assetId)$ uint
+  }
+  class FindCoverFromTarget {
+    +AssetId$ string
+    +BlueprintId$ uint
+  }
+  class FindSafeRetreatPoint {
+    +AssetId$ string
+    +BlueprintId$ uint
+  }
+  class InputParamsModel {
+    +TemplateAssetId string
+  }
+  class StandardInputs {
+    +EqsTopScore(ctx) float
+    -TryFindEqsChild(repo, owner, blueprintId) bool
+  }
+  In ..> EqsTemplateRegistry : the one id formula
+  FindCoverFromTarget ..> EqsTemplateRegistry : BlueprintId pinned to it
+  FindSafeRetreatPoint ..> EqsTemplateRegistry : BlueprintId pinned to it
+  InputParamsModel ..> In : emitter and preview
+  StandardInputs ..> In : reads InputParams.BlueprintId built here
+```
+*What the picture shows that prose hid: there is now ONE function from "which template" to an id, and every producer
+and the consumer go through it. `FindSafeRetreatPoint` is an identity only — no `[EqsTemplate]`, no `Build` — so it is not
+discovered and nothing claims it exists.*
+
+```mermaid
+sequenceDiagram
+  participant Cat as UtilityDecisionCatalog.RegisterAll (generated, startup)
+  participant D as CombatPostureDecision.Build
+  participant I as In
+  participant R as EqsTemplateRegistry
+  participant Sc as UtilityScorer.Evaluate (per utility tick)
+  participant S as StandardInputs.EqsTopScore
+  Cat->>D: Build(b)
+  D->>I: EqsTopScore(FindCoverFromTarget.AssetId)
+  I->>R: BlueprintIdOf(Guid.Parse(assetId))
+  R-->>I: 0x082E6DAD
+  I-->>D: InputRef{BlueprintId = 0x082E6DAD}
+  Note over I: a non-GUID string throws ArgumentException here, at startup
+  Sc->>S: ctx.Params.BlueprintId
+  S->>S: TryFindEqsChild — EqsSensor.BlueprintId == 0x082E6DAD
+```
+
+```mermaid
+graph TD
+  REG["UtilityDecisionCatalog.RegisterAll<br/>(generated; host startup)"] --> BUILD["Decision.Build → In.EqsTopScore(assetId)"]
+  SEL["UtilitySelector node / ThreatMatrixAssignmentSystem /<br/>CommanderUtilityTickSystem (per tick)"] --> EVAL["UtilityScorer.Evaluate"]
+  EVAL --> READ["StandardInputs.EqsTopScore / EqsResultCount"]
+  BP["blueprint SpawnEqsSensor / EqsLifecycleNodes /<br/>HillAttackCommanderNodes"] --> SENSOR["EqsSensor.BlueprintId<br/>= BlueprintIdOf(AssetId)"]
+  READ -- "matches" --> SENSOR
+  ED["Utility editor: emitter + preview"] --> BUILD
+```
+*Who calls it: the id is computed once per decision at registration; the per-tick reader only compares two `uint`s.*
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| I1 the input's argument | ⭐ the template's **AssetId** (GUID text — the string `[EqsTemplate(AssetId)]` already takes; callers write `FindCoverFromTarget.AssetId`); id = `EqsTemplateRegistry.BlueprintIdOf`, exposed as `In.EqsTemplateId`; a non-GUID throws at build | resolve a NAME through the registry at build — the registry is a per-world reflection singleton a static `Build` cannot reach, and its name is the type's full name · a `uint` overload — a second way to say it, and hand-typed ids are what CE-2034 found wrong · re-key producers by name — EQS §6.2: the AssetId crosses the wire and survives renames |
+| I2 the starter pack | ⭐ `TakeCover` → `FindCoverFromTarget.AssetId`; `Flee` → `FindSafeRetreatPoint.AssetId`, an identity-only class for EQS §6.6 #6 ⇒ `Flee` still reads 0 in production until that template is built — **filed CE-2051**, not hidden | build `FindSafeRetreatPoint` now — needs a distance-FROM-threat scorer that does not exist (`DistanceScoreTest` scores nearness to the observer) and a flat-terrain golden: its own slice · drop `Flee`'s EQS consideration — changes the designed posture |
+| I3 the editor | ⭐ `InputParamsModel` keeps ONE field, `TemplateAssetId`; the emitter writes it, the preview derives the id with `In.EqsTemplateId` | keep both fields — the never-set `BlueprintId` is exactly how the preview and the emitted code could disagree |
+| I4 the rails | ⭐ sensors spawn under the template's own `BlueprintId`, so the starter-pack rails go through the real key | keep `Fnv1a32("CoverQuery")` — it pins the defect |
+
+**Design docs checked:** EQS §6.2 — applies, it defines the id · EQS §17.4 — applies, the registry and the blueprint
+compiler use it · EQS §6.6 — applies, names both starter templates · Utility §6.6 — its reader comment is overturned
+(folded in place, marked) · Utility Editor design (template dropdown) — applies to I3 · `Utility_AI_SourceGenerator_Design`
+— does not apply: the generator never sees consideration params.
+
+#### S8i as-built *(`2026-10-03`, CE-2046)*
+
+Built as designed — no deviation. `In.EqsTemplateId` (`Utility/Core/UtilityDecisionBuilderInfra.cs`) is the one function;
+`FindSafeRetreatPoint` (`Spatial/Eqs/FindSafeRetreatPoint.cs`) is identity only. Rails: `StandardInputReaderTests.CE2046_*`
+(the input's id equals the registry's; a sensor keyed the producers' way is read through the BUILT input; a name throws;
+the retreat identity is canonical and undiscovered) plus the starter-pack rails, which now spawn sensors under the
+templates' real ids. 🔴 Red-proof: restoring the name hash fails 8 — the 4 new rails and 4 starter-pack rails
+(`Hurt_With_Cover_Available_Takes_Cover`, `NearDeath_With_Escape_Flees`, `Trace_Records_PerConsideration_Breakdown_For_Winner`,
+`Wounded_Member_Vetoes_Assignment_And_Breaks_Off`). Folded into Utility §6.6 (the reader sketch marked SUPERSEDED), the
+Utility Editor design §6.2 and `Fdp.Toolkits.Utility.md`. Open: CE-2051 (`FindSafeRetreatPoint` itself).
 
 ## 5. Decisions — each with a lean
 

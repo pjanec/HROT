@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.35f, ammo01: 1.0f);
             _world.SeedContact(self, enemy, 80f, 0.5f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 1.3f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"), topScore: 0.85f, count: 3, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
 
             _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
@@ -135,8 +135,8 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.35f, ammo01: 0.8f);
             _world.SeedContact(self, enemy, 90f, 0.8f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 1.3f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.85f, count: 3, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.20f, count: 1, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.85f, count: 3, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.20f, count: 1, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
@@ -151,8 +151,8 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.12f, ammo01: 0.3f);
             _world.SeedContact(self, enemy, 70f, 0.9f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 2.5f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.30f, count: 1, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.75f, count: 2, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.30f, count: 1, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.75f, count: 2, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
@@ -167,8 +167,8 @@ namespace Fdp.Toolkit.Tests
             var self = _world.SpawnAgent(health01: 0.12f, ammo01: 0.6f);
             _world.SeedContact(self, enemy, 50f, 0.9f, 1f, hasLos: true);
             _world.SetEnemyStrengthRatio(self, 2.5f);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("CoverQuery"),   topScore: 0.05f, count: 0, instanceId: 0);
-            _world.SpawnEqsSensor(self, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.05f, count: 0, instanceId: 1);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+            _world.SpawnEqsSensor(self, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.05f, count: 0, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, self, CombatPostureDecision.Id);
 
@@ -420,7 +420,7 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((long)t1.PackedValue, _world.AssignmentFor(leader, m1));
 
             // Add retreat EQS sensor so Flee is not gated.
-            _world.SpawnEqsSensor(m1, UtilityTestWorld.Fnv1a32("RetreatQuery"), topScore: 0.7f, count: 1, instanceId: 1);
+            _world.SpawnEqsSensor(m1, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.7f, count: 1, instanceId: 1);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, m1, CombatPostureDecision.Id);
 
