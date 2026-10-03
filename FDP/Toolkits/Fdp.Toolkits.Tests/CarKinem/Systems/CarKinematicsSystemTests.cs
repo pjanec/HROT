@@ -12,6 +12,57 @@ namespace CarKinem.Tests.Systems
 {
     public class CarKinematicsSystemTests
     {
+        /// <summary>
+        /// W8 (docs/DESIGN_Terrain_World.md §7.1, R-182) — the movement model sets the vehicle's Z from the
+        /// terrain world as it computes the position: driving north up a ramp (z 0→3 over y 0→10) raises it,
+        /// with no separate ground-clamp step.
+        /// </summary>
+        [Fact]
+        public void Vehicle_OnARamp_TakesItsZFromTheTerrainWorld_W8()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"ramp"},
+                 "geometry":{"type":"Polygon","coordinates":[[[0,0,0],[20,0,0],[20,10,3],[0,10,3],[0,0,0]]]}}]}
+                """));
+
+            var spatialSystem = new SpatialHashSystem();
+            var kinematicsSystem = new CarKinematicsSystem(new TrajectoryPoolManager());
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new VehicleState { Speed = 10f });
+            // ⭐ starts on the flat at the ramp FOOT and drives up it — each frame's rise is far inside the
+            // 0.6 m step reach, so the surface tracks the ramp (a vehicle placed mid-ramp at Z=0 is below it).
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(10, 0.5f, 0.15f), Rotation = SimMath.FacingNorth });
+            repo.SetAuthority<SimTransform>(entity, true);
+            repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, 10, 0) });
+            repo.AddComponent(entity, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });
+
+            for (int i = 0; i < 30; i++)
+            {
+                spatialSystem.Execute(repo, 0.016f);
+                kinematicsSystem.Execute(repo, 0.016f);
+            }
+
+            var pos = repo.GetComponent<SimTransform>(entity).Position;
+            Assert.True(pos.Y > 4f && pos.Y < 10f, $"vehicle should be mid-ramp, Y={pos.Y}");
+            Assert.InRange(pos.Z, 3f * pos.Y / 10f - 0.05f, 3f * pos.Y / 10f + 0.05f);   // on the ramp surface
+            Assert.True(repo.GetComponent<SimVelocity>(entity).Linear.Z > 0f, "climbing ⇒ positive vertical velocity");
+        }
+
         [Fact]
         public void System_UpdatesVehiclePosition()
         {
