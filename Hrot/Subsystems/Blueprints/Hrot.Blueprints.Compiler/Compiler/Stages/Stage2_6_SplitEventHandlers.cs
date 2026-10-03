@@ -82,7 +82,7 @@ internal static class Stage2_6_SplitEventHandlers
                 Name = $"__TaskParams_{task.Id:N}",
                 Type = new BlueprintTypeRef { TypeId = typeId },
             };
-            asset.Variables.Add(variable);
+            asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, variable));   // the store, not a view
 
             var set = new SetVariableNode
             {
