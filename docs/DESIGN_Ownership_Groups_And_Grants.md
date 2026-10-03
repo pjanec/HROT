@@ -513,7 +513,7 @@ sequenceDiagram
 | Rejected: keep the writer under NavigationSolver | a solver node without MuscleGround would write a component it does not own, by an entity index from another world |
 | Design docs checked | `Navigation_Design_v2_0.md` §topologies — applies: collocated answer is in-process (`:72`), scale-out uses the batch pair · `DESIGN_Subsystem_Composition_Unification.md` §4.1p — applies: the solver is dormant · `DESIGN_Node_Roles_And_Policies.md` — applies only to the solver's road-graph needs · `eyes-and-muscle/DESIGN.md` — does not apply (pattern example only) |
 
-### 5.10 `CE-513 (backend)` — the animation channels' Muscle-written fields *(build-state: DESIGN — decision in `Architect_Question_80`)*
+### 5.10 `CE-513 (backend)` — the animation channels' Muscle-written fields *(build-state: READY-TO-BUILD — `Architect_Question_80` approved `2026-10-03`, R-180)*
 
 ⭐ **Current answer:** [`Architect_Question_80`](blueprints/Architect_Question_80_Animation_Channel_Ownership_Split.md) §0 — split
 each animation channel into the request (Brain group) and a new status component (MuscleGround group), the
