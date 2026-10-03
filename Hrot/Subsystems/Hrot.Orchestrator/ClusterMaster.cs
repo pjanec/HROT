@@ -357,6 +357,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessDiagnosticDumpIntents();
         ProcessLoadZoneIntents();
         ProcessBuildTerrainAssetIntents();
+        ProcessAssetOpIntents();   // ⭐ CE-3021 — publish / refresh arriving on the bus (remote panel)
 
         ConsumeNodeOpStatuses();
     }
@@ -541,8 +542,11 @@ public sealed class ClusterMaster : IDisposable
             // ⭐ CE-3021 — the user-triggered asset operations, any time (C4/C5).
             case ClusterOpType.PublishAssets:
             case ClusterOpType.RefreshAssets:
-                ProcessAssetOp(req);
+            {
+                var dto = ClusterOpRequestAdapter.ToAssetOpPayload(req);
+                ProcessAssetOp(req.RequestId, req.OperationType == ClusterOpType.RefreshAssets, dto?.Kind, dto?.NodeId ?? 0);
                 break;
+            }
         }
     }
 
@@ -587,24 +591,29 @@ public sealed class ClusterMaster : IDisposable
     /// ⭐ CE-3021 — run a publish or refresh off the main thread and report it on the op-status channel. ⛔ Never
     /// automatic: only a <see cref="ClusterOpRequest"/> reaches here (docs/DESIGN_Asset_Management.md §7.5, Q72-I).
     /// </summary>
-    private void ProcessAssetOp(ClusterOpRequest req)
+    private void ProcessAssetOpIntents()
     {
-        var dto = ClusterOpRequestAdapter.ToAssetOpPayload(req);
-        if (AssetSync == null || dto == null || string.IsNullOrWhiteSpace(dto.Kind))
+        foreach (var intent in _eventBus.ReadManaged<AssetOpIntent>())
+            ProcessAssetOp(intent.RequestId, intent.Refresh, intent.Kind, intent.NodeId);
+    }
+
+    private void ProcessAssetOp(Guid requestId, bool refresh, string? kind, int nodeId)
+    {
+        string op = refresh ? "RefreshAssets" : "PublishAssets";
+        if (AssetSync == null || string.IsNullOrWhiteSpace(kind))
         {
             FdpLog<ClusterMaster>.Warn(
-                $"[Orchestrator] {req.OperationType} {req.RequestId} rejected: "
+                $"[Orchestrator] {op} {requestId} rejected: "
               + (AssetSync == null ? "this orchestrator composes no AssetSyncService." : "payload must be {\"Kind\":…, \"NodeId\":…}."));
-            PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
             return;
         }
 
-        PublishOpStatus(req.RequestId, OrchestrationStatusCode.InProgress);
-        var requestId = req.RequestId;
-        System.Threading.Tasks.Task<bool> work = req.OperationType == ClusterOpType.PublishAssets
-            ? AssetSync.PublishToNasAsync(dto.Kind, dto.NodeId).ContinueWith(t => t.Result.FailureCount == 0,
+        PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
+        System.Threading.Tasks.Task<bool> work = !refresh
+            ? AssetSync.PublishToNasAsync(kind, nodeId).ContinueWith(t => t.Result.FailureCount == 0,
                   System.Threading.Tasks.TaskContinuationOptions.OnlyOnRanToCompletion)
-            : AssetSync.RefreshFromNasAsync(dto.Kind, dto.NodeId).ContinueWith(_ => true,
+            : AssetSync.RefreshFromNasAsync(kind, nodeId).ContinueWith(_ => true,
                   System.Threading.Tasks.TaskContinuationOptions.OnlyOnRanToCompletion);
 
         work.ContinueWith(t =>

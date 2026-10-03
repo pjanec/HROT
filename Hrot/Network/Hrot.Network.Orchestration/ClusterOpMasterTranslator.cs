@@ -275,6 +275,35 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            // ⭐ CE-3022 — the build op arrives from a remote panel (E4); without this arm it fell to the default.
+            case NedClusterOpType.BuildTerrainAsset:
+                _bus.PublishManaged(new BuildTerrainAssetIntent
+                {
+                    RequestId = req.RequestId,
+                    Kinds     = TryDeserialize<TerrainAssetBuildPayloadDto>(req.PayloadJson)?.Kinds,
+                });
+                break;
+
+            // ⭐ CE-3021 — publish / refresh (docs/DESIGN_Asset_Management.md §10 D7).
+            case NedClusterOpType.PublishAssets:
+            case NedClusterOpType.RefreshAssets:
+            {
+                AssetOpPayloadDto? dto = TryDeserialize<AssetOpPayloadDto>(req.PayloadJson);
+                if (dto == null || string.IsNullOrWhiteSpace(dto.Kind))
+                {
+                    WriteError(req.RequestId, (int)NedStatusCode.ValidationFailed);
+                    break;
+                }
+                _bus.PublishManaged(new AssetOpIntent
+                {
+                    RequestId = req.RequestId,
+                    Refresh   = req.OperationType == NedClusterOpType.RefreshAssets,
+                    Kind      = dto.Kind,
+                    NodeId    = dto.NodeId,
+                });
+                break;
+            }
+
             case NedClusterOpType.DumpDiagnostics:
             {
                 _bus.PublishManaged(new ExecuteDiagnosticDumpIntent

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
@@ -349,5 +349,80 @@ public sealed class ClusterOpMasterTranslatorTests
         var intents = bus.ReadManaged<Fdp.Toolkit.Time.Domain.SetTimeScaleIntent>();
         Assert.Single(intents);
         Assert.Equal(2.0f, intents[0].TimeScale, precision: 5);
+    }
+
+    // ── CE-3022 / CE-3021 — the remote panel path, BOTH translators ──────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ CE-3022 — a terrain build and a publish/refresh sent from a REMOTE panel reach the master: the egress translator
+    /// writes them onto the wire and the master translator turns them back into the intents ClusterMaster drains.
+    /// ⛔ Before this, neither translator knew the build op, so E4's button did nothing unless the panel held the master.
+    /// </summary>
+    [Fact(Timeout = 15_000)]
+    public void RemotePanelOps_CrossTheWire_BuildTerrainAsset_And_AssetOps_CE3022()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        var panelBus  = new FdpEventBus();
+        var masterBus = new FdpEventBus();
+        using var egress = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(panelBus, participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+        var master = new ClusterOpMasterTranslator(requestReader, statusWriter, masterBus);
+
+        Thread.Sleep(400); // DDS discovery
+
+        var buildId = Guid.NewGuid(); var publishId = Guid.NewGuid(); var refreshId = Guid.NewGuid();
+        var builds = new List<BuildTerrainAssetIntent>();
+        var assetOps = new List<AssetOpIntent>();
+
+        // ⚠ ONE op per frame, as a panel click sends: ClusterOpRequest is unkeyed, reliable, volatile with default
+        //   (depth-1) history, so ops written in the same burst collapse to the last — CE-3023, pre-existing.
+        void SendAndPump(Action publish)
+        {
+            publish();
+            panelBus.SwapBuffers();
+            egress.Tick();
+            var deadline = DateTime.UtcNow.AddSeconds(4);
+            int before = builds.Count + assetOps.Count;
+            while (builds.Count + assetOps.Count == before && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(50);
+                master.Tick();
+                masterBus.SwapBuffers();
+                builds.AddRange(masterBus.ReadManaged<BuildTerrainAssetIntent>());
+                assetOps.AddRange(masterBus.ReadManaged<AssetOpIntent>());
+            }
+        }
+
+        SendAndPump(() => panelBus.PublishManaged(new BuildTerrainAssetIntent { RequestId = buildId, Kinds = new[] { "roads" } }));
+        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = publishId, Refresh = false, Kind = "blueprint", NodeId = 3 }));
+        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = refreshId, Refresh = true, Kind = "btree", NodeId = 4 }));
+
+        var build = Assert.Single(builds);
+        Assert.Equal(buildId, build.RequestId);
+        Assert.Equal(new[] { "roads" }, build.Kinds);
+
+        var publish = Assert.Single(assetOps, a => a.RequestId == publishId);
+        Assert.False(publish.Refresh);
+        Assert.Equal(("blueprint", 3), (publish.Kind, publish.NodeId));
+        var refresh = Assert.Single(assetOps, a => a.RequestId == refreshId);
+        Assert.True(refresh.Refresh);
+        Assert.Equal(("btree", 4), (refresh.Kind, refresh.NodeId));
+    }
+
+    /// <summary>⭐ CE-3021 — the panel's status line follows ONLY its own request, and knows a failure from a success.</summary>
+    [Fact]
+    public void AssetOpStatusTracker_FollowsItsOwnRequest()
+    {
+        var t = new Hrot.Orchestrator.Panels.AssetOpStatusTracker();
+        var mine = Guid.NewGuid();
+        t.Watch(mine, "Publish blueprint on node 3");
+        t.Observe(new[] { new ClusterOpCompletedEvent { RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Failure } });
+        Assert.Null(t.Status);
+        t.Observe(new[] { new ClusterOpCompletedEvent { RequestId = mine, StatusCode = OrchestrationStatusCode.InProgress } });
+        Assert.False(t.IsFinished);
+        t.Observe(new[] { new ClusterOpCompletedEvent { RequestId = mine, StatusCode = OrchestrationStatusCode.Success } });
+        Assert.True(t.IsFinished);
+        Assert.False(t.Failed);
     }
 }

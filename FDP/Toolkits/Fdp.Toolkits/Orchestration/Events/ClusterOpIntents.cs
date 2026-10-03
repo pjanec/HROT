@@ -189,4 +189,22 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>Asset kinds to rebuild; <c>null</c>/empty means all.</summary>
         public string[]? Kinds;
     }
+
+    /// <summary>
+    /// ⭐ CE-3021 — an explicit, user-triggered asset operation: PUBLISH an author's <see cref="Kind"/> tree to NAS, or
+    /// REFRESH it from NAS (docs/DESIGN_Asset_Management.md §5, §7.3c, §10 D7). Carried on the wire as
+    /// <c>ClusterOpType.PublishAssets</c> / <c>RefreshAssets</c> with an <c>AssetOpPayloadDto</c>.
+    /// </summary>
+    [EventId(9062)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct AssetOpIntent
+    {
+        public Guid    RequestId;
+        /// <summary>false = publish (node→NAS), true = refresh (NAS→the author's folder).</summary>
+        public bool    Refresh;
+        /// <summary>The behaviour-asset kind id (<c>blueprint</c>, <c>btree</c>, <c>hsm</c>).</summary>
+        public string? Kind;
+        /// <summary>The authoring node.</summary>
+        public int     NodeId;
+    }
 }

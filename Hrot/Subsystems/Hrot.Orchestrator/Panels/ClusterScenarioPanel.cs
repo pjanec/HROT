@@ -13,6 +13,7 @@ using FdpClusterOpType        = Fdp.Toolkit.Orchestration.ClusterOpType;
 using FdpClusterState         = Fdp.Toolkit.Orchestration.ClusterState;
 using TransitionStateIntent   = Fdp.Toolkit.Orchestration.TransitionStateIntent;
 using BuildTerrainAssetIntent = Fdp.Toolkit.Orchestration.BuildTerrainAssetIntent;
+using AssetOpIntent           = Fdp.Toolkit.Orchestration.AssetOpIntent;
 using ManageEpisodeIntent     = Fdp.Toolkit.Orchestration.ManageEpisodeIntent;
 using ExecuteStorageOpIntent  = Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent;
 using StorageOpType           = Fdp.Toolkit.Orchestration.StorageOpType;
@@ -44,6 +45,15 @@ public sealed class ClusterScenarioPanel
 
     /// <summary>⭐ E4 — per-node outcomes of the terrain build this panel requested (§8.3 N5).</summary>
     private readonly TerrainBuildOutcomeTracker _terrainBuild = new();
+    private readonly Hrot.Orchestrator.Panels.AssetOpStatusTracker _assetOp = new();
+    private int _assetNodeId = -1;
+    private int _assetKindIndex;
+    private static readonly string[] AssetKinds =
+    {
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.Blueprint,
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.BTree,
+        Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.Hsm,
+    };
 
     // ── Helper: send a request via whichever channel is available ─────────
     private void SendRequest(ClusterOpRequest req)
@@ -147,6 +157,23 @@ public sealed class ClusterScenarioPanel
                     Kinds     = TryParseTerrainKinds(req.PayloadJson),
                 });
                 break;
+
+            // ⭐ CE-3021 — publish / refresh on the remote path (forwarded by ClusterOpEgressTranslator).
+            case FdpClusterOpType.PublishAssets:
+            case FdpClusterOpType.RefreshAssets:
+            {
+                AssetOpPayloadDto? dto = null;
+                try { dto = JsonSerializer.Deserialize<AssetOpPayloadDto>(req.PayloadJson ?? "", OrchestrationJsonOptions.Default); }
+                catch (JsonException) { }
+                _bus!.PublishManaged(new AssetOpIntent
+                {
+                    RequestId = req.RequestId,
+                    Refresh   = (FdpClusterOpType)(int)req.OperationType == FdpClusterOpType.RefreshAssets,
+                    Kind      = dto?.Kind,
+                    NodeId    = dto?.NodeId ?? 0,
+                });
+                break;
+            }
 
             case FdpClusterOpType.CancelOperation:
                 _bus!.PublishManaged(new CancelOperationIntent
@@ -346,6 +373,7 @@ public sealed class ClusterScenarioPanel
         // ── 3. Checkpoint ─────────────────────────────────────────────────
         RenderCheckpointSection(EffectiveState, disableAll);
         RenderTerrainSection(disableAll);
+        RenderAssetsSection(disableAll);
 
         // ── 4. Scenario ────────────────────────────────────────────────────
         RenderScenarioSection(disableAll);
@@ -710,6 +738,84 @@ public sealed class ClusterScenarioPanel
             }
         }
         ImGui.EndChild();
+    }
+
+    /// <summary>
+    /// ⭐ CE-3021 — the explicit asset operations, any time (docs/DESIGN_Asset_Management.md §5, §7.3c, §10 D7): PUBLISH an
+    /// author's tree to NAS, or REFRESH it from NAS. ⛔ Never automatic. ⚠ A refresh OVERWRITES files on the author's node
+    /// (only where NAS is newer) — the button says so, and the orchestrator logs every file it replaces.
+    /// </summary>
+    private void RenderAssetsSection(bool disableAll)
+    {
+        if (!ImGui.CollapsingHeader("Assets")) return;
+
+        if (_bus != null) _assetOp.Observe(_bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>());
+
+        if (ImGui.BeginChild("##OrcAssets", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
+        {
+            // ⭐ With the master here, offer only the nodes that AUTHOR something; remotely the roster has no tokens.
+            var nodes = AuthoringNodes();
+            if (nodes.Count == 0)
+            {
+                ImGui.TextDisabled("No authoring node is active.");
+            }
+            else
+            {
+                if (!nodes.Contains(_assetNodeId)) _assetNodeId = nodes[0];
+                if (ImGui.BeginCombo("Node##OrcAssetNode", $"node {_assetNodeId}"))
+                {
+                    foreach (var n in nodes)
+                        if (ImGui.Selectable($"node {n}", n == _assetNodeId)) _assetNodeId = n;
+                    ImGui.EndCombo();
+                }
+                ImGui.Combo("Kind##OrcAssetKind", ref _assetKindIndex, AssetKinds, AssetKinds.Length);
+
+                if (disableAll) ImGui.BeginDisabled();
+                if (ImGui.Button("Publish to NAS##OrcAssetPublish")) SendAssetOp(refresh: false);
+                ImGui.SameLine();
+                if (ImGui.Button("Refresh from NAS (overwrites older local files)##OrcAssetRefresh")) SendAssetOp(refresh: true);
+                if (disableAll) ImGui.EndDisabled();
+            }
+
+            if (_assetOp.WatchedRequestId == Guid.Empty)
+                ImGui.TextDisabled("No asset operation requested this session.");
+            else if (_assetOp.Status == null)
+                ImGui.TextDisabled($"{_assetOp.Description} — waiting...");
+            else if (_assetOp.Failed)
+                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f), $"{_assetOp.Description} — {_assetOp.Status}");
+            else
+                ImGui.Text($"{_assetOp.Description} — {_assetOp.Status}");
+        }
+        ImGui.EndChild();
+    }
+
+    private List<int> AuthoringNodes()
+    {
+        var list = new List<int>();
+        if (_master != null)
+        {
+            foreach (var (id, tokens) in _master.ActiveNodeCapabilitySnapshot())
+                if (Fdp.Toolkit.Orchestration.Assets.AssetTokens.Parse(tokens).Authors.Count > 0) list.Add(id);
+        }
+        else
+        {
+            foreach (var id in _uiCache.ActiveNodes.Keys) list.Add(id);
+        }
+        list.Sort();
+        return list;
+    }
+
+    private void SendAssetOp(bool refresh)
+    {
+        var kind = AssetKinds[Math.Clamp(_assetKindIndex, 0, AssetKinds.Length - 1)];
+        var requestId = Guid.NewGuid();
+        _assetOp.Watch(requestId, $"{(refresh ? "Refresh" : "Publish")} {kind} on node {_assetNodeId}");
+        SendRequest(new ClusterOpRequest
+        {
+            RequestId     = requestId,
+            OperationType = refresh ? ClusterOpType.RefreshAssets : ClusterOpType.PublishAssets,
+            PayloadJson   = JsonSerializer.Serialize(new AssetOpPayloadDto(kind, _assetNodeId), OrchestrationJsonOptions.Default),
+        });
     }
 
     private void RenderCheckpointSection(ClusterState currentState, bool disableAll)

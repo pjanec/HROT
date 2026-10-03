@@ -159,6 +159,27 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = string.Empty,
             });
 
+        // ⭐ CE-3022 — E4's build op never crossed the wire: the panel published this intent on the remote path and
+        //   nothing forwarded it, so the button did nothing unless the panel held the master.
+        foreach (var intent in _bus.ReadManaged<BuildTerrainAssetIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.BuildTerrainAsset,
+                PayloadJson   = JsonSerializer.Serialize(
+                    new TerrainAssetBuildPayloadDto(intent.Kinds), OrchestrationJsonOptions.Default),
+            });
+
+        // ⭐ CE-3021 — publish / refresh (docs/DESIGN_Asset_Management.md §10 D7).
+        foreach (var intent in _bus.ReadManaged<AssetOpIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = intent.Refresh ? NedClusterOpType.RefreshAssets : NedClusterOpType.PublishAssets,
+                PayloadJson   = JsonSerializer.Serialize(
+                    new AssetOpPayloadDto(intent.Kind ?? string.Empty, intent.NodeId), OrchestrationJsonOptions.Default),
+            });
+
         foreach (var intent in _bus.ReadManaged<ExecuteDiagnosticDumpIntent>())
             _writer.Write(new ClusterOpRequest
             {

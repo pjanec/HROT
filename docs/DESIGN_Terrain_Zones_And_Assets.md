@@ -637,6 +637,7 @@ a real terrain capability. This is a build constraint, not a caveat.
 **Enum values — ✅ RULED by the user `2026-09-17`, and `R-42` makes them PERMANENT:**
 `TkbType.TerrainZone = 8804` · `NodeOpType.PrepareTerrainAsset = 29` · `NodeOpType.CommitTerrainAsset = 30` ·
 `ClusterOpType.BuildTerrainAsset = 18`.
+⭐ **AS-BUILT CORRECTION `2026-10-03` (`CE-3022`):** E4's op was **dead on the remote path, both ways** — `ClusterOpEgressTranslator` never forwarded `BuildTerrainAssetIntent` and `ClusterOpMasterTranslator` had no `BuildTerrainAsset` case, so the panel button worked only when the panel held the master in-process. ⭐ Both translators now carry it (rail `RemotePanelOps_CrossTheWire_BuildTerrainAsset_And_AssetOps_CE3022`).
 🔴🔴 **CORRECTION `2026-09-17` — the earlier ruling of `17` was WRONG and is SUPERSEDED.** 📐 Measured by
 batch ②, verified at the coordinator: **`ClusterOpType.SaveScenario = 17` already exists, live and routed**
 *(`OrchestrationMessages.cs:42` — `CE-277(c0)`, renamed by `CE-278` with the wire value unchanged)*.

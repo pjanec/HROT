@@ -1285,6 +1285,22 @@ public sealed class StorageGatewayTkbConsensusTests
         finally { Cleanup(nas, author); }
     }
 
+    /// <summary>⭐ CE-3021 — the REMOTE path: an <c>AssetOpIntent</c> on the master's bus is drained by ClusterMaster like an
+    /// injected request (rejected loudly here, since this master composes no service).</summary>
+    [Fact]
+    public void AssetOpIntent_OnTheBus_IsDrainedByTheMaster_C4()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        var id = Guid.NewGuid();
+        bus.PublishManaged(new Fdp.Toolkit.Orchestration.AssetOpIntent { RequestId = id, Kind = "blueprint", NodeId = 1 });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>(),
+            e => e.RequestId == id && e.StatusCode == Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Rejected);
+    }
+
     private static void Cleanup(params string[] dirs)
     {
         foreach (var d in dirs)
