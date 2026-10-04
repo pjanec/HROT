@@ -14,7 +14,10 @@ known-rot: §3 THE DECISION (persist the resolved param BYTE region, base64 + Pa
   🔒 user: "The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes
   to scenario." ⇒ the scenario carries the params as a JSON object keyed by parameter name (only non-default fields); load
   goes through the existing ParseParams (defaults, then overlay by name); an emitted inverse writes the JSON on save.
-  Build: CE-3044 · docs/DESIGN_Sensors_And_Doctrine.md §7.5.
+  Build: CE-3044 · docs/DESIGN_Sensors_And_Doctrine.md §7.5. 🔒 user: "Bytes can not be easily migrated on json level. The previous
+  decision must have been wrong." — WHY it was wrong: a byte region is readable only while the layout is unchanged; the hash guard
+  turns any layout change into losing EVERY authored value, where JSON by name loses only the changed field. No scenario in the repo
+  carries byte params (measured 2026-10-04) ⇒ no legacy reader.
 -->
 # DESIGN — **Persisted instance-blueprint parameters + the MCP wire** *(MX-030..036)*
 

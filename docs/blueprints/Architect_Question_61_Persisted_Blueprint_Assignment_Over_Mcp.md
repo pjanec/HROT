@@ -9,6 +9,10 @@ design-basis: DESIGN_Mcp_Authoring.md (attach_blueprint = Group Q, runtime hot-a
   §"AS-BUILT — MX4b" (the mission-editing precedent this was thought to mirror) · PROGRAMME_Mcp_Agent_Surface.md
   §2 (the DEFERRED "entity blueprint-assignment authoring" item this resolves) · ruling 9 (one implementation) ·
   ruling 49 (unavailable = greyed-with-cause, run-state honesty).
+known-rot: the BYTE-region persistence chosen for params (Q61-C → DESIGN_Blueprint_Param_Persistence.md §3) is OVERTURNED
+  2026-10-04 (R-191). 🔒 user: "Bytes can not be easily migrated on json level. The previous decision must have been wrong."
+  ⇒ a byte region is only readable while the layout is unchanged — any field added, removed, retyped or reordered breaks it,
+  and the StructureHash guard turns that into silent loss of every authored value. JSON keyed by name degrades per FIELD.
 known-conflict: none. The write seam is already reachable from DebugApi (no new wiring); the param-persistence
   half (Q61-C) is ENGINE work in Fdp.Toolkits + Hrot.SimHost, not an MCP-route wire.
 -->
