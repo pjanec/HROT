@@ -315,6 +315,50 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     private static readonly global::System.Text.Json.JsonSerializerOptions __ParamJsonOptions =
         global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
     
+    public static readonly string[] ParamNames = { "FiringLineStart", "FiringLineEnd", "BaselineStart", "BaselineEnd", "TankSpacing", "TargetAreaNetworkId" };
+    
+    public static unsafe string FormatParams(byte* memory, int capacity)
+    {
+        if (capacity < sizeof(Params))
+            throw new global::System.ArgumentOutOfRangeException(nameof(capacity),
+                $"the params region holds {capacity} bytes but this asset's Params needs {sizeof(Params)} (CE-331).");
+        ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);
+        var __d = default(Params);
+        __d.TankSpacing = 30F;
+        var __o = new global::System.Text.Json.Nodes.JsonObject();
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(p.FiringLineStart, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(__d.FiringLineStart, __ParamJsonOptions))
+                __o["FiringLineStart"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(p.FiringLineEnd, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(__d.FiringLineEnd, __ParamJsonOptions))
+                __o["FiringLineEnd"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(p.BaselineStart, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(__d.BaselineStart, __ParamJsonOptions))
+                __o["BaselineStart"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(p.BaselineEnd, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(__d.BaselineEnd, __ParamJsonOptions))
+                __o["BaselineEnd"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<float>(p.TankSpacing, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<float>(__d.TankSpacing, __ParamJsonOptions))
+                __o["TankSpacing"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Replication.EntityRef>(p.TargetAreaNetworkId, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Fdp.Toolkit.Replication.EntityRef>(__d.TargetAreaNetworkId, __ParamJsonOptions))
+                __o["TargetAreaNetworkId"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        return __o.Count == 0 ? null : __o.ToJsonString();
+    }
+    
     public static global::Fbt.NodeStatus Tick(
         ref Block __bb, ref Exec __ex,
         global::Fdp.ModuleHost.Abstractions.ISimulationView view,

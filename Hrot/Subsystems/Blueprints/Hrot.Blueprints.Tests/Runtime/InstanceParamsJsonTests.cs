@@ -78,6 +78,8 @@ public sealed unsafe class InstanceParamsJsonTests
         Assert.Equal(2f, (float)formatted["Offset"]![1]!);   // the canonical Vector3 wire shape is an array
 
         // Save → reload through the scenario translator and materialization: the same params, by construction.
+        if (!world.TryGetTable(typeof(InitialBlueprintsIntent), out _))   // the scenario-load intent; this fixture's world omits it
+            world.RegisterManagedComponent<InitialBlueprintsIntent>();
         var translator = new BlueprintStateTranslator(fixture.Registry);
         var saved = translator.Extract(world, src, null!);
         var dst = world.CreateEntity();

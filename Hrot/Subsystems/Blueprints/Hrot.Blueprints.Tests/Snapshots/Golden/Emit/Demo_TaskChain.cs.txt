@@ -106,6 +106,29 @@ public static class DemoTaskChain_CA8F5E31_Bp
     private static readonly global::System.Text.Json.JsonSerializerOptions __ParamJsonOptions =
         global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
     
+    public static readonly string[] ParamNames = { "Move", "Fire" };
+    
+    public static unsafe string FormatParams(byte* memory, int capacity)
+    {
+        if (capacity < sizeof(Params))
+            throw new global::System.ArgumentOutOfRangeException(nameof(capacity),
+                $"the params region holds {capacity} bytes but this asset's Params needs {sizeof(Params)} (CE-331).");
+        ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);
+        var __d = default(Params);
+        var __o = new global::System.Text.Json.Nodes.JsonObject();
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(p.Move, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(__d.Move, __ParamJsonOptions))
+                __o["Move"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        {
+            var __v = global::System.Text.Json.JsonSerializer.Serialize<global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(p.Fire, __ParamJsonOptions);
+            if (__v != global::System.Text.Json.JsonSerializer.Serialize<global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(__d.Fire, __ParamJsonOptions))
+                __o["Fire"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);
+        }
+        return __o.Count == 0 ? null : __o.ToJsonString();
+    }
+    
     public static global::Fbt.NodeStatus Tick(
         ref Block __bb, ref Exec __ex,
         global::Fdp.ModuleHost.Abstractions.ISimulationView view,
