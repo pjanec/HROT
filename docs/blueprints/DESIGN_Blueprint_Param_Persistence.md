@@ -10,6 +10,11 @@ design-basis: Architect_Question_61 (the reframe + A/B/C/D leans) · EXPLAINER_W
   §3.3 (parse-before-commit, InitDefault-then-params order) · HANDOFF_Blueprint_Param_Persistence.md (the FRAME).
 known-conflict: touches Fdp.Toolkits + Hrot.SimHost (backend lane's neighbourhood) — fenced to the MCP lane
   this batch per the handoff §4; backend's concurrent batch is fenced OFF these exact files.
+known-rot: §3 THE DECISION (persist the resolved param BYTE region, base64 + ParamsStructureHash) is SUPERSEDED 2026-10-04 by R-191 —
+  🔒 user: "The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes
+  to scenario." ⇒ the scenario carries the params as a JSON object keyed by parameter name (only non-default fields); load
+  goes through the existing ParseParams (defaults, then overlay by name); an emitted inverse writes the JSON on save.
+  Build: CE-3044 · docs/DESIGN_Sensors_And_Doctrine.md §7.5.
 -->
 # DESIGN — **Persisted instance-blueprint parameters + the MCP wire** *(MX-030..036)*
 

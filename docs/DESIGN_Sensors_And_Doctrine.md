@@ -26,7 +26,7 @@ related-designs:
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
 
-Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3043` (§9).
+Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3044` (§9).
 
 ## 1. What was decided *(all approved by the user, `2026-10-04`)*
 
@@ -407,7 +407,7 @@ classDiagram
   class AiAssignmentMaterializationSystem { <<NEW, Brain authority node, Input>> component → AssignDoctrineEvent + AssignBehaviorEvent, Origin = Superior }
   class BehaviorState { <<existing, NoScenario — stays>> }
   class DoctrineState { <<NEW, NoScenario>> }
-  class BlueprintStateTranslator { <<existing, BUILT>> key "BlueprintAssignments" — reads live slots, params as bytes ≠ default }
+  class BlueprintStateTranslator { <<existing, CHANGES>> key "BlueprintAssignments" — reads live slots, params as JSON ≠ default (R-191) }
   class InitialBlueprintsIntent { <<existing, Transient>> List~BlueprintAssignmentDto~ }
   class BlueprintMaterializationSystem { <<existing>> attaches on load }
   class EntityAiSection { <<NEW editor Details section — UI lane>> doctrine row · starting-behaviour row · instance-blueprint rows, each with ONE params form }
@@ -454,8 +454,9 @@ sequenceDiagram
 | ⭐ either half empty = "use the TKB"; no component = the TKB for both | the TKB stays the default; a scenario only overrides what the author touched |
 | ⭐ scenario assignments carry `Origin = Superior` | "start by holding the bridge, then go autonomous": the doctrine cannot replace an authored starting behaviour until it ends; leave the behaviour empty for autonomy from second one |
 | ⭐ params are JSON (name + params, like `MissionPlanTranslator`'s tasks) | the assignment events already carry JSON; the ingress parses it |
-| ⏳ **instance blueprints — LEAN:** keep their BUILT save path (`BlueprintStateTranslator`, params as bytes ≠ default, `StructureHash` guard — [Param Persistence](blueprints/DESIGN_Blueprint_Param_Persistence.md), AQ61 ruling); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today. ⛔ not folded into `AiAssignment`: their persistence is built and tested; one EDITOR section unifies the experience, not one component |
-| ⭐ one params FORM for all three rows | it always produces JSON; for an instance blueprint the JSON goes through the existing `ParseParams` → bytes |
+| ⏳ **instance blueprints — LEAN:** keep their save TRANSLATOR (`BlueprintStateTranslator`) but switch its params to JSON (next row); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today |
+| ✅ **params in a scenario are JSON, never bytes — R-191** (🔒 *"The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes to scenario."*) | every params value in a scenario — doctrine, behaviour, instance blueprint — is a JSON object keyed by parameter NAME, holding only fields that differ from the declared defaults. ⭐ Load = the existing emitted `ParseParams` (defaults first, then the object overlaid by name; unknown keys ignored — `InstanceEmitter.cs:436-488`) into the blueprint's generated `Params` struct (`InstanceEmitter.cs:369`). ⭐ Save = a NEW emitted inverse `FormatParams(memory) → json` beside it (V9 resolved). ⇒ the `ParamsStructureHash` guard is no longer needed — a renamed or re-laid-out field degrades by name, not by byte offset. ⛔ SUPERSEDES the byte decision of Param Persistence §3 (AQ61). An old scenario's base64 `Params` is read once (hash-guarded, as today) and re-saved as JSON |
+| ⭐ one params FORM for all three rows | it always produces JSON — the same JSON the scenario stores (R-191) |
 
 ⛔ **Rejected:** saving `BehaviorState` / `DoctrineState` (records runtime choices as intent) · starting behaviour as a
 one-task mission plan (mixes "how I start" with "my mission") · a per-entity TKB override file (a second authoring
@@ -493,6 +494,7 @@ the editor section is where the user sees one thing).
 | **S5** | `CE-3038` | visual perception MOVES: a visual template = today's broadphase + sight; `CognitiveSpatialModule` chain deleted in the same change; `TargetMemory` fed from the memory stage | ⭐ the EXISTING perception suites stay green unchanged — they are the parity proof |
 | **S6** | `CE-3039` | the AI side: read-sensor node (BTree / HSM / blueprint) keyed by kind; `TargetMemory` accessors (top threat, count above score); hit / shot-heard as blueprint events; `When` EQS modes verified live | a doctrine blueprint that reacts to a threat end to end |
 | **S2b** | `CE-3042` | `AiAssignment` + `AiAssignmentTranslator` + `AiAssignmentMaterializationSystem` (Origin = Superior) (§7.5) | save → reload: the scenario's doctrine and starting behaviour win over the TKB on the editor AND `--mode all`; empty halves fall back to the TKB |
+| **S2d** | `CE-3044` | R-191: emit `FormatParams` beside `ParseParams`; `BlueprintStateTranslator` writes params as a JSON object (non-default fields only), reads legacy base64 once; the `ParamsStructureHash` field retired from new saves | the existing save→reload rail (Param Persistence D3) with the scenario file asserted to contain JSON params by name, and a field renamed between save and load degrading to its default with a warning |
 | **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, starting-behaviour row, instance-blueprint rows with ONE params form (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
 | **S6b** | `CE-3040` | `SensorChangedEvent` from its two producers; the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
 | **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
@@ -511,5 +513,5 @@ the editor section is where the user sees one thing).
 | **V5** | `BehaviorTkbTranslator` writes `BehaviorState` directly, skipping params and HSM init — does the doctrine default need the full start? | ⭐ yes: the doctrine uses a pending start through `BehaviorIngressSystem`; the behaviour default gets the same fix (finding) |
 | **V7** | a Brain-authority hand-over: does the new authority need the doctrine as PUBLISHED state ([Entity State Sourcing](DESIGN_Entity_State_Sourcing.md) §4.1)? | publish `DoctrineState` as a TransientLocal descriptor when hand-over is built; until then only the authority node runs it |
 | **V8** | is a scenario saved ONLY from the edit (non-running) world? if not, instances attached at RUNTIME would save as authored | mark runtime attachments `AttachedAtRuntime` and skip them on save |
-| **V9** | how does the params form SHOW an instance's current params — no bytes→JSON inverse of `ParseParams` exists (Param Persistence §2) | the blueprint emitter generates the inverse beside `ParseParams` |
+| ~~**V9**~~ | ✅ resolved by R-191: the emitter generates `FormatParams` (the inverse of `ParseParams`) | — |
 | **V6** | is a bus event published by `EqsResultUpdateSystem` visible to `BrainTickSystem` the SAME frame or the next? | either is fine — state the latency in the rail (≤ 1 frame) |
