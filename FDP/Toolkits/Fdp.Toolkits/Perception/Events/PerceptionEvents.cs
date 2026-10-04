@@ -29,24 +29,6 @@ namespace Fdp.Toolkit.Perception.Events
         public int SourceEntityIndex;
     }
 
-    // ── TargetVisibleEvent ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published when line-of-sight from an observer to a target is confirmed (or assumed in
-    /// mock mode). Consumed by <see cref="Systems.ThreatEvaluationSystem"/> to boost the
-    /// observer's <see cref="Components.TargetMemory"/>.
-    /// </summary>
-    [EventId(PerceptionConstants.TargetVisibleEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct TargetVisibleEvent
-    {
-        /// <summary>The observer entity that has confirmed LOS to <see cref="Target"/>.</summary>
-        public Entity Observer;
-
-        /// <summary>The target entity confirmed visible to <see cref="Observer"/>.</summary>
-        public Entity Target;
-    }
-
     // ── TargetHeardEvent ──────────────────────────────────────────────────────────
 
     /// <summary>

@@ -266,7 +266,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // 📐 CombatComponentRegistry is the owning registry and it carries exactly this node's needs:
         //    PerceptionReceptor, TargetMemory, SensorContactList, WeaponState, BallisticProjectile,
         //    PhysicsCollider, plus the events the chain runs on -- LosCheckRequestEvent,
-        //    TargetVisibleEvent, SensorTrackStateEvent, WeaponFireIntent, HitEvent,
+        //    (TargetVisibleEvent — retired, CE-3052), SensorTrackStateEvent, WeaponFireIntent, HitEvent,
         //    DamageAssessedEvent, FireRequestEvent. SimHost reaches it through
         //    SimHostComponentRegistry.RegisterAll (:46); this bootstrapper's hand-picked subset never
         //    did.

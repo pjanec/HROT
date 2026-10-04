@@ -28,18 +28,17 @@ namespace Fdp.Toolkit.Physics.Systems
     ///     </description>
     ///   </item>
     ///   <item>
-    ///     <term>LOS ray (<see cref="PhysicsConstants.IsBulletRay"/> == false)</term>
+    ///     <term>Any other ray (<see cref="PhysicsConstants.IsBulletRay"/> == false)</term>
     ///     <description>
-    ///       Publishes <see cref="TargetVisibleEvent"/> (owned by <c>FDP.Toolkit.Perception</c>;
-    ///       consumed by <c>ThreatEvaluationSystem</c>).
+    ///       Nothing — the requester reads its own result (the EQS accurate-LOS test, the BTree raycast query).
+    ///       ⛔ <c>CE-3052</c>: it used to publish <c>TargetVisibleEvent</c> for every such hit; with the toolkit's
+    ///       LOS chain retired the only non-bullet rays left were EQS cover rays, where a hit means BLOCKED.
     ///     </description>
     ///   </item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Cross-toolkit dependency approach (BATCH-08 Q3):</b>
-    /// <c>FDP.Toolkit.Physics</c> references <c>FDP.Toolkit.Perception</c> directly so it
-    /// can publish <see cref="TargetVisibleEvent"/> without duplicating the type.
     /// <see cref="HitEvent"/> is now defined in <c>Fdp.Core</c> (BATCH-10: moved from
     /// <c>FDP.Toolkit.Combat.Events</c> to break the circular dependency introduced in
     /// BATCH-09 when Combat systems started needing Physics types).
@@ -110,19 +109,6 @@ namespace Fdp.Toolkit.Physics.Systems
                         var cmd = view.GetCommandBuffer();
                         cmd.SetLifecycleState(bulletEntity, EntityLifecycle.TearDown);
                     }
-                }
-                else
-                {
-                    // LOS hit -- emit TargetVisibleEvent (Perception toolkit consumes it).
-                    // Full Entity handles propagated from RaycastRequest -- no index-only recovery needed.
-                    // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
-                    // since a one-frame entity destruction between solve and emit is possible but does not
-                    // warrant a check here -- the consumer applies the generational guard.
-                    repo.Bus.Publish(new TargetVisibleEvent
-                    {
-                        Observer = hit.Observer,
-                        Target   = hit.Target,
-                    });
                 }
             }
         }

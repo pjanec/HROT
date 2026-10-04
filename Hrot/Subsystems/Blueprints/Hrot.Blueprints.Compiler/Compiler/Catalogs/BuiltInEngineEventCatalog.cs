@@ -33,7 +33,6 @@ public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
             // ---- Existing non-animation entries ---------------------------------
             new("HitEvent",              "Fdp.Toolkit.Combat.Contracts.HitEvent"),
             new("BehaviorFinishedEvent", "Fdp.Toolkit.Behavior.Events.BehaviorFinishedEvent"),
-            new("TargetVisibleEvent",    "Fdp.Toolkit.Perception.Events.TargetVisibleEvent"),
 
             // ⭐ CE-3039 — the edges of what a unit senses (DESIGN_Sensors_And_Doctrine §7.3): Acquired / Lost / TopChanged /
             //   FirstThreat / AllClear / Hit, published on the unit's BRAIN node, so a blueprint reacts with When EventFired.

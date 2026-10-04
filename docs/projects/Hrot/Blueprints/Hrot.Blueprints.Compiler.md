@@ -314,7 +314,7 @@ during normalization).
 | `ITypeRegistry.cs` | `ITypeRegistry`: `TryResolve(BlueprintTypeRef) -> IrTypeRef` + `TryGetCoercion(from, to) -> string`. |
 | `StaticTypeRegistry.cs` | Default registry: C# primitives, `System.Numerics` vectors, `Fdp.Core.Entity`, common aliases. Coercion table (8 widening numeric rules). |
 | `BuiltInNodeRegistry.cs` | Singleton stub for `INodeRegistry`. |
-| `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
+| `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `SensorChangedEvent`; `TargetVisibleEvent` retired by `CE-3052`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
 | `BuiltInChannelCommandCatalog.cs` | Five built-in channel commands: `MoveTo`, `FollowRoute`, `AimAndFire`, `OpenDoor`, `EjectPassengers`. |
 | `BuiltInWaitPrimitiveCatalog.cs` | Five built-in wait primitives for channel and event waits. |
 | `IClrSignatureResolver.cs` | `IClrSignatureResolver`, `ClrMethodSig`, `ClrParamInfo` -- reflection-free `FunctionCallNode` signature resolution for the netstandard2.0 generator host; implemented by a project that can load the target assembly (e.g. the editor). |
@@ -918,4 +918,4 @@ assembly, in-place memory patch is safe; if not, a full re-registration is requi
 | `Fdp.Core` | Provides `Entity`, `EntityRepository`, and ECS interfaces referenced in `StaticTypeRegistry`, `EmissionContext.WorldVar`, and generated code. |
 | `Fdp.Toolkit.Behavior` | Provides `BehaviorRegistry`, `LocomotionChannel`, `WeaponChannel`, `BehaviorFinishedEvent`, and other types appearing in the built-in catalogs. |
 | `Fdp.Toolkit.Combat.Contracts` | Source of `HitEvent` referenced in `BuiltInEngineEventCatalog`. |
-| `Fdp.Toolkit.Perception.Events` | Source of `TargetVisibleEvent` referenced in `BuiltInEngineEventCatalog`. |
+| `Fdp.Toolkit.Perception.Events` | Source of `SensorChangedEvent` referenced in `BuiltInEngineEventCatalog` (`TargetVisibleEvent` retired, `CE-3052`). |

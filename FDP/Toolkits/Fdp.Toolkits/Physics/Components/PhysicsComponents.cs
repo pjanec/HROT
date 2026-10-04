@@ -144,8 +144,7 @@ namespace Fdp.Toolkit.Physics.Components
 
         /// <summary>
         /// For LOS rays: observer entity propagated from <see cref="RaycastRequest.Observer"/>.
-        /// Used by <see cref="Systems.HitResolutionSystem"/> to emit <see cref="Fdp.Toolkit.Perception.Events.TargetVisibleEvent"/>
-        /// without bit-unpacking from <see cref="RayId"/>.
+        /// Lets the requester correlate a result without bit-unpacking <see cref="RayId"/>.
         /// </summary>
         public Entity Observer;
 

@@ -18,8 +18,8 @@ namespace Fdp.Toolkit.Perception
 
         // 4002 was LosCheckRequestEvent — retired with the toolkit's vision chain (CE-3052). Not reused.
 
-        /// <summary>Event ID for <see cref="Events.TargetVisibleEvent"/>.</summary>
-        public const int TargetVisibleEventId = 4003;
+        // 4003 was TargetVisibleEvent — retired (CE-3052): a raw per-tick sighting with no producer left but blocked EQS
+        //   cover rays, i.e. the opposite meaning. Not reused. Sightings are the visual sensor's contact list now.
 
         /// <summary>Event ID for <see cref="Events.TargetHeardEvent"/>.</summary>
         public const int TargetHeardEventId = 4004;

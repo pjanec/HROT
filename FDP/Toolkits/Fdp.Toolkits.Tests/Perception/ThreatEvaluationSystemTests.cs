@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Perception.Tests
     /// <para>
     /// Since the architectural refactor (CQRS sensor pipeline), <see cref="ThreatEvaluationSystem"/>
     /// reads <see cref="ActiveSensorTracks"/> (Brain cognitive buffer written by
-    /// <c>SensorTrackStateIngressTranslator</c>) instead of <see cref="TargetVisibleEvent"/>.
+    /// <c>SensorTrackStateIngressTranslator</c>) instead of the retired <c>TargetVisibleEvent</c>.
     /// </para>
     /// </summary>
     public class ThreatEvaluationSystemTests

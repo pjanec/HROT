@@ -26,7 +26,7 @@ show one input pin per field of `MoveToParams`. Every addition below is the same
 
 There are many event structs, so we do NOT make a node per event. **The Engine Event Catalog already
 exists** — `BuiltInEngineEventCatalog` lists ~20 events today (`HitEvent`, `BehaviorFinishedEvent`,
-`TargetVisibleEvent`, animation + navigation lifecycle events), each an entry:
+`SensorChangedEvent`, animation + navigation lifecycle events), each an entry:
 ```csharp
 new(Name, EventTypeFqn, DisplayName, Category, TargetFieldName, FilterableFields[], QoS, Propagates…)
 ```

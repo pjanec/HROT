@@ -51,7 +51,6 @@ public sealed class StrideRaycastBackendTests : IDisposable
         world.RegisterComponent<PhysicsCollider>();
 
         world.RegisterEvent<HitEvent>();
-        world.RegisterEvent<TargetVisibleEvent>();
         world.RegisterEvent<RaycastRequestEvent>();
         world.RegisterEvent<RaycastResultEvent>();
 

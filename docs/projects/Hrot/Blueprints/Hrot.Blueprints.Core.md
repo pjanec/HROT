@@ -684,7 +684,7 @@ Read-only catalogs that expose `GetEntries()` or a `Contains` check.  Built-in s
 `BuiltInWaitPrimitiveCatalog.Instance`.
 
 `BuiltInEngineEventCatalog` provides 11 entries in three categories:
-- **General**: `HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`
+- **General**: `HitEvent`, `BehaviorFinishedEvent`, `SensorChangedEvent` *(`TargetVisibleEvent` retired, `CE-3052`)*
 - **Animation lifecycle** (Reliable, propagates across nodes): `MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`
 - **Animation notify**: `FootstepEvent` (Muscle-local only, `PropagatesAcrossNodes=false`), `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`
 
