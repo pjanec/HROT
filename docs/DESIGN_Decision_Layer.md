@@ -112,7 +112,7 @@ is scored from a sensor that its own child behaviour would otherwise only start 
 | `EnemyStrengthRatio` sums `TargetMemory.ThreatScores`, which DECAY over time | `StandardInputs.cs` `EnemyStrengthRatio`; `ThreatEvaluationSystem.cs:57` | ⛔ contradicts **G1** (`R-194`: danger does not fade). Three of five options read it ⇒ a hidden enemy makes the unit braver |
 | `HaveLiveTarget` = memory count > 0, no freshness | `StandardInputs.cs` `HaveLiveTarget` | a contact seen once long ago keeps `AdvanceAndAttack`/`Suppress` alive — needs the memory stage's freshness |
 | `EqsTopScore` finds ANY EQS child of the unit with the template id | `StandardInputs.cs` `TryFindEqsChild` | a sensor only scores while something has spawned it ⇒ the posture run must own it |
-| behaviour-owned sensors are stamped with the ROOT run and keyed by (site, key, run) | `EqsChildSensor.cs:30–37` | a child switch does not release them (good); a child spawning the same template at its own site makes a SECOND sensor |
+| behaviour-owned sensors are stamped with the ROOT run and keyed by (site, key, run) | `EqsChildSensor.cs:30–37` | a child switch does not release them (good); a child spawning the same template at its own site makes a SECOND sensor — ⭐ ACCEPTED `2026-10-04`: each behaviour owns its own sensor, the solver solves identical queries once (`CE-3056`, `DESIGN_Sensors_And_Doctrine.md` §5.6) |
 | a doctrine cannot replace a mission task | `R-188` (`Operator > Superior > Doctrine`) | a posture DOCTRINE never interrupts a running mission task — see the open questions |
 
 #### Which asset type hosts it *(lean, under discussion — user `2026-10-04`: "ok with using the combat posture as a mission task")*
@@ -210,7 +210,7 @@ classDiagram
   class UtilityBlueprintBridge { <<existing, rerouted>> ScoreDecision(view, self, id, lastWinner, tick) → ChooseOption }
   class ReadRankedResultNode { <<existing, kept>> reads the last ranking's list }
   class UtilityResultBuffer { <<existing, demoted>> optional output list + trace, NOT the memory }
-  class UnitSensors { <<existing, backend lane>> +Of(view, unit, kind) +OfTemplate(view, unit, blueprintId) NEW }
+  class UnitSensors { <<existing, backend lane>> +Of(view, unit, kind) +OfTemplate(view, unit, blueprintId) BUILT by backend 518e536e4 }
   class StandardInputs { <<existing>> EqsTopScore via UnitSensors.OfTemplate; threat inputs per R-194 (CE-3054) }
   class CombatPostureDecision { <<existing, tuned>> Suppress without the stub input }
   class UtilityDecisionPickerDrawer { <<NEW>> Details drawer for any UtilityDecisionRef field }
@@ -303,7 +303,7 @@ part of this plan.*
 | `CE-2068` | `UtilityDecisionRef` + its Details picker (the type makes the field pickable) | — | no |
 | `CE-2069` | `UtilityNodes` (shared action ×2 + condition) for BTree and HSM; rails: a BTree and an HSM switch on the winner; measure the BTree Parallel-repeat shape first (§3.2's assumed row); delete `UtilitySelectorNode` / `UtilityTransitionArbiter`; mark utility design §7.1–7.2 superseded | `CE-2067`, `CE-2068`, `CE-3041` for the BTree rail | no |
 | `CE-2070` | `ScoreDecision` node rerouted: hidden `__lastWinner`, ranking pins, no unit buffer needed | `CE-2067`, `CE-2068` | no |
-| `CE-2071` | `UnitSensors.OfTemplate`; `EqsTopScore` and the posture's children use it instead of spawning a second sensor | — | ⚠ **yes — `UnitSensors.cs` is backend code** (S3) |
+| `CE-2071` | ⚠ **SHRUNK `2026-10-04`** (user: *"backend builds sensor lookup"*; FRAME_Decision_Layer Addendum 3): `OfTemplate` is BUILT by backend; ours is only rerouting `EqsTopScore` / `EqsResultCount` onto it. ⛔ *"children reuse the posture's sensor"* is SUPERSEDED: every behaviour that needs a query spawns its OWN sensor (no borrowing) and the solver answers identical queries once (`CE-3056`, backend) | — | no (backend part done) |
 | `CE-2072` | `CombatPostureDecision` tuning: Suppress without the stub input; the stale `CE-2051` remark | — | no |
 | `CE-2073` | the `CombatPosture` blueprint behaviour + acceptance in `tt-nav-los` as a mission task | `CE-2067`–`CE-2072`, `CE-3031` children, `CE-3054` | no |
 | `CE-3054` *(existing, ours)* | threat inputs to `R-194`: danger from the TKB judged at read time × freshness | the backend's memory stage (`CE-3037`) | ⚠ **yes — joint freshness design** |
