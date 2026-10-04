@@ -355,6 +355,50 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2075</c> (R-200) — the ROE is enforced here: HoldFire never fires; ReturnFire fires only within the window
+        /// after a hit; FireAtWill (and no ROE) fires. A held shot spends no round and keeps the action Running.
+        /// </summary>
+        [Theory]
+        [InlineData(RoeFire.HoldFire,   null,  false)]
+        [InlineData(RoeFire.HoldFire,   1.0,   false)]   // even when hit
+        [InlineData(RoeFire.ReturnFire, null,  false)]   // never hit
+        [InlineData(RoeFire.ReturnFire, 1.0,   true)]    // hit 1 s ago
+        [InlineData(RoeFire.ReturnFire, 6.0,   false)]   // hit 6 s ago — outside the 5 s window
+        [InlineData(RoeFire.FireAtWill, null,  true)]
+        [InlineData(RoeFire.FireUnset,  null,  true)]    // no ROE given ⇒ fire at will
+        public void AimAndFire_EnforcesTheUnitsRoe_CE2075(RoeFire fire, double? hitSecondsAgo, bool fires)
+        {
+            _world.RegisterComponent<Roe>();
+            _world.RegisterComponent<RecentSenses>();
+            const double now = 100.0;
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = 0.016f, TimeScale = 1f });
+
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new Roe { Fire = fire });
+            var senses = new RecentSenses();
+            if (hitSecondsAgo is double ago) senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, now - ago);
+            _world.AddComponent(shooter, senses);
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(fires ? 4 : 5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ <c>CE-2075</c> — a world without the ROE component types fires as before (fire at will).</summary>
+        [Fact]
+        public void AimAndFire_FiresAtWill_WhenTheWorldHasNoRoe_CE2075()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            Assert.True(AimAndFireExecutor.RoePermitsFire(_world, shooter));
+        }
+
         /// <summary>⭐ <c>CE-321</c> — a friendly BEHIND the shooter or BEYOND the target is not on the line of fire.</summary>
         [Fact]
         public void LineOfFire_IgnoresFriendliesBehindTheShooter_AndBeyondTheTarget_CE321()

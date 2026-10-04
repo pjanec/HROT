@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321), §5.4a the CE-198 authority correction.
+current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction.
 stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
 known-rot: none recorded.
 known-conflict: none.
 related-designs:
   - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
+  - ../../DESIGN_Decision_Layer.md — owns the ROE (R-200, §4.4) and RecentSenses (§4.3) that §5.1a's ROE guard enforces.
 -->
 # BS-1 Design: Brain / Muscle Node Separation
 
@@ -218,6 +219,7 @@ Currently `AimAndFireExecutor` publishes `FireRequestEvent` which is consumed lo
 | `Ammo == 0` | `Failure` | unchanged |
 | cooldown > 0 | `Running` | unchanged |
 | ⭐ **a friendly on the line** — `LineOfFire.BlockedByFriendly` | `Running`, **no round spent** | 🔒 user `2026-10-04` *"A+B approved"*. Any OTHER entity of the shooter's `ForceId` with a `PhysicsCollider` (alive or wrecked) whose circle the flat shooter→target segment crosses strictly between the ends. Holding, not failing, lets the unit fire again once either side moves |
+| ⭐ **the unit's ROE** — `AimAndFireExecutor.RoePermitsFire` (`CE-2075`, R-200) | `Running`, **no round spent** | `HoldFire` ⇒ never; `ReturnFire` ⇒ only when `RecentSensesOf.Within(Hit, 5 s)`; `FireAtWill` / unset / no `Roe` in the world ⇒ fires. Enforced HERE, once, so no behaviour can forget it (`DESIGN_Decision_Layer.md` §4.4). ⚠ the 5 s is a constant (`ReturnFireWindowSeconds`, the §4.3 example's window) until the ROE carries one; ⚠ a near miss is not sensed (no `SensorChange` kind), so ReturnFire answers hits only |
 
 ⭐ The companion half lives in `EjectPassengersExecutor`: passengers dismount in a column on the vehicle's **right, relative to
 its heading**, at `hull radius (PhysicsCollider, else 2 m) + 1.5 m` from its centre. 📌 It used to drop them at a fixed WORLD

@@ -22,6 +22,27 @@ namespace Fdp.Toolkit.Combat.Executors
     /// </summary>
     public sealed class AimAndFireExecutor : IActionExecutor<WeaponChannel>
     {
+        /// <summary>
+        /// ⭐ <c>CE-2075</c> — how long after being hit a <see cref="RoeFire.ReturnFire"/> unit may fire. 5 s is the window the
+        /// design's own SOP example uses (<c>DESIGN_Decision_Layer.md</c> §4.3, "was hit within 5 s"). ⚠ A constant until the
+        /// ROE carries its own window. ⚠ "Shot at" without a hit is not sensed today (no <see cref="Fdp.Toolkit.Perception.Events.SensorChange"/>
+        /// kind for a near miss), so ReturnFire answers hits only.
+        /// </summary>
+        public const double ReturnFireWindowSeconds = 5.0;
+
+        /// <summary>⭐ <c>CE-2075</c> — may <paramref name="shooter"/> fire under its ROE right now?</summary>
+        public static bool RoePermitsFire(EntityRepository world, Entity shooter)
+        {
+            if (!world.IsComponentTypeRegistered<Roe>()) return true;   // no ROE in this world ⇒ fire at will
+            return RoeOf.Fire(world, shooter) switch
+            {
+                RoeFire.HoldFire   => false,
+                RoeFire.ReturnFire => world.IsComponentTypeRegistered<RecentSenses>()
+                                      && RecentSensesOf.Within(world, shooter, Fdp.Toolkit.Perception.Events.SensorChange.Hit, ReturnFireWindowSeconds),
+                _                  => true,
+            };
+        }
+
         // OnEnter
 
         public unsafe void OnEnter(Entity entity, ref WeaponChannel channel, EntityRepository world)
@@ -70,6 +91,15 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
             if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
+            {
+                channel.Status = NodeStatus.Running;
+                return;
+            }
+
+            // ⭐ CE-2075 (R-200) — the unit's ROE, enforced ONCE here so no behaviour can forget it. HoldFire never fires;
+            //   ReturnFire fires only within ReturnFireWindowSeconds of being hit. Holds like the friendly-line guard (Running, no
+            //   round spent), so an ROE change or a fresh hit resumes fire without re-issuing the action.
+            if (!RoePermitsFire(world, entity))
             {
                 channel.Status = NodeStatus.Running;
                 return;
