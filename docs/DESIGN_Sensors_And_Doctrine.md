@@ -359,7 +359,7 @@ world).
 | ⏳ the toolkit's own chain (`AutonomousPerceptionModule`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`) stays for the FDP examples | no Hrot host runs it after S5; it shares the extracted code, so no logic is duplicated. Retiring it with the examples is a follow-up row |
 | ⭐ `CE-3050` | the end-to-end rail spawns two FORCES in range and lets real perception drive it — no injected events |
 
-### 5.6 Identical queries are solved ONCE (`CE-3056`) *(build-state: BUILDING, `2026-10-04`)*
+### 5.6 Identical queries are solved ONCE (`CE-3056`) *(build-state: BUILT `2026-10-04` — gates: EqsModuleTests 24/0 incl. `CE3056_IdenticalQueries_AreSolvedOnce_AndBothOwnersGetTheAnswer` · SimHost 1083/1, the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, green 3/3 in isolation (load-timing, not the solver) · Blueprints 4130/0 · cluster `Eqs\|Sensor\|Perception` 96/0)*
 
 > 🔒 *User: "Cant they spawn their own copy but because it would be the same params the solver runs once (ref counting) and
 > feed both requestors?" → "yes file it and build it."*
