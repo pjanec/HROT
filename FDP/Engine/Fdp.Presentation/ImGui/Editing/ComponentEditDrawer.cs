@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using Fdp.Toolkit.Replication;
 using ImGuiNET;
 using StructEdit.Core;
 
@@ -18,13 +20,13 @@ using ImGuiApi = ImGuiNET.ImGui;
 public sealed class ComponentEditDrawer
 {
     private readonly IEditSession _session;
-    private readonly IComponentPickerContext? _pickerCtx;
+    private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
     private readonly ISpatialPickerContext? _spatialPickerCtx;
 
     public ComponentEditDrawer(
         IEditSession session,
-        IComponentPickerContext? pickerCtx,
+        IMapPickContext? pickerCtx,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
         ISpatialPickerContext? spatialPickerCtx = null)
     {
@@ -253,11 +255,14 @@ public sealed class ComponentEditDrawer
         float inputWidth = ImGuiApi.GetContentRegionAvail().X;
         if (canDelete) inputWidth -= 30f;
 
+        // ⭐ DESIGN_Entity_Reference D5 — the TYPE makes a field pickable; the attribute only narrows the pick.
+        bool isEntityRef = node.ClrType == typeof(EntityRef);
         var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
-        if (entityAttr != null && _pickerCtx != null) inputWidth -= 90f;
+        if (isEntityRef && _pickerCtx != null) inputWidth -= 90f;
 
-        var locationAttr = node.Metadata.CustomAttributes.OfType<MapPickableWorldLocationAttribute>().FirstOrDefault();
-        if (locationAttr != null && _pickerCtx != null) inputWidth -= 90f;
+        // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a pickable world location by its TYPE.
+        bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint);
+        if (isLocation && _pickerCtx != null) inputWidth -= 90f;
 
         if (inputWidth < 60f) inputWidth = 60f;
         ImGuiApi.SetNextItemWidth(inputWidth);
@@ -280,7 +285,7 @@ public sealed class ComponentEditDrawer
         }
 
         // Picker: entity reference.
-        if (entityAttr != null && _pickerCtx != null)
+        if (isEntityRef && _pickerCtx != null)
         {
             ImGuiApi.SameLine();
             if (_pickerCtx.IsPickPendingFor(node.JsonPath))
@@ -291,18 +296,18 @@ public sealed class ComponentEditDrawer
             {
                 _pickerCtx.RequestEntityPick(
                     node.JsonPath,
-                    entityAttr.FilterPresets.Length > 0 ? entityAttr.FilterPresets : null);
+                    entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
             }
 
-            if (_pickerCtx.TryConsumeEntityPick(node.JsonPath, out var pickedEntity))
+            if (_pickerCtx.TryConsumeEntityPick(node.JsonPath, out var picked))
             {
-                node.Binding?.SetBoxed(pickedEntity);
+                node.Binding?.SetBoxed(picked);
                 changed = true;
             }
         }
 
         // Picker: world location.
-        if (locationAttr != null && _pickerCtx != null)
+        if (isLocation && _pickerCtx != null)
         {
             ImGuiApi.SameLine();
             if (_pickerCtx.IsPickPendingFor(node.JsonPath))
@@ -377,6 +382,33 @@ public sealed class ComponentEditDrawer
             return customDrawer.DrawInput(ref value, node);
 
         var meta = node.Metadata;
+
+        if (type == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint))
+        {
+            // Latitude and longitude, typed in or set by the map picker.
+            var gp = value is Fdp.Toolkit.Behavior.Params.PickableGeoPoint p ? p : default;
+            float half = (ImGuiApi.CalcItemWidth() - 4f) * 0.5f;
+            ImGuiApi.SetNextItemWidth(half);
+            bool latChanged = ImGuiApi.InputDouble("##lat", ref gp.Latitude, 0, 0, "%.6f");
+            ImGuiApi.SameLine(0f, 4f);
+            ImGuiApi.SetNextItemWidth(half);
+            bool lonChanged = ImGuiApi.InputDouble("##lon", ref gp.Longitude, 0, 0, "%.6f");
+            if (latChanged || lonChanged) value = gp;
+            return latChanged || lonChanged;
+        }
+
+        if (type == typeof(EntityRef))
+        {
+            // The network id, typed in or set by the picker; 0 = none.
+            string strVal = value is EntityRef r ? r.NetworkId.ToString() : "0";
+            bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
+            if (ok && long.TryParse(strVal, out long parsed))
+            {
+                value = new EntityRef(parsed);
+                return true;
+            }
+            return false;
+        }
 
         if (type == typeof(float))
         {

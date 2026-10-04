@@ -15,8 +15,12 @@ known-conflict: none. ⚠ PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §2c.2 lists E5
   CAPABILITIES (scenario/asset/tool/inspector) and never enumerated WINDOWS, so the per-host window
   wrappers and their adapters fell between the rows. This design adds that row; the bootstrap
   divergence it names stays exactly as ruled.
+related-designs:
+  - blueprints/DESIGN_Map_Picking_Unification.md — resolved §8 D2 / §10 F1 (CE-063): one map-pick adapter at the editor's capability level.
 -->
 # ⭐⭐⭐ AXIS-C **E5** — the Scenario-perspective WINDOWS on CGF
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](blueprints/DESIGN_Map_Picking_Unification.md):** §8 D2 / §10 F1 (CE-063) are RESOLVED: the capability comparison was done and `EditorMapPickAdapter` was merged INTO `CanvasMapPickAdapter` at the editor's capability level (geodetic location, domain filter, modal area gizmo) — the direction this design asked for.
 
 > 🔒 **User, `2026-08-27`, `--mode all`:** *"the editor has many windows in its Scenario perspective like
 > mission editor, orbat, entity placement, entity spawner, cgf offers just Entity inspector, Event

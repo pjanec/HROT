@@ -18,7 +18,7 @@ namespace HrotStrideApp;
 /// <para>🔒 <b><c>R-S18</c></b>, <i>"the more unified, the better"</i>: ⛔ nothing here re-implements a
 /// canvas, a picker or a gizmo layer. ⭐ Everything the map needs — <c>MapCanvas</c>,
 /// <c>SelectionInteractionSystem</c>, <c>GlobalGizmoManager</c>, <c>DebugGizmoLayer</c>,
-/// <c>MapPickServiceBridge</c>, the entity context menu — is built by the visualization this forwards
+/// <c>MapPickBroker</c>, the entity context menu — is built by the visualization this forwards
 /// to.</para>
 ///
 /// <para>⛔ <b>No toast.</b> The toast is mode 1's paused-navigation overlay; a node has no such

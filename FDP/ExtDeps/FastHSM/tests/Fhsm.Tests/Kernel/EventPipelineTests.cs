@@ -44,7 +44,7 @@ namespace Fhsm.Tests.Kernel
             
             // Setup Instance
             var instance = new HsmInstance64(); 
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.Idle;
             
             var instances = new[] { instance };
@@ -107,7 +107,7 @@ namespace Fhsm.Tests.Kernel
         {
              var blob = CreateBlob(Array.Empty<StateDef>(), Array.Empty<TransitionDef>(), Array.Empty<GlobalTransitionDef>());
              var instance = new HsmInstance128();
-             instance.Header.MachineId = blob.Header.StructureHash;
+             instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
              instance.Header.Phase = InstancePhase.Entry; 
              
              var instances = new[] { instance };
@@ -152,7 +152,7 @@ namespace Fhsm.Tests.Kernel
             var blob = CreateBlob(new[] { state0, state1 }, new[] { localTrans }, new[] { globalTrans });
                 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.RTC;
             
             var instances = new[] { instance };
@@ -195,7 +195,7 @@ namespace Fhsm.Tests.Kernel
             var blob = CreateBlob(new[] { state0, state1 }, new[] { trans1, trans2 }, Array.Empty<GlobalTransitionDef>());
                 
             var instance = new HsmInstance64();
-            instance.Header.MachineId = blob.Header.StructureHash;
+            instance.Header.MachineId = blob.MachineId;   // CE-2001 — what Initialize stamps
             instance.Header.Phase = InstancePhase.RTC;
             
             var instances = new[] { instance };

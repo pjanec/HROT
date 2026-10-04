@@ -8,12 +8,13 @@ using Hrot.Core.Mission;
 namespace Hrot.UI.Common.Facades;
 
 /// <summary>
-/// Implements <see cref="IMapPickService"/> using a local <see cref="MapCanvas"/> and
-/// gizmo-based pickers.  Suitable for Editor, CGF, SimHost, and IG subsystems that
-/// own a canvas but do not depend on <c>Hrot.Editor.Tools</c>.
+/// ⭐⭐ THE <see cref="IMapPickService"/> over a local <see cref="MapCanvas"/> — the editor, CGF, SimHost and IG all
+/// build this one (<c>CE-063</c>: the editor's twin, <c>EditorMapPickAdapter</c>, and its location gizmo were deleted;
+/// 📄 <c>docs/blueprints/DESIGN_Map_Picking_Unification.md</c> P2/P3).
 ///
-/// <para>Location picks return the raw world-space cartesian position encoded as a
-/// <see cref="GeoPoint"/>: Latitude = world-X, Longitude = world-Y, Altitude = 0.</para>
+/// <para>Location picks are GEODETIC through the host's <see cref="IGeographicTransform"/> — passed, or the world's
+/// singleton. ⚠ With neither (a test, a host with no geography) the world X/Y is returned in the Latitude/Longitude
+/// fields, Altitude 0.</para>
 /// </summary>
 public sealed class CanvasMapPickAdapter : IMapPickService
 {
@@ -21,6 +22,8 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     private readonly EntityRepository? _repo;
     private readonly IEntityFilterFactory _filterFactory;
     private readonly GlobalGizmoManager? _globalGizmoManager;
+    private readonly Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;
+    private readonly Func<Action<IReadOnlyList<int>>, Action, Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo>? _areaGizmo;
 
     // Match-all factory used when no domain-specific factory is provided.
     private static readonly IEntityFilterFactory DefaultFactory = new MatchAllFilterFactory();
@@ -46,16 +49,29 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     /// picks, but a production caller that HAS it must PASS it: without it a pick arms beside the active
     /// tool instead of suspending it (§4.8's bypass — and 🔴 <c>CE-254</c> is this adapter).
     /// </param>
+    /// <param name="geoTransform">
+    /// ⭐ The host's geographic transform: a location pick converts the clicked world position to WGS-84 through it.
+    /// ⛔ A production caller that HAS one must pass it (the silent-default rule) — without it a mission location is
+    /// written in metres where degrees belong.
+    /// </param>
+    /// <param name="areaGizmo">
+    /// Optional area-selection gizmo factory <c>(onPicked, onRemove)</c>; without one an area pick answers empty at
+    /// once.
+    /// </param>
     public CanvasMapPickAdapter(
         MapCanvas canvas,
         EntityRepository? repo = null,
         IEntityFilterFactory? filterFactory = null,
         GlobalGizmoManager? globalGizmoManager = null,
-        Func<Hrot.ScenarioEditor.Tools.ToolController?>? tools = null)
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? tools = null,
+        Fdp.Modules.Geographic.IGeographicTransform? geoTransform = null,
+        Func<Action<IReadOnlyList<int>>, Action, Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo>? areaGizmo = null)
     {
         _canvas             = canvas ?? throw new ArgumentNullException(nameof(canvas));
         _repo               = repo;
         _filterFactory      = filterFactory ?? DefaultFactory;
+        _geoTransform       = geoTransform;
+        _areaGizmo          = areaGizmo;
         _globalGizmoManager = globalGizmoManager;
         _pickers            = new Hrot.ScenarioEditor.Tools.PickerToolHost(
             tools ?? (() => null), () => _globalGizmoManager);
@@ -69,7 +85,7 @@ public sealed class CanvasMapPickAdapter : IMapPickService
         => _pickers.RunPickAsync<GeoPoint>(
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
             (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-                onPicked: worldPos => tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0)),
+                onPicked: worldPos => tcs.TrySetResult(ToGeoPoint(worldPos)),
                 onRemove: remove),
             ct);
 
@@ -99,11 +115,31 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
     }
 
+    /// <summary>The clicked world position as a <see cref="GeoPoint"/> — geodetic through the host's transform.
+    /// ⭐ The passed transform, else the world's <see cref="IGeographicTransform"/> singleton — the one behaviour resolvers
+    /// read (SimHost, CGF and the editor publish it) — resolved at pick time, since a host may publish it after building
+    /// this adapter.</summary>
+    private GeoPoint ToGeoPoint(System.Numerics.Vector2 world)
+    {
+        var geo = _geoTransform
+                  ?? (_repo != null && _repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                        ? _repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                        : null);
+        if (geo is null) return new GeoPoint(world.X, world.Y, 0);
+        var (lat, lon, alt) = geo.ToGeodetic(new System.Numerics.Vector3(world.X, world.Y, 0f));
+        return new GeoPoint(lat, lon, alt);
+    }
+
     /// <inheritdoc/>
-    /// <remarks>Area entity pick is not supported by this adapter; always returns an empty list.</remarks>
+    /// <remarks>Runs the host's area gizmo when it supplied one; otherwise answers empty at once.</remarks>
     public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(
         string[]? filterPresets = null, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
+        => _areaGizmo is null
+            ? Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>())
+            : _pickers.RunPickAsync<IReadOnlyList<int>>(
+                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickArea,
+                (tcs, remove) => _areaGizmo(list => tcs.TrySetResult(list), remove),
+                ct);
 
     // ── Internal filter helpers ───────────────────────────────────────────────
 

@@ -79,20 +79,38 @@ namespace Fdp.Toolkit.Utility
         // ── Group C: EQS ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Top EQS result score for the sensor with blueprint matching FNV-1a-32 of
-        /// <paramref name="templateName"/>.
+        /// Top EQS result score for the sensor running the template whose AssetId is
+        /// <paramref name="templateAssetId"/> (e.g. <c>FindCoverFromTarget.AssetId</c>).
         /// </summary>
-        public static InputRef EqsTopScore(string templateName, InputContext ctx = InputContext.Self)
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static InputRef EqsTopScore(string templateAssetId, InputContext ctx = InputContext.Self)
             => new InputRef(StandardInputIds.EqsTopScore, ctx,
-                new InputParams { BlueprintId = Fnv1a32(templateName) });
+                new InputParams { BlueprintId = EqsTemplateId(templateAssetId) });
 
         /// <summary>
-        /// Fraction of EQS result slots filled for the sensor with blueprint matching
-        /// FNV-1a-32 of <paramref name="templateName"/>.
+        /// Fraction of EQS result slots filled for the sensor running the template whose AssetId is
+        /// <paramref name="templateAssetId"/>.
         /// </summary>
-        public static InputRef EqsResultCount(string templateName, InputContext ctx = InputContext.Self)
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static InputRef EqsResultCount(string templateAssetId, InputContext ctx = InputContext.Self)
             => new InputRef(StandardInputIds.EqsResultCount, ctx,
-                new InputParams { BlueprintId = Fnv1a32(templateName) });
+                new InputParams { BlueprintId = EqsTemplateId(templateAssetId) });
+
+        /// <summary>
+        /// ⭐ <c>CE-2046</c> — the id an EQS sensor running this template carries:
+        /// <see cref="global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf"/> of the AssetId (EQS §6.2).
+        /// ⛔ It hashed the template's NAME, which no sensor carries, so <c>EqsTopScore</c> read 0 for every real sensor.
+        /// 📄 <c>DESIGN_Unified_Behaviour_Run.md</c> "S8i".
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="templateAssetId"/> is not a GUID.</exception>
+        public static uint EqsTemplateId(string templateAssetId)
+        {
+            if (!Guid.TryParse(templateAssetId, out var assetId))
+                throw new ArgumentException(
+                    $"An EQS input names its template by the template's AssetId GUID (e.g. FindCoverFromTarget.AssetId); " +
+                    $"'{templateAssetId}' is not a GUID.", nameof(templateAssetId));
+            return global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(assetId);
+        }
 
         // ── Group D: misc ─────────────────────────────────────────────────────────
 

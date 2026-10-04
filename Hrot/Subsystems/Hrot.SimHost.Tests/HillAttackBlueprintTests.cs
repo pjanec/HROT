@@ -195,6 +195,7 @@ namespace Hrot.SimHost.Tests
         {
             var w = new World();
             var area = w.Area(new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f));
+            w.Repo.AddComponent(area, new NetworkIdentity { Value = 9100L });   // the area's identity (the resolve is stale-checked)
             var map = new NetworkEntityMap();
             map.Register(9100L, area);
             w.Repo.SetSingletonManaged<NetworkEntityMap>(map);

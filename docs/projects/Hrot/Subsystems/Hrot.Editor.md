@@ -1,5 +1,7 @@
 # Hrot.Editor
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `EditorMapPickAdapter` and `LocationPickerGizmo` are deleted (CE-063): the editor builds the shared `CanvasMapPickAdapter` with its filter factory, geographic transform and modal area gizmo.
+
 | Field       | Value                                                                          |
 |-------------|--------------------------------------------------------------------------------|
 | Project     | `Hrot.Editor`                                                                  |

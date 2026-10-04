@@ -71,6 +71,24 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// ⭐ <c>CE-2044</c> — <see cref="GetChunkCapacity{T}"/> for a runtime <see cref="System.Type"/>: the SAME formula over the same
+        /// managed size, so a tool walking a table by type (the flight recorder) lands on the chunks the table really has.
+        /// ⛔ The recorder divided by <c>Marshal.SizeOf</c> — the interop size — and so walked the wrong entity range per chunk
+        /// for any component whose interop size differs (a <c>char</c>, or a <c>bool</c> inside a nested struct).
+        /// </summary>
+        public static int GetChunkCapacity(System.Type type)
+        {
+            int elementSize = TypeLayout.SizeOf(type);
+            if (elementSize > CHUNK_SIZE_BYTES)
+            {
+                throw new System.InvalidOperationException(
+                    $"Type {type.Name} ({elementSize} bytes) exceeds chunk size ({CHUNK_SIZE_BYTES} bytes). " +
+                    $"Consider using multi-part descriptors or managed components.");
+            }
+            return CHUNK_SIZE_BYTES / elementSize;
+        }
+
+        /// <summary>
         /// Calculate the number of chunks needed for MAX_ENTITIES of type T.
         /// </summary>
         public static int GetRequiredChunks<T>() where T : unmanaged

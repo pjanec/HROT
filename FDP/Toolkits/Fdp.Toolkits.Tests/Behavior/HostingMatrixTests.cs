@@ -397,6 +397,155 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         }
     }
 
+    // ══ CE-2002 — an HSM child's lazy occurrences nest under the site that hosts it ══════════════════════════════
+
+    private const ushort KeyCapturingAction = 0x2002;   // unique id: the dispatcher table is process-wide
+    private static readonly Guid HsmChildAsset = new("20020000-0000-0000-0000-0000000000c1");
+    private static readonly System.Collections.Generic.List<(int Key, int Region, ushort State, int Site)> _hsmKeys = new();
+
+    private static void CaptureHsmOccurrenceKey(void* instance, void* context, HsmCommandWriter* writer)
+        => _hsmKeys.Add((HsmOccurrence.KeyFor(instance, context, HsmChildAsset, writer),
+                         writer->OccurrenceRegionSlotIndex, writer->OccurrenceStateId,
+                         ((HsmKernelBridge*)context)->OccurrenceKey));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-2002</c> (S8k) — the same HSM child at TWO sites keys its lazily-attached occurrences apart.</b> The child's
+    /// initial state runs an entry action that asks <c>HsmOccurrence.KeyFor</c> — what every emitted HSM blueprint thunk does —
+    /// and each site's key is the state key NESTED under that site's occurrence. 🔴 Before: the bridge carried no occurrence
+    /// key, so both sites computed one key and shared one working state.
+    /// </summary>
+    [Fact]
+    public void CE2002_AnHsmChildAtTwoSites_KeysItsOccurrencesUnderEachSite()
+    {
+        _hsmKeys.Clear();
+        Fhsm.Kernel.HsmActionDispatcher.RegisterAction(KeyCapturingAction,
+            (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&CaptureHsmOccurrenceKey);
+        try
+        {
+            var states = new[]
+            {
+                new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, Flags = StateFlags.IsInitial,
+                               OnEntryActionId = KeyCapturingAction },
+            };
+            var blob = new HsmDefinitionBlob(new HsmDefinitionHeader { StructureHash = 0x20020001u, StateCount = 1 }, states,
+                Array.Empty<TransitionDef>(), Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(),
+                Array.Empty<ushort>(), Array.Empty<ushort>());
+
+            using var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var beh = new BehaviorRegistry();
+            beh.Register(ChildName, new BehaviorDefinition { Name = ChildName, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+
+            var hb = new BTreeBuilder<byte, BTreeContext>().Parallel(0, p => p
+                .Subtree(ChildName, visualId: SiteA)
+                .Subtree(ChildName, visualId: SiteB));
+            var hostBlob = hb.Compile(HostName);
+            var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+            beh.Register(HostId, HostName, new BehaviorDefinition
+            {
+                Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+                StatefulWorkingSlots = plan.Slots,
+            });
+            BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+            var brain = new BrainTickSystem(beh);
+            for (int f = 0; f < 3 && _hsmKeys.Count < 2; f++) { brain.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+            string seen = string.Join("; ", _hsmKeys);
+            Assert.True(_hsmKeys.Count == 2, "the entry action runs once per site: " + seen);
+            Assert.True(_hsmKeys[0].Key != _hsmKeys[1].Key, "two sites, two keys: " + seen);
+            var expected = new System.Collections.Generic.HashSet<int>();
+            foreach (var site in plan.Entries)
+                expected.Add(OccurrenceSlots.HostedKeyAt(site.TreeStateSlotKey,
+                    HsmOccurrence.KeyFor(blob.MachineId, HsmChildAsset, _hsmKeys[0].Region, _hsmKeys[0].State)));
+            Assert.Contains(_hsmKeys[0].Key, expected);
+            Assert.Contains(_hsmKeys[1].Key, expected);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(KeyCapturingAction, IntPtr.Zero);
+        }
+    }
+
+    // ══ CE-2052 — a second hosted child must not inherit the first one's FINISHED channel ════════════════════
+
+    private const ushort MoveLikeAction = 0x2052;
+    private static int _moveActivations;
+
+    /// <summary>Exactly <c>CgfNodes.Action_WriteMoveToChannel</c>'s channel protocol: a finished action of its own kind is its
+    /// result; otherwise it activates (a new <c>ActionInstanceId</c>) and runs.</summary>
+    private static NodeStatus MoveLike(ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int p)
+    {
+        ref var ch = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+        ch.BehaviorInstanceId = ctx.World.GetComponent<BehaviorState>(ctx.Self).InstanceId;
+        bool needsActivation = ch.ActiveAction != MoveLikeAction || ch.Status == NodeStatus.Failure;
+        if (!needsActivation && ch.Status == NodeStatus.Success) return NodeStatus.Success;
+        if (needsActivation) { unchecked { ch.ActionInstanceId++; } _moveActivations++; }
+        ch.ActiveAction = MoveLikeAction;
+        return NodeStatus.Running;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2052</c> (S8n-2 ③) — two MoveTo-style children of ONE host, in sequence, each drive.</b> The rail plays the
+    /// locomotion dispatcher (a new action ⇒ <c>Running</c>, two frames later ⇒ <c>Success</c>). 🔴 Before: the second child
+    /// found the first one's <c>Success</c> on the shared channel (the host's instance never changed, so arbitration never
+    /// released it) and ended on its first tick — ONE activation for two legs.
+    /// </summary>
+    [Fact]
+    public void CE2052_TheSecondChild_DoesNotInheritTheFirstChildsFinishedChannel()
+    {
+        _moveActivations = 0;
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var cb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(MoveLike));
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name = ChildName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile(ChildName), cb.GetRegistry()),
+        });
+        var hb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq
+            .Subtree(ChildName, visualId: SiteA)
+            .Subtree(ChildName, visualId: SiteB));
+        var hostBlob = hb.Compile(HostName);
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.AddComponent(entity, new LocomotionChannel());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(beh);
+
+        int runningFor = 0, finished = 0;
+        for (int f = 0; f < 40 && finished == 0; f++)
+        {
+            brain.Execute(world, 0.016f);
+            foreach (var e in world.Bus.Read<BehaviorFinishedEvent>()) if (e.Entity.Index == entity.Index) finished++;
+            world.Bus.SwapBuffers();
+            ref var ch = ref world.GetComponentRW<LocomotionChannel>(entity);   // the played dispatcher
+            if (ch.ActionInstanceId != ch.DispatchedInstanceId) { ch.DispatchedInstanceId = ch.ActionInstanceId; ch.Status = NodeStatus.Running; runningFor = 0; }
+            else if (ch.ActiveAction != 0 && ch.Status == NodeStatus.Running && ++runningFor >= 2) ch.Status = NodeStatus.Success;
+        }
+
+        Assert.Equal(1, finished);                // the host's sequence completed
+        Assert.Equal(2, _moveActivations);        // and each leg activated its own move
+    }
+
     // ══ S5c — hosting cycles are refused at registration (U-9) ════════════════════════════════════
 
     /// <summary>Registers <paramref name="name"/> as a BTree hosting <paramref name="child"/>, in the generated order:

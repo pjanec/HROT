@@ -31,6 +31,8 @@ known-conflict: none.
 -->
 # AI-debug API + MCP server — integration status
 
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](blueprints/DESIGN_Map_Picking_Unification.md):** `[MapPickableWorldLocation]` is deleted too: the schema marks a `PickableGeoPoint` member `picker:worldLocation` and an `EntityRef` member `picker:entity` by TYPE.
+
 Porting `origin/feat/ai-debug-api` (@ `d7b2a6e12`) onto the coordinator branch. It's a **port, not a
 merge** — the branch has disjoint history from trunk (see `docs/UX/MCP_PORT_PLAN.md`). This file tracks
 what landed and what remains.
@@ -182,7 +184,8 @@ editor panel already renders every behaviour's params generically from its param
 **`BehaviorUiRegistry`** *(behaviourId → DTO type; `Hrot.Presentation/Behavior/BehaviorUiCompiler.cs`)*,
 auto-populated by **`BehaviorSchemaDiscovery.AutoRegister`** *(same file dir)*, and **`BehaviorUiCompiler.Compile<TDto>()`**
 which walks the DTO's public properties handling `float`/`double`/`int`/`long`/`bool`/`PickableGeoPoint` plus the
-`[RemapNetworkId]`/`[MapPickableEntity]`/`[MapPickableWorldLocation]` attributes. ⇒ ⭐⭐ **`MX4a` REUSES this
+`[MapPickableEntity]`/`[MapPickableWorldLocation]` attributes *(an entity reference is a member typed `EntityRef` since
+`2026-10-03`; `[RemapNetworkId]` is deleted — `blueprints/DESIGN_Entity_Reference.md`)*. ⇒ ⭐⭐ **`MX4a` REUSES this
 registry** — it is *not* a from-scratch reflection pass: given `tkbType`, take the valid behaviour ids
 *(`IMissionEditorService.GetAvailableBehaviors`, already TKB-filtered)*, look up each DTO type in the registry,
 and emit `paramSchema` from the same property walk. ⭐ **`[ParamDoc("…")]`/range/units attributes are an OPTIONAL

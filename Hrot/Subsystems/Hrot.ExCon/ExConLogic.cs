@@ -38,7 +38,7 @@ namespace Hrot.ExCon;
 /// <summary>Tracks which kind of interactive pick is currently awaited from the IG.</summary>
 public enum ExConPickMode { None, EntityCreation, Location, Entity }
 
-public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Facades.ISpawnController, IDisposable
+public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickService, Hrot.UI.Common.Facades.ISpawnController, IDisposable
 {
     // ── Dependencies ──────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     /// <remarks>
     /// <see cref="ExConLogic"/> implements <see cref="IMapPickService"/> directly.
     /// </remarks>
-    public IMapPickService MapPickService => this;
+    public Hrot.UI.Common.Facades.IMapPickService MapPickService => this;
 
     /// <summary>Context-menu strategy manager; driven by selection-change events.</summary>
     public IContextMenuLogic ContextMenuLogic { get; }
@@ -586,6 +586,13 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
         return tcs.Task;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ ExCon implements the ONE shared pick service directly (its own subset interface and the
+    /// <c>ExConMapPickShim</c> that padded this member were deleted — <c>DESIGN_Entity_Reference.md</c> §6). An area pick
+    /// has no IG command yet, so it answers empty, exactly as the shim did.</remarks>
+    public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
 
     /// <summary>
     /// Cancels any pending location or entity pick without completing it.

@@ -154,7 +154,7 @@ namespace CarKinem.Systems
                     break;
                     
                 case KinematicsMode.CustomTrajectory:
-                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav);
+                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D);
                     break;
                     
                 case KinematicsMode.Formation:
@@ -287,7 +287,14 @@ namespace CarKinem.Systems
             }
             
             // Update progress (for trajectory/road modes)
-            if (nav.Mode == KinematicsMode.CustomTrajectory || nav.Mode == KinematicsMode.RoadGraph)
+            if (nav.Mode == KinematicsMode.CustomTrajectory)
+            {
+                // ⭐ CE-2059 — only the motion ALONG the path is progress (targetHeading is the path tangent here); a turn
+                //   or a sideways drift no longer counts. ⚠ Not for the homing leg's direct heading, which is not a tangent —
+                //   progress is already at the end there.
+                nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, targetHeading));
+            }
+            else if (nav.Mode == KinematicsMode.RoadGraph)
             {
                 nav.ProgressS += state.Speed * dt;
             }
@@ -318,16 +325,32 @@ namespace CarKinem.Systems
             repo.SetComponent(entity, vel);
         }
         
-        private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav)
+        private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D)
         {
             // Check if we reached the end of the trajectory
-            if (_trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var traj))
+            bool haveTraj = _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var traj);
+            if (haveTraj)
             {
-                if (traj.IsLooped == 0 && nav.ProgressS >= traj.TotalLength - 0.1f) // 10cm tolerance
+                if (traj.IsLooped == 0 && nav.ProgressS >= traj.TotalLength - 0.1f && traj.Waypoints.Length > 0) // 10cm tolerance
                 {
+                    // ⭐ CE-2059 — arrival is confirmed by POSITION. Progress is dead-reckoned, so it can run ahead of the
+                    //   vehicle (a turn-around at the start counted as progress: measured live, "arrived" 23 m short of home).
+                    //   Outside the arrival radius the vehicle HOMES on the end point, braking by the real distance.
+                    var endWp   = traj.Waypoints[traj.Waypoints.Length - 1];
+                    var endXY   = new Vector2(endWp.Position.X, endWp.Position.Y);
+                    float tol   = nav.ArrivalRadius > 0f ? nav.ArrivalRadius : DefaultTrajectoryArrivalRadius;
+                    float toEnd = Vector2.Distance(pos2D, endXY);
+                    if (toEnd > tol)
+                    {
+                        Vector2 dir   = (endXY - pos2D) / toEnd;
+                        float homing  = nav.TargetSpeed > 0f ? nav.TargetSpeed : MathF.Max(endWp.DesiredSpeed, TrajectoryEndCrawlSpeed);
+                        if (@params.MaxDecel > 0f)
+                            homing = MathF.Min(homing, MathF.Max(MathF.Sqrt(2f * @params.MaxDecel * (toEnd - tol)), TrajectoryEndCrawlSpeed));
+                        return (pos2D + dir, dir, homing);
+                    }
+
                     nav.HasArrived = 1;
                     // Provide the last waypoint position/tangent but 0 speed
-                    if (traj.Waypoints.Length > 0)
                     {
                          var last = traj.Waypoints[traj.Waypoints.Length - 1];
                          // Keep current heading (via last tangent) to avoid spinning
@@ -346,8 +369,34 @@ namespace CarKinem.Systems
             // Z is carried for fidelity/replication but does NOT drive vehicle dynamics: the vehicle's Z is
             // set by THIS system from the terrain world's surface (W8, docs/DESIGN_Terrain_World.md).
             var (pos, tangent, speed) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS);
+
+            // ⭐ CE-2060 — the move's requested speed CAPS the path's own speed (a solver path is registered at a flat
+            //   10 m/s). NavState.TargetSpeed is the intent's, set by NavigationIntentBridgeSystem for PathToPoint and
+            //   FollowRoute; 0 means "no cap — drive the trajectory's speeds". Navigation design §3.1 (CE-2059/2060).
+            if (nav.TargetSpeed > 0f)
+                speed = MathF.Min(speed, nav.TargetSpeed);
+
+            // ⭐ CE-2059 — brake on approach to the END of a one-shot trajectory, with the same envelope Direct mode uses
+            //   (v_max = sqrt(2·MaxDecel·d)); it stopped dead at the end and rolled 11 m past it. A small crawl floor keeps
+            //   ProgressS reaching the end. MaxDecel <= 0 is an unknown profile (CE-103): cap nothing.
+            if (haveTraj && @params.MaxDecel > 0f && traj.IsLooped == 0 && traj.Waypoints.Length > 0)
+            {
+                var endWp2      = traj.Waypoints[traj.Waypoints.Length - 1];
+                float straight  = Vector2.Distance(pos2D, new Vector2(endWp2.Position.X, endWp2.Position.Y));
+                // ⭐ the larger of the two: progress that ran ahead must not brake the vehicle early.
+                float remaining = MathF.Max(MathF.Max(0f, traj.TotalLength - nav.ProgressS), straight);
+                float approach  = MathF.Max(MathF.Sqrt(2f * @params.MaxDecel * remaining), TrajectoryEndCrawlSpeed);
+                speed = MathF.Min(speed, approach);
+            }
             return (new Vector2(pos.X, pos.Y), tangent, speed);
         }
+
+        /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
+        /// 0 at the end) still lets it get there.</summary>
+        private const float TrajectoryEndCrawlSpeed = 0.5f;
+
+        /// <summary>⭐ CE-2059 — the arrival tolerance at a trajectory's end when the move set no <c>ArrivalRadius</c>.</summary>
+        private const float DefaultTrajectoryArrivalRadius = 2f;
         
         private (Vector2 pos, Vector2 heading, float speed) GetFormationTarget(EntityRepository repo, Entity entity)
         {

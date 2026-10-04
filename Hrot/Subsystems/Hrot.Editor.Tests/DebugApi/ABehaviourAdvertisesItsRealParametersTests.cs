@@ -182,9 +182,10 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.NotNull(def.BlackboardLayoutType);
         Assert.NotEqual(def.JsonParamsDtoType, def.BlackboardLayoutType);
 
-        // The authored one is a heap class a JSON serializer can round-trip; the internal one is a
-        // blittable struct projected over raw bytes.
-        Assert.True(def.JsonParamsDtoType!.IsClass,      "the authored contract must be a JSON-serializable class");
+        // The authored one is what a JSON serializer round-trips (CE-2023 ③, "S8n": now a struct, so a host can bind it —
+        // it was pinned here as a class); the internal one is a blittable struct projected over raw bytes.
+        Assert.NotNull(System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.Serialize(
+            System.Activator.CreateInstance(def.JsonParamsDtoType!)), def.JsonParamsDtoType!));
         Assert.True(def.BlackboardLayoutType!.IsValueType, "the blackboard layout must stay a blittable struct");
     }
 

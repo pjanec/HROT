@@ -242,8 +242,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         // 32-bit FNV-1a, return low 16 bits.
         // IMPORTANT: uses the 32-bit basis (2166136261) and 32-bit prime (16777619), then
         // masks to 16 bits. This is NOT a native FNV-1a16 (which uses basis 40291, prime 933
-        // and produces different values). Must stay byte-identical with BTreeActionGenerator.ComputeHash
-        // and HsmActionGenerator.ComputeHash — any divergence silently breaks dispatch.
+        // and produces different values). The one copy is Shared/UtilityIdHash.cs (CE-2035).
         internal static ushort ComputeHash(string s)
             => global::Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(s);   // ⭐ CE-2035 — the one utility-id hash
 

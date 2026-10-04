@@ -74,7 +74,7 @@ namespace Fhsm.Kernel
         
         private static bool ValidateInstance(InstanceHeader* header, HsmDefinitionBlob definition)
         {
-            if (header->MachineId != definition.Header.StructureHash) return false;
+            if (header->MachineId != definition.MachineId) return false;   // ⭐ CE-2001 — the machine identity, not just its shape
             if ((header->Flags & InstanceFlags.Terminated) != 0) return false;
             if ((header->Flags & InstanceFlags.Paused) != 0) return false;
             if (header->Phase > InstancePhase.Activity) return false;

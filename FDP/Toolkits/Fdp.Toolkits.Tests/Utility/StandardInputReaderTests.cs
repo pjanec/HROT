@@ -294,7 +294,7 @@ namespace Fdp.Toolkit.Tests.Utility
         public void EqsTopScore_ReturnsTopScore_WhenReady()
         {
             var agent     = _world.SpawnAgent(1f, 1f);
-            uint bpId     = UtilityTestWorld.Fnv1a32("CoverQuery");
+            uint bpId     = global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId;
             _world.SpawnEqsSensor(agent, bpId, topScore: 0.8f, count: 2, instanceId: 0);
             var parms     = new InputParams { BlueprintId = bpId };
             float result  = StandardInputs.EqsTopScore(MakeCtx(agent, default, parms));
@@ -305,7 +305,7 @@ namespace Fdp.Toolkit.Tests.Utility
         public void EqsTopScore_ReturnsZero_WhenNoBlueprintIdMatch()
         {
             var agent    = _world.SpawnAgent(1f, 1f);
-            uint bpId    = UtilityTestWorld.Fnv1a32("CoverQuery");
+            uint bpId    = global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId;
             _world.SpawnEqsSensor(agent, bpId, topScore: 0.8f, count: 2, instanceId: 0);
             var parms    = new InputParams { BlueprintId = 0xDEADBEEFu };
             float result = StandardInputs.EqsTopScore(MakeCtx(agent, default, parms));
@@ -328,6 +328,57 @@ namespace Fdp.Toolkit.Tests.Utility
             var parms    = new InputParams { BlueprintId = bpId };
             float result = StandardInputs.EqsTopScore(MakeCtx(agent, default, parms));
             Assert.Equal(0f, result);
+        }
+
+        // ── CE-2046: the EQS input names its template by AssetId — the id every sensor carries ─────────────
+        //    📄 DESIGN_Unified_Behaviour_Run.md "S8i". It hashed the NAME, which no sensor carries.
+
+        [Fact]
+        public void CE2046_EqsInputs_KeyTheTemplateByTheIdItsSensorsCarry()
+        {
+            uint canonical = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId));
+
+            Assert.Equal(canonical, In.EqsTopScore(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId).Params.BlueprintId);
+            Assert.Equal(canonical, In.EqsResultCount(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId).Params.BlueprintId);
+            Assert.Equal(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, canonical);
+        }
+
+        [Fact]
+        public void CE2046_EqsTopScore_ThroughTheBuiltInput_ReadsASensorKeyedTheWayProducersKeyIt()
+        {
+            var agent = _world.SpawnAgent(1f, 1f);
+            // a producer (blueprint SpawnEqsSensor, EqsLifecycleNodes, …) keys the sensor by the registry's id
+            uint producerId = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId));
+            _world.SpawnEqsSensor(agent, producerId, topScore: 0.7f, count: 1, instanceId: 0);
+
+            var input = In.EqsTopScore(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.AssetId);
+            float result = StandardInputs.EqsTopScore(MakeCtx(agent, default, input.Params));
+
+            Assert.Equal(0.7f, result, precision: 4);
+        }
+
+        [Theory]
+        [InlineData("CoverQuery")]
+        [InlineData("")]
+        public void CE2046_EqsInputs_ANameThatIsNotAnAssetId_FailsAtBuild(string notAnAssetId)
+        {
+            Assert.Throws<ArgumentException>(() => In.EqsTopScore(notAnAssetId));
+            Assert.Throws<ArgumentException>(() => In.EqsResultCount(notAnAssetId));
+        }
+
+        [Fact]
+        public void CE2046_FindSafeRetreatPoint_IsRegistered_WithTheCanonicalId()
+        {
+            var t = typeof(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint);
+            Assert.Equal(
+                global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.BlueprintIdOf(
+                    new Guid(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.AssetId)),
+                global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId);
+            // ⭐ BUILT by backend's terrain EQS slice (CE-3030, EQS design §19.6), which closed CE-2051: it is discovered.
+            var registry = global::Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.Discover(new[] { t.Assembly });
+            Assert.True(registry.TryGetTemplate(global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, out _));
         }
 
         // ── SC-P1-06-5: IsAssignedTarget ─────────────────────────────────────────

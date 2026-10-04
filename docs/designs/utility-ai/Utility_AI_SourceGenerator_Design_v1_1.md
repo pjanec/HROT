@@ -138,7 +138,7 @@ truncate the low 16 bits:
 
 ```csharp
 // The ONE hash both gen-time and runtime must use, verbatim. Any divergence = silent dispatch miss.
-// Name matches BTreeActionGenerator.ComputeHash / HsmActionGenerator.ComputeHash exactly.
+// The formula lives once, in Shared/UtilityIdHash.cs (CE-2035); HsmActionKey uses the same FNV-1a-32 basis/prime.
 // WARNING: this is NOT a native FNV-1a16 (which uses basis 40291 and prime 933 and produces
 // entirely different values). It is a standard 32-bit FNV-1a truncated to 16 bits.
 static ushort ComputeHash(string s)

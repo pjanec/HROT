@@ -1,11 +1,11 @@
-StructureHash: 0x6CDFBB390B45FD59
+StructureHash: 0x34642A2726BE4BC3
 Parameters:
   FiringLineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @0 size=4
   FiringLineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @4 size=4
   BaselineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @8 size=4
   BaselineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @12 size=4
   TankSpacing : System.Single @16 size=4
-  TargetAreaNetworkId : System.Int64 @24 size=8
+  TargetAreaNetworkId : Fdp.Toolkit.Replication.EntityRef @24 size=8
 WorkingState:
   (empty)
 Variables:
@@ -40,7 +40,7 @@ Variables:
   CurSlot : System.Int32 @152 size=4
   CurBase : System.Int32 @156 size=4
   Sensor : FDP.Eqs.EqsSensorHandle @160 size=8
-  CurNet : System.Int64 @168 size=8
+  CurNet : Fdp.Toolkit.Replication.EntityRef @168 size=8
   AllArrived : System.Boolean @176 size=1
   FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @184 size=68
   BaselineReserved : __List_System_Boolean_16 @256 size=20

@@ -582,8 +582,8 @@ namespace Hrot.Editor
         /// <para>⭐⭐ <b>What replaces it is the mismatch test <c>TryReload</c> was performing, applied per
         /// instance.</b> That method compared the new blob against a remembered one and hard-reset every
         /// instance whose <c>Header.MachineId</c> still equalled the OLD <c>StructureHash</c>. ⭐ The
-        /// instance already carries that fact: <c>MachineId</c> IS the structure hash it was bound to,
-        /// so <c>MachineId != blob.Header.StructureHash</c> is the same predicate with no remembered
+        /// instance already carries that fact: <c>MachineId</c> IS the blob identity it was bound to (⭐ <c>CE-2001</c>:
+        /// <c>HsmDefinitionBlob.MachineId</c>, identity + shape), so <c>MachineId != blob.MachineId</c> is the same predicate with no remembered
         /// state — and it is the mismatch test <c>BlueprintTickSystem</c>'s slot walk already uses.</para>
         ///
         /// <para>⛔⛔ <b>That also removes a real defect, and it is worth naming.</b>
@@ -631,7 +631,7 @@ namespace Hrot.Editor
                     if (!RootHsmAccess.TryGetInstance(_world, entity, out byte* instance, out int size))
                         continue;                     // no machine on this entity — nothing to reload
 
-                    if (((InstanceHeader*)instance)->MachineId == blob.Header.StructureHash)
+                    if (((InstanceHeader*)instance)->MachineId == blob.MachineId)   // ⭐ CE-2001
                         continue;                     // this machine was not rebuilt
 
                     int width = RootHsmAccess.InstanceBytes(blob);

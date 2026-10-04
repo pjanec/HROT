@@ -426,7 +426,7 @@ namespace Hrot.Common.Systems
                             {
                                 childComponents.Add(new Hrot.Common.Serializers.InitialUnitSubordinateIntent
                                 {
-                                    CommanderNetworkId = pending.NetworkId,
+                                    CommanderNetworkId = new Fdp.Toolkit.Replication.EntityRef(pending.NetworkId),
                                     Designation        = childDef.Designation,
                                 });
                             }

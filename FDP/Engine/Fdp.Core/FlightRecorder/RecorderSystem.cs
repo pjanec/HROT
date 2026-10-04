@@ -23,6 +23,23 @@ namespace Fdp.Core.FlightRecorder
 
         private delegate int ManagedRecorderDelegate(object table, EntityIndex index, BinaryWriter writer, uint prevTick);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRecorderDelegate> _managedRecorders = new();
+
+        // ⭐ CE-2045 — table type → its managed recorder, or null for an unmanaged table; built once per type.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRecorderDelegate?> _recorderByTableType = new();
+
+        private static ManagedRecorderDelegate? ManagedRecorderFor(Type tableType)
+            => _recorderByTableType.GetOrAdd(tableType, static t =>
+            {
+                if (!t.IsGenericType || t.GetGenericTypeDefinition() != typeof(ManagedComponentTable<>)) return null;
+                Type componentType = t.GetGenericArguments()[0];
+                return _managedRecorders.GetOrAdd(componentType, static ct =>
+                {
+                    var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter),
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                        .MakeGenericMethod(ct);
+                    return (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
+                });
+            });
         
         /// <summary>
         /// ID threshold below which entities are NOT recorded.
@@ -70,8 +87,9 @@ namespace Fdp.Core.FlightRecorder
             var destroyed = repo.GetDestructionLog();
             writer.Write(destroyed.Count);
             
-            foreach (var e in destroyed)
+            for (int i = 0; i < destroyed.Count; i++)   // ⭐ CE-2045 — index, not foreach: an IReadOnlyList enumerator is boxed
             {
+                var e = destroyed[i];
                 writer.Write(e.Index);
                 writer.Write(e.Generation);
             }
@@ -91,7 +109,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // 5. DIRTY SCAN & WRITE (PER TABLE)
             // ---------------------------------------------------------
-            var componentTables = repo.GetRegisteredComponentTypes();
+            var componentTables = repo.ComponentTablesForRecording;   // ⭐ CE-2045 — concrete: struct enumerator, no box per frame
             var entityIndex = repo.GetEntityIndex();
             
             // We write a "Chunk Blobs" count. 
@@ -221,19 +239,10 @@ namespace Fdp.Core.FlightRecorder
                 if (maxIndex < 0) continue;
                 
                 // Managed Component Support (Tier 2)
-                if (table.GetType().IsGenericType && 
-                    table.GetType().GetGenericTypeDefinition() == typeof(ManagedComponentTable<>))
+                // ⭐ CE-2045 — one cached lookup per TABLE type: it called GetGenericArguments() (a new Type[]) for every managed
+                //   table on every frame — the hot path's last per-table allocation.
+                if (ManagedRecorderFor(table.GetType()) is { } recorder)
                 {
-                    Type componentType = table.GetType().GetGenericArguments()[0];
-                    
-                    if (!_managedRecorders.TryGetValue(componentType, out var recorder))
-                    {
-                        var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter), 
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                            .MakeGenericMethod(componentType);
-                        recorder = (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
-                        _managedRecorders.TryAdd(componentType, recorder);
-                    }
                         
                     // Return chunk count delta
                     int delta = recorder(table, entityIndex, writer, prevTick);
@@ -356,7 +365,7 @@ namespace Fdp.Core.FlightRecorder
         
         private void RecordAllChunks(EntityRepository repo, BinaryWriter writer)
         {
-            var componentTables = repo.GetRegisteredComponentTypes();
+            var componentTables = repo.ComponentTablesForRecording;   // ⭐ CE-2045 — concrete: struct enumerator, no box per frame
             var entityIndex = repo.GetEntityIndex();
             
             writer.Flush(); // Flush before reading position
@@ -428,19 +437,10 @@ namespace Fdp.Core.FlightRecorder
             {
                 var table = kvp.Value;
                 if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
-                if (table.GetType().IsGenericType && 
-                    table.GetType().GetGenericTypeDefinition() == typeof(ManagedComponentTable<>))
+                // ⭐ CE-2045 — one cached lookup per TABLE type: it called GetGenericArguments() (a new Type[]) for every managed
+                //   table on every frame — the hot path's last per-table allocation.
+                if (ManagedRecorderFor(table.GetType()) is { } recorder)
                 {
-                    Type componentType = table.GetType().GetGenericArguments()[0];
-                    
-                    if (!_managedRecorders.TryGetValue(componentType, out var recorder))
-                    {
-                        var method = typeof(RecorderSystem).GetMethod(nameof(RecordManagedTableAdapter), 
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                            .MakeGenericMethod(componentType);
-                        recorder = (ManagedRecorderDelegate)Delegate.CreateDelegate(typeof(ManagedRecorderDelegate), method);
-                        _managedRecorders.TryAdd(componentType, recorder);
-                    }
                         
                     // For Keyframes, we force recording by passing prevTick = 0
                     int delta = recorder(table, entityIndex, writer, 0);
@@ -529,8 +529,7 @@ namespace Fdp.Core.FlightRecorder
             // Or use the formula directly since we know CHUNK_SIZE_BYTES
             if (type.IsValueType)
             {
-                 int size = System.Runtime.InteropServices.Marshal.SizeOf(type); // Safe for unmanaged
-                 return FdpConfig.CHUNK_SIZE_BYTES / size;
+                 return FdpConfig.GetChunkCapacity(type);   // ⭐ CE-2044 — the table's own formula (was CHUNK_SIZE / Marshal.SizeOf)
             }
             throw new InvalidOperationException($"Cannot determine chunk capacity for managed type {type.Name} in unmanaged path.");
         }
@@ -821,7 +820,7 @@ namespace Fdp.Core.FlightRecorder
 
         private void RecordSingletons(EntityRepository repo, BinaryWriter writer, uint prevTick)
         {
-            var tables = repo.GetSingletonTables();
+            var slots = repo.SingletonSlotsForRecording;   // ⭐ CE-2045 — index loop: the iterator allocated per frame
             
             // We need to write the count first, but we don't know how many are dirty.
             // So we write a placeholder, write data, then patch count.
@@ -829,8 +828,9 @@ namespace Fdp.Core.FlightRecorder
             writer.Write(0); // Placeholder
             int actualCount = 0;
 
-            foreach (var table in tables)
+            for (int slot = 0; slot < slots.Length; slot++)
             {
+                if (slots[slot] is not IComponentTable table) continue;
                 if (!ComponentTypeRegistry.IsRecordable(table.ComponentTypeId)) continue;
 
                 // Check version (Singletons are always in Chunk 0)

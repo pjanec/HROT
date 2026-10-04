@@ -26,6 +26,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\src\Fbt.Compiler\Fbt.Compiler.csproj" />
+    <!-- CE-2049: the registrar generator these tests exercise (GeneratorOutputTests, AutoDiscoveryTests).
+         Fbt.SourceGen was removed (81ba39406); its successor is FDP's own BTreeActionGenerator, which emits the
+         same [FbtRegistrar] FbtActionRegistrar into <assembly>.Generated, keyed by the FULLY QUALIFIED method name.
+         Analyzer-only: no runtime reference from this suite to Fdp.Toolkits. -->
+    <ProjectReference Include="..\..\..\..\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

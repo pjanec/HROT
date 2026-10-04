@@ -374,6 +374,107 @@ Eight templates ship as hand-written C# classes in `Engine.Eqs.Templates.Starter
 
 They serve as documentation-by-example and as runtime test fixtures.
 
+### 6.6a `FindSafeRetreatPoint` — design *(`2026-10-03`, CE-2051)* — ⛔ SUPERSEDED: built differently by §19.6 (CE-3030); kept as the record of the proposal, not the as-built
+
+📐 **Measured first.** As built, a test is a class with no weight or curve (§16), and `DistanceScoreTest` scores
+NEARNESS to the observer only (`1 - d / SearchRadius`, `DistanceScoreTest.cs`). The template's one reader is
+`CombatPostureDecision`'s `Flee` escape gate, `In.EqsTopScore(FindSafeRetreatPoint.AssetId)`. ⚠ **No shipped asset
+evaluates `CombatPostureDecision`**, and nothing in production spawns a cover or a retreat sensor (searched by AssetId,
+BlueprintId and the decision's id across `*.cs` and `*.json`). ⇒ building this changes no running behaviour today. It
+completes §6.6 #6 and lets the starter pack's `Flee` be tested end to end.
+
+*What the picture shows that prose hid: the template is three EXISTING pieces, and the only new thing is where one
+distance is measured FROM.*
+
+```mermaid
+classDiagram
+  class FindSafeRetreatPoint {
+    <<EqsTemplate>>
+    AssetId da31e4b9...
+    BlueprintId 0x9392175B
+    Build(IEqsTemplateBuilder) EqsQueryTemplate
+  }
+  class NavmeshSamplesGenerator {
+    <<existing>>
+    samples within SearchRadius of self
+  }
+  class NavmeshReachableTest {
+    <<existing>>
+    FilterExpensive
+  }
+  class DistanceScoreTest {
+    <<existing, extended>>
+    +Origin : DistanceOrigin
+    +FartherIsBetter : bool
+    ScoreCheap
+  }
+  class DistanceOrigin {
+    <<enumeration>>
+    Observer
+    NearestTrackedThreat
+  }
+  class TargetMemory {
+    <<existing>>
+    Positions, ThreatScores
+  }
+  class CombatPostureDecision {
+    <<existing>>
+    Flee gate EqsTopScore
+  }
+  FindSafeRetreatPoint --> NavmeshSamplesGenerator
+  FindSafeRetreatPoint --> NavmeshReachableTest
+  FindSafeRetreatPoint --> DistanceScoreTest : Origin NearestTrackedThreat, FartherIsBetter
+  DistanceScoreTest --> DistanceOrigin
+  DistanceScoreTest ..> TargetMemory : reads the observer's
+  CombatPostureDecision ..> FindSafeRetreatPoint : by AssetId
+```
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (Muscle)
+  participant G as NavmeshSamplesGenerator
+  participant R as NavmeshReachableTest
+  participant D as DistanceScoreTest
+  participant B as Brain (utility read)
+  S->>G: Generate - points within SearchRadius of self
+  S->>R: FilterExpensive - drop unreachable
+  S->>D: ScoreCheap - nearest tracked threat at or above ThreatThreshold
+  D-->>S: score += clamp(d / SearchRadius) per candidate
+  S-->>B: top-K published, EqsTopScore = best
+```
+
+*Who calls it: the solver answers any sensor naming the template; no production code spawns one, and no shipped asset
+evaluates the decision that reads it. Both are drawn as the dead edges they are.*
+
+```mermaid
+graph TD
+  EQS["EqsModule on the Muscle node"] --> SOLV["EqsSolverSystem"]
+  SOLV -- "a sensor names 0x9392175B" --> TPL["FindSafeRetreatPoint"]
+  REG["EqsTemplateRegistry.InstallDefault"] -- "discovers EqsTemplate classes" --> TPL
+  SPAWN["a sensor spawner - none in production"] -.-> SOLV
+  DEC["CombatPostureDecision - evaluated by no shipped asset"] -.-> TPL
+  style SPAWN stroke:#c00,stroke-dasharray: 5 5
+  style DEC stroke:#c00,stroke-dasharray: 5 5
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| the template | ⭐ `NavmeshSamplesGenerator` → `NavmeshReachableTest` (FilterExpensive) → `DistanceScoreTest { Origin = NearestTrackedThreat, FartherIsBetter = true }` (ScoreCheap), `MaxCandidates = 32` — exactly §6.6's "distance-from-threats + reachability" | — |
+| the scorer | ⭐ EXTEND `DistanceScoreTest` with `Origin` and `FartherIsBetter` — §5.2's one `Tst.Distance(fromContext, curve)`; defaults keep today's behaviour, so `FindCoverFromTarget` and its golden do not move | a new `DistanceFromThreatsScoreTest` — a second distance scorer (ruling 9) |
+| "from threats" | ⭐ the NEAREST `TargetMemory` entry whose `ThreatScore` ≥ `sensor.ThreatThreshold` — the observer's own threats, plural, with no spawner wiring | a context slot (slot 1 = Target, as `CheapLineOfSightTest`) — one threat, and every spawner must fill the slot · a `ContextSlot` origin as well — no consumer; add it when one appears |
+| no qualifying threat | ⭐ BYPASS (adds nothing), like `CheapLineOfSightTest` ⇒ `EqsTopScore` stays 0 | score 1 — reads as "escape found" when there is nothing to escape |
+| normalisation | ⭐ `clamp(d / SearchRadius, 0, 1)` — the falloff `DistanceScoreTest` already uses, saturating "safe" one search radius from the nearest threat | a per-test falloff in metres — a knob with no consumer |
+
+**Rails, when built:** `EqsFilterAndScoreTests` (the scorer's own suite) — farther-from-the-threat ranks higher, the
+threshold excludes a weak contact, no threat bypasses, `Origin = Observer` unchanged; `StandardInputReaderTests.CE2046_*`
+flips from "identity only" to "registered"; `EqsFlatTerrainGoldenTests` gets its scenario (it fails until one exists).
+
+**Design docs checked:** this document §6.6 (#6) — applies, it is the spec · §5.2 (`Tst.Distance(fromContext, curve)`)
+— applies, one distance scorer with a source and a direction · §16 — applies, tests are classes without weights, so
+"curve" becomes a flag · `.dev/_DONE/eqs-2/TASK-DETAIL.md` (starter templates deferred) and `IMPLEM_DETAILS.md:1793`
+("a `Distance` scorer to run away from threats") — apply, the same composition ·
+`docs/projects/FDP/Toolkits/Fdp.Toolkits.Utility.md` — the reader side, does not change.
+
 ---
 
 ## 7. The solver

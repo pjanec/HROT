@@ -1,3 +1,17 @@
+<!--STATUS
+state: LIVE (partly overtaken — see known-rot)
+updated: 2026-10-03
+current-answer: §2 (the builder and the generator); the size ceiling is §2.2's 16 096 bytes.
+stale-below: nothing moved; read known-rot before quoting §2.3.
+known-rot: ⛔ 2026-10-03 (CE-2049) — §2.3's generator "Fbt.SourceGen" was DELETED (81ba39406). Its successor is
+  Fdp.Toolkits.Analyzers BTreeActionGenerator, which emits the same [FbtRegistrar] FbtActionRegistrar into
+  <assembly>.Generated but keys each action by its FULLY QUALIFIED method name (not the short name). Fbt.Tests now
+  references it analyzer-only. ⛔ The 128-byte BTreeBuilder cap in .dev/_DONE/fluent-btree (FBT-006) is RETIRED: the
+  builder has no cap; the ceiling is checked where the params slot is made (BehaviorRegistry.Register, CE-307).
+related-designs:
+  - ../../blueprints/DESIGN_Unified_Behaviour_Run.md — owns how a BTree runs as one behaviour type among three
+    (hosting, occurrence slots); this document owns the C# builder and the action generator.
+-->
 # Fluent BTree Design
 
 **Project:** FDP/HROT — FastBTree C# Fluent Builder, Source Generator, Hot Reload & Debug Visualization  

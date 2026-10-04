@@ -63,13 +63,19 @@ namespace Hrot.CGF.Configuration
         }
 
         /// <summary>
-        /// Creates a <see cref="ScenarioBehaviorRemapper"/> pre-registered with all
-        /// CGF behavior param DTO types that carry <c>[RemapNetworkId]</c> properties.
-        /// Used by load handlers to rewrite network IDs after two-pass ID allocation.
+        /// Creates a <see cref="ScenarioBehaviorRemapper"/> pre-registered with every curated behaviour contract; each
+        /// contract's <c>EntityRef</c> members are rewritten after two-pass ID allocation
+        /// (<c>docs/blueprints/DESIGN_Entity_Reference.md</c> D3). Used by every scenario load step that loads
+        /// mission plans — CGF's and the editor's (CE-2056).
         /// </summary>
-        public static ScenarioBehaviorRemapper CreateBehaviorRemapper()
+        /// <param name="behaviorRegistry">
+        /// ⭐ <c>CE-2054</c> — the node's behaviour registry, so a behaviour whose contract is not a
+        /// <c>[BehaviorContract]</c> DTO (a blueprint behaviour's generated <c>Params</c>) is remapped by its own
+        /// type. ⛔ A host that HAS one must pass it; <c>null</c> leaves only the curated contracts.
+        /// </param>
+        public static ScenarioBehaviorRemapper CreateBehaviorRemapper(BehaviorRegistry? behaviorRegistry = null)
         {
-            var remapper = new ScenarioBehaviorRemapper();
+            var remapper = new ScenarioBehaviorRemapper(behaviorRegistry);
             BehaviorSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper);
             return remapper;
         }

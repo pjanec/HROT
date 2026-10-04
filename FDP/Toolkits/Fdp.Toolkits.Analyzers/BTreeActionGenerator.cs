@@ -369,14 +369,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("                });");
         }
 
-
-        // ---- FNV-1a hash (identical to HsmActionGenerator) ---------------------
-        private static ushort ComputeHash(string name)
-        {
-            uint hash = 2166136261;
-            foreach (char c in name) { hash ^= c; hash *= 16777619; }
-            return (ushort)(hash & 0xFFFF);
-        }
     }
 
     // ---- Data types ------------------------------------------------------------

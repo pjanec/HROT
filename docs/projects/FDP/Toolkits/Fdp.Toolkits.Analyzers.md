@@ -434,9 +434,10 @@ Recognized attributes:
 > mutations during chunk iteration corrupt the chunk arrays.  Only read/write fields of
 > existing components.
 
-**FNV-1a hash**: Both `BTreeActionGenerator` and `HsmActionGenerator` use the same 16-bit
-FNV-1a hash to compute `ushort` action/guard IDs from string keys.  The implementations are
-kept identical to guarantee cross-assembly consistency when compound keys are used.
+**FNV-1a hash**: `HsmActionGenerator` computes `ushort` action/guard ids through the shared
+`Shared/HsmActionKey.cs`; the utility generators through `Shared/UtilityIdHash.cs`. `BTreeActionGenerator`
+registers by key STRING and hashes nothing — ⛔ its private `ComputeHash` copy was unreferenced and was
+deleted (`CE-2050`, `2026-10-03`).
 
 ---
 

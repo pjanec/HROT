@@ -11,6 +11,7 @@ owns-beyond-its-title: ⭐⭐⭐ THIS DOCUMENT IS THE DEEPEST TREATMENT OF CHILD
   it is filed under a CGF-scenario-loading programme and reaches children only because extraction must
   AVOID them. That is exactly the miss shape the related-designs rule exists for.
 related-designs:
+  - ../../blueprints/DESIGN_Entity_Reference.md — the `EntityRef` TYPE is the remap schema now; `[RemapNetworkId]` and the extractor's hand-coded intent cases are retired (2026-10-03).
   - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Draws request → spawn → grant →
     ghost → promotion → takeover → Active end to end and routes each stage to its owner. Its §6 and
     stage ⑪ point HERE for children.
@@ -19,9 +20,12 @@ related-designs:
   - ../replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN).
   - ../../DESIGN_Distributed_Scenario_Persistence.md — owns which FILE(S) each node LOADS in a
     distributed run (per-node files, brain-canonical) and re-ownership at load. This file owns the
-    genesis PIPELINE that materialises them.
+    genesis PIPELINE that materialises them.  - ../../blueprints/DESIGN_Unified_Behaviour_Run.md — "S8o" owns the remap of a BLUEPRINT behaviour's params
+    (contract type from the behaviour registry, nested contracts); this file owns the per-name remapper seam.
 -->
 # Design: CGF Scenario Loading via Genesis Pipeline
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../blueprints/DESIGN_Map_Picking_Unification.md):** `MapPickableWorldLocationAttribute` and `IPickInteractionContext` (the C008/C009 sections below) are deleted: the TYPE makes a member pickable and `IMapPickContext` with path keys is the one pick context.
 
 ## Context
 
@@ -402,6 +406,12 @@ Responsibilities:
 
 ### Task C005: Behavior Param Remapping
 
+> ⛔ **SUPERSEDED `2026-10-03` — C005a and C005c below are history.** `RemapNetworkIdAttribute` and
+> `BehaviorParamRemapperCompiler` are deleted: the authored id member is TYPED `EntityRef`, and one type plan
+> (`EntityRefRemap`) remaps it in behaviour JSON and in every extracted component, lists and nested structs included.
+> `ScenarioBehaviorRemapper` (C005b) survives and compiles through that plan. 📄
+> [DESIGN_Entity_Reference.md](../../blueprints/DESIGN_Entity_Reference.md) D3/D4.
+
 Define the remapping infrastructure used by `StagingEntityExtractor` to patch
 network IDs embedded in behavior JSON strings.
 
@@ -447,6 +457,15 @@ Compile steps at startup (cold path):
 
 Both `int` and `long` fields decorated with `[RemapNetworkId]` must be handled
 (safe widening from `long` → value is applied back as `int` after clamping).
+
+> ⛔ **SUPERSEDED in part, `2026-10-03` (CE-2054)** — steps 2–3 (expression-tree mutator + deserialize → mutate →
+> re-serialize) are replaced by a JSON walk per contract TYPE: `[RemapNetworkId]` `long`/`int` fields AND properties,
+> recursing into a member whose type holds ids, rewriting the JSON in place and returning the original string when
+> nothing changed. ⭐ Why: a blueprint behaviour's contract is its generated `Params` struct, whose fields are curated
+> contracts (the id is one object down), and re-serialising it would write absent keys back as `0` over the
+> Parameter's declared defaults. C005d gains a registry source: given a `BehaviorRegistry`, `RemapJson` takes the
+> behaviour's `JsonParamsDtoType`; the per-name `Register` table is the fallback. 📄
+> [`DESIGN_Unified_Behaviour_Run.md`](../../blueprints/DESIGN_Unified_Behaviour_Run.md) "S8o".
 
 #### C005d — ScenarioBehaviorRemapper
 

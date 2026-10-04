@@ -33,5 +33,13 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// domain errors via <c>bridge.TraceContext-&gt;WriteError(...)</c>.
         /// </summary>
         public HsmTraceContext* TraceContext;
+
+        /// <summary>
+        /// ⭐ <c>CE-2002</c> — the occurrence this machine runs as: <c>0</c> at the root, <c>HostedKeyAt(parent, site)</c> when
+        /// hosted. <c>HsmOccurrence.KeyFor</c> nests every lazily-attached occurrence of this machine under it, so the same
+        /// HSM child at two sites keeps two sets of working states. Set by <c>HsmRunner</c> from its run context.
+        /// 📄 <c>docs/blueprints/DESIGN_Unified_Behaviour_Run.md</c> "S8k".
+        /// </summary>
+        public int OccurrenceKey;
     }
 }

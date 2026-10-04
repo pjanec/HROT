@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Replication.Services;
 ///   <item><c>EditorMissionService</c> — filtered, ⛔ but <c>GetComponent</c> *(a struct copy)* and no
 ///   null-repo guard</item>
 ///   <item><c>EditorSubsystem</c> — filtered, ⛔ <c>GetComponent</c></item>
-///   <item><c>MapPickServiceBridge</c> — ⭐ the closest: filtered + <c>GetComponentRO</c> + guards</item>
+///   <item><c>MapPickServiceBridge</c> (now <c>MapPickBroker</c>) — ⭐ the closest: filtered + <c>GetComponentRO</c> + guards</item>
 /// </list>
 /// ⇒ ⭐ <b>the best of the four</b>: the FILTERED query *(so the scan visits only networked entities)*,
 /// <c>GetComponentRO</c> *(no copy)*, and both guards — ⛔ and none of them was the keeper as it stood.</para>

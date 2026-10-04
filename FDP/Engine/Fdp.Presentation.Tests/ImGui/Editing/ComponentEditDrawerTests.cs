@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Replication;
 using StructEdit.Core;
 using StructEdit.Reflection;
 using Xunit;
@@ -79,9 +80,9 @@ file sealed class FakeContainerBinding : IContainerBinding
 }
 
 /// <summary>
-/// IComponentPickerContext spy that records method calls.
+/// IMapPickContext spy that records method calls.
 /// </summary>
-file sealed class SpyPickerContext : IComponentPickerContext
+file sealed class SpyPickerContext : IMapPickContext
 {
     private readonly HashSet<string> _pendingPaths = new();
     public List<string> RequestEntityPickCalls { get; } = new();
@@ -97,16 +98,23 @@ file sealed class SpyPickerContext : IComponentPickerContext
     public void RequestLocationPick(string jsonPath) =>
         RequestLocationPickCalls.Add(jsonPath);
 
-    public bool TryConsumeEntityPick(string jsonPath, out Entity pickedEntity)
+    public EntityRef PendingResult;
+
+    public bool TryConsumeEntityPick(string jsonPath, out EntityRef picked)
     {
-        pickedEntity = default;
-        return false;
+        picked = PendingResult;
+        PendingResult = default;
+        return !picked.IsNone;
     }
 
-    public bool TryConsumeLocationPick(string jsonPath, out Vector3 location)
+    public Fdp.Toolkit.Behavior.Params.PickableGeoPoint? PendingLocation;
+
+    public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
     {
-        location = default;
-        return false;
+        location = PendingLocation ?? default;
+        bool had = PendingLocation.HasValue;
+        PendingLocation = null;
+        return had;
     }
 }
 
@@ -293,5 +301,97 @@ public class ComponentEditDrawerTests
         var drawer  = new ComponentEditDrawer(session, ctx);
 
         Assert.NotNull(drawer);
+    }
+
+    // ── DESIGN_Entity_Reference D5 — the TYPE makes a component field pickable ─────────────────────────────────────
+
+    private struct RefComp
+    {
+        [Fdp.Toolkit.Behavior.Attributes.MapPickableEntity("tanks")]
+        public EntityRef Target;
+        public float X;
+    }
+
+    /// <summary>
+    /// ⭐⭐ An <see cref="EntityRef"/> field is ONE leaf (not a struct with a read-only field) and a completed pick writes
+    /// the picked NETWORK id into the component. 🔴 Without <see cref="PickableLeafFieldEditor"/> the field is a struct node
+    /// the drawer never offers a picker for, and the pick is never consumed.
+    /// </summary>
+    [Fact]
+    public void D5_AnEntityRefField_IsOneLeaf_AndAPickLandsInTheComponent()
+    {
+        var service = new ComponentEditServiceBuilder()
+            .RegisterFieldEditor<EntityRef>(new PickableLeafFieldEditor(typeof(EntityRef)))
+            .Build();
+        using var session = service.Open(new RefComp { Target = new EntityRef(5), X = 2f }, typeof(RefComp));
+
+        var root = session.Document.Root;
+        var structNode = root.Kind == EditNodeKind.SelectionRoot ? root.Children.First() : root;
+        var target = structNode.Children.Single(c => c.Name == nameof(RefComp.Target));
+        Assert.Equal(EditNodeKind.Scalar, target.Kind);
+        Assert.Equal(typeof(EntityRef), target.ClrType);
+
+        var picker = new SpyPickerContext { PendingResult = new EntityRef(1001) };
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("D5");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, picker).DrawEditNode(root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+
+        var committed = (RefComp)session.Commit();
+        Assert.Equal(new EntityRef(1001), committed.Target);
+        Assert.Equal(2f, committed.X);
+    }
+
+    private struct LocComp
+    {
+        public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+        public float X;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>DESIGN_Map_Picking_Unification</c> P5 — a <c>PickableGeoPoint</c> field is ONE leaf with a map picker by its
+    /// TYPE (no attribute), and a completed pick writes the geodetic point into the component. 🔴 Without the leaf editor
+    /// it is a struct node the drawer offers no picker for.
+    /// </summary>
+    [Fact]
+    public void P5_APickableGeoPointField_IsOneLeaf_AndALocationPickLandsInTheComponent()
+    {
+        var service = new ComponentEditServiceBuilder()
+            .RegisterFieldEditor<Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(
+                new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)))
+            .Build();
+        using var session = service.Open(new LocComp { X = 2f }, typeof(LocComp));
+
+        var root = session.Document.Root;
+        var structNode = root.Kind == EditNodeKind.SelectionRoot ? root.Children.First() : root;
+        var where = structNode.Children.Single(c => c.Name == nameof(LocComp.Where));
+        Assert.Equal(EditNodeKind.Scalar, where.Kind);
+
+        var picker = new SpyPickerContext { PendingLocation = new Fdp.Toolkit.Behavior.Params.PickableGeoPoint(50.1, 14.4) };
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("P5");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, picker).DrawEditNode(root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+
+        var committed = (LocComp)session.Commit();
+        Assert.Equal(50.1, committed.Where.Latitude);
+        Assert.Equal(14.4, committed.Where.Longitude);
+        Assert.Equal(2f, committed.X);
     }
 }

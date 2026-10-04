@@ -170,6 +170,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             }
             else
             {
+                // ⭐ CE-2049 — the registrar names Fhsm.Kernel types, so a compilation that cannot see Fhsm.Kernel gets no
+                //   registrar: emitting it there is a guaranteed CS0246 and never a working one. 📌 Measured on Fbt.Tests,
+                //   a FastBTree-only assembly that references this analyzer for its BTreeActionGenerator.
+                if (compilation.GetTypeByMetadataName("Fhsm.Kernel.Attributes.HsmActionAttribute") is null)
+                    return;
+
                 string namespaceName = assemblyName + ".Generated";
                 var source = GenerateRegistrar(actions, guards, sharedAiEntries, namespaceName);
                 context.AddSource("HsmActionRegistrar.g.cs", source);

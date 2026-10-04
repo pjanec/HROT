@@ -83,9 +83,9 @@ namespace Fdp.Toolkit.Tests
             //    `A2_R5_ResolveOccurrence_LandsAtTheAllocatorsOwnOffset`. 📄 §30.16 ④.
 
             // ── P0.6: EQS sensor child entities ──────────────────────────────────────
-            var coverSensor = w.SpawnEqsSensor(agent, Fnv1a32("CoverQuery"), topScore: 0.85f, count: 3, instanceId: 0);
+            var coverSensor = w.SpawnEqsSensor(agent, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
             Assert.True(w.Repo.HasComponent<EqsSensor>(coverSensor));
-            Assert.Equal(Fnv1a32("CoverQuery"), w.Repo.GetComponentRO<EqsSensor>(coverSensor).BlueprintId);
+            Assert.Equal(global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, w.Repo.GetComponentRO<EqsSensor>(coverSensor).BlueprintId);
             Assert.Equal(3, w.Repo.GetComponentRO<EqsCognitiveBuffer>(coverSensor).Count);
             Assert.Equal(0.85f, w.Repo.GetComponentRO<EqsCognitiveBuffer>(coverSensor).GetSpanRO()[0].Score,
                          precision: 3);
@@ -95,6 +95,5 @@ namespace Fdp.Toolkit.Tests
 
         // Small struct for Blackboard projection test
         private struct TestProjectionStruct { public int Value; }
-        private static uint Fnv1a32(string name) => UtilityTestWorld.Fnv1a32(name);
     }
 }

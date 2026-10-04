@@ -170,6 +170,9 @@ public static class BlueprintDocumentFactory
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
+        // ⭐ DESIGN_Entity_Reference D6 — an EntityRef default is its network id, typed as text; DefaultLiteral rejects a
+        // non-integer with a reason. (A blueprint is reusable, so a concrete entity normally arrives through a parameter.)
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.EntityRef), new StringPinEditor());
         // Wrap with the enum-sentinel interceptor so any TypeKey starting with "global::" returns
         // an EnumPinEditor backed by BlueprintEnumValueProvider (AN6).
         // The inner registry handles all non-enum (primitive / FixedString) TypeKeys.

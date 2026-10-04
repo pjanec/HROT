@@ -1,10 +1,15 @@
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
+using Fdp.Toolkit.Replication;
 using Hrot.Map.Definitions;
 
 namespace Hrot.Common.Serializers
 {
+    // ⭐ DESIGN_Entity_Reference.md D4 — every cross-entity id below is an EntityRef, so the scenario extractor remaps it
+    //    through the ONE type plan (EntityRefRemap.RemapObject) instead of a hand-coded case per intent; a new intent
+    //    with an EntityRef member is remapped without touching the extractor.
+
     /// <summary>
     /// Managed Intent DTO component that stores the list of passenger Network IDs
     /// for an embarked unit's vehicle during scenario genesis.
@@ -18,7 +23,7 @@ namespace Hrot.Common.Serializers
     public sealed class InitialPassengersIntent
     {
         /// <summary>Network IDs of all passenger entities at scenario load time.</summary>
-        public List<long> PassengerNetworkIds { get; set; } = new();
+        public List<EntityRef> PassengerNetworkIds { get; set; } = new();
     }
 
     /// <summary>
@@ -34,7 +39,7 @@ namespace Hrot.Common.Serializers
     public sealed class InitialVehicleIntent
     {
         /// <summary>Network ID of the vehicle entity this soldier is embarked in.</summary>
-        public long VehicleNetworkId { get; set; }
+        public EntityRef VehicleNetworkId { get; set; }
     }
 
     /// <summary>
@@ -51,13 +56,13 @@ namespace Hrot.Common.Serializers
     public sealed class InitialHierarchyIntent
     {
         /// <summary>Network ID of the parent entity (0 = no parent).</summary>
-        public long ParentNetworkId { get; set; }
+        public EntityRef ParentNetworkId { get; set; }
 
         /// <summary>Network ID of the first-child entity (0 = no first child).</summary>
-        public long FirstChildNetworkId { get; set; }
+        public EntityRef FirstChildNetworkId { get; set; }
 
         /// <summary>Network ID of the next-sibling entity (0 = no next sibling).</summary>
-        public long NextSiblingNetworkId { get; set; }
+        public EntityRef NextSiblingNetworkId { get; set; }
     }
 
     /// <summary>
@@ -73,7 +78,7 @@ namespace Hrot.Common.Serializers
     public sealed class InitialRouteIntent
     {
         /// <summary>Network ID of the personal route entity (0 = none).</summary>
-        public long RouteNetworkId { get; set; }
+        public EntityRef RouteNetworkId { get; set; }
     }
 
     /// <summary>
@@ -83,7 +88,7 @@ namespace Hrot.Common.Serializers
     public struct TargetEntry
     {
         /// <summary>Network ID of the perceived target entity.</summary>
-        public long  NetworkId;
+        public EntityRef NetworkId;
 
         /// <summary>Last known X position of the target (world units).</summary>
         public float PosX;
@@ -135,7 +140,7 @@ namespace Hrot.Common.Serializers
     public sealed class InitialUnitSubordinateIntent
     {
         /// <summary>Network ID of the commander entity (0 = unassigned).</summary>
-        public long CommanderNetworkId { get; set; }
+        public EntityRef CommanderNetworkId { get; set; }
 
         /// <summary>Tactical role of this entity within the commander's unit.</summary>
         public TacticalDesignation Designation { get; set; }

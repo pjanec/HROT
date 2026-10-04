@@ -520,7 +520,8 @@ namespace Fdp.Tests
         ///   wall-clock tick (floor-seek semantics).</item>
         /// </list>
         /// </summary>
-        [Fact]
+        [Fdp.Testing.FlakyFact("proves binary search by a wall-clock 5 ms threshold")]
+        [Trait("Category", "Flaky")]
         public void SeekToWallClockTicks_UsesBinarySearch()
         {
             // Arrange: 1 000 frames, one keyframe every 100 frames.

@@ -35,7 +35,7 @@ public enum InputParamKind
 {
     /// <summary>No parameter (e.g., In.HealthFraction()).</summary>
     None,
-    /// <summary>A string template name (e.g., In.EqsTopScore("CoverQuery")).</summary>
+    /// <summary>A string — for the EQS inputs, the template's AssetId (e.g., In.EqsTopScore(FindCoverFromTarget.AssetId)).</summary>
     String,
     /// <summary>A float value (e.g., In.Constant(0.5f)).</summary>
     Float,

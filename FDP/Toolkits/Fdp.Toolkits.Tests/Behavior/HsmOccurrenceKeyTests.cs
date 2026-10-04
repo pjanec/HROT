@@ -122,7 +122,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
             var page = default(CommandPage);
             var writer = new HsmCommandWriter(&page);
             var hdr = new InstanceHeader { MachineId = HostMachine };
-            try { HsmOccurrence.KeyFor(&hdr, Child, &writer); }
+            var bridge = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge();
+            try { HsmOccurrence.KeyFor(&hdr, &bridge, Child, &writer); }
             catch (InvalidOperationException ex) { thrown = ex; }
         }
 
@@ -1058,6 +1059,52 @@ public sealed unsafe class HsmOccurrenceKeyTests
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-2001</c> — two machines of ONE shape seed from their OWN variables.</b> 📄
+    /// <c>DESIGN_Unified_Behaviour_Run.md</c> "S8j". 🔴 Keyed by the topology-only <c>StructureHash</c>, the second
+    /// registrar overwrote the first's state-wide seeds (site <c>Guid.Empty</c>), so machine A read machine B's variable.
+    /// </summary>
+    [Fact]
+    public void CE2001_TwoMachinesOfOneShape_SeedFromTheirOwnBoundVariables()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var stateA = new Guid("20010000-0000-0000-0000-0000000000a1");
+            var stateB = new Guid("20010000-0000-0000-0000-0000000000b1");
+            var machineA = BlobWithMetadata(stateA, stateB);
+            var machineB = BlobWithMetadata(stateA, stateB);
+            machineA.IdentityHash = 0xA;   // what HsmEmitter sets from two different machine names
+            machineB.IdentityHash = 0xB;
+            Assert.Equal(machineA.Header.StructureHash, machineB.Header.StructureHash);   // one shape
+
+            HsmParamBindings.Register(machineA, new[] { (stateA, 0), (stateB, 8) });
+            HsmParamBindings.Register(machineB, new[] { (stateA, 16), (stateB, 24) });
+
+            Assert.Equal(0,  HsmParamBindings.SeedOffsetFor(machineA.MachineId, stateId: 1));
+            Assert.Equal(8,  HsmParamBindings.SeedOffsetFor(machineA.MachineId, stateId: 2));
+            Assert.Equal(16, HsmParamBindings.SeedOffsetFor(machineB.MachineId, stateId: 1));
+            Assert.Equal(24, HsmParamBindings.SeedOffsetFor(machineB.MachineId, stateId: 2));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2001</c> — the occurrence key of a child hosted by two same-shape machines differs.</b> The key nests
+    /// under the HOST identity read from <c>InstanceHeader.MachineId</c> (§24.9), which is now the machine, not the shape.
+    /// </summary>
+    [Fact]
+    public void CE2001_TwoMachinesOfOneShape_KeyAHostedChildApart()
+    {
+        var a = BuildTwoRegionBlob(actionId: 0); a.IdentityHash = 0xA;
+        var b = BuildTwoRegionBlob(actionId: 0); b.IdentityHash = 0xB;
+        var child = new Guid("20010000-0000-0000-0000-0000000000c1");
+
+        Assert.NotEqual(
+            HsmOccurrence.KeyFor(a.MachineId, child, regionSlotIndex: 0, stateId: 1),
+            HsmOccurrence.KeyFor(b.MachineId, child, regionSlotIndex: 0, stateId: 1));
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>Rail ㉙ — an UNBOUND state seeds from 0: the pre-<c>E3b-0</c> behaviour, byte-for-byte.</b>
     ///
     /// <para>⛔ Unbound is the COMMON case — every asset authored before this, and every state that
@@ -1878,7 +1925,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
             (Guid.NewGuid(), "NotInThisMachine", 9999),   // ⛔ skipped, not guessed
         });
 
-        Assert.True(HsmHostedSubtrees.TryGetForMachine(blob.Header.StructureHash, out var entries));
+        Assert.True(HsmHostedSubtrees.TryGetForMachine(blob.MachineId, out var entries));
         var only = Assert.Single(entries);
         Assert.Equal((ushort)2, only.StateIndex);      // ⭐ the JOIN — B is flat index 2
         Assert.Equal("ChildB", only.ChildName);
@@ -1888,7 +1935,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
         HsmHostedSubtrees.ClearForTests();
         var bare = BuildTwoRegionBlob(actionId: 0);
         HsmHostedSubtrees.Register(bare, new (Guid, string, int)[] { (HostStateA, "ChildA", 1) });
-        Assert.False(HsmHostedSubtrees.TryGetForMachine(bare.Header.StructureHash, out _));
+        Assert.False(HsmHostedSubtrees.TryGetForMachine(bare.MachineId, out _));
     }
 
     /// <summary>
@@ -2197,7 +2244,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
     {
         _capturedRegion = writer->OccurrenceRegionSlotIndex;
         _capturedState = writer->OccurrenceStateId;
-        _capturedKey = HsmOccurrence.KeyFor(instance, Child, writer);
+        _capturedKey = HsmOccurrence.KeyFor(instance, context, Child, writer);
     }
 
     /// <summary>Drives one real kernel tick so the stamp comes from production code, not a test setter.</summary>
@@ -2222,7 +2269,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
         inst.Header.Phase = InstancePhase.Entry;
         for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;   // see HsmOccurrenceStampTests
 
-        var ctx = 0;
+        var ctx = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge();   // CE-2002 — the thunk reads its OccurrenceKey (0 = root)
         var page = default(CommandPage);
         Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
 

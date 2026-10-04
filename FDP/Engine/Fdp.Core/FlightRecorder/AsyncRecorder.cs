@@ -21,6 +21,18 @@ namespace Fdp.Core.FlightRecorder
         // Double Buffers (pre-allocated)
         private byte[] _frontBuffer;
         private byte[] _backBuffer;
+        // ⭐ CE-2045 — one long-lived stream + writer per buffer, swapped WITH it: a frame rewinds instead of allocating a
+        //   MemoryStream and a BinaryWriter (104 B/frame on the hot path, measured). Fdp.Core.md: "no heap allocation on the hot path".
+        // ⭐ CE-2045 — the worker's arguments live in fields and its delegate is cached, so a dispatch allocates only the Task
+        //   (the per-frame lambda captured a closure + a delegate). Safe: at most ONE worker is ever outstanding — a capture
+        //   waits for (blocking) or drops on (non-blocking) the previous one before it dispatches.
+        private byte[]? _pendingBuffer;
+        private int _pendingBytes;
+        private Action? _processPending;
+        private MemoryStream _frontStream;
+        private BinaryWriter _frontWriter;
+        private MemoryStream _backStream;
+        private BinaryWriter _backWriter;
         
         // Pre-allocated write buffer with 4-byte header space (zero-allocation)
         private readonly byte[] _writeBuffer;
@@ -81,6 +93,10 @@ namespace Fdp.Core.FlightRecorder
 
             _frontBuffer = new byte[BUFFER_SIZE];
             _backBuffer = new byte[BUFFER_SIZE];
+            _frontStream = new MemoryStream(_frontBuffer);
+            _frontWriter = new BinaryWriter(_frontStream);
+            _backStream  = new MemoryStream(_backBuffer);
+            _backWriter  = new BinaryWriter(_backStream);
             _writeBuffer = new byte[BUFFER_SIZE + 4]; // Pre-allocate for length prefix
             
             // Allocate compression buffer (Worst case size)
@@ -132,7 +148,7 @@ namespace Fdp.Core.FlightRecorder
             {
                 if (blocking)
                 {
-                    _workerTask.Wait();
+                    WaitForWorker();
                 }
                 else
                 {
@@ -148,16 +164,11 @@ namespace Fdp.Core.FlightRecorder
             // 2. CAPTURE (Main Thread - Hot Path - ZERO ALLOCATION)
             int bytesWritten = 0;
             
-            using (var ms = new MemoryStream(_frontBuffer))
-            using (var writer = new BinaryWriter(ms))
-            {
-                // Use the logic from FDP-DES-002
-                // Use the logic from FDP-DES-002
-                _recorderSystem.RecordDeltaFrame(repo, prevTick, writer, wallClockTicks, eventBus);
-                writer.Flush();
-                
-                bytesWritten = (int)ms.Position;
-            }
+            _frontStream.Position = 0;
+            // Use the logic from FDP-DES-002
+            _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus);
+            _frontWriter.Flush();
+            bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log after recording
             repo.ClearDestructionLog();
@@ -167,10 +178,14 @@ namespace Fdp.Core.FlightRecorder
             var freeBuffer = _backBuffer;
             _frontBuffer = freeBuffer;
             _backBuffer = dataToWrite;
+            (_frontStream, _backStream) = (_backStream, _frontStream);
+            (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
             // 4. DISPATCH WORKER
             // Capture 'bytesWritten' by value closure
-            _workerTask = Task.Run(() => ProcessBuffer(dataToWrite, bytesWritten));
+            _pendingBuffer = dataToWrite;
+            _pendingBytes  = bytesWritten;
+            _workerTask = Task.Run(_processPending ??= () => ProcessBuffer(_pendingBuffer!, _pendingBytes));
             
             RecordedFrames++;
         }
@@ -185,17 +200,14 @@ namespace Fdp.Core.FlightRecorder
         public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
         {
             // Wait for previous frame to complete
-            _workerTask?.Wait();
+            WaitForWorker();
             
             int bytesWritten = 0;
             
-            using (var ms = new MemoryStream(_frontBuffer))
-            using (var writer = new BinaryWriter(ms))
-            {
-                _recorderSystem.RecordKeyframe(repo, writer, wallClockTicks, eventBus);
-                writer.Flush();
-                bytesWritten = (int)ms.Position;
-            }
+            _frontStream.Position = 0;
+            _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus);
+            _frontWriter.Flush();
+            bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log
             repo.ClearDestructionLog();
@@ -205,12 +217,16 @@ namespace Fdp.Core.FlightRecorder
             var freeBuffer = _backBuffer;
             _frontBuffer = freeBuffer;
             _backBuffer = dataToWrite;
+            (_frontStream, _backStream) = (_backStream, _frontStream);
+            (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
-            _workerTask = Task.Run(() => ProcessBuffer(dataToWrite, bytesWritten));
+            _pendingBuffer = dataToWrite;
+            _pendingBytes  = bytesWritten;
+            _workerTask = Task.Run(_processPending ??= () => ProcessBuffer(_pendingBuffer!, _pendingBytes));
             
             if (blocking)
             {
-                _workerTask.Wait();
+                WaitForWorker();
             }
             
             RecordedFrames++;
@@ -219,6 +235,22 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>
         /// Runs on ThreadPool - ZERO ALLOCATION (uses pre-allocated buffers)
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2045</c> — wait for the outstanding worker WITHOUT allocating: <c>Task.Wait()</c> allocates a wait handle
+        /// whenever it has to block (measured ~56 B), and a blocking capture is on the main thread. A completed task is then
+        /// <c>Wait()</c>-ed once, which allocates nothing and still rethrows a worker failure.
+        /// </summary>
+        private void WaitForWorker()
+        {
+            var task = _workerTask;
+            if (task == null) return;
+            var spin = new SpinWait();
+            // sleep1Threshold: -1 — yield, never Sleep(1): a blocking capture must wake the moment the worker finishes
+            //   (Sleep(1) would add up to ~1 ms per stall, which Task.Wait's event wake does not).
+            while (!task.IsCompleted) spin.SpinOnce(sleep1Threshold: -1);
+            task.Wait();
+        }
+
         private void ProcessBuffer(byte[] rawData, int length)
         {
             try
@@ -288,6 +320,8 @@ namespace Fdp.Core.FlightRecorder
             
             _workerTask?.Wait();
             _outputStream?.Dispose();
+            _frontWriter.Dispose();
+            _backWriter.Dispose();
             
             try
             {
@@ -334,7 +368,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[componentId] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),
@@ -343,7 +377,7 @@ namespace Fdp.Core.FlightRecorder
                 }
                 catch
                 {
-                    // Skip empty marker/tag structs that Marshal.SizeOf cannot handle.
+                    // Skip a type the layout cannot be computed for (an open generic, a pointer, …).
                 }
             }
 
@@ -372,7 +406,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[attr.Id] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
                             : ComponentLayoutHasher.ComputeManagedHash(type),

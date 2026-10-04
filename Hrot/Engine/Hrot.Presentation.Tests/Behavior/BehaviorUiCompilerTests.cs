@@ -9,16 +9,16 @@ namespace Hrot.Presentation.Tests.Behavior
     /// <summary>Tests for TASK-C009: BehaviorUiCompiler and BehaviorUiRegistry.</summary>
     public sealed class BehaviorUiCompilerTests
     {
-        // Null implementation of IPickInteractionContext for tests that do not exercise pick flow.
-        private sealed class NullPickContext : IPickInteractionContext
+        // Null pick context for tests that do not exercise the pick flow.
+        private sealed class NullPickContext : Fdp.Presentation.Editing.IMapPickContext
         {
-            public bool IsPickPendingFor(int taskIndex, string propertyName) => false;
-            public bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
-            { entityId = 0; return false; }
-            public bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
+            public bool IsPickPendingFor(string path) => false;
+            public bool TryConsumeEntityPick(string path, out Fdp.Toolkit.Replication.EntityRef picked)
+            { picked = default; return false; }
+            public bool TryConsumeLocationPick(string path, out PickableGeoPoint location)
             { location = default; return false; }
-            public void RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets) { }
-            public void RequestLocationPick(int taskIndex, string propertyName) { }
+            public void RequestEntityPick(string path, string[]? filterPresets) { }
+            public void RequestLocationPick(string path) { }
         }
 
         // ── C009 SC1: Compile<T> returns non-null delegate ────────────────────
@@ -57,6 +57,76 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.True(ReferenceEquals(d1, d3), "d3 must return cached delegate from d1");
         }
 
+        // ── CE-2023 ③ (S8n): the contracts are STRUCTS — a pick must land in the JSON, not in a copy ──
+
+        private sealed class PickingContext : Fdp.Presentation.Editing.IMapPickContext
+        {
+            public long Entity;
+            public PickableGeoPoint? Location;
+            public readonly System.Collections.Generic.List<string> AskedPaths = new();
+            public bool IsPickPendingFor(string path) => false;
+            public bool TryConsumeEntityPick(string path, out Fdp.Toolkit.Replication.EntityRef picked)
+            { AskedPaths.Add(path); picked = new Fdp.Toolkit.Replication.EntityRef(Entity); return Entity != 0; }
+            public bool TryConsumeLocationPick(string path, out PickableGeoPoint location)
+            { AskedPaths.Add(path); location = Location ?? default; return Location.HasValue; }
+            public void RequestEntityPick(string path, string[]? filterPresets) { }
+            public void RequestLocationPick(string path) { }
+        }
+
+        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, Fdp.Presentation.Editing.IMapPickContext pick)
+        {
+            var ctx = ImGuiNET.ImGui.CreateContext();
+            ImGuiNET.ImGui.SetCurrentContext(ctx);
+            var io = ImGuiNET.ImGui.GetIO();
+            io.DisplaySize = new System.Numerics.Vector2(1024, 768);
+            io.DeltaTime   = 1.0f / 60.0f;
+            io.Fonts.AddFontDefault();
+            io.Fonts.Build();
+            try
+            {
+                ImGuiNET.ImGui.NewFrame();
+                ImGuiNET.ImGui.Begin("CE2023");
+                string result = draw(json, 0, pick);
+                ImGuiNET.ImGui.End();
+                ImGuiNET.ImGui.Render();
+                return result;
+            }
+            finally { ImGuiNET.ImGui.DestroyContext(ctx); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2023</c> ③ — an entity pick on the (now struct) <c>FireAtTarget</c> contract is written into the JSON the
+        /// mission panel stores. 🔴 With a by-value setter the pick lands in a COPY and the old id comes back.
+        /// </summary>
+        [Fact]
+        public void CE2023_AnEntityPickOnAStructContract_LandsInTheJson()
+        {
+            Assert.True(typeof(FireAtTargetParamsJsonDto).IsValueType);
+            var draw = BehaviorUiCompiler.Compile<FireAtTargetParamsJsonDto>();
+
+            var ctx = new PickingContext { Entity = 99 };
+            string result = DrawOneFrame(draw, "{\"targetNetworkId\":42,\"maxRounds\":5,\"cooldownSeconds\":1.0}", ctx);
+
+            Assert.Contains("\"targetNetworkId\":99", result);
+            Assert.Contains("$.tasks[0].TargetNetworkId", ctx.AskedPaths);   // ⭐ P4 — the one context, path-keyed
+            Assert.Contains("\"maxRounds\":5", result);
+        }
+
+        /// <summary>⭐ <c>CE-2023</c> ③ — the same for a location pick on the struct <c>MoveToLocation</c> contract.</summary>
+        [Fact]
+        public void CE2023_ALocationPickOnAStructContract_LandsInTheJson()
+        {
+            Assert.True(typeof(MoveToLocationParamsJsonDto).IsValueType);
+            var draw = BehaviorUiCompiler.Compile<MoveToLocationParamsJsonDto>();
+
+            string result = DrawOneFrame(draw, "{\"targetLat\":1,\"targetLon\":2,\"speed\":5}",
+                new PickingContext { Location = new PickableGeoPoint(50.5, 14.25) });
+
+            Assert.Contains("\"targetLat\":50.5", result);
+            Assert.Contains("\"targetLon\":14.25", result);
+            Assert.Contains("\"speed\":5", result);
+        }
+
         // ── C009 SC3: TestHook_ApplyChange verifies JSON round-trip ──────────
 
         /// <summary>C009 SC3: JSON round-trip — updated value is reflected, other fields preserved.</summary>
@@ -68,7 +138,7 @@ namespace Hrot.Presentation.Tests.Behavior
 
             string result = BehaviorUiCompiler.TestHook_ApplyChange<FireAtTargetParamsJsonDto>(
                 json,
-                dto => dto.CooldownSeconds = 2.5f);
+                (ref FireAtTargetParamsJsonDto dto) => dto.CooldownSeconds = 2.5f);   // CE-2023 ③ — by ref: the contract is a struct
 
             Assert.NotNull(result);
             Assert.Contains("\"cooldownSeconds\":2.5", result);

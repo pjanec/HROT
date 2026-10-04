@@ -2,7 +2,7 @@ using System;
 
 namespace Hrot.Map.Definitions.Behavior
 {
-    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
     public sealed class BehaviorContractAttribute : Attribute
     {
         public string BehaviorName { get; }

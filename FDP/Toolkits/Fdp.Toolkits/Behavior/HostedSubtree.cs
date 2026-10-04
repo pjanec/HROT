@@ -269,6 +269,7 @@ public static unsafe class HostedSubtree
 
         if (start == 0)
         {
+            ReleaseFinishedChannels(ctx.World, ctx.Self, ctx._instanceId);   // ⭐ CE-2052 — before the child can see them
             runner.Start(childDef, payload, brainBytes);
             ResetDescendants(ctx.World, ctx.Self, childDef, occurrenceKey, depth: 1);   // ⭐ S5b — a fresh start all the way down
             StartChild(treeStateSlotKey, childDef, payload + blockOffset, blockBytes, ref hostBlock, binding,
@@ -293,6 +294,38 @@ public static unsafe class HostedSubtree
             ResetDescendants(ctx.World, ctx.Self, childDef, occurrenceKey, depth: 1);   // ⭐ S5b — its children end with it
         }
         return status;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2052</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8n-2" ③) — <b>a hosted child's fresh start releases what its
+    /// host's earlier children left FINISHED.</b> A hosted child runs under its host's <c>InstanceId</c> (U-10), and
+    /// <c>ChannelArbitrationSystem</c> releases a channel only on an instance change — so a second <c>MoveToLocation</c> child
+    /// found the first one's <c>MoveTo/Success</c> and ended on its first tick without driving. ⭐ The same release arbitration
+    /// does (<c>ActiveAction = 0</c>, a new <c>ActionInstanceId</c>), for a channel of THIS instance whose action is TERMINAL;
+    /// ⛔ a channel still <c>Running</c> is left alone, so a sibling running alongside keeps its action.
+    /// </summary>
+    internal static void ReleaseFinishedChannels(EntityRepository world, Entity self, uint instanceId)
+    {
+        if (world.HasComponent<Components.LocomotionChannel>(self))
+        {
+            ref var c = ref world.GetComponentRW<Components.LocomotionChannel>(self);
+            if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
+            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+        }
+        if (world.HasComponent<Components.WeaponChannel>(self))
+        {
+            ref var c = ref world.GetComponentRW<Components.WeaponChannel>(self);
+            if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
+            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+        }
+        if (world.HasComponent<Components.InteractionChannel>(self))
+        {
+            ref var c = ref world.GetComponentRW<Components.InteractionChannel>(self);
+            if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
+            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+        }
+
+        static bool IsTerminal(NodeStatus s) => s == NodeStatus.Success || s == NodeStatus.Failure;
     }
 
     /// <summary>

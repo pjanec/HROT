@@ -275,12 +275,12 @@ namespace Fbt.Compiler
         /// <summary>
         /// Adds a Condition leaf node that projects the blackboard to the field selected by
         /// <paramref name="fieldSelector"/> and evaluates <paramref name="logic"/> against it.
-        /// The byte offset is computed once at tree-build time via Marshal.OffsetOf.
+        /// The byte offset is computed once at tree-build time — the managed field offset (CE-2044; was Marshal.OffsetOf).
         /// </summary>
         /// <typeparam name="TValue">Field type. Must be unmanaged.</typeparam>
         /// <remarks>
         /// TBlackboard should be decorated with [StructLayout(LayoutKind.Sequential)] for
-        /// Marshal.OffsetOf to produce reliable offsets.
+        /// a fixed field order (the offset is the managed one, exact for any layout — CE-2044).
         /// </remarks>
         public BTreeBuilder<TBlackboard, TContext> Condition<TValue>(
             Expression<Func<TBlackboard, TValue>> fieldSelector,
@@ -316,12 +316,12 @@ namespace Fbt.Compiler
         /// <summary>
         /// Adds an Action leaf node that projects the blackboard to the field selected by
         /// <paramref name="fieldSelector"/> and executes <paramref name="logic"/> against it.
-        /// The byte offset is computed once at tree-build time via Marshal.OffsetOf.
+        /// The byte offset is computed once at tree-build time — the managed field offset (CE-2044; was Marshal.OffsetOf).
         /// </summary>
         /// <typeparam name="TValue">Field type. Must be unmanaged.</typeparam>
         /// <remarks>
         /// TBlackboard should be decorated with [StructLayout(LayoutKind.Sequential)] for
-        /// Marshal.OffsetOf to produce reliable offsets.
+        /// a fixed field order (the offset is the managed one, exact for any layout — CE-2044).
         /// </remarks>
         public BTreeBuilder<TBlackboard, TContext> Action<TValue>(
             Expression<Func<TBlackboard, TValue>> fieldSelector,
@@ -552,8 +552,9 @@ namespace Fbt.Compiler
                     "fieldSelector must be a direct field or property access (e.g. dto => dto.FieldName).",
                     parameterName);
             string memberName = memberExpr.Member.Name;
-            // Note: TBlackboard should have [StructLayout(LayoutKind.Sequential)] for reliable offsets.
-            nint offset = (nint)Marshal.OffsetOf<TBlackboard>(memberName);
+            // ⭐ CE-2044 — the MANAGED offset: the bound thunk reads Unsafe.AddByteOffset(ref bb, offset). Marshal.OffsetOf gave the
+            //   INTEROP one, which is wrong after a bare bool — and the offset is also baked into the action key (@offset).
+            nint offset = global::Fdp.Core.Layout.ManagedLayout.OffsetOf(typeof(TBlackboard), memberName);
             return (memberName, offset);
         }
 

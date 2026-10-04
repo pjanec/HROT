@@ -30,7 +30,9 @@ namespace Hrot.Presentation.Windows;
 ///
 /// <para>⚠ <b>Preview and Zone Editor are deliberately NOT here</b> (design §4): <c>IPreviewController</c>
 /// is the editor's planning-vs-running state, which a cluster node does not have, and the zone adapter
-/// still reaches <c>Hrot.Editor.Gizmos.LocationPickerGizmo</c>. ⛔ Adding them here before those two are
+/// still reaches <c>Hrot.Editor.Gizmos.ObstaclePlacementGizmo</c> (⛔ SUPERSEDED reason, 2026-10-03: it named
+/// <c>LocationPickerGizmo</c>, which the zone adapter never used and which is deleted — DESIGN_Map_Picking_Unification
+/// P3). ⛔ Adding them here before those two are
 /// resolved would put a window on CGF that cannot be serviced — ruling 49.</para>
 /// </summary>
 public static class ScenarioPanelWindowIds

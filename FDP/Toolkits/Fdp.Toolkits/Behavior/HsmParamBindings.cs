@@ -113,7 +113,7 @@ public static class HsmParamBindings
         var stableIds = blob.Metadata?.StateStableIds;
         if (stableIds is null || stableIds.Count == 0) return;
 
-        uint machineId = blob.Header.StructureHash;
+        uint machineId = blob.MachineId;   // ⭐ CE-2001 — two same-shape machines no longer share seeds
 
         // Invert once: StableId -> flat index. ⚠ A machine has tens of states, so this is trivial —
         //   and it happens once per asset at startup, never per frame.

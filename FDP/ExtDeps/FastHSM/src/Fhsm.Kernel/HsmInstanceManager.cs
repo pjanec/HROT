@@ -83,7 +83,7 @@ namespace Fhsm.Kernel
             Unsafe.InitBlock(instance, 0, (uint)instanceSize);
 
             ref InstanceHeader header = ref Unsafe.AsRef<InstanceHeader>(instance);
-            header.MachineId  = definition.Header.StructureHash;
+            header.MachineId  = definition.MachineId;   // ⭐ CE-2001 — identity + shape, not shape alone
             header.Generation = 1;
             header.Phase      = InstancePhase.Entry;
 

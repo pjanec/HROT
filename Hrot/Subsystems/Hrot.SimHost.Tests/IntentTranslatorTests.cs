@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -109,9 +110,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(_repo.HasManagedComponent<InitialHierarchyIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialHierarchyIntent>(entity);
-            Assert.Equal(999L, intent!.ParentNetworkId);
-            Assert.Equal(0L, intent.FirstChildNetworkId);
-            Assert.Equal(0L, intent.NextSiblingNetworkId);
+            Assert.Equal(999L, intent!.ParentNetworkId.NetworkId);
+            Assert.Equal(0L, intent.FirstChildNetworkId.NetworkId);
+            Assert.Equal(0L, intent.NextSiblingNetworkId.NetworkId);
         }
 
         [Fact]
@@ -168,7 +169,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(_repo.HasManagedComponent<InitialVehicleIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialVehicleIntent>(entity);
-            Assert.Equal(777L, intent!.VehicleNetworkId);
+            Assert.Equal(777L, intent!.VehicleNetworkId.NetworkId);
         }
 
         [Fact]
@@ -215,7 +216,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(_repo.HasManagedComponent<InitialRouteIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialRouteIntent>(entity);
-            Assert.Equal(555L, intent!.RouteNetworkId);
+            Assert.Equal(555L, intent!.RouteNetworkId.NetworkId);
         }
 
         [Fact]

@@ -70,7 +70,7 @@ namespace Fdp.Core.FlightRecorder
                 if (currentType.IsValueType && !currentType.IsEnum)
                 {
                     // Validate struct size.
-                    int currentSize = Marshal.SizeOf(currentType);
+                    int currentSize = TypeLayout.SizeOf(currentType);   // ⭐ CE-2044 — managed, as recorded
                     if (currentSize != recorded.Size)
                     {
                         throw new InvalidOperationException(
@@ -118,7 +118,7 @@ namespace Fdp.Core.FlightRecorder
 
                     if (currentType.IsValueType && !currentType.IsEnum)
                     {
-                        int currentSize = Marshal.SizeOf(currentType);
+                        int currentSize = TypeLayout.SizeOf(currentType);   // ⭐ CE-2044 — managed, as recorded
                         if (currentSize != recorded.Size)
                         {
                             throw new InvalidOperationException(

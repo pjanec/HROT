@@ -6,12 +6,13 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
-  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8g as-built" — utility ids, JSON keys, identifier sanitizers).
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: "S8o" — scenario load remaps a blueprint behaviour's ids).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
   (§5 U-1); Q77 §5.14 points to this document.
 related-designs:
+  - DESIGN_Entity_Reference.md — generalises "S8o"'s type-plan walker to the `EntityRef` type (objects, lists); retires `[RemapNetworkId]`.
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint behaviour (dispatch, Return = finish, own
     resolver). This document changes where its brain state lives and lets it host and be hosted.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns R-151 (one block per running behaviour, brain
@@ -25,6 +26,9 @@ related-designs:
   - DESIGN_Behavior_Action_Binding.md — owns the C# binding forms; unaffected.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12.28 — owns the BTree/HSM subtree pick (CE-439) whose
     child-input lookup "S8b" here routes through the registry (its IBehaviorInputsContract is retired by S8b-2).
+  - ../designs/fluent-btree/DESIGN.md — owns the C# BTreeBuilder and the BTree action generator (FbtActionRegistrar).
+  - ../designs/cgf-scn/DESIGN.md — Decision 7 / C005 owns the scenario-load remapper (per-name delegates,
+    `[RemapNetworkId]`); "S8o" here extends it to blueprint behaviours.
   - DESIGN_Typed_Event_Nodes.md — owns the AUTHORED shape of Event graphs (any number of typed event nodes, split into
     one handler each before Stage 5). Each handler is one fiber graph here, unchanged.
 -->
@@ -1623,7 +1627,753 @@ the editor's Watch and Details on draw.
 | H3 editor decoders | ⭐ `TypeLayout.Read` (a cached `Unsafe.ReadUnaligned<T>` per type, references refused) | keep `PtrToStructure` + the bare-bool special case: still mis-reads a struct |
 | H4 not now | `FixedListBufferViewProvider` (`Marshal.OffsetOf` — needs a managed offset helper), the recorder, wire types, `ComponentReflector` | — they stay in the CE-2041 row, classified |
 | H5 · CE-2043 (as-built) | ⭐ `TypeLayout.OffsetOf(Type, field)` — the field's address minus the struct's, by IL `ldflda` on a local, cached: exact for any layout. 📐 **Measured: 22 of 1545 shipped struct fields have a different interop offset** (two blueprint `Vars` fields, `Fbt.PathResult`/`RaycastResult`, toolkit events). Routed: `FixedListFormatter`, `FixedListBufferViewProvider`, 🔴 `SharedStructFieldReflector` (the struct palette's SetMembers wrote at the INTEROP offset — `RaycastResult.HitPoint` 8 for 4), `BlackboardSchemaBuilder`, `SharedNodeBinder`, `FdpAutoSerializer` (fixed/inline-array fields), the replication `UnsafeLayout`/`MultiInstanceLayout`, and the blueprint emitter's runtime-layout `StateFields` (latent: no shipped blueprint takes that path). Callers that relied on `Marshal.OffsetOf` THROWING for a non-blittable type check `TypeLayout.ContainsReferences` instead | ⛔ left, CE-2044: StructEdit ×2 and FastBTree's `BTreeBuilder` (vendored, no `Fdp.Core` reference — R-48), the recorder's `ComponentLayoutHasher` (a recording format) |
+| H6 · CE-2044 (as-built) | ⭐ the formula moves into `Fdp.Core/Layout/ManagedLayout.cs` (internal: `SizeOf` + exact `OffsetOf`), compiled into `Fdp.Core` behind the public `TypeLayout` and LINKED as source into the vendored `StructEdit.Core` and `Fbt.Compiler` (R-48: co-evolved source, no `Fdp.Core` reference). Routed: StructEdit's two field-offset sites (its SIZES were already managed — it mixed the two layouts), FastBTree's `BTreeBuilder` (its thunk reads `Unsafe.AddByteOffset(ref bb, offset)`, and the offset is baked into the `@offset` action key). 🔴 **Recorder:** `RecorderSystem` walked table chunk `c` as entities `c × (CHUNK / Marshal.SizeOf)` where the table uses `Unsafe.SizeOf` ⇒ new `FdpConfig.GetChunkCapacity(Type)`, the table's own formula; the manifest size, `SchemaValidator` and `ComponentLayoutHasher` read the managed layout too | ⚠ **value-neutral for every ECS component**: `ComponentType.ValidateUnmanagedLayout` already forces `[MarshalAs(I1)]` on a component's bools so the two layouts agree — ⭐ the guard is KEPT (one rule both layouts obey is the cheaper invariant); the change matters for what it never covered — a `char`, or a `bool` inside a nested struct |
+| H7 · CE-2042 (as-built) | ⭐ `AnimationNodeRegistrar.ComputeStructureHash` = `ComponentLayoutHasher.ComputeHash` — the engine's existing "did this struct's layout change" hash, now on managed offsets | 🔴 it folded `string.GetHashCode()` (randomised per process) and the interop size — no two runs registered the same `StructureHash` |
+| H8 · CE-2045 (as-built) | ⭐ the recorder's capture path now meets `Fdp.Core.md`'s "no heap allocation on the hot path": main thread 376 → ~72 B/frame (only the dispatch `Task`; a persistent worker thread would remove it). Reusable per-buffer stream/writer, no boxed enumerators or `yield` iterators per frame, a cached managed recorder per table type, an allocation-free wait. 📐 the "rotating" `Fdp.Core.Tests` reds were three accidental `[ComponentId]` collisions between fixtures (order-dependent in a serial run), now pinned by `TestComponentIdUniquenessTests` | ⚠ the allocation test measured ALL threads (incl. the LZ4 worker, 4.6 KB/frame by design) — it now measures the main thread, which is what "hot path" means there |
 
+
+#### S8i design — a utility EQS input names its template by its AssetId *(`2026-10-03`, CE-2046; user: "do eqs defect … Autonomously")*
+
+**The defect.** Every EQS sensor carries `EqsSensor.BlueprintId` = FNV-1a over the template AssetId's 16 bytes. The
+utility input that reads a sensor's result looked for FNV-1a over a template NAME string, so it never found one.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| every sensor producer keys by the GUID-bytes id | ✅ `EqsTemplateRegistry.cs:40` (`BlueprintIdOf`), `HillAttackCommanderNodes.cs:58`, `EntitiesInAreaGenerator.cs:126`, `EqsLifecycleNodes.cs:97/196` (the id arrives from the blueprint compiler's `SpawnEqsSensor`), `FindCoverFromTarget.cs:22` | ✅ EQS §6.2 *"`BlueprintId` = FNV-1a 32-bit hash of `AssetId`. This is what crosses the DDS wire"*; EQS §17.4 |
+| the utility input keys by the NAME hash | ✅ `UtilityDecisionBuilderInfra.cs:87/95` | ⚠ Utility §6.6's reader sketch says *"FNV-1a-32 of the EQS template name"* — ⛔ but the same section's author-UX note says *"`AssetId` is the stable id, not the display name"*; EQS §6.2 settles it |
+| no template is named `CoverQuery` / `RetreatQuery` | ✅ graph + grep: one `[EqsTemplate]` class (`FindCoverFromTarget`) plus the hand-built `EntitiesOfForceInArea` | ✅ EQS §6.6 starter list: #4 `FindCoverFromTarget` (built), #6 `FindSafeRetreatPoint` (designed, **deferred** — `.dev/_DONE/eqs-2/TASK-DETAIL.md:955`) |
+| ⇒ `TakeCover`/`Flee` score 0 in production | ✅ both are `ScoringMode.WeightedProduct` (`CombatPostureDecision.cs:23/31`); a 0 consideration zeroes the product | — |
+| the rails could not see it | ✅ they spawn sensors under `UtilityTestWorld.Fnv1a32("CoverQuery")` — the reader's own wrong key | — |
+| the editor holds two copies of one param | ✅ `InputParamsModel.BlueprintId` (read only by the preview, set by nothing) and `.TemplateName` (read only by the emitter) | ✅ Utility Editor design: the picker is *"populated from the EQS template registry"* |
+
+```mermaid
+classDiagram
+  class In {
+    +EqsTopScore(string templateAssetId, InputContext) InputRef
+    +EqsResultCount(string templateAssetId, InputContext) InputRef
+    +EqsTemplateId(string templateAssetId) uint
+  }
+  class EqsTemplateRegistry {
+    +BlueprintIdOf(Guid assetId)$ uint
+  }
+  class FindCoverFromTarget {
+    +AssetId$ string
+    +BlueprintId$ uint
+  }
+  class FindSafeRetreatPoint {
+    +AssetId$ string
+    +BlueprintId$ uint
+  }
+  class InputParamsModel {
+    +TemplateAssetId string
+  }
+  class StandardInputs {
+    +EqsTopScore(ctx) float
+    -TryFindEqsChild(repo, owner, blueprintId) bool
+  }
+  In ..> EqsTemplateRegistry : the one id formula
+  FindCoverFromTarget ..> EqsTemplateRegistry : BlueprintId pinned to it
+  FindSafeRetreatPoint ..> EqsTemplateRegistry : BlueprintId pinned to it
+  InputParamsModel ..> In : emitter and preview
+  StandardInputs ..> In : reads InputParams.BlueprintId built here
+```
+*What the picture shows that prose hid: there is now ONE function from "which template" to an id, and every producer
+and the consumer go through it. `FindSafeRetreatPoint` is an identity only — no `[EqsTemplate]`, no `Build` — so it is not
+discovered and nothing claims it exists.*
+
+```mermaid
+sequenceDiagram
+  participant Cat as UtilityDecisionCatalog.RegisterAll (generated, startup)
+  participant D as CombatPostureDecision.Build
+  participant I as In
+  participant R as EqsTemplateRegistry
+  participant Sc as UtilityScorer.Evaluate (per utility tick)
+  participant S as StandardInputs.EqsTopScore
+  Cat->>D: Build(b)
+  D->>I: EqsTopScore(FindCoverFromTarget.AssetId)
+  I->>R: BlueprintIdOf(Guid.Parse(assetId))
+  R-->>I: 0x082E6DAD
+  I-->>D: InputRef{BlueprintId = 0x082E6DAD}
+  Note over I: a non-GUID string throws ArgumentException here, at startup
+  Sc->>S: ctx.Params.BlueprintId
+  S->>S: TryFindEqsChild — EqsSensor.BlueprintId == 0x082E6DAD
+```
+
+```mermaid
+graph TD
+  REG["UtilityDecisionCatalog.RegisterAll<br/>(generated; host startup)"] --> BUILD["Decision.Build → In.EqsTopScore(assetId)"]
+  SEL["UtilitySelector node / ThreatMatrixAssignmentSystem /<br/>CommanderUtilityTickSystem (per tick)"] --> EVAL["UtilityScorer.Evaluate"]
+  EVAL --> READ["StandardInputs.EqsTopScore / EqsResultCount"]
+  BP["blueprint SpawnEqsSensor / EqsLifecycleNodes /<br/>HillAttackCommanderNodes"] --> SENSOR["EqsSensor.BlueprintId<br/>= BlueprintIdOf(AssetId)"]
+  READ -- "matches" --> SENSOR
+  ED["Utility editor: emitter + preview"] --> BUILD
+```
+*Who calls it: the id is computed once per decision at registration; the per-tick reader only compares two `uint`s.*
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| I1 the input's argument | ⭐ the template's **AssetId** (GUID text — the string `[EqsTemplate(AssetId)]` already takes; callers write `FindCoverFromTarget.AssetId`); id = `EqsTemplateRegistry.BlueprintIdOf`, exposed as `In.EqsTemplateId`; a non-GUID throws at build | resolve a NAME through the registry at build — the registry is a per-world reflection singleton a static `Build` cannot reach, and its name is the type's full name · a `uint` overload — a second way to say it, and hand-typed ids are what CE-2034 found wrong · re-key producers by name — EQS §6.2: the AssetId crosses the wire and survives renames |
+| I2 the starter pack | ⭐ `TakeCover` → `FindCoverFromTarget.AssetId`; `Flee` → `FindSafeRetreatPoint.AssetId`, an identity-only class for EQS §6.6 #6 ⇒ `Flee` still reads 0 in production until that template is built — **filed CE-2051**, not hidden | build `FindSafeRetreatPoint` now — needs a distance-FROM-threat scorer that does not exist (`DistanceScoreTest` scores nearness to the observer) and a flat-terrain golden: its own slice · drop `Flee`'s EQS consideration — changes the designed posture |
+| I3 the editor | ⭐ `InputParamsModel` keeps ONE field, `TemplateAssetId`; the emitter writes it, the preview derives the id with `In.EqsTemplateId` | keep both fields — the never-set `BlueprintId` is exactly how the preview and the emitted code could disagree |
+| I4 the rails | ⭐ sensors spawn under the template's own `BlueprintId`, so the starter-pack rails go through the real key | keep `Fnv1a32("CoverQuery")` — it pins the defect |
+
+**Design docs checked:** EQS §6.2 — applies, it defines the id · EQS §17.4 — applies, the registry and the blueprint
+compiler use it · EQS §6.6 — applies, names both starter templates · Utility §6.6 — its reader comment is overturned
+(folded in place, marked) · Utility Editor design (template dropdown) — applies to I3 · `Utility_AI_SourceGenerator_Design`
+— does not apply: the generator never sees consideration params.
+
+#### S8i as-built *(`2026-10-03`, CE-2046)*
+
+Built as designed — no deviation. `In.EqsTemplateId` (`Utility/Core/UtilityDecisionBuilderInfra.cs`) is the one function;
+`FindSafeRetreatPoint` (`Spatial/Eqs/FindSafeRetreatPoint.cs`) is identity only. Rails: `StandardInputReaderTests.CE2046_*`
+(the input's id equals the registry's; a sensor keyed the producers' way is read through the BUILT input; a name throws;
+the retreat identity is canonical and undiscovered) plus the starter-pack rails, which now spawn sensors under the
+templates' real ids. 🔴 Red-proof: restoring the name hash fails 8 — the 4 new rails and 4 starter-pack rails
+(`Hurt_With_Cover_Available_Takes_Cover`, `NearDeath_With_Escape_Flees`, `Trace_Records_PerConsideration_Breakdown_For_Winner`,
+`Wounded_Member_Vetoes_Assignment_And_Breaks_Off`). Folded into Utility §6.6 (the reader sketch marked SUPERSEDED), the
+Utility Editor design §6.2 and `Fdp.Toolkits.Utility.md`. Open: CE-2051 (`FindSafeRetreatPoint` itself).
+
+#### S8j design — an HSM's `MachineId` names the machine, its `StructureHash` keeps naming the shape *(`2026-10-03`, CE-2001; user: "do … the 2001 … Autonomously")*
+
+**The defect.** The kernel stamps `InstanceHeader.MachineId = blob.Header.StructureHash`, and `StructureHash` hashes
+topology only. Every table that uses `MachineId` as "which machine" therefore merges two machines of one shape.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| `StructureHash` is shape only, ON PURPOSE | ✅ `HsmEmitter.ComputeStructureHash` (`Fhsm.Compiler/HsmEmitter.cs:172`) — counts, parents, depths, lanes, flags; a FastHSM rail pins *"same structure, different names ⇒ equal"* (`FlattenerEmitterTests.cs:296`) | ✅ FastHSM hot reload: a `StructureHash` change = hard reset, a `ParameterHash` change = soft (`HotReloadManager.cs:38`) |
+| `MachineId` is that hash, stamped and validated | ✅ `HsmInstanceManager.cs:86`, `HsmKernelCore.ValidateInstance:77`, `HsmValidator.cs:85`, `HotReloadManager.cs:66/105`, `AiHotReloadCoordinator.cs:634` | ⚠ `Fhsm.Compiler.md` item 5 *"StructureHash is the primary identity of a machine"* — the conflation, written down |
+| the toolkit uses `MachineId` as "which machine" | ✅ `HsmParamBindings` key `(MachineId, state, site)` (`:56/:116`) — the state-wide site is `Guid.Empty`, so two same-shape machines' seeds overwrite; `HsmOccurrence.KeyFor` → `OccurrenceSlotKey.ComputeHsmHostIdentity(MachineId)` (`:365`); `HsmHostedSubtrees._byMachine` (`:46`, test readers only — the runtime moved to `_byBlob` in CE-2000) | ✅ `DESIGN_Occurrence_Scoped_Storage.md` §24.9 *"`MachineId` is the host's `StructureHash` — free, per dispatch"*: the HOST identity; its uniqueness was assumed, never measured |
+| a machine's name is its identity | ✅ every production graph is `new HsmBuilder(name)` (`HsmEmitCore.cs:301` = `dto.Name`; `CuratedMachines.cs:37`); the behaviour id is `FromName(name)` (CE-2037) | ✅ R-42 — behaviour ids are the name's hash and permanent |
+| the blob header has no room | ✅ `HsmDefinitionHeader` is `Size = 32`, every byte assigned (`Reserved1/2` are two non-adjacent `ushort`s) | — |
+| the header is mutable after construction | ✅ `public HsmDefinitionHeader Header;` (a field); FastHSM tests set `blob.Header.StructureHash` after `new` | ⇒ `MachineId` must be COMPUTED, never cached |
+
+```mermaid
+classDiagram
+  class HsmDefinitionBlob {
+    +HsmDefinitionHeader Header
+    +uint IdentityHash
+    +uint MachineId
+    +MachineMetadata Metadata
+  }
+  class HsmDefinitionHeader {
+    +uint StructureHash  shape only, unchanged
+    +uint ParameterHash
+  }
+  class HsmFlattener_FlattenedData {
+    +string MachineName
+  }
+  class HsmEmitter {
+    +Emit(FlattenedData) HsmDefinitionBlob
+    +IdentityHashOf(string name)$ uint
+  }
+  class InstanceHeader {
+    +uint MachineId  stamped from blob.MachineId
+  }
+  HsmEmitter ..> HsmFlattener_FlattenedData : reads MachineName
+  HsmEmitter ..> HsmDefinitionBlob : sets IdentityHash
+  HsmDefinitionBlob *-- HsmDefinitionHeader
+  InstanceHeader ..> HsmDefinitionBlob : MachineId must equal
+```
+*What the picture shows that prose hid: the shape and the identity become two values with two owners — the header keeps
+the shape (hot reload reads it), the blob carries the identity (every "which machine" reads it). `MachineId` with no
+name (`IdentityHash == 0`, a hand-built blob) IS `StructureHash`, so nothing unnamed moves.*
+
+```mermaid
+sequenceDiagram
+  participant R as generated HSM registrar
+  participant G as StateMachineGraph.Compile
+  participant F as HsmFlattener
+  participant E as HsmEmitter
+  participant I as BehaviorIngressSystem / RootHsmAccess
+  participant K as HsmKernelCore (per tick)
+  participant P as HsmParamBindings / HsmOccurrence
+  R->>G: CreateBuilder().Build().Compile()
+  G->>F: Flatten(graph) — MachineName = graph.Name
+  F-->>E: FlattenedData
+  E-->>R: blob {StructureHash = shape, IdentityHash = hash(name)}
+  R->>P: Register(blob) keyed by blob.MachineId
+  I->>K: Initialize — header.MachineId = blob.MachineId
+  K->>K: ValidateInstance — header.MachineId == blob.MachineId
+  K->>P: thunk reads ((InstanceHeader*)inst)->MachineId — now per machine
+```
+
+```mermaid
+graph TD
+  REG["generated HSM registrar (startup)"] --> COMPILE["StateMachineGraph.Compile → Flatten → Emit"]
+  ING["BehaviorIngressSystem (assign)"] --> INIT["HsmInstanceManager.Initialize / ResetInstance"]
+  BRAIN["BrainTickSystem (per tick)"] --> KERN["HsmKernelCore.ValidateInstance + dispatch"]
+  KERN --> THUNK["action/guard thunks → HsmParamBindings · HsmOccurrence"]
+  HR["AiHotReloadCoordinator (editor reload)"] --> WALK["slot walk: MachineId != blob.MachineId ⇒ re-initialise"]
+  FHR["HotReloadManager (FastHSM, tests only)"] --> WALK2["same predicate"]
+```
+*Who calls it: the identity is hashed once per compile; the per-tick cost is one property read (a branch and a
+four-step mix) where a field read was.*
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| J1 where the identity lives | ⭐ `HsmDefinitionBlob.IdentityHash` (set by the emitter) and a computed `MachineId` (= `StructureHash` when 0, else a mix of both, never 0) | fold the name INTO `StructureHash` — breaks the hot-reload meaning FastHSM pins (a rename would read as a reshape) · a header field — the 32-byte header has no free 4 bytes · key each table by the blob instance (as CE-2000 did for hosting) — a thunk holds only the instance POINTER, whose header carries a `uint`, so the occurrence key cannot reach a blob reference |
+| J2 the identity | ⭐ the machine's NAME (`StateMachineGraph.Name`), carried by `FlattenedData.MachineName` so EVERY graph path gets it, hashed with the emitter's XxHash64 | the asset GUID — `HsmBuilder` never sees it (it is on the `[HsmDefinition]` attribute), and the name is already the behaviour identity |
+| J3 who switches | ⭐ every STAMP and every "which machine" compare reads `blob.MachineId`: `HsmInstanceManager.Initialize`, `ValidateInstance`, `HsmValidator`, `HotReloadManager` (stamp + instance match; its "structure changed" test stays on `StructureHash`), `HsmDefinitionRegistry`, `HsmParamBindings`, `HsmHostedSubtrees`, `AiHotReloadCoordinator` | leave hot reload on `StructureHash` — an instance stamped with the new id would then never match and never reload |
+| J4 what moves | ⭐ every NAMED machine's `MachineId` ⇒ its occurrence keys and param-binding keys (runtime-computed, never persisted beyond replays — user: *"replays are disposable"*). Unnamed (hand-built) blobs keep `MachineId == StructureHash` | — |
+
+**Design docs checked:** `DESIGN_Occurrence_Scoped_Storage.md` §24.9 — applies: it chose `MachineId` as the host identity,
+which this makes true · `Fhsm.Compiler.md` item 5 — overturned (folded) · `btree-hsm-unif/DESIGN.md` (ingress must stamp
+`MachineId` or validation rejects) — applies, the stamp now reads `blob.MachineId` · `Architect_Question_33` §1.5.4 (hosting
+is non-blocking) — does not apply, no scheduling changes · CE-2002 (nesting an HSM child's occurrences) — builds on this:
+the host identity it nests under must be unique first.
+
+#### S8j as-built *(`2026-10-03`, CE-2001)*
+
+Built as designed — no deviation. `HsmDefinitionBlob.IdentityHash` / `MachineId` / `CombineMachineId` (`Fhsm.Kernel/Data/HsmDefinitionBlob.cs`),
+`FlattenedData.MachineName` (set by `HsmFlattener.Flatten`), `HsmEmitter.IdentityHashOf`. Every site in J3 reads `blob.MachineId`;
+`HotReloadManager`'s "structure changed" test and `HsmQuickReloadHasher` stay on `StructureHash` (the shape). FastHSM rails that
+hand-stamp an instance now stamp `blob.MachineId` (what `Initialize` stamps). Rails: `FlattenerEmitterTests.CE2001_*` (same
+shape ⇒ same `StructureHash`, different `MachineId`; an unnamed blob keeps `MachineId == StructureHash`),
+`HsmOccurrenceKeyTests.CE2001_*` (two same-shape machines seed from their own variables; a hosted child keys apart).
+🔴 Red-proof: `MachineId` ignoring the identity fails 3 of the 4 (the unnamed-blob rail is the "nothing unnamed moves" pin and
+passes either way). Gates: Fhsm 345/0, Toolkits 2464/0, Generators 378/0, Hsm.Editor 622/0, Editor 453/0/2, SimHost 1057/0/3,
+Blueprints 4129/0/17 — no golden moved (registrars compile the blob at runtime). Folded into `Fhsm.Compiler.md` item 5 and
+`Fhsm.Kernel.md`.
+
+#### S8k design — an HSM child's lazy occurrences nest under the site that hosts it *(`2026-10-03`, CE-2002; the S5b residue)*
+
+**The defect.** A hosted child runs under its own occurrence key (`HostedKeyAt(parent, siteSlot)`, S5b). A BTree child's
+thunks nest their slots under it through `BTreeContext.OccurrenceKey`. An HSM child's blueprint actions key their slots with
+`HsmOccurrence.KeyFor(instance, asset, writer)` = `(MachineId, region, state, asset)` — no occurrence key, because the kernel
+bridge the thunk receives does not carry one. ⇒ the same HSM child at two sites shares those working states.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the HSM runner already knows its occurrence key | ✅ `HsmRunner.Tick` gets `ctx.OccurrenceKey` and passes it to its OWN hosted children (`HsmRunner.cs:190`) | ✅ S5b: a host nests each child under the occurrence it runs as |
+| the kernel bridge does not carry it | ✅ `HsmKernelBridge` = `Self`, `WorldHandle`, `TraceContext` (`HsmKernelBridge.cs:24`); built once per tick at `HsmRunner.cs:123` | ✅ Occurrence §24: *"the kernel supplies IDENTITY, the thunk does the LOOKUP"* — the bridge is OUR side of the seam, so the key belongs there, not in the kernel's writer |
+| the thunk has the bridge | ✅ every HSM thunk is `(void* instance, void* context, …)` and the emitted body already casts `context` to `HsmKernelBridge*` (`AiPrimitiveEmitter.cs:543`) | — |
+| one production caller of the key | ✅ graph + grep: `AiPrimitiveEmitter.EmitHsmOccurrenceBody:549`; the rest are rails | — |
+| store demand already counts per occurrence | ✅ `BehaviorIngressSystem.WithDescendantDemand` / `HostedSubtree.HostedDescendants` (one entry per occurrence, S5b) | ✅ S5b row "ingress sizes the store for every hosted descendant's lazily-attached occurrences" |
+| root keys do not move | ✅ `ComputeHostedAt(0, k) == k` (`OccurrenceSlots.HostedKeyAt`, "0 = the root ⇒ the template itself") | ✅ S5b |
+
+```mermaid
+classDiagram
+  class HsmKernelBridge {
+    +Entity Self
+    +IntPtr WorldHandle
+    +HsmTraceContext* TraceContext
+    +int OccurrenceKey  NEW, 0 = root
+  }
+  class HsmRunner {
+    +Tick(ctx, instance, block) NodeStatus
+  }
+  class HsmOccurrence {
+    +KeyFor(instance, context, childAssetId, writer)$ int
+    +KeyFor(hostMachineId, childAssetId, region, state)$ int
+  }
+  class OccurrenceSlots {
+    +HostedKeyAt(parentKey, templateKey)$ int
+  }
+  HsmRunner ..> HsmKernelBridge : fills OccurrenceKey from ctx
+  HsmOccurrence ..> HsmKernelBridge : reads OccurrenceKey
+  HsmOccurrence ..> OccurrenceSlots : nests the state key
+```
+*What the picture shows that prose hid: the key travels on the bridge the runner already builds, not through the kernel —
+the kernel stays ignorant of occurrences (§24).*
+
+```mermaid
+sequenceDiagram
+  participant H as HostedSubtree.TickHosted (site A / site B)
+  participant R as HsmRunner.Tick
+  participant K as HsmKernel.Update
+  participant T as emitted HSM thunk
+  participant O as HsmOccurrence.KeyFor
+  H->>R: ctx.OccurrenceKey = HostedKeyAt(parent, siteSlot)
+  R->>K: &bridge { OccurrenceKey = ctx.OccurrenceKey }
+  K->>T: (instance, &bridge, writer stamped region/state)
+  T->>O: KeyFor(instance, context, AssetId, writer)
+  O-->>T: HostedKeyAt(bridge.OccurrenceKey, (MachineId, region, state, asset))
+```
+
+```mermaid
+graph TD
+  ING["BehaviorIngressSystem (assign) — sizes the store per occurrence"] --> STORE["occurrence store"]
+  BRAIN["BrainTickSystem (per tick)"] --> RUN["HsmRunner.Tick (root, key 0)"]
+  HOST["HostedSubtree.TickHosted (per hosted site)"] --> RUN2["HsmRunner.Tick (child, nested key)"]
+  RUN --> KERN["HsmKernel.Update"]
+  RUN2 --> KERN
+  KERN --> THUNK["emitted thunk → HsmOccurrence.KeyFor(…, context, …)"]
+  THUNK --> STORE
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| K1 where the key travels | ⭐ `HsmKernelBridge.OccurrenceKey`, set by `HsmRunner` from `ctx.OccurrenceKey` | stamp it on `HsmCommandWriter` — that is the KERNEL's type; the kernel must not learn about occurrences (§24) · a thread-static "current occurrence" — hidden state, and wrong under nesting re-entrancy |
+| K2 the key function | ⭐ ONE `KeyFor(instance, context, asset, writer)` that nests; the old 3-argument form is REMOVED and a null `context` throws | keep the 3-argument form as "root" — a hand-written host could call it and silently share (the silent-default pattern) |
+| K3 the emitter | ⭐ passes `context` (one token per HSM blueprint thunk; four goldens move by that token) | — |
+| K4 the debugger's inverse | ⚠ `TryDescribe` searches root keys only, so a NESTED occurrence is labelled by its raw key — exact or absent, never a wrong label (its own contract) | search every site key too — a per-inspection cost for a case with no shipped asset; revisit with one |
+
+**Design docs checked:** `DESIGN_Occurrence_Scoped_Storage.md` §24 — applies (identity from the kernel, lookup on our
+side; the bridge is ours) · §32 (E5, an HSM state hosts a BTree) — applies, `HsmRunner` already nests ITS children; this
+nests its own thunks the same way · this document's S5b — applies, the residue it names · S8j (CE-2001) — prerequisite:
+the `MachineId` inside the state key is unique now.
+
+#### S8k as-built *(`2026-10-03`, CE-2002)*
+
+Built as designed — no deviation. `HsmKernelBridge.OccurrenceKey` (filled by `HsmRunner.Tick` from `ctx.OccurrenceKey`);
+`HsmOccurrence.KeyFor(instance, context, asset, writer)` nests the state key with `OccurrenceSlots.HostedKeyAt`; the
+3-argument form is gone and a null `context` throws; `AiPrimitiveEmitter` passes `context` (4 blueprint goldens moved by
+exactly that token). Rail: `HostingMatrixTests.CE2002_AnHsmChildAtTwoSites_KeysItsOccurrencesUnderEachSite` — a BTree
+hosting one HSM child at two sites; the child's entry action keys through `KeyFor`, and the two keys differ and equal each
+site's nesting. 🔴 Red-proof: the runner leaving the bridge key 0 makes the two keys equal. ⚠ Measured on the way: one
+gate run reported that rail red — the test project's `bin` still held the red-proof's MUTATED `Fdp.Toolkits.dll` (the
+Blueprints build refreshes only its own bin); rebuilt, 2465/0 — the stale-binary trap, not a flake. Gates: Toolkits 2465/0,
+Blueprints 4129/0/17, SimHost 1057/0/3.
+
+#### S8l design — a child's Input region is its Inputs STRUCT, trailing padding included *(`2026-10-03`, CE-2023 ②)*
+
+**The defect.** At a hosted child's start, `HostedSubtree.Supply` refuses a binding whose width differs from
+`RootParamsAccess.InputBytes(child)`. The binding is `Unsafe.SizeOf<T>` of the bound struct (S8 Q3); `InputBytes` was the
+manifest EXTENT — the end of the last Input variable — which stops before a struct's trailing padding.
+
+**Claim table**
+
+| the fix rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| every generated block embeds its Inputs struct as `In` at offset 0 | ✅ BTree/HSM: `[FieldOffset(0)] public {Asset}_Blackboard In` (golden `HsmVariableShowcase.Blackboard.g.cs.txt:27`); blueprint: `Sequential { Params In; Vars St; }` (golden `PlatoonHillAttackBp.cs.txt:110`) | ✅ CE-425 *"Inputs first, at offset 0"*; S3 rail pins `JsonParamsDtoType == Block.In`'s type (`BlueprintBehaviourTests.cs:485`) |
+| so the region the block reserves is `SizeOf(In)` | ✅ a struct FIELD occupies its type's whole size; `St` starts after it — 📐 measured on all 20 shipped BTree/HSM blocks: `St` never inside `In` | — |
+| `InputBytes` used the extent | ✅ `RootParamsAccess.InputBytes` → `ManifestExtent` (`RootParamsAccess.cs:324/330`) | ⚠ `DESIGN_Parameter_Model.md` §P.2 *"the host variable IS the child's authored input"* ⇒ the width is the input STRUCT's |
+| BTree/HSM never drift | ✅ the Inputs struct is `Explicit, Size = packedBytes` (`BTreeEmitCore.cs:174`) and 📐 the CLR honours an explicit `Size` exactly (measured: `{float,bool}` Size=5 ⇒ 5); 20/20 shipped: size == extent | — |
+| a blueprint can drift | 📐 its `Params` is `Sequential`: 1 of 12 shipped (`ParamDemo {int, bool, bool}`) is 8 bytes for an extent of 6. `ParamDemo` is not a behaviour, so no host can bind it TODAY; a blueprint BEHAVIOUR with such Params would throw at every hosted start | — |
+
+```mermaid
+classDiagram
+  class RootParamsAccess {
+    +InputBytes(def)$ int
+    -ManifestExtent(manifest)$ int
+  }
+  class BehaviorDefinition {
+    +Type JsonParamsDtoType  the block's In type (generated)
+    +ManagedBlackboardVariable[] ManagedBlackboardVariables
+    +Type BlackboardLayoutType
+  }
+  class HostedSubtree {
+    -Supply(childDef, block, binding)$
+  }
+  class BehaviorRegistry {
+    +ApplyResolverOverlay  resolver-fits-Input-region check
+  }
+  HostedSubtree ..> RootParamsAccess : width check
+  BehaviorRegistry ..> RootParamsAccess : Input region before St
+  RootParamsAccess ..> BehaviorDefinition : SizeOf(JsonParamsDtoType) when generated
+```
+*What the picture shows: one width, two readers — the start's copy and the registry's resolver-fit check both ask
+`InputBytes`, so both now see the region the block actually reserves.*
+
+```mermaid
+sequenceDiagram
+  participant T as HostedSubtree.TickHosted (fresh start)
+  participant S as Supply
+  participant R as RootParamsAccess.InputBytes
+  T->>S: binding (HostOffset, Length = SizeOf<T>)
+  S->>R: InputBytes(child)
+  R-->>S: generated with JsonParamsDtoType ⇒ its SizeOf, otherwise the extent or layout size
+  S->>S: Length == width ⇒ memcpy into the child's In
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| L1 the width | ⭐ a GENERATED child (manifest present) with a `JsonParamsDtoType` ⇒ `TypeLayout.SizeOf(JsonParamsDtoType)`; otherwise unchanged (no Inputs ⇒ 0; curated ⇒ its layout) | relax `Supply` to `Length >= extent` and copy `extent` — keeps two widths for one region, and a too-WIDE wrong struct would pass · emit `Explicit, Size = extent` for blueprint `Params` — a persisted-shape change to every blueprint for a check that is wrong, not the layout |
+| L2 a curated child's `JsonParamsDtoType` | ⭐ ignored here — it may be a JSON DTO class, not the block's `In` | — |
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2 — applies (the binding IS the child's input struct) · S8 Q3
+(binding width) — applies, unchanged · S3 (blueprint publishes `JsonParamsDtoType` = `In`) — applies, it is what makes L1
+true for blueprints · CE-437 (resolver-fit check, `BehaviorRegistry`) — applies, it reads the same width.
+
+#### S8l as-built *(`2026-10-03`, CE-2023 ②)*
+
+Built as designed — no deviation. `RootParamsAccess.InputBytes`: a generated child (manifest present) whose
+`JsonParamsDtoType` is a value type ⇒ `TypeLayout.SizeOf` of it. Rails: `BehaviorIngressSystemTests.CE2023_*` (an `{int,
+bool, bool}` Inputs struct is 8, not its extent 6) and `BlueprintBehaviourTests.S8l_AGeneratedChildWithPaddedInputs_TakesItsParams`
+(a blueprint host binds an 8-byte `{float, bool}` struct to a generated child whose manifest ends at 5; the child reads 7).
+🔴 Red-proof: the extent width fails both. The S3 rail's `Marshal.SizeOf` pin of the Input width is now `TypeLayout.SizeOf`
+(the CE-2041 rule). Gates: Toolkits 2466/0, Blueprints 4130/0/17, SimHost 1057/0/3, Generators 378/0.
+
+#### S8m — CE-2023 ③ needs a decision *(DECIDED `2026-10-03`: A — see "S8n")*: a curated child with a CLASS authored contract cannot be hosted with params *(`2026-10-03`)*
+
+**Measured.** `MoveToLocation` and `FireAtTarget` resolve JSON into `MoveToLocationParamsJsonDto` / `FireAtTargetParamsJsonDto`
+— sealed CLASSES (`Hrot.Core/MapDefinitions/Behavior/*.cs`), deliberately: `BehaviorParams.ResolveBlock` documents them as
+*"JSON contracts … never stored in a slot"*, and `BehaviorUiCompiler` (mission panel) and `BehaviorParamRemapperCompiler`
+(scenario id remap) both require `class, new()` and build property setters on a reference. A hosted child's start gets the
+host variable's BYTES (CE-443): its from-bytes arm exists only for an UNMANAGED authored type
+(`BehaviorParams.FromBlockResolverSource` returns null for a class), and a JSON-shaped resolver throws (`HostedSubtree.StartChild`).
+⇒ a blueprint Behaviour Task cannot start either child with parameters, so the §7 demos cannot move onto them as they are.
+
+| option | what changes | blast radius |
+|---|---|---|
+| ⭐ **A — the authored contract becomes a STRUCT** (lean) | the two DTOs → unmanaged structs (same JSON keys; `DefaultRelaxed` is field-aware and case-insensitive); their resolvers → the typed shape `(in Dto, ref Block, world, self)`, which the generator already wires to BOTH arms (JSON + from-bytes); `BehaviorUiCompiler` and the remapper move to `ref`-taking setters so a struct contract works | 2 DTOs, 2 resolvers, 2 compilers (~470 lines) + their rails. One contract per behaviour kept (§P.2 *"the host variable IS the child's authored input"*), and every future unmanaged contract is hostable for free |
+| B — a JSON-resolver child is hosted with its BLOCK | `TryGetHostedInputType` offers `BlackboardLayoutType`; `StartChild` copies the bound block and skips the resolver | 2 files. ⛔ the host authors the USABLE shape (Cartesian metres, a packed entity) — the opposite of §P.2, and `MoveToLocationParams` is documented as *"engine-internal … must never appear in a public description"* |
+| C — a hostable twin struct per behaviour | a second contract next to the DTO | ⛔ two contracts for one behaviour |
+
+Then, under A: §7's `Demo_TaskChain` / `Demo_MissionPlan` host `MoveToLocation` (a geo point) and `FireAtTarget` (its target —
+⚠ the contract names a NETWORK id, so a blueprint host needs the target's network id; a demo can read it from the hit) instead
+of the `Demo_*` step children, and the capstone runs as a scenario on a `--mode all` cluster (`RUNBOOK_Cluster_Debugging_Over_Http.md`).
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2/§P.8 — applies (one authored contract; the from-bytes arm) ·
+`Behavior_Parameter_Resolver_Detailed_Design.md` §3.2 (the "two shapes on divergence" MoveTo case) — applies, it is why the
+DTO and the block differ · CE-438 (closed by CE-443: *"keep the typed delegate alongside the JSON adapter"*) — applies, A is
+that lean carried to the two shipped contracts.
+
+#### S8n design — the two curated authored contracts become STRUCTS, so a host can start them with parameters *(`2026-10-03`, CE-2023 ③; user: "(A) approved")*
+
+⭐ Decides "S8m" (option A). Two parts: **N-1** the contracts (this section's diagrams) and **N-2** the §7 demos on the real
+children plus the capstone on a cluster (section "S8n-2" below, written when N-1 is built).
+
+**Claim table**
+
+| the change rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the JSON keys survive a class → struct move | ✅ both DTOs are auto-properties with `[JsonPropertyName]`; the JSON arm deserialises with `BehaviorParams.JsonOptions` = `DefaultRelaxed` (field-aware, case-insensitive) | ✅ the DTO IS the authored contract (CE-235, `[BehaviorContract]`) |
+| a typed resolver gets BOTH arms for free | ✅ `CuratedBehaviorGenerator.cs:300-312` emits `RegisterResolver(FromBlockResolver<A,B>)` + `RegisterSourceResolver(FromBlockResolverSource<A,B>, typeof(A))`; the source arm is null only for a reference-type `A` | ✅ CE-438/CE-443 lean *"keep the typed delegate alongside the JSON adapter"* |
+| a host then knows what to bind | ✅ `BehaviorRegistry.TryGetHostedInputType` returns the source type first (`:782`); `StartChild` hands the resolver the host bytes (`HostedSubtree.cs:386`) | ✅ §P.2 *"the host variable IS the child's authored input"* |
+| the two compilers assume a reference | ✅ `BehaviorUiCompiler` and `BehaviorParamRemapperCompiler` are `where TDto : class, new()` and compile `Action<TDto,TProp>` setters — on a struct those write a COPY | — |
+| who registers into them | ✅ only `BehaviorSchemaDiscovery.AutoRegister` (reflection over `[BehaviorContract]`, `MakeGenericMethod`) + rails | — |
+| nothing else needs a class | ✅ the only production readers: `CgfNodes` parse (replaced), Send Intent emission `new global::Dto { … }` (works for a struct), `GET /behaviors` schema (property reflection) | — |
+| an empty payload | ⚠ the JSON arm passes `default(A)` for an empty string, so "no JSON" and `{}` become one case. The old parse wrote ZEROS for empty and DEFAULTS (speed, 5 m radius) for `{}`; the typed resolver applies the defaults to both | ⛔ searched `docs/`: no ruling on an empty MoveTo payload — the defaults are the authored meaning of "not given" |
+
+```mermaid
+classDiagram
+  class MoveToLocationParamsJsonDto {
+    <<struct, was class>>
+    +double TargetLat
+    +double TargetLon
+    +double Speed
+    +double ArrivalRadius
+    +float X
+    +float Y
+    +PickableGeoPoint PickableLocation  JsonIgnore facade
+  }
+  class FireAtTargetParamsJsonDto {
+    <<struct, was class>>
+    +long TargetNetworkId
+    +int MaxRounds
+    +float CooldownSeconds
+  }
+  class CgfNodes {
+    +ResolveMoveTo(in MoveToLocationParamsJsonDto, ref MoveToLocationParams, world, self)$
+    +ResolveFireAtTarget(in FireAtTargetParamsJsonDto, ref FireAtTargetParams, world, self)$
+  }
+  class BehaviorUiCompiler {
+    +Compile~TDto~() where new()
+    -RefSetter~TDto,TProp~(ref TDto, TProp)
+  }
+  class BehaviorParamRemapperCompiler {
+    +Compile~TDto~() where new()
+    -RefSetter~TDto,long~(ref TDto, long)
+  }
+  class BehaviorRegistry {
+    +RegisterResolver(name, ParseParamsDelegate)
+    +RegisterSourceResolver(name, ResolveStageDelegate, Type)
+    +TryGetHostedInputType(name) Type
+  }
+  CgfNodes ..> MoveToLocationParamsJsonDto : authored
+  CgfNodes ..> FireAtTargetParamsJsonDto : authored
+  BehaviorRegistry ..> CgfNodes : both arms, generated
+  BehaviorUiCompiler ..> MoveToLocationParamsJsonDto : ref setters
+  BehaviorParamRemapperCompiler ..> FireAtTargetParamsJsonDto : ref setters
+```
+*What the picture shows: one contract per behaviour, and three readers of it — the JSON arm, the host-bytes arm, the two
+editor compilers — none of which needs it to be a class any more.*
+
+```mermaid
+sequenceDiagram
+  participant BP as blueprint host (Behaviour Task, Params pin)
+  participant HS as HostedSubtree.StartChild
+  participant R as source arm (FromBlockResolverSource)
+  participant C as CgfNodes.ResolveMoveTo
+  participant B as child block (MoveToLocationParams)
+  BP->>HS: bind host var (MoveToLocationParamsJsonDto bytes)
+  HS->>R: (source, sourceBytes, block)
+  R->>C: in authored (read from the bytes), ref block
+  C->>C: geo to Cartesian via the world IGeographicTransform, default speed and radius
+  C->>B: X, Y, Speed, ArrivalRadius
+```
+
+```mermaid
+graph TD
+  GEN["CuratedBehaviorRegistrar.g.cs (startup)"] --> REG["BehaviorRegistry: JSON arm + source arm + source type"]
+  ING["BehaviorIngressSystem (root assign, JSON)"] --> JSONARM["FromBlockResolver → ResolveMoveTo"]
+  HOST["HostedSubtree.StartChild (hosted start, bytes)"] --> SRC["FromBlockResolverSource → ResolveMoveTo"]
+  DISC["BehaviorSchemaDiscovery.AutoRegister (CGF / editor setup)"] --> UI["BehaviorUiCompiler (mission panel form)"]
+  DISC --> RM["ScenarioBehaviorRemapper (scenario load)"]
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| N1 the contracts | ⭐ `public struct` with the SAME auto-properties and attributes (`PickableLocation` stays a `[JsonIgnore]` facade) | fields instead of properties — the two compilers and schema discovery reflect over PROPERTIES |
+| N2 the resolvers | ⭐ typed `(in Dto, ref Block, world, self)`; the parse bodies move into them unchanged except the empty case (above) | keep the 5-param JSON resolvers and add a source resolver by hand — two registrations to keep in step, the generator already pairs them |
+| N3 the compilers | ⭐ `where TDto : new()`; setters compiled over a `ref TDto` parameter (a custom delegate), the delegate keeps the DTO in a local and passes it by `ref` — identical for a class | box to `object` — a second path per type and an allocation per frame in the mission panel |
+| N4 the test hook | ⭐ `TestHook_ApplyChange<TDto>(json, RefAction<TDto>)` | `Action<TDto>` mutates a copy for a struct |
+
+**Design docs checked:** `DESIGN_Parameter_Model.md` §P.2/§P.8 — applies · `Behavior_Parameter_Resolver_Detailed_Design.md`
+§3.2 — applies (why the DTO and the block differ; unchanged) · `BehaviorParams.ResolveBlock`'s note *"the two shipped
+two-shape authored DTOs … are CLASSES … never stored in a slot"* — overturned here (folded) · CE-235 (the DTO is published as
+`paramSchema`) — applies, unchanged.
+
+#### S8n as-built — N-1, the struct contracts *(`2026-10-03`)*
+
+Built as designed, plus TWO consumers the inventory missed — both found by the gates, both a class assumption:
+
+| what | as built |
+|---|---|
+| N1 | both DTOs are `public struct`, same properties/attributes; `[BehaviorContract]` now allows `Struct` |
+| N2 | `CgfNodes.ResolveMoveTo` / `ResolveFireAtTarget` (typed) over `ConvertMoveTo` / `ConvertFireAtTarget`; the generator emits both arms (verified in `CuratedBehaviorRegistrar.g.cs`) |
+| N3 | `BehaviorUiCompiler` and `BehaviorParamRemapperCompiler` (+ `ScenarioBehaviorRemapper.Register`) are `where TDto : new()` with setters/renderers over `ref TDto` |
+| N4 | `TestHook_ApplyChange(json, RefAction<TDto>)` |
+| ⚠ missed ① | the blueprint **intent palette** (`IntentContractPaletteEntries.Compute`) took only classes ⇒ MoveToLocation/FireAtTarget vanished from Send Intent / To JSON / From JSON. Now value types too (a struct needs no explicit ctor) |
+| ⚠ missed ② | the **From JSON** emission (`StatementEmitter`, `IrOp_FromJson`) was `T x = null!; … x ??= new T();` — uncompilable for a struct. Now an explicit `__fjok` flag and `is { } v` (legal for both); no corpus golden moved |
+| pin moved | `ABehaviourAdvertisesItsRealParametersTests` asserted the authored contract `IsClass` — now that it round-trips through JSON |
+
+Rails (each red-proved): `BehaviorUiCompilerTests.CE2023_*` (an entity / a location PICK on a struct contract reaches the JSON —
+a headless ImGui frame; red when the renderer writes a copy), `ScenarioBehaviorRemapperTests.CE2023_AStructContract_IsRemappedInPlace`,
+`CE472_IntentAndJsonNodeTests.ToJson_ThenFromJson_OverAStructContract_RoundTrips` (red: CS0037 under the old emission) and the
+existing `Palette_OffersEachContract_WithPinnableMembersOnly` (red until missed ① was fixed). Gates: Toolkits 2467/0, Presentation
+300/0, Core 183/0, SimHost 1057/0/3, ExCon 105/0, Generators 378/0, Blueprints 4131/0/17, Editor 453/0/2.
+
+#### S8n-2 design — the §7 demos on the real children, and the channel a second child inherits *(`2026-10-03`, CE-2023 ③ · CE-2052)*
+
+**① The demos.** `Demo_MissionPlan` declares three Parameters typed as the child contracts — `Move`, `Fire`, `Home` — and its
+Advance / Defend / Return tasks become `MoveToLocation` / `FireAtTarget` / `MoveToLocation` with `ParamsVariable` pointing at
+them (a Task's `ParamsVariable` may be authored directly — `RunBehaviorNode`). `Demo_TaskChain` does the same for Advance /
+Engage (`Move`, `Fire`). Retreat and Take Cover stay demo children (no curated "retreat" exists). One JSON assign carries the
+whole mission: `{"Move":{"x":…},"Fire":{"targetNetworkId":…},"Home":{…}}` — each part the child's own published contract.
+
+**② The rails move to SimHost** (`BehaviourTaskDemoTests`): only there does the registry hold the curated children
+(`CgfBehaviorSetup.LoadFromAiAssembly`, as `HillAttackBlueprintTests`). The rail plays the executors — it sets the locomotion
+channel's `Status` when the destination is the one the parameters named, and gives the shooter a visible target and a weapon
+off cooldown so `FireAtTarget` reaches `MaxRounds`. The Blueprints-side `Demo_*` timing rails are RE-HOMED there (their claims —
+order, abort ⇒ retreat, cover alongside, low health aborts — each kept), not deleted.
+
+**③ CE-2052 — found designing ②: a second hosted child inherits the first one's FINISHED channel.**
+
+| claim | code | design |
+|---|---|---|
+| a channel is released only when the entity's behaviour INSTANCE changes | ✅ `ChannelArbitrationSystem.cs:38` (`BehaviorInstanceId != behavior.InstanceId`) | ✅ channels belong to one running behaviour |
+| a hosted child runs under its HOST's InstanceId | ✅ `HostedSubtree.TickHosted` (`InstanceId = ctx._instanceId`) | ✅ U-10 *"the host's (channels reset with the host)"* — ⛔ searched: no record considers two children using ONE channel in sequence |
+| MoveTo / FireAtTarget treat a terminal channel of their own kind as their result | ✅ `Action_WriteMoveToChannel`: `ActiveAction == MoveTo && Status == Success ⇒ Success` without activating; `Action_FireAtTarget` propagates `Success` the same way | — |
+| ⇒ Advance then Return (two MoveTo children of one host) | the Return leg ends on its FIRST tick, never driving home | — |
+
+⭐ **Fix: a hosted child's fresh START releases what its host's earlier children left FINISHED** — every channel on the entity
+with `ActiveAction != 0`, `BehaviorInstanceId ==` the host's instance and a TERMINAL `Status` gets `ActiveAction = 0` and a new
+`ActionInstanceId` (exactly what arbitration does on an instance change). A channel still `Running` is untouched, so a sibling
+running alongside keeps its action. ⚠ Edge, accepted: a sibling whose action finished in the same frame re-activates once (and
+finishes again at once).
+
+```mermaid
+sequenceDiagram
+  participant H as host (Demo_MissionPlan)
+  participant T as HostedSubtree.TickHosted
+  participant C as LocomotionChannel
+  participant M as MoveToLocation child
+  H->>T: Advance (fresh start)
+  T->>M: tick: activate MoveTo(Move)
+  Note over C: executor ⇒ Status = Success
+  M-->>H: Succeeded
+  H->>T: Return (fresh start)
+  T->>C: release: terminal + this host ⇒ ActiveAction = 0
+  T->>M: tick: activate MoveTo(Home), not the stale Success
+```
+
+```mermaid
+classDiagram
+  class HostedSubtree {
+    +TickHosted(hostBlock, ctx, slot, binding)$ NodeStatus
+    -ReleaseFinishedChannels(world, self, instanceId)$
+  }
+  class ChannelArbitrationSystem {
+    +Execute(view, dt)  releases on an instance change
+  }
+  class LocomotionChannel
+  class WeaponChannel
+  class InteractionChannel
+  HostedSubtree ..> LocomotionChannel : releases if terminal
+  HostedSubtree ..> WeaponChannel : releases if terminal
+  HostedSubtree ..> InteractionChannel : releases if terminal
+```
+*What the picture shows: the same release rule arbitration applies on an instance change, applied at the one moment it
+cannot see — a new child of the same instance.*
+
+```mermaid
+graph TD
+  BRAIN["BrainTickSystem (per tick)"] --> HOSTRUN["host runner (BTree / HSM / blueprint)"]
+  HOSTRUN --> TH["HostedSubtree.TickHosted"]
+  TH -- "fresh start only" --> REL["ReleaseFinishedChannels"]
+  ARB["ChannelArbitrationSystem (ActionDispatchModule, per tick)"] -- "instance change" --> REL2["release"]
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| where | ⭐ the child's fresh START in `TickHosted` (the one place every host tier passes) | the child's END — it does not know which channels it used either, and a release at start is local to the child about to activate · give each hosted child its own InstanceId — reverses U-10 |
+| what | ⭐ only TERMINAL channels of this instance | every channel of this instance — would cancel a sibling running alongside (S7 "Started") |
+
+**Design docs checked:** U-10 (this document §5) — applies; its intent ("channels reset with the host") is kept and the
+missed case added · `DESIGN_Behavior_Action_Binding.md` (the `WritesChannels` clear, failure-only) — does not cover success,
+and curated actions do not declare it · §7 table — applies, this is its curated-children promise.
+
+#### S8n-2 as-built *(`2026-10-03`, CE-2023 ③ · CE-2052 · CE-2053)*
+
+Built as designed, with ONE compiler gap and ONE latent compiler defect the build found:
+
+| what | as built |
+|---|---|
+| ① demos | `Demo_MissionPlan` Parameters `Move` / `Fire` / `Home`, `Demo_TaskChain` `Move` / `Fire`; their Advance / Defend (Engage) / Return tasks are `MoveToLocation` / `FireAtTarget` with `ParamsTypeId` + `ParamsVariable` = the Parameter (asset edit, ids unchanged; the run-site slot keys are node-id based so nothing else moved) |
+| ⚠ gap | `Stage5_Schedule.ParamsVariableName` resolved only VARIABLES (`Block.St`) ⇒ an authored `ParamsVariable` naming a Parameter bound nothing. ⭐ It now returns a member path — `St.X` for a Variable, `In.X` for a Parameter — and `InstanceEmitter` binds `__b.{path}`: a behaviour passes its own input straight to a child |
+| ② rails | `Hrot.SimHost.Tests/BehaviourTaskDemoTests` (4): mission legs on the real children each from its own Parameter · hits ⇒ cover alongside, low health ⇒ abort ⇒ retreat, Return never drives · task chain in order · CallOff aborts a FIRING Engage ⇒ retreat. The four `BlueprintBehaviourTests.Demo_*` rails are gone from Blueprints (re-homed claim for claim) |
+| ③ CE-2052 | `HostedSubtree.ReleaseFinishedChannels` at a child's fresh start; rail `HostingMatrixTests.CE2052_*` |
+| ④ CE-2053 *(found by the corpus golden)* | `CSharpEmitter.LayoutFromRuntime` now scans **Parameters** too. 🔴 A Parameter typed as a project struct the compile could not size (every compile but the production generator has no size oracle) got the AN2 4-byte guess AND baked `[FieldOffset]`s ⇒ `Move`/`Fire`/`Home` at 0/4/8, overlapping 40-byte structs. `EmitParamsStruct`'s own doc already promised "stays Sequential under this regime". No other corpus golden moved. Rail `BlueprintBehaviourTests.CE2053_*` |
+
+🔴 Red-proofs: no release ⇒ the mission rail fails (the Return leg never drives — ONE destination); no Parameter binding ⇒ 3 of
+4 demo rails fail (the children start from defaults: no destination, no target) and the 4th was tightened to require Engage
+FIRING before the abort (it had passed for the wrong reason); CE-2052 unit rail 1 activation for 2 legs; CE-2053 "Fire @4
+overlaps Move @0 (+40)". Gates: Blueprints 4128/0/17, SimHost 1061/0/3, Toolkits 2468/0, Generators 378/0, Editor 453/0/2. ✅ The capstone on a `--mode all` cluster: "S8n-2 cluster run" below.
+
+#### S8n-2 cluster run — the capstone, live *(`2026-10-03`, `ClusterRunner --mode all`, HTTP, fresh cluster per run)*
+
+`scenarios/mission-demo-bp`: one tank (from `hill-attack-close-bp`) whose mission is `Demo_MissionPlan` with
+`{"Move":{"x":600,"y":427,…},"Fire":{"targetNetworkId":1001,"maxRounds":3,…},"Home":{"x":446.3,"y":420.9,…}}`, and one
+hostile at (668, 427). Read on the `Scenario` (CGF) perspective every ~5 s of sim time:
+
+| sim t | tank 1000 | channels | hostile 1001 |
+|---|---|---|---|
+| 0 → 30 s | drives (446, 421) → (594, 427) | locomotion `MoveTo/Running` | Health 50 |
+| ≈ 35 s | arrived (605, 430) — **Advance** done; locomotion released (`0/Success`) at Defend's start (CE-2052) | weapon `AimAndFire/Running` | **Health 0** — **Defend** |
+| 40 → 83 s | drives back (585 → 449, 421) — **Return**, the SECOND `MoveToLocation` child, from `Home` | locomotion `MoveTo/Running` | dead |
+| 83 s | home (449.2, 421.2), within the 5 m radius; behaviour finished (hash 0); `MissionPlanQueue` past its one task | — | — |
+
+Zero exceptions or module faults in the log. ⚠ What the run found, both FILED, neither blocking:
+① **CE-2054** — scenario load renumbered the entities (tank 1001 → 1000, hostile 1006 → 1001) and did NOT remap the id
+nested in the blueprint behaviour's `Fire` parameter ⇒ first run: *"FireAtTarget TargetNetworkId=1006 not found in entity
+map"*, Defend failed ⇒ Retreat. The scenario then used the ids load assigns (⛔ SUPERSEDED by "S8o": its authored ids are back and load remaps them). ② at 111 m the tank's perception reported no
+contact (`TargetMemory` empty), so Defend waited — `FireAtTarget` requires a visible target; the engagement point moved to
+68 m, the range `test-fire` uses. ⚠ After `FireAtTarget` succeeds the weapon channel stays the executor's until it ends
+(here `Failure`, target dead) — the same as a root `FireAtTarget` (no instance change releases it); not changed here.
+
+#### S8o design — scenario load remaps an entity id wherever the behaviour's own contract TYPE says one lives *(`2026-10-03`, CE-2054; user: "Go autonomously")*
+
+📐 **Measured.** `StagingEntityExtractor.RemapComponentNetworkIds` (`StagingEntityExtractor.cs:421`) asks
+`ScenarioBehaviorRemapper.RemapJson(task.BehaviorName, …)`, whose delegates are keyed by NAME and registered only by
+`BehaviorSchemaDiscovery.AutoRegister` — one per `[BehaviorContract]` DTO. ⛔ A blueprint behaviour's contract is its
+generated `Params` struct (`JsonParamsDtoType = typeof(X.Params)`, `CSharpEmitter.cs:642`), so nothing is registered
+under `Demo_MissionPlan`. ⛔ And registering it would not help: `BehaviorParamRemapperCompiler` reads only TOP-LEVEL
+`[RemapNetworkId]` PROPERTIES, while `Params` has FIELDS whose types are contracts (`Fire : FireAtTargetParamsJsonDto`).
+
+*What the picture shows that prose hid: the remap plan is a property of a TYPE, so it nests — and the registry already
+knows each behaviour's type, so the name-keyed table is only the fallback.*
+
+```mermaid
+classDiagram
+  class StagingEntityExtractor {
+    RemapComponentNetworkIds(comps, map, remapper)
+  }
+  class ScenarioBehaviorRemapper {
+    -registry : BehaviorRegistry
+    -explicit : name to delegate
+    +Register~TDto~(name)
+    +RemapJson(name, json, map) string
+  }
+  class BehaviorParamRemapperCompiler {
+    +Compile~TDto~() delegate
+    +CompileFor(Type) delegate
+    -PlanFor(Type) RemapPlan
+  }
+  class RemapPlan {
+    keys : json key to entry
+    entry : Id or Nested plan
+  }
+  class BehaviorRegistry {
+    +TryGetId(name)
+    +TryGetDefinition(id)
+  }
+  class BehaviorDefinition {
+    JsonParamsDtoType : Type
+  }
+  class Demo_MissionPlan_Params {
+    Move : MoveToLocationParamsJsonDto
+    Fire : FireAtTargetParamsJsonDto
+    Home : MoveToLocationParamsJsonDto
+  }
+  class FireAtTargetParamsJsonDto {
+    TargetNetworkId : long [RemapNetworkId]
+  }
+  StagingEntityExtractor --> ScenarioBehaviorRemapper : per mission task
+  ScenarioBehaviorRemapper --> BehaviorRegistry : name to contract type
+  BehaviorRegistry --> BehaviorDefinition
+  ScenarioBehaviorRemapper --> BehaviorParamRemapperCompiler : CompileFor
+  BehaviorParamRemapperCompiler --> RemapPlan : one per type, cached
+  RemapPlan ..> Demo_MissionPlan_Params : Fire is Nested
+  RemapPlan ..> FireAtTargetParamsJsonDto : targetNetworkId is Id
+```
+
+```mermaid
+sequenceDiagram
+  participant X as StagingEntityExtractor
+  participant R as ScenarioBehaviorRemapper
+  participant B as BehaviorRegistry
+  participant C as BehaviorParamRemapperCompiler
+  X->>R: RemapJson("Demo_MissionPlan", json, map)
+  R->>B: TryGetId + TryGetDefinition
+  B-->>R: JsonParamsDtoType = Demo_MissionPlan.Params
+  R->>C: CompileFor(Params) - cached per type
+  C-->>R: walk delegate
+  R->>R: walk JSON - "Fire" is Nested, "targetNetworkId" is Id
+  R-->>X: json with 1006 rewritten to 1001, every other byte as authored
+```
+
+*Who calls it: only the CGF node's load step carries a remapper. The editor's step is drawn as the dead edge it is
+(filed, not changed here).*
+
+```mermaid
+graph TD
+  CGF["CgfSubsystem composition"] -- "CreateBehaviorRemapper(registry)" --> RM["ScenarioBehaviorRemapper"]
+  CGF --> STEP["ScenarioLoadStep (CGF)"]
+  STEP --> EX["StagingEntityExtractor.Extract"]
+  EX --> RC["RemapComponentNetworkIds"]
+  RC --> RM
+  ED["EditorSubsystem"] --> STEP2["ScenarioLoadStep (editor) - no remapper"]
+  APP["CgfApplication (test host)"] -- "no registry: explicit table only" --> RM2["ScenarioBehaviorRemapper"]
+  style STEP2 stroke:#c00,stroke-dasharray: 5 5
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| ① what drives the remap | ⭐ the contract TYPE: a plan of JSON keys per type — `[RemapNetworkId]` `long`/`int` field or property ⇒ rewrite the number; a member whose type has a non-empty plan ⇒ recurse into that object. Keys match the JSON name (`[JsonPropertyName]` or the member name) case-insensitively, as `ParseParams` does | a per-blueprint `Register` emitted into the registrar — a second producer of what the type already says, and it misses generated BTree/HSM contracts · ids recognised by key name (`*NetworkId`) — a guess |
+| ② how the JSON is rewritten | ⭐ in place (`JsonNode`): only a remapped number changes; the ORIGINAL string comes back when nothing did. One walker — `Compile<TDto>` becomes `CompileFor(typeof(TDto))` | keep the DTO round-trip — re-serialising a generated `Params` writes EVERY member, so an absent key comes back as `0` and overrides the declared Parameter default (`InstanceEmitter` overlay: "an absent key keeps its default"); fixed-list fields do not even serialise. Two walkers would break ruling 9 |
+| ③ where the type comes from | ⭐ the `BehaviorRegistry`, by name, LAZILY (`JsonParamsDtoType` already settles curated-vs-generated precedence, CE-235); the explicit `Register` table is the fallback for a host with no registry | a startup snapshot of the registry — a blueprint authored or hot-reloaded after load would be missed |
+| ④ a plain `Int64` Parameter (`PlatoonHillAttackBp.TargetAreaNetworkId`) | ⏸ **not in this slice** — nothing in the asset says it is an entity id; it needs an authoring marker ⇒ S8o-2 | — |
+
+**Design docs checked:** `docs/designs/cgf-scn/DESIGN.md` Decision 7 + C005c/C005d — applies: "remapper delegates
+registered per BehaviorId", "reflect DTO type for all properties/FIELDS with `[RemapNetworkId]`"; this keeps the per-name
+seam and the type as the schema, and adds fields and nesting (its round-trip step 3 is SUPERSEDED, noted there) ·
+`Behavior_Parameter_Resolver_Detailed_Design.md` §4.2 — applies to ④: an authored "Entity reference" is `long` +
+`[RemapNetworkId]` + `[MapPickableEntity]`, i.e. the marker belongs to the authored field · `docs/designs/hill-attack/DESIGN.md`
+§6.1 — the curated `PlatoonHillAttackParamsJsonDto.TargetAreaNetworkId` carries `[RemapNetworkId]`; the blueprint twin
+lost it · S8n (above) — the contracts are structs; the walker never constructs one, so struct-vs-class no longer matters.
+
+#### S8o as-built *(`2026-10-03`, CE-2054)*
+
+Built as designed: `BehaviorParamRemapperCompiler.CompileFor(Type)` (one walker; `Compile<TDto>` delegates to it, cache
+weak per type), `ScenarioBehaviorRemapper(BehaviorRegistry?)` resolving the contract type lazily by name with the
+`Register` table as fallback, `CgfBehaviorSetup.CreateBehaviorRemapper(registry)`, `CgfSubsystem` passing `_behaviorRegistry`,
+and `[RemapNetworkId]` on fields. One deviation: an `int` id is written back narrowed, as C005a specified.
+`scenarios/mission-demo-bp` now carries its AUTHORED ids again (tank 1001, hostile 1006, `Fire.targetNetworkId` 1006), so
+every load exercises the remap (load assigns 1000/1001). Rails: `Fdp.Toolkits.Tests` `CE2054_NestedContractRemapTests` ×4
+(nested field, tagged field, same-string-when-unchanged, registry lookup; the two the mutation could reach went red with
+nesting and the registry lookup removed), `Hrot.SimHost.Tests` `CgfBehaviorSetupTests.CE2054_*` on the real `Demo_MissionPlan`.
+⏸ ④ (a plain `long` Parameter) is CE-2055; the editor's load step without a remapper is CE-2056.
+✅ **Live, `--mode all`, fresh cluster:** loading the scenario with authored ids 1001/1006 gave the tank 1000 and the hostile
+1001, and the CGF world's task params read `"Fire":{"targetNetworkId":1001,…}`. The tank drove (446 → 598, 427) and the
+hostile's Health fell 50 → 0 at sim t ≈ 34 s. Zero "not found in entity map" lines (the same run failed before the fix).
 
 ## 5. Decisions — each with a lean
 

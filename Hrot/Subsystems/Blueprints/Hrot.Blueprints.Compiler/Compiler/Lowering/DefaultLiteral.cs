@@ -96,6 +96,13 @@ internal static class DefaultLiteral
                 reason = "expected a decimal number";
                 return false;
 
+            // ⭐ DESIGN_Entity_Reference.md — an EntityRef default is its network id (JSON number, as the converter writes it).
+            case "Fdp.Toolkit.Replication.EntityRef":
+                if (long.TryParse(text, NumberStyles.Integer, inv, out var netId))
+                { csharp = "new global::Fdp.Toolkit.Replication.EntityRef(" + netId.ToString(inv) + "L)"; return true; }
+                reason = "expected a network id (an integer)";
+                return false;
+
             // ⭐ CE-415 — the vectors DO have a literal form: a constructor call. One reader for both converters.
             case "System.Numerics.Vector2":
             case "System.Numerics.Vector3":

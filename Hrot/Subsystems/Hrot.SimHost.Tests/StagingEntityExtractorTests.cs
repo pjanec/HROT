@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using Hrot.Core.Network;
 using System;
 using System.Collections.Generic;
@@ -683,7 +684,7 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["PassengerId"]!.GetValue<long>();
                 var intent = new InitialPassengersIntent();
-                intent.PassengerNetworkIds.Add(id);
+                intent.PassengerNetworkIds.Add(new EntityRef(id));
                 repo.SetManagedComponent(entity, intent);
             }
         }
@@ -726,7 +727,59 @@ namespace Hrot.SimHost.Tests
 
             // Passenger old ID 2001 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].NetworkId);
+        }
+
+        /// <summary>A stub translator that writes an <see cref="InitialTargetsIntent"/> naming one target.</summary>
+        private sealed class StubTargetsIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubTargets";
+            private readonly long _targetNetId;
+
+            public StubTargetsIntentTranslator(long targetNetId) => _targetNetId = targetNetId;
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["TargetId"] = _targetNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<long>();
+                var intent = new InitialTargetsIntent();
+                intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(id), PosX = 1f, PosY = 2f, PosZ = 7.5f, Score = 0.25f });
+                repo.SetManagedComponent(entity, intent);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>DESIGN_Entity_Reference.md</c> D4 — a target-memory entry's reference is remapped by the ONE type plan and
+        /// nothing else in the entry moves. 🔴 The hand-coded case this replaced copied each entry field by field and
+        /// DROPPED <c>PosZ</c> (P3D-206), so every scenario load flattened remembered targets to altitude 0.
+        /// </summary>
+        [Fact]
+        public void Extract_InitialTargetsIntent_RemapsTheReference_AndKeepsEveryOtherField()
+        {
+            var vehicle = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(vehicle, new SimTransform());
+            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = 1001L });
+            var target = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 2001L });
+
+            var serializer = BuildSerializer(new StubTargetsIntentTranslator(2001L));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var entry = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<InitialTargetsIntent>().Single().Entries.Single();
+            Assert.Equal(new EntityRef(3002L), entry.NetworkId);
+            Assert.Equal(7.5f, entry.PosZ);
+            Assert.Equal(0.25f, entry.Score);
         }
 
         // ── Test 14: Unknown passenger NetworkId preserved as-is ──────────────────────
@@ -758,7 +811,7 @@ namespace Hrot.SimHost.Tests
 
             // Unknown ID 9999 has no mapping — it must be preserved unchanged.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0]);
+            Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0].NetworkId);
         }
 
         // ── Test 15: Child entity InitialPassengersIntent NetworkId remapped (S313) ─
@@ -810,7 +863,7 @@ namespace Hrot.SimHost.Tests
 
             // passengerOldId 2000 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].NetworkId);
         }
 
         // ── CS027-T01: InitialUnitSubordinateIntent CommanderNetworkId remapped ────
@@ -846,7 +899,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["CommanderId"]!.GetValue<long>();
-                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = id });
+                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(id) });
             }
         }
 
@@ -880,7 +933,7 @@ namespace Hrot.SimHost.Tests
                 .Single();
 
             // commanderOldId 2001 must have been remapped to 3002.
-            Assert.Equal(3002L, intent.CommanderNetworkId);
+            Assert.Equal(3002L, intent.CommanderNetworkId.NetworkId);
         }
 
         // ── CS027-T02: Unknown CommanderNetworkId preserved as-is ─────────────────
@@ -911,7 +964,7 @@ namespace Hrot.SimHost.Tests
                 .Single();
 
             // Unknown ID 9999 has no mapping — must be preserved unchanged.
-            Assert.Equal(unknownCommanderId, intent.CommanderNetworkId);
+            Assert.Equal(unknownCommanderId, intent.CommanderNetworkId.NetworkId);
         }
     }
 }

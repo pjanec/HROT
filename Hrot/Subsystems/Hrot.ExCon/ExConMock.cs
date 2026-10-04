@@ -43,7 +43,6 @@ public sealed class ExConMock : IDisposable
     private readonly bool                        _useDockSpace;
 
     // ── Phase 1 shims (kept for backward compat; superseded by Phase 6 adapters below) ──
-    private readonly ExConMapPickShim            _mapPickShim;
     private readonly ExConMissionShim            _missionShim;
 
     // ── Phase 6 proper adapters ───────────────────────────────────────────────
@@ -70,7 +69,7 @@ public sealed class ExConMock : IDisposable
 
     public IMapConfigController  MapConfigAdapter => _mapConfigAdapter;
     public IMissionEditorService MissionShim      => _missionShim;
-    public IMapPickService       MapPickShim       => _mapPickShim;
+    public IMapPickService       MapPickShim       => _logic.MapPickService;
     /// <summary><see cref="ExConLogic"/> directly implements <see cref="ISpawnController"/>.</summary>
     public ISpawnController      SpawnController   => _logic;
 
@@ -103,7 +102,6 @@ public sealed class ExConMock : IDisposable
 
         // Phase 1 shims — still used for MissionPanel and MapPickService.
         _missionShim   = new ExConMissionShim(_logic.MissionEditorService);
-        _mapPickShim   = new ExConMapPickShim(_logic.MapPickService);
 
         // Phase 6 proper adapters.
         _mapConfigAdapter = new ExConMapConfigAdapter(_logic);
@@ -206,7 +204,7 @@ public sealed class ExConMock : IDisposable
 
             _configPanel.Draw(_mapConfigAdapter);
             _sharedOrbatPanel.DrawContent(_orbatAdapter, _orbatAdapter);
-            _missionPanel.Draw(_missionShim, _mapPickShim);
+            _missionPanel.Draw(_missionShim, _logic.MapPickService);
             _interactionPanel.Draw(_logic);
             _spawnerPanel.Draw(_logic);
             _diagnosticsPanel.Draw(_logic);

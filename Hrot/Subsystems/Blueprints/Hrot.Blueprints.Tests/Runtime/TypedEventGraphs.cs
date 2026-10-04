@@ -155,3 +155,11 @@ public struct S8TaskParams
 {
     public float Value;
 }
+
+/// <summary>⭐ CE-2023 ② (S8l) — the same <c>Value</c> at 0, plus a <c>bool</c> ⇒ 8 bytes managed for an extent of 5.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct S8PaddedTaskParams
+{
+    public float Value;
+    public bool Flag;
+}

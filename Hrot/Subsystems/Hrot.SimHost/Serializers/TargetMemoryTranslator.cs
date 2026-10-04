@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -95,7 +96,7 @@ namespace Hrot.SimHost.Serializers
 
                 intent.Entries.Add(new TargetEntry
                 {
-                    NetworkId    = networkId,
+                    NetworkId    = new EntityRef(networkId),
                     PosX         = entry["PosX"]?.GetValue<float>()  ?? 0f,
                     PosY         = entry["PosY"]?.GetValue<float>()  ?? 0f,
                     PosZ         = entry["PosZ"]?.GetValue<float>()  ?? 0f,

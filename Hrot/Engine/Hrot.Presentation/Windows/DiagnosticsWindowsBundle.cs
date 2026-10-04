@@ -72,7 +72,7 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
             ctx.Windows,
             h.Perspective,
             h.RepoAdapter,
-            h.PickBridge,
+            h.PickBroker,
             h.TitleBarColor);
 
         ctx.Windows.RegisterWindow(new FdpEventBrowserWindow(
@@ -160,4 +160,4 @@ public sealed record DiagnosticsHostServices(
     Vector4? TitleBarColor,
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
-    MapPickServiceBridge? PickBridge = null);
+    MapPickBroker? PickBroker = null);

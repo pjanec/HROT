@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host)
+updated: 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; the rest is the
   architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -170,6 +170,92 @@ sequenceDiagram
 *What the picture shows that the prose hid:* the Brain's channel stops at `MoveToExecutor` — nothing on the vehicle side
 reads it for a `MoveTo`, which is what makes the editor and the cluster identical. A node with no path solver (Stride's
 vehicles, which plan in `VehicleNavigationIntentSystem`) publishes a request nobody answers and plans itself.
+
+> ⭐⭐ **DESIGN + AS-BUILT — `2026-10-03` (`CE-2059`, `CE-2060`, behaviors lane, user-approved): a planned path ENDS AT
+> THE DESTINATION and is DRIVEN AT THE REQUESTED SPEED.** 📐 Measured live (`--mode all`, `scenarios/mission-demo-bp`, no
+> terrain ⇒ the road graph): the Return leg reported `Arrived` 14.8 m from its destination (the road node nearest it),
+> the Advance leg overshot its end node by 11 m, and both drove 10 m/s against a requested 5.
+
+```mermaid
+classDiagram
+  class PathfindingSolverSystem {
+    SolvePath(req) road graph
+  }
+  class TrajectoryPoolManager {
+    RegisterTrajectoryWithKey(positions, handle)
+    DesiredSpeed 10 per waypoint
+  }
+  class NavigationIntentBridgeSystem {
+    PathToPoint, FollowRoute
+  }
+  class NavState {
+    TargetSpeed : float
+    ProgressS : float
+  }
+  class CarKinematicsSystem {
+    SampleCustomTrajectory(nav, params)
+  }
+  PathfindingSolverSystem --> TrajectoryPoolManager : nodes, then the destination
+  NavigationIntentBridgeSystem --> NavState : TargetSpeed from the intent
+  CarKinematicsSystem --> TrajectoryPoolManager : samples
+  CarKinematicsSystem --> NavState : caps by TargetSpeed, brakes to the end
+```
+
+```mermaid
+sequenceDiagram
+  participant BR as NavigationIntentBridgeSystem
+  participant SO as PathfindingSolverSystem
+  participant TP as TrajectoryPoolManager
+  participant CK as CarKinematicsSystem
+  BR->>BR: NavState.TargetSpeed = intent.TargetSpeed (PathToPoint and FollowRoute)
+  BR->>SO: PathfindingRequestEvent{Start, End}
+  SO->>SO: Dijkstra nearest node to nearest node
+  SO->>TP: waypoints = road nodes + End when End is off the last node
+  loop every tick
+    CK->>TP: sample at ProgressS
+    CK->>CK: speed = min(path speed, TargetSpeed if set, braking envelope to the end)
+  end
+  CK->>CK: ProgressS at the end - HasArrived, at the destination and at rest
+```
+
+```mermaid
+graph TD
+  CORE["SimHostCoreLogicPack (vehicle side)"] -- "registers, per frame" --> BR["NavigationIntentBridgeSystem"]
+  SOLV["NavigationSolverModule (SlowBackground 10 Hz)"] -- "registers" --> SO["PathfindingSolverSystem"]
+  GK["GroundKinematicsModule"] -- "registers, per frame" --> CK["CarKinematicsSystem"]
+  BR -- "PathfindingRequestEvent" --> SO
+  SO -- "trajectory in the shared pool" --> CK
+```
+
+*What the pictures show that prose hid:* the speed the Brain asked for already reaches the vehicle side
+(`NavState.TargetSpeed`) — only the trajectory sampler ignored it; no wire field is needed.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| where the path ends | ⭐ append `req.End` after the last road node (straight connector), as the old `DirectPoint` drove the whole way | judge `Arrived` by `ArrivalRadius` against `FinalDestination` — a FollowRoute's trajectory has no meaningful `FinalDestination`, and the vehicle would still stop at the node · a navmesh-planned connector — that is §5.2's full Hybrid splice, not built ("Phase-1"), and there is no navmesh here |
+| how speed reaches the path | ⭐ the sampler caps the path speed by `NavState.TargetSpeed` (0 = uncapped) | carry a speed on `PathfindingRequestEvent` — a wire field on the scale-out `PathRequestBatch` for something the vehicle side already holds |
+| FollowRoute's `TargetSpeed` | ⭐ the bridge copies `intent.TargetSpeed` (the `FollowPath` speed, 0 = uncapped) | leave it — a FollowRoute would be capped by whatever the PREVIOUS move left there |
+| the overshoot | ⭐ the same braking envelope `Direct` mode uses, against the distance left on the trajectory | stop dead at the end — what overshot 11 m |
+
+**Design docs checked:** this document §5.2 (road route when both ends are near the network; "navmesh → road → navmesh"
+splice when mixed) — applies, the route is meant to reach the requested point · §3.1 AS-BUILT (CE-3026) — applies, the
+`PathToPoint` contract is unchanged · `FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md` §"Speed Controller" — applies,
+the braking envelope's basis · `docs/DESIGN_Terrain_World.md` §8 — does not change (terrain only feeds the navmesh backend).
+
+> ⭐ **AS-BUILT `2026-10-03`:** as designed — `PathfindingSolverSystem.SolvePath` (connector when > 0.5 m off the last node,
+> `TotalDistanceMeters` includes it), `CarKinematicsSystem.SampleCustomTrajectory` (cap, then the braking envelope with a
+> 0.5 m/s crawl floor so the end is still reached), `NavigationIntentBridgeSystem` FollowRoute copies `TargetSpeed`. Measured
+> residue: a path driven at 10 m/s comes to rest 4.3 m past its end — inside the 5 m arrival radius, the same standard as
+> Direct mode (controller lag). Rails in `PathfindingSolverSystemTests` and `CarKinematicsSystemTests` (`CE2059_*`, `CE2060_*`).
+>
+> ⚠ **DEVIATION found by the live run — arrival is now confirmed by POSITION.** `ProgressS` is DEAD-RECKONED (`+= speed·dt`),
+> so the Return leg's turn-around counted as progress and the tank "arrived" 23 m short of home. Two changes in
+> `CarKinematicsSystem`: ① only motion ALONG the path counts (`speed·dt·max(0, fwd·tangent)`); ② at progress-end, a vehicle
+> outside `ArrivalRadius` (2 m when unset) HOMES on the end point, braking by the real distance; braking also uses the larger
+> of path-remaining and straight-line distance. Rail `CarKinematicsSystemTests.CE2059_AVehicleThatMustTurnAround_*` (red: at
+> rest 9.7 m from the end). ⛔ NOT fixed here, the follower's steering law: it steers along the path TANGENT at `ProgressS`,
+> not toward the path, so a sideways offset is never corrected (the rail ends 8 m off to the side before homing) and a vehicle
+> facing exactly against the path gets zero steer (pure pursuit at 180°). That is `CE-3029`'s follower (`backend`).
 
 The simplest and most common case: a BTree wants the entity to go somewhere and only cares about whether it arrived.
 

@@ -243,7 +243,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
             int childOffset = parentNativeOffset;
             if (buffer.IsNative && parentType.IsValueType)
-                childOffset += (int)(nint)Marshal.OffsetOf(parentType, fi.Name);
+                childOffset += global::Fdp.Core.Layout.ManagedLayout.OffsetOf(parentType, fi.Name);   // ⭐ CE-2044 — the managed offset (sizes were already managed)
 
             result.Add(BuildNode(buffer, $"{parentPath}.{fi.Name}", fi.Name, fi.FieldType,
                 childOffset, fi, null, idAlloc, visited, providers, fieldEditors, context,

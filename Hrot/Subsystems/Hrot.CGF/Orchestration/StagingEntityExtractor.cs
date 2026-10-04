@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -167,7 +168,7 @@ namespace Hrot.CGF.Orchestration
         /// 🔴 The interface's default for this member IGNORES the remapper (right for an extractor with no notion of one).
         /// This class — the one that DOES remap — implemented only the three-argument member, so since <c>L4a</c> (the ONE
         /// <c>ScenarioLoadStep</c>) every live load reached the default and CGF's remapper was dropped: entity references
-        /// inside mission parameters (<c>[RemapNetworkId]</c>, e.g. <c>FireAtTarget.targetNetworkId</c>) kept their
+        /// inside mission parameters (an <c>EntityRef</c>, e.g. <c>FireAtTarget.targetNetworkId</c>) kept their
         /// STAGING ids. 📐 Measured by <c>DistributedScenarioLoadTests</c> once its offline ids stopped coinciding with the
         /// live ones (both allocators start at 1000 — which is why nothing noticed). 📄 <c>DESIGN_Cluster_Load_Phase.md</c> §4.1c.
         /// </remarks>
@@ -428,76 +429,13 @@ namespace Hrot.CGF.Orchestration
                 }
             }
 
-            // Remap cross-entity Network IDs embedded in Intent DTO managed components.
-            // Intent DTOs are written by scenario translators during Inject; the network IDs
-            // they contain refer to the old staging allocations and must be patched to the
-            // new IDs allocated in Pass 1 before the requests are dispatched.
+            // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
+            // scenario translators write, and any other component holding one) is rewritten by the ONE type plan, in place
+            // (a boxed struct in its box). The staging repository is transient, so mutating its components is intended.
+            // 🔴 This replaced six hand-coded per-intent cases: a new intent was silently left with staging ids, and the
+            // TargetEntry copy had dropped PosZ (P3D-206) on every scenario load.
             for (int ci = 0; ci < comps.Count; ci++)
-            {
-                if (comps[ci] is InitialPassengersIntent pIntent)
-                {
-                    var remapped = new InitialPassengersIntent();
-                    foreach (var id in pIntent.PassengerNetworkIds)
-                        remapped.PassengerNetworkIds.Add(
-                            oldToNewMap.TryGetValue(id, out long newPsId) ? newPsId : id);
-                    comps[ci] = remapped;
-                }
-                else if (comps[ci] is InitialVehicleIntent vIntent)
-                {
-                    comps[ci] = new InitialVehicleIntent
-                    {
-                        VehicleNetworkId = oldToNewMap.TryGetValue(
-                            vIntent.VehicleNetworkId, out long newVId) ? newVId : vIntent.VehicleNetworkId,
-                    };
-                }
-                else if (comps[ci] is InitialHierarchyIntent hIntent)
-                {
-                    comps[ci] = new InitialHierarchyIntent
-                    {
-                        ParentNetworkId      = oldToNewMap.TryGetValue(
-                            hIntent.ParentNetworkId,      out long newParId) ? newParId : hIntent.ParentNetworkId,
-                        FirstChildNetworkId  = oldToNewMap.TryGetValue(
-                            hIntent.FirstChildNetworkId,  out long newFcId)  ? newFcId  : hIntent.FirstChildNetworkId,
-                        NextSiblingNetworkId = oldToNewMap.TryGetValue(
-                            hIntent.NextSiblingNetworkId, out long newNsId)  ? newNsId  : hIntent.NextSiblingNetworkId,
-                    };
-                }
-                else if (comps[ci] is InitialRouteIntent rIntent)
-                {
-                    comps[ci] = new InitialRouteIntent
-                    {
-                        RouteNetworkId = oldToNewMap.TryGetValue(
-                            rIntent.RouteNetworkId, out long newRId) ? newRId : rIntent.RouteNetworkId,
-                    };
-                }
-                else if (comps[ci] is InitialTargetsIntent tIntent)
-                {
-                    var remappedIntent = new InitialTargetsIntent();
-                    foreach (var entry in tIntent.Entries)
-                    {
-                        remappedIntent.Entries.Add(new TargetEntry
-                        {
-                            NetworkId    = oldToNewMap.TryGetValue(entry.NetworkId, out long newTId) ? newTId : entry.NetworkId,
-                            PosX         = entry.PosX,
-                            PosY         = entry.PosY,
-                            Score        = entry.Score,
-                            LastSeenTick = entry.LastSeenTick,
-                            Modality     = entry.Modality,
-                        });
-                    }
-                    comps[ci] = remappedIntent;
-                }
-                else if (comps[ci] is InitialUnitSubordinateIntent subIntent)
-                {
-                    comps[ci] = new InitialUnitSubordinateIntent
-                    {
-                        CommanderNetworkId = oldToNewMap.TryGetValue(subIntent.CommanderNetworkId, out long newId)
-                            ? newId
-                            : subIntent.CommanderNetworkId,
-                        Designation = subIntent.Designation,
-                    };
-                }
-            }
+                EntityRefRemap.RemapObject(comps[ci], oldToNewMap);
         }
 
         /// <summary>

@@ -34,4 +34,9 @@
     <Content Include="Serialization\Migrations\TestFixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The ONE [FlakyFact] (timing-flaky tests are opt-in via HROT_RUN_FLAKY=1), shared by source link. -->
+  <ItemGroup>
+    <Compile Include="..\..\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+  </ItemGroup>
+
 </Project>

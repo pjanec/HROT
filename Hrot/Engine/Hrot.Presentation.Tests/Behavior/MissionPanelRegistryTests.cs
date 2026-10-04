@@ -15,19 +15,17 @@ namespace Hrot.Presentation.Tests.Behavior
     /// </summary>
     public sealed class MissionPanelRegistryTests
     {
-        // ── C010 SC1: MissionPanel implements IPickInteractionContext ─────────
+        // ── C010 SC1 (superseded by DESIGN_Map_Picking_Unification P4) ────────────────
 
         /// <summary>
-        /// C010 SC1: <see cref="MissionPanel"/> is declared as implementing
-        /// <see cref="IPickInteractionContext"/>, verified via reflection so the
-        /// test fails immediately if the interface is accidentally removed.
+        /// ⭐⭐ <c>P4</c> — the mission panel draws its behaviour parameters against THE shared pick broker, not a pick
+        /// state machine of its own. 🔴 It used to implement <c>IPickInteractionContext</c> with a private copy of the
+        /// broker's logic (task+property keys, <c>long</c> results); both were deleted.
         /// </summary>
         [Fact]
-        public void C010_MissionPanel_ImplementsIPickInteractionContext()
+        public void P4_MissionPanel_PicksThroughTheSharedBroker()
         {
-            Assert.True(
-                typeof(IPickInteractionContext).IsAssignableFrom(typeof(MissionPanel)),
-                "MissionPanel must implement IPickInteractionContext");
+            Assert.IsType<Hrot.Presentation.Facades.MapPickBroker>(new MissionPanel().Picks);
         }
 
         // ── C010 SC2: Constructor accepts a pre-populated BehaviorUiRegistry ──
@@ -60,101 +58,73 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.Equal("Hrot.Presentation", typeof(MissionPanel).Assembly.GetName().Name);
         }
 
-        // ── TryConsume: entity pick ───────────────────────────────────────────
+        // ── TryConsume through the panel's broker, keyed $.tasks[i].Prop ──────────────
 
-        /// <summary>
-        /// TryConsumeEntityPick returns false and entityId=0 when no entity pick has been resolved.
-        /// </summary>
+        private static readonly string EntityPath   = BehaviorUiCompiler.PickPath(0, "TargetNetworkId");
+        private static readonly string LocationPath = BehaviorUiCompiler.PickPath(0, "PickableLocation");
+
         [Fact]
         public void TryConsumeEntityPick_NoResolvedPick_ReturnsFalse()
         {
-            IPickInteractionContext ctx = new MissionPanel();
-
-            bool result = ctx.TryConsumeEntityPick(0, "TargetNetworkId", out long entityId);
-
+            bool result = new MissionPanel().Picks.TryConsumeEntityPick(EntityPath, out var picked);
             Assert.False(result);
-            Assert.Equal(0L, entityId);
+            Assert.True(picked.IsNone);
         }
 
-        /// <summary>
-        /// TryConsumeEntityPick returns true and provides the entity ID after the panel
-        /// has processed a completed pick task (via TestHook_PollPickCompletion), and clears
-        /// the buffered state on the first consumption.
-        /// </summary>
+        /// <summary>A completed entity pick is consumed ONCE, as an <c>EntityRef</c>, for the path it was asked for.</summary>
         [Fact]
         public async Task TryConsumeEntityPick_AfterPickCompletes_ReturnsTrueAndClearsState()
         {
             var panel = new MissionPanel();
-            panel.SelectedEntityId = 1;
-            panel.HandleAddTask();   // ensures _draftPlan has one task so HandlePickEntity proceeds
+            var pick  = new StubMapPickService();
+            panel.TestHook_SetFramePickService(pick);
 
-            var pick = new StubMapPickService();
-            panel.HandlePickEntity(0, pick, filterPresets: null);
-
+            panel.Picks.RequestEntityPick(EntityPath, filterPresets: null);
+            Assert.True(panel.IsEntityPickPending);
             pick.CompleteEntity(42);
             await Task.Yield();
 
-            panel.TestHook_PollPickCompletion();
-
-            IPickInteractionContext ctx = panel;
-            // _pendingPickPropertyName is null (set by HandlePickEntity directly, not RequestEntityPick)
-            bool result = ctx.TryConsumeEntityPick(0, null!, out long entityId);
-
-            Assert.True(result);
-            Assert.Equal(42L, entityId);
-
-            // Second call must return false (state cleared after first consume).
-            bool second = ctx.TryConsumeEntityPick(0, null!, out long entityId2);
-            Assert.False(second);
-            Assert.Equal(0L, entityId2);
+            Assert.False(panel.Picks.TryConsumeEntityPick(LocationPath, out _));   // another field's path: not its pick
+            Assert.True(panel.Picks.TryConsumeEntityPick(EntityPath, out var picked));
+            Assert.Equal(new Fdp.Toolkit.Replication.EntityRef(42), picked);
+            Assert.False(panel.Picks.TryConsumeEntityPick(EntityPath, out _));     // consumed once
         }
 
-        // ── TryConsume: location pick ─────────────────────────────────────────
-
-        /// <summary>
-        /// TryConsumeLocationPick returns false when no location pick has been resolved.
-        /// </summary>
         [Fact]
         public void TryConsumeLocationPick_NoResolvedPick_ReturnsFalse()
         {
-            IPickInteractionContext ctx = new MissionPanel();
-
-            bool result = ctx.TryConsumeLocationPick(0, "PickableLocation", out PickableGeoPoint loc);
-
+            bool result = new MissionPanel().Picks.TryConsumeLocationPick(LocationPath, out PickableGeoPoint loc);
             Assert.False(result);
             Assert.Equal(0.0, loc.Latitude);
             Assert.Equal(0.0, loc.Longitude);
         }
 
-        /// <summary>
-        /// TryConsumeLocationPick returns true and provides the coordinates after the panel
-        /// has processed a completed location pick task, and clears state on consumption.
-        /// </summary>
         [Fact]
         public async Task TryConsumeLocationPick_AfterPickCompletes_ReturnsTrueAndClearsState()
         {
             var panel = new MissionPanel();
-            panel.SelectedEntityId = 1;
-            panel.HandleAddTask();   // ensures _draftPlan has one task so HandlePickLocation proceeds
+            var pick  = new StubMapPickService();
+            panel.TestHook_SetFramePickService(pick);
 
-            var pick = new StubMapPickService();
-            panel.HandlePickLocation(0, pick);
-
+            panel.Picks.RequestLocationPick(LocationPath);
             var expectedLocation = new GeoPoint(52.5, 13.4);
             pick.CompleteLocation(expectedLocation);
             await Task.Yield();
 
-            panel.TestHook_PollPickCompletion();
-
-            IPickInteractionContext ctx = panel;
-            bool result = ctx.TryConsumeLocationPick(0, null!, out PickableGeoPoint loc);
-
-            Assert.True(result);
+            Assert.True(panel.Picks.TryConsumeLocationPick(LocationPath, out PickableGeoPoint loc));
             Assert.Equal(expectedLocation.Latitude,  loc.Latitude,  precision: 6);
             Assert.Equal(expectedLocation.Longitude, loc.Longitude, precision: 6);
+            Assert.False(panel.Picks.TryConsumeLocationPick(LocationPath, out _));
+        }
 
-            bool second = ctx.TryConsumeLocationPick(0, null!, out PickableGeoPoint loc2);
-            Assert.False(second);
+        /// <summary>No pick service this frame (a headless host) ⇒ a request is ignored, nothing is pending.</summary>
+        [Fact]
+        public void ARequestWithNoFrameService_IsIgnored()
+        {
+            var panel = new MissionPanel();
+            panel.Picks.RequestEntityPick(EntityPath, null);
+            Assert.False(panel.IsEntityPickPending);
+            Assert.False(panel.Picks.IsPickPendingFor(EntityPath));
         }
 
         // ── Stub helpers ──────────────────────────────────────────────────────

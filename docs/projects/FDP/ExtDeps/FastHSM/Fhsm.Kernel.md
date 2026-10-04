@@ -199,7 +199,7 @@ Fhsm.Kernel/
     +-- HsmInstance64.cs        64-byte Tier 1 instance struct
     +-- HsmInstance128.cs       128-byte Tier 2 instance struct
     +-- HsmInstance256.cs       256-byte Tier 3 instance struct (see Data/ list)
-    +-- InstanceHeader.cs       Common header: MachineId, Generation, Phase, Flags, RngState
+    +-- InstanceHeader.cs       Common header: MachineId (= HsmDefinitionBlob.MachineId, CE-2001), Generation, Phase, Flags, RngState
     +-- CommandPage.cs          Fixed-size command buffer page
     +-- HsmCommandWriter.cs     Writes commands into a CommandPage
     +-- Enums.cs                InstancePhase, InstanceFlags, EventPriority, EventFlags,

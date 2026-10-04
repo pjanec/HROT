@@ -817,6 +817,32 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2023</c> ② (S8l) — a generated child's Input region is its Inputs STRUCT, trailing padding included: the
+        /// bytes its block reserves for <c>In</c> and the width a host binds. 🔴 It was the manifest extent (6 here), so a
+        /// binding of the struct (8) threw at the child's start.
+        /// </summary>
+        [Fact]
+        public void CE2023_AGeneratedChildsInputRegion_IsItsInputsStruct_PaddingIncluded()
+        {
+            var def = new BehaviorDefinition
+            {
+                Name = "PaddedInputs",
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[]
+                {
+                    new("Threshold", typeof(int), 0), new("FlagA", typeof(bool), 4), new("FlagB", typeof(bool), 5),
+                },
+                JsonParamsDtoType    = typeof(PaddedInputs),
+                BlackboardLayoutType = typeof(PaddedInputs),
+            };
+            Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<PaddedInputs>());
+            Assert.Equal(8, RootParamsAccess.InputBytes(def));
+        }
+
+#pragma warning disable CS0649   // layout-only fixture
+        private struct PaddedInputs { public int Threshold; public bool FlagA; public bool FlagB; }
+#pragma warning restore CS0649
+
+        /// <summary>
         /// ⭐ <c>CE-2041</c> — a layout type is sized by its MANAGED size, the bytes the slot holds. <c>Marshal.SizeOf</c> counted
         /// each <c>bool</c> as 4 (here 12 for an 8-byte struct) — every blueprint <c>Block</c> with a bool was over-allocated
         /// (measured: PlatoonHillAttackBp 696 for 648).

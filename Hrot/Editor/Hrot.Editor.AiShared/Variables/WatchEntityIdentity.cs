@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Variables;
@@ -72,5 +74,30 @@ public sealed class WatchEntityIdentity
 
         long runtimeId = Remap.ToRuntime(stagingId);
         return runtimeId == 0 ? default : _entityByRuntimeId(runtimeId);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The Watch's "pin on a picked entity" (<c>AQ55</c>), built ONCE for every host</b> — a map pick's runtime
+    /// network id turned into a CONCRETE binding keyed by the AUTHORED id (<c>BP-511</c>: the runtime id is renumbered
+    /// on every load, the authored one survives a reload). 📄 <c>DESIGN_Map_Picking_Unification.md</c>.
+    /// <para>⛔ Answers <c>null</c> — never a half-built binding — when the pick yields nothing (no map, cancelled, an
+    /// entity with no identity) or the id resolves to no live entity.</para>
+    /// <para>⚠ An authored id of <c>0</c> is legitimate (a runtime-spawned entity): the pin is then within-session.</para>
+    /// </summary>
+    /// <param name="pickRuntimeId">The host's map pick — production: <c>IMapPickService.PickEntityAsync</c>, read at
+    /// call time so a host whose adapter is built (or torn down) after this is composed still works.</param>
+    public WatchEntityPicker PickerOver(Func<CancellationToken, Task<int>> pickRuntimeId)
+    {
+        if (pickRuntimeId == null) throw new ArgumentNullException(nameof(pickRuntimeId));
+        return async ct =>
+        {
+            int runtimeId = await pickRuntimeId(ct).ConfigureAwait(false);
+            if (runtimeId <= 0) return null;
+
+            var entity = _entityByRuntimeId(runtimeId);
+            if (entity.IsNull || entity.Equals(default(Entity))) return null;
+
+            return EntityBinding.Concrete(Remap.ToStaging(runtimeId), entity);
+        };
     }
 }

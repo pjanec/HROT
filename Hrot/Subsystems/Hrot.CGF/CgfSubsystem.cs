@@ -408,6 +408,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
+    /// <summary>⭐ The map pick service this host builds over its canvas — the component editor's bridge and the
+    /// Watch's entity picker both use it (<c>DESIGN_Map_Picking_Unification.md</c>).</summary>
+    private CanvasMapPickAdapter?      _cgfMapPick;
     // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
     // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
     //   SelectionInteractionSystem wrote the SelectionState component. Two stores, one concept.
@@ -1200,7 +1203,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   from `Hrot.Orchestrator` (not reachable) ⇒ ⛔ no second authority, and `SaveAs` on CGF
             //   lands where the picker lists and where the loader stages from.
             () => OrchestrationConstants.GetSharedScenariosRoot());
-        var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
+        // ⭐ CE-2054 — with the registry, a blueprint behaviour's params are remapped by their own contract type.
+        var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry);
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
         // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
@@ -1870,10 +1874,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Create a map-pick bridge so component fields tagged [MapPickable] can be edited.
         CanvasMapPickAdapter? cgfCanvasAdapter = _canvas != null && _context?.World != null
             ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager,
-                  tools: () => _cgfToolController)   // 🔒 UXI-07 step 4b
+                  tools: () => _cgfToolController,   // 🔒 UXI-07 step 4b
+                  geoTransform: _context.GeoTransform)   // ⭐ P2 — a location pick is geodetic
             : null;
-        MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
-            ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
+        _cgfMapPick = cgfCanvasAdapter;   // ⭐ also the Watch's entity picker (BuildAiShell)
+        MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
+            ? new MapPickBroker(cgfCanvasAdapter)
             : null;
 
         // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch
@@ -1890,7 +1896,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   wrappers are exactly what E5 deleted (two copies existed: Hrot.Editor and Hrot.ExCon).
         // ⚠ Each is guarded on its own panel+adapter pair rather than on one flag: a host that cannot
         //   service a window must not show it (ruling 49), and the pairs are independent.
-        // ⭐ Mission takes `cgfPickBridge`'s underlying `CanvasMapPickAdapter` — the shared IMapPickService
+        // ⭐ Mission takes `cgfPickBroker`'s underlying `CanvasMapPickAdapter` — the shared IMapPickService
         //   this host ALREADY built two lines up, ⛔ not a second pick implementation (design §8 D2).
         if (_spawnerPanel != null && _spawnAdapter != null)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
@@ -1937,7 +1943,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
                     // BP-327 — the module/system execution-stats profiler.
                     ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
-                    PickBridge:     cgfPickBridge)),
+                    PickBroker:     cgfPickBroker)),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -2116,6 +2122,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Func<bool> isFrozenSignal = () => (_bpManager?.IsPaused ?? false)
                                        || Fdp.Toolkit.Time.SimClock.Of(_context?.World).IsHalted;
 
+        // ⭐⭐ BP-511 — the staging⇄runtime bridge (CGF PUBLISHES the table and owns the world); ⛔ the resolver is
+        //    Fdp.Toolkits' one NetworkIdResolver. It also builds the Watch's entity picker (below).
+        var cgfWatchIdentity = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
+            _stagingRemap,
+            runtimeId => Fdp.Toolkit.Replication.Services.NetworkIdResolver
+                             .FindEntityByNetworkId(_context?.World, runtimeId),
+            RuntimeNetworkIdOf);
+
         var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
             catalog, refactorService, debugRegistry, _facetEditService,
             isSimUp:  isSimUpSignal,
@@ -2141,17 +2155,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐ BP-511 — the staging⇄runtime bridge. CGF HAS both halves (it PUBLISHES the table and
             //    owns the world), so it passes them; ⛔ the resolver is Fdp.Toolkits' one
             //    NetworkIdResolver, not a second lookup.
-            EntityIdentity = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
-                _stagingRemap,
-                runtimeId => Fdp.Toolkit.Replication.Services.NetworkIdResolver
-                                 .FindEntityByNetworkId(_context?.World, runtimeId),
-                RuntimeNetworkIdOf),
+            EntityIdentity = cgfWatchIdentity,
 
-            // ⛔⛔ EntityPicker is deliberately ABSENT, and it is NOT a silent default: 📐 measured —
-            //    AQ55's pick is IMapPickService.PickEntityAsync, which lives in Hrot.ExCon and is
-            //    implemented only by the editor's EditorMapPickAdapter and ExCon's own logic. CGF
-            //    references neither and has no such capability, so the Watch's "pick an entity…" entry
-            //    is ABSENT here rather than dead (the property's own remark asks for exactly that).
+            // ⭐⭐ AQ55's entity picker — CGF HAS a map pick service (the shared CanvasMapPickAdapter it builds over
+            //    its canvas), so it PASSES the Watch's picker, built by the ONE WatchEntityIdentity.PickerOver.
+            //    ⛔ SUPERSEDED: "EntityPicker is deliberately ABSENT … IMapPickService lives in Hrot.ExCon" — the
+            //    service lives in Hrot.UI.Common.Facades and CGF builds it (DESIGN_Map_Picking_Unification).
+            //    Absent only on a headless CGF (no canvas ⇒ no map to point at).
+            EntityPicker = _canvas == null ? null : cgfWatchIdentity.PickerOver(
+                ct => _cgfMapPick?.PickEntityAsync(null, ct) ?? Task.FromResult(-1)),
+
             //
             // ⛔⛔ StagedWrites is absent for two reasons, and BOTH are load-bearing:
             //    ① it resolves a row's address through BlueprintLiveValueWriter, which needs an

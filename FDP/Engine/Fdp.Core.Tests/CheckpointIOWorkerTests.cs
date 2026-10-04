@@ -9,7 +9,7 @@ using Xunit;
 namespace Fdp.Tests
 {
     // ── Test component for checkpoint round-trips ───────────────────────────
-    [ComponentId(205)]
+    [ComponentId(254)]   // CE-2045: was 205, shared with LifeCycleSchemaTests.UnmanagedA — whichever registered second threw
     internal struct CheckpointTestPos
     {
         public float X, Y, Z;

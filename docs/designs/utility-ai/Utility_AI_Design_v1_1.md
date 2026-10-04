@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-02
+updated: 2026-10-03
 current-answer: the whole document (the scorer and its §7 integration surfaces)
 stale-below: none
-known-rot: the runtime bootstrap (input registration via UtilityAutoDiscovery) had no production caller until CE-454 W1 — see DESIGN_Squad_Wiring.md §1
+known-rot: §6.6's reader sketch keyed a template by its NAME hash — SUPERSEDED 2026-10-03 (CE-2046): by its AssetId, see the note in §6.6. The runtime bootstrap (input registration via UtilityAutoDiscovery) had no production caller until CE-454 W1 — see DESIGN_Squad_Wiring.md §1
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns the runtime bootstrap call site (CgfLogicPack ctor) and why no Utility tick system exists
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — the commander-tier ManeuverSelect recursion (§8.0)
@@ -24,7 +24,7 @@ as a single architecture doc and grew the editor/compiler docs afterward).
 > - **EQS multi-sensor resolution (§6.6):** an agent that consumes multiple EQS templates uses
 >   the engine's existing **child-entity-per-sensor** pattern (each child carries `EqsSensor` +
 >   `EqsCognitiveBuffer` + `PartMetadata.ParentEntity = self`). `EqsTopScore("CoverQuery")` resolves
->   the child whose `EqsSensor.BlueprintId` matches the requested template hash, then reads that
+>   the child whose `EqsSensor.BlueprintId` matches the requested template hash *(the AssetId hash — CE-2046)*, then reads that
 >   child's buffer. Rewrites the "one buffer per agent" implication of v1.1.
 > - **§8.1 invariant corrected:** the v1.1 assertion was tautological (`a <= b || b <= a`). The
 >   real invariant is `MaxTrackedTargets <= TopN`; with the P0.3 raise, both are 16, threat
@@ -407,8 +407,9 @@ The Utility readers therefore resolve a sensor child entity at read time:
 [UtilityInput(Name = "EqsTopScore")]   // best Top-K score for a named template; 0 if none/stale
 public static float EqsTopScore(in UtilityInputCtx ctx)
 {
-    // ctx.Params.BlueprintId is the FNV-1a-32 of the EQS template name (e.g. "CoverQuery").
-    // The hash is computed at gen time and packed into InputParams (no per-tick string work).
+    // ctx.Params.BlueprintId is the template's id: FNV-1a over its AssetId GUID's 16 bytes (EQS §6.2).
+    // Computed once when the decision is built and packed into InputParams (no per-tick string work).
+    // ⛔ SUPERSEDED (CE-2046): "the FNV-1a-32 of the EQS template name (e.g. "CoverQuery")" — no sensor carries that.
     if (!ctx.TryFindEqsChild(ctx.Self, ctx.Params.BlueprintId, out var child)) return 0f;
     ref readonly var buf = ref ctx.ReadEqsCognitiveBuffer(child);
     if (!buf.IsReady || buf.Count == 0) return 0f;
@@ -429,6 +430,12 @@ special-casing in the scoring core, just a sensor-resolution helper at the reade
 > emitted code carries the `BlueprintId` hash, not the string. Renaming a template updates the
 > hash (`AssetId` is the stable id, not the display name) and the analyzer surfaces the change
 > via the cross-reference refactor path (`SubElementKind.UtilityInput`).
+>
+> ⭐ **As-built `2026-10-03` (`CE-2046`):** the input names the template by that `AssetId` —
+> `In.EqsTopScore(FindCoverFromTarget.AssetId)` — and hashes it with `EqsTemplateRegistry.BlueprintIdOf`, the id every
+> sensor producer uses (`In.EqsTemplateId`). A non-GUID throws when the decision is built. ⛔ It used to hash the NAME
+> (`"CoverQuery"`), which matched no sensor, so the starter pack's `TakeCover`/`Flee` scored 0 in production.
+> 📄 [`DESIGN_Unified_Behaviour_Run.md`](../../blueprints/DESIGN_Unified_Behaviour_Run.md) "S8i".
 
 ### 6.7 Prerequisites — the Phase-0 bundle
 
@@ -656,7 +663,7 @@ public sealed class CombatPostureDecision : IUtilityDecisionDefinition
     public static void Build(IUtilityDecisionBuilder b) => b
         .Option(Posture.TakeCover, Mode.WeightedProduct, o => o
             .Consider(In.HealthFraction(Ctx.Self),        w: 0.8f, Curve.InverseLinear)
-            .Consider(In.EqsTopScore("CoverQuery"),       w: 1.0f, Curve.Linear)
+            .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  w: 1.0f, Curve.Linear)
             .Consider(In.EnemyStrengthEstimate(),         w: 0.6f, Curve.Logistic))
         .Option(Posture.AdvanceAndAttack, Mode.WeightedProduct, o => o
             .Consider(In.HealthFraction(Ctx.Self),        w: 0.7f, Curve.Linear)
@@ -664,7 +671,7 @@ public sealed class CombatPostureDecision : IUtilityDecisionDefinition
             .Consider(In.EnemyStrengthEstimate(),         w: 0.7f, Curve.InverseLinear))
         .Option(Posture.Flee, Mode.WeightedProduct, o => o
             .Consider(In.HealthFraction(Ctx.Self),        w: 1.0f, Curve.InverseQuadratic)
-            .Consider(In.EqsTopScore("RetreatQuery"),     w: 0.8f, Curve.Linear));
+            .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), w: 0.8f, Curve.Linear));
 }
 ```
 

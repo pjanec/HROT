@@ -20,8 +20,11 @@ namespace Hrot.Map.Definitions.Behavior
     /// geo point while the tree reads Cartesian metres.
     /// </para>
     /// </summary>
+    /// <remarks>⭐ <c>CE-2023</c> ③ (<c>DESIGN_Unified_Behaviour_Run.md</c> "S8n"): a STRUCT, so a host can bind it — a
+    /// blueprint's Behaviour Task passes its bytes and the typed resolver's from-bytes arm converts them. ⛔ It was a class,
+    /// which the from-bytes arm cannot take. Same properties and JSON keys.</remarks>
     [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
-    public sealed class MoveToLocationParamsJsonDto
+    public struct MoveToLocationParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.MoveToLocation;
 
@@ -81,7 +84,6 @@ namespace Hrot.Map.Definitions.Behavior
         /// <see cref="TargetLon"/> carry the wire representation.
         /// </summary>
         [JsonIgnore]
-        [MapPickableWorldLocation]
         public PickableGeoPoint PickableLocation
         {
             get => new PickableGeoPoint(TargetLat, TargetLon);

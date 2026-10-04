@@ -40,12 +40,19 @@ namespace Hrot.AI.Behaviors.StandardLibrary
         /// <summary>The entity a network id refers to on this node, or <see cref="Entity.Null"/> when it is not (yet) known.</summary>
         [BlueprintCallable("World", DisplayName = "Entity From Network Id")]
         public static Entity EntityFromNetworkId(long networkId, ISimulationView view)
-        {
-            if (view is not EntityRepository world || !world.HasSingletonManaged<NetworkEntityMap>())
-                return Entity.Null;
-            var map = world.GetSingletonManaged<NetworkEntityMap>();
-            return map != null && map.TryGetEntity(networkId, out var e) ? e : Entity.Null;
-        }
+            => new Fdp.Toolkit.Replication.EntityRef(networkId).Resolve(view);   // ⭐ the one resolver (stale-checked)
+
+        /// <summary>⭐ The entity an authored <see cref="Fdp.Toolkit.Replication.EntityRef"/> names on this node, or
+        /// <see cref="Entity.Null"/> when it is none, not (yet) known, or stale. 📄 <c>DESIGN_Entity_Reference.md</c> D2.</summary>
+        [BlueprintCallable("World", DisplayName = "Entity From Ref")]
+        public static Entity EntityFromRef(Fdp.Toolkit.Replication.EntityRef reference, ISimulationView view)
+            => reference.Resolve(view);
+
+        /// <summary>⭐ The <see cref="Fdp.Toolkit.Replication.EntityRef"/> naming <paramref name="entity"/> — its runtime network id
+        /// (none when it has no network identity). The value to store, send or save. 📄 <c>DESIGN_Entity_Reference.md</c> D2.</summary>
+        [BlueprintCallable("World", DisplayName = "Ref From Entity")]
+        public static Fdp.Toolkit.Replication.EntityRef RefFromEntity(Entity entity, ISimulationView view)
+            => Fdp.Toolkit.Replication.EntityRef.Of(view as EntityRepository, entity);
 
         // ── Random (deterministic) ──────────────────────────────────────────────────────────────
 

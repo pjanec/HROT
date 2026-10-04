@@ -39,10 +39,9 @@ public static class HsmHostedSubtrees
     public readonly record struct Entry(ushort StateIndex, string ChildName, int TreeStateSlotKey,
                                         HostedSubtree.SiteBinding Binding = default);
 
-    // machineId (the blob's StructureHash) -> the hosting states of that machine.
-    // ⚠ S5b / CE-2000: the HSM StructureHash hashes TOPOLOGY only (HsmEmitter.ComputeStructureHash), so two machines of the
-    //   same shape share an id and this table's last writer wins. Kept for its existing (test) readers; the runtime asks
-    //   _byBlob, keyed by the blob INSTANCE the registrar binds and the definition carries.
+    // machineId (the blob's MachineId) -> the hosting states of that machine.
+    // ⭐ CE-2001: keyed by HsmDefinitionBlob.MachineId (identity + shape). ⛔ It was the topology-only StructureHash, so two
+    //   same-shape machines shared an entry. The runtime asks _byBlob (S5b / CE-2000); this serves its test readers.
     private static readonly Dictionary<uint, Entry[]> _byMachine = new();
     private static readonly Dictionary<HsmDefinitionBlob, Entry[]> _byBlob = new(ReferenceEqualityComparer.Instance);
     /// <summary>
@@ -100,7 +99,7 @@ public static class HsmHostedSubtrees
         if (resolved.Count == 0) return;
 
         var array = resolved.ToArray();
-        lock (WriteLock) { _byMachine[blob.Header.StructureHash] = array; _byBlob[blob] = array; }
+        lock (WriteLock) { _byMachine[blob.MachineId] = array; _byBlob[blob] = array; }
     }
 
     /// <summary>

@@ -141,63 +141,82 @@ namespace Hrot.AI.Behaviors.Brains
         // -- Parse methods (cold path, unsafe byte* accepted from engine delegate) --
 
         /// <summary>
-        /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
-        /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
+        /// ⭐⭐ <c>CE-2023</c> ③ ("S8n") — the TYPED resolver: the authored contract (<see cref="Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto"/>,
+        /// a struct now) in, the blackboard block out. ⭐ The generator registers BOTH arms from it — the JSON arm (a root
+        /// assign, a scenario) and the from-bytes arm (a host's Behaviour Task binds the contract) — so a blueprint can start
+        /// <c>MoveToLocation</c> with parameters. Geo coordinates win over Cartesian X/Y; no geo transform on the world ⇒
+        /// the Cartesian pair. ⚠ An empty payload now means "not given" ⇒ the defaults (speed, 5 m), as <c>{}</c> always did.
         /// </summary>
         [Fdp.Toolkit.Behavior.BehaviorResolver("MoveToLocation")]
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
+        public static void ResolveMoveTo(in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored,
+            ref MoveToLocationParams block, EntityRepository world, Entity self)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 : null;
-            ParseMoveToParams(json, ptr, capacity, geo!);
+            block = ConvertMoveTo(authored, geo);
+        }
+
+        /// <summary>The MoveTo conversion, given the node's geographic transform (null ⇒ Cartesian only).</summary>
+        public static MoveToLocationParams ConvertMoveTo(
+            in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored,
+            Fdp.Modules.Geographic.IGeographicTransform? geoTransform)
+        {
+            var p = new MoveToLocationParams
+            {
+                Speed = authored.Speed > 0 ? (float)authored.Speed : DefaultMoveToSpeed,
+                ArrivalRadius = authored.ArrivalRadius > 0 ? (float)authored.ArrivalRadius : 5f,
+                X = authored.X,
+                Y = authored.Y
+            };
+
+            // If geo-coords provided, map them
+            if ((authored.TargetLat != 0 || authored.TargetLon != 0) && geoTransform != null)
+            {
+                var cartesian = geoTransform.ToCartesian(authored.TargetLat, authored.TargetLon, 0.0);
+                p.X = cartesian.X;
+                p.Y = cartesian.Y;
+            }
+            return p;
         }
 
         /// <summary>
-        /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
-        /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
+        /// ⭐⭐ <c>CE-2023</c> ③ ("S8n") — the TYPED resolver for <c>FireAtTarget</c>: the authored contract's network id is
+        /// mapped to the local entity through the world's <c>NetworkEntityMap</c>; both arms (JSON, host bytes) come from it.
         /// </summary>
         [Fdp.Toolkit.Behavior.BehaviorResolver("FireAtTarget")]
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
+        public static void ResolveFireAtTarget(in Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto authored,
+            ref FireAtTargetParams block, EntityRepository world, Entity self)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 : null) ?? new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            ParseFireAtTargetParams(json, ptr, capacity, map);
+            block = ConvertFireAtTarget(authored, map);
         }
 
-        public static unsafe void ParseMoveToParams(string json, byte* ptr, int capacity, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
+        /// <summary>The FireAtTarget conversion, given the node's entity map.</summary>
+        public static FireAtTargetParams ConvertFireAtTarget(
+            in Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto authored,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
         {
-            if (string.IsNullOrWhiteSpace(json))
+            long targetPacked = 0;
+            if (!authored.TargetNetworkId.IsNone
+                && entityMap.TryGetEntity(authored.TargetNetworkId.NetworkId, out var entity))
             {
-                Unsafe.Write(ptr, default(MoveToLocationParams));
-                return;
+                targetPacked = (long)entity.PackedValue;
+            }
+            else if (!authored.TargetNetworkId.IsNone)
+            {
+                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId.NetworkId + " not found in entity map; target will not fire.");
             }
 
-            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(json, JsonOptions);
-            if (dto == null)
+            return new FireAtTargetParams
             {
-                Unsafe.Write(ptr, default(MoveToLocationParams));
-                return;
-            }
-
-            var p = new MoveToLocationParams
-            {
-                Speed = dto.Speed > 0 ? (float)dto.Speed : DefaultMoveToSpeed,
-                ArrivalRadius = dto.ArrivalRadius > 0 ? (float)dto.ArrivalRadius : 5f,
-                X = dto.X,
-                Y = dto.Y
+                TargetPacked    = targetPacked,
+                MaxRounds       = authored.MaxRounds,
+                CooldownSeconds = authored.CooldownSeconds,
+                RoundsFired     = 0,
             };
-
-            // If geo-coords provided, map them
-            if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
-            {
-                var cartesian = geoTransform.ToCartesian(dto.TargetLat, dto.TargetLon, 0.0);
-                p.X = cartesian.X;
-                p.Y = cartesian.Y;
-            }
-
-            Unsafe.Write(ptr, p);
         }
 
         // 3-param shape: the generator emits the (json, memory, capacity, world, self, host)
@@ -209,48 +228,6 @@ namespace Hrot.AI.Behaviors.Brains
                 ? default
                 : JsonSerializer.Deserialize<FollowRouteParams>(json, JsonOptions);
             Unsafe.Write(ptr, p);
-        }
-
-        /// <summary>
-        /// Parses FireAtTarget JSON params and writes the resolved
-        /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
-        /// </summary>
-        public static unsafe void ParseFireAtTargetParams(
-            string json, byte* ptr, int capacity,
-            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
-            }
-
-            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(json, JsonOptions);
-            if (dto == null)
-            {
-                BehaviorLog.ParseWarn("FireAtTarget JSON deserialized to null; using default params.");
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
-            }
-
-            long targetPacked = 0;
-            if (dto.TargetNetworkId != 0
-                && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
-            {
-                targetPacked = (long)entity.PackedValue;
-            }
-            else if (dto.TargetNetworkId != 0)
-            {
-                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + dto.TargetNetworkId + " not found in entity map; target will not fire.");
-            }
-
-            Unsafe.Write(ptr, new FireAtTargetParams
-            {
-                TargetPacked    = targetPacked,
-                MaxRounds       = dto.MaxRounds,
-                CooldownSeconds = dto.CooldownSeconds,
-                RoundsFired     = 0,
-            });
         }
 
         // -- Action / Condition delegates --

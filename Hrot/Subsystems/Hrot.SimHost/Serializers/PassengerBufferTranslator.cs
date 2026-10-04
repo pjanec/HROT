@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -91,7 +92,7 @@ namespace Hrot.SimHost.Serializers
                     if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
 
                     long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-                    intent.PassengerNetworkIds.Add(networkId);
+                    intent.PassengerNetworkIds.Add(new EntityRef(networkId));
                 }
             }
 

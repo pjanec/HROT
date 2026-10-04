@@ -190,6 +190,9 @@ namespace Hrot.Editor.DebugApi
         {
             var schema = Describe(member.Type);
 
+            // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a map-picked world location by its TYPE.
+            if (member.Type == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)) schema["picker"] = "worldLocation";
+
             // The editor already declares these on the very same members; surfacing them is what
             // lets an agent tell "a string" from "a property path it must discover".
             foreach (var attribute in member.Member.GetCustomAttributes())
@@ -198,9 +201,7 @@ namespace Hrot.Editor.DebugApi
                 {
                     case "PropertyPathPickerAttribute":       schema["picker"] = "propertyPath"; break;
                     case "MapPickableEntityAttribute":        schema["picker"] = "entity"; break;
-                    case "MapPickableWorldLocationAttribute": schema["picker"] = "worldLocation"; break;
                     case "MapPickableBoundingBoxAttribute":   schema["picker"] = "boundingBox"; break;
-                    case "RemapNetworkIdAttribute":           schema["remapNetworkId"] = true; break;
                 }
             }
 
@@ -243,6 +244,11 @@ namespace Hrot.Editor.DebugApi
 
             if (type == typeof(Vector3))
                 return new JsonObject { ["type"] = "object", ["format"] = "vector3", ["properties"] = XyzProperties() };
+
+            // ⭐ DESIGN_Entity_Reference D1/D5 — an authored entity reference: the bare network id in JSON, picked from the
+            // map, and remapped at scenario load. The TYPE says all three, so no attribute is needed.
+            if (type == typeof(Fdp.Toolkit.Replication.EntityRef))
+                return new JsonObject { ["type"] = "integer", ["format"] = "entityRef", ["picker"] = "entity" };
 
             if (type.IsArray)
                 return new JsonObject { ["type"] = "array", ["items"] = Describe(type.GetElementType()!) };

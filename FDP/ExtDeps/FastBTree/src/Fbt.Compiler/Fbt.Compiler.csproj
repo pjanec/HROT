@@ -9,4 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Fbt.Kernel\Fbt.Kernel.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- CE-2044: the ONE managed-layout formula (size + exact field offset), shared as SOURCE with Fdp.Core (R-48: no
+         stable ABI, so no project reference). Marshal.OffsetOf gave the INTEROP offset — wrong after a bool. -->
+    <Compile Include="..\..\..\..\Engine\Fdp.Core\Layout\ManagedLayout.cs" Link="Shared\ManagedLayout.cs" />
+  </ItemGroup>
+
 </Project>

@@ -187,8 +187,8 @@ public sealed class UtilityFluentEmitter : IFluentCSharpEmitter<UtilityDecisionA
     private static string BuildInCallArgs(ConsiderationModel con)
     {
         var args = new List<string>();
-        if (!string.IsNullOrEmpty(con.Params.TemplateName))
-            args.Add($"\"{con.Params.TemplateName}\"");
+        if (!string.IsNullOrEmpty(con.Params.TemplateAssetId))
+            args.Add($"\"{con.Params.TemplateAssetId}\"");
         else if (con.Params.MaxRange != 0f)
             args.Add(FloatLiteral(con.Params.MaxRange));
         else if (con.Params.MountIndex != 0)

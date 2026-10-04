@@ -476,7 +476,7 @@ public class IgApplication : IDisposable
     private uint                    _fdpFrameCount;
 
     // Map-pick bridge for component-editor map picking (created lazily after canvas init).
-    private MapPickServiceBridge?   _mapPickBridge;
+    private MapPickBroker?   _mapPickBroker;
     /// application Window Manager and <see cref="DrawUI"/> skips calling their
     /// individual <c>Draw()</c> methods to avoid duplicate rendering.
     /// Set this via <see cref="SetPanelsWindowManaged"/> from
@@ -525,15 +525,20 @@ public class IgApplication : IDisposable
     /// Created lazily on first call after <see cref="InitializeEmbedded"/> sets up the canvas.
     /// Returns <see langword="null"/> before the canvas is available.
     /// </summary>
-    public MapPickServiceBridge? GetMapPickBridge()
+    public MapPickBroker? GetMapPickBroker()
     {
-        if (_mapPickBridge == null && _canvas != null)
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager,
+        if (_mapPickBroker == null && _canvas != null)
+            _mapPickBroker = new MapPickBroker(new CanvasMapPickAdapter(_canvas, _world,
+                    // ⭐ DESIGN_Map_Picking_Unification P2 — IG HOLDS both, so it passes both (the silent-default rule):
+                    //    filter presets now narrow a pick, and a location pick is geodetic.
+                    filterFactory: _entityFilterFactory ??= new HrotEntityFilterFactory(_world),
+                    geoTransform:  _context?.GeoTransform,
+                    globalGizmoManager: _globalGizmoManager,
                     // 🔒 UXI-07 step 4b — a RESOLVER: this adapter is built here, but _igToolController
                     //    is not assigned until the pack is built further down (:816). An instance would
                     //    be permanently null.
-                    tools: () => _igToolController), _world);
-        return _mapPickBridge;
+                    tools: () => _igToolController));
+        return _mapPickBroker;
     }
 
 

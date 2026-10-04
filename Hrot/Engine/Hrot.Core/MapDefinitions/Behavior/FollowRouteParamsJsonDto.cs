@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -16,8 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// Widened from <c>int</c> to <c>long</c> for uniform ID remapping.
         /// </summary>
         [JsonPropertyName("routeEntityId")]
-        [RemapNetworkId]
-        [MapPickableEntity("road_graphs")]
-        public long RouteEntityId { get; set; }
+        [MapPickableEntity("road_graphs")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
+        public EntityRef RouteEntityId { get; set; }
     }
 }

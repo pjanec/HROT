@@ -73,6 +73,12 @@ namespace Hrot.AiEditor.Generators.Tests.Tripwires
             "Fdp.Toolkits :: BlueprintLifecycleLibrary.RemoveInstanceBlueprint",
             "Fdp.Toolkits :: BlueprintLifecycleLibrary.ReplaceInstanceBlueprint",
             "Fdp.Toolkits :: DemoSharedActions.AlertNearbyUnits",
+            // ⭐ CE-2049 (2026-10-03) — Fbt.Tests references the analyzer for its BTreeActionGenerator only. These two are
+            //   INERT for a stronger reason than the four above: HsmActionGenerator emits NOTHING into a compilation that
+            //   cannot see Fhsm.Kernel (its registrar would be a guaranteed CS0246), and Fbt.Tests cannot — so no HSM thunk
+            //   exists for them at all. They are FastBTree [SharedAi*] fixtures, exercised by the BTree host.
+            "Fbt.Tests :: SharedAiTestActions.ExplicitAction",
+            "Fbt.Tests :: SharedAiTestActions.SequentialCondition",
         };
 
         private const string PointerToTheDesign =

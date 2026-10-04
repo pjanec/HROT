@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Xunit;
@@ -507,6 +508,27 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             // uint + byte = 4 + 1 = 5 bytes (plus padding)
             var size = Marshal.SizeOf<SetStanceNode>();
             Assert.True(size >= 5, $"SetStanceNode size {size} should be at least 5");
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2042</c> — an animation node's <c>StructureHash</c> is the engine's layout hash, the same in every process.
+    /// 🔴 It folded <c>string.GetHashCode()</c> (randomised per process), so no two runs registered the same hash.
+    /// </summary>
+    public class AnimationNodeStructureHashTests
+    {
+        [Fact]
+        public void CE2042_ANodesStructureHash_IsTheDeterministicLayoutHash()
+        {
+            var registry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+            var staging = registry.BeginStaging();
+            Hrot.MuscleCharacter.Animation.Registration.AnimationNodeRegistrar.Register(staging, new BehaviorRegistry());
+            registry.CommitStaging(staging);
+
+            Assert.True(registry.TryGetByName("PlayMontageNode", out var def));
+            var nodeType = typeof(Hrot.MuscleCharacter.Animation.Registration.AnimationNodeRegistrar).Assembly.GetTypes()
+                .Single(t => t.Name == "PlayMontageNode" && t.IsValueType);
+            Assert.Equal(Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(nodeType), def!.StructureHash);
         }
     }
 }

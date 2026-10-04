@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -124,7 +125,7 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
         Assert.False(subordinate2.IsNull, "Subordinate entity with InitialUnitSubordinateIntent not found after deserialization.");
 
         var intent = ((ISimulationView)_repo2).GetManagedComponentRO<InitialUnitSubordinateIntent>(subordinate2);
-        Assert.Equal(commanderNetId, intent.CommanderNetworkId);
+        Assert.Equal(commanderNetId, intent.CommanderNetworkId.NetworkId);
         Assert.Equal(TacticalDesignation.Wingman, intent.Designation);
 
         // -- Act: register commander2 in entity map and run genesis system --

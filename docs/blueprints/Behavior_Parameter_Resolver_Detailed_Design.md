@@ -13,6 +13,7 @@ known-rot: ⛔ 2026-09-30 (CE-448) — "what ParamResolverDemo ships": that asse
   an empty body copies nothing (DESIGN_Parameter_Model.md §P.2, CE-443). Resolvers exist only for
   behaviours, never for actions/conditions (§P.4).
 related-designs:
+  - DESIGN_Entity_Reference.md — ⭐ SUPERSEDES §4.2's "Entity reference → long + [RemapNetworkId] + [MapPickableEntity]": an authored reference is the `EntityRef` TYPE (2026-10-03).
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): owns the target
     start pipeline and the behaviour-vs-action split; this document keeps the resolver authoring model.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
@@ -32,6 +33,8 @@ related-designs:
 -->
 
 # Behavior Parameters & the Resolver — Detailed Design
+
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](DESIGN_Map_Picking_Unification.md):** "World location" is a `PickableGeoPoint` member — the type alone makes it map-pickable; `[MapPickableWorldLocation]` is deleted.
 
 > ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
 >
@@ -187,7 +190,8 @@ This generalizes the pipeline already documented in `Blackboard_Authoring_Addend
 
 4. **Declare the authored fields.** A palette maps authorable field types onto the existing pickable attributes:
    - "World location" → `PickableGeoPoint` + `[MapPickableWorldLocation]`
-   - "Entity reference" → `long` + `[RemapNetworkId]` + `[MapPickableEntity("…")]`
+   - "Entity reference" → ⭐ an `EntityRef` member (+ optional `[MapPickableEntity("…")]` to narrow the pick).
+     ⛔ SUPERSEDED `2026-10-03`: *"`long` + `[RemapNetworkId]` + `[MapPickableEntity]`"* — [DESIGN_Entity_Reference](DESIGN_Entity_Reference.md).
    - number / enum / bool → scalar fields.
    These generate the authored DTO (the drawn equivalent of `PlatoonHillAttackParamsJsonDto`).
 

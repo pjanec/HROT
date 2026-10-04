@@ -105,7 +105,7 @@ public sealed class BufferViewRequest
                 int fieldOffset = NativeOffset + bufferOffset;
                 if (viewType.IsValueType)
                 {
-                    try { fieldOffset += (int)(nint)Marshal.OffsetOf(viewType, fi.Name); }
+                    try { fieldOffset += global::Fdp.Core.Layout.ManagedLayout.OffsetOf(viewType, fi.Name); }   // ⭐ CE-2044 — managed, like its sizes
                     catch { continue; }
                 }
 

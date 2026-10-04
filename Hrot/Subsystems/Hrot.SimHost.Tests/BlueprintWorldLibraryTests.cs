@@ -55,7 +55,11 @@ namespace Hrot.SimHost.Tests
         public void CE469_LegacyHelpers_RouteToTheBuiltIns()
         {
             using var repo = World();
+            // ⭐ DESIGN_Entity_Reference D2 — Entity From Network Id routes through the stale-checked resolver, so the mapped
+            //   entity must actually CARRY that identity (every replicated entity does).
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77L });
             var map = new NetworkEntityMap();
             repo.SetSingletonManaged<NetworkEntityMap>(map);
             map.Register(77L, e);
@@ -127,7 +131,8 @@ namespace Hrot.SimHost.Tests
             var methods = typeof(BlueprintWorldLibrary).GetMethods(BindingFlags.Public | BindingFlags.Static);
             // CE-469's 7 + CE-464's RandomIntSeeded, EntityIndex, BehaviorHashOf, HasGeographicTransform, LatLonToCartesian
             // + the EQS migration's RefreshEqsSensor, DestroyEqsSensor
-            Assert.Equal(15, methods.Length);   // CE-482: + Fault Behaviour
+            // + DESIGN_Entity_Reference's EntityFromRef, RefFromEntity
+            Assert.Equal(17, methods.Length);   // CE-482: + Fault Behaviour
             foreach (var m in methods)
             {
                 Assert.NotNull(m.GetCustomAttribute<BlueprintCallableAttribute>());

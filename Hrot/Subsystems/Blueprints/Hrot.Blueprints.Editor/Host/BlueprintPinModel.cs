@@ -232,6 +232,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "Fdp.Core.FixedString32"  => (object)"",
                 "Fdp.Core.FixedString64"  => (object)"",
                 "Fdp.Core.FixedString128" => (object)"",
+                "Fdp.Toolkit.Replication.EntityRef" => (object)"",   // the network id as text (StringPinEditor)
                 // FIX-B: vector zero-values for freshly-placed unset pins.
                 "System.Numerics.Vector2"    => (object)System.Numerics.Vector2.Zero,
                 "System.Numerics.Vector3"    => (object)System.Numerics.Vector3.Zero,

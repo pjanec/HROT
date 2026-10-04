@@ -30,6 +30,29 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("\"targetNetworkId\":1999", result);
         }
 
+        // ── CE-2054 (S8o): a blueprint behaviour's nested id is remapped through the registry ─────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2054</c> — the real <c>Demo_MissionPlan</c> (a blueprint behaviour whose <c>Fire</c> Parameter is a
+        /// <c>FireAtTargetParamsJsonDto</c>): scenario load's id map reaches <c>Fire.targetNetworkId</c>, and the other legs
+        /// come back as authored. 🔴 Red before CE-2054, measured live on <c>scenarios/mission-demo-bp</c>: no delegate was
+        /// registered under the blueprint's name, the JSON kept 1006, and <c>FireAtTarget</c> logged "not found in entity map".
+        /// </summary>
+        [Fact]
+        public void CE2054_ABlueprintBehavioursNestedTargetId_IsRemapped()
+        {
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var remapper = CgfBehaviorSetup.CreateBehaviorRemapper(registry);
+
+            const string json = "{\"Move\":{\"x\":600,\"y\":427},\"Fire\":{\"targetNetworkId\":1006,\"maxRounds\":3},\"Home\":{\"x\":446.3}}";
+            var idMap = new Dictionary<long, long> { { 1006L, 1001L }, { 1001L, 1000L } };
+
+            var result = remapper.RemapJson("Demo_MissionPlan", json, idMap);
+
+            Assert.Equal("{\"Move\":{\"x\":600,\"y\":427},\"Fire\":{\"targetNetworkId\":1001,\"maxRounds\":3},\"Home\":{\"x\":446.3}}", result);
+        }
+
         // ── C011 SC2: CreateBehaviorRemapper remaps FollowRoute JSON ─────────
 
         /// <summary>

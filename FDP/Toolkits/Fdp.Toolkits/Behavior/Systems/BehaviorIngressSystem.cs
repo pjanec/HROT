@@ -422,7 +422,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //    topology. 📄 §31.14.
             //
             //    BHU-016 / CRITICAL FIX, unchanged in substance: InstanceHeader.MachineId must
-            //    equal the new blob's StructureHash or HsmKernelCore.ValidateInstance rejects the
+            //    equal the new blob's MachineId (CE-2001) or HsmKernelCore.ValidateInstance rejects the
             //    instance on every subsequent tick — silently, by `continue`.
             //
             //    🔴🔴 ORDERING IS LOAD-BEARING, AND IN THE OPPOSITE DIRECTION FROM THE BTREE ROOT.

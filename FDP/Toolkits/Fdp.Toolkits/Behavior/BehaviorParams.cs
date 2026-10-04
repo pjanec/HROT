@@ -17,11 +17,14 @@ namespace Fdp.Toolkit.Behavior
     ///
     /// </summary>
     /// <para>⚠ <typeparamref name="TAuthored"/> is deliberately UNCONSTRAINED — refines <c>Q76</c> §12.4c,
-    /// which wrote <c>unmanaged</c>. 📐 The two shipped two-shape authored DTOs
-    /// (<c>PlatoonHillAttackParamsJsonDto</c>, <c>MoveToLocationParamsJsonDto</c>) are CLASSES: they are
-    /// JSON contracts carrying geographic points, never stored in a slot. Only the BLOCK is memory, so
-    /// only <typeparamref name="TBlock"/> must be unmanaged. With an empty payload a class-typed
-    /// <paramref name="authored"/> is <c>null</c> — the resolver decides what an absent intent means.</para>
+    /// which wrote <c>unmanaged</c>. Only the BLOCK is memory, so only <typeparamref name="TBlock"/> must be unmanaged.
+    /// ⭐ But only an UNMANAGED <typeparamref name="TAuthored"/> gets the from-bytes arm
+    /// (<see cref="FromBlockResolverSource{TAuthored, TBlock}"/>) — i.e. can be started by a HOST with parameters.
+    /// ⭐ <c>CE-2023</c> ③ (<c>DESIGN_Unified_Behaviour_Run.md</c> "S8n"): <c>MoveToLocationParamsJsonDto</c> and
+    /// <c>FireAtTargetParamsJsonDto</c> are STRUCTS for exactly that reason. ⛔ SUPERSEDED: <i>"the two shipped two-shape
+    /// authored DTOs … are CLASSES … never stored in a slot"</i> (<c>PlatoonHillAttackParamsJsonDto</c> still is one).
+    /// With an empty payload a class-typed <paramref name="authored"/> is <c>null</c> and a struct one is <c>default</c> —
+    /// the resolver decides what an absent intent means.</para>
     public delegate void ResolveBlock<TAuthored, TBlock>(
         in TAuthored authored, ref TBlock block, EntityRepository world, Entity self)
         where TBlock : unmanaged;
