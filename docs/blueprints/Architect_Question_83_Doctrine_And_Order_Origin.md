@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-current-answer: §3 (A–F APPROVED) and §4 (G — the doctrine host, OPEN with a lean)
+current-answer: §3 (A–F APPROVED) and §4 (G APPROVED — the doctrine is a second behaviour slot, any tier). Design: docs/DESIGN_Sensors_And_Doctrine.md
 stale-below: nothing yet
 known-rot: none
 known-conflict: none
@@ -88,7 +88,7 @@ coverage check.
 (a scorer) · a yes/no "ordered" flag (cannot protect a superior's order) · an order detaching the doctrine · each doctrine checking
 origin itself · a separate autonomy on/off mode.
 
-## 4. G — what can HOST a doctrine *(OPEN, lean below)*
+## 4. G — what can HOST a doctrine — ✅ APPROVED `2026-10-04` (🔒 *"G approved, go with the design doc"*)
 
 | # | question | ⭐ lean | why / blast radius |
 |---|---|---|---|
