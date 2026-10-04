@@ -525,6 +525,14 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | 500 | 529–956 ms | 52–72 ms |
 | 1000 | 1.5–2.4 s | 168–283 ms (⚠ over 100 ms — inside the new 400 ms timeout; S4 bounds it) |
 
+| gate | command | result |
+|---|---|---|
+| perception unit suites | `dotnet test Fdp.Toolkits.Tests --filter Perception` | 69/0 (8 new) |
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2612/0, 1 skipped |
+| SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception|Sensor|Eqs|Los` | 29/0 |
+| ModuleHost | `dotnet test Fdp.ModuleHost.Tests` | 207/6 — ⚠ the SAME 6 convoy / provider tests fail on base `2fda9e25f` (206/6); +1 = the new breaker rail |
+| cross-node perception (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter SensorMechanism` | 1/1 — ⚠ `SensorMechanism_EndToEnd_…` red on base too (2/2): the rail is blind, `CE-3050` |
+
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 
 | # | question | ✅ measured answer | ⇒ design consequence |
