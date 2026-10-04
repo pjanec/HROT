@@ -6,6 +6,7 @@ current-answer: §0 (the proposal), §3 (the sub-questions; A–L approved), §4
 stale-below: nothing — new document.
 known-rot: nothing yet.
 related-designs:
+  - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — OWNS the DOCTRINE that reads these sensors and picks behaviours, and the Origin rule for orders.
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS sensor form this proposes to reuse (§2 the sensor, §7 the solver and its budget bands, §17.6 child sensors, §19 terrain sight); G changes §7.5–7.6's wall-clock slicing.
   - docs/designs/modularizing/MOD1-DESIGN.md — §3.6.2 owns the only multi-sensor design (per-modality receptors merged into TargetMemory); unbuilt. This question replaces its receptor-component shape and keeps its TargetMemory merge.
   - docs/DESIGN_Terrain_World.md — owns the terrain sight (SegmentBlocked) and TerrainWorldLosStrategy the sensors call.
