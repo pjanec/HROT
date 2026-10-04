@@ -4,7 +4,7 @@ updated: 2026-10-04
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
-known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
+known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4. · §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.

@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-04
 current-answer: §3 (A–F APPROVED) and §4 (G APPROVED — the doctrine is a second behaviour slot, any tier). Design: docs/DESIGN_Sensors_And_Doctrine.md
 stale-below: nothing yet
-known-rot: none
+known-rot: "doctrine" is RENAMED "SOP" (R-198, user 2026-10-04) — read every doctrine as SOP; planned identifiers become SopState / AssignSopEvent / ClearSopEvent / DefaultSop {Name, ParamsJson}; the SOP model (task · SOP · reaction, R-199) lives in docs/DESIGN_Decision_Layer.md §4.
 known-conflict: none
 related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — the DESIGN (UML, build plan) that builds these rulings.

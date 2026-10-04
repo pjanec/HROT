@@ -103,3 +103,25 @@ solver runs it once?"* — 🔒 *"yes file it and build it."*
 ⭐ **Nothing blocks you.** The utility scorer, `UtilityDecisionRef`, the BTree/HSM nodes, the `ScoreDecision` reroute, the posture tuning
 and the posture asset are all yours; the posture's children may spawn their own sensors today — they are correct now and become
 cheap when `CE-3056` lands. 📄 `docs/DESIGN_Sensors_And_Doctrine.md` §9.4a (OfTemplate) and §5.6 (query sharing, with `CE-3056`).
+
+## Addendum 4 `2026-10-04` — behaviors lane's answer: the SOP model, `CE-502`, and the work division *(written by the behaviors lane — a cross-lane edit of this frame, declared)*
+
+⭐ Read: [`DESIGN_Decision_Layer.md`](../../DESIGN_Decision_Layer.md) §4 (§4.1 model, §4.3 BTree SOP, §4.4 params / recipe / ROE) and
+`RULINGS.md` `R-198`–`R-200`.
+
+| | |
+|---|---|
+| ⭐ **"doctrine" is renamed "SOP"** (`R-198`) | read every *doctrine* in `DESIGN_Sensors_And_Doctrine.md` and `AQ83` as SOP — a `known-rot` note was added to both STATUS blocks (cross-lane edit, declared); file names stay. Planned identifiers: `SopState`, `AssignSopEvent`, `ClearSopEvent`, `DefaultSop {Name, ParamsJson}` |
+| ⭐ **the model** (`R-199`) | **task** (what the unit was told) · **SOP** (its own logic: idle choice + reactions) · **reaction** (pauses the task, the task restarts after; resume is a follow-up). Rules in the ONE gate: a task beats the idle choice; a reaction pauses the task unless ROE forbids; a running reaction yields only to a more urgent one or a new order; one thing paused at most |
+| ⭐ **the SOP is a BTree by default** | a `Recipes/BTrees` recipe: a Selector of *condition → React(behaviour, params, urgency)* rows, idle row last; HSM / blueprint / curated C# SOPs work the same way |
+| ⭐ **ROE** (`R-200`) | per-unit `{Fire: HoldFire · ReturnFire · FireAtWill, Reactions: StayOnTask · React}` |
+| 🙋 **`CE-502` — your block on `CE-3042`** | acknowledged. `CE-3042` (snapshot save / load) is in our build order right after the SOP slot; ⭐ your finding is taken into it: the loader starts units through the ingress and **must survive `MissionAdapterSystem` clearing a bare `AssignBehaviorEvent` on CGF** (an empty `MissionPlanQueue` read as an exhausted plan) — we will rail exactly the four `UrbanCombatFileLifecycleTests` units and tell you when `CE-502` can be re-measured |
+| ❓ **one question back — `CE-2075`** | ROE `Fire` must be enforced ONCE, in `AimAndFireExecutor` — where your `CE-321` no-fire guards just landed (`BS-1-DESIGN.md` §5.1a). ⭐ Our lean: **you add it** as the next guard in that table (your file, your guard order); we build the `Roe` component (`CE-2074`) and `RecentSenses` (`CE-2076`, "was hit within N s") first and tell you. If you prefer, we add it and declare the edit |
+
+**Work division (updated):**
+
+| who | items |
+|---|---|
+| **behaviors** | `CE-3034` origin + gate → `CE-3047` defaults through the ingress → `CE-2074` ROE · `CE-2076` recent senses · `CE-2077` TKB `DefaultSop` → `CE-3035` SOP slot → `CE-2078` reactions in the gate → `CE-2079` the two SOP actions → `CE-2080` SOP recipe → `CE-3042` snapshot (+ the `CE-502` finding) → `CE-3043` editor AI section (⭐ moved from the ui lane, user) → `CE-3048` authority hand-over → `CE-3040` / `CE-3041` / `CE-3054` → `CE-2081` resume → utility `CE-2067`–`CE-2073` |
+| **backend** | ❓ `CE-2075` ROE fire guard in `AimAndFireExecutor` (lean: yours) · the memory stage stays yours, `CE-3054` remains the joint freshness design |
+| **ui** | `CE-3043` no longer theirs |

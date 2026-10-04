@@ -8,14 +8,14 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
-  - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the doctrine slot, the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
+  - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the frame this answers (G1–G11).
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.
-  - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; a doctrine calls it (§7), never a host.
+  - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; an SOP calls it (§7), never a host.
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
 -->
 
-# The decision layer — missions, doctrine, threat, intent
+# The decision layer — missions, SOP, threat, intent
 
 > 🔒 **User, `2026-10-04`:** *"G1: approved"* · *"G2b: wake on event is good."* · on G2: *"What is a phase? A mission
 > task? Task is just a behavior. What is your idea a doctrine will do for that task (that single behavior)? My idea was
@@ -27,7 +27,7 @@ related-designs:
 | # | ruling | consequence |
 |---|---|---|
 | **G1** ✅ | a remembered contact keeps WHAT it is (its danger does not fade) apart from HOW FRESH my knowledge of it is (fades) — *"hidden does not mean harmless"* | danger is judged at read time in one place — an input to the existing `ThreatRankingDecision` fed by the TKB (target class, weapons vs my armour, range); the memory entry stores identity + freshness, never a danger score. The backend's memory stage (S4) keeps the freshness field |
-| **G2b** ✅ | a doctrine running below frame rate wakes on events | a sensor change, a finished behaviour or a refused assignment for the unit ⇒ its doctrine ticks the next frame (bus events live one frame, `FdpEventBus.cs:30`); HSM events already wait in their queue |
+| **G2b** ✅ | an SOP running below frame rate wakes on events | a sensor change, a finished behaviour or a refused assignment for the unit ⇒ its SOP ticks the next frame (bus events live one frame, `FdpEventBus.cs:30`); HSM events already wait in their queue |
 
 ## 2. The mission stays as it is *(user, `2026-10-04`)*
 
@@ -76,7 +76,7 @@ child, re-scores on events, switches with hysteresis. Combat posture is the firs
 
 ```mermaid
 sequenceDiagram
-  participant M as Mission task / doctrine slot
+  participant M as Mission task / SOP slot
   participant U as Posture behaviour (the run)
   participant S as Its sensors (cover, retreat)
   participant D as CombatPostureDecision (scorer)
@@ -113,7 +113,7 @@ is scored from a sensor that its own child behaviour would otherwise only start 
 | `HaveLiveTarget` = memory count > 0, no freshness | `StandardInputs.cs` `HaveLiveTarget` | a contact seen once long ago keeps `AdvanceAndAttack`/`Suppress` alive — needs the memory stage's freshness |
 | `EqsTopScore` finds ANY EQS child of the unit with the template id | `StandardInputs.cs` `TryFindEqsChild` | a sensor only scores while something has spawned it ⇒ the posture run must own it |
 | behaviour-owned sensors are stamped with the ROOT run and keyed by (site, key, run) | `EqsChildSensor.cs:30–37` | a child switch does not release them (good); a child spawning the same template at its own site makes a SECOND sensor — ⭐ ACCEPTED `2026-10-04`: each behaviour owns its own sensor, the solver solves identical queries once (`CE-3056`, `DESIGN_Sensors_And_Doctrine.md` §5.6) |
-| a doctrine cannot replace a mission task | `R-188` (`Operator > Superior > Doctrine`) | a posture DOCTRINE never interrupts a running mission task — see the open questions |
+| an SOP cannot replace a mission task | `R-188` (`Operator > Superior > SOP`) | a posture SOP never interrupts a running mission task — see the open questions |
 
 #### Which asset type hosts it *(lean, under discussion — user `2026-10-04`: "ok with using the combat posture as a mission task")*
 
@@ -472,7 +472,7 @@ the SOP tree finishes every wake and is re-read from the root next time — no r
 | ⭐ C# | a curated BTree built in C# (how `MoveToLocation` is made), or any curated behaviour calling the two actions |
 
 
-### 4.4 Params to JSON, the recipe, and the ROE *(PROPOSAL)*
+### 4.4 Params to JSON, the recipe, and the ROE *(✅ ROE approved `2026-10-04`, R-200 — 🔒 *"ROE shape ok."*)*
 
 > 🔒 **User, `2026-10-04`:** *"yes it is OK."* (§4.3) · *"I would guess that by simple serializing of the behavior param
 > dto"* · *"Shipped template = recipe (existing concept)"* · *"What the ROE would look like?"*
