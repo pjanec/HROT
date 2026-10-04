@@ -69,8 +69,9 @@ public sealed unsafe class InstanceParamsJsonTests
 
         // Two fields changed ⇒ exactly those two, by name.
         var src = world.CreateEntity();
-        Assert.Equal(BlueprintAttachStatus.Attached, BlueprintInstanceService.AttachToEntity(
-            world, fixture.Registry, bpId, src, "{\"Speed\":7.5,\"Offset\":{\"X\":1,\"Y\":2,\"Z\":3}}").Status);
+        var attached = BlueprintInstanceService.AttachToEntity(
+            world, fixture.Registry, bpId, src, "{\"Speed\":7.5,\"Offset\":{\"X\":1,\"Y\":2,\"Z\":3}}");
+        Assert.True(attached.Status == BlueprintAttachStatus.Attached, attached.Message);
         var formatted = JsonNode.Parse(Format(world, src, def)!)!.AsObject();
         Assert.Equal(new[] { "Speed", "Offset" }, PropertyNames(formatted));
         Assert.Equal(7.5f, (float)formatted["Speed"]!);

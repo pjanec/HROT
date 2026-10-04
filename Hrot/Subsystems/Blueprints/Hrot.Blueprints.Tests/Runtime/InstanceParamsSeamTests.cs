@@ -360,13 +360,19 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
     public void ExactlyOneParameterSupplyPathExists()
     {
         // 1. The definition exposes exactly one parameter-resolution entry point.
+        //    ⭐ CE-3044: FormatParams is its INVERSE — it READS the region for a scenario save and supplies nothing;
+        //    it is excluded here and pinned below to the shared delegate type, beside ParseParams.
         var supplyMembers = typeof(BlueprintDefinition)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => typeof(Delegate).IsAssignableFrom(p.PropertyType)
-                        && p.Name.Contains("Param", StringComparison.Ordinal))
+                        && p.Name.Contains("Param", StringComparison.Ordinal)
+                        && p.Name != nameof(BlueprintDefinition.FormatParams))
             .Select(p => p.Name)
             .ToList();
         Assert.Equal(new[] { nameof(BlueprintDefinition.ParseParams) }, supplyMembers);
+        Assert.Equal(
+            typeof(Fdp.Toolkit.Behavior.FormatParamsDelegate),
+            typeof(BlueprintDefinition).GetProperty(nameof(BlueprintDefinition.FormatParams))!.PropertyType);
 
         // 2. It is the SAME delegate type the behaviour path uses — not a blueprint-only twin.
         Assert.Equal(
