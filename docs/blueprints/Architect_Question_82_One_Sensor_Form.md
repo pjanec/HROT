@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: DESIGN — OPEN; leans per sub-question, awaiting the user's ruling. Nothing is built from this yet.
-current-answer: §0 (the proposal), §3 (the sub-questions with leans).
+build-state: DESIGN — ✅ A–L APPROVED (user, 2026-10-04); M, N open with leans. Nothing is built yet — the WHAT goes into a DESIGN doc with UML first.
+current-answer: §0 (the proposal), §3 (the sub-questions; A–L approved), §4 (M, N — open).
 stale-below: nothing — new document.
 known-rot: nothing yet.
 related-designs:
@@ -14,6 +14,8 @@ related-designs:
 -->
 
 # Architect Question 82 — **one sensor form for perception and EQS?**
+
+> ✅ **APPROVED `2026-10-04`** — 🔒 user, verbatim: *"Approved, all leans A–L."* (ledger `R-185`)
 
 Tracker: [`CE-3033`](Blueprint_Issues_Tracker.md). Raised from the `2026-10-04` discussion; 🔒 user: *"Isnt the eqs and sensor
 differing just in the responsibilities, not in the form? … Cant the smart sensors reuse the eqs shape as is?"* ·
@@ -99,3 +101,14 @@ them and which template they run. The raycast queue ballistics uses sits outside
 
 ⛔ **Not asked:** partial visibility, camouflage, lighting, thermal signatures — they are tests inside a sensing template and do
 not change the form; each will get its own design when wanted.
+
+## 4. Follow-up sub-questions *(user, `2026-10-04`)* — OPEN, with leans
+
+> 🔒 *"Will the behavior be able to create sensors of any type on demand, not just from tkb? How Could we enable/disable sensors
+> created automatically from tkb if entity does not need them (from behaviors for example), to save performance?"*
+
+| # | question | ⭐ lean | why / blast radius |
+|---|---|---|---|
+| **M** | can a behaviour create a sensor of ANY kind on demand? | ⭐ **yes — through the existing behaviour-owned child-sensor path** (`SpawnEqsSensor` / `EqsChildSensor`), with any template, query or sensing. ⚠ **One rule: a SENSING sensor is bounded by the unit's TKB capability of that kind** — a behaviour can point the unit's thermal sight somewhere, narrow it, re-prioritise it, but cannot give a rifleman thermal vision he does not have; a kind the unit's TKB does not list is refused at spawn (loudly). Its results go to its own buffer AND, being the unit perceiving, into `TargetMemory` with its modality | query sensors are already free-form; capability bounds are what keeps the simulation honest. Blast: a spawn-time capability check, the memory-stage feed for behaviour-owned sensing children |
+| **N** | enabling / disabling the TKB-created sensors | ⭐ **reuse `EqsSensor.Suspended` (CE-486): a suspended sensor costs NOTHING** — the solver skips it and drops its evaluation state. The switch crosses the wire as ONE small Brain-owned per-unit field (a bitmask: which TKB sensors are on — K sends no per-sensor config, so this is the only thing that must). Default per sensor from the TKB (`enabledByDefault`). ⭐ **A behaviour's disable is behaviour-owned** (as behaviour-owned parts, CE-485): it lasts while that behaviour run lives and reverts to the TKB default when the run ends or faults — so a unit can never stay blind because a behaviour forgot. ⭐ **Push stimuli (E) still arrive while a sensor is off** — being hit or hearing a shot reaches `TargetMemory`, so the AI can react and re-enable | Blast: one replicated per-unit field + the Muscle applying it to the carriers' `Suspended`; a behaviour-owned "sensor override" like the existing parts |
+
