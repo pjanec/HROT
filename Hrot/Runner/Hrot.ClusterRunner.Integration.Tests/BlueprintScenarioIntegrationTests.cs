@@ -384,7 +384,7 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         return o.Count == 0 ? null : o.ToJsonString();
     }
 
-    private BlueprintDefinition RegisterTwoIntParamBlueprint(Guid assetId)
+    private unsafe BlueprintDefinition RegisterTwoIntParamBlueprint(Guid assetId)
     {
         var def = new BlueprintDefinition
         {
