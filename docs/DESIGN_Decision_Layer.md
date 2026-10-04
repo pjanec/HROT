@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: DESIGN — under discussion with the user (utility integration, G3 open); G1, G2b approved; the mission stays unchanged.
-current-answer: §1 (decided), §2 (the mission stays), §3 + §3.1 (utility AI and the combat-posture proposal — the live discussion).
+build-state: READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -169,6 +169,146 @@ debugger's Watch shows the current posture.*
 | ⭐ lean | one scoring step (a `[SharedAiAction]` for BTree/HSM, and the existing blueprint node, both calling one core) that writes the winner into a bound variable; branches and transitions only compare that variable. The two dead helpers are deleted, not re-made |
 | still needed for the BTree | `CE-3041` (`ObserverSelector` aborts the running lower branch) — today it runs as a plain selector (`Interpreter.cs:267`) |
 | rejected | re-make the two helpers 1:1 — two implementations of one concept, and each guard would score separately (five scorings a tick, five memories) · keep the per-unit `UtilityResultBuffer` as the memory — two decisions on one unit overwrite each other |
+
+### 3.3 The build design — one scoring step, three hosts, combat posture first *(build-state: READY-TO-BUILD — approved by the user `2026-10-04`; tasks `CE-2067`–`CE-2073`; not started)*
+
+> 🔒 **User, `2026-10-04`:** *"approved. pls write the design diagrams. record tasks. do not start building yet."*
+
+**Basis:** §3.1 (posture composition), §3.2 (one scoring step, approved), `R-197` (infrastructure for all three tiers),
+`R-194` (danger at read time), `R-155` (actions / conditions read bound host variables live), `R-184` (the TYPE makes a
+field pickable), `CE-504` / S8 (one shared C# node signature; stateful form on BTree and HSM).
+
+```mermaid
+classDiagram
+  class UtilityScorer {
+    <<existing, widened>>
+    +ChooseOption(repo, self, decisionId, lastWinner, tick) byte  NEW
+    +RankCandidates(repo, self, decisionId, tick, out EntityRef top, out float score) bool  NEW
+    Evaluate / SelectPosture  become the private core
+  }
+  class UtilityDecisionRef {
+    <<NEW struct>>
+    +int Id
+    JSON = the decision asset id
+    the TYPE makes a field pickable (R-184)
+  }
+  class ChooseOptionParams { <<NEW>> +UtilityDecisionRef Decision +byte Winner }
+  class RankCandidatesParams { <<NEW>> +UtilityDecisionRef Decision +EntityRef Top +float TopScore }
+  class IsOptionParams { <<NEW>> +byte Winner +byte Option }
+  class UtilityNodes {
+    <<NEW static>>
+    +ChooseOption(ref ChooseOptionParams, Entity, EntityRepository) NodeStatus  SharedAiAction
+    +RankCandidates(ref RankCandidatesParams, Entity, EntityRepository) NodeStatus  SharedAiAction
+    +IsOption(ref IsOptionParams, Entity, EntityRepository) bool  SharedAiCondition
+  }
+  class ScoreDecisionNode {
+    <<existing, widened>>
+    +AssetId
+    hidden working field __lastWinner (like __waitUntilTime)
+    ranking decision: TopCandidate EntityRef + TopScore pins
+  }
+  class UtilityBlueprintBridge { <<existing, rerouted>> ScoreDecision(view, self, id, lastWinner, tick) → ChooseOption }
+  class ReadRankedResultNode { <<existing, kept>> reads the last ranking's list }
+  class UtilityResultBuffer { <<existing, demoted>> optional output list + trace, NOT the memory }
+  class UnitSensors { <<existing, backend lane>> +Of(view, unit, kind) +OfTemplate(view, unit, blueprintId) NEW }
+  class StandardInputs { <<existing>> EqsTopScore via UnitSensors.OfTemplate; threat inputs per R-194 (CE-3054) }
+  class CombatPostureDecision { <<existing, tuned>> Suppress without the stub input }
+  class UtilityDecisionPickerDrawer { <<NEW>> Details drawer for any UtilityDecisionRef field }
+  class UtilitySelectorNode { <<DELETED>> }
+  class UtilityTransitionArbiter { <<DELETED>> }
+  UtilityNodes ..> UtilityScorer
+  UtilityBlueprintBridge ..> UtilityScorer
+  ScoreDecisionNode ..> UtilityBlueprintBridge : emitted call
+  UtilityNodes ..> ChooseOptionParams
+  UtilityNodes ..> RankCandidatesParams
+  UtilityNodes ..> IsOptionParams
+  ChooseOptionParams *-- UtilityDecisionRef
+  RankCandidatesParams *-- UtilityDecisionRef
+  UtilityDecisionPickerDrawer ..> UtilityDecisionRef : edits
+  UtilityScorer ..> StandardInputs : reads inputs
+  StandardInputs ..> UnitSensors
+  UtilityScorer ..> UtilityResultBuffer : writes if present
+  ReadRankedResultNode ..> UtilityResultBuffer
+  UtilityScorer ..> CombatPostureDecision : registered def
+```
+
+*What the picture shows that prose hid: there is ONE scorer entry per mode, and three thin callers; the memory of the
+last winner moved off the unit (`UtilityResultBuffer`) into the CALLER's own storage — a bound variable for BTree/HSM, a
+hidden node field for the blueprint — so two decisions on one unit cannot collide and the scorer needs no component.*
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTickSystem
+  participant R as BlueprintRunner
+  participant P as CombatPosture blueprint
+  participant B as UtilityBlueprintBridge
+  participant S as UtilityScorer
+  participant I as inputs (TargetMemory, UnitSensors.OfTemplate)
+  participant T as Behaviour Task nodes
+  BT->>R: tick the unit's behaviour (mission task)
+  R->>P: run fiber
+  Note over P: on start: SpawnEqsSensor ×2 (cover, retreat) — owned by THIS run (CE-485)
+  P->>B: ScoreDecision(posture, __lastWinner)
+  B->>S: ChooseOption(self, posture, lastWinner)
+  S->>I: read 5 options' considerations
+  S-->>P: winner (+0.08 for lastWinner)
+  alt winner != __lastWinner
+    P->>T: Abort task[__lastWinner]
+    P->>T: Start task[winner] (params: target from RankCandidates, objective)
+    P->>P: __lastWinner = winner
+  end
+  Note over T: the child runs as a hosted run (S5a) — its finish wakes a re-score
+```
+
+*What the picture shows that prose hid: the posture never moves the unit itself — every frame it only decides; the
+moving and firing is always one hosted child at a time (G9).*
+
+```mermaid
+sequenceDiagram
+  participant N as BTree / HSM runner
+  participant C as UtilityNodes.ChooseOption (action)
+  participant V as bound variable Winner
+  participant G as UtilityNodes.IsOption (guard)
+  N->>C: tick (BTree: a Parallel arm repeats it · HSM: the parent state's activity)
+  C->>V: read lastWinner, score, write winner
+  N->>G: evaluate branch / transition guard
+  G->>V: Winner == Option ?
+  G-->>N: true ⇒ BTree ObserverSelector switches branch (needs CE-3041) · HSM takes the transition
+```
+
+```mermaid
+graph TD
+  CGF["CgfLogicPack (CGF and the editor)"] -->|start| DISC["UtilityAutoDiscovery.ScanAndRegister<br/>(CgfLogicPack.cs:185)"]
+  DISC --> CAT["UtilityDecisionCatalog.Shared"]
+  CGF --> CRM["CognitiveRuntimeModule (CgfLogicPack.cs:160)"]
+  CRM -->|every frame| BTS["BrainTickSystem"]
+  BTS --> RUN["IBehaviorRunner: BTree · HSM · Blueprint"]
+  RUN -->|node call| STEP["ChooseOption / RankCandidates / ScoreDecision"]
+  STEP --> SC["UtilityScorer"]
+  SC --> CAT
+  CUT["CommanderUtilityTickSystem"]:::dead
+  TMA["ThreatMatrixAssignmentSystem"]:::dead
+  CUT -.->|"not registered (SquadCoordinationSystem.cs:18)"| SC
+  TMA -.->|"not registered"| SC
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+```
+
+*What the picture shows that prose hid: nothing new is scheduled — the scorer only ever runs inside a behaviour's own
+tick, on the editor and CGF alike (both build `CgfLogicPack`); the two squad systems (red) stay unregistered and are not
+part of this plan.*
+
+| task | what | depends on | touches the backend lane? |
+|---|---|---|---|
+| `CE-2067` | scorer core without the unit buffer: `ChooseOption`, `RankCandidates` | — | no |
+| `CE-2068` | `UtilityDecisionRef` + its Details picker (the type makes the field pickable) | — | no |
+| `CE-2069` | `UtilityNodes` (shared action ×2 + condition) for BTree and HSM; rails: a BTree and an HSM switch on the winner; measure the BTree Parallel-repeat shape first (§3.2's assumed row); delete `UtilitySelectorNode` / `UtilityTransitionArbiter`; mark utility design §7.1–7.2 superseded | `CE-2067`, `CE-2068`, `CE-3041` for the BTree rail | no |
+| `CE-2070` | `ScoreDecision` node rerouted: hidden `__lastWinner`, ranking pins, no unit buffer needed | `CE-2067`, `CE-2068` | no |
+| `CE-2071` | `UnitSensors.OfTemplate`; `EqsTopScore` and the posture's children use it instead of spawning a second sensor | — | ⚠ **yes — `UnitSensors.cs` is backend code** (S3) |
+| `CE-2072` | `CombatPostureDecision` tuning: Suppress without the stub input; the stale `CE-2051` remark | — | no |
+| `CE-2073` | the `CombatPosture` blueprint behaviour + acceptance in `tt-nav-los` as a mission task | `CE-2067`–`CE-2072`, `CE-3031` children, `CE-3054` | no |
+| `CE-3054` *(existing, ours)* | threat inputs to `R-194`: danger from the TKB judged at read time × freshness | the backend's memory stage (`CE-3037`) | ⚠ **yes — joint freshness design** |
+| `CE-3031` *(existing, ours)* | the children: take cover, fall back, advance-and-fire | `CE-2071` | no |
+| `CE-3041` *(existing, ours)* | `ObserverSelector` aborts the running lower branch | — | no |
 
 ## ⛔ HISTORY
 
