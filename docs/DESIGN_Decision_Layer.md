@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: DESIGN — under discussion with the user (G2, G3 open); G1 and G2b approved.
-current-answer: §1 (what is decided), §2 (the mission as a doctrine — the live discussion).
+build-state: DESIGN — under discussion with the user (utility integration, G3 open); G1, G2b approved; the mission stays unchanged.
+current-answer: §1 (decided), §2 (the mission stays), §3 (utility AI — the live discussion).
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
-  - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: ONE doctrine per MISSION, replacing the triggers (user, 2026-10-04). That document gets the pointer in the same change.
+  - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the doctrine slot, the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the frame this answers (G1–G11).
@@ -29,46 +29,36 @@ related-designs:
 | **G1** ✅ | a remembered contact keeps WHAT it is (its danger does not fade) apart from HOW FRESH my knowledge of it is (fades) — *"hidden does not mean harmless"* | danger is judged at read time in one place — an input to the existing `ThreatRankingDecision` fed by the TKB (target class, weapons vs my armour, range); the memory entry stores identity + freshness, never a danger score. The backend's memory stage (S4) keeps the freshness field |
 | **G2b** ✅ | a doctrine running below frame rate wakes on events | a sensor change, a finished behaviour or a refused assignment for the unit ⇒ its doctrine ticks the next frame (bus events live one frame, `FdpEventBus.cs:30`); HSM events already wait in their queue |
 
-## 2. The mission as a doctrine *(G2 — the user's direction; details under discussion)*
+## 2. The mission stays as it is *(user, `2026-10-04`)*
 
-📐 **What a "phase" is today:** `MissionPhase {BehaviorId, Trigger, TriggerParam}` (`MissionComponents.cs:42`) — ONE
-behaviour plus ONE trigger; `MissionDirectorSystem` advances on the trigger and assigns the next phase's behaviour
-directly (`MissionDirectorSystem.cs:215`). ⇒ ⛔ a doctrine per phase would be a doctrine for one behaviour — nothing
-to decide. ⛔ SUPERSEDED: `DESIGN_Sensors_And_Doctrine.md` §11.2b's "a mission phase may name a doctrine".
+> 🔒 *"our existing mission is not a blueprint. Mission is a sequence of behaviors (called tasks), executed one by one with
+> optional skipping defined by triggers. We are not going to change this, this an ordinary end-user-facing surface which
+> they can grasp well. We are looking for alternative ways of defining similar concept, or maybe a bit different concept
+> that is better suited for game AI, to be authored by more skilled game logic personnel. I did not understand why there is
+> anything to be changed in the demo mission plan, it was just a demo … What i wanted to discuss was how to integrate the
+> utility ai into how we build the game ai, how can it help or make that easier"*
 
-📐 **Corpus:** 8 shipped scenarios carry a mission; every one uses only the `BehaviorFinished` trigger, 7 of them with a
-single task. The trigger vocabulary (`TimerElapsed`, `UnderAttack`, `HealthCritical`, `BehaviorFinished`) has no other
-user in the repo.
+| | |
+|---|---|
+| ✅ the mission | unchanged: tasks (behaviours) in sequence, triggers to advance / skip — the END-USER surface |
+| ✅ `Demo_MissionPlan` | unchanged — a demo of a mission built as a blueprint, nothing to migrate |
+| ⏳ the open question | a concept for SKILLED game-logic authors, beside the mission — and how utility AI serves it (§3) |
 
-```mermaid
-sequenceDiagram
-  participant S as scenario / mission editor
-  participant I as BehaviorIngressSystem (gate)
-  participant M as mission doctrine (slot 2, Origin = Superior)
-  participant B as behaviour (slot 1)
-  participant OP as operator
-  S->>I: AssignDoctrine Mission_X, Origin = Superior
-  I->>M: start (replaces the unit's TKB doctrine for the mission)
-  M->>I: task 1: assign MoveTo (Origin = Doctrine)
-  I->>B: admitted, start
-  OP->>I: assign Halt (Origin = Operator)
-  I->>B: Operator outranks ⇒ MoveTo ends, Halt runs
-  Note over M: task 1 is INTERRUPTED, not failed — the mission waits
-  B->>I: Halt finishes (operator released the unit)
-  M->>I: task 1 re-assigned (resume)
-  B-->>M: MoveTo Succeeded ⇒ next task
-  M->>I: mission graph ends ⇒ slot falls back to the TKB doctrine
-```
+## 3. Utility AI — what exists, and where it can help *(under discussion)*
 
-*What the picture shows that prose hid:* the mission must DRIVE the behaviour slot (assign through the gate), not HOST
-its tasks inside itself — hosted children share the host's run (U-10), so an operator order would end the whole
-mission; driven tasks are merely interrupted and resumed.
+📐 **Measured `2026-10-04`:** the engine is BUILT and has NO consumer.
 
-| sub-question | ⭐ lean | why |
-|---|---|---|
-| **M1** the mission's form | the mission IS a Behaviour-kind blueprint run in the doctrine slot — the same graph shape as `Demo_MissionPlan` (Behaviour Task nodes, `Succeeded`/`Failed` branches, events, `When`) | one authoring vocabulary for a sequence; triggers become graph edges and events |
-| **M2** a Behaviour Task node in the doctrine slot | ONE node, two modes by slot: in the behaviour slot it HOSTS (today, U-11); in the doctrine slot it ASSIGNS to slot 1 through the gate and waits for that run's `BehaviorFinishedEvent` | a second "assign task" node would duplicate the vocabulary |
-| **M3** an order interrupts a task | the task is INTERRUPTED (a third outcome beside Succeeded / Failed); default: the mission re-assigns it when the higher origin releases the unit | the user's model: a human always wins, the mission continues afterwards |
-| **M4** the unit's own doctrine | ONE doctrine slot: the mission replaces the TKB doctrine for its duration; when the mission graph ends the slot falls back to the TKB default | two doctrines per unit = a second arbitration layer |
-| **M5** reactions inside a mission | authored in the mission (events / `When`), optionally by hosting a reusable reaction sub-graph | the mission author decides how much autonomy the mission keeps |
-| **M6** what retires | `MissionDirectorSystem`, `MissionPhase` / `MissionTrigger` (three representations: `Hrot.Core` class, NED struct, Toolkits enum), the trigger editor; the networked `MissionPlan` becomes "assign this mission doctrine with these params" | measured corpus above: one trigger kind in use |
+| piece | state |
+|---|---|
+| scorer (weighted product / sum, hysteresis), curves, `UtilityResultBuffer` (top-N + trace) | ✅ built (`Fdp.Toolkits/Utility/Core`) |
+| 26 input readers — self (health, ammo), contact (threat, distance, LOS), weapon (range band, effectiveness), EQS (`EqsTopScore`, count), squad (assigned target / role / slot, strength) | ✅ built (`Utility/Inputs`) |
+| 5 decisions, authored in C# (fluent builder + generator): `CombatPosture`, `ThreatRanking`, `WeaponSelection`, `LeaderAssignment`, `ManeuverSelect` | ✅ built; registered at CGF start (`CgfLogicPack.cs:185`) |
+| editor: decision window, curve editor, preview runner, map overlay | ✅ built (`Hrot.Utility.Editor`) |
+| blueprint `ScoreDecision` / `ReadRankedResult` nodes | ✅ compiled — ⛔ no shipped asset uses them |
+| BTree `UtilitySelectorNode`, HSM `UtilityTransitionArbiter` | ⚠ C# helpers, not authorable nodes, no callers |
+| squad tick (`CommanderUtilityTickSystem`), fire assignment (`ThreatMatrixAssignmentSystem`) | ⛔ deliberately not run — no danger-area provider (`SquadCoordinationSystem.cs:18`, Squad Wiring §5 D3) |
+
+## ⛔ HISTORY
+
+*Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
+doctrine slot, triggers retired). ⛔ WITHDRAWN — it misread the user's G2 remark; the mission is not changed (§2).
