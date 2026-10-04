@@ -34,6 +34,8 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     {
         private readonly Func<ISimulationView, Entity, float>? _radius;
         private readonly List<(Entity E, Vector2 P, float R)> _colliders = new();
+        private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
+        private readonly List<int> _near = new();
 
         public PlanarCircleLosStrategy(Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
             => _radius = colliderRadiusReader;
@@ -47,6 +49,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 var p = view.GetComponentRO<SimTransform>(c).Position;
                 _colliders.Add((c, new Vector2(p.X, p.Y), _radius?.Invoke(view, c) ?? 0f));
             }
+            _index.Build(_colliders.Count, i => _colliders[i].P, i => _colliders[i].R);
         }
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
@@ -55,8 +58,10 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var b3 = view.GetComponentRO<SimTransform>(target).Position;
             var a = new Vector2(a3.X, a3.Y);
             var b = new Vector2(b3.X, b3.Y);
-            foreach (var (e, p, r) in _colliders)
+            _index.Query(a, b, _near);
+            foreach (int k in _near)
             {
+                var (e, p, r) = _colliders[k];
                 if (e.Index == observer.Index || e.Index == target.Index) continue;
                 if (LosGeometry.LegacyCrossing(a, b, p, r)) return false;
             }
@@ -86,6 +91,8 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private readonly Func<ISimulationView, Entity, float>? _height;
         private readonly Func<ISimulationView, Entity, StanceId>? _stance;
         private readonly List<(Entity E, Vector3 P, float R, float H)> _colliders = new();
+        private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
+        private readonly List<int> _near = new();
         private TerrainWorld? _world;
 
         /// <param name="worldSource">The terrain world now resident; null result = no terrain (colliders only).</param>
@@ -128,6 +135,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 _colliders.Add((c, view.GetComponentRO<SimTransform>(c).Position,
                     _radius?.Invoke(view, c) ?? 0f, _height?.Invoke(view, c) ?? 0f));
             }
+            _index.Build(_colliders.Count, i => new Vector2(_colliders[i].P.X, _colliders[i].P.Y), i => _colliders[i].R);
         }
 
         /// <summary>The height of the entity's eye above its Z for its current posture.</summary>
@@ -158,8 +166,10 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
             var a = new Vector2(eye.X, eye.Y);
             var b = new Vector2(aim.X, aim.Y);
-            foreach (var (e, p, r, h) in _colliders)
+            _index.Query(a, b, _near);
+            foreach (int k in _near)
             {
+                var (e, p, r, h) = _colliders[k];
                 if (e.Index == observer.Index || e.Index == target.Index) continue;
                 if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
                 if (h <= 0f) return false;                       // unknown height — blocks, as before

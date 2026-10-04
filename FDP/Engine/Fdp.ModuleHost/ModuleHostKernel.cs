@@ -428,7 +428,7 @@ namespace Fdp.ModuleHost
                 FailureThreshold = policy.FailureThreshold,
                 CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs,
                 
-                CircuitBreaker = new ModuleCircuitBreaker(
+                CircuitBreaker = NewBreaker(module,
                     failureThreshold: policy.FailureThreshold,
                     resetTimeoutMs: policy.CircuitResetTimeoutMs
                 )
@@ -752,6 +752,28 @@ namespace Fdp.ModuleHost
             topology.Scheduler.ExecutePhase(SystemPhase.Export, _liveWorld, deltaTime);
             
             _currentFrame++;
+        }
+
+        /// <summary>
+        /// ⭐ CE-3032 — a breaker that SAYS when it opens and closes. 🔴 An open circuit skips the module for
+        /// <c>resetTimeoutMs</c> (10 s for a background module) and nothing reported it: perception went dark with
+        /// only per-tick timeout lines to show. One line per transition — never per skipped tick.
+        /// </summary>
+        private static ModuleCircuitBreaker NewBreaker(IEcsModule module, int failureThreshold, int resetTimeoutMs)
+        {
+            var breaker = new ModuleCircuitBreaker(failureThreshold, resetTimeoutMs);
+            string name = module.Name;
+            breaker.StateChanged = (from, to, why) =>
+            {
+                if (to == CircuitState.Open)
+                    Console.Error.WriteLine(
+                        $"[ModuleHost][CIRCUIT-OPEN] Module '{name}' is SKIPPED for {resetTimeoutMs} ms " +
+                        $"after {(from == CircuitState.HalfOpen ? "a failed recovery attempt" : $"{failureThreshold} consecutive failures")} " +
+                        $"(last: {why}).");
+                else if (to == CircuitState.Closed)
+                    Console.Error.WriteLine($"[ModuleHost][CIRCUIT-CLOSED] Module '{name}' recovered and runs again.");
+            };
+            return breaker;
         }
 
         /// <summary>
@@ -1298,7 +1320,7 @@ namespace Fdp.ModuleHost
                     MaxExpectedRuntimeMs = policy.MaxExpectedRuntimeMs > 0 ? policy.MaxExpectedRuntimeMs : 1000,
                     FailureThreshold = policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
                     CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
-                    CircuitBreaker = new ModuleCircuitBreaker(
+                    CircuitBreaker = NewBreaker(module,
                         failureThreshold: policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
                         resetTimeoutMs: policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
                     LifecycleState = ModuleLifecycleState.Loading
@@ -1471,7 +1493,7 @@ namespace Fdp.ModuleHost
                         MaxExpectedRuntimeMs  = policy.MaxExpectedRuntimeMs  > 0 ? policy.MaxExpectedRuntimeMs  : 1000,
                         FailureThreshold      = policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
                         CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
-                        CircuitBreaker = new ModuleCircuitBreaker(
+                        CircuitBreaker = NewBreaker(m,
                             failureThreshold:    policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
                             resetTimeoutMs:      policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
                         LifecycleState = ModuleLifecycleState.Loading

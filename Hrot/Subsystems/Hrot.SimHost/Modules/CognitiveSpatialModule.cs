@@ -15,7 +15,14 @@ namespace Hrot.SimHost.Modules
     {
         public string Name => "CognitiveSpatial";
 
-        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
+        /// <summary>
+        /// 10 Hz in the background. ⭐ CE-3032 — a 400 ms timeout instead of the 100 ms default: a dense scene makes a
+        /// tick SLOW, not hung, and the breaker exists for hangs — at 100 ms, 5 slow ticks opened the circuit and the
+        /// whole module (every unit's sight) was skipped for 10 s. Measured after the CE-3032 fixes: ≤ 70 ms at 500
+        /// units in 1 km², 170–280 ms at 1000 units packed within each other's 500 m vision. ⏳ The deterministic
+        /// per-tick budget (DESIGN_Sensors_And_Doctrine §5.3, S4) replaces this margin.
+        /// </summary>
+        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(400);
 
         // B3 -- RECEIVED, not allocated. See the constructor.
         private readonly SpatialHashGrid _localGrid;

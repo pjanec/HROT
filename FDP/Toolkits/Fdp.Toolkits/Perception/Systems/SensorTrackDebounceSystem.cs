@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Components;
@@ -39,6 +40,14 @@ namespace Fdp.Toolkit.Perception.Systems
         // 20 ticks at 10 Hz perception rate = 2 seconds of occlusion tolerance.
         private const uint TrackLostThresholdTicks = 20;
 
+        // ⭐ CE-3032 — this tick's sightings GROUPED BY OBSERVER, built once. 🔴 Pass 1 used to scan every
+        //   TargetVisibleEvent for every observer: observers × (observers × visible targets) — CUBIC. Measured
+        //   (2026-10-04): 757 ms at 500 units for this system alone, past the module's 100 ms limit, so the circuit
+        //   breaker opened and perception went dark. Reused across ticks; order within a group = event order.
+        private readonly Dictionary<Entity, int> _groupOf = new();
+        private readonly List<(Entity Observer, List<Entity> Targets)> _groups = new();
+        private readonly Stack<List<Entity>> _pool = new();
+
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -46,6 +55,7 @@ namespace Fdp.Toolkit.Perception.Systems
             uint currentTick = view.Tick;
 
             var visibleEvents = view.ReadEvents<TargetVisibleEvent>();
+            GroupByObserver(visibleEvents);
 
             // ── Pass 1: update entities that already have SensorContactList ───────
             var query = view.Query().With<SensorContactList>().Build();
@@ -56,14 +66,16 @@ namespace Fdp.Toolkit.Perception.Systems
                 bool changed = false;
 
                 // Apply all sightings for this observer.
-                foreach (ref readonly var evt in visibleEvents)
+                if (_groupOf.TryGetValue(entity, out int g))
                 {
-                    if (evt.Observer != entity) continue;
-                    if (!view.IsAlive(evt.Target)) continue;
+                    foreach (var target in _groups[g].Targets)
+                    {
+                        if (!view.IsAlive(target)) continue;
 
-                    long targetId = (long)evt.Target.PackedValue;
-                    SensorContactList.UpdateSighting(ref list, targetId, currentTick);
-                    changed = true;
+                        long targetId = (long)target.PackedValue;
+                        SensorContactList.UpdateSighting(ref list, targetId, currentTick);
+                        changed = true;
+                    }
                 }
 
                 // Evaluate hysteresis transitions.
@@ -124,35 +136,61 @@ namespace Fdp.Toolkit.Perception.Systems
             }
 
             // ── Pass 2: bootstrap SensorContactList for newly-seen observers ─────
-            foreach (ref readonly var evt in visibleEvents)
+            // ⭐ CE-3032 — ONE list per observer holding EVERY first-tick sighting. 🔴 It used to add one list PER
+            //   sighting, each holding a single contact, so the last AddComponent won and an observer that saw
+            //   several targets in its first tick kept only one (the others were announced Acquired, then never
+            //   tracked and never Lost).
+            foreach (var (observer, targets) in _groups)
             {
-                if (!view.IsAlive(evt.Observer) || !view.IsAlive(evt.Target)) continue;
-                if (view.HasComponent<SensorContactList>(evt.Observer)) continue; // handled in Pass 1
+                if (!view.IsAlive(observer)) continue;
+                if (view.HasComponent<SensorContactList>(observer)) continue; // handled in Pass 1
 
-                long targetId = (long)evt.Target.PackedValue;
                 var list = new SensorContactList();
-                SensorContactList.UpdateSighting(ref list, targetId, currentTick);
-                // age is 0, so immediately transition to Acquired.
-                list.State[0] = (byte)SensorContactState.Acquired;
-
-                ecb.AddComponent(evt.Observer, list);
-
-                // Emit Acquired event for the bootstrapped contact.
-                float posX = 0f, posY = 0f;
-                if (view.HasComponent<SimTransform>(evt.Target))
+                int before = 0;
+                foreach (var target in targets)
                 {
-                    ref readonly var tf = ref view.GetComponentRO<SimTransform>(evt.Target);
-                    posX = tf.Position.X;
-                    posY = tf.Position.Y;
+                    if (!view.IsAlive(target)) continue;
+                    SensorContactList.UpdateSighting(ref list, (long)target.PackedValue, currentTick);
+                    if (list.Count == before) continue; // a duplicate sighting, or the list is full
+                    // age is 0, so immediately transition to Acquired.
+                    list.State[before] = (byte)SensorContactState.Acquired;
+                    before = list.Count;
+
+                    // Emit Acquired event for the bootstrapped contact.
+                    float posX = 0f, posY = 0f;
+                    if (view.HasComponent<SimTransform>(target))
+                    {
+                        ref readonly var tf = ref view.GetComponentRO<SimTransform>(target);
+                        posX = tf.Position.X;
+                        posY = tf.Position.Y;
+                    }
+                    ecb.PublishEvent(new SensorTrackStateEvent
+                    {
+                        Observer  = observer,
+                        Target    = target,
+                        State     = SensorTrackStatus.Acquired,
+                        PositionX = posX,
+                        PositionY = posY,
+                    });
                 }
-                ecb.PublishEvent(new SensorTrackStateEvent
+                if (list.Count > 0) ecb.AddComponent(observer, list);
+            }
+        }
+
+        private void GroupByObserver(System.ReadOnlySpan<TargetVisibleEvent> events)
+        {
+            foreach (var (_, targets) in _groups) { targets.Clear(); _pool.Push(targets); }
+            _groups.Clear();
+            _groupOf.Clear();
+            foreach (ref readonly var evt in events)
+            {
+                if (!_groupOf.TryGetValue(evt.Observer, out int g))
                 {
-                    Observer  = evt.Observer,
-                    Target    = evt.Target,
-                    State     = SensorTrackStatus.Acquired,
-                    PositionX = posX,
-                    PositionY = posY,
-                });
+                    g = _groups.Count;
+                    _groupOf[evt.Observer] = g;
+                    _groups.Add((evt.Observer, _pool.Count > 0 ? _pool.Pop() : new List<Entity>()));
+                }
+                _groups[g].Targets.Add(evt.Target);
             }
         }
     }

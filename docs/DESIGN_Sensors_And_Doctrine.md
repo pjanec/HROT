@@ -482,7 +482,7 @@ authoring place).
 
 | step | id | builds | proven by |
 |---|---|---|---|
-| **S0** | `CE-3032` | perception never trips the breaker: log the breaker opening loudly; cap the visual pass until S4 replaces it | a load rail: N observers, breaker stays closed |
+| ✅ **S0** | `CE-3032` | ⭐ BUILT `2026-10-04` — see §9.1 (the measurement found three cubic / quadratic hot spots; fixing them replaced the planned observer cap) | §9.1 |
 | **S1** | `CE-3034` | `BehaviorOrigin` on the four events + `BehaviorState.Origin` + the gate in `BehaviorIngressSystem`; origin on the DDS intent topic; the existing publishers stamped (§6 table) | gate rails: Doctrine cannot replace Operator / Superior; Self chains keep origin; finish is never gated; unmarked = Operator |
 | **S2** | `CE-3035` | `DoctrineState` + `BrainSlot`; `BrainTickSystem` loops both slots; the §7.2 re-keys; `AssignDoctrineEvent` / `ClearDoctrineEvent` with the origin gate against `DoctrineState.Origin` and the intent topic's `Kind` (§7.4); `BehaviorTkbTranslator.DefaultDoctrineHash` (pending start on the authority node); the *assign behaviour to self* action for BTree / HSM / blueprint; a doctrine never finishes, a fault stops it | one rail per tier: a doctrine assigns, an operator order preempts, the order ends, the doctrine resumes (§7.1) — on the editor AND `--mode all` |
 | **S3** | `CE-3036` | the sensor list in the TKB (+ implicit visual entry), `SensorChildFactory`, `SensorTag`, `SensorCapability`, children 1000+i on every node, `AllocatePartId` skips 1000+, `ConfigKind` / `ConfigJson` on the wire, refusal on bad JSON, `Disabled`, override + switch, `Sensors.Of` | a NEW sensor kind in tests only (I ①): TKB child on both nodes with matching keys; behaviour-spawned thermal; override; switch off ⇒ solver skips; run end ⇒ back to default |
@@ -498,6 +498,32 @@ authoring place).
 | S7 | later | thermal / acoustic templates | — |
 
 ⭐ **Order:** S0 first (a live defect). S1 → S2 are independent of S3 → S6 and can run in parallel lanes.
+
+### 9.1 As-built — S0 / `CE-3032` *(`2026-10-04`)*
+
+📐 **Measured first** (a timing probe over the real perception systems: N units, two forces, uniform in 1 km², 500 m
+vision, 360° FOV; warm, median of 3 ticks). ⚠ The planned stop-gap was an observer cap; the measurement showed the
+cost was not "too many observers" but three algorithmic hot spots — each fixed, none changes what a unit can see:
+
+| hot spot | cause | fix |
+|---|---|---|
+| ① `SensorTrackDebounceSystem` | every observer scanned EVERY sighting event of the tick — cubic. 757 ms at 500 units alone | sightings grouped by observer once per tick |
+| ② `VisionBroadphaseSystem` | a 500 m query walked ~40 000 cells of the 5 m perception grid per observer, then read `IsAlive` / `EntityInfo` per PAIR | a 50 m coarse index built ONCE per tick from the fine grid's own contents (same set, same footprint), liveness + force read once per entity |
+| ③ both sight strategies | each sight line tested EVERY collider in the world — cubic | `ColliderIndex`: a 16 m grid the sight line walks cell by cell; the exact geometry test is unchanged (parity rail: it never misses a crossing collider) |
+
+| also changed | why |
+|---|---|
+| ⭐ candidates per observer: **the 32 NEAREST that pass the filters** (was: the first 256 the cell scan reached, friendlies included) | a unit remembers 16 contacts (`MaxTrackedTargets`), so 256 sight checks were mostly work no memory could hold; nearest-first means a near enemy is never dropped for a far one |
+| ⭐ the first-tick contact list keeps EVERY sighting | 🔴 a pre-existing bug: one list was added PER sighting, the last won — two of three first-seen targets were announced *Acquired* and then never tracked |
+| ⭐ the circuit breaker REPORTS each transition (`[ModuleHost][CIRCUIT-OPEN]` … `[CIRCUIT-CLOSED]`) | an open circuit used to skip the module for 10 s in silence — for every module, not only perception |
+| ⭐ `CognitiveSpatialModule` timeout 400 ms (was the 100 ms default) | a dense scene makes a tick SLOW, not hung; the breaker exists for hangs. ⏳ S4's deterministic budget replaces this margin |
+
+| units (1 km², all within 500 m) | before | after |
+|---|---|---|
+| 100 | 40–48 ms | 7–10 ms |
+| 250 | 173–196 ms | 22–33 ms |
+| 500 | 529–956 ms | 52–72 ms |
+| 1000 | 1.5–2.4 s | 168–283 ms (⚠ over 100 ms — inside the new 400 ms timeout; S4 bounds it) |
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 
@@ -520,7 +546,7 @@ authoring place).
 | ✅ **O1** | the origin of an assignment made in the scenario EDITOR (it is what the snapshot then saves) | `Superior` — an authored start outranks the doctrine until it ends; leave the behaviour row empty for autonomy from second one | the user |
 | ✅ **O2** | the origin of each EXISTING publisher (§6 table) | operator UI / mission-control abort / debug API → `Operator` · mission plans + commander nodes + DDS intents → `Superior` · a behaviour ending or re-assigning itself → `Self` · unmarked → `Operator` | the user |
 | ✅ **O3** | a doctrine that FAULTS | stays stopped (the unit is brain-dead), the fault is logged and visible in the editor's AI section and `/diagnostics`; no auto-restart (a doctrine that faults every tick would spam) | the user |
-| **O4** | S0's interim cap on perception before S4's budget exists | log the breaker opening loudly; cap observers per tick by a fixed count until S4 (a stop-gap, deleted by S4) | build (S0) |
+| ✅ ~~**O4**~~ | S0's interim cap | ⛔ the observer cap was NOT built — it would have broken the debounce (contacts of a skipped observer age into *Lost*); the measured hot spots were fixed instead, see §9.1 | build (S0) |
 | **O5** | the cost-unit weights (§5.3) | measured once on a reference scenario at S4, then constants | build (S4) |
 
 | verify while building | §9 |

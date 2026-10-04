@@ -330,5 +330,97 @@ namespace Fdp.Toolkit.Perception.Tests
 
             grid.Dispose();
         }
+        // ── CE-3032 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ CE-3032 — over the cap the NEAREST hostiles win, and friendlies never take a slot. 🔴 The broadphase used
+        /// to keep the first 256 neighbours the cell scan reached, friendlies included, so a near enemy could be lost
+        /// to a far one. 40 hostiles + 40 friendlies, all in range ⇒ exactly the 32 nearest hostiles are checked.
+        /// </summary>
+        [Fact]
+        public void VisionBroadphase_OverTheCap_ChecksTheNearestHostiles_FriendliesTakeNoSlot_CE3032()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var grid  = CreateTestGrid();
+            var sys   = new VisionBroadphaseSystem(grid);
+            grid.Clear();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = new Vector3(250f, 250f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
+            world.AddComponent(observer, new PerceptionReceptor { VisionRange = 240f, FieldOfViewCos = -1f });
+
+            var hostiles = new System.Collections.Generic.List<(Entity E, float D)>();
+            for (int i = 0; i < 40; i++)
+            {
+                // Hostiles on a spiral, distances 10..205 m; friendlies placed CLOSER than every hostile.
+                float d = 10f + i * 5f, a = i * 0.7f;
+                var h = world.CreateEntity();
+                var hp = new Vector2(250f + d * MathF.Cos(a), 250f + d * MathF.Sin(a));
+                world.AddComponent(h, new SimTransform { Position = new Vector3(hp, 0f), Rotation = Quaternion.Identity });
+                world.AddComponent(h, new EntityInfo { ForceId = ForceId.Hostile });
+                grid.Add(h, hp);
+                hostiles.Add((h, d));
+
+                var f = world.CreateEntity();
+                var fp = new Vector2(250f + 2f * MathF.Cos(a), 250f + 2f * MathF.Sin(a));
+                world.AddComponent(f, new SimTransform { Position = new Vector3(fp, 0f), Rotation = Quaternion.Identity });
+                world.AddComponent(f, new EntityInfo { ForceId = ForceId.Friend });
+                grid.Add(f, fp);
+            }
+
+            sys.Execute(view, 0.1f);
+            FlushEcbAndSwap(view, world);
+
+            var events = world.Bus.Read<LosCheckRequestEvent>();
+            Assert.Equal(VisionBroadphaseSystem.MaxCandidatesPerObserver, events.Length);
+            var expected = new System.Collections.Generic.HashSet<Entity>();
+            for (int i = 0; i < VisionBroadphaseSystem.MaxCandidatesPerObserver; i++) expected.Add(hostiles[i].E);
+            foreach (var e in events) Assert.Contains(e.Target, expected);
+
+            grid.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ CE-3032 — the coarse index finds exactly what the fine grid holds: a target just inside the range on a
+        /// coarse-cell boundary is checked, one just outside is not, and an entity in the world but not in the grid is
+        /// still not seen (the grid stays the source of truth).
+        /// </summary>
+        [Fact]
+        public void VisionBroadphase_CoarseIndex_RangeEdgesAndGridMembership_CE3032()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var grid  = CreateTestGrid();
+            var sys   = new VisionBroadphaseSystem(grid);
+            grid.Clear();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = new Vector3(49.5f, 10f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
+            world.AddComponent(observer, new PerceptionReceptor { VisionRange = 100f, FieldOfViewCos = -1f });
+
+            Entity Hostile(float x, float y, bool inGrid)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+                world.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
+                if (inGrid) grid.Add(e, new Vector2(x, y));
+                return e;
+            }
+            var inside   = Hostile(149.5f, 10f, true);   // exactly 100 m — inclusive, in the next coarse cells
+            var outside  = Hostile(149.6f, 10f, true);   // 100.1 m
+            var notInGrid = Hostile(60f, 10f, false);
+
+            sys.Execute(view, 0.1f);
+            FlushEcbAndSwap(view, world);
+
+            var events = world.Bus.Read<LosCheckRequestEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(inside, events[0].Target);
+            _ = outside; _ = notInGrid;
+            grid.Dispose();
+        }
     }
 }
