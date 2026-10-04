@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Behavior.Modules
             _registry = registry;
             InputSystems = new IEcsModuleSystem[]
             {
+                new RoeSystem(),                       // ⭐ CE-2074 — orders change the ROE, gated by origin
                 new BehaviorIngressSystem(_registry),
             };
             SimulationSystems = new IEcsModuleSystem[]

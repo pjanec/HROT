@@ -452,6 +452,20 @@ of two components, and the only things that learn about slots are the tick loop,
 | ⭐ existing publishers get an origin | operator UI / mission-control abort → Operator · `MissionDirector` / `MissionAdapter` (scenario mission plan) → Superior · `CommanderNodes` / `HillAttackCommanderNodes` / DDS intent ingress → Superior · `HillAttackTankNodes` clearing itself → Self · hot-reload restart → Self |
 | ⛔ rejected: a `DoctrineTickSystem` of its own | a second copy of finish / fault / reload logic (ruling 9) — the loop takes a slot instead |
 
+> ⭐⭐ **AS-BUILT `CE-3034` + `CE-3047` (`2026-10-04`, behaviors lane — a cross-lane fold-back into this design, declared).**
+> *"Doctrine" reads SOP (`R-198`).*
+>
+> | as designed | as built | why |
+> |---|---|---|
+> | `BehaviorOrigin { Doctrine=1, Superior=2, Operator=3, Self=255 }` | `{ Unmarked=0, Sop=1, Superior=2, Operator=3, Self=255 }` (`Behavior/Components/BehaviorOrigin.cs`) | the rename; `Unmarked` is the explicit zero |
+> | "an event with NO origin reads as Operator" | ✅ — and it is STORED as `Operator` (`BehaviorOriginRank.AfterAssign`) | ⭐ deviation: a RUNNING behaviour with `Unmarked` origin therefore means *never assigned through the gate* (an empty slot, a fixture or legacy stamp) and **anything replaces it**. 📐 Found by the suite: six `MissionDirectorSystemTests` stamp `BehaviorState` directly, and a Superior phase advance was refused against the stamped "Operator" — the same would have frozen every unit a template stamps |
+> | the gate in `BehaviorIngressSystem` | ✅ `Admit()` before every assign by name, assign by hash and clear; the internal finish (`Clear()` from `BrainTickSystem`) is not gated; a refusal is counted (`RefusedCount`) and logged, never thrown | — |
+> | publishers stamped | ✅ mission director + mission adapter → Superior · commander nodes (`CommanderNodes`, `HillAttackCommanderNodes`) → Superior · tactical intent resolution copies the intent's origin onto the behaviour · `HillAttackTankNodes` clearing itself → Self · hot-reload restart → Self · mission-control abort → Operator · blueprint **Send Intent** → Self with no Target link, Superior with one (golden `PlatoonHillAttackBp` moved: +2 origin lines, temps renumbered) | ⚠ a generic blueprint **Publish Event** of a clear carries no origin ⇒ Operator rank |
+> | origin on the DDS intent topic | ✅ `TacticalIntentRequest.Origin` (byte), egress copies it, ingress restores it | — |
+> | `CE-3047`: defaults start through the ingress | ✅ `BehaviorTkbTranslator` adds an EMPTY `BehaviorState` and publishes `AssignBehaviorHashEvent { DefaultBehaviorHash, Origin = Sop }` — only where that event is registered (`FdpEventBus.IsRegistered<T>()`, new); the spawn-time `EnsureRootState` is gone (the start pipeline provisions it) | the default is the unit's own lowest-rank choice: an order or a mission published the same frame wins |
+>
+> Rails: `BehaviorIngressSystemTests.CE3034_*` (12, red-proved: 5 fail with the gate disabled) · `BehaviorTkbDefaultStartTests` (3, red-proved: 2 fail with the stamp restored).
+
 ## 7. Doctrine — the paths
 
 ### 7.1 Autonomy, an order, and back

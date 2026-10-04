@@ -163,6 +163,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Entity     = sub,
                     IntentId   = "MoveToLocation",
                     JsonParams = json,
+                    Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a commander (R-193)
                 });
 
                 if (i < 16) s.BaselineReservedMask |= (ushort)(1 << i);
@@ -482,6 +483,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Entity     = sub,
                     IntentId   = "HullDownAttack",
                     JsonParams = json,
+                    Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a commander (R-193)
                 });
             }
 

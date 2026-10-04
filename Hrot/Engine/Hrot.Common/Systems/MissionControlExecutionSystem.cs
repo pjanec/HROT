@@ -238,7 +238,7 @@ namespace Hrot.Common.Systems
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
 
-                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });   // ⭐ CE-3034 — mission-control abort (R-193)
 
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;

@@ -218,12 +218,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                         {
                             Entity       = entity,
                             BehaviorHash = phases[queue.CurrentPhase].BehaviorId,
+                            Origin       = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a mission plan (R-193)
                         });
                     }
                     else
                     {
                         // Plan exhausted: clear the active behavior so the entity goes brain-dead.
-                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });   // ⭐ CE-3034
                     }
                 }
             }

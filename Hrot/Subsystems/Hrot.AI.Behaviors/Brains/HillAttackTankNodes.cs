@@ -464,12 +464,12 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (loco.Status == NodeStatus.Success)
                 {
-                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self });
+                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self });   // ⭐ CE-3034 — ending itself
                     return NodeStatus.Success;
                 }
                 if (loco.Status == NodeStatus.Failure)
                 {
-                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self });
+                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self });   // ⭐ CE-3034 — ending itself
                     return NodeStatus.Failure;
                 }
             }

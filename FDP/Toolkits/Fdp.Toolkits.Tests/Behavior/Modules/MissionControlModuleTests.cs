@@ -19,9 +19,11 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var module   = new MissionControlModule(registry);
 
             // Assert
-            Assert.Single(module.InputSystems);
+            // ⭐ CE-2074 (2026-10-04): RoeSystem before the ingress — an order's ROE applies in the same frame as its task.
+            Assert.Equal(2, module.InputSystems.Count);
             Assert.Single(module.SimulationSystems);
-            Assert.IsType<BehaviorIngressSystem>(module.InputSystems[0]);
+            Assert.IsType<RoeSystem>(module.InputSystems[0]);
+            Assert.IsType<BehaviorIngressSystem>(module.InputSystems[1]);
             Assert.IsType<MissionDirectorSystem>(module.SimulationSystems[0]);
         }
     }

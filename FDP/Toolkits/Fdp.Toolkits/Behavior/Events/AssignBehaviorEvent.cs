@@ -27,5 +27,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// Empty string is valid when the behavior has no configurable parameters.
         /// </summary>
         public string JsonParams = string.Empty;
+        /// <summary>⭐ <c>CE-3034</c> — who asks (R-188/R-193); unmarked reads as Operator.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
     }
 }

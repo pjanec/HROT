@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Behavior.Modules
             InputSystems = System.Array.Empty<IEcsModuleSystem>();
             SimulationSystems = new IEcsModuleSystem[]
             {
+                new RecentSensesSystem(),                        // ⭐ CE-2076 — last frame's sensing changes, before any brain reads them
                 new ChannelArbitrationSystem(gateOnAuthority),
                 new CognitiveInterruptSystem(gateOnAuthority),   // BHU-008: before HSM/BTree ticks
                 // ⭐⭐⭐ O7c-④b (2026-09-23) — ONE BRAIN TICK, TWO ARMS. 📄 §31.14 / §31.16.

@@ -31,12 +31,14 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             // ⛔ O7c-① (2026-09-22): was SEVEN before that. HsmTickSystem<BrainHsm64> went with its
             //   component, which nothing in production ever attached ⇒ an always-empty query.
             // ⭐ Batch 94 (94b): the pulse is LAST so it means "a brain tick HAS RUN".
-            Assert.Equal(5, module.SimulationSystems.Count);
-            Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[0]);
-            Assert.IsType<CognitiveInterruptSystem>(module.SimulationSystems[1]);
-            Assert.IsType<BrainTickSystem>(module.SimulationSystems[2]);
-            Assert.IsType<CognitiveCleanupSystem>(module.SimulationSystems[3]);
-            Assert.IsType<BehaviorFrameSystem>(module.SimulationSystems[4]);
+            // ⭐ CE-2076 (2026-10-04): SIX — RecentSensesSystem FIRST, so every brain reads last frame's sensing changes.
+            Assert.Equal(6, module.SimulationSystems.Count);
+            Assert.IsType<RecentSensesSystem>(module.SimulationSystems[0]);
+            Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[1]);
+            Assert.IsType<CognitiveInterruptSystem>(module.SimulationSystems[2]);
+            Assert.IsType<BrainTickSystem>(module.SimulationSystems[3]);
+            Assert.IsType<CognitiveCleanupSystem>(module.SimulationSystems[4]);
+            Assert.IsType<BehaviorFrameSystem>(module.SimulationSystems[5]);
 
             // BHU-010: CognitiveInterruptSystem must appear before the brain tick.
             // ⭐ ONE index now covers both paradigms — which is the point: the two used to be kept in

@@ -32,5 +32,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>JSON-serialized intent parameters matching the target DTO.</summary>
         public string JsonParams;
+
+        /// <summary>⭐ <c>CE-3034</c> — who asks (<c>BehaviorOrigin</c> as a byte; 0 = unmarked, ranks as Operator).
+        /// The receiving node's gate compares it with what the unit already runs.</summary>
+        public byte Origin;
     }
 }

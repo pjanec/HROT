@@ -61,7 +61,7 @@ namespace Hrot.CGF.Systems
                 {
                     if (adapterState.LastPhase != queue.CurrentPhase)
                     {
-                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });   // ⭐ CE-3034 — a mission plan (R-193)
                         adapterState.LastPhase = queue.CurrentPhase;
                         adapterState.LastPlanVersion = 0;
                     }
@@ -103,6 +103,7 @@ namespace Hrot.CGF.Systems
                             Entity     = entity,
                             IntentId   = task.BehaviorName,
                             JsonParams = jsonParams,
+                            Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a mission plan (R-193)
                         });
                     }
                 }

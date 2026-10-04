@@ -856,6 +856,123 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(8, RootParamsAccess.InputBytes(def));
         }
 
+        // ── CE-3034 — THE ONE GATE: a lower origin cannot replace a higher one (R-188, R-193) ─────────────────────
+
+        private const int GatePatrolId = 3101, GateCoverId = 3102;
+
+        private static (EntityRepository world, BehaviorIngressSystem sys, Entity e) CreateGateFixture()
+        {
+            var (world, sys, registry) = CreateFixture();
+            registry.Register(GatePatrolId, "GatePatrol", new BehaviorDefinition { Name = "GatePatrol", BrainTier = BehaviorConstants.BrainTierBTree });
+            registry.Register(GateCoverId,  "GateCover",  new BehaviorDefinition { Name = "GateCover",  BrainTier = BehaviorConstants.BrainTierBTree });
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            return (world, sys, e);
+        }
+
+        private static void Assign(EntityRepository world, BehaviorIngressSystem sys, Entity e, string name, BehaviorOrigin origin)
+        {
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = name, JsonParams = "", Origin = origin });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        [Theory]
+        [InlineData(BehaviorOrigin.Superior, BehaviorOrigin.Sop,      false)]   // the SOP cannot override an order
+        [InlineData(BehaviorOrigin.Operator, BehaviorOrigin.Superior, false)]   // a superior cannot override the operator
+        [InlineData(BehaviorOrigin.Unmarked, BehaviorOrigin.Superior, false)]   // an unmarked ORDER is stored as Operator
+        [InlineData(BehaviorOrigin.Superior, BehaviorOrigin.Superior, true)]    // equal rank replaces
+        [InlineData(BehaviorOrigin.Superior, BehaviorOrigin.Operator, true)]
+        [InlineData(BehaviorOrigin.Sop,      BehaviorOrigin.Superior, true)]
+        [InlineData(BehaviorOrigin.Operator, BehaviorOrigin.Unmarked, true)]    // unmarked = Operator
+        public void CE3034_TheGate_RanksOperatorAboveSuperiorAboveSop(BehaviorOrigin running, BehaviorOrigin incoming, bool admitted)
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", running);
+            Assign(world, sys, e, "GateCover", incoming);
+
+            var state = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(admitted ? GateCoverId : GatePatrolId, state.ActiveBehaviorHash);
+            static BehaviorOrigin Stored(BehaviorOrigin o) => o == BehaviorOrigin.Unmarked ? BehaviorOrigin.Operator : o;
+            Assert.Equal(Stored(admitted ? incoming : running), state.Origin);
+            Assert.Equal(admitted ? 0 : 1, sys.RefusedCount);
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3034_ABehaviourStampedDirectly_HasNoOrigin_AndAnythingReplacesIt()
+        {
+            // a TKB default / a fixture writes BehaviorState without the gate ⇒ Origin stays Unmarked
+            var (world, sys, e) = CreateGateFixture();
+            world.SetComponent(e, new BehaviorState { ActiveBehaviorHash = GatePatrolId, InstanceId = 1 });
+            Assign(world, sys, e, "GateCover", BehaviorOrigin.Sop);
+            Assert.Equal(GateCoverId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Sop, world.GetComponent<BehaviorState>(e).Origin);
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3034_Self_IsAlwaysAdmitted_AndKeepsTheRunningOrigin()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", BehaviorOrigin.Superior);
+            Assign(world, sys, e, "GateCover", BehaviorOrigin.Self);   // an ordered behaviour that chains stays ordered
+
+            var state = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(GateCoverId, state.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Superior, state.Origin);
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3034_AClear_IsGatedLikeAnAssign_AndLeavesAnEmptySlotThatAdmitsAnything()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", BehaviorOrigin.Superior);
+
+            world.Bus.Publish(new ClearBehaviorEvent { Entity = e, Origin = BehaviorOrigin.Sop });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(GatePatrolId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);   // refused
+
+            world.Bus.Publish(new ClearBehaviorEvent { Entity = e, Origin = BehaviorOrigin.Superior });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            var cleared = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(BehaviorIds.None, cleared.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Unmarked, cleared.Origin);
+
+            Assign(world, sys, e, "GateCover", BehaviorOrigin.Sop);   // empty ⇒ the SOP may fill it
+            Assert.Equal(GateCoverId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            Assert.Equal(1, sys.RefusedCount);
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3034_AnAssignByHash_IsGated()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", BehaviorOrigin.Operator);
+
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = GateCoverId, Origin = BehaviorOrigin.Superior });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.Equal(GatePatrolId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            Assert.Equal(1, sys.RefusedCount);
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3034_TheInternalFinish_IsNotGated()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", BehaviorOrigin.Operator);
+            BehaviorIngressSystem.Clear(world, e, new BehaviorRegistry());   // BrainTickSystem's finish path
+            Assert.Equal(BehaviorIds.None, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            world.Dispose();
+        }
+
 #pragma warning disable CS0649   // layout-only fixture
         private struct TwoBoolsAndAnInt { public bool A; public bool B; public int C; }
 #pragma warning restore CS0649

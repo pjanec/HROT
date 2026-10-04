@@ -80,6 +80,7 @@ namespace Hrot.Network.NED.SimHost
                 Entity     = entity,
                 IntentId   = request.IntentId   ?? string.Empty,
                 JsonParams = request.JsonParams  ?? string.Empty,
+                Origin     = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin,   // ⭐ CE-3034
             });
         }
 

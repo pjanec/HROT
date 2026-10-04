@@ -90,6 +90,13 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3047</c> — has this unmanaged event type been registered (so <see cref="Publish{T}"/> is legal under
+        /// <c>FdpConfig.EnforceExplicitEventRegistration</c>)? Lets a code path that runs on several hosts publish only
+        /// where the event's consumer exists.
+        /// </summary>
+        public bool IsRegistered<T>() where T : unmanaged => _nativeStreams.ContainsKey(EventType<T>.Id);
+
+        /// <summary>
         /// Checks if a managed event of type T exists in the current frame.
         /// </summary>
         public bool HasManagedEvent<T>() // No class constraint — aligns with PublishManaged
