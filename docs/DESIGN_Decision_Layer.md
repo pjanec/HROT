@@ -378,6 +378,60 @@ decides whether it may be interrupted; and the gate — not the drill author —
 | timers | absolute sim time (`__waitUntilTime`) | expire during the pause — acceptable |
 | same asset as task and reaction | one hash ⇒ one block key | collision — refuse, or key by slot |
 
+
+### 4.2 How an SOP is authored — a table first, a smarter tier when the table is not enough *(PROPOSAL)*
+
+> 🔒 **User, `2026-10-04`:** *"SOP name accepted. 3 words and 4 rules accepted. Urgency accepted. Restart with resume as
+> followup accepted."* (`R-198`, `R-199`) · *"could there be such a table (replacable by blueprint if table is not
+> sufficient?) Or BTree/HSM as smarter version of the table … SOP should also be possible to program as c# hardcoded - so
+> it should likely have a behavior shape."*
+
+```mermaid
+classDiagram
+  class SopActions {
+    <<NEW, ONE implementation>>
+    +DoWhenIdle(self, behaviour, paramsJson)
+    +React(self, behaviour, paramsJson, urgency)
+    publishes the assign event with origin Sop / Reaction
+  }
+  class ReactionTableSop {
+    <<NEW curated C# behaviour>>
+    params = the table (JSON, R-191)
+    on start: resolver packs rows into its block
+    each wake: match event → React(row)
+  }
+  class SopTableJsonDto {
+    <<NEW managed DTO>>
+    +Idle : behaviour + params
+    +Reactions : list of When, IfRoeAtLeast, React with, Params, Urgency
+  }
+  class BTreeOrHsmSop { <<an ordinary asset in the SOP slot>> calls SopActions via shared actions }
+  class BlueprintSop { <<an ordinary asset in the SOP slot>> calls SopActions via two nodes }
+  class SopSlot { <<CE-3035>> SopState beside BehaviorState, same runners }
+  class BehaviorIngressSystem { <<existing, the gate>> R-199 rules }
+  ReactionTableSop ..> SopTableJsonDto : resolver parses
+  ReactionTableSop ..> SopActions
+  BTreeOrHsmSop ..> SopActions
+  BlueprintSop ..> SopActions
+  SopSlot o-- ReactionTableSop : default
+  SopSlot o-- BTreeOrHsmSop : or
+  SopSlot o-- BlueprintSop : or
+  SopActions ..> BehaviorIngressSystem : assign events
+```
+
+*What the picture shows that prose hid: the table is not a new asset kind — it is one built-in C# behaviour whose params
+are the table, so it proves the "C# SOP" path, is edited by the one params form (`CE-3043`), saved like any params
+(`R-191`/`R-192`) and named per unit type by the TKB; every richer SOP is just another behaviour in the same slot calling
+the same two actions.*
+
+| level | when to use it | what it adds over the table |
+|---|---|---|
+| ① **reaction table** (default) | most units | — *idle behaviour + rows "when ⟨Hit / FirstThreat / Acquired / AllClear⟩, if ROE ≥ x, react with ⟨behaviour, params⟩ at ⟨urgency⟩"* |
+| ② **HSM SOP** | the reaction depends on a MODE (relaxed / alert / engaged) | per-state rows, transitions on sensor events (`CE-3040`), the mode visible in the debugger |
+| ③ **BTree SOP** | the reaction depends on CONDITIONS polled each wake (danger, ammo, distance) | a priority list re-evaluated from the root |
+| ④ **blueprint SOP** | anything else — utility scoring, timers, custom events | full flexibility |
+| C# | hard-coded logic | any curated behaviour calling `SopActions` — the table itself is one |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
