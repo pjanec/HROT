@@ -40,9 +40,14 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Did a change of <paramref name="kind"/> happen within the last <paramref name="seconds"/> before <paramref name="now"/>?</summary>
         public readonly bool Within(SensorChange kind, double seconds, double now)
+            => TryGetLast(kind, out double at) && now - at <= seconds;
+
+        /// <summary>⭐ <c>CE-2080</c> — when a change of <paramref name="kind"/> was last recorded; false when never.</summary>
+        public readonly bool TryGetLast(SensorChange kind, out double at)
         {
+            at = double.NegativeInfinity;
             if ((SeenMask & (1 << (int)kind)) == 0) return false;
-            double at = kind switch
+            at = kind switch
             {
                 SensorChange.Acquired    => Acquired,
                 SensorChange.Lost        => Lost,
@@ -52,7 +57,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.Hit         => Hit,
                 _                        => double.NegativeInfinity,
             };
-            return now - at <= seconds;
+            return true;
         }
     }
 
@@ -65,6 +70,14 @@ namespace Fdp.Toolkit.Behavior.Components
             if (!view.HasComponent<RecentSenses>(unit)) return false;
             double now = view is EntityRepository repo && repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
             return view.GetComponentRO<RecentSenses>(unit).Within(kind, seconds, now);
+        }
+
+        /// <summary>⭐ <c>CE-2080</c> — <see cref="Within"/> AND recorded at or after <paramref name="since"/>.</summary>
+        public static bool WithinSince(ISimulationView view, Entity unit, SensorChange kind, double seconds, double since)
+        {
+            if (!view.HasComponent<RecentSenses>(unit)) return false;
+            double now = view is EntityRepository repo && repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            return view.GetComponentRO<RecentSenses>(unit).TryGetLast(kind, out double at) && now - at <= seconds && at >= since;
         }
     }
 }

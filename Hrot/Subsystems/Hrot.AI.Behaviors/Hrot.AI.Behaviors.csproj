@@ -192,6 +192,15 @@
     </Content>
   </ItemGroup>
 
+  <!-- ⭐ CE-2080 — the shipped SOP is COMPILED (Assets/BTrees/Sop, so a TKB template can name it as its DefaultSop) AND
+       offered as the BTree RECIPE a designer starts their own SOP from (AssetRoots.RecipesRelative(BTree) = Recipes/BTrees).
+       ONE file, two roles — a copy would drift. -->
+  <ItemGroup>
+    <Content Include="Assets\BTrees\Sop\BasicInfantrySop.btree.json" Link="Recipes\BTrees\BasicInfantrySop.btree.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- H4 — SCENARIO SEEDS: the "recipe" a new scenario is created from (design §2.1e ⑤b: a scenario
        recipe IS an ordinary scenario stored under Recipes/Scenarios, not a new asset kind).
        Deployed exactly like the blueprint recipes above, preserving the relative path, so it lands at

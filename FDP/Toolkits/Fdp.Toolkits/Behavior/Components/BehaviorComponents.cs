@@ -51,6 +51,10 @@ namespace Fdp.Toolkit.Behavior.Components
         public BehaviorOrigin Origin;
         /// <summary>⭐ <c>CE-2078</c> — the urgency of the running REACTION; <see cref="ReactionUrgency.NotAReaction"/> otherwise.</summary>
         public ReactionUrgency Urgency;
+        /// <summary>⭐ <c>CE-2080</c> — sim time the slot's current run (or emptiness) began: set by every start and clear. An SOP
+        /// row asks "sensed SINCE then?" (<c>SopConditions.SensedFresh</c>) so an event that already caused a reaction does not
+        /// fire it again when the task restarts.</summary>
+        public double RunSince;
     }
 
     [StructLayout(LayoutKind.Sequential)]

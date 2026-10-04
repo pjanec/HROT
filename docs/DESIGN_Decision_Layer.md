@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1 as-built); next CE-2079 (the two SOP actions). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7); next CE-2082 (demo scenario). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -687,6 +687,34 @@ wake itself every frame.*
 | the warning | `BTREE0004` (`BTreeJsonGenerator.ReportSopChannelWrites`) — once per channel-writing method in a tree that carries SOP orders; a warning, the asset still builds |
 | rails | `SopSlotTests.CE2079_*` (5, incl. the curated round-trip) · `SopParamsRoundTripTests` (EVERY production behaviour of every kind reads what an order sends — two values, two blocks) · `SharedAiBindingCompilesTests.CE2079_*` (2, compiled) · `BTreeFacetMapperTests.CE2079_*` (2) · `BTreeValidationTests.CE2079_*` · `BTreeCommandSinkTests.CE2079_*` |
 | ⚠ not built | an SOP order in an HSM state or a blueprint node (an HSM / blueprint SOP calls `SopActions` from C# today) — follow-up; the C# SOP path needs nothing more |
+
+### 4.7 The shipped SOP — `CE-2080` *(build-state: BUILT, `2026-10-04`)*
+
+`BasicInfantrySop` — ONE file, two roles: compiled from `Hrot.AI.Behaviors/Assets/BTrees/Sop/` (so a TKB template can name it
+as `DefaultSop`, `CE-2077`) and published as the BTree recipe at `Recipes/BTrees/` (a `Content` link in the `.csproj` — a
+copy would drift). It is §4.3's reaction table, built only from the pieces §4.4–§4.6 added:
+
+```mermaid
+graph TD
+  ROOT["Root"] --> SEL["Selector — first true row wins"]
+  SEL --> R1["Hit, fresh (3 s) → React(Demo_TakeCover, Hit)"]
+  SEL --> R2["First threat, fresh (3 s) · ROE ≤ HoldFire → React(Demo_Retreat, Contact)"]
+  SEL --> R3["First threat, fresh (3 s) → React(Demo_TakeCover, Contact)"]
+  SEL --> IDLE["Do when idle(Idle)"]
+```
+
+*What the picture shows that prose hid: the ROE row sits ABOVE the general contact row — row order is how "a unit that must
+hold fire withdraws instead of taking up a firing position" is expressed, with no special rule anywhere.*
+
+| decision | why |
+|---|---|
+| ⭐ rows ask **SensedFresh**, not "sensed within N s" | 📐 measured on this recipe: the stand-in cover lasts 1 s, so a plain 3-second window re-fired the same hit's reaction after the task restarted (rail red-proved). ⭐ Fresh = within N s **and** since the task slot's current run began (`BehaviorState.RunSince`, set by every start and clear) — an event that already caused a reaction is older than the restarted task |
+| conditions are shared C# (`Fdp.Toolkits/Behavior/SopConditions.cs`: `SensedWithin`, `SensedFresh`, `RoeFireAtLeast`, `RoeFireAtMost`) | any BTree / HSM asset binds them; params `SopSenseParams {Kind, Seconds}`, `SopRoeParams {Fire}` |
+| the reactions are the existing `Demo_TakeCover` / `Demo_Retreat` stand-ins (a 1 s / 0.5 s delay) | ⚠ no real take-cover behaviour exists yet; a project swaps them in the React node's behaviour picker — the recipe shows the SHAPE |
+| ⚠ not built | edge-latching for conditions that are not sensing changes (e.g. "health below 30 %" stays true) — a row on such a condition re-fires after each reaction; the fresh rule covers sensed EVENTS only |
+
+Rails: `BasicInfantrySopTests` (SimHost, the production registry through the real ingress + brain: idles with no order; a
+hit pauses the task with cover, the task restarts, the same hit does not fire again; HoldFire withdraws, otherwise cover).
 
 ## ⛔ HISTORY
 

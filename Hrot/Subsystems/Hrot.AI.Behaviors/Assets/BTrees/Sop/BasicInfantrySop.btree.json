@@ -1,0 +1,282 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2080000-0000-0000-0000-000000000001",
+  "Name": "BasicInfantrySop",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2080000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Selector",
+      "VisualId": "c2080000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000010",
+        "c2080000-0000-0000-0000-000000000020",
+        "c2080000-0000-0000-0000-000000000030",
+        "c2080000-0000-0000-0000-000000000040"
+      ],
+      "DisplayLabel": "Rows — first true wins",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 120,
+        "Comment": "A reaction table: each row is condition(s) → React; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2080000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000011",
+        "c2080000-0000-0000-0000-000000000012"
+      ],
+      "DisplayLabel": "Hit → take cover",
+      "EditorMetadata": {
+        "X": 120,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "hitSense"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hit (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 40,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "Demo_TakeCover",
+        "Urgency": "Hit"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: Demo_TakeCover",
+      "EditorMetadata": {
+        "X": 220,
+        "Y": 400,
+        "Comment": "Stand-in reaction — swap for your project's take-cover behaviour in the picker.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2080000-0000-0000-0000-000000000020",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000021",
+        "c2080000-0000-0000-0000-000000000022",
+        "c2080000-0000-0000-0000-000000000023"
+      ],
+      "DisplayLabel": "Contact + hold fire → withdraw",
+      "EditorMetadata": {
+        "X": 480,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "threatSense"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000021",
+      "ChildVisualIds": [],
+      "DisplayLabel": "First threat (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 400,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.RoeFireAtMost",
+        "ExpressionTargetField": "holdFire"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000022",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ROE ≤ HoldFire",
+      "EditorMetadata": {
+        "X": 560,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "Demo_Retreat",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000023",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: Demo_Retreat",
+      "EditorMetadata": {
+        "X": 720,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2080000-0000-0000-0000-000000000030",
+      "ChildVisualIds": [
+        "c2080000-0000-0000-0000-000000000031",
+        "c2080000-0000-0000-0000-000000000032"
+      ],
+      "DisplayLabel": "Contact → take cover",
+      "EditorMetadata": {
+        "X": 900,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "threatSense"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000031",
+      "ChildVisualIds": [],
+      "DisplayLabel": "First threat (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": 860,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "Demo_TakeCover",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000032",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: Demo_TakeCover",
+      "EditorMetadata": {
+        "X": 1040,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "DoWhenIdle",
+        "BehaviorName": "Idle"
+      },
+      "VisualId": "c2080000-0000-0000-0000-000000000040",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Idle: Idle",
+      "EditorMetadata": {
+        "X": 1240,
+        "Y": 260,
+        "Comment": "What the unit does with no order.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "hitSense",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"Hit\",\"Seconds\":3}",
+        "Comment": "Was hit recently (and since the current run began)."
+      },
+      {
+        "Name": "threatSense",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopSenseParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Kind\":\"FirstThreat\",\"Seconds\":3}",
+        "Comment": "Memory went from empty to holding a contact."
+      },
+      {
+        "Name": "holdFire",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Behavior.SopRoeParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Fire\":\"HoldFire\"}",
+        "Comment": "ROE threshold for the withdraw row."
+      }
+    ]
+  }
+}

@@ -178,6 +178,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
                 unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
+                unhosted.RunSince = Now(repo);   // ⭐ CE-2080
                 unchecked { unhosted.InstanceId++; }
                 AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
@@ -242,6 +243,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             return BehaviorOriginRank.Admits(origin, running);                                   // ① the rank rule
         }
+
+        /// <summary>⭐ <c>CE-2080</c> — sim time now (<see cref="GlobalTime.TotalTime"/>; 0 on a world without the clock).</summary>
+        private static double Now(EntityRepository repo)
+            => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
 
         /// <summary>⭐ <c>CE-2078</c> — a reaction published with no urgency counts as <see cref="ReactionUrgency.Alert"/>.</summary>
         private static ReactionUrgency EffectiveUrgency(ReactionUrgency urgency)
@@ -397,6 +402,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
             behavior.Urgency = UrgencyAfterAssign(origin, urgency, behavior.Urgency);   // ⭐ CE-2078 — before Origin moves
+            behavior.RunSince = Now(repo);                                               // ⭐ CE-2080
             behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
@@ -1403,6 +1409,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             behavior.BrainTier = 0;
             behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
             behavior.Urgency = ReactionUrgency.NotAReaction;   // ⭐ CE-2078
+            behavior.RunSince = Now(repo);                       // ⭐ CE-2080 — emptiness is a "run" too
 
             // ⭐ CE-452: no behaviour ⇒ nothing to restart.
             if (repo.HasManagedComponent<BehaviorStartRecord>(entity))

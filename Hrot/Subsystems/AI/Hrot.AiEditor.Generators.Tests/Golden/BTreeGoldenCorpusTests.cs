@@ -70,7 +70,10 @@ public sealed class BTreeGoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐ It really is 25. ⭐ <b>24 → 25 in <c>CE-417</c> slice 3b:</b> <c>BTreeCuratedBindingDemo.btree.json</c>, the first BTree
+    /// ⭐ It is 26. ⭐ <b>25 → 26 in <c>CE-2080</c>:</b> <c>Sop/BasicInfantrySop.btree.json</c>, the shipped SOP — the first asset that
+    /// carries SOP orders ("Do when idle" / "React", <c>DESIGN_Decision_Layer.md</c> §4.6–§4.7); compiled so a TKB template can
+    /// name it, and published as the BTree recipe. (The method name keeps its old number — a rename is a Roslyn rename.)
+    /// ⭐ <b>24 → 25 in <c>CE-417</c> slice 3b:</b> <c>BTreeCuratedBindingDemo.btree.json</c>, the first BTree
     /// asset that binds a C# <c>[SharedAiAction]</c> — twice, at two host offsets (F8; rail
     /// <c>BrainTickSystemBTreeArmTests.CE417_R4</c>). ⛔ <b>25 → 24 in <c>CE-440</c>:</b> <c>T37_SharedStateManifestProvisioning.btree.json</c>, the
     /// proof tree for Entity-scoped shared state, went with the GetShared/SetShared node pair (decision <c>A</c>,
@@ -83,7 +86,7 @@ public sealed class BTreeGoldenCorpusTests
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(25, AiAssetCorpus.EnumerateFiles(Kind).Count);
+        => Assert.Equal(26, AiAssetCorpus.EnumerateFiles(Kind).Count);
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.

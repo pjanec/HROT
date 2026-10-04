@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a2080000-0000-0000-0000-000000000001
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Explicit, Size = 17)]
+public struct BasicInfantrySop_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    [FieldOffset(0)]
+    public global::Fdp.Toolkit.Behavior.SopSenseParams hitSense;
+    [FieldOffset(8)]
+    public global::Fdp.Toolkit.Behavior.SopSenseParams threatSense;
+    [FieldOffset(16)]
+    public global::Fdp.Toolkit.Behavior.SopRoeParams holdFire;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct BasicInfantrySop_Block
+{
+    [FieldOffset(0)]
+    public BasicInfantrySop_FdpToolkitBehaviorComponentsBrainBlackboard In;
+}
