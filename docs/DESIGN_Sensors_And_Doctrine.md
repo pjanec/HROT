@@ -359,6 +359,53 @@ world).
 | ⏳ the toolkit's own chain (`AutonomousPerceptionModule`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`) stays for the FDP examples | no Hrot host runs it after S5; it shares the extracted code, so no logic is duplicated. Retiring it with the examples is a follow-up row |
 | ⭐ `CE-3050` | the end-to-end rail spawns two FORCES in range and lets real perception drive it — no injected events |
 
+### 5.6 Identical queries are solved ONCE (`CE-3056`) *(build-state: BUILT `2026-10-04` — gates: EqsModuleTests 24/0 incl. `CE3056_IdenticalQueries_AreSolvedOnce_AndBothOwnersGetTheAnswer` · SimHost 1083/1, the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, green 3/3 in isolation (load-timing, not the solver) · Blueprints 4130/0 · cluster `Eqs\|Sensor\|Perception` 96/0)*
+
+> 🔒 *User: "Cant they spawn their own copy but because it would be the same params the solver runs once (ref counting) and
+> feed both requestors?" → "yes file it and build it."*
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<existing, Hrot.SimHost, grows>> -Dictionary~QueryShareKey,SharedAnswer~ _shared  cleared each tick }
+  class QueryShareKey { <<NEW record struct>> +Entity Self +uint BlueprintId +float SearchRadius +uint FactionFilter +float ThreatThreshold +Entity ContextSlot0..2 }
+  class SharedAnswer { <<NEW>> +EqsResult[] Results  empty = an empty answer }
+  class EqsSensor { <<existing>> per OWNER: Epoch · PublishPolicy · Priority · ScoreDeltaThreshold · Suspended }
+  class SensorEvalState { <<existing>> per OWNER: publish suppression, schedule }
+  class EqsChildSensor { <<existing>> Ensure: each behaviour run owns its own sensor (CE-485) }
+  EqsSolverSystem ..> QueryShareKey : keys an answer by what DECIDES it
+  EqsSolverSystem --> SharedAnswer : first due twin solves, later twins copy
+  EqsSolverSystem ..> SensorEvalState : each copy goes through its OWN publish policy
+  EqsChildSensor ..> EqsSensor : one per owner
+```
+
+*What the picture shows that prose hid:* the share is keyed ONLY by what decides the answer; everything about DELIVERY stays per
+owner, so a copy is published exactly as if that sensor had solved it. Ownership does not change at all — no ref count is
+stored; "the query is solved while any twin is due" falls out of the schedule.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (one tick)
+  participant A as cover sensor of the posture run
+  participant B as cover sensor of its child run
+  participant M as share memo (this tick)
+  S->>A: due first — solve (generate, filter, score)
+  A-->>M: store the answer under the key
+  S->>B: due — key found in the memo
+  M-->>B: copy, then B's own publish policy and epoch
+  Note over S,M: memo cleared at the next tick — never a stale answer
+```
+
+| rule | why |
+|---|---|
+| ⭐ only QUERY sensors share (no `SensorTag`, no `SensorCapability`) | a perception sensor's tests read its own capability (`VisualPerception.Optics`, the S3 test radar) — two of them can answer differently with equal `EqsSensor` fields; they also feed the memory stage per sensor |
+| ⭐ a sensor with NO placed self (`EqsContext.Self` = Null) never shares | its answer may depend on the carrier entity itself; 📌 found by the S4 schedule rail, whose unplaced local sensors all keyed alike |
+| ⭐ the memo lives ONE solver tick | an answer is never older than the tick it is delivered in; no invalidation logic |
+| ⭐ a copy costs `EqsCost.Cheap`, not a solve | the budget then counts the work actually done |
+| ⭐ only a COMPLETED answer is shared | a leader waiting on async raycasts publishes nothing that tick, so neither does a twin; the twin never submits raycasts of its own |
+| ⚠ the wire is NOT halved | each twin keeps its own config and result samples (its own key); halving it would change what a sensor key IS |
+| ⚠ "starts warm" holds within a tick only | a newly spawned twin is scheduled at once (never solved = oldest); it gets the copy when its leader runs the same tick, else it solves and becomes the leader |
+
 ## 6. Doctrine and origin — classes
 
 ```mermaid

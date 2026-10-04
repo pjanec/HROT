@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-14
+updated: 2026-10-04
 build-state: BUILDING
 build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate) BUILT & GREEN `2026-09-14`.
   Stage A: OwnershipIngressSystem mirrors an EntityMaster-ordinal transfer into NetworkAuthority.PrimaryOwnerId
@@ -625,6 +625,19 @@ never changing `PrimaryOwnerId`. This is why the round-trip is stable: *save-own
 ⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are routed back to their origin nodes and
 loaded by *that* host's own load handler, the one place "each host loads its own content" still literally
 holds (§6b). ⭐⭐ **As-built mechanism: §5a.**
+
+### 5.0 ⭐ Cross-entity references load in ANY file order *(`CE-3057`, as-built `2026-10-04`)*
+
+| `ScenarioSerializer` load pass | does |
+|---|---|
+| 1 | creates every entity; GUID → entity map |
+| **1b** | ⭐ injects every entity's `NetworkIdentity` — before ANY translator runs |
+| 2 | per entity, in file order: translators, then the auto-serializer (re-injects the same identity) |
+
+⭐ Why 1b exists: reference translators (target memory, passengers, embarked vehicle, route, commander, vis parent) save
+a GUID and, on inject, turn it into the TARGET's network id for a genesis intent. ⛔ Without 1b a target later in the
+file had no identity yet ⇒ the reference was dropped or the load threw — so a scenario loaded correctly only when every
+referenced unit happened to be created first. Both `Deserialize` and `DeserializeWith` run it.
 
 ---
 

@@ -125,5 +125,39 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, intent!.Entries.Count);
             Assert.Equal(11L, intent.Entries[0].NetworkId.NetworkId);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-502</c> — a target saved AFTER the entity that remembers it survives a save → load through the real
+        /// serializer. Load creates every entity first, then injects them in file order, so a translator reading the
+        /// target's <see cref="NetworkIdentity"/> during inject saw nothing yet for a later entity and dropped the entry.
+        /// </summary>
+        [Fact]
+        public unsafe void RoundTrip_ATargetSavedLater_IsKept_CE502()
+        {
+            _repo.RegisterComponent<TargetMemory>();
+            var soldier   = _repo.CreateEntity();                       // saved first
+            var insurgent = _repo.CreateEntity();                       // saved second — the forward reference
+            _repo.SetComponent(soldier,   new NetworkIdentity { Value = 501L });
+            _repo.SetComponent(insurgent, new NetworkIdentity { Value = 502L });
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)insurgent.PackedValue, posX: 1f, posY: 2f, scoreBoost: 100f, tick: 0u);
+            _repo.SetComponent(soldier, mem);
+
+            var serializer = HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry());
+            var json = serializer.Serialize(_repo, new ScenarioHeader(Hrot.Common.Scenario.HrotSubsystemTypes.Scenario)).ToJsonString();
+
+            using var loaded = new EntityRepository();
+            loaded.RegisterComponent<NetworkIdentity>();
+            loaded.RegisterComponent<TargetMemory>();
+            loaded.RegisterManagedComponent<InitialTargetsIntent>();
+            serializer.Deserialize(loaded, json);
+
+            InitialTargetsIntent? intent = null;
+            foreach (var e in loaded.Query().WithManaged<InitialTargetsIntent>().Build())
+                intent = ((ISimulationView)loaded).GetManagedComponentRO<InitialTargetsIntent>(e);
+            Assert.NotNull(intent);
+            Assert.Single(intent!.Entries);
+            Assert.Equal(502L, intent.Entries[0].NetworkId.NetworkId);
+        }
     }
 }

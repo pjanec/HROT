@@ -424,6 +424,11 @@ namespace Fdp.Toolkit.Scenario
 
             IGuidResolver loadResolver = new LoadResolver(guidToEntity);
 
+            // ── Pass 1b: identities first (CE-502) ──────────────────────────────
+            foreach (var kvp in entitiesNode)
+                if (Guid.TryParse(kvp.Key, out var g) && guidToEntity.TryGetValue(g, out var e))
+                    InjectIdentityFirst(repo, e, kvp.Value as JsonObject, loadResolver);
+
             // ── Pass 2: inject components ────────────────────────────────────────
             foreach (var kvp in entitiesNode)
             {
@@ -524,6 +529,11 @@ namespace Fdp.Toolkit.Scenario
                     "[ScenarioSerializer] DeserializeWith: scenario DOM is missing or has a non-object 'Entities' node.");
 
             // No pass-1: entities must already exist in preAllocated.
+            // ── Pass 1b: identities first (CE-502) ──────────────────────────────
+            foreach (var kvp in entitiesNode)
+                if (preAllocated.TryGetValue(kvp.Key, out var pre))
+                    InjectIdentityFirst(repo, pre, kvp.Value as JsonObject, loadResolver);
+
             // ── Pass 2: inject components using the caller-supplied resolver ────
             foreach (var kvp in entitiesNode)
             {
@@ -625,6 +635,22 @@ namespace Fdp.Toolkit.Scenario
                 if (consumed.IsSet(bit))
                     remaining.ClearBit(bit);
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-502</c> — inject an entity's <see cref="Replication.Components.NetworkIdentity"/> BEFORE any entity's
+        /// translators run. Cross-entity translators (target memory, passengers, embarked vehicle, route, commander,
+        /// vis parent) turn a saved GUID into the target's network id during inject; pass 2 walks entities in file
+        /// order, so a target saved LATER had no identity yet and its reference was dropped (or threw). Pass 2 then
+        /// re-injects the same value — harmless.
+        /// </summary>
+        private void InjectIdentityFirst(EntityRepository repo, Entity entity, JsonObject? entityNode, IGuidResolver resolver)
+        {
+            const string key = nameof(Replication.Components.NetworkIdentity);
+            if (entityNode == null || !entityNode.TryGetPropertyValue(key, out var node) || node == null) return;
+            int typeId = ComponentTypeRegistry.GetId(typeof(Replication.Components.NetworkIdentity));
+            if (typeId < 0) return;
+            AutoSerializer.TryInject(repo, entity, typeId, node, resolver);
         }
 
         private static int FindTypeIdByName(string componentName)

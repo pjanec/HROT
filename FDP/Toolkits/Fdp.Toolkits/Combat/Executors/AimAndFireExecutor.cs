@@ -44,7 +44,9 @@ namespace Fdp.Toolkit.Combat.Executors
             fixed (byte* src = channel.Params)
                 p = *(AimAndFireParams*)src;
 
-            if (!world.IsAlive(p.Target))
+            // ⭐ CE-466 rule (CombatLife): done when the target is gone OR knocked out (Health ≤ 0) — CE-267's revert keeps the
+            //   body in the world, so existence alone never ends the action (CE-321: the squad emptied its rifles into a corpse).
+            if (!CombatLife.IsAlive(world, p.Target))
             {
                 channel.Status = NodeStatus.Success;
                 return;
@@ -61,6 +63,14 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.CooldownSecondsRemaining > 0f)
             {
                 weapon.CooldownSecondsRemaining -= dt;
+                channel.Status = NodeStatus.Running;
+                return;
+            }
+
+            // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
+            //   so a unit that moves clear (or a friendly that moves away) fires again.
+            if (LineOfFire.BlockedByFriendly(world, entity, p.Target))
+            {
                 channel.Status = NodeStatus.Running;
                 return;
             }
