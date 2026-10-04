@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-04
 build-state: READY-TO-BUILD — every decision approved (R-185 … R-189); §9 lists the details the build must verify first.
-current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan, §10 what is still open.
+current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
@@ -106,8 +106,7 @@ Nothing new needs a caller. Red = present but never reached today; grey = delete
 classDiagram
   direction LR
   class SensorCapabilitiesDto { <<existing TKB, grows>> VisionRange FieldOfViewDegrees EyeHeights... +Sensors List~SensorEntryDto~ }
-  class SensorEntryDto { <<NEW TKB>> +SensorModality Kind +uint TemplateId +bool Disabled +ISensorConfigDto Config }
-  class ISensorConfigDto { <<NEW interface>> }
+  class SensorEntryDto { <<NEW TKB>> +SensorModality Kind +uint TemplateId +bool Disabled +VisualSensorDto? Visual +ThermalSensorDto? Thermal +AcousticSensorDto? Acoustic }
   class VisualSensorDto { <<NEW>> Range FovDegrees EyeHeights }
   class ThermalSensorDto { <<NEW, S7>> }
   class AcousticSensorDto { <<NEW, S7>> }
@@ -116,7 +115,7 @@ classDiagram
   class EqsSensorConfigIngressTranslator { <<existing>> carrier builder moves into SensorChildFactory }
   class EqsSensor { <<existing>> BlueprintId Epoch SearchRadius ... Suspended }
   class SensorTag { <<NEW component>> +SensorModality Kind +byte TkbIndex }
-  class SensorCapability { <<NEW Muscle-only>> decoded ISensorConfigDto for the tests }
+  class SensorCapability { <<NEW Muscle-only>> the decoded per-kind sub-record for the tests }
   class PartMetadata { <<existing>> ParentEntity InstanceId }
   class EqsCognitiveBuffer { <<existing>> IsReady GetTop GetSpanRO }
   class EqsSensorConfigTopic { <<existing wire, grows>> +string ConfigKind +string ConfigJson }
@@ -125,10 +124,9 @@ classDiagram
   class SensorModality { <<existing enum, reused as kind>> }
   class TargetMemory { <<existing, 54 readers, unchanged>> }
   SensorCapabilitiesDto o-- SensorEntryDto
-  SensorEntryDto o-- ISensorConfigDto
-  ISensorConfigDto <|.. VisualSensorDto
-  ISensorConfigDto <|.. ThermalSensorDto
-  ISensorConfigDto <|.. AcousticSensorDto
+  SensorEntryDto o-- VisualSensorDto
+  SensorEntryDto o-- ThermalSensorDto
+  SensorEntryDto o-- AcousticSensorDto
   PerceptionTkbTranslator ..> SensorChildFactory
   EqsSensorConfigIngressTranslator ..> SensorChildFactory
   SensorChildFactory ..> EqsSensor
@@ -136,7 +134,7 @@ classDiagram
   SensorChildFactory ..> SensorCapability
   SensorChildFactory ..> PartMetadata
   SensorChildFactory ..> EqsCognitiveBuffer
-  EqsSensorConfigTopic ..> ISensorConfigDto : ConfigJson
+  EqsSensorConfigTopic ..> SensorEntryDto : ConfigJson
   Sensors ..> SensorTag
   Sensors ..> EqsCognitiveBuffer
 ```
@@ -500,19 +498,19 @@ authoring place).
 
 ⭐ **Order:** S0 first (a live defect). S1 → S2 are independent of S3 → S6 and can run in parallel lanes.
 
-### Verify before building *(load-bearing details this design could not measure)*
+### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 
-| # | question | lean if it fails |
-|---|---|---|
-| **V1** | does the TKB JSON loader handle a polymorphic `ISensorConfigDto` (a `$kind` discriminator)? | one optional property per kind on `SensorEntryDto` |
-| **V2** | can a TKB translator create CHILD entities at spawn (it adds components today)? | the translator writes a pending marker; a system creates the children next frame (same pattern as the doctrine's pending start) |
-| **V3** | who owns result part 1000+i for the publish gate when no config sample recorded a solver (R-179)? | the parent's Perception owner by the default ownership rule; with one SimHost, today's behaviour |
-| **V4** | can a doctrine's high-bit token alias a behaviour token in `StampOwner`'s 16 bits? | stamp the slot into bit 15 of the stamp |
-| **V5** | `BehaviorTkbTranslator` writes `BehaviorState` directly, skipping params and HSM init — does the doctrine default need the full start? | ⭐ yes: the doctrine uses a pending start through `BehaviorIngressSystem`; the behaviour default gets the same fix (finding) |
-| **V7** | a Brain-authority hand-over: does the new authority need the doctrine as PUBLISHED state ([Entity State Sourcing](DESIGN_Entity_State_Sourcing.md) §4.1)? | publish `DoctrineState` as a TransientLocal descriptor when hand-over is built; until then only the authority node runs it |
-| ~~**V8**~~ | ✅ dissolved by R-192: under the snapshot a runtime attachment IS the truth; find-or-create attach (S2e) prevents the duplicate | — |
-| ~~**V9**~~ | ✅ resolved by R-191: the emitter generates `FormatParams` (the inverse of `ParseParams`) | — |
-| **V6** | is a bus event published by `EqsResultUpdateSystem` visible to `BrainTickSystem` the SAME frame or the next? | either is fine — state the latency in the rail (≤ 1 frame) |
+| # | question | ✅ measured answer | ⇒ design consequence |
+|---|---|---|---|
+| **V1** | can a TKB sensor list hold per-kind configs? | ⭐ JSON: YES — the TKB parser is plain System.Text.Json (`TkbDescriptorGenerator.cs:121-128`, `FdpJsonOptionsRegistry.cs:62-84`), which honours `[JsonPolymorphic]` (used elsewhere, `BehaviorTreeAssetDto.cs:226`); nested `List<record>` already exists (`WeaponSuiteDto.cs:16`). ⛔ EDITOR: StructEdit marks an interface-typed member **Unsupported** (`ReflectionEditDocumentBuilder.cs:317-332`) | ⭐ **no interface**: `SensorEntryDto` carries a concrete optional sub-record per kind (`Visual?`, `Thermal?`, `Acoustic?`) — editable and serialisable with no new converter. §4's `ISensorConfigDto` is SUPERSEDED |
+| **V2** | can a TKB translator create child entities at spawn? | ⭐ YES — and one already does: `CombatTkbTranslator.cs:101-121` creates a `PartMetadata` child per extra weapon mount, on every node, no network id. `Inject` runs from an event loop, not a query (`NetworkSpawningSystem.cs:137-142`; ghost promotion `GhostPromotionSystem.cs:271`) | K's model is the weapon-mount precedent — reuse its shape; no pending marker needed |
+| **V3** | who publishes result part 1000+i with no config sample? | ⭐ `HasAuthority` falls back to the GROUP record `(dtEqsResult, 0)` = the Perception group, then the primary owner (`AuthorityExtensions.cs:33-66`; group binding `NedOwnershipGroupBinding.cs:36`). The Perception group is granted only when the template has perception (`VisionRange > 0`, Ownership design G-4) | ⭐ works as designed IF the grant condition becomes "the template lists any sensor" (S3). ⚠ and: every Perception node would SOLVE a TKB sensor but only the group holder publishes ⇒ **the solver skips sensors whose result part it does not own** (same check, before solving) |
+| **V4** | can a doctrine token alias a behaviour token in the epoch stamp? | ⚠ YES — `StampOwner` keeps only the owner's low 16 bits (`EqsChildSensor.cs:110`); every reader compares the whole epoch (`EqsResultUpdateSystem.cs:56,128`, `EqsSolverSystem.cs:121`) ⇒ a stale result of an earlier run on a reused part id could be accepted. Narrow, and it ALREADY happens today for ids 65536 apart. ⚠ plus: `EqsLifecycleNodes.cs:128` `Epoch++` on the full value carries a refresh overflow into the owner bits | stamp `(owner & 0x7FFF) | slot << 15` into the high half, and every refresh bumps the LOW half only — `CE-3049` |
+| **V5** | what happens to a TKB default behaviour today? | 🔴 BROKEN, latent: with params it THROWS on the first tick — no root-params slot (`RootParamsAccess.cs:186`, no catch in `BrainTickSystem`); an HSM default never runs (no instance provisioned). No template sets it and no test covers it | ⭐ the doctrine / behaviour defaults start through the ingress (§7.5); the direct write is deleted — `CE-3047` |
+| **V6** | same frame or next? | ⭐ NEXT frame — the bus is double-buffered, swapped once per frame before Simulation (`FdpEventBus.cs:30,65`; `ModuleHostKernel.cs:553`); and on CGF `EqsResultUpdateSystem` runs AFTER `BrainTickSystem` (`CgfSubsystem.cs:979`) | one frame of latency, by construction and deterministic — the rails state it |
+| **V7** | what happens to a unit's AI when Brain authority moves? | 🔴 the authority bit moves (`OwnershipApplier.cs:76-118`; debug transfer, failover reclaim) but behaviour state is "linked, never sent" (Ownership design :137) — the new owner has hash 0 ⇒ **the unit goes brain-dead after any hand-over**. Pre-existing | ⭐ the SNAPSHOT shape solves it: each slot's `{Name, Params, Origin}` is ALSO published as a small TransientLocal descriptor; the node that gains authority starts it through the ingress — one shape for save, load AND hand-over — `CE-3048` |
+| ~~V8~~ | ✅ dissolved by R-192 (runtime attachments are the truth; find-or-create attach) | — | — |
+| ~~V9~~ | ✅ resolved by R-191 (`FormatParams`) | — | — |
 
 ## 10. Open — what is NOT yet decided *(`2026-10-04`)* — ✅ O1–O3 APPROVED (🔒 *"O1–O3 approved."*, R-193)
 
@@ -533,4 +531,46 @@ authoring place).
 | `CE-3041` (behaviors) | `ObserverSelector` abort |
 | `CE-3043` (ui) | the editor's AI section |
 | `CE-3031` (behaviors) | EQS-consuming behaviours — a doctrine is what will assign them |
+
+## 11. Critical review — through the eyes of a real game AI *(`2026-10-04`)*
+
+> 🔒 *"lets take a critical look and check for flaws and gaps from the point of view of a real game AI (which we are still
+> building infrastructure for, but a bit blindly, without having a clear needs we need to cover - so we keep stuff flexible
+> and open)."*
+
+The test applied: a squad rifleman and a tank, autonomous, on a mission, under fire, in a 2-hour scenario. What breaks?
+
+### 11.1 Measured DEFECTS (filed)
+
+| id | defect | evidence | why a game AI cares |
+|---|---|---|---|
+| `CE-3046` | 🔴 **`TargetMemory` never forgets, and drops new contacts when full** | nothing removes an entry (the only `Count--` in perception is `ActiveSensorTracksUpdateSystem.cs:90`, the track list); a 17th contact is ignored (`PerceptionComponents.cs:139`) — dead and long-lost targets keep their slots | after 16 contacts in a long scenario the unit is blind to every NEW threat, and §7.3's *AllClear* can never fire |
+| `CE-3047` | 🔴 the TKB default behaviour throws (params) or never runs (HSM) | V5 | a template that sets it crashes the Brain tick |
+| `CE-3048` | 🔴 a Brain-authority hand-over leaves the unit brain-dead | V7 | failover = every unit of the lost node stops thinking |
+| `CE-3049` | ⚠ epoch owner-stamp aliasing + refresh overflow into the owner bits | V4 | a stale answer accepted after a rare id reuse |
+
+### 11.2 Design GAPS — what a game AI will need that the design does not give yet
+
+| # | gap | evidence | ⭐ lean (keeps it open, not speculative) |
+|---|---|---|---|
+| **G1** | ⭐⭐ **"threat" is not danger** — the score is seconds-seen (+50/s while tracked, −10%/s decay, `ThreatEvaluationSystem.cs:~76`, `PerceptionConstants.cs:41`): a truck seen long scores above a tank seen briefly | measured | split the memory entry into **confidence** (how sure I am it is there — what perception produces) and **danger** (how much it matters to ME — target class, weapons vs my armour, range, facing), the latter from ONE pluggable assessor fed by the TKB. Doctrines and *FirstThreat* thresholds use danger |
+| **G2** | ⭐⭐ **a mission overrides autonomy** — `MissionDirectorSystem` assigns each phase's behaviour directly (`:217`), at `Superior` (R-193) ⇒ a doctrine unit with a mission is just scripted; the user's *"autonomous entity … needed by the main mission"* has no path | measured | a mission plan gets a mode: **Direct** (today) or **Goal** — the current task is published as the unit's GOAL (objective, area, deadline) for the doctrine to pursue; the director stops assigning. This is the "goal, not order" option (Utility §10.4) made concrete |
+| **G3** | ⭐⭐ **doctrine and behaviour share nothing after the start** — params are fixed per run; a new target picked by the doctrine needs a behaviour RESTART (which resets channels — BD1) | design §7.5 | one small per-unit **intent** component the doctrine (or an order) WRITES and behaviours READ live: current target, objective, posture, ROE (G7). Changing the target is a write, not a restart |
+| **G4** | ⭐ **decision thrash** — a doctrine re-deciding every tick on flickering input swaps behaviours back and forth | reasoning | ① re-assigning the SAME behaviour + params is a no-op at the ingress ② an optional minimum commit time on a doctrine's assignment ③ the memory stage's debounce already damps the input |
+| **G5** | ⭐ **doctrine cost** — the Brain runs synchronously every frame (`CgfSubsystem.cs:3315`); a doctrine per unit per frame is waste | measured | the doctrine slot ticks at a lower rate (default 5 Hz, staggered by entity index — deterministic) AND immediately on a `SensorChangedEvent` / `BehaviorFinishedEvent` for that unit |
+| **G6** | **contacts without identity** — "hit from an unseen shooter", "shots heard from the north" — memory is keyed by entity id (`AddOrUpdateTarget` matches `EntityIds[i]`) | measured | the memory stage accepts ANONYMOUS contacts (synthetic id, position estimate + uncertainty radius) that merge into a real track when one is seen there |
+| **G7** | **no rules of engagement anywhere** (grep: none) | measured | part of G3's intent component (*hold / return fire / free*), set by orders through the origin gate, read by doctrines and weapon behaviours |
+| **G8** | **the doctrine needs feedback** — why did my behaviour end? was my assignment refused? | `BehaviorFinishedEvent {Result, FaultCode}` exists | both (finish and gate refusal) join §7.3's bridge — HSM events, blueprint `When`, a BTree-readable "last outcome" |
+| **G9** | one behaviour owns every channel — move and shoot must live in one asset | `ChannelArbitrationSystem` | keep open; BTree `Parallel` covers it inside one asset. Per-channel behaviour layers only if a real need shows |
+| **G10** | no shared team picture (radio reports) | — | keep open: a *Reported* modality as a push stimulus fits the memory stage when wanted |
+| **G11** | identification and detection probability (detect → recognise → identify; friend-or-foe mistakes) — `FactionFilter` assumes perfect knowledge | — | keep open: room in the memory entry (an identification level) and in the result flags; any randomness from a seeded RNG per (sensor, target, tick) — deterministic |
+
+### 11.3 What this changes in the build order
+
+| | |
+|---|---|
+| ⭐ before S4 | `CE-3046` is not optional — the memory stage (S4) must FORGET (unseen for N s, target dead, score below ε) and EVICT the least dangerous when full. It is the same code |
+| ⭐ S2 | absorbs `CE-3047` (defaults through the ingress), G4 ① (idempotent re-assign), G5 (doctrine rate + wake-on-event), G8 (feedback) |
+| ⭐ S2b | absorbs `CE-3048`: the snapshot shape is published for hand-over |
+| ⏳ decide | G1, G2, G3 — each changes a contract (the memory entry, the mission plan, a new per-unit component) ⇒ they need the user before S4 / S2 |
 
