@@ -379,7 +379,7 @@ decides whether it may be interrupted; and the gate — not the drill author —
 | same asset as task and reaction | one hash ⇒ one block key | collision — refuse, or key by slot |
 
 
-### 4.2 How an SOP is authored — a table first, a smarter tier when the table is not enough *(PROPOSAL)*
+### 4.2 How an SOP is authored — a table first, a smarter tier when the table is not enough *(⛔ SUPERSEDED by §4.3 the same day — the "table" is a BTree; kept for its two-actions diagram)*
 
 > 🔒 **User, `2026-10-04`:** *"SOP name accepted. 3 words and 4 rules accepted. Urgency accepted. Restart with resume as
 > followup accepted."* (`R-198`, `R-199`) · *"could there be such a table (replacable by blueprint if table is not
@@ -431,6 +431,45 @@ the same two actions.*
 | ③ **BTree SOP** | the reaction depends on CONDITIONS polled each wake (danger, ammo, distance) | a priority list re-evaluated from the root |
 | ④ **blueprint SOP** | anything else — utility scoring, timers, custom events | full flexibility |
 | C# | hard-coded logic | any curated behaviour calling `SopActions` — the table itself is one |
+
+
+### 4.3 Feasibility — the BTree IS the table *(PROPOSAL, supersedes §4.2's separate table)*
+
+> 🔒 **User, `2026-10-04`:** *"the trigger would need to be a condition like in BTree, not just event, it must be more
+> flexible; Isn't the btree exceptionally well suited for replacing the table? … just not sure about the urgency
+> priorities … The SOP should still come from TKB and still should be replacable at runtime"*
+
+📐 **Measured:**
+
+| question | answer | where |
+|---|---|---|
+| can params hold an array of structs? | ✅ yes — a fixed-capacity list of any type, parsed / formatted by name | `BlueprintTypeRef.Capacity` (`Declarations.cs:43-60`), `InstanceEmitter.EmitParamsDefaults` |
+| can a table row hold a flexible condition? | ⛔ only by inventing an expression language inside params | — ⇒ a BTree condition node already IS that, with an editor |
+| how does a BTree hand params to a sub-behaviour? | a node names a host variable (`ParamsVariable`) holding the child's typed params DTO | `BehaviorTreeAssetDto.cs:220`, `DESIGN_Parameter_Model` §P |
+| can a condition read "was hit recently"? | ⛔ no readable state — `SensorChangedEvent` lives one frame and the SOP wakes the NEXT frame | `SensorChangedEvent.cs`, `R-195`; grep `LastHit\|LastDamage`: none |
+| can the TKB name an SOP with params? | ⛔ the profile holds a behaviour HASH only | `BehaviorProfileDto.DefaultBehaviorHash` |
+
+```mermaid
+graph TD
+  ROOT["SOP BTree (template: 'Basic infantry SOP')"] --> SEL["Selector — first true row wins (row order = which reaction when several apply)"]
+  SEL --> R1["Sequence: Was hit within 5 s · ROE ≥ ReturnFire → React(TakeCoverAndReturnFire, urgency Hit)"]
+  SEL --> R2["Sequence: Was hit within 5 s → React(TakeCover, urgency Hit)"]
+  SEL --> R3["Sequence: Contacts > 0 → React(GoToAlert, urgency Contact)"]
+  SEL --> IDLE["Do when idle(HoldPosition)"]
+```
+
+*What the picture shows that prose hid: a reaction table is exactly a Selector of condition → action rows, read top to
+bottom; every leaf is INSTANT (React and Do-when-idle only publish an assignment — the reaction runs in the main slot), so
+the SOP tree finishes every wake and is re-read from the root next time — no running branch to abort (no dependency on
+`CE-3041`).*
+
+| | |
+|---|---|
+| ⭐ row order vs urgency | **row order** decides WHICH reaction when several conditions are true at once; **urgency** (a field on React) decides whether it may interrupt what is ALREADY running (`R-199` ③) — two different questions, both needed |
+| ⭐ conditions read STATE | a small per-unit `RecentSenses` (last tick of each `SensorChange` kind), written by one system from `SensorChangedEvent` ⇒ *"was hit within N s"*, *"contact within N s"*; plus existing state (contacts now, health) and the new ROE |
+| ⭐ React = the Subtree node's shape | behaviour picker + `ParamsVariable` (typed params, edited as defaults in the BTree editor) + urgency; at fire the params are formatted to JSON for the assignment (blueprints: `FormatParams`, CE-3044; curated: their JSON DTO; ⚠ BTree/HSM asset params — to measure) |
+| ⭐ TKB + runtime replace | the TKB profile gains `DefaultSop {Name, ParamsJson}`; replacing at runtime = an SOP assign at Operator / Superior (`CE-3035`); saved by the snapshot (`CE-3042`) |
+| ⭐ C# | a curated BTree built in C# (how `MoveToLocation` is made), or any curated behaviour calling the two actions |
 
 ## ⛔ HISTORY
 
