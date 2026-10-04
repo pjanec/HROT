@@ -506,6 +506,26 @@ deviate from my task" axis (the shape many simulators use — e.g. hold fire / d
 | edited | a row in the editor AI section (`CE-3043`) |
 | later | `WeaponsTight` (identified hostiles only) needs identification (G11) — not now |
 
+
+### 4.5 Keeping the SOP off the channels — measured *(PROPOSAL)*
+
+> 🔒 **User, `2026-10-04`:** *"How can be calling actions touching various channel avoided from SOP btree? Isn't SOP just a
+> behavior that naturally can call action nodes? Is it necessary to prevent it? Maybe the roslyn analyzers can just warn?"*
+
+📐 **What already knows which channels a behaviour drives:** C# actions declare `[WritesChannel(Locomotion | Weapon |
+Interaction)]` (`SharedAiAttributes.cs:89`, 20 production methods; the BTree/HSM generators already use it for cleanup
+wrappers) · a blueprint's channels are DERIVED by the compiler, nothing authored (`BlueprintChannelDerivation`, CE-388 —
+"an empty list means commands no channel") · at runtime an SOP's channel command is cancelled by construction
+(`ChannelArbitrationSystem.cs:44`, the SOP token space is disjoint — §6 of the sensors design).
+
+| layer | lean |
+|---|---|
+| why prevent at all | ⭐ yes, semantically: one owner per channel (G9). An SOP that moves the unit fights the task it is supposed to sit beside — exactly what the gate and the pause exist to prevent; anything that must move the body goes through React |
+| ① assign time | ⭐ the SOP slot REFUSES (visibly, like an origin refusal) a behaviour whose channel set is non-empty — the union of its bound actions' `[WritesChannel]` (BTree/HSM, stored at registration — small new work) or its derived blueprint channels |
+| ② editor | the AI section's SOP row offers only channel-free behaviours; the BTree editor warns on a channel-writing node in an asset tagged as an SOP (the recipe carries the tag) |
+| ③ C# | an analyzer WARNING when a curated SOP binds a `[WritesChannel]` method |
+| ④ runtime backstop | the first cancelled SOP channel command per run is logged loudly, never silent |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
