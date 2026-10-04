@@ -346,6 +346,38 @@ sequenceDiagram
 *What the picture shows that prose hid: the reaction lives once, in the unit's standing orders, not in Patrol; the order
 decides whether it may be interrupted; and the gate — not the drill author — remembers and restores the task.*
 
+
+### 4.1 Refined with the user — the SOP, reactions, and what RESUME would take *(PROPOSAL v2)*
+
+> 🔒 **User, `2026-10-04`:** *"drill interrupts, task restarts afterwards is acceptable for now, resume would be better"* ·
+> *"isnt SOP - standard operation procedure - closer in the meaning to what we need?"* · *"the doctrine keeps running also
+> while the 'interrupt handler' is running so no further interrupt of same or lower priority should be allowed"* · *"it
+> should stay relatively simple otherwise no one would understand it"*
+
+| word | means |
+|---|---|
+| **task** | what the unit was told to do (operator, superior, mission) — one at a time |
+| **SOP** | the unit's own logic, always ticking: what to do when idle + how to react to events |
+| **reaction** | a behaviour the SOP starts to answer an event; it PAUSES the task, the task continues after |
+
+| rule (enforced by the one gate, `BehaviorIngressSystem`) |
+|---|
+| ① a task beats the SOP's idle choice |
+| ② a reaction pauses the task — unless the order forbids reactions — and the task continues when the reaction ends |
+| ③ a running reaction yields only to a MORE urgent reaction or a new order; same or lower urgency is refused |
+| ④ at most ONE thing is paused: the task (a more urgent reaction replaces a less urgent one, it is not stacked) |
+
+📐 **What resume would take — measured `2026-10-04`:**
+
+| run state | where it lives | on pause / resume |
+|---|---|---|
+| hash, preemption token, tier | `BehaviorState` (`BehaviorComponents.cs:44`) | save on a one-deep stack, restore |
+| params, variables, tree cursor, HSM instance | the entity's block, keyed by behaviour hash (`OccurrenceSlotKey.ComputeRootStateKey`) | today REPLACING a behaviour detaches its slots (`DetachHostedOccurrenceSlots`, `BehaviorIngressSystem.cs:546`) ⇒ pause must SKIP that detach; the store must hold task + reaction together |
+| owned sensors | stamped with the run's token, released on the three token sites (`BehaviorIngressSystem.cs:163, :295`) | pause must not release them |
+| in-flight channel commands (a move under way) | cancelled once the token changes (`ChannelArbitrationSystem.cs:44`) | ⚠ THE DEVIL: the paused task's running leaf waits for a command that no longer exists ⇒ resume must RE-ENTER the running leaf (BTree deactivator + reactivate, HSM re-enter the current state, blueprint latent re-issue) — progress kept, only the leaf restarts |
+| timers | absolute sim time (`__waitUntilTime`) | expire during the pause — acceptable |
+| same asset as task and reaction | one hash ⇒ one block key | collision — refuse, or key by slot |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
