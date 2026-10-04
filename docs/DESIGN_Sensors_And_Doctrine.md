@@ -452,23 +452,32 @@ the gate keeps refusing, and the first tick after the order ends is autonomous a
 ```mermaid
 classDiagram
   direction LR
-  class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes SensorChangedEvent }
-  class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear }
-  class SensorChangedEvent { <<NEW unmanaged bus event>> +Entity Unit +Entity Sensor +SensorModality Kind +SensorChange What }
-  class SensorChange { <<NEW enum>> Acquired Lost TopChanged FirstThreat AllClear }
+  class ActiveSensorTracksUpdateSystem { <<existing Brain, PRODUCER>> writes ActiveSensorTracks +publishes Acquired / Lost }
+  class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes TopChanged (perception sensors only) }
+  class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear / Hit }
+  class SensorChangedEvent { <<BUILT unmanaged bus event, id 4006>> +Entity Unit +Entity Sensor +Entity Target +SensorModality Kind +SensorChange What }
+  class SensorChange { <<BUILT enum>> Acquired Lost TopChanged FirstThreat AllClear Hit }
+  class BuiltInEngineEventCatalog { <<existing, grows>> SensorChangedEvent: target field Unit, filterable What / Kind }
   class SensorHsmEventIds { <<NEW reserved HSM ids, beside MobilityLost>> one id per SensorChange }
   class HsmRunner { <<existing, grows>> MobilityLost bridge +SensorChangedEvent bridge }
   class HsmEventQueue { <<existing>> TryEnqueue(HsmEvent: id + 16-byte payload) }
   class ObserverSelector { <<existing NodeType, interpreter grows>> re-checks higher branches each tick, aborts the lower one }
   class WhenNode { <<existing blueprint>> EventFired(SensorChanged) · EqsResult TopChanged / ScoreCrossed }
+  ActiveSensorTracksUpdateSystem ..> SensorChangedEvent
   EqsResultUpdateSystem ..> SensorChangedEvent
   ThreatEvaluationSystem ..> SensorChangedEvent
   SensorChangedEvent --> SensorChange
+  BuiltInEngineEventCatalog ..> SensorChangedEvent : names it for When
   HsmRunner ..> SensorChangedEvent : reads, for ctx.Self
   HsmRunner ..> SensorHsmEventIds
   HsmRunner ..> HsmEventQueue : payload = Kind + Sensor
-  WhenNode ..> SensorChangedEvent
+  WhenNode ..> SensorChangedEvent : Self filter on Unit
 ```
+
+⭐ **As-built `2026-10-04` (S6 backend half, `CE-3039`, §9.5):** the producers, the event and the catalog entry are BUILT;
+`HsmRunner`'s bridge (`CE-3040`) and `ObserverSelector` (`CE-3041`) are not. ⚠ **Deviation:** *Acquired / Lost* come
+from `ActiveSensorTracksUpdateSystem` (it holds the unit's track set), not from `EqsResultUpdateSystem` as first drawn —
+the buffer writer sees one sensor's answer, not the unit's union.
 
 *What the picture shows that prose hid:* ONE producer per fact (the system that already writes it), and each tier
 consumes it the way it already consumes anything — the HSM through the queue that carries MobilityLost today, the
@@ -624,12 +633,13 @@ authoring place).
 | **S3** | `CE-3036` | the sensor list in the TKB (+ implicit visual entry), `SensorChildFactory`, `SensorTag`, `SensorCapability`, children 1000+i on every node, `AllocatePartId` skips 1000+, `ConfigKind` / `ConfigJson` on the wire, refusal on bad JSON, `Disabled`, override + switch, `Sensors.Of` | a NEW sensor kind in tests only (I ①): TKB child on both nodes with matching keys; behaviour-spawned thermal; override; switch off ⇒ solver skips; run end ⇒ back to default |
 | **S4** | `CE-3037` | the memory stage in the solver (debounce, acquired / lost, push stimuli); cost-unit budget (§5.3) replacing wall-clock slicing; EQS §7.5–7.6 marked SUPERSEDED | determinism rail: same scenario, same schedule twice; heavy sensor runs alone; result age visible |
 | **S5** | `CE-3038` | visual perception MOVES: a visual template = today's broadphase + sight; `CognitiveSpatialModule` chain deleted in the same change; `TargetMemory` fed from the memory stage | ⭐ the EXISTING perception suites stay green unchanged — they are the parity proof |
-| **S6** | `CE-3039` | the AI side: read-sensor node (BTree / HSM / blueprint) keyed by kind; `TargetMemory` accessors (top threat, count above score); hit / shot-heard as blueprint events; `When` EQS modes verified live | a doctrine blueprint that reacts to a threat end to end |
+| ✅ **S6** (backend half) | `CE-3039` | ⭐ BUILT `2026-10-04` — see §9.5: `SensorChangedEvent` from its three producers (incl. *Hit*), named in the blueprint catalog, a `When` reacting to it proven | §9.5 |
+| **S6n** (node half) | `CE-3054` | ⭐ **behaviors lane**: read-sensor node per tier keyed by kind; `TargetMemory` accessors rewritten to R-194 (memory = identity + freshness, danger judged at read time) — a JOINT freshness design with the backend | a doctrine blueprint that reacts to a threat end to end |
 | **S2b** | `CE-3042` | snapshot translators: `BrainSlotScenarioTranslator` ("Behavior" / "Doctrine": Name + Params JSON + Origin, only ≠ TKB default) + `InitialBrainIntent` + `InitialBrainMaterializationSystem` through the ingress (§7.5, R-192) | save → reload on the editor AND `--mode all`: same behaviour / doctrine / params / origin; a TKB-default unit saves nothing; the file holds no hash, token or tier |
 | **S2e** | `CE-3045` | the bug: sensor children carry `ScenarioIgnoreTag`; instance attach is find-or-create | save after a behaviour spawned a sensor ⇒ the file has no sensor entity; reload ⇒ exactly one sensor |
 | **S2d** | `CE-3044` | R-191: emit `FormatParams` beside `ParseParams`; `BlueprintStateTranslator` writes params as a JSON object (non-default fields only), `BlueprintAssignmentDto.Params` (byte[]) and `ParamsStructureHash` removed — no legacy reader (no scenario carries them) | the existing save→reload rail (Param Persistence D3) with the scenario file asserted to contain JSON params by name, and a field renamed between save and load degrading to its default with a warning |
 | **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, behaviour row, instance-blueprint rows with ONE params form, editing LIVE state only (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
-| **S6b** | `CE-3040` | `SensorChangedEvent` from its two producers; the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
+| **S6b** | `CE-3040` | ~~`SensorChangedEvent` from its two producers~~ (built in S6, §9.5); the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
 | **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
 | S7 | later | thermal / acoustic templates | — |
 
@@ -742,6 +752,30 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | cross-node, the suites a full run failed | `--filter` SubEntityCascade, SplitAuthority, EgressShadow, SimTimeSync, Gizmo, Lifecycle, Ghost, Ownership, … | 40/2 — `MapPlacement…` and `UrbanCombatFileLifecycle…` red on base `749266ddc` too. ⚠ The FULL suite is not gateable (75 of several hundred ran, then cascading 1 ms failures — the known DDS-allocator crash, run under load) |
 | Stride | `dotnet build HrotStrideApp.Game.Tests -p:EnableWindowsTargeting=true` | builds; ⚠ its tests need Windows |
 | examples | Examples.Scenarios · UrbanCombat · Overlays | 53/3 (the 3 `UrbanCombatNew…` = `CE-321`, red on base) · 29/0 · 29/0 |
+
+### 9.5 As-built — S6 backend half / `CE-3039` *(`2026-10-04`)*
+
+> 🔒 *User: "yes backend half please"* — S6 split: the backend builds the EVENT; the nodes that READ sensors go to the
+> behaviors lane (`CE-3054`, [`FRAME_Decision_Layer.md`](blueprints/batches/FRAME_Decision_Layer.md) addendum).
+
+⭐ §7.3's class diagram is the as-built picture. What the build decided or found:
+
+| decision / finding | why |
+|---|---|
+| ⚠ **deviation: *Acquired / Lost* come from `ActiveSensorTracksUpdateSystem`**, not `EqsResultUpdateSystem` | the track set is the UNIT's union (the memory stage sends changes only, §5.4); the buffer writer sees one sensor. An edge fires when a track is ADDED or actually REMOVED — a repeat *Acquired* (position update) or a *Lost* for an unheld track is silent |
+| ⭐ ***TopChanged* from `EqsResultUpdateSystem`, perception sensors only** | a sensor with `SensorTag` + `PartMetadata`; the top is compared as (entity, position) before vs after the write. A query sensor (cover, flank) is silent — its blueprint uses `When EqsResult(TopChanged)` |
+| ⭐ ***FirstThreat / AllClear* from `ThreatEvaluationSystem`** on the `TargetMemory` count crossing 0 | *AllClear* is reachable only because `CE-3046` forgets |
+| ⭐ ***Hit* is DERIVED on the Brain from a `Health.Current` drop** (healing is not a hit), `Target` = Null | `HitEvent` is Muscle-local (no translator); `Health` replicates through the `EntityDamage` ingress ⇒ the Brain sees the drop, not the shooter |
+| ⏳ ***shot-heard* — DEFERRED** | no acoustic producer exists (S7), and a heard shot is an anonymous contact (G6, behaviors lane). ⛔ no enum value reserved — one is added with its producer |
+| ⭐ **the event lives in its own file** (`Perception/Events/SensorChangedEvent.cs`, id 4006) | ⚠ the DDS IDL generator emits one scope per source file ⇒ `SensorChange.Acquired` collided with `SensorTrackStatus.Acquired` in `PerceptionEvents.cs` |
+| ⭐ **blueprint `When`: a catalog entry, no new node** | `BuiltInEngineEventCatalog` "SensorChangedEvent": target field `Unit`, filterable `What` / `Kind` ⇒ `EventFired` + `Self` + a payload check on `What` |
+
+| gate | command | result |
+|---|---|---|
+| producer rails | `Fdp.Toolkits.Tests --filter SensorChangedEventTests` (+ ThreatEvaluation, ActiveSensorTracks) | 14/0 — Acquired once / Lost once · FirstThreat → AllClear on forgetting · Hit once per drop, healing silent |
+| TopChanged rail | `Hrot.SimHost.Tests --filter EqsModuleTests` | 23/0 — `S6_APerceptionSensorsTopChanging_IsOneTopChanged_AQuerySensorIsSilent` |
+| blueprint rail | `Hrot.Blueprints.Tests --filter WhenNodeRuntimeTests` | 22/0 — `CE3039_ABlueprintReactsToItsOwnUnitsSensorChange_ThroughTheBuiltInCatalog` (another unit's Hit and the own unit's FirstThreat do not fire) |
+GATES_PLACEHOLDER
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 

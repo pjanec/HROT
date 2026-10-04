@@ -72,6 +72,8 @@ namespace Fdp.Toolkit.Perception.Systems
                         tracks.PositionsX[tracks.Count] = evt.PositionX;
                         tracks.PositionsY[tracks.Count] = evt.PositionY;
                         tracks.Count++;
+                        // ⭐ CE-3039 — the edge, from the system that holds the track set (design §7.3).
+                        ecb.PublishEvent(new SensorChangedEvent { Unit = evt.Observer, Target = evt.Target, What = SensorChange.Acquired });
                     }
                 }
                 else // SensorTrackStatus.Lost
@@ -88,6 +90,7 @@ namespace Fdp.Toolkit.Perception.Systems
                             tracks.PositionsY[i] = tracks.PositionsY[last];
                         }
                         tracks.Count--;
+                        ecb.PublishEvent(new SensorChangedEvent { Unit = evt.Observer, Target = evt.Target, What = SensorChange.Lost });   // CE-3039
                         break;
                     }
                 }

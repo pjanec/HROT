@@ -724,6 +724,76 @@ namespace Hrot.SimHost.Tests
             Assert.Single(acquired);
         }
 
+        /// <summary>
+        /// ⭐ CE-3039 (S6) — a perception sensor's best answer changing is ONE <see cref="SensorChangedEvent"/> TopChanged for
+        /// its unit, written by the system that writes the buffer; an unchanged answer is silent, and a query sensor (no
+        /// <see cref="SensorTag"/>) never publishes one. 📄 DESIGN_Sensors_And_Doctrine.md §7.3.
+        /// </summary>
+        [Fact]
+        public void S6_APerceptionSensorsTopChanging_IsOneTopChanged_AQuerySensorIsSilent()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4244 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("OneRadar", 79);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var radar = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+
+            // A query sensor over an area holding the same enemy: its answer changes too, but it is not perception.
+            var area = CreateAreaEntity(new List<Vector2> { new(40f, -10f), new(80f, -10f), new(80f, 30f), new(40f, 30f) });
+            var query = _world.CreateEntity();
+            _world.AddComponent(query, EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+            _world.AddComponent(query, new EqsCognitiveBuffer());
+
+            var solver = new EqsSolverSystem();
+            var update = new EqsResultUpdateSystem();
+            var changes = new List<SensorChangedEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                update.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorChangedEvent>()) changes.Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.True(_world.GetComponentRO<EqsCognitiveBuffer>(query).IsReady, "the query sensor must have answered");
+            var first = Assert.Single(changes);                      // the radar's first answer — the query sensor is silent
+            Assert.Equal(SensorChange.TopChanged, first.What);
+            Assert.Equal(unit, first.Unit);
+            Assert.Equal(radar, first.Sensor);
+            Assert.Equal(enemy, first.Target);
+
+            changes.Clear();
+            for (int i = 0; i < 10; i++) Step();
+            Assert.Empty(changes);                                   // the same answer ⇒ no edge
+
+            UnitSensors.Configure(_world, radar, TestRadar(10f));    // out of range ⇒ the top is gone
+            for (int i = 0; i < 10 && changes.Count == 0; i++) Step();
+            var gone = Assert.Single(changes);
+            Assert.Equal(radar, gone.Sensor);
+            Assert.True(gone.Target.IsNull);
+        }
+
         // ── CE-3038 (S5) — vision as a sensor ──────────────────────────────────────────────────────────────────────────
 
         // A world of units (two forces, varied facing and field of view) and colliders; every unit built through the

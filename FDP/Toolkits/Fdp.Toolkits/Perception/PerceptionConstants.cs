@@ -31,6 +31,9 @@ namespace Fdp.Toolkit.Perception
         /// <summary>Event ID for <see cref="Events.SensorTrackStateEvent"/>.</summary>
         public const int SensorTrackStateEventId = 4005;
 
+        /// <summary>Event ID for <see cref="Events.SensorChangedEvent"/> (CE-3039).</summary>
+        public const int SensorChangedEventId = 4006;
+
         // ── Threat score dynamics ─────────────────────────────────────────────────
 
         /// <summary>

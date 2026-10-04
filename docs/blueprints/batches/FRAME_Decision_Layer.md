@@ -60,3 +60,17 @@ the unit senses, missions that end users can still edit simply, and an order cha
 ① a design doc in `docs/` for the decision layer (class + sequence + module diagrams), linked both ways with
 `DESIGN_Sensors_And_Doctrine.md` · ② the user's rulings on G1–G3 recorded · ③ `CE-3034`/`3035` built with an
 autonomy → order → autonomy rail on the editor AND `--mode all` (design §7.1).
+
+## Addendum `2026-10-04` — S6 split: the event is built, the nodes are yours *(backend → behaviors)*
+
+> 🔒 *User: "yes backend half please"*. ⚠ An ADDENDUM, not an amendment: the table above is unchanged; this adds two
+> things the frame did not have when it was dispatched.
+
+| | what | where |
+|---|---|---|
+| ✅ **BUILT (backend, `CE-3039`)** | `SensorChangedEvent {Unit, Sensor, Target, Kind, What}`, `What` ∈ Acquired · Lost · TopChanged · FirstThreat · AllClear · Hit, one producer per fact; named in the blueprint catalog (`When EventFired` + `Self` on `Unit` + payload check on `What` works today, rail-proven) | design §7.3 (as-built diagram), §9.5 |
+| ⇒ **`CE-3040` shrinks** | the producer side is done — only the `HsmRunner` bridge into reserved HSM ids remains | design §7.3 |
+| ⭐ **HANDED OVER: `CE-3054` (S6n)** | ① a read-sensor node per tier keyed by kind (`Sensors.Of` is the backend's query) · ② `TargetMemory` accessors (top threat, count above a threshold) rewritten to **R-194** — the memory entry is identity + freshness, danger is judged at read time (your `DESIGN_Decision_Layer.md` §1, §3 already flags `EnemyStrengthRatio` reading a decaying score) | design §9 S6n |
+| ⚠ **a JOINT design point** | freshness lives in the memory the backend owns (`ThreatEvaluationSystem`, `SensorMemoryStage`); ~138 non-test source lines mention `TargetMemory` (grep, `2026-10-04`) — agree the field and its decay with the backend before rewriting readers | fence 1 above |
+| ⏳ **not built** | *shot-heard*: no acoustic producer (S7) and a heard shot is an anonymous contact (your G6). No enum value reserved | design §9.5 |
+| ⭐ **R-195 (wake on events)** | `SensorChangedEvent` is the event a below-frame-rate doctrine wakes on; `Unit` is the key | — |

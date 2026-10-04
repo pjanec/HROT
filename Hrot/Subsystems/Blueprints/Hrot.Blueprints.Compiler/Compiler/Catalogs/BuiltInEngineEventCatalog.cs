@@ -35,6 +35,17 @@ public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
             new("BehaviorFinishedEvent", "Fdp.Toolkit.Behavior.Events.BehaviorFinishedEvent"),
             new("TargetVisibleEvent",    "Fdp.Toolkit.Perception.Events.TargetVisibleEvent"),
 
+            // ⭐ CE-3039 — the edges of what a unit senses (DESIGN_Sensors_And_Doctrine §7.3): Acquired / Lost / TopChanged /
+            //   FirstThreat / AllClear / Hit, published on the unit's BRAIN node, so a blueprint reacts with When EventFired.
+            new(Name:                "SensorChangedEvent",
+                EventTypeFqn:        "Fdp.Toolkit.Perception.Events.SensorChangedEvent",
+                DisplayName:         "Sensor Changed",
+                Category:            "Perception",
+                TargetFieldName:     "Unit",
+                FilterableFields:    new[] { "What", "Kind" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
             // ---- Animation lifecycle events (DD-3 §3.1, §4.1) ------------------
             // IDs 8201-8204; all Reliable + Volatile + PropagatesAcrossNodes=true.
 

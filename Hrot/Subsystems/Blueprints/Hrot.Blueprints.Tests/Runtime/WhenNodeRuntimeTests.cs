@@ -721,6 +721,50 @@ public sealed class WhenNodeRuntimeTests
         Assert.True(ReadSlotField<bool>(fixture, asset, entity, "WasFired"));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3039</c> — a blueprint reacts to what its unit SENSES with an ordinary <c>When EventFired</c>: the
+    /// <c>SensorChangedEvent</c> entry in the BUILT-IN catalog compiles, the self filter keys on <c>Unit</c>, and a payload
+    /// check selects the edge (here: Hit). 📄 DESIGN_Sensors_And_Doctrine.md §7.3.
+    /// </summary>
+    [Fact]
+    public void CE3039_ABlueprintReactsToItsOwnUnitsSensorChange_ThroughTheBuiltInCatalog()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BuildEventFiredAsset(
+            eventTypeId:     "Fdp.Toolkit.Perception.Events.SensorChangedEvent",
+            targetFilter:    EventTargetFilter.Self,
+            targetFieldName: "Unit",
+            payloadCheck:    new PayloadCondition
+            {
+                PropertyPath    = "What",
+                Operator        = ComparisonOperator.Equal,
+                TargetValueText = "Fdp.Toolkit.Perception.Events.SensorChange.Hit",
+            });
+        fixture.CompileAndLoad(asset, new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>()));
+        var unit  = fixture.CreateEntity();
+        var other = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, unit);
+
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = other, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });           // another unit's hit
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = unit, What = Fdp.Toolkit.Perception.Events.SensorChange.FirstThreat });    // another edge
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, unit, "WasFired"));
+
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent
+            { Unit = unit, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, unit, "WasFired"));
+    }
+
     [Fact]
     public void EventFired_WithSelfFilter_Fires_WhenTargetMatchesSelf()
     {

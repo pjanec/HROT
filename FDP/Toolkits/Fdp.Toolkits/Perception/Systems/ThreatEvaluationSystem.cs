@@ -1,4 +1,5 @@
 ﻿using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
@@ -15,6 +16,10 @@ namespace Fdp.Toolkit.Perception.Systems
     ///     <b>Decay:</b> Multiplies every existing threat score in every
     ///     <see cref="TargetMemory"/> by <c>1 - dt x ThreatScoreDecayPerSecond</c>,
     ///     providing smooth temporal forgetting.
+    ///   </item>
+    ///   <item>
+    ///     <b>Edges</b> (CE-3039): publishes <see cref="SensorChangedEvent"/> FirstThreat / AllClear when the memory
+    ///     fills from empty or empties, and Hit when the unit's health drops.
     ///   </item>
     ///   <item>
     ///     <b>Forget</b> (CE-3046): drops an entry whose target is gone, or whose score faded below
@@ -42,6 +47,11 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </summary>
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
+        // CE-3039 — each perceiving unit's health as last seen, to publish the Hit edge. Two maps swapped each tick, so a
+        // destroyed unit's entry drops out instead of accumulating.
+        private System.Collections.Generic.Dictionary<Entity, float> _lastHealth = new();
+        private System.Collections.Generic.Dictionary<Entity, float> _nextHealth = new();
+
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -49,6 +59,7 @@ namespace Fdp.Toolkit.Perception.Systems
             uint tick = view.Tick;
 
             // Iterate all entities that have TargetMemory: apply decay and optional boost.
+            _nextHealth.Clear();
             var memQuery = view.Query().With<TargetMemory>().Build();
             foreach (var entity in memQuery)
             {
@@ -56,6 +67,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 // Local copy so we can mutate without violating the snapshot contract.
                 TargetMemory mem = memRO;
+                int countBefore = mem.Count;
 
                 // Decay all existing threat scores.
                 float decayFactor = 1f - (deltaTime * PerceptionConstants.ThreatScoreDecayPerSecond);
@@ -131,7 +143,25 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 if (changed)
                     ecb.SetComponent(entity, mem);
+
+                // ⭐ CE-3039 — the memory's edges, from the system that holds the memory (design §7.3). AllClear is reachable
+                //   since CE-3046 made the memory forget.
+                if (countBefore == 0 && mem.Count > 0)
+                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.FirstThreat });
+                else if (countBefore > 0 && mem.Count == 0)
+                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AllClear });
+
+                // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired,
+                //   seen or not. The previous value is this system's own; the first sight of a unit only records it.
+                if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
+                {
+                    float hp = view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(entity).Current;
+                    if (_lastHealth.TryGetValue(entity, out float before) && hp < before)
+                        ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.Hit });
+                    _nextHealth[entity] = hp;
+                }
             }
+            (_lastHealth, _nextHealth) = (_nextHealth, _lastHealth);
         }
 
         private static unsafe bool IsTracked(in ActiveSensorTracks tracks, long id)

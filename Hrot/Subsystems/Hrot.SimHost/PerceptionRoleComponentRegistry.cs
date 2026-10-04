@@ -42,6 +42,9 @@ public static class PerceptionRoleComponentRegistry
         // ⭐ a sensor child's kind — TKB sensors are built on every node that registers it (DESIGN_Sensors_And_Doctrine §4).
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
+        // ⭐ CE-3039 — the edges of what a unit senses (design §7.3): published by EqsResultUpdateSystem (every host that runs
+        //   it) and by the Brain's track / memory systems.
+        world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
 
         // Per-sensor cross-tick evaluation state (EQS Phase 5).
         world.RegisterComponent<SensorEvalState>();

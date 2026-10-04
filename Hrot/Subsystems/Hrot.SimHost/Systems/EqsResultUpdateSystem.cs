@@ -1,4 +1,6 @@
 using System;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
@@ -59,6 +61,7 @@ namespace Hrot.SimHost.Systems
                     repo.AddComponent(evt.Observer, new EqsCognitiveBuffer());
 
                 ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(evt.Observer);
+                var topBefore = TopOf(in buffer);
                 buffer.Count         = Math.Min(evt.Results.Count, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true.
                 buffer.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
@@ -79,6 +82,7 @@ namespace Hrot.SimHost.Systems
                         FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
                     };
                 }
+                NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);
             }
 
             // ── Path B: Offline unmanaged events from local solver ────────────────
@@ -131,6 +135,7 @@ namespace Hrot.SimHost.Systems
                     repo.AddComponent(observer, new EqsCognitiveBuffer());
 
                 ref var buffer2 = ref repo.GetComponentRW<EqsCognitiveBuffer>(observer);
+                var topBefore2 = TopOf(in buffer2);
                 buffer2.Count                = Math.Min(evt.EntryCount, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true even at tick 0.
                 buffer2.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
@@ -140,7 +145,38 @@ namespace Hrot.SimHost.Systems
                 var span2 = buffer2.GetSpanRW();
                 for (int j = 0; j < buffer2.Count; j++)
                     span2[j] = pool.Results[evt.ResultHandle + j];
+                NotifyTopChanged(repo, observer, topBefore2, in buffer2);
             }
+        }
+
+        // The best result as an identity: (entity, position) — a positional result moves, an entity result changes entity.
+        private static (long Id, float X, float Y, bool Any) TopOf(in EqsCognitiveBuffer buffer)
+        {
+            if (buffer.Count == 0) return (0, 0f, 0f, false);
+            var top = buffer.GetSpanRO()[0];
+            return (top.EntityId, top.PositionX, top.PositionY, true);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3039 — a PERCEPTION sensor's best result changed ⇒ <see cref="SensorChangedEvent"/> TopChanged for its unit
+        /// (design §7.3: the producer is the system that writes the buffer). A query sensor (cover, flank …) has no
+        /// <see cref="SensorTag"/> and its blueprint reads it with <c>When EqsResult(TopChanged)</c> instead.
+        /// </summary>
+        private static void NotifyTopChanged(EntityRepository repo, Entity sensor, (long Id, float X, float Y, bool Any) before,
+                                             in EqsCognitiveBuffer after)
+        {
+            if (!repo.IsComponentTypeRegistered<SensorTag>() || !repo.HasComponent<SensorTag>(sensor)) return;
+            if (!repo.HasComponent<PartMetadata>(sensor)) return;
+            var now = TopOf(in after);
+            if (now == before) return;
+            ((ISimulationView)repo).GetCommandBuffer().PublishEvent(new SensorChangedEvent
+            {
+                Unit   = repo.GetComponentRO<PartMetadata>(sensor).ParentEntity,
+                Sensor = sensor,
+                Target = now.Any && now.Id > 0 ? new Entity((ulong)now.Id) : Entity.Null,
+                Kind   = repo.GetComponentRO<SensorTag>(sensor).Kind,
+                What   = SensorChange.TopChanged,
+            });
         }
     }
 }
