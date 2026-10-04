@@ -32,6 +32,10 @@ namespace Fdp.Toolkit.Behavior.Events
         /// for an ordinary end. A faulted run always reports <see cref="NodeStatus.Failure"/>.</summary>
         public BehaviorFaultCode FaultCode;
 
+        /// <summary>⭐ <c>CE-2078</c> — WHOSE run ended (the finished behaviour's origin). A mission advances only on its own
+        /// task, never on a reaction that interrupted it.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+
         /// <summary>⭐ <c>CE-482</c>: Succeeded · Failed (an ordinary end) · Faulted (fail loud). 📄
         /// <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D2 — derived, so it can never disagree with <see cref="Result"/>.</summary>
         public readonly BehaviorOutcome Outcome

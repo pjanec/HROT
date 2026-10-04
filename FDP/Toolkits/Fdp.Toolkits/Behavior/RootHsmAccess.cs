@@ -61,6 +61,7 @@ public static unsafe class RootHsmAccess
     /// <summary>The slot key for this entity's CURRENT root behaviour, or <c>0</c> when it has none.</summary>
     public static int KeyFor(EntityRepository world, Entity self)
     {
+        if (BrainSlotScope.TryGetHash(self, out int slotHash)) return KeyForBehaviour(slotHash);   // ⭐ CE-3035 — the SOP slot view
         if (!world.HasComponent<Components.BehaviorState>(self)) return 0;
         ref readonly var state = ref world.GetComponentRO<Components.BehaviorState>(self);
         return KeyForBehaviour(state.ActiveBehaviorHash);

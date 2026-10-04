@@ -68,6 +68,29 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
+        public void CE2077_TheTemplatesSop_StartsThroughTheIngress()
+        {
+            var world = TestWorldFactory.Create();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            if (!world.IsComponentTypeRegistered<SopState>()) world.RegisterComponent<SopState>();
+            world.Bus.RegisterManaged<AssignSopEvent>();
+            var registry = new BehaviorRegistry();
+            registry.Register(DefaultId, "TkbSop", new BehaviorDefinition { Name = "TkbSop", BrainTier = BehaviorConstants.BrainTierBTree });
+
+            var template = new TkbTemplate("TkbSopUnit", 1);
+            template.AddDescriptor(new BehaviorProfileDto { BrainTier = BehaviorConstants.BrainTierBTree, DefaultSop = "TkbSop" });
+            var e = world.CreateEntity();
+            new BehaviorTkbTranslator().Inject(world, e, template);
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+
+            var sop = world.GetComponent<SopState>(e);
+            Assert.Equal(DefaultId, sop.SopHash);
+            Assert.Equal(BehaviorOrigin.Sop, sop.SopOrigin);   // any order may replace the template's SOP
+            world.Dispose();
+        }
+
+        [Fact]
         public void CE3047_WhereNoIngressRuns_TheUnitSimplyHasNoBehaviour()
         {
             var (world, _, e) = Spawn(registerStartEvent: false);   // a host without the start event: no throw, no stamp

@@ -11,7 +11,8 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///
     /// <para><b>Systems registered (in order):</b></para>
     /// <list type="bullet">
-    ///   <item><b>Input phase</b>: none (diagnostics moved to BehaviorDiagnosticsModule).</item>
+    ///   <item><b>Input phase</b>: <see cref="RecentSensesSystem"/> (<c>CE-2076</c>) — records last frame's
+    ///     <c>SensorChangedEvent</c>s so the brains see them this frame.</item>
     ///   <item><b>Simulation phase</b>:
     ///     <list type="number">
     ///       <item><see cref="ChannelArbitrationSystem"/> — clears stale channels on behavior change</item>
@@ -30,7 +31,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     {
         private readonly BehaviorRegistry _registry;
 
-        /// <summary>Systems that run in the Input phase (Behavior diagnostics ingress).</summary>
+        /// <summary>Systems that run in the Input phase (<see cref="RecentSensesSystem"/>).</summary>
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
         /// <summary>Systems that run in the Simulation phase.</summary>
@@ -54,10 +55,11 @@ namespace Fdp.Toolkit.Behavior.Modules
         public CognitiveRuntimeModule(BehaviorRegistry registry, bool gateOnAuthority = false)
         {
             _registry = registry;
-            InputSystems = System.Array.Empty<IEcsModuleSystem>();
+            // ⭐ CE-2076 — the unit's recent sensing changes, recorded in Input so every brain tick of this frame sees them.
+            //   ⚠ Input, not first in Simulation: rails index SimulationSystems by position.
+            InputSystems = new IEcsModuleSystem[] { new RecentSensesSystem() };
             SimulationSystems = new IEcsModuleSystem[]
             {
-                new RecentSensesSystem(),                        // ⭐ CE-2076 — last frame's sensing changes, before any brain reads them
                 new ChannelArbitrationSystem(gateOnAuthority),
                 new CognitiveInterruptSystem(gateOnAuthority),   // BHU-008: before HSM/BTree ticks
                 // ⭐⭐⭐ O7c-④b (2026-09-23) — ONE BRAIN TICK, TWO ARMS. 📄 §31.14 / §31.16.

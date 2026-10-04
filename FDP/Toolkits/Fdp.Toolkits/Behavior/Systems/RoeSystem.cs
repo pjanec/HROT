@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// at least that of whoever set it; the TKB default (<see cref="BehaviorOrigin.Unmarked"/>) yields to anyone.
     /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.4.
     /// </summary>
+    [UpdateInPhase(SystemPhase.Input)]
     public sealed class RoeSystem : IEcsModuleSystem
     {
         /// <summary>Refused changes since this system was built (a test / diagnostics probe).</summary>

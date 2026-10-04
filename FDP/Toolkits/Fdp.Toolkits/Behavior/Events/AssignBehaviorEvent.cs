@@ -29,5 +29,7 @@ namespace Fdp.Toolkit.Behavior.Events
         public string JsonParams = string.Empty;
         /// <summary>⭐ <c>CE-3034</c> — who asks (R-188/R-193); unmarked reads as Operator.</summary>
         public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
+        /// <summary>⭐ <c>CE-2078</c> — for <c>Origin = Reaction</c>: how urgent (R-199 ③).</summary>
+        public Fdp.Toolkit.Behavior.Components.ReactionUrgency Urgency;
     }
 }

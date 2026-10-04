@@ -96,6 +96,9 @@ namespace Fdp.Core
         /// </summary>
         public bool IsRegistered<T>() where T : unmanaged => _nativeStreams.ContainsKey(EventType<T>.Id);
 
+        /// <summary>⭐ <c>CE-3035</c> — the managed twin of <see cref="IsRegistered{T}"/>.</summary>
+        public bool IsRegisteredManaged<T>() => _managedStreams.ContainsKey(GetManagedTypeId<T>());
+
         /// <summary>
         /// Checks if a managed event of type T exists in the current frame.
         /// </summary>

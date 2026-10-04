@@ -32,6 +32,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
             world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
+            world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
             world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
@@ -97,6 +98,8 @@ namespace Hrot.SimHost
             world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterEvent<SetRoeEvent>();        // CE-2074
+            world.RegisterEvent<ClearSopEvent>();      // CE-3035
+            world.RegisterManagedEvent<AssignSopEvent>();   // CE-3035
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
 

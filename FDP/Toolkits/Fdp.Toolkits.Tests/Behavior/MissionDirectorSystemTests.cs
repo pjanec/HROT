@@ -398,6 +398,20 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
+        public void CE2078_AReactionsFinish_DoesNotAdvanceTheMission()
+        {
+            // ⭐ CE-2078 (R-199) — a reaction that paused the phase's task ends; the TASK restarts, the mission waits for IT.
+            SetDeltaTime(Dt60Hz);
+            var entity = CreateBehaviorFinishedEntity(1150);
+
+            _world.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = NodeStatus.Success, Origin = BehaviorOrigin.Reaction });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, Dt60Hz);
+
+            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(entity).CurrentPhase);
+        }
+
+        [Fact]
         public void BehaviorFinishedTrigger_MultiPhase_SetsNextBehavior()
         {
             SetDeltaTime(Dt60Hz);
