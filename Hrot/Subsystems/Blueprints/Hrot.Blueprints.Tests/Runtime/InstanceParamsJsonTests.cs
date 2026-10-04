@@ -70,12 +70,12 @@ public sealed unsafe class InstanceParamsJsonTests
         // Two fields changed ⇒ exactly those two, by name.
         var src = world.CreateEntity();
         var attached = BlueprintInstanceService.AttachToEntity(
-            world, fixture.Registry, bpId, src, "{\"Speed\":7.5,\"Offset\":{\"X\":1,\"Y\":2,\"Z\":3}}");
+            world, fixture.Registry, bpId, src, "{\"Speed\":7.5,\"Offset\":[1,2,3]}");
         Assert.True(attached.Status == BlueprintAttachStatus.Attached, attached.Message);
         var formatted = JsonNode.Parse(Format(world, src, def)!)!.AsObject();
         Assert.Equal(new[] { "Speed", "Offset" }, PropertyNames(formatted));
         Assert.Equal(7.5f, (float)formatted["Speed"]!);
-        Assert.Equal(2f, (float)formatted["Offset"]!["Y"]!);
+        Assert.Equal(2f, (float)formatted["Offset"]![1]!);   // the canonical Vector3 wire shape is an array
 
         // Save → reload through the scenario translator and materialization: the same params, by construction.
         var translator = new BlueprintStateTranslator(fixture.Registry);
