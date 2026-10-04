@@ -84,6 +84,7 @@ namespace Hrot.Network.NED.SimHost
                     TargetEntityId = networkId,
                     IntentId       = evt.IntentId,
                     JsonParams     = evt.JsonParams,
+                    Origin         = (byte)evt.Origin,   // ⭐ CE-3034 — the origin crosses the wire
                 });
                 SentSampleCount++;
             }

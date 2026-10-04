@@ -46,6 +46,9 @@ namespace Fdp.Toolkit.Behavior.Components
         public int ActiveBehaviorHash;
         public uint InstanceId; // Preemption token
         public byte BrainTier;
+        /// <summary>⭐ <c>CE-3034</c> — who started the running behaviour (<see cref="BehaviorOrigin"/>); the gate in
+        /// <c>BehaviorIngressSystem</c> refuses a lower-ranked replacement. <see cref="BehaviorOrigin.Unmarked"/> when empty.</summary>
+        public BehaviorOrigin Origin;
     }
 
     [StructLayout(LayoutKind.Sequential)]

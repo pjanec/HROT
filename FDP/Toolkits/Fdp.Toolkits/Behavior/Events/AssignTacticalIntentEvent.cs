@@ -40,5 +40,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// Empty string is valid when the intent carries no configurable parameters.
         /// </summary>
         public string JsonParams = string.Empty;
+        /// <summary>⭐ <c>CE-3034</c> — who asks; carried onto the behaviour the intent resolves to and over DDS.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
     }
 }

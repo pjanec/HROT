@@ -785,25 +785,27 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
                     Y = __t16
                 };
                 var __t18 = global::System.Text.Json.JsonSerializer.Serialize(__t17, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                var __t19 = "MoveToLocation";
+                var __t19 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
+                var __t20 = "MoveToLocation";
                 ((global::Fdp.Core.EntityRepository)view).Bus.PublishManaged(new global::Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
                 {
                     Entity = __t4,
-                    IntentId = __t19,
-                    JsonParams = __t18
+                    IntentId = __t20,
+                    JsonParams = __t18,
+                    Origin = __t19
                 });
-                var __t21 = true;
-                var __t20 = false;
+                var __t22 = true;
+                var __t21 = false;
                 {
                     var __lws7 = (global::System.Span<bool>)__bb.St.BaselineReserved.Items;
                     int __lwc7 = global::System.Math.Min(__bb.St.BaselineReserved.Count, 16);
                     if ((uint)__t6 < (uint)__lwc7)
                     {
-                        __lws7[__t6] = __t21;
-                        __t20 = true;
+                        __lws7[__t6] = __t22;
+                        __t21 = true;
                     }
                 }
-                _ = __t20;
+                _ = __t21;
             }
         }
         return;
@@ -1263,20 +1265,22 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
                         TargetNetworkId = __t86
                     };
                     var __t88 = global::System.Text.Json.JsonSerializer.Serialize(__t87, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                    var __t89 = "HullDownAttack";
+                    var __t89 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
+                    var __t90 = "HullDownAttack";
                     ((global::Fdp.Core.EntityRepository)view).Bus.PublishManaged(new global::Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
                     {
                         Entity = __t14,
-                        IntentId = __t89,
-                        JsonParams = __t88
+                        IntentId = __t90,
+                        JsonParams = __t88,
+                        Origin = __t89
                     });
                 }
             }
         }
-        var __t90 = 1;
-        var __t91 = __bb.St.Wave;
-        var __t92 = __t90 - __t91;
-        __bb.St.Wave = __t92;
+        var __t91 = 1;
+        var __t92 = __bb.St.Wave;
+        var __t93 = __t91 - __t92;
+        __bb.St.Wave = __t93;
         return;
         
     }

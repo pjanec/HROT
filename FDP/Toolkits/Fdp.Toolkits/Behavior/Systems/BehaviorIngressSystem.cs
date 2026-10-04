@@ -107,7 +107,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId)) continue;
                 if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
 
-                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams)) continue;
+                // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
+                if (!Admit(repo, evt.Entity, evt.Origin)) continue;
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin)) continue;
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
 
@@ -119,6 +121,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
+                if (!Admit(repo, evt.Entity, evt.Origin)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
                 Clear(repo, evt.Entity, _registry);
             }
 
@@ -140,11 +143,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
                 if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
                     continue;
+                if (!Admit(repo, evt.Entity, evt.Origin)) continue;   // ⭐ CE-3034
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
                     && _registry.TryGetName(evt.BehaviorHash, out var name))
                 {
                     // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
-                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash));
+                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin);
                     continue;
                 }
 
@@ -162,9 +166,30 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
                 BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
                 ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unchecked { unhosted.InstanceId++; }
             }
+        }
+
+        /// <summary>⭐ <c>CE-3034</c> — refusals by the gate since this system was built (a test / diagnostics probe).</summary>
+        public int RefusedCount { get; private set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3034</c> — THE ONE GATE (R-188, <c>DESIGN_Sensors_And_Doctrine.md</c> §6): may an assign / clear of
+        /// <paramref name="origin"/> replace what <paramref name="entity"/> runs? Rule in <see cref="BehaviorOriginRank.Admits"/>.
+        /// ⚠ The INTERNAL finish (<c>BrainTickSystem</c> → <see cref="Clear"/>) is not gated — a behaviour ending never needs
+        /// permission. A refusal is counted and logged; it never throws.
+        /// </summary>
+        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            if (BehaviorOriginRank.Admits(origin, running)) return true;
+            RefusedCount++;
+            Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                "[BehaviorIngress] refused {0} assignment for entity #{1}: it runs behaviour {2} at {3}.",
+                origin, entity.Index, running.ActiveBehaviorHash, running.Origin);
+            return false;
         }
 
         /// <summary>
@@ -203,7 +228,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
         private unsafe bool Start(
-            EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json)
+            EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json,
+            BehaviorOrigin origin)
         {
             // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
             // Strategy: parse into stack memory and commit only on success, so a ParseParams
@@ -294,6 +320,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
             BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+            // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
+            behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
             unchecked { behavior.InstanceId++; }
@@ -1050,6 +1078,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             behavior.ActiveBehaviorHash = BehaviorIds.None;
             unchecked { behavior.InstanceId++; }
             behavior.BrainTier = 0;
+            behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
 
             // ⭐ CE-452: no behaviour ⇒ nothing to restart.
             if (repo.HasManagedComponent<BehaviorStartRecord>(entity))

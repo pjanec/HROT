@@ -32,5 +32,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// to assign to the entity.
         /// </summary>
         public int BehaviorHash;
+        /// <summary>⭐ <c>CE-3034</c> — who asks (the mission director stamps Superior); unmarked reads as Operator.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
     }
 }

@@ -368,7 +368,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 return false;
             }
 
-            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = name!, JsonParams = json ?? "{}" });
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = name!, JsonParams = json ?? "{}",
+                Origin = BehaviorOrigin.Self });   // ⭐ CE-3034 — a restart of the same run keeps its origin
             _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash, true);
             _reloadLog.OnHardReset(behavior.ActiveBehaviorHash, entity,
                 known ? started.Layout : 0UL, def.BlueprintStructureHash);

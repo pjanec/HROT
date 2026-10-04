@@ -24,5 +24,7 @@ namespace Fdp.Toolkit.Behavior.Events
     {
         /// <summary>The entity whose behavior should be cleared.</summary>
         public Entity Entity;
+        /// <summary>⭐ <c>CE-3034</c> — who asks; a clear is gated like an assign (a behaviour ending itself is Self). Unmarked reads as Operator.</summary>
+        public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
     }
 }

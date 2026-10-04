@@ -2101,6 +2101,19 @@ internal sealed class GraphScheduler
                 var dto  = LowerMakeDto(sin.Id, sin.DtoTypeFqn, sin.Fields, sin.Pins, stmts, Guid.Empty);
                 var json = AllocValue(Stage5_Schedule.StringType);
                 stmts.Add(new IrStatement { ResultValue = json, Operation = new IrOp_ToJson(dto), Debug = DebugOf(node) });
+                // ⭐ CE-3034 (R-193) — the intent's ORIGIN: to SELF (no Target link) a behaviour re-assigns itself ⇒ Self (keeps
+                //   its running origin); to another unit it is a commander's order ⇒ Superior. ⚠ A Target wired back to self
+                //   reads as Superior — the gate then compares it with the unit's own origin.
+                var originType = new IrTypeRef { FullName = "Fdp.Toolkit.Behavior.Components.BehaviorOrigin", IsUnmanaged = true, SizeBytes = 1 };
+                var origin = AllocValue(originType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = origin,
+                    Operation   = new IrOp_Const(targetLink is null
+                        ? "global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self"
+                        : "global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior", originType),
+                    Debug       = DebugOf(node),
+                });
                 var intentId = AllocValue(Stage5_Schedule.StringType);
                 stmts.Add(new IrStatement
                 {
@@ -2116,6 +2129,7 @@ internal sealed class GraphScheduler
                             (intentEntry.TargetFieldName ?? "Entity", target),
                             ("IntentId", intentId),
                             ("JsonParams", json),
+                            ("Origin", origin),
                         },
                         Managed: true),
                     Debug = DebugOf(node),

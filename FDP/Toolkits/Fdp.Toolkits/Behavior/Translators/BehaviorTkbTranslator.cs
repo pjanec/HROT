@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Blueprints.Partitioning;
 
@@ -75,12 +76,28 @@ namespace Fdp.Toolkit.Behavior.Translators
             // Always stamped when a BehaviorProfileDto is present so that SpawnEntity
             // can unconditionally read/write BehaviorState regardless of brain tier.
             if (repo.IsComponentTypeRegistered<BehaviorState>() && !repo.HasComponent<BehaviorState>(entity))
+            {
+                // ⭐⭐ CE-3047 — the default behaviour STARTS THROUGH THE INGRESS, never stamped. 🔴 It used to write
+                //   ActiveBehaviorHash here directly: a BTree default with params threw on its first tick (no root params
+                //   slot), an HSM default never ran (no instance), and nothing recorded what it was started with. ⇒ the
+                //   slot starts EMPTY and the ingress starts the default next frame like any other assignment — params
+                //   parsed, HSM initialised, start record written — at origin Sop, the lowest rank (CE-3034), so a mission
+                //   or an order published in the same frame wins. 📄 docs/DESIGN_Sensors_And_Doctrine.md §9 V5.
+                //   ⚠ Only where the start event is registered (the hosts that run the ingress); elsewhere the unit has no
+                //   running behaviour — nothing ticks it there anyway (BrainTickSystem skips a hash it cannot run).
                 repo.AddComponent(entity, new BehaviorState
                 {
-                    ActiveBehaviorHash = dto.DefaultBehaviorHash,
-                    BrainTier          = dto.BrainTier,
-                    InstanceId         = 1
+                    BrainTier  = dto.BrainTier,
+                    InstanceId = 1
                 });
+                if (dto.DefaultBehaviorHash != BehaviorIds.None && repo.Bus.IsRegistered<AssignBehaviorHashEvent>())
+                    repo.Bus.Publish(new AssignBehaviorHashEvent
+                    {
+                        Entity       = entity,
+                        BehaviorHash = dto.DefaultBehaviorHash,
+                        Origin       = BehaviorOrigin.Sop,
+                    });
+            }
 
             // ── LocomotionChannel: all moveable entities (including tier-0 civilians
             //    driven by TrafficBrainSystem) need a locomotion channel so the system
@@ -131,7 +148,8 @@ namespace Fdp.Toolkit.Behavior.Translators
                 //   🔒 "Before moving ANY state into an occurrence slot, name what will PROVISION the
                 //   slot and what will WRITE its contents." The writer is BTreeTickSystem; the
                 //   provisioner is THIS site at spawn and BehaviorIngressSystem on every assign after.
-                RootStateAccess.EnsureRootState(repo, entity, dto.DefaultBehaviorHash);
+                // ⛔ CE-3047: no longer provisioned here — the default behaviour now starts through the ingress, whose start
+                //   pipeline attaches the root state (and params, and HSM instance) like every other start.
             }
             // ⛔⛔ O7c-④d (2026-09-23) — THE HSM ARM IS GONE, AND IT HAS NO SLOT-BASED REPLACEMENT.
             //   📄 §31.15.1 measured why, and the answer is that the arm PROVISIONED NOTHING USABLE:

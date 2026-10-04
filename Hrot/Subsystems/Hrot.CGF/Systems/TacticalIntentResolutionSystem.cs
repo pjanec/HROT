@@ -125,6 +125,8 @@ namespace Hrot.CGF.Systems
                     };
                 }
 
+                // ⭐ CE-3034 — the behaviour carries the intent's origin, whichever path built the assignment.
+                behaviorEvent.Origin = evt.Origin;
                 repo.Bus.PublishManaged(behaviorEvent);
             }
         }

@@ -81,7 +81,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Entity     = subordinate,
                 IntentId   = intentId,
-                JsonParams = string.Empty
+                JsonParams = string.Empty,
+                Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a commander (R-193)
             });
 
             return NodeStatus.Success;
