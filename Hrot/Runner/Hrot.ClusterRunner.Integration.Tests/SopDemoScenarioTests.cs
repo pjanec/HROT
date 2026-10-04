@@ -24,7 +24,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class SopDemoScenarioTests : IDisposable
 {
-    private const int DomainBase = 236;
+    private const int DomainBase = 227;   // CycloneDDS accepts 0–232; 227 is unused by every other rail (grep, 2026-10-04; 220–226 is ExternalHostConformance)
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7); next CE-2082 (demo scenario). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -715,6 +715,34 @@ hold fire withdraws instead of taking up a firing position" is expressed, with n
 
 Rails: `BasicInfantrySopTests` (SimHost, the production registry through the real ingress + brain: idles with no order; a
 hit pauses the task with cover, the task restarts, the same hit does not fire again; HoldFire withdraws, otherwise cover).
+
+### 4.8 The demo scenario — `CE-2082` *(build-state: BUILT, `2026-10-04`; user: "pls add the demo SOP scenario to the plan")*
+
+`Hrot.AI.Behaviors/Recipes/Scenarios/sop-demo/scenario.json` — a shipped scenario recipe (offered by the editor's New
+Scenario picker like `basic-desert`). Five `InfantrySoldier` (TKB 2002) units; every unit's task, SOP and ROE come from the
+scenario's snapshot keys (`CE-3042`), nothing from new templates:
+
+```mermaid
+graph LR
+  HA["Hostile A — mission: FireAtTarget(Squad A)"] -- real fire --> SA["Squad A — task MoveToLocation · SOP BasicInfantrySop"]
+  HB["Hostile B — mission: FireAtTarget(Squad B)"] -- real fire --> SB["Squad B — same + ROE Reactions = StayOnTask"]
+  C["Unit C — SOP only"]
+  SA -. "hit ⇒ React(cover) pauses the move, the move restarts" .-> SA
+  SB -. "hit ⇒ refused by the gate, keeps moving" .-> SB
+  C -. "no order ⇒ Do when idle(Idle)" .-> C
+```
+
+*What the picture shows that prose hid: the two squads are IDENTICAL except for one ROE field — the demo isolates the one
+rule (R-199 ②) that decides whether a reaction may pause a task.*
+
+| | |
+|---|---|
+| ⭐ sequenced AFTER `CE-3042`, not before (the plan had it first) | the demo needs per-unit task, SOP and ROE in the file, and only the snapshot carries them (all three components are `NoScenario`) |
+| ⭐ the hit is REAL | `FireAtTarget` → SimHost ballistics + damage → CGF health → `ThreatEvaluationSystem` publishes `SensorChangedEvent{Hit}` → `RecentSenses` → the SOP row (`SensedFresh`) |
+| ⚠ measured: entity names must be short ASCII | names with an em dash overflowed a fixed-size string encoder on the live load (`ArgumentException … output byte buffer is too small`) |
+
+Rail: `SopDemoScenarioTests` (live cluster `simhost,ig,excon,cgf`, DDS domain 227): C idles via its SOP · A takes cover with
+the move paused · B is hit and never reacts — red-proved (B without its ROE reacts; A without its SOP never covers).
 
 ## ⛔ HISTORY
 

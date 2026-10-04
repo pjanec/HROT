@@ -33,7 +33,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Hostile A (fires at squad A)",
+        "Name": "Hostile A",
         "ForceId": "Hostile"
       },
       "TargetMemory": {
@@ -93,7 +93,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Squad A — reacts (SOP)",
+        "Name": "Squad A",
         "ForceId": "Friend"
       },
       "TargetMemory": {
@@ -144,7 +144,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Hostile B (fires at squad B)",
+        "Name": "Hostile B",
         "ForceId": "Hostile"
       },
       "TargetMemory": {
@@ -204,7 +204,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Squad B — ROE: stay on task",
+        "Name": "Squad B",
         "ForceId": "Friend"
       },
       "TargetMemory": {
@@ -260,7 +260,7 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Unit C — no order: the SOP idles it",
+        "Name": "Unit C",
         "ForceId": "Friend"
       },
       "TargetMemory": {
