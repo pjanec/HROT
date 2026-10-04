@@ -37,6 +37,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new BTreeTraceWorkingMemoryTranslator(behaviorRegistry))
                 .RegisterTranslator(new HsmTraceWorkingMemoryTranslator(behaviorRegistry))
                 .RegisterTranslator(new BlueprintStateTranslator(blueprintRegistry))
+                .RegisterTranslator(new BrainSnapshotTranslator(behaviorRegistry))   // ⭐ CE-3042 — the unit's AI as a snapshot (R-192)
                 .RegisterTranslator(new DisEntityTypeTranslator());
 
             return builder.Build();

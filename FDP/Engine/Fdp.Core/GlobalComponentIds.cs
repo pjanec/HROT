@@ -629,5 +629,9 @@
         /// <summary><c>PausedTask</c> (managed) — the task a running reaction paused, restarted when it ends (<c>CE-2078</c>,
         /// R-199); 315 is free by the same census (grep of every <c>*Ids*.cs</c> and literal <c>[ComponentId(315)]</c>, <c>2026-10-04</c>).</summary>
         public const int PausedTask = 315;
+
+        /// <summary><c>InitialBrainIntent</c> (managed, transient) — a unit's AI as the scenario saved it, started through the
+        /// ingress at load (<c>CE-3042</c>, R-192); 316 is free by the same census (<c>2026-10-04</c>).</summary>
+        public const int InitialBrainIntent = 316;
     }
 }

@@ -710,6 +710,40 @@ started exactly as if the author had just assigned it, so nothing restored can s
 | ✅ **params in a scenario are JSON, never bytes — R-191** (🔒 *"The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes to scenario."*) | every params value in a scenario — doctrine, behaviour, instance blueprint — is a JSON object keyed by parameter NAME, holding only fields that differ from the declared defaults. ⭐ Load = the existing emitted `ParseParams` (defaults first, then the object overlaid by name; unknown keys ignored — `InstanceEmitter.cs:436-488`) into the blueprint's generated `Params` struct (`InstanceEmitter.cs:369`). ⭐ Save = a NEW emitted inverse `FormatParams(memory) → json` beside it (V9 resolved). ⇒ the `ParamsStructureHash` guard is no longer needed — a renamed or re-laid-out field degrades by name, not by byte offset. ⛔ SUPERSEDES the byte decision of Param Persistence §3 (AQ61) — 🔒 *"Bytes can not be easily migrated on json level. The previous decision must have been wrong."*: a byte region is readable only while the layout is unchanged, and the hash guard turns ANY layout change into losing every authored value; JSON by name loses only the changed field. ⭐ No legacy reader: no scenario in the repo carries byte params (measured) |
 | ⭐ one params FORM for all three rows | it always produces JSON — the same JSON the scenario stores (R-191) |
 
+⭐ **AS-BUILT `CE-3042` (`2026-10-04`)** — the diagrams above hold with three deviations, each argued:
+
+```mermaid
+classDiagram
+  direction LR
+  class BrainSnapshotTranslator {
+    <<NEW, Hrot.SimHost/Serializers — ONE class>>
+    keys "Behavior" · "Sop" · "Roe"
+    +Extract() only what an ORDER set
+    +Inject() InitialBrainIntent
+  }
+  class InitialBrainIntent { <<NEW, Fdp.Toolkits, Transient, id 316>> +Behavior +Sop : SavedBrainSlot +Roe : SavedRoe }
+  class SavedBrainSlot { +Name +Params JSON +Origin }
+  class InitialBrainMaterializationSystem { <<NEW, Input, registered beside GenesisMaterializationSystem on CGF · Editor · SimHost · Stride>> }
+  class MissionAdapterSystem { <<existing, CHANGED>> an EMPTY queue is no plan }
+  BrainSnapshotTranslator ..> InitialBrainIntent : on load
+  InitialBrainIntent *-- SavedBrainSlot
+  InitialBrainMaterializationSystem ..> InitialBrainIntent : AssignBehaviorEvent · AssignSopEvent · SetRoeEvent at the SAVED origin
+```
+
+*What the picture shows that prose hid: the snapshot never touches a runtime component on load — it becomes the three events an
+author would have published, so the gate (and the template defaults it outranks) decides, in whatever order they arrive.*
+
+| deviation from the design above | why |
+|---|---|
+| ⭐ ONE translator, three keys (`Behavior`, `Sop`, `Roe`) — not one class registered per slot | the ROE (R-200) joined the snapshot after this section was written; three keys of one unit's AI read best together and the rules differ per key anyway |
+| ⭐ "differs from the TKB default" is read from the **ORIGIN**, with no template lookup | a template default starts at origin Sop (behaviour `CE-3047`, SOP `CE-2077`) and a template ROE has `SetBy = Unmarked` ⇒ exactly what an order set carries a higher origin. ⚠ a SOP's idle choice is origin Sop too ⇒ correctly not saved (the SOP chooses again) |
+| ⭐ the task slot's special cases | a running **reaction** saves the task it PAUSED · a slot a **mission plan** drives is not saved (`MissionPlanTranslator` saves the plan) · a behaviour **stamped** directly (origin Unmarked, e.g. a fixture or `UrbanCombat` writing it at spawn) saves as **Superior** — the scenario's own rank |
+| 🔴 **`MissionAdapterSystem`: an EMPTY `MissionPlanQueue` is NO plan** (cross-lane edit, backend's `CE-502` finding) | every TKB unit gets an empty queue, and the adapter read it as exhausted ⇒ one Superior clear per unit on its first frame, wiping the template default AND a restored order (the ingress takes same-frame assigns before clears). A plan that ran out (`PhaseCount > 0`) still clears; an abort publishes its own clear |
+
+Rails: `BrainSnapshotTranslatorTests` (production serializer + registry: an ordered unit round-trips task / SOP / ROE at their
+origins and no hash or run token reaches the file; template / SOP choices are not saved; a reaction saves its paused task; a
+plan-driven slot is not saved) · `MissionAdapterSystemTests.CE3042_*` — all red-proved.
+
 ⛔ **Rejected:** the authored `AiAssignment` (R-190 — a second concept beside the snapshot; the editor would keep two
 things in sync) · saving the raw `BehaviorState` / `DoctrineState` (a run token, no params, no start on load) · saving
 behaviour progress (needs a stable on-disk format for internal state) · a per-entity TKB override file (a second

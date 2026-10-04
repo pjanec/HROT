@@ -451,6 +451,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // component data during scenario load. Runs in the Input phase.
         context.Kernel.RegisterGlobalSystem(
             new GenesisMaterializationSystem(context.EntityMap));
+        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());   // ⭐ CE-3042 — drops the intent here (no brain)
 
         // NetworkSpawningSystem handles incoming entity creation requests from the
         // network (CGF/Brain node). Only wired when an ID allocator is available;

@@ -589,6 +589,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // GenesisMaterializationSystem - Input phase, registered after togglable groups
         context.Kernel.RegisterGlobalSystem(
             new GenesisMaterializationSystem(context.EntityMap));
+        // ⭐ CE-3042 — saved AI → the ingress; publishes only where the brain's events are registered, always drops the intent.
+        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());
     }
 
     /// <inheritdoc/>

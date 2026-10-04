@@ -1759,6 +1759,7 @@ namespace Hrot.Editor
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
+            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
             // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)
             // is consumed in the offline editor just as it is on a CGF node.

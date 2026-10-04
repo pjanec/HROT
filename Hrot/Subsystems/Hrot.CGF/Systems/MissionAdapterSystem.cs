@@ -55,6 +55,13 @@ namespace Hrot.CGF.Systems
                 ref var adapterState = ref repo.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
                 var activePlan = repo.GetComponent<ActiveMissionPlan>(entity);
 
+                // ⭐⭐ CE-3042 (backend's CE-502 finding) — an EMPTY queue is NO plan, not an exhausted one. 🔴 Every TKB unit gets
+                //   an empty MissionPlanQueue (BehaviorTkbTranslator), so this used to publish one Superior clear per unit on its
+                //   first frame — wiping the template's default behaviour (CE-3047) and a scenario-restored order alike (the
+                //   ingress takes the same frame's assigns BEFORE its clears). ⭐ A plan that ran out still clears (PhaseCount > 0);
+                //   an abort publishes its own clear (MissionControlExecutionSystem CMD_ABORT_ALL).
+                if (queue.PhaseCount == 0) continue;
+
                 // Detect exhaustion: publish ClearBehaviorEvent once, then cache so that
                 // re-committing the same mission from phase 0 is correctly detected.
                 if (queue.CurrentPhase >= queue.PhaseCount)

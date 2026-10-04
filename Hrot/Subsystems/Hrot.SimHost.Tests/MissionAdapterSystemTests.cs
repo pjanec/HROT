@@ -83,6 +83,26 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(behaviorEvents);
         }
 
+        // -- ⭐ CE-3042 — an EMPTY queue is no plan: nothing is cleared; a plan that RAN OUT still clears ----------
+
+        [Theory]
+        [InlineData(0, 0, false)]   // every TKB unit's queue — must not wipe its default / restored behaviour
+        [InlineData(1, 1, true)]    // exhausted
+        public void CE3042_OnlyAnExhaustedPlan_ClearsTheBehaviour(int phaseCount, int currentPhase, bool clears)
+        {
+            using var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new MissionPlanQueue { PhaseCount = (byte)phaseCount, CurrentPhase = (byte)currentPhase });
+            repo.AddComponent(entity, new BehaviorState());
+
+            new MissionAdapterSystem().Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+
+            bool cleared = false;
+            foreach (var e in repo.Bus.Read<ClearBehaviorEvent>()) cleared |= e.Entity == entity;
+            Assert.Equal(clears, cleared);
+        }
+
         // -- SC-3: empty BehaviorId -> no event published ----------------------
 
         /// <summary>
