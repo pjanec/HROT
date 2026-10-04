@@ -534,7 +534,7 @@ internal static class InstanceEmitter
         e.WriteLine("public static readonly string[] ParamNames = { "
                   + string.Join(", ", asset.Parameters.Select(f => $"\"{f.Name}\"")) + " };");
         e.WriteLine();
-        e.WriteLine("public static unsafe string? FormatParams(byte* memory, int capacity)");
+        e.WriteLine("public static unsafe string FormatParams(byte* memory, int capacity)");  // ⚠ generated code has no #nullable context
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("if (capacity < sizeof(Params))");
