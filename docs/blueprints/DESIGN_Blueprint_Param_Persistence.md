@@ -255,3 +255,20 @@ sequenceDiagram
 | ⭐ unknown key ⇒ warned and dropped, never an error | a renamed field loses ONLY itself (the reason R-191 exists); the other fields load |
 | ⛔ no legacy reader | no scenario in the repo carries byte params (measured `2026-10-04`) |
 | ⏳ behaviours / doctrines | the snapshot (`CE-3042`) reuses `FormatParamsDelegate` for their start record |
+
+### 10.1 As-built `2026-10-04` *(`CE-3044`)*
+
+⭐ §10's two diagrams hold as built. What the build added:
+
+| finding | |
+|---|---|
+| ⭐ the generated `FormatParams` returns `string`, the delegate `string?` | generated code has no `#nullable` context (`CS8669` in `Hrot.AI.Behaviors`'s generated sources) |
+| ⭐ a `Vector3` param is the canonical ARRAY `[x, y, z]`, a fixed list a plain array | `FdpJsonOptionsRegistry.DefaultRelaxed`'s converters — the same options `ParseParams` reads with, so the round-trip is exact |
+| ⭐ the one-supply-path rail (`InstanceParamsSeamTests.ExactlyOneParameterSupplyPathExists`) excludes `FormatParams` | it READS the region; it is pinned to the shared `FormatParamsDelegate` instead |
+| ⭐ goldens: 3 emit snapshots, +95 / −0 | purely additive — `FormatParams` + `ParamNames` beside each `ParseParams` |
+
+| gate | result |
+|---|---|
+| new rails | `InstanceParamsJsonTests` (compiled blueprint: only non-default fields by name, save → reload identical) · ClusterRunner `ParamPersistence_*` ×3 (non-default survives as JSON · a default assignment reloads with the DECLARED defaults · a renamed field keeps its default, the others load) |
+| Toolkits · SimHost · Blueprints · Editor | 2626/0 · 1083/0 · 4130/0 · 463/0 |
+| ClusterRunner `--filter Blueprint` | 22/0 |
