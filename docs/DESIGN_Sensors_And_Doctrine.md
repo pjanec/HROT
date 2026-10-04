@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.5–7.6 (wall-clock budget bands, QueryTimeSliced) — superseded by §5.3 here (cost-unit budget) once step S4 lands; that doc gets the SUPERSEDED marker in the same change.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine + origin rulings A–G (R-188, R-189) this design builds.
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the sensor form, the split (§17.2), the reader API (§8), the terrain slice (§19).
@@ -571,7 +572,7 @@ The test applied: a squad rifleman and a tank, autonomous, on a mission, under f
 | # | 🔒 user | ⇒ |
 |---|---|---|
 | G1 | *"tank seems a bigger threat even if seen briefly because it is more dangerous (hidden does not mean harmless), maybe it just a matter of how long it takes to forget"* | ⛔ the confidence/danger lean above is REWORDED: danger = WHAT it is (does not fade); FRESHNESS = how current my knowledge is (fades). The memory stage (S4) keeps room for freshness; judging danger is the decision layer's |
-| G2 | *"Maybe mission should include doctrine, not just tasks? Mission triggers seems to be what doctrine may be replacing."* | ⛔ the "Goal mode" lean above is WITHDRAWN: a mission phase may name a doctrine (+ params), the trigger changes it, the doctrine reacts inside the phase |
+| G2 | *"Maybe mission should include doctrine, not just tasks? Mission triggers seems to be what doctrine may be replacing."* (⛔ refined `2026-10-04`: ONE doctrine per MISSION, replacing the triggers — not per phase; [`DESIGN_Decision_Layer.md`](DESIGN_Decision_Layer.md) §2) | ⛔ the "Goal mode" lean above is WITHDRAWN: a mission phase may name a doctrine (+ params), the trigger changes it, the doctrine reacts inside the phase |
 | G2b | *"at 5hz couldnt doctrine miss some events, are events buffered?"* | yes it would — bus events live one frame (`FdpEventBus.cs:30`) ⇒ wake-on-event is mandatory with G5 |
 | hand-over | *"Maybe we should handoff all this discussion to the behavior lane, and here start the eqs rework"* · *"Agreed, write the frame and start S0"* | ⭐ G1–G11 + the approved doctrine/origin build (`CE-3034/3035/3040/3041/3042/3047/3048`) → behaviors lane: [`FRAME_Decision_Layer.md`](blueprints/batches/FRAME_Decision_Layer.md). Backend keeps the sensor side: S0, S3, S4, S5, `CE-3045`, `CE-3046`, `CE-3049`, `CE-3044` |
 
