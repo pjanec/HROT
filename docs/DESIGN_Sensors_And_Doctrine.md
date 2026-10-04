@@ -642,7 +642,7 @@ authoring place).
 | **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, behaviour row, instance-blueprint rows with ONE params form, editing LIVE state only (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
 | **S6b** | `CE-3040` | ~~`SensorChangedEvent` from its two producers~~ (built in S6, §9.5); the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
 | **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
-| S7 | later | thermal / acoustic templates | — |
+| ⏳ **S7** | `CE-3055` | thermal / acoustic sensors — ⛔ **NEEDS A DESIGN PASS before any build** (🔒 user, `2026-10-04`: *"record that S7 needs a design pass, we will return to it later"*). Measured open points: ① an OLDER acoustic pipeline already exists — `AudioStimulusEvent` → `AudioPerceptionSystem` → heard event → NED `AudioTargetDetected` (SimHost egress → IG ingress); it runs only in the FDP UrbanCombat examples and NOTHING in production publishes `AudioStimulusEvent` ⇒ fold it into the sensor form or replace it (ruling 9 — the S5 decision again, for hearing) · ② where a target's heat signature comes from (`ThermalSensorDto.MinSignature` has nothing to compare with — not yet searched) · ③ which events make sounds (weapon fire, engines) · ④ anonymous contacts (G6, behaviors lane) for shot-heard | — |
 
 ⭐ **Order:** S0 first (a live defect). S1 → S2 are independent of S3 → S6 and can run in parallel lanes.
 

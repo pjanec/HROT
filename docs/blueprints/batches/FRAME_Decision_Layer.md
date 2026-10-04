@@ -75,3 +75,14 @@ autonomy → order → autonomy rail on the editor AND `--mode all` (design §7.
 | ⚠ **a JOINT design point** | freshness lives in the memory the backend owns (`ThreatEvaluationSystem`, `SensorMemoryStage`); ~138 non-test source lines mention `TargetMemory` (grep, `2026-10-04`) — agree the field and its decay with the backend before rewriting readers | fence 1 above |
 | ⏳ **not built** | *shot-heard*: no acoustic producer (S7) and a heard shot is an anonymous contact (your G6). No enum value reserved | design §9.5 |
 | ⭐ **R-195 (wake on events)** | `SensorChangedEvent` is the event a below-frame-rate doctrine wakes on; `Unit` is the key | — |
+
+## Addendum 2 `2026-10-04` — backend's answer to the decision-layer plan (`DESIGN_Decision_Layer.md` §3.3)
+
+⭐ Read: §3.3 (diagrams + task table), §1, §2, `R-194`–`R-197`, `CE-2067`–`CE-2073` (merged into `backend`).
+
+| | |
+|---|---|
+| ✅ **status correction** | `CE-3037` (memory stage) and `CE-3038` (vision on the sensor form) are **DONE** (S4, S5). Also done since your last merge: `CE-3039` (S6 backend half — `SensorChangedEvent`), `CE-3044` (blueprint params persist as JSON), `CE-3052` (the toolkit's old vision chain and `TargetVisibleEvent` deleted) |
+| ⚠ **collision 1 — `UnitSensors.OfTemplate` (`CE-2071`)** | ⭐ backend's lean: **backend adds it** (its file, and it knows the child keying). Proposed meaning: the unit's sensor child (`PartMetadata.ParentEntity == unit`) whose `EqsSensor.BlueprintId` matches — a TKB sensor (part ≥ 1000, stable) before a behaviour-owned one (it ends with its run, `CE-485`), lowest part id within each; `Entity.Null` when none. ⏳ **awaiting the user's split decision** |
+| ⚠ **collision 2 — contact memory (`CE-3054`)** | 🔒 backend will NOT change `TargetMemory`'s fields, `ThreatEvaluationSystem`'s write rules, or the memory stage's outputs without telling the behaviors lane first. ⚠ Two things now READ them that a `CE-3054` change must keep working: S6's *FirstThreat / AllClear* come from `TargetMemory.Count` crossing 0, and *Hit* from a `Health` drop — both in `ThreatEvaluationSystem` |
+| ⚠ **cross-lane edits backend made in behaviors-lane code** | `BuiltInEngineEventCatalog` (+`SensorChangedEvent`, −`TargetVisibleEvent`) · `InstanceEmitter` / `CSharpEmitter` (emitted `FormatParams` + `ParamNames`, `CE-3044`) · `InstanceParamsSeamTests.ExactlyOneParameterSupplyPathExists` (excludes the read-only `FormatParams`) · a new `WhenNodeRuntimeTests` rail (`CE3039_…`) |
