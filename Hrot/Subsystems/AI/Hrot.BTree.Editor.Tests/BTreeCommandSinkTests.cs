@@ -885,4 +885,24 @@ public sealed class BTreeCommandSinkTests
         restoredPill.IntParam.Should().Be(1);
         restoredPill.HostNodeVisualId.Should().Be(nodeId.Value);
     }
+    /// <summary>⭐ <c>CE-2079</c> — the palette's two SOP orders create ACTION nodes carrying the order (no method binding), and
+    /// the catalogue offers them under "SOP".</summary>
+    [Theory]
+    [InlineData(BTreeKinds.SopReact, "React", Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React)]
+    [InlineData(BTreeKinds.SopDoWhenIdle, "Do when idle", Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle)]
+    public void CE2079_AddNode_SopOrder_CreatesAnActionCarryingTheOrder(string kind, string label,
+        Hrot.AiEditor.Persistence.BTree.SopOrderKindDto expected)
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(kind), Vector2.Zero, null));
+
+        var node = asset.FindNode(nodeId.Value)!;
+        node.KernelType.Should().Be(NodeType.Action);
+        node.DisplayLabel.Should().Be(label);
+        node.Action.Should().BeNull("an SOP order is not a method binding");
+        node.SopOrder!.Kind.Should().Be(expected);
+        new BTreeNodeCatalog().All.Should().Contain(e => e.Kind.Id == kind && e.CategoryPath == "SOP");
+    }
 }

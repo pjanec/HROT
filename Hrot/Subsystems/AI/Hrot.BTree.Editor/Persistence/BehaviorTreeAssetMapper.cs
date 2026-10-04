@@ -299,6 +299,14 @@ public static class BehaviorTreeAssetMapper
             condDto.Condition     = BehaviorActionBindingMapping.ToDto(node.Condition, keepWhenEmpty: true);
             condDto.DelegateShape = (BTreeDelegateShapeDto)node.DelegateShape;
         }
+        if (dto is BTreeActionNodeDto sopDto && node.SopOrder is { } order)   // ⭐ CE-2079
+        {
+            sopDto.SopOrder = new BTreeSopOrderPayloadDto
+            {
+                Kind = order.Kind, BehaviorAssetId = order.BehaviorAssetId, BehaviorName = order.BehaviorName,
+                ParamsVariable = order.ParamsVariable, Urgency = order.Urgency,
+            };
+        }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
         {
             waitDto.Wait = new BTreeWaitPayloadDto { Duration = node.Wait.Duration };
@@ -346,6 +354,14 @@ public static class BehaviorTreeAssetMapper
         {
             node.Condition     = BehaviorActionBindingMapping.FromDto(condDto.Condition, keepWhenEmpty: true);
             node.DelegateShape = (BTreeActionDelegateShape)condDto.DelegateShape;
+        }
+        if (dto is BTreeActionNodeDto { SopOrder: { } order })   // ⭐ CE-2079
+        {
+            node.SopOrder = new BTreeSopOrderPayload
+            {
+                Kind = order.Kind, BehaviorAssetId = order.BehaviorAssetId, BehaviorName = order.BehaviorName,
+                ParamsVariable = order.ParamsVariable, Urgency = order.Urgency,
+            };
         }
         if (dto is BTreeWaitNodeDto waitDto && waitDto.Wait != null)
         {

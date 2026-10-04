@@ -379,6 +379,9 @@ public static class BTreeBridgeEmitCore
         // ⭐ CE-504 C-2/C-3 — the shared param-less calls, keyed by bare FQN (the topology's NoParams key).
         EmitNoParamsThunks(sb, dto, pad2, bbShort, ctxShort, sharedAi);
 
+        // ⭐ CE-2079 — SOP orders ("Do when idle" / "React"): keyed exactly as the topology emit keys them.
+        EmitSopOrderThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+
         // HAJSON-B: Register deactivator hooks for every action/condition key that has a
         // paired [BTreeDeactivator]-annotated method.
         // Must be registered BEFORE Interpreter construction (same ordering rule as thunks).
@@ -685,6 +688,61 @@ public static class BTreeBridgeEmitCore
     /// the asset, registered under its bare FQN (the key <c>BTreeEmitCore</c> writes for a <c>NoParams</c> node). A <c>bool</c>
     /// becomes Success/Failure; a <c>[WritesChannel]</c> method releases its channels on Failure, as the plain form does.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-2079</c> — one thunk per SOP order node: project the params variable (when bound) at its baked offset and
+    /// call <c>Fdp.Toolkit.Behavior.SopActions.DoWhenIdle</c> / <c>React</c>, which serialise it with the ONE params options
+    /// object, pre-check the gate and publish the assignment. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
+    /// </summary>
+    private static void EmitSopOrderThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto, string pad2, string bbShort, string ctxShort,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+    {
+        var offsets = new Dictionary<string, int>(StringComparer.Ordinal);
+        var types   = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (packedFields != null)
+            foreach (var f in packedFields) { offsets[f.Name] = f.ByteOffset; types[f.Name] = f.TypeId; }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto { SopOrder: { } order } act) continue;
+            long offset = BTreeEmitCore.SopOrderOffset(order, act, offsets);
+            string key  = order.ActionKey(offset);
+            if (!seen.Add(key)) continue;
+
+            string ind     = $"{pad2}{Indent}{Indent}";
+            string name    = order.BehaviorName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            string tail    = order.Kind == SopOrderKindDto.React
+                ? $"\"{name}\", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.{order.Urgency}"
+                : $"\"{name}\"";
+            string method  = order.Kind == SopOrderKindDto.React ? "React" : "DoWhenIdle";
+
+            if (seen.Count == 1)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"{pad2}// CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.");
+            }
+            sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            if (offset < 0)
+            {
+                sb.AppendLine($"{ind}return global::Fdp.Toolkit.Behavior.SopActions.{method}(ctx.World, ctx.Self, {tail}, \"{{}}\");");
+            }
+            else
+            {
+                string typeFqn = DtoTypeToGlobal(types[order.ParamsVariable!]);
+                sb.AppendLine($"{ind}unsafe");
+                sb.AppendLine($"{ind}{{");
+                sb.AppendLine($"{ind}{Indent}ref var dto = ref Unsafe.As<byte, {typeFqn}>(");
+                sb.AppendLine($"{ind}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", (int)offset)});");
+                sb.AppendLine($"{ind}{Indent}return global::Fdp.Toolkit.Behavior.SopActions.{method}(ctx.World, ctx.Self, {tail}, in dto);");
+                sb.AppendLine($"{ind}}}");
+            }
+            sb.AppendLine($"{pad2}{Indent}}});");
+        }
+    }
+
     private static void EmitNoParamsThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad2, string bbShort, string ctxShort,
         Func<string, SharedAiMethodInfo?>? sharedAi)

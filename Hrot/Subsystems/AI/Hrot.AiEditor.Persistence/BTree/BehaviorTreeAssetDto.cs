@@ -220,6 +220,54 @@ public sealed class BTreeSubtreePayloadDto
     public string? ParamsVariable { get; set; }
 }
 
+/// <summary>⭐ <c>CE-2079</c> — which of the two SOP actions an action node's <see cref="BTreeSopOrderPayloadDto"/> performs.</summary>
+public enum SopOrderKindDto
+{
+    /// <summary>The unit's idle choice — an assignment at origin Sop (the lowest rank).</summary>
+    DoWhenIdle = 0,
+    /// <summary>A reaction — an assignment at origin Reaction, which pauses the task (R-199).</summary>
+    React = 1,
+}
+
+/// <summary>⭐ <c>CE-2079</c> — mirrors <c>Fdp.Toolkit.Behavior.Components.ReactionUrgency</c> member for member (this
+/// assembly is netstandard2.0 and cannot reference it); the emitter writes the runtime enum by NAME.</summary>
+public enum SopUrgencyDto
+{
+    NotAReaction = 0,
+    Alert = 1,
+    Contact = 2,
+    UnderFire = 3,
+    Hit = 4,
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-2079</c> — an action node that is an SOP ORDER rather than a method binding: "do <see cref="BehaviorName"/>
+/// when idle" or "react with it at <see cref="Urgency"/>". The shape is the Subtree node's (a behaviour + the host variable
+/// holding its typed params), but it STARTS the behaviour in the task slot through the gate instead of hosting it.
+/// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6. Lowered to an ordinary action key whose generated thunk calls
+/// <c>Fdp.Toolkit.Behavior.SopActions</c>.
+/// </summary>
+public sealed class BTreeSopOrderPayloadDto
+{
+    public SopOrderKindDto Kind { get; set; }
+    public Guid BehaviorAssetId { get; set; }
+    public string BehaviorName { get; set; } = string.Empty;
+
+    /// <summary>The host blackboard variable holding the behaviour's authored params DTO; serialised to the assignment's
+    /// JSON at fire. <c>null</c> = authored defaults (<c>"{}"</c>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
+
+    /// <summary>For <see cref="SopOrderKindDto.React"/>: how urgent (a running reaction yields only to a more urgent one).</summary>
+    public SopUrgencyDto Urgency { get; set; } = SopUrgencyDto.Alert;
+
+    /// <summary>The ONE spelling of the action key both the topology emit and the bridge registration use.</summary>
+    public string ActionKey(long byteOffset)
+        => Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(
+            $"Fdp.Toolkit.Behavior.SopActions.{Kind}:{BehaviorName}:{(Kind == SopOrderKindDto.React ? Urgency.ToString() : "-")}",
+            byteOffset);
+}
+
 // ── Polymorphic node types (§5.3 "[JsonPolymorphic kind]") ───────────────────
 
 /// <summary>Base class for all persisted BTree node DTOs. Discriminated by "kind".</summary>
@@ -278,6 +326,11 @@ public sealed class BTreeCooldownNodeDto : BTreeNodeDto
 public sealed class BTreeActionNodeDto : BTreeNodeDto
 {
     public BehaviorActionBindingDto? Action { get; set; }
+
+    /// <summary>⭐ <c>CE-2079</c> — set INSTEAD of <see cref="Action"/> when the node is an SOP order ("Do when idle" /
+    /// "React"); <c>null</c> for an ordinary method binding.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BTreeSopOrderPayloadDto? SopOrder { get; set; }
     // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
     [JsonIgnore]
     public BTreeDelegateShapeDto DelegateShape { get; set; }

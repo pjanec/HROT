@@ -190,7 +190,8 @@ public static class AutoManagedVariables
     /// loaded yet (a child authored but not built) — the child then starts from its own defaults (§11.4), and a re-pick after
     /// the build binds it. ⛔ Never a variable of an unresolved type: the host's generator could not size it.</para>
     /// </summary>
-    public static string? ComposeForSubtree(IBlackboardManagedAsset host, string childName, string? childInputsTypeId)
+    public static string? ComposeForSubtree(IBlackboardManagedAsset host, string childName, string? childInputsTypeId,
+                                            string? comment = null)   // ⭐ CE-2079: an SOP order composes the same way
     {
         if (host is null) throw new ArgumentNullException(nameof(host));
         if (string.IsNullOrWhiteSpace(childName) || string.IsNullOrWhiteSpace(childInputsTypeId)) return null;
@@ -206,7 +207,7 @@ public static class AutoManagedVariables
         // ⚠ Same flip as ComposeForAiPrimitive: both emitters gate the whole params path on the managed flag.
         host.SetBlackboardEditorManaged(true);
         return Create(host, baseName, inputs, BlackboardVariableRole.Input, WorkingStateScope.Node,
-                      comment: $"CE-439: seeds hosted subtree '{childName}' on each start.");
+                      comment: comment ?? $"CE-439: seeds hosted subtree '{childName}' on each start.");
     }
 
     private static string SanitizeIdentifier(string name)

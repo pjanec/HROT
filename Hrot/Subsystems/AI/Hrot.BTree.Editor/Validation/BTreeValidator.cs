@@ -146,6 +146,17 @@ public sealed class BTreeValidator
         {
             switch (node.KernelType)
             {
+                case NodeType.Action when node.SopOrder is { } order:   // ⭐ CE-2079 — an SOP order, not a binding
+                    if (string.IsNullOrWhiteSpace(order.BehaviorName))
+                        out_.Add(new BTreeDiagnostic(node.VisualId, BTreeDiagnosticSeverity.Error,
+                            BTreeDiagnosticCode.SopOrderIncomplete, "SOP order names no behaviour."));
+                    else if (!string.IsNullOrEmpty(order.ParamsVariable)
+                             && !asset.BlackboardVariables.Any(v => v.Name == order.ParamsVariable))
+                        out_.Add(new BTreeDiagnostic(node.VisualId, BTreeDiagnosticSeverity.Error,
+                            BTreeDiagnosticCode.SopOrderIncomplete,
+                            $"SOP order binds params variable '{order.ParamsVariable}', which the blackboard does not have."));
+                    break;
+
                 case NodeType.Action:
                     if (node.Action == null || node.Action.NamesNothing)   // CE-417 B-1: a method OR a blueprint
                     {

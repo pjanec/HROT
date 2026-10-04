@@ -149,6 +149,89 @@ namespace Probe
             BridgeProjections().Should().NotBeEmpty("the asset bridge is the one writer");
         }
 
+        // ---- ⭐ CE-2079: the SOP order on an action node ("Do when idle" / "React") -----------------------------------
+
+        private const string SopSource = @"
+using System.Runtime.InteropServices;
+namespace Probe
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CoverParams { public float Radius; public int Rounds; }
+}";
+
+        private const string SopAsset = """
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb002079-0000-0000-0000-0000000000aa", "Name": "SopOrderProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb002079-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb002079-0000-0000-0000-000000000002" ] },
+                { "kind": "Selector", "VisualId": "bb002079-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb002079-0000-0000-0000-000000000003", "bb002079-0000-0000-0000-000000000004" ] },
+                { "kind": "Action", "VisualId": "bb002079-0000-0000-0000-000000000003", "ChildVisualIds": [],
+                  "SopOrder": { "Kind": "React", "BehaviorName": "TakeCover", "ParamsVariable": "cover", "Urgency": "Hit" } },
+                { "kind": "Action", "VisualId": "bb002079-0000-0000-0000-000000000004", "ChildVisualIds": [],
+                  "SopOrder": { "Kind": "DoWhenIdle", "BehaviorName": "Patrol" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "System.Int32" } },
+                { "Name": "cover",    "Type": { "TypeId": "Probe.CoverParams" } } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-2079</c> — an SOP order compiles to ONE call into <c>Fdp.Toolkit.Behavior.SopActions</c>, the params
+        /// variable projected at its HOST offset, keyed the same in the topology and the registration.</b>
+        /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
+        /// </summary>
+        [Fact]
+        public void CE2079_AnSopOrder_CompilesToOneSopActionsCall_KeyedAsTheTopologyKeysIt()
+        {
+            var (compilation, generated, diagnostics) = Run(SopSource, SopAsset);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null)).Should().BeEmpty();
+            diagnostics.Should().NotContain(d => d.Id == "BTREE0004", "this SOP drives no channel");
+            all.Should().Contain("global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, \"TakeCover\", " +
+                                 "global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Hit, in dto)");
+            all.Should().Contain("global::Fdp.Toolkit.Behavior.SopActions.DoWhenIdle(ctx.World, ctx.Self, \"Patrol\", \"{}\")");
+
+            // ⭐ one key spelling, twice each: the topology's .Action(key) and the registry's Register(key)
+            var reactKeys = Regex.Matches(all, @"""Fdp\.Toolkit\.Behavior\.SopActions\.React:TakeCover:Hit@(\d+)""")
+                .Select(m => m.Groups[1].Value).ToList();
+            reactKeys.Should().HaveCount(2).And.OnlyContain(k => k == reactKeys[0]);
+            reactKeys[0].Should().NotBe("0", "the sentinel sits at 0 — the HOST offset is baked");
+            Regex.Matches(all, @"""Fdp\.Toolkit\.Behavior\.SopActions\.DoWhenIdle:Patrol:-@-1""").Count.Should().Be(2);
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty(string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2079</c> (§4.5 ③) — a tree carrying SOP orders that ALSO binds a <c>[WritesChannel]</c> method is warned
+        /// (<c>BTREE0004</c>), once per method; the asset still builds (the runtime guard is the backstop).
+        /// </summary>
+        [Fact]
+        public void CE2079_AnSopTreeBindingAChannelWriter_IsWarned()
+        {
+            string asset = SopAsset
+                .Replace("\"bb002079-0000-0000-0000-000000000004\" ] },",
+                         "\"bb002079-0000-0000-0000-000000000004\", \"bb002079-0000-0000-0000-000000000005\" ] },")
+                .Replace("\"SopOrder\": { \"Kind\": \"DoWhenIdle\", \"BehaviorName\": \"Patrol\" } } ],",
+                         "\"SopOrder\": { \"Kind\": \"DoWhenIdle\", \"BehaviorName\": \"Patrol\" } },\n" +
+                         "                { \"kind\": \"Action\", \"VisualId\": \"bb002079-0000-0000-0000-000000000005\", \"ChildVisualIds\": [],\n" +
+                         "                  \"Action\": { \"MethodFqn\": \"Probe.ProbeNodes.SharedMover\", \"ExpressionTargetField\": \"bound\" } } ],")
+                .Replace("{ \"Name\": \"cover\",    \"Type\": { \"TypeId\": \"Probe.CoverParams\" } } ] } }",
+                         "{ \"Name\": \"cover\",    \"Type\": { \"TypeId\": \"Probe.CoverParams\" } },\n" +
+                         "                { \"Name\": \"bound\",    \"Type\": { \"TypeId\": \"Probe.ProbeParams\" } } ] } }");
+            asset.Should().Contain("SharedMover", "the probe asset must actually bind the mover");
+
+            var (_, _, diagnostics) = Run(ProbeSource + SopSource, asset);
+
+            diagnostics.Where(d => d.Id == "BTREE0004").Select(d => d.GetMessage(null))
+                .Should().ContainSingle().Which.Should().Contain("Probe.ProbeNodes.SharedMover");
+            diagnostics.Should().NotContain(d => d.Id == "BTREE0002", "a warning, not a skip");
+        }
+
         // ---- CE-504 C-2/C-3: the stateful and the param-less shared forms ----------------------
 
         private const string FormsSource = @"

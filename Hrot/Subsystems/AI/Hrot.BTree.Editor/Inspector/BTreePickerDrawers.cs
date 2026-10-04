@@ -50,6 +50,10 @@ public static class BTreePickerDrawerFactory
             composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(
                 new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, Hrot.Editor.AiShared.AssetKind.BTree));
 
+        // ⭐ CE-2079 — an SOP order's behaviour: every registered behaviour (any tier, hand-written included).
+        composite.Register<Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute>(
+            new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(() => registry.GetRegisteredNames()));
+
         return new Dictionary<Type, IImGuiFieldDrawer>
         {
             [typeof(string)]                     = composite,

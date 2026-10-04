@@ -87,7 +87,8 @@ public static class AiFacetPickerBinder
             services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
                 BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, services.Catalog, services.ActionSchema,   // CE-439, CE-417 4c
-                                                                childInputsTypeOf));
+                                                                childInputsTypeOf,
+                                                                ChildInputTypes.ParamsDtoLookup(() => services.BehaviorRegistry)));   // ⭐ CE-2079
         }
         else if (active?.Kind == AssetKind.Hsm
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)

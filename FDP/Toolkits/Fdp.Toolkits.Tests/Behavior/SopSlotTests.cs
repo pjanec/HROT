@@ -19,9 +19,11 @@ namespace Fdp.Toolkit.Behavior.Tests
     public sealed unsafe class SopSlotTests
     {
         private const int TaskId = 0x5301, SopId = 0x5302, SopChannelId = 0x5303, SopFaultId = 0x5304, OtherSopId = 0x5305, HsmSopId = 0x5306,
-                          QuickReactionId = 0x5307, LongReactionId = 0x5308, OtherTaskId = 0x5309;
+                          QuickReactionId = 0x5307, LongReactionId = 0x5308, OtherTaskId = 0x5309,
+                          IdleSopId = 0x530A, ReactingSopId = 0x530B;
 
         [ThreadStatic] private static int _taskTicks, _sopTicks, _channelTicks;
+        [ThreadStatic] private static bool _wasHit;
 
         private static NodeStatus TaskRuns(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _taskTicks++; return NodeStatus.Running; }
         private static NodeStatus SopDecides(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p) { _sopTicks++; return NodeStatus.Success; }
@@ -37,6 +39,15 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.Custom, "test fault");
             return NodeStatus.Running;
+        }
+
+        // ⭐ CE-2079 — SOP trees built on the two actions, as a recipe would be: one row each.
+        private static NodeStatus IdleRow(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        { _sopTicks++; return SopActions.DoWhenIdle(ctx.World, ctx.Self, "SopT_Task2", "{}"); }
+        private static NodeStatus ReactRow(ref byte bb, ref BehaviorTreeState s, ref BTreeContext ctx, int p)
+        {
+            _sopTicks++;
+            return _wasHit ? SopActions.React(ctx.World, ctx.Self, "SopT_Cover", ReactionUrgency.Hit, "{}") : NodeStatus.Failure;
         }
 
         private static BehaviorDefinition Tree(string name, NodeLogicDelegate<byte, BTreeContext> leaf)
@@ -72,6 +83,8 @@ namespace Fdp.Toolkit.Behavior.Tests
                 if (!World.IsComponentTypeRegistered<SopState>()) World.RegisterComponent<SopState>();
                 World.Bus.Register<ClearSopEvent>();
                 World.Bus.RegisterManaged<AssignSopEvent>();
+                // ⭐ as production hosts do — SopActions / the resume publish only onto a REGISTERED event
+                if (!World.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) World.Bus.RegisterManaged<AssignBehaviorEvent>();
                 if (!World.IsComponentTypeRegistered<Roe>()) World.RegisterComponent<Roe>();
                 Registry.Register(TaskId,       "SopT_Task",    Tree("SopT_Task", TaskRuns));
                 Registry.Register(SopId,        "SopT_Sop",     Tree("SopT_Sop", SopDecides));
@@ -81,6 +94,8 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Registry.Register(QuickReactionId, "SopT_Duck",   Tree("SopT_Duck", SopDecides));   // ends on its first tick
                 Registry.Register(LongReactionId,  "SopT_Cover",  Tree("SopT_Cover", TaskRuns));    // runs until replaced
                 Registry.Register(OtherTaskId,     "SopT_Task2",  Tree("SopT_Task2", TaskRuns));
+                Registry.Register(IdleSopId,       "SopT_IdleSop",  Tree("SopT_IdleSop", IdleRow));
+                Registry.Register(ReactingSopId,   "SopT_ReactSop", Tree("SopT_ReactSop", ReactRow));
                 Registry.Register(HsmSopId,     "SopT_HsmSop",  new BehaviorDefinition
                 {
                     Name = "SopT_HsmSop", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = OneStateHsm(),
@@ -90,6 +105,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Unit    = World.CreateEntity();
                 World.AddComponent(Unit, new BehaviorState());
                 _taskTicks = _sopTicks = _channelTicks = 0;
+                _wasHit = false;
             }
 
             public void Task(string name, BehaviorOrigin origin)
@@ -333,6 +349,106 @@ namespace Fdp.Toolkit.Behavior.Tests
             var origins = new System.Collections.Generic.List<BehaviorOrigin>();
             foreach (var evt in f.World.Bus.Read<BehaviorFinishedEvent>()) origins.Add(evt.Origin);
             Assert.Equal(new[] { BehaviorOrigin.Reaction }, origins);         // the mission skips it (MissionDirectorSystemTests)
+        }
+        // ── ⭐ CE-2079 — the two SOP actions (docs/DESIGN_Decision_Layer.md §4.6) ──────────────────────────────────────
+
+        [Fact]
+        public void CE2079_DoWhenIdle_StartsTheIdleChoiceOnce_AndDoesNotRestartItEveryWake()
+        {
+            using var f = new Fixture();
+            f.Sop("SopT_IdleSop", BehaviorOrigin.Superior);
+            f.FrameThenIngress();
+
+            Assert.Equal(OtherTaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Sop, f.Task_.Origin);
+            uint run = f.Task_.InstanceId;
+
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();                  // ~0.5 s: the SOP re-reads its tree twice
+            Assert.True(_sopTicks >= 3);
+            Assert.Equal(run, f.Task_.InstanceId);                             // same run — never re-published
+        }
+
+        [Fact]
+        public void CE2079_DoWhenIdle_UnderAnOrder_PublishesNothing_SoTheSopDoesNotWakeItself()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_IdleSop", BehaviorOrigin.Superior);
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(0, f.Ingress.RefusedCount);                           // nothing reached the gate to be refused
+            Assert.InRange(_sopTicks, 2, 4);                                   // every 0.2 s, not every frame (R-195 wake loop)
+        }
+
+        [Fact]
+        public void CE2079_React_PausesTheTask_AndIsNotRepeatedWhileTheReactionRuns()
+        {
+            using var f = new Fixture();
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_ReactSop", BehaviorOrigin.Superior);
+            f.FrameThenIngress();
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);                  // not hit: the row fails, nothing happens
+
+            _wasHit = true;
+            f.World.GetComponentRW<SopState>(f.Unit).SopWake = 1;              // a sensing change wakes it (R-195)
+            f.FrameThenIngress();
+            Assert.Equal(LongReactionId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Reaction, f.Task_.Origin);
+            Assert.Equal("SopT_Task", f.Paused!.BehaviorName);
+            uint run = f.Task_.InstanceId;
+
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();                 // still "hit" on every wake
+            Assert.Equal(run, f.Task_.InstanceId);                             // the reaction was not restarted
+            Assert.Equal(0, f.Ingress.RefusedCount);
+            // ⭐ and the row SUCCEEDS while its reaction runs — a Selector stops there instead of falling to lower rows
+            using (BrainSlotScope.Enter(f.Unit, ReactingSopId, f.SopState.SopInstanceId))
+                Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+        }
+
+        [Fact]
+        public void CE2079_React_UnderStayOnTask_IsAFailure_AndPublishesNothing()
+        {
+            using var f = new Fixture();
+            f.World.AddComponent(f.Unit, new Roe { Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Superior });
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_ReactSop", BehaviorOrigin.Superior);
+            _wasHit = true;
+            using (BrainSlotScope.Enter(f.Unit, ReactingSopId, f.SopState.SopInstanceId))
+                Assert.Equal(NodeStatus.Failure,
+                    SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));   // a Selector tries its next row
+            for (int i = 0; i < 31; i++) f.FrameThenIngress();
+
+            Assert.Equal(TaskId, f.Task_.ActiveBehaviorHash);
+            Assert.Equal(0, f.Ingress.RefusedCount);
+        }
+
+        private struct CoverParams
+        {
+            public float Radius;
+            public int Rounds;
+            public Fdp.Toolkit.Replication.EntityRef Threat;
+            public FixedString32 Posture;
+            public ReactionUrgency Level;
+        }
+
+        [Fact]
+        public void CE2079_Params_RoundTrip_ThroughTheCuratedParsePath()
+        {
+            var sent = new CoverParams { Radius = 12.5f, Rounds = 3, Threat = new Fdp.Toolkit.Replication.EntityRef(77), Posture = "prone", Level = ReactionUrgency.UnderFire };
+            string json = SopActions.ToJson(sent);
+
+            // ⭐ the curated parse: FromBlockResolver deserialises with BehaviorParams.JsonOptions (identity resolve)
+            var parse = BehaviorParams.FromBlockResolver<CoverParams, CoverParams>((in CoverParams a, ref CoverParams b, EntityRepository w, Entity e) => b = a);
+            CoverParams got = default;
+            using var world = TestWorldFactory.Create();
+            parse(json, (byte*)&got, sizeof(CoverParams), world, default);
+
+            Assert.Equal(sent.Radius, got.Radius);
+            Assert.Equal(sent.Rounds, got.Rounds);
+            Assert.Equal(sent.Threat, got.Threat);
+            Assert.Equal(sent.Posture, got.Posture);
+            Assert.Equal(sent.Level, got.Level);
         }
     }
 }

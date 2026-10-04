@@ -584,6 +584,110 @@ wrappers) · a blueprint's channels are DERIVED by the compiler, nothing authore
 | ③ C# | an analyzer WARNING when a curated SOP binds a `[WritesChannel]` method |
 | ④ runtime backstop | the first cancelled SOP channel command per run is logged loudly, never silent |
 
+### 4.6 The two SOP actions — `CE-2079` *(build-state: BUILT, `2026-10-04` — as-built below the rules table)*
+
+> 🔒 Approved with §4.3–§4.5 (*"ok approved. start building"*, `2026-10-04`). This section is the build design.
+
+**INVENTORY** *(the code-graph index could not be built this session — a run aborted on files changing under a build —
+so this is `grep` over `*.cs`, `2026-10-04`, stated as such)*: `SopActions|DoWhenIdle|SopOrder|ReactNode` → **0** hits.
+No BTree action publishes `AssignBehaviorEvent`; two publish `AssignTacticalIntentEvent` (`CommanderNodes.cs:67`,
+`HillAttackCommanderNodes.cs:125` — the latter serialises its DTO with `FdpJsonOptionsRegistry.DefaultRelaxed`). The ONE
+params options object already exists: `BehaviorParams.JsonOptions` ⇒ `DefaultRelaxed` (`BehaviorParams.cs:72`); every
+parse path aliases it (curated `FromBlockResolver`, generated BTree/HSM `__paramJsonOpts`, blueprint `__ParamJsonOptions`).
+
+📐 **The measurement that decides the node's shape:** a BTree action node carries NO constants — everything reaches the
+method through ONE host variable (`BehaviorActionBindingDto.ExpressionTargetField`; the delegate's `int` is the payload
+index, not a parameter). ⇒ a node that names a behaviour, an urgency AND a typed params variable cannot be an action
+binding; it needs a payload, exactly as `Subtree` has (`BTreeSubtreePayloadDto {SubtreeName, ParamsVariable}`) — which
+§4.3 already said (*"React = the Subtree node's shape"*). ⭐ **As built it is a payload ON THE ACTION NODE, not a new node
+kind** (`BTreeActionNodeDto.SopOrder`): the editor's node model is keyed by the KERNEL's `Fbt.NodeType`, so a new kind
+would have meant a kernel node type that never executes — while an action node already is an instant leaf with pills,
+and the order lowers to an action key anyway.
+
+```mermaid
+classDiagram
+  class SopActions {
+    <<NEW, Fdp.Toolkits — the ONE implementation>>
+    +DoWhenIdle(world, self, behaviour, json) NodeStatus
+    +React(world, self, behaviour, urgency, json) NodeStatus
+    +DoWhenIdle~T~(world, self, behaviour, in T params)
+    +React~T~(world, self, behaviour, urgency, in T params)
+    +ToJson~T~(in T params) string
+  }
+  class BehaviorParams { <<existing>> +JsonOptions = DefaultRelaxed }
+  class BehaviorIngressSystem { <<existing, the gate>> +AdmitsWithReactions() }
+  class AssignBehaviorEvent { <<existing>> Origin, Urgency, JsonParams }
+  class BTreeActionNodeDto {
+    <<existing — gains one field>>
+    +Action : binding (a method), or
+    +SopOrder : BTreeSopOrderPayloadDto
+  }
+  class BTreeSopOrderPayloadDto {
+    <<NEW>>
+    +Kind : DoWhenIdle | React
+    +BehaviorName
+    +ParamsVariable (the behaviour's authored DTO type)
+    +Urgency
+  }
+  class BTreeSubtreePayloadDto { <<existing — the shape copied>> SubtreeName, ParamsVariable }
+  class BTreeEmitCore { <<existing>> lowers SopOrder to .Action(key) }
+  class BTreeBridgeEmitCore { <<existing>> registers the key's thunk: SopActions.React~T~(…, in bb@offset) }
+  SopActions ..> BehaviorParams : serialises with
+  SopActions ..> BehaviorIngressSystem : pre-checks the gate
+  SopActions ..> AssignBehaviorEvent : publishes
+  BTreeActionNodeDto *-- BTreeSopOrderPayloadDto
+  BTreeSopOrderPayloadDto ..> BTreeSubtreePayloadDto : same shape
+  BTreeEmitCore ..> BTreeActionNodeDto
+  BTreeBridgeEmitCore ..> SopActions : generated thunk calls
+```
+
+*What the picture shows that prose hid: there is ONE implementation (`SopActions`) and every authoring surface — C#, the
+BTree node, later the blueprint node — only calls it; the BTree node needs no runtime node type at all, it lowers to an
+ordinary action key whose generated thunk calls `SopActions` with the variable projected at its baked offset.*
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTickSystem.TickSopSlots
+  participant Tree as SOP tree (in BrainSlotScope)
+  participant SA as SopActions
+  participant Gate as BehaviorIngressSystem (static pre-check)
+  participant Bus
+  BT->>Tree: tick (woken, or every 0.2 s)
+  Tree->>SA: React(self, "TakeCover", Hit, in coverParams)
+  SA->>SA: already running this as a reaction? ⇒ Success, publish nothing
+  SA->>Gate: AdmitsWithReactions(Reaction, Hit, task slot)?
+  alt refused (StayOnTask, a more urgent reaction, …)
+    SA-->>Tree: Failure — the Selector tries the next row
+  else admitted
+    SA->>Bus: AssignBehaviorEvent(TakeCover, JSON, Reaction, Hit)
+    SA-->>Tree: Success — instant, the reaction runs in the TASK slot next frame
+  end
+```
+
+*What the picture shows: the action never publishes something the gate will refuse. ⚠ That matters beyond tidiness — a
+refused Sop-origin assignment WAKES the SOP (R-195), so a `DoWhenIdle` that published blindly under a running order would
+wake itself every frame.*
+
+| rule | why |
+|---|---|
+| both actions are INSTANT (Success / Failure, never Running) | §4.3: the SOP tree finishes every wake, no running branch to abort |
+| `DoWhenIdle` publishes only when the task slot is empty or runs ANOTHER Sop-origin choice (or the same one with different params) | re-publishing the running idle choice every 0.2 s would restart it; publishing under an order is refused and wakes the SOP |
+| `React` returns Success without publishing when that behaviour already runs as a reaction | the condition stays true for seconds after a hit; the reaction must not restart on every wake |
+| params serialise with `BehaviorParams.JsonOptions`; no params variable ⇒ `"{}"` (authored defaults) | one options object both ways; a round-trip rail per kind (curated, generated BTree, blueprint) pins it |
+| the editor surface (palette entries "Do when idle" / "React", the behaviour picker, the variable + urgency fields) | follows the node — mirrors the Subtree node's inspector |
+| ⚠ the analyzer warning (§4.5 ③) | the BTree generator warns when an SOP tree binds a `[WritesChannel]` method; ⭐ as built NO flag: a tree that carries SOP orders IS an SOP (`BTREE0004`) |
+
+⭐ **AS-BUILT `CE-2079` (`2026-10-04`).**
+
+| piece | where |
+|---|---|
+| the ONE implementation | `Fdp.Toolkits/Behavior/SopActions.cs` — `DoWhenIdle` / `React` (by JSON or by typed params), `ToJson`; pre-checks `BehaviorIngressSystem.AdmitsWithReactions` |
+| the BTree node | `BTreeActionNodeDto.SopOrder` (`BTreeSopOrderPayloadDto {Kind, BehaviorName, ParamsVariable, Urgency}`; `SopUrgencyDto` mirrors `ReactionUrgency` because the persistence assembly is netstandard2.0) · topology `BTreeEmitCore.EmitAction` → `.Action(key)` · bridge `BTreeBridgeEmitCore.EmitSopOrderThunks` → one `SopActions` call, params projected at the HOST offset · ONE key spelling `BTreeSopOrderPayloadDto.ActionKey` |
+| the editor | palette group "SOP" — "Do when idle" / "React" (`BTreeKinds.SopDoWhenIdle` / `SopReact` → an action node with the order) · `BTreeSopOrderFacet`: behaviour (`[AiBehaviorPicker]` — every registered behaviour, any tier, hand-written included), params variable (COMPOSED on pick, typed as the behaviour's authored params — `ChildInputTypes.ParamsDtoLookup`; a class DTO binds nothing ⇒ defaults), urgency · validator `SopOrderIncomplete` · mapper both ways |
+| the warning | `BTREE0004` (`BTreeJsonGenerator.ReportSopChannelWrites`) — once per channel-writing method in a tree that carries SOP orders; a warning, the asset still builds |
+| rails | `SopSlotTests.CE2079_*` (5, incl. the curated round-trip) · `SopParamsRoundTripTests` (EVERY production behaviour of every kind reads what an order sends — two values, two blocks) · `SharedAiBindingCompilesTests.CE2079_*` (2, compiled) · `BTreeFacetMapperTests.CE2079_*` (2) · `BTreeValidationTests.CE2079_*` · `BTreeCommandSinkTests.CE2079_*` |
+| ⚠ not built | an SOP order in an HSM state or a blueprint node (an HSM / blueprint SOP calls `SopActions` from C# today) — follow-up; the C# SOP path needs nothing more |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the

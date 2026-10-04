@@ -28,6 +28,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private const string CatComposite = "Composite";
     private const string CatLeaf      = "Leaf";
     private const string CatDecorator = "Decorator";
+    private const string CatSop       = "SOP";   // ⭐ CE-2079
     // I4: blueprint-compiled AiPrimitive actions get their own palette group so they read as
     // distinct from hand-written leaves.
     private const string CatBlueprintAction = "Blueprint";
@@ -198,6 +199,18 @@ public sealed class BTreeNodeCatalog : INodeCatalog
         entries.Add(Make(BTreeKinds.Subtree, "Subtree", CatLeaf,
             "Calls another behavior tree asset.",
             new[] { "subtree", "call", "reference" }, "bt/subtree", false, false, false,
+            inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
+
+        // ⭐ CE-2079 — the SOP's two orders (docs/DESIGN_Decision_Layer.md §4.6): instant leaves that start a behaviour in
+        //   the unit's TASK slot through the gate. Meant for an SOP tree; in a task they are refused like any lower order.
+        entries.Add(Make(BTreeKinds.SopDoWhenIdle, "Do when idle", CatSop,
+            "SOP: run this behaviour when the unit has no order (origin Sop, the lowest rank). Succeeds at once; already running it with the same params does nothing.",
+            new[] { "sop", "idle", "default", "standing" }, "bt/action", false, false, false,
+            inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
+
+        entries.Add(Make(BTreeKinds.SopReact, "React", CatSop,
+            "SOP: answer an event with this behaviour at an urgency — it pauses the task (unless the ROE says Stay on task) and the task restarts when it ends. Fails when the gate would refuse it, so a Selector tries its next row.",
+            new[] { "sop", "react", "reaction", "interrupt", "drill" }, "bt/action", false, false, false,
             inputs: Array.Empty<PinSignature>(), outputs: new[] { ExecOut }));
 
         // Decorator pills — no pins; palette action is AttachToSelected.

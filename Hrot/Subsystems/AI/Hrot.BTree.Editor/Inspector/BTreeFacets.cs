@@ -149,6 +149,37 @@ public struct BTreeRootFacet
     public string VisualId;
 }
 
+/// <summary>⭐ <c>CE-2079</c> — inspector facet for an SOP order ("Do when idle" / "React"): the behaviour it starts, the
+/// variable holding that behaviour's params (composed on pick), and — for React — how urgent it is.</summary>
+public struct BTreeSopOrderFacet
+{
+    [EditReadOnly]
+    [EditDisplayName("Order")]
+    public string Kind;
+
+    [EditDisplayName("Behaviour")]
+    [Hrot.Editor.AiShared.Inspector.AiBehaviorPicker]
+    public string BehaviorName;
+
+    /// <summary>Composed when a behaviour is picked (a variable of its params type, edited in the blackboard); empty =
+    /// the behaviour's authored defaults.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Params variable")]
+    public string ParamsVariable;
+
+    [EditDisplayName("Urgency (React)")]
+    public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto Urgency;
+
+    [EditDisplayName("Comment")]
+    public string? Comment;
+
+    [EditDisplayName("Breakpoint")]
+    public bool IsBreakpoint;
+
+    [EditReadOnly]
+    public string VisualId;
+}
+
 /// <summary>Inspector facet for Subtree leaf nodes.</summary>
 public struct BTreeSubtreeFacet
 {

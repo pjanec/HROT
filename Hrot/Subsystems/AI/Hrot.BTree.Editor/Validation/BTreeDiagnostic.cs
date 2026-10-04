@@ -46,6 +46,10 @@ public enum BTreeDiagnosticCode
     /// safety net (§12.12c); this is the early, ergonomic notice. 📄 <c>Q76</c> §12.21.
     /// </summary>
     ResolverOutOfDate,
+
+    /// <summary>⭐ <c>CE-2079</c> — an SOP order ("Do when idle" / "React") names no behaviour, or binds a params variable
+    /// the blackboard does not have.</summary>
+    SopOrderIncomplete,
 }
 
 /// <summary>

@@ -137,6 +137,7 @@ public static class BTreeSelectionBridgeHelper
         BehaviorTreeAsset? asset,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog,
         Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,   // CE-417 slice 4c: compose on a blueprint pick
-        Func<string, string?>? childInputsTypeOf = null)                             // S8b-2: the one child-inputs lookup
-        => asset is null ? null : new BTreeFacetMapper(asset, catalog, actionSchema, childInputsTypeOf);
+        Func<string, string?>? childInputsTypeOf = null,                             // S8b-2: the one child-inputs lookup
+        Func<string, string?>? sopParamsTypeOf = null)                               // ⭐ CE-2079: an SOP order's params type
+        => asset is null ? null : new BTreeFacetMapper(asset, catalog, actionSchema, childInputsTypeOf, sopParamsTypeOf);
 }

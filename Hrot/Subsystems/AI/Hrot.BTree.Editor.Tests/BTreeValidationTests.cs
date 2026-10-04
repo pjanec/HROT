@@ -401,4 +401,29 @@ public sealed class BTreeValidationTests
             d.Severity == BTreeDiagnosticSeverity.Error &&
             d.VisualId == innerPar.VisualId);
     }
+    /// <summary>⭐ <c>CE-2079</c> — an SOP order is NOT an unbound action; it is checked for its own two fields instead.</summary>
+    [Fact]
+    public void CE2079_AnSopOrder_IsValidatedAsAnOrder_NotAsAnUnboundAction()
+    {
+        var asset = MakeAsset();
+        var root  = MakeNode(NodeType.Root);
+        var seq   = MakeNode(NodeType.Sequence);
+        var none  = MakeNode(NodeType.Action);
+        none.SopOrder = new BTreeSopOrderPayload();                                          // names no behaviour
+        var dangling = MakeNode(NodeType.Action);
+        dangling.SopOrder = new BTreeSopOrderPayload { BehaviorName = "TakeCover", ParamsVariable = "gone" };
+        var ok = MakeNode(NodeType.Action);
+        ok.SopOrder = new BTreeSopOrderPayload { BehaviorName = "Patrol" };                  // defaults: valid
+
+        root.ChildVisualIds.Add(seq.VisualId);
+        seq.ChildVisualIds.Add(none.VisualId);
+        seq.ChildVisualIds.Add(dangling.VisualId);
+        seq.ChildVisualIds.Add(ok.VisualId);
+        foreach (var n in new[] { root, seq, none, dangling, ok }) asset.AddNode(n);
+
+        var diags = Validate(asset);
+        diags.Should().NotContain(d => d.Code == BTreeDiagnosticCode.UnboundActionMethod);
+        diags.Where(d => d.Code == BTreeDiagnosticCode.SopOrderIncomplete).Select(d => d.VisualId)
+             .Should().BeEquivalentTo(new[] { none.VisualId, dangling.VisualId });
+    }
 }

@@ -21,4 +21,17 @@ public static class ChildInputTypes
             ? full.Replace('+', '.')
             : null;
     }
+
+    /// <summary>⭐ <c>CE-2079</c> — a behaviour's AUTHORED params type (<c>BehaviorDefinition.JsonParamsDtoType</c>): what an SOP
+    /// order serialises into the assignment's JSON. ⚠ Not the hosted-input type — a curated behaviour with a source resolver
+    /// hosts one type and parses another. ⛔ A class DTO cannot be a blackboard variable ⇒ <c>null</c> (authored defaults).</summary>
+    public static Func<string, string?> ParamsDtoLookup(Func<BehaviorRegistry?> registry)
+    {
+        if (registry is null) throw new ArgumentNullException(nameof(registry));
+        return name => !string.IsNullOrWhiteSpace(name)
+                       && registry() is { } r && r.TryGetId(name, out int id) && r.TryGetDefinition(id, out var def)
+                       && def.JsonParamsDtoType is { IsValueType: true, FullName: { } full }
+            ? full.Replace('+', '.')
+            : null;
+    }
 }

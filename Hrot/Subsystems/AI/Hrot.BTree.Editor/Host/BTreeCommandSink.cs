@@ -146,7 +146,18 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             DisplayLabel    = add.Kind.Id,
         };
 
-        if (BTreeKinds.TryParseLeafActionKind(add.Kind.Id, out var fqn, out var isCond))
+        if (add.Kind.Id is BTreeKinds.SopDoWhenIdle or BTreeKinds.SopReact)   // ⭐ CE-2079 — an SOP order
+        {
+            bool react = add.Kind.Id == BTreeKinds.SopReact;
+            node.KernelType   = NodeType.Action;
+            node.DisplayLabel = react ? "React" : "Do when idle";
+            node.SopOrder     = new BTreeSopOrderPayload
+            {
+                Kind = react ? Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React
+                             : Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle,
+            };
+        }
+        else if (BTreeKinds.TryParseLeafActionKind(add.Kind.Id, out var fqn, out var isCond))
         {
             node.KernelType = isCond ? NodeType.Condition : NodeType.Action;
             node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);

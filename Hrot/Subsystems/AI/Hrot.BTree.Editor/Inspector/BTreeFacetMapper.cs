@@ -31,13 +31,19 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// one answer every behaviour picker shares). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</param>
     public BTreeFacetMapper(BehaviorTreeAsset asset, Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
                             Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,
-                            Func<string, string?>? childInputsTypeOf = null)
+                            Func<string, string?>? childInputsTypeOf = null,
+                            Func<string, string?>? sopParamsTypeOf = null)
     {
         _asset             = asset ?? throw new ArgumentNullException(nameof(asset));
         _catalog           = catalog;
         _actionSchema      = actionSchema;
         _childInputsTypeOf = childInputsTypeOf;
+        _sopParamsTypeOf   = sopParamsTypeOf;
     }
+
+    /// <summary>⭐ <c>CE-2079</c> — a picked behaviour's authored params type id (<c>ChildInputTypes.ParamsDtoLookup</c>): the
+    /// type an SOP order serialises to the assignment's JSON. ⚠ Optional for headless fixtures; ⛔ a production host passes it.</summary>
+    private readonly Func<string, string?>? _sopParamsTypeOf;
 
     private readonly Func<string, string?>? _childInputsTypeOf;
 
@@ -58,6 +64,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
 
         return node.KernelType switch
         {
+            NodeType.Action when node.SopOrder is not null => BuildSopOrderFacet(node),   // ⭐ CE-2079
             NodeType.Action   => BuildActionFacet(node),
             NodeType.Condition => BuildConditionFacet(node),
             NodeType.Wait     => BuildWaitFacet(node),
@@ -140,6 +147,12 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
                 node.Comment = rf.Comment;
                 break;
 
+            case BTreeSopOrderFacet sof:   // ⭐ CE-2079
+                node.Comment      = sof.Comment;
+                node.IsBreakpoint = sof.IsBreakpoint;
+                ApplySopOrder(node, sof);
+                break;
+
             case BTreeSubtreeFacet stf:
                 node.Comment      = stf.Comment;
                 node.IsBreakpoint = stf.IsBreakpoint;
@@ -177,6 +190,38 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         st.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
             _asset, pickedName!, _childInputsTypeOf?.Invoke(pickedName!));   // ⭐ S8b-2: the one child-inputs lookup
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2079</c> — an SOP order's pick lands like the subtree pick: a NEWLY picked behaviour brings a variable of its
+    /// params type (the shared compose step, so its fields are edited in the blackboard), bound as this order's
+    /// <c>ParamsVariable</c>; no params type (a class DTO, or none) ⇒ unbound — the behaviour's authored defaults.
+    /// </summary>
+    private void ApplySopOrder(BTreeEditorNode node, BTreeSopOrderFacet facet)
+    {
+        var order = node.SopOrder ??= new BTreeSopOrderPayload();
+        order.Urgency = facet.Urgency;
+        string picked = facet.BehaviorName ?? string.Empty;
+        if (string.Equals(order.BehaviorName, picked, StringComparison.Ordinal)) return;   // unchanged ⇒ nothing to compose
+
+        order.BehaviorName = picked;
+        if (string.IsNullOrWhiteSpace(picked)) { order.ParamsVariable = null; return; }   // the variable stays (no rush removals)
+        order.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+            _asset, picked, _sopParamsTypeOf?.Invoke(picked),
+            comment: $"CE-2079: the params the SOP order sends with '{picked}'.");
+        node.DisplayLabel = (order.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? "React: " : "Idle: ") + picked;
+    }
+
+    private static BTreeSopOrderFacet BuildSopOrderFacet(BTreeEditorNode node) =>
+        new BTreeSopOrderFacet
+        {
+            Kind           = node.SopOrder!.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? "React" : "Do when idle",
+            BehaviorName   = node.SopOrder.BehaviorName,
+            ParamsVariable = node.SopOrder.ParamsVariable ?? string.Empty,
+            Urgency        = node.SopOrder.Urgency,
+            Comment        = node.Comment,
+            IsBreakpoint   = node.IsBreakpoint,
+            VisualId       = node.VisualId.ToString(),
+        };
 
     // ── Private builders ──────────────────────────────────────────────────────
 

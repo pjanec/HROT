@@ -27,6 +27,10 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
 
     /// <summary>Diagnostic code for BTree codegen validation failures (skipped asset, non-build-breaking).</summary>
     public const string CodegenWarningId = "BTREE0002";
+    /// <summary>⭐ <c>CE-2079</c> (§4.5 ③) — an SOP tree (one carrying "Do when idle" / "React" orders) binds a method that
+    /// writes a channel: the SOP must not move or fire the unit (one owner per channel); the runtime reverts it and stops the
+    /// SOP (<c>SopCommandedChannel</c>). A WARNING — the asset still builds.</summary>
+    public const string SopChannelWarningId = "BTREE0004";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -308,12 +312,13 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
 
         // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
         // HAJSON-B: the deactivators scanned above go to the bridge emitter (one registration per binding).
+        var sharedAiInfo = SharedAiMethodResolver.Make(compilation);
+        ReportSopChannelWrites(spc, path, dto, sharedAiInfo);   // ⭐ CE-2079
         string bridge;
         try
         {
             // ⭐ CE-417 B-2 (a′), F8 — a bound [SharedAi*] method is called per binding with its own signature.
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators,
-                SharedAiMethodResolver.Make(compilation));
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators, sharedAiInfo);
         }
         catch (Exception ex)
         {
@@ -351,6 +356,35 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
 
         if (orchestrators != null)
             spc.AddSource(baseName + ".Orchestrators.g.cs", orchestrators);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2079</c> (<c>DESIGN_Decision_Layer.md</c> §4.5 ③) — a tree that carries SOP orders IS an SOP; warn once per
+    /// bound method that declares <c>[WritesChannel]</c>. ⚠ No new "is an SOP" flag: carrying the orders is the mark.
+    /// </summary>
+    internal static void ReportSopChannelWrites(SourceProductionContext spc, string path,
+        Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto dto, Func<string, Hrot.AiEditor.Persistence.Emit.SharedAiMethodInfo?> sharedAi)
+    {
+        if (!dto.Nodes.Any(n => n is Hrot.AiEditor.Persistence.BTree.BTreeActionNodeDto { SopOrder: not null })) return;
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in dto.Nodes)
+        {
+            var fqn = node switch
+            {
+                Hrot.AiEditor.Persistence.BTree.BTreeActionNodeDto a    => a.Action?.MethodFqn,
+                Hrot.AiEditor.Persistence.BTree.BTreeConditionNodeDto c => c.Condition?.MethodFqn,
+                _ => null,
+            };
+            if (string.IsNullOrEmpty(fqn) || !seen.Add(fqn!)) continue;
+            if (sharedAi(fqn!) is { WritesChannels.Count: > 0 })
+                spc.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
+                    id:                 SopChannelWarningId,
+                    title:              "An SOP tree drives a channel",
+                    messageFormat:      "'{0}' carries SOP orders and binds '{1}', which writes a channel — an SOP must not move or fire the unit (use React to start a behaviour that does); at runtime the write is reverted and the SOP stops",
+                    category:           "BTreeJsonGenerator",
+                    defaultSeverity:    DiagnosticSeverity.Warning,
+                    isEnabledByDefault: true), Location.None, path, fqn));
+        }
     }
 
     /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/deserialize error.</summary>

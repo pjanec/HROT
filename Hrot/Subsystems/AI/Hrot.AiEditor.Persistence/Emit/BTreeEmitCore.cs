@@ -860,6 +860,15 @@ public static class BTreeEmitCore
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
+        // ⭐ CE-2079 — an SOP order ("Do when idle" / "React") lowers to an ordinary action key; the bridge registers its
+        //   thunk (BTreeBridgeEmitCore.EmitSopOrderThunks), which calls Fdp.Toolkit.Behavior.SopActions.
+        if (node.SopOrder is { } order)
+        {
+            sb.AppendLine($"{pad}{methodPrefix}Action(\"{order.ActionKey(SopOrderOffset(order, node, variableOffsets))}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            return;
+        }
+
         if (p == null || string.IsNullOrEmpty(p.MethodFqn))
         {
             throw new InvalidOperationException(
@@ -1046,6 +1055,19 @@ public static class BTreeEmitCore
         float duration = p?.Duration ?? 0f;
         sb.AppendLine($"{pad}{methodPrefix}Wait({duration.ToString("R", CultureInfo.InvariantCulture)}f,");
         sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+    }
+
+    /// <summary>⭐ <c>CE-2079</c> — the baked offset of an SOP order's params variable, or <c>-1</c> when it has none (authored
+    /// defaults). ⛔ A named variable with no packed offset fails loud — the order would silently drop its params.</summary>
+    internal static long SopOrderOffset(BTreeSopOrderPayloadDto order, BTreeNodeDto node, IReadOnlyDictionary<string, int>? variableOffsets)
+    {
+        if (string.IsNullOrEmpty(order.BehaviorName))
+            throw new InvalidOperationException($"SOP order node {node.VisualId:D} names no behaviour — pick one in the editor.");
+        if (string.IsNullOrEmpty(order.ParamsVariable)) return -1;
+        if (variableOffsets != null && variableOffsets.TryGetValue(order.ParamsVariable!, out int offset)) return offset;
+        throw new InvalidOperationException(
+            $"SOP order node {node.VisualId:D} binds params variable '{order.ParamsVariable}', which has no packed offset " +
+            "(a non-managed blackboard, or no such variable).");
     }
 
     private static void EmitSubtree(StringBuilder sb, BTreeSubtreeNodeDto node, string pad, bool isLast, string methodPrefix = ".")

@@ -65,6 +65,20 @@ public sealed class BTreeSubtreePayload
     public string? ParamsVariable;
 }
 
+/// <summary>
+/// ⭐ <c>CE-2079</c> — an action node that is an SOP ORDER ("Do when idle" / "React"), not a method binding. Mirrors
+/// <c>BTreeSopOrderPayloadDto</c>; 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
+/// </summary>
+public sealed class BTreeSopOrderPayload
+{
+    public Hrot.AiEditor.Persistence.BTree.SopOrderKindDto Kind;
+    public Guid BehaviorAssetId;
+    public string BehaviorName = string.Empty;
+    /// <summary>The host variable holding the behaviour's authored params; <c>null</c> = its defaults.</summary>
+    public string? ParamsVariable;
+    public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto Urgency = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Alert;
+}
+
 // ── BTreeEditorPill ───────────────────────────────────────────────────────────
 
 /// <summary>
@@ -123,6 +137,8 @@ public sealed class BTreeEditorNode
     public BTreeActionDelegateShape DelegateShape;
     public BTreeWaitPayload?      Wait;
     public BTreeSubtreePayload?   Subtree;
+    /// <summary>⭐ <c>CE-2079</c> — set on an ACTION node that is an SOP order, instead of <see cref="Action"/>.</summary>
+    public BTreeSopOrderPayload?  SopOrder;
 
     /// <summary>Session-local breakpoint flag; not persisted in the layout method.</summary>
     public bool IsBreakpoint;

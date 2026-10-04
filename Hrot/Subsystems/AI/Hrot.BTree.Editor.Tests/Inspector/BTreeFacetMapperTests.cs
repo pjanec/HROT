@@ -301,4 +301,57 @@ public sealed class BTreeFacetMapperTests
         node.Subtree!.SubtreeName.Should().Be("PatrolTree");
         node.Subtree.ParamsVariable.Should().BeNull();
     }
+    // ── ⭐ CE-2079 — the SOP order on an action node (docs/DESIGN_Decision_Layer.md §4.6) ────────────────────────
+
+    /// <summary>
+    /// ⭐ An action node carrying an SOP order gets the SOP-order facet, not the binding facet; picking its behaviour composes a
+    /// variable of that behaviour's params type (bound as the order's <c>ParamsVariable</c>) and the urgency lands.
+    /// </summary>
+    [Fact]
+    public void CE2079_PickingAnSopOrdersBehaviour_BindsItsParams_AndTheUrgencyLands()
+    {
+        var asset  = MakeAsset(RootSequence2Actions());
+        var node   = asset.Nodes.First(n => n.KernelType == NodeType.Action);
+        node.Action   = null;
+        node.SopOrder = new BTreeSopOrderPayload { Kind = Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React };
+        var mapper = new BTreeFacetMapper(asset,
+            sopParamsTypeOf: name => name == "TakeCover" ? typeof(PatrolInputs).FullName : null);
+        var sel = new BTreeNodeSelection(node.VisualId);
+
+        var facet = mapper.GetFacet(sel).Should().BeOfType<BTreeSopOrderFacet>().Subject;
+        facet.Kind.Should().Be("React");
+        facet.BehaviorName = "TakeCover";
+        facet.Urgency      = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit;
+        mapper.ApplyFacet(sel, facet);
+
+        node.SopOrder!.BehaviorName.Should().Be("TakeCover");
+        node.SopOrder.Urgency.Should().Be(Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit);
+        node.SopOrder.ParamsVariable.Should().Be("TakeCoverParams");
+        asset.BlackboardVariables.Single(v => v.Name == "TakeCoverParams").FieldType.Should().Be(typeof(PatrolInputs));
+        node.DisplayLabel.Should().Be("React: TakeCover");
+    }
+
+    /// <summary>⭐ The order survives a save/load: the model ↔ DTO mapper carries every field both ways.</summary>
+    [Fact]
+    public void CE2079_AnSopOrder_RoundTripsThroughTheAssetMapper()
+    {
+        var asset = MakeAsset(RootSequence2Actions());
+        var node  = asset.Nodes.First(n => n.KernelType == NodeType.Action);
+        node.Action   = null;
+        node.SopOrder = new BTreeSopOrderPayload
+        {
+            Kind = Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle, BehaviorName = "Patrol",
+            ParamsVariable = "PatrolParams", Urgency = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Contact,
+        };
+
+        var back = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.FromDto(
+            Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(asset));
+        var order = back.Nodes.Single(n => n.VisualId == node.VisualId).SopOrder;
+
+        order.Should().NotBeNull();
+        order!.Kind.Should().Be(Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle);
+        order.BehaviorName.Should().Be("Patrol");
+        order.ParamsVariable.Should().Be("PatrolParams");
+        order.Urgency.Should().Be(Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Contact);
+    }
 }
