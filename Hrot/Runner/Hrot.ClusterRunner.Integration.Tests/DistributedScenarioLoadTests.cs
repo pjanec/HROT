@@ -121,13 +121,15 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         var cgfWorld = harness.Cgf!.World!;
         Assert.NotNull(cgfWorld);
 
-        // Pump until the CGF world has exactly 2 entities (scenario entities loaded).
+        // Pump until the CGF world has exactly 2 UNITS (scenario entities loaded).
+        // ⭐ CE-3036 (S3): each unit's TKB sensors are CHILD entities (PartMetadata) — counted out, not as units.
         bool entitiesLoaded = harness.PumpUntil(
-            () => cgfWorld.EntityCount == 2,
+            () => CountUnits(cgfWorld) == 2,
             timeoutFrames: 2000);
 
         Assert.True(entitiesLoaded,
-            $"CGF world must contain exactly 2 entities after scenario load. Actual: {cgfWorld.EntityCount}.");
+            $"CGF world must contain exactly 2 units after scenario load. Actual: {CountUnits(cgfWorld)} " +
+            $"({cgfWorld.EntityCount} entities with their part children).");
 
         // Find the attacker (has ActiveMissionPlan) and target entities.
         Entity attackerEntity = Entity.Null;
@@ -136,7 +138,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         for (int i = 0; i <= cgfWorld.MaxEntityIndex; i++)
         {
             var e = cgfWorld.GetEntityByIndex(i);
-            if (e == Entity.Null || !cgfWorld.IsAlive(e)) continue;
+            if (e == Entity.Null || !cgfWorld.IsAlive(e) || IsPart(cgfWorld, e)) continue;
 
             if (cgfWorld.HasManagedComponent<ActiveMissionPlan>(e))
                 attackerEntity = e;
@@ -263,5 +265,20 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     {
         [JsonPropertyName("targetNetworkId")]
         public long TargetNetworkId { get; set; }
+    }
+
+    private static bool IsPart(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
+           && w.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e);
+
+    private static int CountUnits(EntityRepository w)
+    {
+        int n = 0;
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e != Entity.Null && w.IsAlive(e) && !IsPart(w, e)) n++;
+        }
+        return n;
     }
 }
