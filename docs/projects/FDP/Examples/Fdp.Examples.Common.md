@@ -342,7 +342,7 @@ flag and by `ScenarioRegistry`.
 | `ComponentDamage` | `"componentdamage"` |
 | `BallisticsAndHit` | `"ballisticsandhit"` |
 | `BehaviorValidation` | `"behaviorvalidation"` |
-| `SensorGrid` | `"sensorgrid"` |
+| ~~`SensorGrid`~~ | ~~`"sensorgrid"`~~ — retired (`CE-3052`) |
 | `MissionCommand` | `"missioncommand"` |
 | `TerrainClamping` | `"terrainclamping"` |
 | `ParallelEpisodes` | `"parallelepisodes"` |

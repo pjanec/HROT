@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Perception.Modules
     /// <para><b>It publishes no singleton, and that is deliberate.</b> <c>PhysicsToolkitModule</c> calls
     /// <c>SetSingleton</c> because its consumers read <c>RaycastBatchData</c> off the world. Every consumer
     /// of this grid — <c>LocalGridBuilderSystem</c> (and, until it was retired, <c>AreaQuerySolverSystem</c>),
-    /// <c>VisionBroadphaseSystem</c> — takes it as a <b>constructor parameter</b> instead. Publishing it as
+    /// the visual template (<c>VisualPerception</c>) — takes it as a <b>constructor parameter</b> instead. Publishing it as
     /// well would create a second way to reach the same memory, which is the duplication this work removes.
     /// (Note <c>SpatialGridData</c> is a different singleton, owned by <c>SpatialHashSystem</c>.)</para>
     /// </remarks>

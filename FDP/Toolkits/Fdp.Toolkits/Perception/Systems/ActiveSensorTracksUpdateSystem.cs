@@ -18,10 +18,9 @@ namespace Fdp.Toolkit.Perception.Systems
     ///   <item><b>Distributed cluster:</b> <c>SensorTrackStateIngressTranslator</c> receives a
     ///     DDS <c>SensorTrackState</c> sample and publishes a <see cref="SensorTrackStateEvent"/>
     ///     onto the local bus.  This system then consumes that event.</item>
-    ///   <item><b>Networkless Editor:</b> <c>AutonomousPerceptionModule</c> bridges the event
-    ///     directly from the Muscle tier to the global world bus.  This system consumes it
-    ///     without any DDS involvement, making <see cref="ActiveSensorTracks"/> available to
-    ///     <see cref="ThreatEvaluationSystem"/> in the same frame.</item>
+    ///   <item><b>Networkless Editor:</b> the EQS solver's memory stage publishes the event on the
+    ///     same world bus.  This system consumes it without any DDS involvement, making
+    ///     <see cref="ActiveSensorTracks"/> available to <see cref="ThreatEvaluationSystem"/>.</item>
     /// </list>
     /// </para>
     ///

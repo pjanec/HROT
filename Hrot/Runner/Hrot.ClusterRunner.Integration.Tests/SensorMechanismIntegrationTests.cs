@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using Fdp.Core;
 using Fdp.Toolkit.Perception;
@@ -28,12 +28,14 @@ public sealed class SensorMechanismIntegrationTests
     private const int SensorPipelineTimeoutMs = 8_000;
     private const int DecayTimeoutMs          = 5_000;
     private const int PumpSleepMs             = 5;
+    private const int OccludedWindowMs        = 3000;   // longer than the solver + hysteresis + wire round trip that DID track it
 
     /// <summary>
     /// ⭐⭐ <c>CE-3050</c> / <c>CE-3038</c> — the sensor mechanism END TO END, driven by REAL perception: an M1 and a T-72
     /// (two forces) 100 m apart. SimHost's EQS solver runs the M1's implicit visual sensor, its memory stage reports the
     /// unit's Acquired → <c>SensorTrackState</c> on the wire → CGF <c>ActiveSensorTracks</c> → <c>TargetMemory</c> boosted.
-    /// Then the T-72 leaves the perception grid: the memory stage reports Lost and the score decays.
+    /// Then the T-72 leaves the perception grid: the memory stage reports Lost and the score decays. Then a wall hides it
+    /// back in range (no track), and with the wall gone it is reacquired (<c>CE-3052</c>).
     /// <para>🔴 Before: the rail injected <c>TargetVisibleEvent</c>s on the SimHost WORLD bus, which perception never read
     /// (its sightings lived on a private bus), and spawned two tanks of ONE force, which real perception cannot see —
     /// so it was red on every base. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.5.</para>
@@ -123,6 +125,34 @@ public sealed class SensorMechanismIntegrationTests
             DecayTimeoutMs / PumpSleepMs);
         Assert.True(decayed, $"With the track lost the score must decay below {scoreWhenLost:F1} within {DecayTimeoutMs} ms " +
             $"({PerceptionConstants.ThreatScoreDecayPerSecond * 100f:F0}%/s).");
+
+        // ⭐ CE-3052 — OCCLUDED, then REACQUIRED (what the retired FDP SensorGridScenario demonstrated on the old chain).
+        //   A wall (a collider of unknown height ⇒ blocks at any height) on the line, the T-72 back in range: no track.
+        //   The wall moves away: the same sensor reacquires it.
+        var wall = sim.CreateEntity();
+        sim.AddComponent(wall, new SimTransform { Position = new System.Numerics.Vector3(obsPos.X + 50f, obsPos.Y, obsPos.Z), Rotation = System.Numerics.Quaternion.Identity });
+        sim.AddComponent(wall, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 10f });
+        PlaceTarget(obsPos.X + 100f, obsPos.Y);
+        bool seenThroughWall = harness.PumpUntil(
+            () =>
+            {
+                var cgf = harness.Cgf!.World;
+                return cgf != null && cgf.HasComponent<ActiveSensorTracks>(observerCgf) && cgf.GetComponent<ActiveSensorTracks>(observerCgf).Count > 0;
+            },
+            OccludedWindowMs / PumpSleepMs);
+        Assert.False(seenThroughWall, "A wall on the line must hide the T-72 — no track while occluded. " + Diagnose(sim, observerSim, targetSim));
+
+        var wallTf = sim.GetComponentRO<SimTransform>(wall);
+        wallTf.Position = new System.Numerics.Vector3(obsPos.X + 50f, obsPos.Y + 500f, obsPos.Z);   // off the line
+        sim.SetComponent(wall, wallTf);
+        bool reacquired = harness.PumpUntil(
+            () =>
+            {
+                var cgf = harness.Cgf!.World;
+                return cgf != null && cgf.HasComponent<ActiveSensorTracks>(observerCgf) && cgf.GetComponent<ActiveSensorTracks>(observerCgf).Count > 0;
+            },
+            SensorPipelineTimeoutMs / PumpSleepMs);
+        Assert.True(reacquired, "With the wall gone the visual sensor must reacquire the T-72 and CGF track it again. " + Diagnose(sim, observerSim, targetSim));
     }
 
     // Every hop on the Muscle, so a red names the one that broke.

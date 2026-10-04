@@ -11,7 +11,7 @@ using Fdp.Toolkit.Tkb.Domain;
 namespace Fdp.Toolkit.Perception.LineOfSight
 {
     /// <summary>
-    /// ⭐⭐ <b>The line-of-sight seam.</b> <see cref="Systems.LosRequestBatchingSystem"/> asks a strategy, so each
+    /// ⭐⭐ <b>The line-of-sight seam.</b> The visual sensor's <c>StrategySightTest</c> asks a strategy, so each
     /// host chooses how sight is tested without the system changing. 📄 docs/DESIGN_Terrain_World.md §3, §4.3.
     /// <para>⭐ Called once per batch (<see cref="BeginBatch"/>) then once per request — a strategy gathers what
     /// it needs (colliders, the terrain world) once, not per pair.</para>

@@ -12,9 +12,10 @@ namespace Fdp.Toolkits.Tests.Perception;
 /// its roles, so selecting both through two roles allocated the grid <b>twice</b> — persistent native memory,
 /// not a wasted tick.</para>
 ///
-/// <para>⚠ The cross-capability sharing test lives in <c>Hrot.SimHost.Tests</c>
-/// (<c>PerceptionGridSharingTests</c>), because <c>CognitiveSpatialModule</c> is in <c>Hrot.SimHost</c> and
-/// this assembly cannot see it. These are the provider's own rails.</para>
+/// <para>⚠ The borrower rails (a capability handed a provider never frees it; one with none owns its own) live in
+/// <c>Hrot.SimHost.Tests</c> (<c>PerceptionGridSharingTests</c>): the only grid capability left is <c>EqsModule</c>,
+/// in <c>Hrot.SimHost</c> (<c>CE-3052</c> retired the toolkit's <c>AutonomousPerceptionModule</c>). This is the
+/// provider's own rail.</para>
 /// </summary>
 public sealed class PerceptionGridProviderTests
 {
@@ -32,37 +33,5 @@ public sealed class PerceptionGridProviderTests
         // the provider's copy cannot clear this copy's flag. That is the same reason PhysicsToolkitModule
         // retains its own copy to dispose. "Was it freed?" is not observable from here — what IS testable
         // is that Dispose is idempotent, which is what the second call above checks.
-    }
-
-    /// <summary>
-    /// A capability handed a provider must NOT free it: the provider outlives the capability and other
-    /// capabilities still read the memory. This is the half that would corrupt rather than merely leak.
-    /// </summary>
-    [Fact]
-    public void ACapabilityThatBorrowsAProviderDoesNotFreeIt()
-    {
-        var provider = new PerceptionGridProvider();
-
-        var borrower = new AutonomousPerceptionModule(gridProvider: provider);
-        borrower.Dispose();
-
-        // The provider can still be disposed exactly once, by its owner, without the allocator objecting.
-        // (Struct-copy semantics — see above — mean the stronger "the memory is still live" cannot be
-        // asserted from a copy; the structural guarantee is that _ownedGridProvider is null when borrowing,
-        // so the borrower's Dispose has nothing to free.)
-        provider.Dispose();
-    }
-
-    /// <summary>
-    /// The <c>null</c> default keeps pre-B3 hosts and tests working: the capability allocates and owns a
-    /// private grid, and frees it. Kept deliberately — but a composition root selecting by role must pass
-    /// the shared provider instead.
-    /// </summary>
-    [Fact]
-    public void ACapabilityWithNoProviderStillOwnsAndFreesItsOwnGrid()
-    {
-        var module = new AutonomousPerceptionModule();
-        module.Dispose();
-        module.Dispose();   // idempotent
     }
 }

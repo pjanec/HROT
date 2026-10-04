@@ -835,12 +835,13 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ CE-3038 — the PARITY proof: on one world, the visual sensor (EQS solver + memory stage) sees exactly the
-        /// (observer, target) pairs the old chain (VisionBroadphaseSystem → LosRequestBatchingSystem) produced. The
-        /// broadphase and the sight strategy are the chain's own code, so any difference is a wiring defect.
-        /// 📄 DESIGN_Sensors_And_Doctrine.md §5.5.
+        /// (observer, target) pairs a BRUTE-FORCE reference does — every pair, other force, within range, inside the cone,
+        /// line of sight clear. ⭐ CE-3052: the reference used to be the old chain (VisionBroadphaseSystem →
+        /// LosRequestBatchingSystem), retired once this proved parity; an all-pairs oracle is independent of the code
+        /// under test. 📄 DESIGN_Sensors_And_Doctrine.md §5.5.
         /// </summary>
         [Fact]
-        public void S5_TheVisualSensor_SeesExactlyWhatTheOldChainSaw()
+        public void S5_TheVisualSensor_SeesExactlyWhatABruteForceReferenceSees()
         {
             var (w, units) = VisionWorld(seed: 3038);
             using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
@@ -850,16 +851,27 @@ namespace Hrot.SimHost.Tests
                 var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
                 new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
 
-                // ── the old chain ──
-                new Fdp.Toolkit.Perception.Systems.VisionBroadphaseSystem(grid.Grid).Execute(view, 0.1f);
-                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
-                w.Bus.SwapBuffers();
-                int requests = view.ReadEvents<Fdp.Toolkit.Perception.Events.LosCheckRequestEvent>().Length;
-                new Fdp.Toolkit.Perception.Systems.LosRequestBatchingSystem(losStrategy: strategy).Execute(view, 0.1f);
-                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
-                w.Bus.SwapBuffers();
+                // ── the reference: all pairs, the rule written out ──
+                strategy.BeginBatch(view);
+                int requests = 0;
                 var chain = new HashSet<(int, long)>();
-                foreach (var e in view.ReadEvents<TargetVisibleEvent>()) chain.Add((e.Observer.Index, (long)e.Target.PackedValue));
+                foreach (var o in units)
+                {
+                    ref readonly var r = ref w.GetComponentRO<PerceptionReceptor>(o);
+                    var ot = w.GetComponentRO<SimTransform>(o);
+                    var fwd = Vector3.Transform(Vector3.UnitX, ot.Rotation);
+                    var fwd2 = Vector2.Normalize(new Vector2(fwd.X, fwd.Y));
+                    foreach (var t in units)
+                    {
+                        if (t == o || w.GetComponentRO<EntityInfo>(t).ForceId == w.GetComponentRO<EntityInfo>(o).ForceId) continue;
+                        var d = new Vector2(w.GetComponentRO<SimTransform>(t).Position.X - ot.Position.X,
+                                            w.GetComponentRO<SimTransform>(t).Position.Y - ot.Position.Y);
+                        if (d.LengthSquared() > r.VisionRange * r.VisionRange) continue;
+                        if (d.LengthSquared() > 0f && Vector2.Dot(fwd2, Vector2.Normalize(d)) < r.FieldOfViewCos) continue;
+                        requests++;
+                        if (strategy.IsVisible(view, o, t)) chain.Add((o.Index, (long)t.PackedValue));
+                    }
+                }
 
                 // ── the visual sensor ──
                 var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(w);
@@ -876,7 +888,7 @@ namespace Hrot.SimHost.Tests
                     unsafe { for (int i = 0; i < list.Count; i++) sensed.Add((u.Index, list.EntityIds[i])); }
                 }
 
-                Assert.True(chain.Count > 20, $"the scene must exercise sight (chain saw {chain.Count} pairs)");
+                Assert.True(chain.Count > 20, $"the scene must exercise sight (the reference saw {chain.Count} pairs)");
                 Assert.True(requests > chain.Count, $"the scene must contain BLOCKED lines, or the sight test is not proven ({requests} candidates, {chain.Count} seen)");
                 Assert.Equal(chain.OrderBy(p => p).ToList(), sensed.OrderBy(p => p).ToList());
             }

@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="SpatialHashGrid"/> from the current simulation snapshot each tick.
     /// <para>
     /// This system runs <b>first</b> inside <see cref="PerceptionModule.Tick"/> so that
-    /// subsequent systems (e.g. <see cref="VisionBroadphaseSystem"/>) can query the freshly
+    /// subsequent readers (e.g. the visual sensor's <see cref="VisionBroadphase"/>) can query the freshly
     /// rebuilt grid without touching the main-thread's <see cref="SpatialHashGrid"/> singleton.
     /// </para>
     /// <para>
@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="Fdp.Core.Collections.NativeArray{T}"/> wrappers around native pointers.
     /// Passing a struct copy here shares those native pointers with the caller's copy, so
     /// all <c>Clear()</c>, <c>Add()</c>, and <c>Remove()</c> mutations are visible to every
-    /// other holder of a struct copy (e.g. <see cref="VisionBroadphaseSystem"/>).
+    /// other holder of a struct copy (e.g. the visual template's <c>VisualSensorGenerator</c>).
     /// <see cref="EntityCount"/> and <see cref="SpatialHashGrid.FreeListCount"/> are updated
     /// locally in this system's copy; they do not need to match the caller's copy because
     /// <c>QueryNeighbors</c> iterates linked-list chains, not a count-bounded range.
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Perception.Systems
     public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.
-        // Shares native-memory pointers with the caller's copy and VisionBroadphaseSystem's copy.
+        // Shares native-memory pointers with the caller's copy and the visual template's copy.
         private SpatialHashGrid _grid;
 
         // Per-entity position tracking: full Entity handle (Index + Generation) → last known XY position.
@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Perception.Systems
         {
             var query = view.Query().With<SimTransform>().Build();
 
-            // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: VisionBroadphaseSystem's copy sees the shared
+            // ⭐ CE-3018 — a new terrain REBASES the grid (same memory: the visual template's copy sees the shared
             //    geometry) and invalidates every remembered position, which was hashed with the old geometry.
             if (_terrainSource != null)
             {

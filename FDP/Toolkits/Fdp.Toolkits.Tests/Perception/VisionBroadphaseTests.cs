@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
@@ -12,24 +12,18 @@ using Xunit;
 namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="VisionBroadphaseSystem"/>.
-    ///
-    /// Test pattern (IModuleSystem):
-    ///   1. Build world via <see cref="PerceptionTestWorldFactory"/>.
-    ///   2. Create a <see cref="SpatialHashGrid"/>, populate it with target entities.
-    ///   3. Cast world to <see cref="ISimulationView"/> â€” EntityRepository implements it natively.
-    ///   4. <c>sys.Execute(view, dt)</c>.
-    ///   5. Flush the ECB: <c>((EntityCommandBuffer)view.GetCommandBuffer()).Playback(world)</c>.
-    ///   6. Swap buffers to move published events to the readable slot.
-    ///   7. Assert <c>world.Bus.Consume&lt;LosCheckRequestEvent&gt;()</c>.
-    ///   8. Dispose the grid.
+    /// Unit tests for <see cref="VisionBroadphase"/> — what a unit can look at (range, FOV cone, other forces, the
+    /// nearest <see cref="VisionBroadphase.MaxCandidatesPerObserver"/>), read from the perception grid.
+    /// <para>⭐ <c>CE-3052</c> — re-homed from the retired <c>VisionBroadphaseSystem</c> onto the class the visual sensor
+    /// calls (<c>VisualSensorGenerator</c>); the scenes and the assertions are unchanged, "a LOS request for X" is now
+    /// "X is selected".</para>
     ///
     /// <b>Forward convention (critical):</b>
     ///   Forward direction is derived from <c>Vector3.Transform(Vector3.UnitX, tf.Rotation)</c>.
     ///   <c>Quaternion.Identity</c> â†’ yaw=0 â†’ facing east (+X). A target placed at (obsX+d, obsY, 0)
     ///   is directly ahead; a target at (obsX, obsY+d, 0) is 90Â° off-axis.
     /// </summary>
-    public class VisionBroadphaseSystemTests
+    public class VisionBroadphaseTests
     {
         // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -40,16 +34,15 @@ namespace Fdp.Toolkit.Perception.Tests
         private static SpatialHashGrid CreateTestGrid() =>
             SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
 
-        /// <summary>
-        /// Flushes the ECB written by <see cref="IModuleSystem.Execute"/> back to
-        /// the live world, then swaps event buffers so <c>Bus.Consume</c> can read them.
-        /// Must be called on the same thread as Execute.
-        /// </summary>
-        private static void FlushEcbAndSwap(ISimulationView view, EntityRepository world)
+        /// <summary>The targets the broadphase selects for <paramref name="observer"/> (its receptor's range and cone).</summary>
+        private static System.Collections.Generic.List<Entity> Selected(ISimulationView view, SpatialHashGrid grid, Entity observer)
         {
-            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
-            ecb.Playback(world);
-            world.Bus.SwapBuffers();
+            var broadphase = new VisionBroadphase();
+            broadphase.Rebuild(view, grid);
+            ref readonly var r = ref view.GetComponentRO<PerceptionReceptor>(observer);
+            var list = new System.Collections.Generic.List<Entity>();
+            foreach (var (_, target) in broadphase.Select(view, observer, r.VisionRange, r.FieldOfViewCos)) list.Add(target);
+            return list;
         }
 
         // â”€â”€ Test 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -61,7 +54,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world  = PerceptionTestWorldFactory.Create();
             var view   = (ISimulationView)world;
             var grid   = CreateTestGrid();
-            var sys    = new VisionBroadphaseSystem(grid);
 
             // Observer: Blue, at origin, facing east (Identity = yaw 0 = east).
             // FOV half-cosine = cos(30Â°) â‰ 0.866 â†’ 60Â° full FOV.
@@ -93,15 +85,12 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Clear();
             grid.Add(target, new Vector2(100f, 0f));
 
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
             // Assert â€” exactly one LOS request emitted.
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(observer, events[0].Observer);
-            Assert.Equal(target,   events[0].Target);
+            
+            Assert.Single(selected);
+            Assert.Equal(target,   selected[0]);
 
             grid.Dispose();
         }
@@ -115,7 +104,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world  = PerceptionTestWorldFactory.Create();
             var view   = (ISimulationView)world;
             var grid   = CreateTestGrid();
-            var sys    = new VisionBroadphaseSystem(grid);
 
             // Observer and target both Blue â†’ same faction â†’ excluded.
             var observer = world.CreateEntity();
@@ -145,13 +133,11 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Clear();
             grid.Add(target, new Vector2(50f, 0f));
 
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
             // Assert â€” no event because target is friendly.
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(0, events.Length);
+            
+            Assert.Empty(selected);
 
             grid.Dispose();
         }
@@ -165,7 +151,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world  = PerceptionTestWorldFactory.Create();
             var view   = (ISimulationView)world;
             var grid   = CreateTestGrid();
-            var sys    = new VisionBroadphaseSystem(grid);
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform
@@ -194,13 +179,11 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Clear();
             grid.Add(target, new Vector2(100f, 0f));
 
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
             // Assert â€” no event because target is beyond VisionRange.
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(0, events.Length);
+            
+            Assert.Empty(selected);
 
             grid.Dispose();
         }
@@ -214,7 +197,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world  = PerceptionTestWorldFactory.Create();
             var view   = (ISimulationView)world;
             var grid   = CreateTestGrid();
-            var sys    = new VisionBroadphaseSystem(grid);
 
             // Observer facing east (Identity). FieldOfViewCos = cos(30Â°) â‰ 0.866.
             // A target due north has dot(forward=(1,0), dir=(0,1)) = 0 < 0.866 â†’ outside cone.
@@ -246,13 +228,11 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Clear();
             grid.Add(target, new Vector2(0f, 100f));
 
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
             // Assert â€” dot(east, north) = 0 < 0.866 â†’ outside FOV â†’ no event.
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(0, events.Length);
+            
+            Assert.Empty(selected);
 
             grid.Dispose();
         }
@@ -260,13 +240,13 @@ namespace Fdp.Toolkit.Perception.Tests
         // â”€â”€ Test 5 (DEBT-011 isolation proof) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
-        /// DEBT-011: Proves that <see cref="VisionBroadphaseSystem"/> queries the injected
+        /// DEBT-011: Proves that <see cref="VisionBroadphase"/> queries the injected
         /// local grid and does <b>not</b> perform a brute-force world scan.
         /// <para>
         /// Setup: two enemy entities are both within VisionRange and inside the FOV cone.
         /// The local grid contains only one of them. The assertion is that exactly one
-        /// <see cref="LosCheckRequestEvent"/> is emitted â€” for the entity that is in the grid.
-        /// If the system were scanning the world it would emit two events.
+        /// target is selected â€” for the entity that is in the grid.
+        /// If it were scanning the world it would select both.
         /// </para>
         /// </summary>
         [Fact]
@@ -276,7 +256,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world  = PerceptionTestWorldFactory.Create();
             var view   = (ISimulationView)world;
             var grid   = CreateTestGrid();
-            var sys    = new VisionBroadphaseSystem(grid);
 
             // Observer: Blue, at origin, facing east.
             var observer = world.CreateEntity();
@@ -317,16 +296,13 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Add(targetA, new Vector2(50f, 0f));
             // Target B is intentionally NOT added to the grid.
 
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
             // Assert: only one LosCheckRequest â€” for Target A.
-            // If the system were scanning the world it would emit two events (one per enemy).
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(observer, events[0].Observer);
-            Assert.Equal(targetA,  events[0].Target);
+            // If it were scanning the world it would select both enemies.
+            
+            Assert.Single(selected);
+            Assert.Equal(targetA,  selected[0]);
 
             grid.Dispose();
         }
@@ -343,7 +319,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world = PerceptionTestWorldFactory.Create();
             var view  = (ISimulationView)world;
             var grid  = CreateTestGrid();
-            var sys   = new VisionBroadphaseSystem(grid);
             grid.Clear();
 
             var observer = world.CreateEntity();
@@ -370,14 +345,13 @@ namespace Fdp.Toolkit.Perception.Tests
                 grid.Add(f, fp);
             }
 
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(VisionBroadphaseSystem.MaxCandidatesPerObserver, events.Length);
+            
+            Assert.Equal(VisionBroadphase.MaxCandidatesPerObserver, selected.Count);
             var expected = new System.Collections.Generic.HashSet<Entity>();
-            for (int i = 0; i < VisionBroadphaseSystem.MaxCandidatesPerObserver; i++) expected.Add(hostiles[i].E);
-            foreach (var e in events) Assert.Contains(e.Target, expected);
+            for (int i = 0; i < VisionBroadphase.MaxCandidatesPerObserver; i++) expected.Add(hostiles[i].E);
+            foreach (var e in selected) Assert.Contains(e, expected);
 
             grid.Dispose();
         }
@@ -393,7 +367,6 @@ namespace Fdp.Toolkit.Perception.Tests
             var world = PerceptionTestWorldFactory.Create();
             var view  = (ISimulationView)world;
             var grid  = CreateTestGrid();
-            var sys   = new VisionBroadphaseSystem(grid);
             grid.Clear();
 
             var observer = world.CreateEntity();
@@ -413,12 +386,11 @@ namespace Fdp.Toolkit.Perception.Tests
             var outside  = Hostile(149.6f, 10f, true);   // 100.1 m
             var notInGrid = Hostile(60f, 10f, false);
 
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
+            var selected = Selected(view, grid, observer);
 
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(inside, events[0].Target);
+            
+            Assert.Single(selected);
+            Assert.Equal(inside, selected[0]);
             _ = outside; _ = notInGrid;
             grid.Dispose();
         }

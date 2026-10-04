@@ -29,25 +29,6 @@ namespace Fdp.Toolkit.Perception.Events
         public int SourceEntityIndex;
     }
 
-    // ── LosCheckRequestEvent ──────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Emitted by <see cref="Systems.VisionBroadphaseSystem"/> when a potential target
-    /// passes the faction + FOV broadphase filter.
-    /// Consumed by <see cref="Systems.LosRequestBatchingSystem"/> to queue a line-of-sight
-    /// ray or (in mock mode) to directly emit <see cref="TargetVisibleEvent"/>.
-    /// </summary>
-    [EventId(PerceptionConstants.LosCheckRequestEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct LosCheckRequestEvent
-    {
-        /// <summary>The observer entity performing the LOS check (full handle: index + generation).</summary>
-        public Entity Observer;
-
-        /// <summary>The potential target entity (full handle: index + generation).</summary>
-        public Entity Target;
-    }
-
     // ── TargetVisibleEvent ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -111,10 +92,9 @@ namespace Fdp.Toolkit.Perception.Events
     /// Global FDP event that bridges the Muscle-tier sensor debounce result to the
     /// Brain-tier cognitive buffer, replacing the DDS transport in networkless setups.
     /// <para>
-    /// Published by <see cref="Systems.SensorTrackDebounceSystem"/> when a contact
-    /// transitions to <see cref="SensorTrackStatus.Acquired"/> or
-    /// <see cref="SensorTrackStatus.Lost"/>. Forwarded from the module-private scoped bus
-    /// to the global world bus by <c>AutonomousPerceptionModule.Tick</c>.
+    /// Published by the EQS solver's memory stage (<c>SensorMemoryStage</c>) when the UNION of a unit's acquired
+    /// contacts over all its perception sensors gains or loses a target — <see cref="SensorTrackStatus.Acquired"/> or
+    /// <see cref="SensorTrackStatus.Lost"/> (docs/DESIGN_Sensors_And_Doctrine.md §5.4).
     /// </para>
     /// <para>
     /// In networked deployments the egress translator converts this event to a DDS

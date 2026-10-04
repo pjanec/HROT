@@ -16,8 +16,7 @@ namespace Fdp.Toolkit.Perception
         /// <summary>Event ID for <see cref="Events.AudioStimulusEvent"/>.</summary>
         public const int AudioStimulusEventId = 4001;
 
-        /// <summary>Event ID for <see cref="Events.LosCheckRequestEvent"/>.</summary>
-        public const int LosCheckRequestEventId = 4002;
+        // 4002 was LosCheckRequestEvent — retired with the toolkit's vision chain (CE-3052). Not reused.
 
         /// <summary>Event ID for <see cref="Events.TargetVisibleEvent"/>.</summary>
         public const int TargetVisibleEventId = 4003;

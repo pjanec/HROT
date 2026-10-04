@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
@@ -321,64 +321,6 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, resultMem.Count);
             Assert.Equal((long)target.PackedValue, resultMem.EntityIds[0]);
             Assert.Equal(12.5f, resultMem.PositionsZ[0]); // authoritative altitude recorded
-        }
-
-        // ── Test 7 (VisionBroadphaseSystem carries full Entity handle) ───────────────
-
-        /// <summary>
-        /// Verifies that <see cref="VisionBroadphaseSystem"/> emits a
-        /// <see cref="LosCheckRequestEvent"/> carrying full <see cref="Entity"/> handles
-        /// (Index + Generation), not raw int indices.
-        /// </summary>
-        [Fact]
-        public unsafe void LosCheckRequestEvent_CarriesFullEntityHandle_NotRawIndex()
-        {
-            // Arrange
-            var world  = PerceptionTestWorldFactory.Create();
-            var view   = (ISimulationView)world;
-
-            var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
-            var sys  = new VisionBroadphaseSystem(grid);
-
-            var observer = world.CreateEntity();
-            world.AddComponent(observer, new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity,
-            });
-            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
-            world.AddComponent(observer, new PerceptionReceptor
-            {
-                VisionRange    = 200f,
-                HearingRange   = 50f,
-                FieldOfViewCos = MathF.Cos(MathF.PI / 6f),
-            });
-            world.AddComponent(observer, new TargetMemory());
-
-            var target = world.CreateEntity();
-            world.AddComponent(target, new SimTransform
-            {
-                Position = new Vector3(100f, 0f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
-
-            grid.Clear();
-            grid.Add(target, new Vector2(100f, 0f));
-
-            // Act
-            sys.Execute(view, 0.1f);
-            FlushEcbAndSwap(view, world);
-
-            // Assert
-            var events = world.Bus.Read<LosCheckRequestEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(observer, events[0].Observer);
-            Assert.Equal(target,   events[0].Target);
-            Assert.NotEqual(0, events[0].Observer.Generation);
-            Assert.NotEqual(0, events[0].Target.Generation);
-
-            grid.Dispose();
         }
 
         // ── Test 8: multiple active tracks all boost ─────────────────────────────────

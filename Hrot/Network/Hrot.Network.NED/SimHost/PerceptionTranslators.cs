@@ -526,7 +526,7 @@ namespace Hrot.Network.NED.SimHost
     /// <para>
     /// The translator is a pure event-bus-to-DDS bridge with no change-detection logic.
     /// State transitions are now detected and published as <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/>
-    /// by <see cref="Fdp.Toolkit.Perception.Systems.SensorTrackDebounceSystem"/>; this
+    /// by the EQS solver's memory stage (<c>SensorMemoryStage</c>); this
     /// translator merely serialises them to the wire.
     /// </para>
     /// Uses Reliable / TransientLocal QoS -- one sample per contact event,

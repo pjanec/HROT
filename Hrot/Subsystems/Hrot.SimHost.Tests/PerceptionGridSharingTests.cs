@@ -22,8 +22,10 @@ public sealed class PerceptionGridSharingTests
         using var world    = new EntityRepository();
         var provider = new PerceptionGridProvider();
 
+        // ⭐ CE-3052 — EqsModule is the only grid capability left (the toolkit's AutonomousPerceptionModule is retired);
+        //   two borrowers still prove the rule: the provider frees, a borrower never does.
         var cognitive  = new EqsModule(provider, terrainSource: null);
-        var autonomous = new AutonomousPerceptionModule(gridProvider: provider);
+        var autonomous = new EqsModule(provider, terrainSource: null);
 
         // Disposing both capabilities must be safe and must not free the borrowed grid: it belongs to the
         // provider, which is disposed by its owner afterwards. ⚠ "The memory is still live" cannot be

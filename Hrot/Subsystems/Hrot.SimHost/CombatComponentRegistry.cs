@@ -44,7 +44,6 @@ namespace Hrot.SimHost
 
             // ── Perception pipeline events ────────────────────────────────────
             world.RegisterEvent<AudioStimulusEvent>();
-            world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
             world.RegisterEvent<TargetHeardEvent>();
             world.RegisterEvent<SensorTrackStateEvent>(); 

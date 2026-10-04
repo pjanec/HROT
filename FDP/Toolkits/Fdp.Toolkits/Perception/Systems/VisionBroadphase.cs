@@ -1,104 +1,18 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
-using Fdp.Toolkit.Perception.Events;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Perception.Systems
 {
     /// <summary>
-    /// Async vision broadphase â€” runs inside <see cref="PerceptionModule"/> on the
-    /// background thread via the Snapshot-on-Demand (SoD) pattern.
-    /// <para>
-    /// For each observer entity with a <see cref="PerceptionReceptor"/>:
-    /// <list type="number">
-    ///   <item>Queries the module-private <see cref="SpatialHashGrid"/> for candidates within VisionRange.</item>
-    ///   <item>Skips candidates that are not alive, lack an <see cref="EntityInfo"/>, or share the observer's force affiliation.</item>
-    ///   <item>Performs a dot-product FOV cone check using the precomputed <c>FieldOfViewCos</c> cosine.</item>
-    ///   <item>Emits a <see cref="LosCheckRequestEvent"/> via the entity command buffer for candidates that pass.</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// <b>Grid injection:</b> The grid is supplied via the constructor by <see cref="PerceptionModule"/>.
-    /// <see cref="LocalGridBuilderSystem"/> populates the grid before this system executes each tick,
-    /// so the broadphase never performs a brute-force world scan.
-    /// </para>
-    /// <para>
-    /// <b>SoD rules (strictly enforced):</b>
-    /// <list type="bullet">
-    ///   <item>Only <c>view.GetComponentRO&lt;T&gt;</c> â€” no <c>GetComponentRW</c>.</item>
-    ///   <item>All writes are queued via <c>view.GetCommandBuffer().PublishEvent</c>.</item>
-    ///   <item>The snapshot is treated as immutable throughout execution.</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// <b>Forward vector:</b> Derived from <see cref="SimTransform.Rotation"/> using
-    /// <c>Vector3.Transform(Vector3.UnitX, tf.Rotation)</c>. <c>Vector3.UnitX</c> is the
-    /// forward-east axis in FDP's coordinate system (X = east, Y = north, Z = up).
-    /// Using <c>Vector3.UnitY</c> would point north regardless of yaw â€” a BATCH-01 regression.
-    /// </para>
-    /// </summary>
-    [UpdateInPhase(SystemPhase.Manual)]
-    public class VisionBroadphaseSystem : IEcsModuleSystem
-    {
-        /// <summary>See <see cref="VisionBroadphase.MaxCandidatesPerObserver"/>.</summary>
-        public const int MaxCandidatesPerObserver = VisionBroadphase.MaxCandidatesPerObserver;
-
-        /// <summary>See <see cref="VisionBroadphase.CoarseCellSize"/>.</summary>
-        internal const float CoarseCellSize = VisionBroadphase.CoarseCellSize;
-
-        // Value-copy of PerceptionModule._localGrid; shares the same native-memory pointers.
-        // LocalGridBuilderSystem populates the grid before this system runs.
-        private readonly SpatialHashGrid _grid;
-
-        // ⭐ CE-3038 — the candidate search itself, shared with the visual EQS sensor (VisualSensorGenerator): ONE
-        //   implementation of "what an observer can look at", so the two can never drift.
-        private readonly VisionBroadphase _broadphase = new();
-
-        /// <summary>
-        /// Initialises the system with the module-private spatial grid.
-        /// The grid struct is copied by value; native-memory arrays are shared.
-        /// </summary>
-        public VisionBroadphaseSystem(SpatialHashGrid grid)
-        {
-            _grid = grid;
-        }
-
-        /// <inheritdoc/>
-        public void Execute(ISimulationView view, float deltaTime)
-        {
-            var ecb = view.GetCommandBuffer();
-            _broadphase.Rebuild(view, _grid);
-
-            // Query all observer entities (must have a receptor, entity info, and spatial presence).
-            var observerQuery = view.Query()
-                .With<PerceptionReceptor>()
-                .With<EntityInfo>()
-                .With<SimTransform>()
-                .Build();
-
-            foreach (var observer in observerQuery)
-            {
-                ref readonly var receptor = ref view.GetComponentRO<PerceptionReceptor>(observer);
-                foreach (var (_, target) in _broadphase.Select(view, observer, receptor.VisionRange, receptor.FieldOfViewCos))
-                {
-                    // Passed all broadphase filters → queue a line-of-sight check.
-                    ecb.PublishEvent(new LosCheckRequestEvent
-                    {
-                        Observer = observer,
-                        Target   = target,
-                    });
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b>What an observer can look at</b> — the vision broadphase, shared by <see cref="VisionBroadphaseSystem"/> and
-    /// the visual EQS sensor (<c>VisualSensorGenerator</c>, <c>CE-3038</c>). 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.5.
+    /// ⭐⭐ <b>What an observer can look at</b> — the vision broadphase the visual EQS sensor
+    /// (<c>VisualSensorGenerator</c>, <c>CE-3038</c>) calls. ⭐ <c>CE-3052</c>: its other caller, the toolkit's own
+    /// <c>VisionBroadphaseSystem</c> chain, is retired; the rule — other forces, range, the FOV cone with forward =
+    /// <c>Vector3.Transform(Vector3.UnitX, rotation)</c> (X east, Y north) — is unchanged. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.5.
     /// <para>Per tick: <see cref="Rebuild"/> buckets every live entity with an <see cref="EntityInfo"/> into 50 m cells from
     /// the fine perception grid. Per observer: <see cref="Select"/> keeps the other forces within range and the FOV cone,
     /// the NEAREST <see cref="MaxCandidatesPerObserver"/> first (ties by entity index — deterministic).</para>
