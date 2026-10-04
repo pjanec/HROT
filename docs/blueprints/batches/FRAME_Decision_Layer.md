@@ -122,6 +122,6 @@ cheap when `CE-3056` lands. 📄 `docs/DESIGN_Sensors_And_Doctrine.md` §9.4a (O
 
 | who | items |
 |---|---|
-| **behaviors** | `CE-3034` origin + gate → `CE-3047` defaults through the ingress → `CE-2074` ROE · `CE-2076` recent senses · `CE-2077` TKB `DefaultSop` → `CE-3035` SOP slot → `CE-2078` reactions in the gate → `CE-2079` the two SOP actions → `CE-2080` SOP recipe → `CE-3042` snapshot (+ the `CE-502` finding) → `CE-3043` editor AI section (⭐ moved from the ui lane, user) → `CE-3048` authority hand-over → `CE-3040` / `CE-3041` / `CE-3054` → `CE-2081` resume → utility `CE-2067`–`CE-2073` |
+| **behaviors** | `CE-3034` origin + gate → `CE-3047` defaults through the ingress → `CE-2074` ROE · `CE-2076` recent senses · `CE-2077` TKB `DefaultSop` → `CE-3035` SOP slot → `CE-2078` reactions in the gate → `CE-2079` the two SOP actions → `CE-2080` SOP recipe → `CE-2082` demo SOP scenario (⭐ user, `2026-10-04`) → `CE-3042` snapshot (+ the `CE-502` finding) → `CE-3043` editor AI section (⭐ moved from the ui lane, user) → `CE-3048` authority hand-over → `CE-3040` / `CE-3041` / `CE-3054` → `CE-2081` resume → utility `CE-2067`–`CE-2073` |
 | **backend** | ❓ `CE-2075` ROE fire guard in `AimAndFireExecutor` (lean: yours) · the memory stage stays yours, `CE-3054` remains the joint freshness design |
 | **ui** | `CE-3043` no longer theirs |

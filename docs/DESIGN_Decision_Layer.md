@@ -410,6 +410,11 @@ reaction ends. ⇒ restart, not resume (`CE-2081`).*
 
 Rails: `SopSlotTests.CE2078_*` (6) · `MissionDirectorSystemTests.CE2078_AReactionsFinish_DoesNotAdvanceTheMission`.
 
+⭐ **Planned demo (`CE-2082`, user `2026-10-04`):** a recipe scenario `Recipes/Scenarios/sop-demo` that exercises exactly
+this table — a squad fired upon on a move task (reaction, pause, restart), a squad under ROE `StayOnTask` (refused), an
+idle unit whose idle choice yields to an order — with a headless rail asserting the sequence. Built after the recipe
+(`CE-2080`).
+
 📐 **What resume would take — measured `2026-10-04`:**
 
 | run state | where it lives | on pause / resume |
