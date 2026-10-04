@@ -12,6 +12,7 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - docs/DESIGN_Sensors_And_Doctrine.md — OWNS perception on the sensor form (TKB sensor children, memory stage) and the cost-unit budget that will supersede §7.5–7.6.
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — OPEN: proposes perception sensors reuse THIS sensor form (memory stage,
     TKB capability payload, unit-owned child sensors) and a cost-unit budget replacing §7.5–7.6's wall-clock slicing.
   - docs/DESIGN_Terrain_World.md — owns the terrain world §19 queries over (prisms, SegmentBlocked, SurfaceZ) and TerrainResidency.
