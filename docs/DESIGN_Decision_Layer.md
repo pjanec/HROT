@@ -46,6 +46,17 @@ related-designs:
 
 ## 3. Utility AI — what exists, and where it can help *(under discussion)*
 
+### INVENTORY *(`search_graph` via the codebase-memory CLI, `2026-10-04`; `check_index_coverage` is not available through the CLI, so absence claims are grep-corroborated)*
+
+| query | total (production, tests excluded) |
+|---|---|
+| `search_graph name_pattern=.*Utility.* label=Class` | ~40 — core, inputs, starter pack, integration helpers, editor, analyzers |
+| `search_graph .*TacticalIntent.*` | 14 — the existing "tactical intent" is a NAMED ORDER mapped to a behaviour (`TacticalIntentResolutionSystem`), not unit state |
+| `search_graph .*MissionDirector.*\|.*MissionTrigger.*\|.*MissionPhase.*` | 10 — `MissionTrigger` exists three times (Hrot.Core class, NED struct, Toolkits enum) |
+| `search_graph .*Goal.*` | 0 |
+| `search_graph .*ThreatEval.*\|.*ThreatMatrix.*\|.*ThreatRank.*` | 5 |
+| grep `ScoreDecision\|ReadRankedResult` over shipped assets and scenarios | 0 — no consumer |
+
 📐 **Measured `2026-10-04`:** the engine is BUILT and has NO consumer.
 
 | piece | state |
