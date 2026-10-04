@@ -151,6 +151,37 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Empty(JsonSerializer.Deserialize<SensorCapabilitiesDto>("{\"VisionRange\":50}", FdpJsonOptionsRegistry.DefaultRelaxed)!.Sensors);
         }
 
+        /// <summary>
+        /// ⭐ CE-2071 — <see cref="UnitSensors.OfTemplate"/> finds the unit's sensor running a template, whoever made it:
+        /// the CURRENT run's own sensor first, then a TKB sensor, then any other run's (lowest part id); Null for none.
+        /// And a borrowed run sensor vanishes with its run — the lookup reflects that the next time.
+        /// </summary>
+        [Fact]
+        public void OfTemplate_PrefersTheCurrentRun_ThenTheTkb_ThenAnyOther_CE2071()
+        {
+            if (!_repo.IsComponentTypeRegistered<BehaviorState>()) _repo.RegisterComponent<BehaviorState>();
+            uint thermal = EqsTemplateRegistry.BlueprintIdOf(ThermalTemplate);
+            uint cover   = 0xC0FE_2071u;
+            var unit = _repo.CreateEntity();
+            new PerceptionTkbTranslator().Inject(_repo, unit, Unit(Thermal(800f)));
+            var tkb = UnitSensors.Of(_repo, unit, SensorModality.Thermal);
+
+            _repo.AddComponent(unit, new BehaviorState { InstanceId = 3 });
+            var run3Cover   = EqsChildSensor.Ensure(_repo, unit, siteId: 1, new EqsSensor { BlueprintId = cover });
+            var run3Thermal = EqsChildSensor.Ensure(_repo, unit, siteId: 2, new EqsSensor { BlueprintId = thermal });
+            _repo.SetComponent(unit, new BehaviorState { InstanceId = 7 });
+            var run7Thermal = EqsChildSensor.Ensure(_repo, unit, siteId: 2, new EqsSensor { BlueprintId = thermal });
+
+            Assert.Equal(run7Thermal, UnitSensors.OfTemplate(_repo, unit, thermal));   // the current run's own
+            Assert.Equal(run3Cover,   UnitSensors.OfTemplate(_repo, unit, cover));     // only another run's: borrowed
+            Assert.True(UnitSensors.OfTemplate(_repo, unit, 0xDEADu).IsNull);
+
+            BehaviorOwnedParts.Release(_repo, unit, 7);                               // run 7 ends ⇒ its sensor is gone
+            _repo.SetComponent(unit, new BehaviorState { InstanceId = 8 });
+            Assert.Equal(tkb, UnitSensors.OfTemplate(_repo, unit, thermal));           // TKB before run 3's
+            _ = run3Thermal;
+        }
+
         /// <summary>⭐ R-185 L / R-187 N′ — AI finds a sensor by KIND; switching a TKB sensor off is an override (payload, epoch
         /// moves); clearing it restores the TKB default at a NEWER epoch; Configure replaces the capability in force.</summary>
         [Fact]

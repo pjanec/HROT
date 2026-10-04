@@ -28,6 +28,45 @@ namespace Fdp.Toolkit.Perception.Sensors
             return best;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2071</c> (built by backend) — the unit's sensor running the query template <paramref name="blueprintId"/>,
+        /// whoever created it: the TKB, the unit's current behaviour run, or another run (a doctrine, a parent behaviour).
+        /// <see cref="Entity.Null"/> when none. 📄 docs/DESIGN_Decision_Layer.md §3.3.
+        /// <para>⭐ For READING a sensor someone else already runs — instead of spawning a second sensor with the same query.
+        /// Preference when several match, deterministic: the unit's CURRENT run's own sensor, then a TKB sensor (stable for
+        /// the unit's life), then any other, lowest part id within each.</para>
+        /// <para>⚠ A borrowed sensor is not yours: ① never cache the handle — a behaviour-owned sensor is destroyed the moment
+        /// its run ends (<c>BehaviorOwnedParts.Release</c>), so look it up each time and treat Null as normal; ② read only —
+        /// never <c>Configure</c> / refresh / destroy another run's sensor (a new epoch drops the owner's results).</para>
+        /// </summary>
+        public static Entity OfTemplate(ISimulationView view, Entity unit, uint blueprintId)
+        {
+            bool ownership = view is not EntityRepository repo
+                || (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>()
+                    && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>());
+            uint currentRun = ownership ? Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.OwnerOf(view, unit) : 0u;
+            bool tags = view is not EntityRepository r2 || r2.IsComponentTypeRegistered<SensorTag>();
+
+            Entity best = Entity.Null;
+            int bestRank = int.MaxValue, bestPart = int.MaxValue;
+            // A fresh query each call: an EntityQuery caches component-array pointers that a structural change can move.
+            foreach (var e in view.Query().With<EqsSensor>().With<PartMetadata>().Build())
+            {
+                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
+                if (!meta.ParentEntity.Equals(unit) || view.GetComponentRO<EqsSensor>(e).BlueprintId != blueprintId) continue;
+                int rank =
+                    currentRun != 0 && ownership && view.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e)
+                        && view.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e).OwnerInstanceId == currentRun ? 0
+                    : tags && IsTkb(view, e) ? 1
+                    : 2;
+                if (rank < bestRank || (rank == bestRank && meta.InstanceId < bestPart))
+                {
+                    best = e; bestRank = rank; bestPart = meta.InstanceId;
+                }
+            }
+            return best;
+        }
+
         /// <summary>The ranked results of the unit's <paramref name="kind"/> sensor (the EQS reader API: <c>IsReady</c>, <c>GetTop</c>, …).</summary>
         public static bool TryGetResults(ISimulationView view, Entity unit, SensorModality kind, out EqsCognitiveBuffer results)
         {

@@ -754,6 +754,17 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | Stride | `dotnet build HrotStrideApp.Game.Tests -p:EnableWindowsTargeting=true` | builds; ⚠ its tests need Windows |
 | examples | Examples.Scenarios · UrbanCombat · Overlays | 53/3 (the 3 `UrbanCombatNew…` = `CE-321`, red on base) · 29/0 · 29/0 |
 
+### 9.4a `UnitSensors.OfTemplate` — reading a sensor someone else runs *(`CE-2071`, built by backend `2026-10-04`)*
+
+> 🔒 *User: "backend builds sensor lookup. backend adds OfTemplate."*
+
+| rule | why |
+|---|---|
+| ⭐ query sensors (cover, retreat …) are made ON THE FLY by the behaviour that needs them and die with its run; the TKB declares only the unit's permanent senses | a TKB sensor runs for the unit's whole life and costs budget every tick it is on (§5.3) — the user's point, `2026-10-04` |
+| ⭐ `OfTemplate` is for a SECOND reader of a sensor that already runs — a child behaviour, a utility input — instead of spawning a duplicate | a duplicate costs a second solve per tick, starts cold (`IsReady` false for ≥ 1 solver tick, V6) and can answer differently from the original |
+| ⭐ preference: the caller's CURRENT run's own sensor → a TKB sensor → any other run's; lowest part id within each | `EqsChildSensor.Find` is deliberately run-scoped (`CE-485`), so it cannot see another run's sensor; `StandardInputs.TryFindEqsChild` took the first match in query order |
+| ⛔ a borrowed handle is never cached and never configured | a behaviour-owned sensor is destroyed the moment its run ends (`BehaviorOwnedParts.Release`); a refresh / `Configure` moves its epoch and drops its owner's results |
+
 ### 9.5 As-built — S6 backend half / `CE-3039` *(`2026-10-04`)*
 
 > 🔒 *User: "yes backend half please"* — S6 split: the backend builds the EVENT; the nodes that READ sensors go to the
