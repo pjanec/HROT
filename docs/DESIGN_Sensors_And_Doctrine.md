@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-10-04
 build-state: READY-TO-BUILD — every decision approved (R-185 … R-189); §9 lists the details the build must verify first.
-current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan.
+current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan, §10 what is still open.
 stale-below: nothing — new document.
-known-rot: nothing yet.
+known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.5–7.6 (wall-clock budget bands, QueryTimeSliced) — superseded by §5.3 here (cost-unit budget) once step S4 lands; that doc gets the SUPERSEDED marker in the same change.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
@@ -26,7 +26,7 @@ related-designs:
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
 
-Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3044` (§9).
+Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3045` (§9).
 
 ## 1. What was decided *(all approved by the user, `2026-10-04`)*
 
@@ -391,78 +391,75 @@ owned by ITS token, not the behaviour's (the §7.2 `OwnerOf` re-key is what make
 | across nodes | assign / clear stay local-bus; the ONE wire path is the intent topic, which gains a `Kind` (Behaviour / Doctrine) beside `Origin` |
 | ⛔ rejected | resetting the running behaviour on a doctrine change (a frozen tick mid-action) · a separate doctrine topic (two wire paths for one kind of order) |
 
-### 7.5 Authoring a unit's AI in the scenario — doctrine, starting behaviour, instance blueprints
+### 7.5 Authoring a unit's AI in the scenario — the SNAPSHOT concept (behaviour, doctrine, instance blueprints)
 
 > 🔒 *"How can i save doctrine set to an entity to a scenario by scenario editor, even overriding the one set in the tkb?"*
-> · *"same question is for current behavior … it was not the right component to be saved"* · ✅ *"Agreed, add it to the
-> design."* (R-190) · *"What about the instance blueprints on the entity? … not sure if they can be edited on entity and
-> saved to scenario (with params). Very similar to doctrine and initial behavior but multi-instance."* — ⏳ the instance
-> half below is a LEAN, not yet approved.
+> · *"same question is for current behavior … it was not the right component to be saved"* · *"Agreed, add it to the
+> design."* (R-190, ⛔ SUPERSEDED by R-192) · *"The scenario saving now saves current state of entity as the new initial
+> snapshot. Maybe we could follow same concept?"* · ✅ *"Yes snapshot concept approved if it saves just what is needed not
+> runtime hashes etc."* (R-192)
 
 ```mermaid
 classDiagram
   direction LR
-  class AiAssignment { <<NEW component, SAVED to the scenario>> +string DoctrineName +string DoctrineParams +string BehaviorName +string BehaviorParams }
-  class AiAssignmentTranslator { <<NEW scenario translator>> key "AiAssignment" }
-  class AiAssignmentMaterializationSystem { <<NEW, Brain authority node, Input>> component → AssignDoctrineEvent + AssignBehaviorEvent, Origin = Superior }
-  class BehaviorState { <<existing, NoScenario — stays>> }
-  class DoctrineState { <<NEW, NoScenario>> }
-  class BlueprintStateTranslator { <<existing, CHANGES>> key "BlueprintAssignments" — reads live slots, params as JSON ≠ default (R-191) }
-  class InitialBlueprintsIntent { <<existing, Transient>> List~BlueprintAssignmentDto~ }
-  class BlueprintMaterializationSystem { <<existing>> attaches on load }
-  class EntityAiSection { <<NEW editor Details section — UI lane>> doctrine row · starting-behaviour row · instance-blueprint rows, each with ONE params form }
-  class EntityBlueprintsPanel { <<existing>> attach / detach — no params editor today }
-  class BlueprintInstanceService { <<existing>> AttachToEntity(paramsJson) · WriteParamsRegion · ReadParamsRegion }
-  AiAssignmentTranslator ..> AiAssignment
-  AiAssignmentMaterializationSystem ..> AiAssignment
-  AiAssignmentMaterializationSystem ..> BehaviorState : via the ingress, never directly
-  AiAssignmentMaterializationSystem ..> DoctrineState : via the ingress, never directly
+  class BehaviorState { <<existing, NoScenario — stays>> hash · InstanceId · tier — NEVER saved }
+  class DoctrineState { <<NEW, NoScenario>> NEVER saved }
+  class BehaviorStartRecord { <<existing, Transient, one per slot after S2>> +BehaviorName +JsonParams }
+  class BrainSlotScenarioTranslator { <<NEW, ONE class, registered per slot>> key "Behavior" / "Doctrine" — writes Name + Params(JSON) + Origin }
+  class InitialBrainIntent { <<NEW, Transient>> +Slot +Name +Params +Origin }
+  class InitialBrainMaterializationSystem { <<NEW, Brain authority node, Input>> intent → AssignBehaviorEvent / AssignDoctrineEvent with the SAVED origin }
+  class BlueprintStateTranslator { <<existing, CHANGES>> key "BlueprintAssignments" — live slots, params as JSON ≠ default (R-191) }
+  class InitialBlueprintsIntent { <<existing, Transient>> }
+  class EntityAiSection { <<NEW editor Details section — UI lane>> edits LIVE state only: doctrine · behaviour · instance rows, ONE params form }
+  BrainSlotScenarioTranslator ..> BehaviorStartRecord : reads Name + JSON
+  BrainSlotScenarioTranslator ..> BehaviorState : reads Origin only
+  BrainSlotScenarioTranslator ..> InitialBrainIntent : on load
+  InitialBrainMaterializationSystem ..> InitialBrainIntent
   BlueprintStateTranslator ..> InitialBlueprintsIntent
-  BlueprintMaterializationSystem ..> InitialBlueprintsIntent
-  EntityAiSection ..> AiAssignment : doctrine + behaviour rows
-  EntityAiSection ..> EntityBlueprintsPanel : absorbs it
-  EntityAiSection ..> BlueprintInstanceService : instance rows (params)
+  EntityAiSection ..> BehaviorState : via the ingress (events / paused start)
+  EntityAiSection ..> DoctrineState : via the ingress
 ```
 
-*What the picture shows that prose hid:* the scenario never stores a RUNTIME component — the doctrine and starting
-behaviour live in an authored `AiAssignment` beside the live state, and instance blueprints already have their own
-built save path; what is missing for them is only the EDITOR (a params form), not persistence.
+*What the picture shows that prose hid:* nothing is authored "beside" the entity — the editor edits the LIVE unit, and
+the save reads the live unit through translators that keep only the declarative part (what runs, with which params,
+on whose authority). The runtime components themselves never reach the file.
 
 ```mermaid
 sequenceDiagram
   participant U as author (editor AI section)
-  participant A as AiAssignment (on the entity)
-  participant S as scenario save
-  participant L as load: spawn (TKB first, then scenario components)
-  participant M as AiAssignmentMaterializationSystem
   participant I as BehaviorIngressSystem
-  U->>A: doctrine = X (params), starting behaviour = Y (params) — or empty = "use the TKB"
-  S->>A: AiAssignmentTranslator writes "AiAssignment"
-  L->>L: TKB: DefaultDoctrineHash ⇒ DoctrineState pending, lowest rank
-  L->>A: scenario component applied after the TKB (NetworkSpawningSystem :207-209)
-  M->>I: AssignDoctrineEvent X, Origin = Superior (outranks the TKB default)
-  M->>I: AssignBehaviorEvent Y, Origin = Superior (the doctrine waits until Y ends)
-  Note over I: normal starts — params parsed, HSM initialised (fixes V5's direct-write gap)
+  participant S as scenario save (translators)
+  participant L as load: spawn (TKB first, then scenario)
+  participant M as InitialBrainMaterializationSystem
+  U->>I: assign doctrine X / behaviour Y (params JSON) — paused: direct start, running: event
+  I->>I: live state + start record per slot
+  S->>S: "Doctrine" / "Behavior": {Name, Params, Origin} — only if it differs from the TKB default
+  S->>S: "BlueprintAssignments": [{AssetId, Params JSON ≠ default}]
+  L->>L: TKB: DefaultDoctrineHash ⇒ DoctrineState pending (lowest rank)
+  L->>M: InitialBrainIntent applied after the TKB (NetworkSpawningSystem :207-209)
+  M->>I: AssignDoctrineEvent / AssignBehaviorEvent with the SAVED origin ⇒ a normal start (params parsed, HSM initialised)
 ```
 
-*What the picture shows that prose hid:* the scenario wins by ORDER (it is applied after the TKB) and by RANK
-(Superior > the TKB default) — two independent guarantees, and the start goes through the one ingress.
+*What the picture shows that prose hid:* save and load are symmetric through the ONE ingress — a reloaded unit is
+started exactly as if the author had just assigned it, so nothing restored can skip a start (the V5 gap closes too).
 
 | rule | why |
 |---|---|
-| ⭐ save the AUTHORED choice, never `BehaviorState` / `DoctrineState` | saving live state would record whatever the doctrine happened to pick as the scenario's starting behaviour — the reason `BehaviorState` has been unsaved since at least `2026-07-16` (`NoSave`, renamed `NoScenario` `2026-09-14`) |
-| ⭐ either half empty = "use the TKB"; no component = the TKB for both | the TKB stays the default; a scenario only overrides what the author touched |
-| ⭐ scenario assignments carry `Origin = Superior` | "start by holding the bridge, then go autonomous": the doctrine cannot replace an authored starting behaviour until it ends; leave the behaviour empty for autonomy from second one |
-| ⭐ params are JSON (name + params, like `MissionPlanTranslator`'s tasks) | the assignment events already carry JSON; the ingress parses it |
-| ⏳ **instance blueprints — LEAN:** keep their save TRANSLATOR (`BlueprintStateTranslator`) but switch its params to JSON (next row); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today |
+| ⭐ **saved per slot: `{Name, Params, Origin}` — nothing else** | ⛔ never the hash, `InstanceId`, tier, cursor, behaviour variables, owned parts, fault latch — R-192 *"not runtime hashes etc."*. The old `BehaviorState` save was wrong for exactly these (a run token, no params, no start on load) |
+| ⭐ a behaviour's PROGRESS is not saved — it restarts with the same params | the same choice as mission plans (phase progress dropped) and instance blueprints (params only) |
+| ⭐ saved only when it DIFFERS from the TKB default | TKB edits still reach every entity that did not override them — the same "≠ default" rule as params |
+| ⭐ the ORIGIN is saved | a behaviour the doctrine chose reloads as `Doctrine` (the doctrine may replace it again); one assigned in the editor reloads at the editor's rank (§10 O1) |
+| ⭐ params JSON = the start record's JSON for a behaviour / doctrine; `FormatParams` of the live region for an instance | a behaviour's params are fixed for its run (changing them = re-assigning); an instance's region can be edited in place |
+| ⛔ **derived entities are never saved** | sensor children (TKB-derived and behaviour-owned) carry `ScenarioIgnoreTag` — today they are saved and duplicate on reload: `CE-3045` |
+| ⭐ an instance attach is FIND-OR-CREATE per (asset, owner) | a doctrine that attached one at runtime saves it (the snapshot is the truth); on reload the doctrine must not attach a second |
+| ✅ **instance blueprints:** keep their save TRANSLATOR (`BlueprintStateTranslator`) but switch its params to JSON (next row); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today |
 | ✅ **params in a scenario are JSON, never bytes — R-191** (🔒 *"The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as bytes to scenario."*) | every params value in a scenario — doctrine, behaviour, instance blueprint — is a JSON object keyed by parameter NAME, holding only fields that differ from the declared defaults. ⭐ Load = the existing emitted `ParseParams` (defaults first, then the object overlaid by name; unknown keys ignored — `InstanceEmitter.cs:436-488`) into the blueprint's generated `Params` struct (`InstanceEmitter.cs:369`). ⭐ Save = a NEW emitted inverse `FormatParams(memory) → json` beside it (V9 resolved). ⇒ the `ParamsStructureHash` guard is no longer needed — a renamed or re-laid-out field degrades by name, not by byte offset. ⛔ SUPERSEDES the byte decision of Param Persistence §3 (AQ61) — 🔒 *"Bytes can not be easily migrated on json level. The previous decision must have been wrong."*: a byte region is readable only while the layout is unchanged, and the hash guard turns ANY layout change into losing every authored value; JSON by name loses only the changed field. ⭐ No legacy reader: no scenario in the repo carries byte params (measured) |
 | ⭐ one params FORM for all three rows | it always produces JSON — the same JSON the scenario stores (R-191) |
 
-⛔ **Rejected:** saving `BehaviorState` / `DoctrineState` (records runtime choices as intent) · starting behaviour as a
-one-task mission plan (mixes "how I start" with "my mission") · a per-entity TKB override file (a second authoring
-place) · `Origin = Operator` for scenario assignments (an operator could not tell a live order from the script) ·
-moving instance blueprints into `AiAssignment` (re-builds a working, tested path — ruling 9 is about implementations,
-the editor section is where the user sees one thing).
+⛔ **Rejected:** the authored `AiAssignment` (R-190 — a second concept beside the snapshot; the editor would keep two
+things in sync) · saving the raw `BehaviorState` / `DoctrineState` (a run token, no params, no start on load) · saving
+behaviour progress (needs a stable on-disk format for internal state) · a per-entity TKB override file (a second
+authoring place).
 
 ## 8. Claim table
 
@@ -493,9 +490,10 @@ the editor section is where the user sees one thing).
 | **S4** | `CE-3037` | the memory stage in the solver (debounce, acquired / lost, push stimuli); cost-unit budget (§5.3) replacing wall-clock slicing; EQS §7.5–7.6 marked SUPERSEDED | determinism rail: same scenario, same schedule twice; heavy sensor runs alone; result age visible |
 | **S5** | `CE-3038` | visual perception MOVES: a visual template = today's broadphase + sight; `CognitiveSpatialModule` chain deleted in the same change; `TargetMemory` fed from the memory stage | ⭐ the EXISTING perception suites stay green unchanged — they are the parity proof |
 | **S6** | `CE-3039` | the AI side: read-sensor node (BTree / HSM / blueprint) keyed by kind; `TargetMemory` accessors (top threat, count above score); hit / shot-heard as blueprint events; `When` EQS modes verified live | a doctrine blueprint that reacts to a threat end to end |
-| **S2b** | `CE-3042` | `AiAssignment` + `AiAssignmentTranslator` + `AiAssignmentMaterializationSystem` (Origin = Superior) (§7.5) | save → reload: the scenario's doctrine and starting behaviour win over the TKB on the editor AND `--mode all`; empty halves fall back to the TKB |
+| **S2b** | `CE-3042` | snapshot translators: `BrainSlotScenarioTranslator` ("Behavior" / "Doctrine": Name + Params JSON + Origin, only ≠ TKB default) + `InitialBrainIntent` + `InitialBrainMaterializationSystem` through the ingress (§7.5, R-192) | save → reload on the editor AND `--mode all`: same behaviour / doctrine / params / origin; a TKB-default unit saves nothing; the file holds no hash, token or tier |
+| **S2e** | `CE-3045` | the bug: sensor children carry `ScenarioIgnoreTag`; instance attach is find-or-create | save after a behaviour spawned a sensor ⇒ the file has no sensor entity; reload ⇒ exactly one sensor |
 | **S2d** | `CE-3044` | R-191: emit `FormatParams` beside `ParseParams`; `BlueprintStateTranslator` writes params as a JSON object (non-default fields only), `BlueprintAssignmentDto.Params` (byte[]) and `ParamsStructureHash` removed — no legacy reader (no scenario carries them) | the existing save→reload rail (Param Persistence D3) with the scenario file asserted to contain JSON params by name, and a field renamed between save and load degrading to its default with a warning |
-| **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, starting-behaviour row, instance-blueprint rows with ONE params form (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
+| **S2c** | `CE-3043` | ⭐ **UI lane**: the editor's AI section — doctrine row, behaviour row, instance-blueprint rows with ONE params form, editing LIVE state only (§7.5) | author → save → reload shows the same values; an instance's edited params survive (the existing D3 rail extended) |
 | **S6b** | `CE-3040` | `SensorChangedEvent` from its two producers; the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
 | **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
 | S7 | later | thermal / acoustic templates | — |
@@ -512,6 +510,27 @@ the editor section is where the user sees one thing).
 | **V4** | can a doctrine's high-bit token alias a behaviour token in `StampOwner`'s 16 bits? | stamp the slot into bit 15 of the stamp |
 | **V5** | `BehaviorTkbTranslator` writes `BehaviorState` directly, skipping params and HSM init — does the doctrine default need the full start? | ⭐ yes: the doctrine uses a pending start through `BehaviorIngressSystem`; the behaviour default gets the same fix (finding) |
 | **V7** | a Brain-authority hand-over: does the new authority need the doctrine as PUBLISHED state ([Entity State Sourcing](DESIGN_Entity_State_Sourcing.md) §4.1)? | publish `DoctrineState` as a TransientLocal descriptor when hand-over is built; until then only the authority node runs it |
-| **V8** | is a scenario saved ONLY from the edit (non-running) world? if not, instances attached at RUNTIME would save as authored | mark runtime attachments `AttachedAtRuntime` and skip them on save |
+| ~~**V8**~~ | ✅ dissolved by R-192: under the snapshot a runtime attachment IS the truth; find-or-create attach (S2e) prevents the duplicate | — |
 | ~~**V9**~~ | ✅ resolved by R-191: the emitter generates `FormatParams` (the inverse of `ParseParams`) | — |
 | **V6** | is a bus event published by `EqsResultUpdateSystem` visible to `BrainTickSystem` the SAME frame or the next? | either is fine — state the latency in the rail (≤ 1 frame) |
+
+## 10. Open — what is NOT yet decided *(`2026-10-04`)*
+
+| # | open decision | ⭐ lean | decides |
+|---|---|---|---|
+| **O1** | the origin of an assignment made in the scenario EDITOR (it is what the snapshot then saves) | `Superior` — an authored start outranks the doctrine until it ends; leave the behaviour row empty for autonomy from second one | the user |
+| **O2** | the origin of each EXISTING publisher (§6 table) | operator UI / mission-control abort / debug API → `Operator` · mission plans + commander nodes + DDS intents → `Superior` · a behaviour ending or re-assigning itself → `Self` · unmarked → `Operator` | the user |
+| **O3** | a doctrine that FAULTS | stays stopped (the unit is brain-dead), the fault is logged and visible in the editor's AI section and `/diagnostics`; no auto-restart (a doctrine that faults every tick would spam) | the user |
+| **O4** | S0's interim cap on perception before S4's budget exists | log the breaker opening loudly; cap observers per tick by a fixed count until S4 (a stop-gap, deleted by S4) | build (S0) |
+| **O5** | the cost-unit weights (§5.3) | measured once on a reference scenario at S4, then constants | build (S4) |
+
+| verify while building | §9 |
+|---|---|
+| V1 TKB JSON polymorphism · V2 child entities at spawn · V3 who owns result part 1000+i · V4 token aliasing in `StampOwner` · V5 behaviour default skips its start · V6 same-frame or next-frame events · V7 doctrine as published state for a Brain hand-over | each has a fallback written in |
+
+| other lanes | |
+|---|---|
+| `CE-3041` (behaviors) | `ObserverSelector` abort |
+| `CE-3043` (ui) | the editor's AI section |
+| `CE-3031` (behaviors) | EQS-consuming behaviours — a doctrine is what will assign them |
+
