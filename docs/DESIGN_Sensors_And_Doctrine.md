@@ -775,7 +775,10 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | producer rails | `Fdp.Toolkits.Tests --filter SensorChangedEventTests` (+ ThreatEvaluation, ActiveSensorTracks) | 14/0 — Acquired once / Lost once · FirstThreat → AllClear on forgetting · Hit once per drop, healing silent |
 | TopChanged rail | `Hrot.SimHost.Tests --filter EqsModuleTests` | 23/0 — `S6_APerceptionSensorsTopChanging_IsOneTopChanged_AQuerySensorIsSilent` |
 | blueprint rail | `Hrot.Blueprints.Tests --filter WhenNodeRuntimeTests` | 22/0 — `CE3039_ABlueprintReactsToItsOwnUnitsSensorChange_ThroughTheBuiltInCatalog` (another unit's Hit and the own unit's FirstThreat do not fire) |
-GATES_PLACEHOLDER
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2626/0, 1 skipped (+3) |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1082/1, 3 skipped — the red is `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` (7 s in the full run); ⚠ GREEN 3/3 in isolation ⇒ timing under load, not this change (no replay code touched). The +1 rail is in the 1082 |
+| Blueprints · Editor · NED | each full suite | 4129/0 · 463/0 · 133/0 |
+| cross-node EQS + sensors (row 8) | `ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | 96/0 |
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 
