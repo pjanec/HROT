@@ -86,3 +86,20 @@ autonomy → order → autonomy rail on the editor AND `--mode all` (design §7.
 | ⚠ **collision 1 — `UnitSensors.OfTemplate` (`CE-2071`)** | ⭐ backend's lean: **backend adds it** (its file, and it knows the child keying). Proposed meaning: the unit's sensor child (`PartMetadata.ParentEntity == unit`) whose `EqsSensor.BlueprintId` matches — a TKB sensor (part ≥ 1000, stable) before a behaviour-owned one (it ends with its run, `CE-485`), lowest part id within each; `Entity.Null` when none. ⏳ **awaiting the user's split decision** |
 | ⚠ **collision 2 — contact memory (`CE-3054`)** | 🔒 backend will NOT change `TargetMemory`'s fields, `ThreatEvaluationSystem`'s write rules, or the memory stage's outputs without telling the behaviors lane first. ⚠ Two things now READ them that a `CE-3054` change must keep working: S6's *FirstThreat / AllClear* come from `TargetMemory.Count` crossing 0, and *Hit* from a `Health` drop — both in `ThreatEvaluationSystem` |
 | ⚠ **cross-lane edits backend made in behaviors-lane code** | `BuiltInEngineEventCatalog` (+`SensorChangedEvent`, −`TargetVisibleEvent`) · `InstanceEmitter` / `CSharpEmitter` (emitted `FormatParams` + `ParamNames`, `CE-3044`) · `InstanceParamsSeamTests.ExactlyOneParameterSupplyPathExists` (excludes the read-only `FormatParams`) · a new `WhenNodeRuntimeTests` rail (`CE3039_…`) |
+
+## Addendum 3 `2026-10-04` — the split is DECIDED; how a behaviour gets a sensor *(supersedes Addendum 2's collision-1 row)*
+
+🔒 **User:** *"backend builds sensor lookup. backend adds OfTemplate."* · then, on *"can't they spawn their own copy and the
+solver runs it once?"* — 🔒 *"yes file it and build it."*
+
+| | what | who | state |
+|---|---|---|---|
+| ⭐ **a behaviour that NEEDS a query sensor SPAWNS ITS OWN** (`EqsChildSensor.Ensure` / `SpawnEqsSensor`), as the posture already does | each owner keeps its lifetime (dies with its run, `CE-485`) and its own publish policy / priority / threshold — ⛔ **no borrowing between behaviours** | behaviors | the rule from now on |
+| ⭐ **`CE-3056` — the solver solves identical queries ONCE** and copies the answer into every twin (same unit, template, radius, faction filter, threat threshold, context slots); budget charged once; a twin spawned later starts WARM | so the posture's children (`CE-3031`) spawning their own cover sensor costs nothing extra on the Muscle | backend | ⏳ building now |
+| ⭐ **`UnitSensors.OfTemplate(view, unit, blueprintId)`** — for PURE READERS that must not create anything: the utility inputs `EqsTopScore` / `EqsResultCount` | preference: the caller's current run → TKB → another run, lowest part id; ⛔ never cache the handle, never configure it | backend | ✅ BUILT (`518e536e4`) |
+| `CE-2071` shrinks to | reroute `EqsTopScore` / `EqsResultCount` from their private `TryFindEqsChild` onto `OfTemplate` | behaviors | ⏳ yours |
+| contact memory (`CE-3054`) | unchanged from Addendum 2: backend does not touch `TargetMemory` / `ThreatEvaluationSystem` / the memory stage without telling you; S6's FirstThreat / AllClear read `TargetMemory.Count`, Hit reads `Health` | joint | — |
+
+⭐ **Nothing blocks you.** The utility scorer, `UtilityDecisionRef`, the BTree/HSM nodes, the `ScoreDecision` reroute, the posture tuning
+and the posture asset are all yours; the posture's children may spawn their own sensors today — they are correct now and become
+cheap when `CE-3056` lands. 📄 `docs/DESIGN_Sensors_And_Doctrine.md` §9.4a (OfTemplate) and §5.6 (query sharing, with `CE-3056`).
