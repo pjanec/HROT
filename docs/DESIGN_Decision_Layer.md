@@ -471,6 +471,41 @@ the SOP tree finishes every wake and is re-read from the root next time — no r
 | ⭐ TKB + runtime replace | the TKB profile gains `DefaultSop {Name, ParamsJson}`; replacing at runtime = an SOP assign at Operator / Superior (`CE-3035`); saved by the snapshot (`CE-3042`) |
 | ⭐ C# | a curated BTree built in C# (how `MoveToLocation` is made), or any curated behaviour calling the two actions |
 
+
+### 4.4 Params to JSON, the recipe, and the ROE *(PROPOSAL)*
+
+> 🔒 **User, `2026-10-04`:** *"yes it is OK."* (§4.3) · *"I would guess that by simple serializing of the behavior param
+> dto"* · *"Shipped template = recipe (existing concept)"* · *"What the ROE would look like?"*
+
+📐 **Params → JSON, measured:** every behaviour declares its authored params type, `BehaviorDefinition.JsonParamsDtoType`
+(`BehaviorRegistry.cs:289`) — the "editor fields + JSON schema" type the intent JSON deserialises into. It is a STRUCT for
+all three kinds: curated (`MoveToLocationParamsJsonDto` is a struct, `MoveToLocationParamsJsonDto.cs:27`), generated
+BTree/HSM (the emitted `*_Blackboard`), blueprint (its `Params`, with an emitted `FormatParams`, CE-3044). A struct can be
+a blackboard variable (`Demo_MissionPlan` holds one) ⇒ **React binds a variable of the reaction's authored DTO type; at
+fire it is serialised with the same options the parse side uses** (`IncludeFields`, case-insensitive names, the
+`EntityRef` bare-number converter) — the exact inverse of the intent path. ⚠ One shared options object and a round-trip
+rail per kind, so the two directions cannot drift.
+
+📐 **Recipe:** recipes are the shipped-template concept and already know BTrees — `AssetRoots` names `Recipes/BTrees`
+(`AssetRoots.cs:207-215`); the folder does not exist yet in `Hrot.AI.Behaviors/Recipes` (only Blueprints, Scenarios,
+Terrain). ⇒ the SOP template ships as `Recipes/BTrees/BasicInfantrySop`.
+
+**ROE — the lean:** one small per-unit component, two fields, the military "weapons control" axis plus the "may I
+deviate from my task" axis (the shape many simulators use — e.g. hold fire / defend only / fire at will):
+
+| field | values | read by |
+|---|---|---|
+| `Fire` | `HoldFire` (never) · `ReturnFire` (only when fired upon — was hit / shot at within N s) · `FireAtWill` | SOP conditions; ⭐ ENFORCED once in the fire executor (`AimAndFireExecutor`, the only weapon-channel executor) so no behaviour can forget it |
+| `Reactions` | `StayOnTask` (the order forbids reactions — R-199 ②) · `React` | the gate (`BehaviorIngressSystem`) |
+
+| rule | |
+|---|---|
+| set by | an order (Operator / Superior) — with the assignment or on its own; the TKB gives the default per unit type |
+| lifetime | unit state, persists across tasks until changed (ROE are set by command, not per task); a mission task MAY set it |
+| saved | in the scenario snapshot when it differs from the TKB default (`R-192`) |
+| edited | a row in the editor AI section (`CE-3043`) |
+| later | `WeaponsTight` (identified hostiles only) needs identification (G11) — not now |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
