@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Perception.Translators
             yield return typeof(SensorContactList);
             yield return typeof(ActiveSensorTracks);
             yield return typeof(SensorMount);
+            yield return typeof(SensorTag);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -72,6 +73,10 @@ namespace Fdp.Toolkit.Perception.Translators
                 if (repo.IsComponentTypeRegistered<ActiveSensorTracks>() && !repo.HasComponent<ActiveSensorTracks>(entity))
                     repo.AddComponent(entity, new ActiveSensorTracks());
             }
+
+            // ⭐ The unit's SENSORS — one child per entry, built the same way on every node (R-185 K, design §5.1).
+            for (int i = 0; i < dto.Sensors.Count; i++)
+                Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(repo, entity, i, dto.Sensors[i]);
         }
     }
 }

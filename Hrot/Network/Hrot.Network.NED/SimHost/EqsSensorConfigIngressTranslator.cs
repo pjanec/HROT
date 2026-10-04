@@ -8,6 +8,9 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.NED.Descriptors;
 
@@ -183,7 +186,7 @@ namespace Hrot.Network.NED.SimHost
                 {
                     // A carrier created by an earlier poll is not in the world until that command
                     // buffer plays back — wait for it rather than create a second one.
-                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data.SolverNodeId)) continue;
+                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data)) continue;
                     pending.Applied          = true;
                     pending.ResolvedSlotMask = mask;
                     _pending[key]            = pending;
@@ -197,8 +200,9 @@ namespace Hrot.Network.NED.SimHost
 
         // Returns false when the sample must wait (its carrier is created but not yet played back).
         private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
-                           Entity parentGhost, EqsSensor sensor, int solverNodeId = 0)
+                           Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data)
         {
+            int solverNodeId = data.SolverNodeId;
             if (key.ChildIndex == 0)
             {
                 // Legacy single-sensor path: sensor lives directly on the parent ghost entity.
@@ -227,11 +231,23 @@ namespace Hrot.Network.NED.SimHost
                 }
             }
 
+            // ⭐⭐ CE-3036 — a TKB sensor (part id ≥ 1000) is BUILT FROM THE UNIT'S TKB on this node (R-185 K); a sample for
+            //    it is only an OVERRIDE, or the end of one. ⛔ Never build its carrier here — wait for the spawn instead.
+            if (key.ChildIndex >= SensorChildFactory.FirstTkbPartId)
+                return ApplyTkbOverride(cmd, view, key, parentGhost, sensor, in data);
+
+            // ⭐ CE-3036 / R-186 M′ — a behaviour-made sensor of ANY kind carries its per-kind config as JSON. ⛔ Bad JSON
+            //   or an unknown kind is REFUSED: no carrier is built and nothing half-configured ever solves.
+            SensorEntryDto? config = null;
+            if (!string.IsNullOrEmpty(data.ConfigJson) && !TryDecode(key, in data, out config)) return true;
+
             if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
             {
                 // Existing carrier: update its parameters.
                 _awaitingPlayback.Remove(key);
                 cmd.SetComponent(child, sensor);
+                if (config != null && view is EntityRepository repoC)
+                    SensorChildFactory.SetCapability(repoC, child, config, config);
                 return true;
             }
 
@@ -256,7 +272,58 @@ namespace Hrot.Network.NED.SimHost
             });
             cmd.AddComponent(child, sensor);
             cmd.AddComponent(child, default(EqsCognitiveBuffer));
+            if (config != null)
+            {
+                cmd.AddComponent(child, new SensorTag { Kind = config.Kind });
+                cmd.AddManagedComponent(child, new SensorCapability { Default = config, Current = config });
+            }
+            Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, child, view);   // CE-3045 — a carrier is never saved
             _awaitingPlayback.Add(key);
+            return true;
+        }
+
+        /// <summary>Configs refused for malformed JSON / an unknown kind (R-186 M′) — never half-configured.</summary>
+        public long RefusedConfigCount { get; private set; }
+        private readonly HashSet<(long ParentNetId, int ChildIndex)> _refusalLogged = new();
+
+        private bool TryDecode((long ParentNetId, int ChildIndex) key, in EqsSensorConfigTopic data, out SensorEntryDto? config)
+        {
+            if (SensorConfigCodec.TryDecode(data.ConfigKind ?? string.Empty, data.ConfigJson ?? string.Empty, out config, out var error))
+                return true;
+            RefusedConfigCount++;
+            if (_refusalLogged.Add(key))
+                Console.Error.WriteLine($"[EqsSensorConfig][REFUSED] sensor ({key.ParentNetId}, part {key.ChildIndex}): {error}");
+            return false;
+        }
+
+        // ⭐ CE-3036 / R-187 N′ — apply (or end) the override of a TKB sensor whose carrier this node built from the TKB.
+        private bool ApplyTkbOverride(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
+                                      Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data)
+        {
+            if (!TryFindCarrier(view, parentGhost, key.ChildIndex, out var tkbChild)) return false;   // the spawn has not built it yet
+            var repo = view as EntityRepository;
+            var cap  = repo != null && repo.HasManagedComponent<SensorCapability>(tkbChild)
+                ? ((ISimulationView)repo).GetManagedComponentRO<SensorCapability>(tkbChild) : null;
+
+            if (!data.Override)
+            {
+                // Back to the TKB default — the defaults this node derived itself, at the epoch the Brain moved to.
+                var restored = cap != null ? SensorChildFactory.SensorFor(cap.Default) : sensor;
+                restored.Epoch        = sensor.Epoch;
+                restored.ContextSlot0 = sensor.ContextSlot0;
+                restored.ContextSlot1 = sensor.ContextSlot1;
+                restored.ContextSlot2 = sensor.ContextSlot2;
+                cmd.SetComponent(tkbChild, restored);
+                if (repo != null && cap != null) SensorChildFactory.SetCapability(repo, tkbChild, cap.Default, cap.Default);
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(data.ConfigJson))
+            {
+                if (!TryDecode(key, in data, out var config)) return true;   // refused: the sensor keeps what it had
+                if (repo != null) SensorChildFactory.SetCapability(repo, tkbChild, cap?.Default ?? config!, config!);
+            }
+            cmd.SetComponent(tkbChild, sensor);
             return true;
         }
 

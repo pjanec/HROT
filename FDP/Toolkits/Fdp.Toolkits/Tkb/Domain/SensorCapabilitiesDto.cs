@@ -44,5 +44,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>Sensor eye height when PRONE (metres); 0 = unset.</summary>
         [EditUnit("m")]
         public float EyeHeightProne { get; init; }
+
+        /// <summary>
+        /// ⭐ The unit's SENSORS — each becomes a sensor child on every node (docs/DESIGN_Sensors_And_Doctrine.md §4).
+        /// Absent ⇒ empty. ⏳ Until visual perception moves onto the sensor form (S5), the vision fields above still
+        /// drive the built-in perception pipeline and an empty list adds no sensor child.
+        /// </summary>
+        public System.Collections.Generic.List<SensorEntryDto> Sensors { get; init; } = new();
     }
 }

@@ -119,6 +119,8 @@ namespace Fdp.Toolkit.Combat.Translators
                             ParentEntity      = entity,
                             InstanceId        = i,
                         });
+                        // ⭐ CE-3045 — a mount child is rebuilt from the TKB on load; saving it too duplicated it.
+                        Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, child);
                     }
                 }
             }

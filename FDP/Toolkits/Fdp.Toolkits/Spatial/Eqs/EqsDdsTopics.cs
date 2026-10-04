@@ -54,6 +54,21 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.8.
         /// </summary>
         public int SolverNodeId;
+
+        /// <summary>
+        /// ⭐ CE-3036 / R-186 M′ — the format of <see cref="ConfigJson"/> (<c>SensorConfigCodec.KindSensorEntry</c>); empty
+        /// when the sample carries no per-kind config. Non-key; sent only on spawn / change.
+        /// </summary>
+        [DdsManaged] public string ConfigKind;
+
+        /// <summary>⭐ CE-3036 — the sensor's per-kind config: the TKB's own <c>SensorEntryDto</c> as JSON. Empty = none.</summary>
+        [DdsManaged] public string ConfigJson;
+
+        /// <summary>
+        /// ⭐ CE-3036 / R-187 N′ — for a TKB sensor (part id ≥ 1000): true = this sample OVERRIDES the TKB default, false =
+        /// back to the default. A TKB sensor is otherwise never on the wire (R-185 K).
+        /// </summary>
+        public bool Override;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────

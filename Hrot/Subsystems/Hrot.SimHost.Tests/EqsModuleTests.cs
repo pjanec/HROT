@@ -9,6 +9,12 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Interfaces;
 using Hrot.IG.Components;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
@@ -434,7 +440,99 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < buf.Count; i++) set.Add(span[i].EntityId);
             return set;
         }
+        // ── CE-3036 (S3) — a NEW sensor kind, in tests only (R-185 I ①) ─────────────────────────────────────────────
+
+        private static readonly Guid TestRadarTemplate = new("5e2c0d19-0000-4000-8000-0000000c3036");
+
+        /// <summary>A test-only sensing filter: keeps candidates within the sensor's CAPABILITY range (not its query radius)
+        /// — it proves the per-kind parameters reach the solver on the carrier.</summary>
+        private sealed class CapabilityRangeTest : IEqsTest
+        {
+            public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
+            public void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+            {
+                float range = view.GetManagedComponentRO<SensorCapability>(observer).Current.Range;
+                EqsContext.SelfPosition(view, observer, sensor, out var self);
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    ref var c = ref candidates[i];
+                    if (c.EntityId == -1L) continue;
+                    if (Vector2.Distance(new Vector2(self.X, self.Y), new Vector2(c.PositionX, c.PositionY)) > range) c.EntityId = -1L;
+                }
+            }
+        }
+
+        private static SensorEntryDto TestRadar(float range) => new()
+        {
+            Kind = SensorModality.Radar, Template = TestRadarTemplate, SearchRadius = 400f,
+            Radar = new RadarSensorDto { Range = range },
+        };
+
+        private void SolveOnce()
+        {
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3036 — the whole S3 path on one node, with a sensor kind that exists only in this test: the unit's TKB lists a
+        /// radar → the translator builds its child (part 1000) → the REAL solver runs the template, whose filter reads the
+        /// sensor's capability on the carrier → the answer reaches the buffer <see cref="UnitSensors"/> finds by kind.
+        /// Then an override (a longer range) changes the answer, switching it off stops it, and clearing the override
+        /// restores the TKB default. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.1, §5.2.
+        /// </summary>
+        [Fact]
+        public void ATkbSensorOfANewKind_IsBuilt_Solved_Read_Overridden_Switched_AndRestored_CE3036()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                ScoreCheap    = new IEqsTest[] { new DistanceScoreTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4242 });   // a spawned unit has one — the sensor's wire key
+            _grid.Add(unit, new Vector2(10f, 10f));
+            CreateEnemyAt(new Vector2(60f, 10f));    //  50 m
+            CreateEnemyAt(new Vector2(160f, 10f));   // 150 m
+            CreateEnemyAt(new Vector2(260f, 10f));   // 250 m
+
+            var template = new TkbTemplate("RadarUnit", 77);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Radar);
+            Assert.False(sensor.IsNull);
+            Assert.Equal(1000, _world.GetComponentRO<PartMetadata>(sensor).InstanceId);
+
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r1));
+            Assert.Equal(1, r1.Count);                       // capability range 100 m, query radius 400 m
+
+            UnitSensors.Configure(_world, sensor, TestRadar(200f));
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r2));
+            Assert.Equal(2, r2.Count);                       // the override's range is the one in force
+
+            UnitSensors.SetEnabled(_world, sensor, false);
+            int before = _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
+            SolveOnce();
+            Assert.True(_world.GetComponentRO<EqsSensor>(sensor).Suspended);   // an off sensor is skipped by the solver
+
+            UnitSensors.ClearOverride(_world, sensor);
+            SolveOnce();
+            Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r3));
+            Assert.Equal(1, r3.Count);                       // back to the TKB default: 100 m, ON
+            _ = before;
+        }
     }
 }
-
-

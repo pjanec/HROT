@@ -9,6 +9,8 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.NED.Descriptors;
 
@@ -114,6 +116,14 @@ namespace Hrot.Network.NED.SimHost
                     || !TrySlotNetId(sensor.ContextSlot2, out long slot2))
                     continue;
 
+                // ⭐⭐ CE-3036 / R-185 K — a TKB sensor is built from the unit's TKB on EVERY node: its default never goes on
+                //    the wire. Only an OVERRIDE does (R-187 N′ — a SensorConfigPayload on it); when the override ends, ONE
+                //    "back to default" sample (Override = false) is written, then the sensor is silent again.
+                var payload  = view.HasManagedComponent<SensorConfigPayload>(entity) ? view.GetManagedComponentRO<SensorConfigPayload>(entity) : null;
+                bool tkb     = localChildIndex >= SensorChildFactory.FirstTkbPartId;
+                if (tkb && payload == null && !(_published.TryGetValue(entity, out var prevTkb) && prevTkb.Override))
+                    continue;
+
                 var topic = new EqsSensorConfigTopic
                 {
                     ParentNetworkId       = parentNetworkId,
@@ -132,6 +142,9 @@ namespace Hrot.Network.NED.SimHost
                     Suspended             = sensor.Suspended,
                     // ⭐ R-179: a child sensor names its solver; a legacy instance-0 sensor keeps its Perception group.
                     SolverNodeId          = localChildIndex == 0 ? 0 : SolverFor((parentNetworkId, localChildIndex)),
+                    ConfigKind            = payload?.Kind ?? string.Empty,
+                    ConfigJson            = payload?.Json ?? string.Empty,
+                    Override              = tkb && payload != null,
                 };
                 if (topic.SolverNodeId != 0 && !parent.IsNull && view is EntityRepository repo)
                     RecordSolver(repo, parent, (parentNetworkId, localChildIndex), topic.SolverNodeId);
@@ -335,7 +348,10 @@ namespace Hrot.Network.NED.SimHost
             && a.ContextSlot1NetworkId == b.ContextSlot1NetworkId
             && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId
             && a.Suspended             == b.Suspended
-            && a.SolverNodeId          == b.SolverNodeId;   // R-179: a re-pick is a change the solvers must hear
+            && a.SolverNodeId          == b.SolverNodeId    // R-179: a re-pick is a change the solvers must hear
+            && a.Override              == b.Override        // CE-3036: an override starting or ending is a change
+            && string.Equals(a.ConfigKind, b.ConfigKind, StringComparison.Ordinal)
+            && string.Equals(a.ConfigJson, b.ConfigJson, StringComparison.Ordinal);
     }
 }
 

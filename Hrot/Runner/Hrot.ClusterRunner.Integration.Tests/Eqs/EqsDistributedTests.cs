@@ -8,7 +8,10 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
@@ -1269,6 +1272,130 @@ public sealed class EqsDistributedTests
         Arrive(22, elsewhere);
         Assert.True(rig.CarrierSensor(22).Suspended, "A carrier whose sensor moved to another solver must stop solving.");
         Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
+    }
+
+    // ── CE-3036 (S3) — TKB sensors: built on every node, silent on the wire until overridden ─────────────────────────
+
+    private static readonly SensorEntryDto TkbRadar = new()
+    {
+        Kind = SensorModality.Radar, Template = new Guid("5e4501a0-3036-4000-8000-000000000001"),   // unknown ⇒ "empty" answers
+        Radar = new RadarSensorDto { Range = 300f },
+    };
+
+    private static int ConfigSamples(CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic> reader, long parent, int part,
+                                     List<EqsSensorConfigTopic>? into = null)
+    {
+        int n = 0;
+        using var loan = reader.Take();
+        foreach (var sample in loan)
+            if (sample.IsValid && sample.Data.ParentNetworkId == parent && sample.Data.LocalChildIndex == part)
+            {
+                n++;
+                into?.Add(sample.Data);
+            }
+        return n;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3036</c> acceptance — a TKB sensor is built from the TKB on BOTH nodes under the same part id
+    /// (<c>1000 + index</c>, R-185 K), is solved and answered with NO config on the wire; switching it off is an override
+    /// that reaches the Muscle, and clearing the override sends one "default" sample that switches it back on (R-187 N′).
+    /// 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE3036_ATkbSensor_IsAnsweredWithNoConfigOnTheWire_AndAnOverrideReachesTheMuscle()
+    {
+        using var rig = new LifecycleRig();
+        const int part = SensorChildFactory.FirstTkbPartId;
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity onCgf);
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+
+        using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
+        using var configs     = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+
+        // What the PerceptionTkbTranslator does for list entry 0, on each node.
+        var cgfSensor = SensorChildFactory.EnsureTkbChild(rig.Cgf, onCgf, 0, TkbRadar);
+        var simSensor = SensorChildFactory.EnsureTkbChild(rig.Sim, onSim, 0, TkbRadar);
+        Assert.False(cgfSensor.IsNull, "CGF must build the TKB sensor.");
+        Assert.False(simSensor.IsNull, "SimHost must build the TKB sensor.");
+
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(cgfSensor), timeoutFrames: 3000),
+            "The Brain's TKB sensor must be answered by the Muscle's own TKB carrier.");
+        rig.H.PumpUntil(() => false, timeoutFrames: 30);
+        Assert.Equal(0, ConfigSamples(configs, rig.Commander, part));   // ⭐ R-185 K — no config traffic for a TKB sensor
+
+        // Override: switch it OFF on the Brain ⇒ one override sample ⇒ the Muscle stops solving it.
+        UnitSensors.SetEnabled(rig.Cgf, cgfSensor, enabled: false);
+        Assert.True(UnitSensors.IsOverridden(rig.Cgf, cgfSensor));
+        var seen = new List<EqsSensorConfigTopic>();
+        Assert.True(rig.H.PumpUntil(() => { ConfigSamples(configs, rig.Commander, part, seen); return rig.CarrierSensor(part).Suspended; },
+            timeoutFrames: 3000), "The override must switch the Muscle's TKB carrier off.");
+        Assert.Contains(seen, s => s.Override && s.Suspended);
+        Assert.Equal(simSensor, rig.Carrier(part));   // the override updated the TKB carrier; it built none of its own
+
+        // Clear: back to the TKB default (ON) through one Override=false sample.
+        UnitSensors.ClearOverride(rig.Cgf, cgfSensor);
+        Assert.False(UnitSensors.IsOverridden(rig.Cgf, cgfSensor));
+        Assert.True(rig.H.PumpUntil(() => { ConfigSamples(configs, rig.Commander, part, seen); return !rig.CarrierSensor(part).Suspended; },
+            timeoutFrames: 3000), "Clearing the override must restore the TKB default on the Muscle.");
+        Assert.Contains(seen, s => !s.Override);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3036</c> / R-186 M′ — the per-kind config travels as JSON. A behaviour sensor with a valid config gets its
+    /// capability on the Muscle; malformed JSON is REFUSED (no carrier, nothing half-configured solves). A TKB override
+    /// carries the new capability, and an Override=false sample restores the TKB default. (Driven into a Muscle ingress
+    /// over the rig's real Muscle world, as the CE-492 rail does.)
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE3036_TheConfigTravelsAsJson_BadJsonIsRefused_AndATkbOverrideRestores()
+    {
+        using var rig = new LifecycleRig();
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null, rig.H.SimHost.TestHook_EntityMap);
+        long t = 0;
+        void Arrive(EqsSensorConfigTopic data)
+        {
+            var cmd = new EntityCommandBuffer();
+            ingress.Receive(cmd, data, valid: true, disposed: false, ++t);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+        EqsSensorConfigTopic Config(int part, string kind, string json, bool @override = false, bool suspended = false) => new()
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f,
+            ConfigKind = kind, ConfigJson = json, Override = @override, Suspended = suspended,
+        };
+
+        // ① malformed JSON ⇒ refused, no carrier.
+        Arrive(Config(31, SensorConfigCodec.KindSensorEntry, "{ not json"));
+        Assert.True(rig.Carrier(31).IsNull, "A refused config must build no carrier.");
+        Assert.Equal(1, ingress.RefusedConfigCount);
+
+        // ② a valid behaviour-sensor config ⇒ carrier with its kind and capability.
+        var thermal = new SensorEntryDto
+        {
+            Kind = SensorModality.Thermal, Template = TkbRadar.Template, Thermal = new ThermalSensorDto { Range = 150f },
+        };
+        Arrive(Config(32, SensorConfigCodec.KindSensorEntry, SensorConfigCodec.Encode(thermal)));
+        var c32 = rig.Carrier(32);
+        Assert.False(c32.IsNull, "A valid config must build the carrier.");
+        Assert.Equal(SensorModality.Thermal, rig.Sim.GetComponentRO<SensorTag>(c32).Kind);
+        Assert.Equal(150f, rig.Sim.GetManagedComponentRO<SensorCapability>(c32).Current.Range);
+
+        // ③ a TKB override with JSON ⇒ Current changes, Default stays; ④ Override=false ⇒ back to the default.
+        var tkb = SensorChildFactory.EnsureTkbChild(rig.Sim, onSim, 0, TkbRadar);
+        const int tkbPart = SensorChildFactory.FirstTkbPartId;
+        var longer = TkbRadar with { Radar = new RadarSensorDto { Range = 800f } };
+        Arrive(Config(tkbPart, SensorConfigCodec.KindSensorEntry, SensorConfigCodec.Encode(longer), @override: true));
+        Assert.Equal(tkb, rig.Carrier(tkbPart));
+        Assert.Equal(800f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
+        Assert.Equal(300f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Default.Range);
+
+        Arrive(Config(tkbPart, string.Empty, string.Empty, @override: false));
+        Assert.Equal(300f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
+        Assert.Equal(300f, rig.CarrierSensor(tkbPart).SearchRadius);
+        Assert.Equal(1, ingress.RefusedConfigCount);
     }
 
     private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)

@@ -39,6 +39,8 @@ public static class PerceptionRoleComponentRegistry
         //   the solver runs on the node that declares Perception (SimHost), not on the Brain.
         world.RegisterComponent<EqsSensor>();
         world.RegisterComponent<EqsCognitiveBuffer>();
+        // ⭐ a sensor child's kind — TKB sensors are built on every node that registers it (DESIGN_Sensors_And_Doctrine §4).
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
 
         // Per-sensor cross-tick evaluation state (EQS Phase 5).

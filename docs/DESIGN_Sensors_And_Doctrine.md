@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: READY-TO-BUILD — every decision approved (R-185 … R-189); §9 lists the details the build must verify first.
-current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
+build-state: BUILDING — S0 (§9.1) and S3 (§9.2) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
+current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
@@ -107,27 +107,33 @@ Nothing new needs a caller. Red = present but never reached today; grey = delete
 classDiagram
   direction LR
   class SensorCapabilitiesDto { <<existing TKB, grows>> VisionRange FieldOfViewDegrees EyeHeights... +Sensors List~SensorEntryDto~ }
-  class SensorEntryDto { <<NEW TKB>> +SensorModality Kind +uint TemplateId +bool Disabled +VisualSensorDto? Visual +ThermalSensorDto? Thermal +AcousticSensorDto? Acoustic }
-  class VisualSensorDto { <<NEW>> Range FovDegrees EyeHeights }
-  class ThermalSensorDto { <<NEW, S7>> }
-  class AcousticSensorDto { <<NEW, S7>> }
+  class SensorEntryDto { <<NEW TKB, BUILT>> +SensorModality Kind +Guid Template +bool Disabled +float SearchRadius +VisualSensorDto? Visual +ThermalSensorDto? Thermal +AcousticSensorDto? Acoustic +RadarSensorDto? Radar +Range +IsWellFormed }
+  class VisualSensorDto { <<BUILT>> Range FieldOfViewDegrees }
+  class ThermalSensorDto { <<BUILT>> Range FieldOfViewDegrees MinSignature }
+  class AcousticSensorDto { <<BUILT>> Range }
+  class RadarSensorDto { <<BUILT>> Range FieldOfViewDegrees }
   class PerceptionTkbTranslator { <<existing, extended>> +creates one child per entry, part id 1000+i }
-  class SensorChildFactory { <<NEW, one builder>> +BuildBrainChild() +BuildMuscleCarrier() }
-  class EqsSensorConfigIngressTranslator { <<existing>> carrier builder moves into SensorChildFactory }
+  class SensorChildFactory { <<BUILT, one builder>> +FirstTkbPartId=1000 +SensorFor(entry) +EnsureTkbChild(repo, parent, i, entry) +Find() +SetCapability() +HostsSensors() }
+  class EqsSensorConfigIngressTranslator { <<existing, extended>> part ≥1000 ⇒ ApplyTkbOverride · JSON decode or REFUSE · RefusedConfigCount }
+  class EqsSensorConfigEgressTranslator { <<existing, extended>> TKB part: publishes only while overridden + one Override=false }
   class EqsSensor { <<existing>> BlueprintId Epoch SearchRadius ... Suspended }
-  class SensorTag { <<NEW component>> +SensorModality Kind +byte TkbIndex }
-  class SensorCapability { <<NEW Muscle-only>> the decoded per-kind sub-record for the tests }
+  class SensorTag { <<BUILT, id 306>> +SensorModality Kind +byte TkbIndex +byte FromTkb }
+  class SensorCapability { <<BUILT managed, id 307>> +Default +Current — on every node }
+  class SensorConfigPayload { <<BUILT managed, id 308, Transient>> +Kind +Json — marks an override on the Brain }
+  class SensorConfigCodec { <<BUILT>> +Encode() +TryDecode() kind SensorEntry }
+  class DerivedParts { <<BUILT>> +MarkNotSaved() CE-3045 }
   class PartMetadata { <<existing>> ParentEntity InstanceId }
   class EqsCognitiveBuffer { <<existing>> IsReady GetTop GetSpanRO }
-  class EqsSensorConfigTopic { <<existing wire, grows>> +string ConfigKind +string ConfigJson }
-  class EqsChildSensor { <<existing>> AllocatePartId skips 1000+ }
-  class Sensors { <<NEW static>> +Of(view, unit, kind) Entity +Buffer(view, unit, kind) }
+  class EqsSensorConfigTopic { <<existing wire, grows>> +string ConfigKind +string ConfigJson +bool Override }
+  class EqsChildSensor { <<existing>> AllocatePartId throws at 1000 · StampOwner folds 32→16 bits · NextEpoch bumps the low half }
+  class UnitSensors { <<BUILT static>> +Of(view, unit, kind) +TryGetResults() +SetEnabled() +Configure() +ClearOverride() +IsTkb() +IsOverridden() }
   class SensorModality { <<existing enum, reused as kind>> }
   class TargetMemory { <<existing, 54 readers, unchanged>> }
   SensorCapabilitiesDto o-- SensorEntryDto
   SensorEntryDto o-- VisualSensorDto
   SensorEntryDto o-- ThermalSensorDto
   SensorEntryDto o-- AcousticSensorDto
+  SensorEntryDto o-- RadarSensorDto
   PerceptionTkbTranslator ..> SensorChildFactory
   EqsSensorConfigIngressTranslator ..> SensorChildFactory
   SensorChildFactory ..> EqsSensor
@@ -135,9 +141,14 @@ classDiagram
   SensorChildFactory ..> SensorCapability
   SensorChildFactory ..> PartMetadata
   SensorChildFactory ..> EqsCognitiveBuffer
+  SensorChildFactory ..> DerivedParts
+  EqsSensorConfigIngressTranslator ..> SensorConfigCodec
+  EqsSensorConfigEgressTranslator ..> SensorConfigPayload
+  UnitSensors ..> SensorConfigPayload
+  UnitSensors ..> SensorConfigCodec
   EqsSensorConfigTopic ..> SensorEntryDto : ConfigJson
-  Sensors ..> SensorTag
-  Sensors ..> EqsCognitiveBuffer
+  UnitSensors ..> SensorTag
+  UnitSensors ..> EqsCognitiveBuffer
 ```
 
 *What the picture shows that prose hid:* a TKB sensor and a behaviour sensor are built by the SAME factory — the
@@ -147,7 +158,7 @@ TKB path calls it from the translator on every node, the wire path from the conf
 | why | |
 |---|---|
 | ⭐ an EMPTY `Sensors` list with `VisionRange > 0` reads as ONE implicit visual entry | existing TKB data keeps working with no migration; a list, once present, wins |
-| ⭐ `SensorCapability` is Muscle-only | the tests need the decoded parameters; the Brain needs only the kind (`SensorTag`) |
+| ⭐ `SensorCapability` is on EVERY node *(as-built — SUPERSEDES "Muscle-only")* | the factory runs on every node, and the Brain needs `Default` to restore an override; it is `NoScenario|NoReplay`, ⛔ not `Transient` (that includes `NoPreview`, which would hide it from the SoD snapshot the Muscle's filters read) |
 | ⭐ `ConfigJson` is empty for a TKB sensor | K: derived locally. Non-empty only for a behaviour sensor or an override (M′) |
 | ⛔ rejected: one component per modality (MOD1 §3.6.2) | one child shape and lifetime for every kind; the component count does not grow per kind |
 
@@ -165,8 +176,7 @@ sequenceDiagram
   participant B as Brain: result ingress
   participant TM as ActiveSensorTracks → TargetMemory
   T->>F: entry i of the unit's sensor list
-  F-->>T: Brain: child {PartMetadata(1000+i), EqsSensor, SensorTag, EqsCognitiveBuffer}
-  F-->>T: Muscle: carrier {same + SensorCapability}, Suspended = entry.Disabled
+  F-->>T: every node: child {PartMetadata(1000+i), EqsSensor, SensorTag, SensorCapability, EqsCognitiveBuffer, ScenarioIgnoreTag}, Suspended = entry.Disabled
   loop every solver tick, within the cost budget
     S->>S: template: generate → filters (sight synchronous) → score → top-K
     S->>M: ranked set
@@ -174,7 +184,7 @@ sequenceDiagram
   end
   M->>E: only when something changed
   E->>B: EqsResultTopic (parent net id, part 1000+i)
-  B->>B: EqsCognitiveBuffer (Sensors.Of reads it)
+  B->>B: EqsCognitiveBuffer (UnitSensors.Of reads it)
   B->>TM: transitions, with the sensor's SensorModality
 ```
 
@@ -201,7 +211,7 @@ sequenceDiagram
       CI->>F: carrier with this SensorCapability
     end
   end
-  Note over BH,CE: run ends or faults ⇒ BehaviorOwnedParts.Release ⇒ the override is written back empty ⇒ TKB default
+  Note over BH,CE: run ends or faults ⇒ BehaviorOwnedParts.Release ⇒ UnitSensors.ClearOverride ⇒ one Override=false sample ⇒ TKB default
 ```
 
 *What the picture shows that prose hid:* create, reconfigure and on/off are the SAME sample with different fields —
@@ -532,6 +542,30 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception|Sensor|Eqs|Los` | 29/0 |
 | ModuleHost | `dotnet test Fdp.ModuleHost.Tests` | 207/6 — ⚠ the SAME 6 convoy / provider tests fail on base `2fda9e25f` (206/6); +1 = the new breaker rail |
 | cross-node perception (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter SensorMechanism` | 1/1 — ⚠ `SensorMechanism_EndToEnd_…` red on base too (2/2): the rail is blind, `CE-3050` |
+
+### 9.2 As-built — S3 / `CE-3036` + `CE-3045` + `CE-3049` *(`2026-10-04`)*
+
+⭐ §4's class diagram is the as-built picture. What the build did differently from the plan, and why:
+
+| deviation | why |
+|---|---|
+| ⭐ the reader API is `UnitSensors`, not `Sensors` | a class named `Sensors` collides with its own namespace `Fdp.Toolkit.Perception.Sensors` |
+| ⭐ concrete sub-records (`Visual?` `Thermal?` `Acoustic?` `Radar?`), no `ISensorConfigDto` | V1 — StructEdit cannot edit an interface member. ⭐ `Template` is a `Guid` (the template registry key), not a `uint` |
+| ⭐ `ConfigJson` is the WHOLE `SensorEntryDto` under one kind, `"SensorEntry"` | one decoder, one refusal rule; the sub-record inside names the modality |
+| ⭐ the wire grows a third field, `Override` | a TKB sensor is silent until overridden; ending the override needs ONE sample the receiver can tell from "no override yet" ⇒ `Override = false` restores the default at the sample's epoch |
+| ⭐ the Brain marks an override with `SensorConfigPayload` (id 308, `Transient`) | the egress decides "publish a TKB sensor?" from one component, with no extra state |
+| ⭐ `SensorCapability` lives on every node (§4 table) | the Brain restores the default from it on `ClearOverride` |
+| ⭐ `CE-3049`: the owner is FOLDED to 16 bits (`low ^ high`), refreshes bump the low half only (`EqsChildSensor.NextEpoch`, used by `EqsLifecycleNodes`) | removes the "ids 65536 apart alias" case and the refresh carry. ⏳ The planned slot bit belongs to the doctrine slot — the behaviors lane stamps it when it builds the second slot (`FRAME_Decision_Layer.md`) |
+| ⭐ `CE-3045`: one helper `DerivedParts.MarkNotSaved` tags every derived part `ScenarioIgnoreTag` — EQS child sensors, TKB sensors, Muscle carriers, AND combat weapon-mount children (the same bug, found by V2's precedent) | instance attach was already find-or-create (`BlueprintInstanceService` → `AlreadyAttached`) — that half needed nothing |
+| ⏳ NOT built: the implicit visual entry for an empty list | it replaces the receptor path, so it lands with the visual move (S5, `CE-3038`) |
+| ⏳ NOT built: "the solver skips sensors whose result part it does not own" (V3) | the Perception group has one holder in every composition today; a second solver is S6's concern |
+| ⏳ NOT built: "run end ⇒ override back to default" | the release path is the behaviour's (`BehaviorOwnedParts`, behaviors lane); `UnitSensors.ClearOverride` is the call it makes |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2621/0, 1 skipped (base 2612 + 9 new) |
+| SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception\|Sensor\|Eqs\|Los` | 30/0 (+1 new: a new sensor kind built, solved, overridden, switched, restored) |
+| cross-node EQS (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs` | 93/0 (+2 new: a TKB sensor answered with no config on the wire + override reaches the Muscle; JSON config, refusal, TKB restore) |
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 

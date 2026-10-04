@@ -125,7 +125,7 @@ namespace Hrot.AI.Behaviors.Brains
                 sensor.ContextSlot0        = p.ContextSlot0;
                 sensor.ContextSlot1        = p.ContextSlot1;
                 sensor.ContextSlot2        = p.ContextSlot2;
-                sensor.Epoch++;
+                sensor.Epoch = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.NextEpoch(sensor.Epoch);   // CE-3049 — never carry into the owner stamp
             }
 
             return NodeStatus.Running;

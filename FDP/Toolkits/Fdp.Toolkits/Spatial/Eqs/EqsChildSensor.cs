@@ -73,6 +73,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 repo.AddComponent(child, config);
                 repo.AddComponent(child, default(EqsCognitiveBuffer));
                 repo.AddComponent(child, stamp);
+                Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, child);   // CE-3045 — never saved
                 return child;
             }
 
@@ -82,6 +83,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             cmd.AddComponent(pending, config);
             cmd.AddComponent(pending, default(EqsCognitiveBuffer));
             cmd.AddComponent(pending, stamp);
+            Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, pending, view);   // CE-3045
             return Entity.Null;
         }
 
@@ -103,12 +105,25 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if ((low & (1ul << (id - 1))) == 0) return id;
             int next = 65;
             while (high != null && high.Contains(next)) next++;
+            // ⭐ CE-3036 — ids from 1000 are the unit's TKB sensors (Perception.Sensors.SensorChildFactory.FirstTkbPartId).
+            if (next >= 1000)
+                throw new System.InvalidOperationException(
+                    $"Entity {parent} already has 999 behaviour-made sensors; ids from 1000 belong to its TKB sensors.");
             return next;
         }
 
-        /// <summary>The epoch with its high 16 bits set to the owning run (low 16 bits = the refresh count).</summary>
+        /// <summary>The epoch with its high 16 bits set to the owning run (low 16 bits = the refresh count).
+        /// ⭐ CE-3049 — the owner's 32 bits are FOLDED into 16 (low half XOR high half), not truncated: a token from
+        /// another slot (a doctrine's runs carry the high bit — DESIGN_Sensors_And_Doctrine §6) no longer stamps the same
+        /// as the behaviour run with the same low bits. Behaviour tokens below 65 536 stamp exactly as before.</summary>
         public static uint StampOwner(uint epoch, uint ownerInstanceId)
-            => (ownerInstanceId << 16) | (epoch & 0xFFFFu);
+            => ((((ownerInstanceId & 0xFFFFu) ^ (ownerInstanceId >> 16)) & 0xFFFFu) << 16) | (epoch & 0xFFFFu);
+
+        /// <summary>
+        /// ⭐ CE-3049 — the next epoch of a sensor: bumps the refresh count (low 16 bits) and NEVER the owner stamp (high
+        /// 16). 🔴 A plain <c>Epoch++</c> carried a refresh overflow into the owner bits. Every refresh goes through here.
+        /// </summary>
+        public static uint NextEpoch(uint epoch) => (epoch & 0xFFFF0000u) | ((epoch + 1u) & 0xFFFFu);
 
         /// <summary>
         /// Ask again: bump the sensor's <c>Epoch</c> and clear its buffer, so <see cref="EqsCognitiveBuffer.IsReady"/> turns true
@@ -138,7 +153,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         private static bool Apply(ISimulationView view, Entity child, EqsSensor sensor)
         {
             // ⭐ CE-485: only the low 16 bits count refreshes; the high 16 carry the owning run and never change.
-            sensor.Epoch = (sensor.Epoch & 0xFFFF0000u) | ((sensor.Epoch + 1u) & 0xFFFFu);
+            sensor.Epoch = NextEpoch(sensor.Epoch);
             if (view is EntityRepository repo)
             {
                 repo.GetComponentRW<EqsSensor>(child) = sensor;

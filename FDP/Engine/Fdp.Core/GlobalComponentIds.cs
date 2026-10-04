@@ -595,5 +595,18 @@
         /// fully allocated, so the tier family cannot stay contiguous. 303 is free by a census of EVERY
         /// <c>*Ids*.cs</c>, which is the only census that counts (<c>R-44</c>, and <c>QA-037</c> is why).</summary>
         public const int BlueprintBlackboard256 = 303;
+        /// <summary><c>SensorTag</c> — a sensor child's KIND and, for a TKB sensor, its index in the unit's sensor list
+        /// (part id <c>1000 + index</c>). 306–308 are free by a census of every <c>*Ids*.cs</c> and every literal
+        /// <c>[ComponentId(n)]</c>, <c>2026-10-04</c> (only a test uses 310) — <c>R-44</c>.
+        /// 📄 docs/DESIGN_Sensors_And_Doctrine.md §4.</summary>
+        public const int SensorTag = 306;
+
+        /// <summary><c>SensorCapability</c> (managed) — a sensor's per-kind parameters (the TKB's own
+        /// <c>SensorEntryDto</c>): the default it was built from and the one in force. The sensing tests read it.</summary>
+        public const int SensorCapability = 307;
+
+        /// <summary><c>SensorConfigPayload</c> (managed) — on the Brain, the JSON config a sensor's wire sample carries:
+        /// a behaviour-made sensor's per-kind config, or an OVERRIDE of a TKB sensor (R-186 M′, R-187 N′).</summary>
+        public const int SensorConfigPayload = 308;
     }
 }

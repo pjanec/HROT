@@ -102,5 +102,7 @@ public static class HrotOwnershipGroups
     // G-4 — the same conditions the TKB translators use to provision each group's components.
     private static bool HasBrain(TkbTemplate t)      => t.GetDescriptor<BehaviorProfileDto>() is { BrainTier: not 0 };
     private static bool HasKinematics(TkbTemplate t) => t.GetDescriptor<VehicleParametersDto>() != null;
-    private static bool HasPerception(TkbTemplate t) => t.GetDescriptor<SensorCapabilitiesDto>() is { VisionRange: > 0f };
+    // ⭐ CE-3036 — a unit with any SENSOR is perceived by the Perception group too (V3: its results publish from there).
+    private static bool HasPerception(TkbTemplate t)
+        => t.GetDescriptor<SensorCapabilitiesDto>() is { } s && (s.VisionRange > 0f || s.Sensors.Count > 0);
 }
