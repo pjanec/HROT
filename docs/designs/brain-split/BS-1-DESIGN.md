@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-04
+current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321), §5.4a the CE-198 authority correction.
+stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
+known-rot: none recorded.
+known-conflict: none.
+related-designs:
+  - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
+-->
 # BS-1 Design: Brain / Muscle Node Separation
 
 **Workstream prefix:** `BS-1`  
@@ -199,6 +209,21 @@ CQRS chain — Brain emits intent, Muscle executes and reports back.
 Currently `AimAndFireExecutor` publishes `FireRequestEvent` which is consumed locally by
 `FireProcessingSystem`. After the change it publishes `WeaponFireIntent` instead.
 `FireRequestEvent` is removed. See Task **BS1-T004**.
+
+#### ⭐ 5.1a — CE-321: **when the executor does NOT fire** *(as-built, `2026-10-04`)*
+
+| guard, in order | status | why |
+|---|---|---|
+| target gone **or knocked out** — `CombatLife.IsAlive` | `Success` | ⚠ was `world.IsAlive` only; since the `CE-267` revert the body stays in the world, so a squad emptied its rifles into a corpse. Same rule `CE-466` applied to the hill-attack nodes |
+| `Ammo == 0` | `Failure` | unchanged |
+| cooldown > 0 | `Running` | unchanged |
+| ⭐ **a friendly on the line** — `LineOfFire.BlockedByFriendly` | `Running`, **no round spent** | 🔒 user `2026-10-04` *"A+B approved"*. Any OTHER entity of the shooter's `ForceId` with a `PhysicsCollider` (alive or wrecked) whose circle the flat shooter→target segment crosses strictly between the ends. Holding, not failing, lets the unit fire again once either side moves |
+
+⭐ The companion half lives in `EjectPassengersExecutor`: passengers dismount in a column on the vehicle's **right, relative to
+its heading**, at `hull radius (PhysicsCollider, else 2 m) + 1.5 m` from its centre. 📌 It used to drop them at a fixed WORLD
+offset (−4 m in Y) — 0.5 m outside the APC's 3.5 m collider with the hull between them and the threat — and `UrbanCombatNew`'s
+soldiers killed their own APC (`475 → 0` by tick 36). ⚠ The bullet's swept raycast still ignores only its shooter; the hold-fire
+rule is the guard, not the ballistics.
 
 ### 5.2 Brain Egress — WeaponFireIntentEgressTranslator
 

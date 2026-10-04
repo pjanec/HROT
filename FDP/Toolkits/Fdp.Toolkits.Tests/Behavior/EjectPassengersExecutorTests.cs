@@ -161,5 +161,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(caps.HasFlag(ActorCapabilities.CanMove),  "Live soldier CanMove should be restored");
             Assert.True(caps.HasFlag(ActorCapabilities.CanShoot), "Live soldier CanShoot should be restored");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-321</c> — passengers dismount on the vehicle's RIGHT, relative to its heading, clear of its collider
+        /// (radius + clearance from the centre), in a column along its length. A vehicle facing north (+Y) puts them east.
+        /// </summary>
+        [Fact]
+        public void Eject_DismountsBesideTheHull_RelativeToHeading_ClearOfTheCollider_CE321()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var vehicle = CreateVehicle(new Vector3(10f, 10f, 0f));
+            _world.GetComponentRW<SimTransform>(vehicle).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+            _world.AddComponent(vehicle, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+            var soldiers = new[] { CreateEmbarkedSoldier(vehicle), CreateEmbarkedSoldier(vehicle), CreateEmbarkedSoldier(vehicle) };
+
+            var channel = _world.GetComponent<InteractionChannel>(vehicle);
+            _executor.OnEnter(vehicle, ref channel, _world);
+            _executor.Execute(vehicle, ref channel, _world, 0f);
+
+            float expectedSide = 3.5f + EjectPassengersExecutor.DismountClearance;
+            float lastY = float.NegativeInfinity;
+            foreach (var s in soldiers)
+            {
+                var p = _world.GetComponent<SimTransform>(s).Position;
+                Assert.Equal(10f + expectedSide, p.X, 3);                  // east of a north-facing hull
+                Assert.True(Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(10f, 10f)) > 3.5f, "outside the collider");
+                Assert.True(p.Y > lastY, "a column along the heading");
+                lastY = p.Y;
+            }
+            Assert.Equal(10f, (_world.GetComponent<SimTransform>(soldiers[0]).Position.Y
+                             + _world.GetComponent<SimTransform>(soldiers[2]).Position.Y) / 2f, 3);   // centred on the hull
+        }
     }
 }

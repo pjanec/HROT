@@ -149,9 +149,11 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             // ── Latch 4: Insurgent killed ─────────────────────────────────────
+            // ⭐ Combat-death is the STATE Health.Current <= 0 — the body stays in the world (CE-267 revert, user ruling
+            //   "no magic dead body vanishing"); existence alone would never latch (CE-321).
             if (!_latchInsurgentKilled && _latchInsurgentHit && insFound)
             {
-                if (!world.IsAlive(insurgent))
+                if (!CombatLife.IsAlive(world, insurgent))   // CE-466's combat-death rule
                     _latchInsurgentKilled = true;
             }
 

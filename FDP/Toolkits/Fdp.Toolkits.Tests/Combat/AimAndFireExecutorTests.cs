@@ -291,6 +291,90 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, fireIntents.Length);
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
+
+        // ── CE-321 ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-321</c> — a unit never fires through a friendly: with a same-force collider on the line it HOLDS
+        /// (Running, no intent, no ammo spent); once the friendly moves off the line it fires.
+        /// </summary>
+        [Fact]
+        public void AimAndFire_HoldsFire_WhileAFriendlyIsOnTheLine_CE321()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+
+            var target = SpawnTarget(new Vector3(20f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, ammo: 5, cooldownRemaining: 0f, target, cooldownSeconds: 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+
+            var apc = _world.CreateEntity();
+            _world.AddComponent(apc, new SimTransform { Position = new Vector3(8f, 1f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(apc, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(apc, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+
+            // A HOSTILE collider on the same line does not hold fire — only friends do.
+            var cover = _world.CreateEntity();
+            _world.AddComponent(cover, new SimTransform { Position = new Vector3(12f, 0f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(cover, new EntityInfo { ForceId = ForceId.Hostile });
+            _world.AddComponent(cover, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            // The APC moves off the line (5 m to the side, radius 3.5) ⇒ the shot goes.
+            _world.GetComponentRW<SimTransform>(apc).Position = new Vector3(8f, 5f, 0f);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(1, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-321</c> — a target at 0 HP that is still in the world (CE-267: the body stays) ends the action
+        /// — Success, no round fired.</summary>
+        [Fact]
+        public void AimAndFire_ReportsSuccess_WhenTargetIsCombatDead_ButStillInTheWorld_CE321()
+        {
+            _world.RegisterComponent<Health>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            _world.AddComponent(target, new Health { Current = 0f, Max = 100f });
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.True(_world.IsAlive(target));
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-321</c> — a friendly BEHIND the shooter or BEYOND the target is not on the line of fire.</summary>
+        [Fact]
+        public void LineOfFire_IgnoresFriendliesBehindTheShooter_AndBeyondTheTarget_CE321()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var target = SpawnTarget(new Vector3(20f, 0f, 0f));
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+
+            foreach (var x in new[] { -6f, 26f })
+            {
+                var f = _world.CreateEntity();
+                _world.AddComponent(f, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(f, new EntityInfo { ForceId = ForceId.Friend });
+                _world.AddComponent(f, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
+            }
+
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+        }
     }
 }
 
