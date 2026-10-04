@@ -127,6 +127,49 @@ is dropped: the HOST's structure is the binding.
 | HSM | states host any-tier children; guards read live (`R-155`); `UtilityTransitionArbiter` (C# helper) | the arbiter as an authorable guard; something that scores each tick; sensor spawning from an HSM |
 | BTree | `Subtree` hosts any tier; `ObserverSelector` in the vocabulary | ⛔ the interpreter runs `ObserverSelector` as a plain selector (`Interpreter.cs:267`) — no abort until `CE-3041`; ⛔ `Service` has no interpreter case; `UtilitySelectorNode` is a C# helper, not a node |
 
+### 3.2 One scoring step for all three hosts *(PROPOSAL — lean awaiting approval)*
+
+> 🔒 **User, `2026-10-04`:** *"if UtilityTransitionArbiter got forgotten because of refactor, shouldn't we re-make it as now
+> it is just a dead and wrong code? seems like an omission. Same with the btree - there are no reall assets that can need
+> them. We are building infrastructure so such assets can be created at all."*
+
+📐 **Corrected `2026-10-04`:** a BTree condition CAN keep per-unit state. Since `CE-504` (one C# node signature for BTree
+and HSM) a `[SharedAiCondition]` takes `(Entity, EntityRepository)`, `(ref P, Entity, EntityRepository)` or the STATEFUL
+`(ref P, ref WS, Entity, EntityRepository)` — the working state lives per unit in the behaviour's block
+(`DESIGN_BTree_Node_Call_Shapes.md` §4 C-2, slices 1–4 built), and the same method binds as an HSM transition guard
+(`DESIGN_Behavior_Action_Binding.md` §5.3b `S8`, built; `ActionSchemaExporter.cs` gives a shared condition the guard bit).
+Actions and conditions read their bound host variables live (`R-155`).
+
+```mermaid
+graph TD
+  CORE["scoring core (exists)<br/>UtilityScorer: score options, +bonus for the last winner"]
+  STEP["ONE scoring step (to build)<br/>shared action + blueprint node, same core<br/>reads and writes a bound WINNER variable"]
+  VAR[("winner variable<br/>in the behaviour's blackboard<br/>= the hysteresis memory")]
+  BP["Blueprint: Score Decision node<br/>→ Behaviour Task per option"]
+  BT["BTree: Parallel( repeat Score step , ObserverSelector( guard winner==i → branch i ) )"]
+  HSM["HSM: parent-state activity = Score step<br/>transitions guarded winner==X"]
+  OLD1["UtilitySelectorNode (dead)"]
+  OLD2["UtilityTransitionArbiter (dead)"]
+  CORE --> STEP --> VAR
+  VAR --> BP
+  VAR --> BT
+  VAR --> HSM
+  OLD1 -. "replaced, deleted" .-> STEP
+  OLD2 -. "replaced, deleted" .-> STEP
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+  class OLD1,OLD2 dead
+```
+
+*What the picture shows that prose hid: the three hosts differ only in HOW they switch; WHAT wins is one step, and the
+memory of the last winner is an ordinary variable — so two decisions on one unit no longer share one buffer, and the
+debugger's Watch shows the current posture.*
+
+| | |
+|---|---|
+| ⭐ lean | one scoring step (a `[SharedAiAction]` for BTree/HSM, and the existing blueprint node, both calling one core) that writes the winner into a bound variable; branches and transitions only compare that variable. The two dead helpers are deleted, not re-made |
+| still needed for the BTree | `CE-3041` (`ObserverSelector` aborts the running lower branch) — today it runs as a plain selector (`Interpreter.cs:267`) |
+| rejected | re-make the two helpers 1:1 — two implementations of one concept, and each guard would score separately (five scorings a tick, five memories) · keep the per-unit `UtilityResultBuffer` as the memory — two decisions on one unit overwrite each other |
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
