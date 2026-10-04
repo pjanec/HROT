@@ -35,6 +35,14 @@ namespace Fdp.Toolkit.Behavior
         string json, byte* memory, int capacity, EntityRepository world, Entity self);
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3044</c> (R-191) — the INVERSE of <see cref="ParseParamsDelegate"/>: the params region at
+    /// <paramref name="memory"/> as a JSON object keyed by parameter name, holding ONLY the fields that differ from the
+    /// declared defaults; <c>null</c> when every field is at its default. Feeding the result back through
+    /// <see cref="ParseParamsDelegate"/> restores the region. Emitted beside <c>ParseParams</c> on the same class.
+    /// </summary>
+    public unsafe delegate string? FormatParamsDelegate(byte* memory, int capacity);
+
+    /// <summary>
     /// ⭐⭐ <c>CE-427</c> — <b>STAGE 1 alone: bake every authored default into the block.</b>
     /// 📄 <c>Q76</c> §12.3. A generated behaviour's <c>ParseParams</c> is bake + overlay; this is the bake
     /// half by itself, so a CURATED resolver that replaces the overlay does not also drop the bake.

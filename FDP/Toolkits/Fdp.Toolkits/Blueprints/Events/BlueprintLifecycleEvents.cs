@@ -17,8 +17,8 @@ namespace Fdp.Toolkit.Blueprints.Events;
 /// <para>
 /// ⛔ <b>At runtime attach, this event's params JSON is the ONLY source of params</b> — a caller with
 /// nothing to pass leaves it null and the blueprint's declared defaults stand. (Save→reload is a separate
-/// path: <c>BlueprintStateTranslator</c> snapshots the resolved param bytes into
-/// <c>BlueprintAssignmentDto.Params</c> and <c>BlueprintMaterializationSystem</c> re-applies them — MX-031/032.)
+/// path: <c>BlueprintStateTranslator</c> snapshots the live params (<c>FormatParams</c>) into
+/// <c>BlueprintAssignmentDto.Params</c> (JSON by name) and <c>BlueprintMaterializationSystem</c> re-applies them through <c>ParseParams</c> — CE-3044.)
 /// </para>
 /// </summary>
 [EventId(BlueprintConstants.EventId_AttachInstanceBlueprint)]

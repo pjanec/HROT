@@ -72,6 +72,16 @@ public sealed record BlueprintDefinition
     /// </summary>
     public Fdp.Toolkit.Behavior.ParseParamsDelegate? ParseParams { get; init; }
 
+    /// <summary>
+    /// ⭐ <c>CE-3044</c> (R-191) — the inverse of <see cref="ParseParams"/>: the live params region as JSON by name,
+    /// non-default fields only. What a scenario save stores. <c>null</c> when the blueprint declares no parameters.
+    /// </summary>
+    public Fdp.Toolkit.Behavior.FormatParamsDelegate? FormatParams { get; init; }
+
+    /// <summary>The declared parameter names — what a saved params object is checked against on load (a key not in
+    /// here was renamed or removed since the save; it is warned and dropped, R-191).</summary>
+    public IReadOnlyList<string> ParamNames { get; init; } = Array.Empty<string>();
+
     // For inspector / debugger
     public Type? StateClrType { get; init; }
     public IReadOnlyDictionary<string, BlueprintFieldDescriptor> StateFields { get; init; }

@@ -6,9 +6,8 @@ using Xunit;
 namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
-    /// BSA-201 / MX-030: Tests for BlueprintAssignmentDto JSON round-trip. The persisted param form is the
-    /// RESOLVER-SHAPE bytes (Params) plus their layout hash — not the retired Overrides name→value dict
-    /// (EXPLAINER §"two supply shapes, one concept"; ruling 9).
+    /// BSA-201 / CE-3044: Tests for BlueprintAssignmentDto JSON round-trip. The persisted param form is a JSON
+    /// object keyed by parameter NAME (R-191) — never bytes.
     /// </summary>
     public sealed class BlueprintAssignmentDtoTests
     {
@@ -27,34 +26,30 @@ namespace Fdp.Toolkit.Scenario.Tests
             };
             var json = JsonSerializer.Serialize(dto, options);
             Assert.DoesNotContain("\"Params\"", json);
-            Assert.DoesNotContain("\"ParamsStructureHash\"", json);
 
             var deserialized = JsonSerializer.Deserialize<BlueprintAssignmentDto>(json, options);
             Assert.NotNull(deserialized);
             Assert.Equal(dto.AssetId, deserialized!.AssetId);
             Assert.Null(deserialized.Params);
-            Assert.Null(deserialized.ParamsStructureHash);
         }
 
         [Fact]
-        public void Dto_RoundTrip_WithParams_PreservesBytesAndHash()
+        public void Dto_RoundTrip_WithParams_IsAJsonObjectByName()
         {
-            var bytes = new byte[] { 42, 0, 0, 0, 7, 0, 0, 0 };
             var dto = new BlueprintAssignmentDto
             {
-                AssetId             = Guid.NewGuid(),
-                Params              = bytes,
-                ParamsStructureHash = 0xABCDEF01UL,
+                AssetId = Guid.NewGuid(),
+                Params  = new System.Text.Json.Nodes.JsonObject { ["Speed"] = 12.5, ["Name"] = "alpha" },
             };
 
             var json = JsonSerializer.Serialize(dto);
-            Assert.Contains("\"Params\"", json);   // base64-encoded byte[]
+            Assert.Contains("\"Params\":{\"Speed\":12.5,\"Name\":\"alpha\"}", json);   // readable, by name — not base64
 
             var deserialized = JsonSerializer.Deserialize<BlueprintAssignmentDto>(json);
             Assert.NotNull(deserialized);
             Assert.Equal(dto.AssetId, deserialized!.AssetId);
-            Assert.Equal(bytes, deserialized.Params);
-            Assert.Equal(0xABCDEF01UL, deserialized.ParamsStructureHash);
+            Assert.Equal(12.5, (double)deserialized.Params!["Speed"]!);
+            Assert.Equal("alpha", (string)deserialized.Params["Name"]!);
         }
     }
 }

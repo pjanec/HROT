@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT
-updated: 2026-08-26
-current-answer: this whole file. §2 INVENTORY (measured). §3 the DECISION (resolver-shape bytes, not the
-  Overrides dict). §4/§5 the class + sequence UML. §6 the MCP wire. §7 QA-023. §8 out of scope.
+updated: 2026-10-04
+current-answer: ⭐ §10 (CE-3044, R-191 — params persist as JSON by name; its own class + sequence UML) for the
+  PERSISTED FORMAT; §6 the MCP wire and §7 QA-023 still hold. ⛔ §3/§4/§5 describe the SUPERSEDED byte format. §2 INVENTORY (measured). §6 the MCP wire. §7 QA-023. §8 out of scope.
 design-basis: Architect_Question_61 (the reframe + A/B/C/D leans) · EXPLAINER_Where_Parameters_And_State_Live.md
   §"two supply shapes, one concept" (line ~287 — the ruling that resolver shape > Overrides dict) ·
   BLUEPRINT-SCENARIO-DESIGN.md §6 (the ORIGINAL Overrides intent, deferred for UX) · DESIGN_Parameter_Model.md
@@ -176,3 +176,82 @@ the AQ61 §3 "defer C" lean is superseded by the handoff. **Gates:** Fdp.Toolkit
 ClusterRunner build clean; `EveryRouteIsDocumented` 4/4; blueprint scenario 6/0 (+2 pre-existing skips); SimHost
 translator/materialization/genesis 25/0; Fdp.Toolkits blueprint 38/0 + DTO 2/0; `gen:catalog`/`gen:skill`/
 `test:catalog` green (98 tools).
+
+## 10. ⭐⭐⭐ R-191 — params persist as JSON BY NAME *(`CE-3044`, `2026-10-04`; SUPERSEDES §3–§5's byte format)*
+
+> 🔒 *"The params should be saved as json to the scenario and translated to dto structs as needed. Never saved as
+> bytes to scenario."* · *"Bytes can not be easily migrated on json level."*
+
+```mermaid
+classDiagram
+    direction LR
+    class BlueprintAssignmentDto {
+        +Guid AssetId
+        +JsonObject Params  «CHANGED: was byte[]; only non-default fields, keyed by name»
+        ParamsStructureHash  «DELETED: a name-keyed form needs no layout guard»
+    }
+    class ParamsJson_Generated {
+        <<emitted per Instance with parameters · InstanceEmitter>>
+        +ParseParams(json, memory, capacity, world, self)  «exists: defaults, then overlay by name»
+        +FormatParams(memory, capacity) string  «NEW: fields that differ from the declared defaults»
+        +string[] ParamNames  «NEW»
+    }
+    class BlueprintDefinition {
+        <<exists · Fdp.Toolkits>>
+        +ParseParamsDelegate ParseParams
+        +FormatParamsDelegate FormatParams  «NEW»
+        +IReadOnlyList~string~ ParamNames  «NEW»
+    }
+    class FormatParamsDelegate {
+        <<NEW · beside ParseParamsDelegate, Fdp.Toolkit.Behavior>>
+        string? (byte* memory, int capacity)
+    }
+    class BlueprintInstanceService {
+        <<exists · static>>
+        +AttachToEntity(..., paramsJson)  «unchanged»
+        +ApplyParams(payload, def, json, world, entity) string?  «NEW: parse into scratch, then WriteParamsRegion»
+        +UnknownParamKeys(def, JsonObject) list  «NEW: the renamed-field warning»
+        +WriteParamsRegion  «kept: the one region writer»
+        GetDefaultParamsRegion  «DELETED: no reader»
+    }
+    class BlueprintStateTranslator { <<exists · Hrot.SimHost>> +Extract  «FormatParams of the live region» }
+    class BlueprintMaterializationSystem { <<exists · Hrot.SimHost>> «ApplyParams ALWAYS — bakes declared defaults too» }
+    BlueprintDefinition --> FormatParamsDelegate
+    ParamsJson_Generated ..> BlueprintDefinition : registered onto
+    BlueprintStateTranslator ..> BlueprintDefinition : FormatParams
+    BlueprintStateTranslator ..> BlueprintAssignmentDto : Params JSON
+    BlueprintMaterializationSystem ..> BlueprintInstanceService : ApplyParams + UnknownParamKeys
+    BlueprintInstanceService ..> BlueprintDefinition : ParseParams
+```
+
+*What the picture shows that prose hid:* ONE parser on every path — attach and reload both go through the emitted
+`ParseParams` — and its inverse sits beside it on the same generated class, so a parameter added to the blueprint is in
+both by construction.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant EX as BlueprintStateTranslator.Extract
+    participant DEF as BlueprintDefinition
+    participant DTO as BlueprintAssignmentDto
+    participant MAT as BlueprintMaterializationSystem
+    participant BIS as BlueprintInstanceService
+
+    EX->>DEF: FormatParams(payload + ParamsOffset, ParamsSize)
+    DEF-->>EX: JSON of the non-default fields, or null
+    EX->>DTO: Params = that object (absent when null)
+    MAT->>MAT: TryAttach, then InitDefault
+    MAT->>BIS: UnknownParamKeys(def, DTO.Params)
+    BIS-->>MAT: keys the blueprint no longer declares, each logged, the field keeps its default
+    MAT->>BIS: ApplyParams(payload, def, DTO.Params or empty)
+    BIS->>DEF: ParseParams into a scratch buffer (defaults, then overlay by name)
+    BIS->>BIS: WriteParamsRegion (a parse failure leaves the region untouched, logged)
+```
+
+| decision | why |
+|---|---|
+| ⭐ reload ALWAYS runs `ParseParams`, with `{}` when nothing was saved | 🔴 found while building: materialization ran only `InitDefault`, which bakes STATE defaults, never PARAM defaults ⇒ a reloaded instance had all-zero params where a fresh attach had the declared defaults. Latent only because no shipped instance declares parameters |
+| ⭐ the diff is by the field's JSON, against the DECLARED defaults | the same baseline `ParseParams` bakes, so save then load is the identity |
+| ⭐ unknown key ⇒ warned and dropped, never an error | a renamed field loses ONLY itself (the reason R-191 exists); the other fields load |
+| ⛔ no legacy reader | no scenario in the repo carries byte params (measured `2026-10-04`) |
+| ⏳ behaviours / doctrines | the snapshot (`CE-3042`) reuses `FormatParamsDelegate` for their start record |

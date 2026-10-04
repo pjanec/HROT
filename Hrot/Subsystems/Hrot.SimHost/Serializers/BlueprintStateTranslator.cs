@@ -173,29 +173,20 @@ namespace Hrot.SimHost.Serializers
                     def     = d;
                 }
 
-                // ⭐⭐ MX-031 — persist the RESOLVED PARAM BYTES (the resolver shape, not an Overrides dict:
-                //    EXPLAINER §"two supply shapes"). Only when they DIFFER from InitDefault, so a
-                //    default assignment stays { AssetId } only. The bytes are layout-versioned, so the
-                //    def's StructureHash rides along for the load-time guard.
-                byte[]? paramsBytes = null;
-                ulong?  paramsHash  = null;
-                if (def != null && def.ParamsSize > 0)
+                // ⭐⭐ CE-3044 (R-191) — the params as JSON BY NAME, only the fields that differ from the declared
+                //    defaults (the blueprint's own FormatParams, the inverse of the ParseParams a load runs). ⛔ Never
+                //    the raw region: a byte layout survives only until the next recompile.
+                JsonObject? paramsJson = null;
+                if (def?.FormatParams != null && def.ParamsSize > 0)
                 {
-                    byte* payload = memory + slot.PayloadOffset;
-                    var live = BlueprintInstanceService.ReadParamsRegion(payload, def);
-                    var dflt = BlueprintInstanceService.GetDefaultParamsRegion(def);
-                    if (!live.AsSpan().SequenceEqual(dflt))
-                    {
-                        paramsBytes = live;
-                        paramsHash  = def.StructureHash;
-                    }
+                    string? json = def.FormatParams(memory + slot.PayloadOffset + def.ParamsOffset, def.ParamsSize);
+                    if (json != null) paramsJson = JsonNode.Parse(json) as JsonObject;
                 }
 
                 dtos.Add(new BlueprintAssignmentDto
                 {
-                    AssetId             = assetId,
-                    Params              = paramsBytes,
-                    ParamsStructureHash = paramsHash,
+                    AssetId = assetId,
+                    Params  = paramsJson,
                 });
             }
         }

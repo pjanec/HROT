@@ -690,7 +690,12 @@ internal sealed class CSharpEmitter
         WriteLine($"ParamsOffset = {className}.ParamsOffset,");
         WriteLine($"ParamsSize = {className}.ParamsSize,");
         if (asset.Parameters.Count > 0)
+        {
             WriteLine($"ParseParams = {className}.ParseParams,");
+            // ⭐ CE-3044 (R-191) — the inverse a scenario save writes, and the names a load checks saved keys against.
+            WriteLine($"FormatParams = {className}.FormatParams,");
+            WriteLine($"ParamNames = {className}.ParamNames,");
+        }
         EmitStateFieldsBlock(className, asset, "State");
         if (eventHandlers.Count > 0)
         {

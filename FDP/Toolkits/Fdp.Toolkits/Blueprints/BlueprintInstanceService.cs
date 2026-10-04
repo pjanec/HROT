@@ -92,8 +92,8 @@ public static unsafe class BlueprintInstanceService
     /// ⭐ Params for the blueprint, as a JSON object keyed by parameter name
     /// (<c>DESIGN_Parameter_Model.md</c> §3.3). null/empty means "declared defaults only", which is the
     /// shipped behaviour and every existing caller's answer. ⛔ At runtime attach this is the ONLY source
-    /// of params — no side table. (Save→reload re-applies the persisted bytes through
-    /// <see cref="WriteParamsRegion"/> from <c>BlueprintAssignmentDto.Params</c> — MX-031/032.)
+    /// of params — no side table. (Save→reload re-applies the saved JSON through <see cref="ApplyParams"/> from
+    /// <c>BlueprintAssignmentDto.Params</c> — CE-3044.)
     /// </param>
     /// <returns>A classified <see cref="BlueprintAttachResult"/>.</returns>
     public static BlueprintAttachResult AttachToEntity(
@@ -240,9 +240,9 @@ public static unsafe class BlueprintInstanceService
 
     // ── param-region round-trip (MX-030) ─────────────────────────────────────
     // ⭐⭐ The ONE place that knows WHERE params live inside a payload — [ParamsOffset .. +ParamsSize).
-    //    AttachToEntity writes them from resolved JSON; BlueprintStateTranslator.Extract reads them for
-    //    save; BlueprintMaterializationSystem writes the persisted bytes back on load. Centralising the
-    //    offset here keeps those three from disagreeing (ruling 9).
+    //    AttachToEntity and ApplyParams (reload) write them from resolved JSON; a scenario save reads them through
+    //    the blueprint's FormatParams (CE-3044, R-191 — JSON by name, never bytes). Centralising the offset here
+    //    keeps them from disagreeing (ruling 9).
 
     /// <summary>
     /// Copies resolved param bytes into a slot payload's param region
@@ -267,16 +267,49 @@ public static unsafe class BlueprintInstanceService
     }
 
     /// <summary>
-    /// The param region a freshly-<c>InitDefault</c>'d payload carries — the baseline
-    /// <c>BlueprintStateTranslator.Extract</c> diffs against, so only NON-default
-    /// params are persisted (a default assignment stays <c>{AssetId}</c> only).
+    /// ⭐⭐ <c>CE-3044</c> (R-191) — resolves <paramref name="paramsJson"/> (a JSON object by parameter name; null or
+    /// empty = the declared defaults) through the blueprint's OWN <see cref="BlueprintDefinition.ParseParams"/> into a
+    /// scratch buffer, then copies it into the payload's param region. A parse failure leaves the region untouched and
+    /// is returned as the error text (<c>null</c> on success, or when the blueprint declares no parameters).
+    /// <para>⭐ The reload path (<c>BlueprintMaterializationSystem</c>) — the same parser <see cref="AttachToEntity"/>
+    /// runs, so a saved instance and a freshly attached one hold the same params.</para>
     /// </summary>
-    public static byte[] GetDefaultParamsRegion(BlueprintDefinition def)
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static string? ApplyParams(byte* payload, BlueprintDefinition def, string? paramsJson,
+                                      EntityRepository world, Entity entity)
     {
-        if (def.ParamsSize <= 0) return Array.Empty<byte>();
-        var scratch = new byte[def.StateSize];
-        def.InitDefault?.Invoke(scratch);
-        return new ReadOnlySpan<byte>(scratch, def.ParamsOffset, def.ParamsSize).ToArray();
+        if (def.ParseParams == null || def.ParamsSize <= 0) return null;
+        var scratch = new byte[def.ParamsSize];
+        try
+        {
+            fixed (byte* s = scratch)
+                def.ParseParams(paramsJson ?? string.Empty, s, def.ParamsSize, world, entity);
+        }
+        catch (Exception ex)
+        {
+            return $"{ex.GetType().Name}: {ex.Message}";
+        }
+        WriteParamsRegion(payload, def, scratch);
+        return null;
+    }
+
+    /// <summary>
+    /// The keys of a saved params object the blueprint no longer declares (renamed or removed since the save) —
+    /// compared case-insensitively, as <c>ParseParams</c> matches them. Each such field keeps its default (R-191).
+    /// </summary>
+    public static System.Collections.Generic.List<string> UnknownParamKeys(
+        BlueprintDefinition def, System.Text.Json.Nodes.JsonObject? saved)
+    {
+        var unknown = new System.Collections.Generic.List<string>();
+        if (saved == null) return unknown;
+        foreach (var kv in saved)
+        {
+            bool known = false;
+            foreach (var name in def.ParamNames)
+                if (string.Equals(name, kv.Key, StringComparison.OrdinalIgnoreCase)) { known = true; break; }
+            if (!known) unknown.Add(kv.Key);
+        }
+        return unknown;
     }
 
     // ── private helpers ──────────────────────────────────────────────────────

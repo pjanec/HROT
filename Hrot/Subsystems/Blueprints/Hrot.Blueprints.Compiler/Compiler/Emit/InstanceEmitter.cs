@@ -90,6 +90,8 @@ internal static class InstanceEmitter
         {
             EmitParseParams(e, asset);
             e.WriteLine();
+            EmitFormatParams(e, asset);
+            e.WriteLine();
         }
 
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
@@ -473,15 +475,7 @@ internal static class InstanceEmitter
     internal static void EmitParamsDefaultsAndOverlay(CSharpEmitter e, IrAsset asset)
     {
         // Step 1 — the declared defaults.
-        foreach (var f in asset.Parameters.Where(f =>
-            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
-        {
-            e.WriteLine($"p.{f.Name} = {f.DefaultValueCSharp};");
-        }
-        foreach (var f in asset.Parameters.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
-        {
-            e.WriteLine($"p.{f.Name}.Count = {f.Type.InitialLength};");
-        }
+        EmitParamsDefaults(e, asset, "p");
 
         // Step 2 — the overlay.
         e.WriteLine("if (string.IsNullOrWhiteSpace(json)) return;");
@@ -509,6 +503,58 @@ internal static class InstanceEmitter
         e.WriteLine("default: break;");
         e.Outdent();
         e.WriteLine("}");
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>The declared parameter defaults, written into the <c>Params</c> local <paramref name="target"/> —
+    /// the ONE baseline both <c>ParseParams</c> (bake, then overlay) and <c>FormatParams</c> (diff against it) use.</summary>
+    internal static void EmitParamsDefaults(CSharpEmitter e, IrAsset asset, string target)
+    {
+        foreach (var f in asset.Parameters.Where(f =>
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
+        {
+            e.WriteLine($"{target}.{f.Name} = {f.DefaultValueCSharp};");
+        }
+        foreach (var f in asset.Parameters.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        {
+            e.WriteLine($"{target}.{f.Name}.Count = {f.Type.InitialLength};");
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3044</c> (R-191) — the INVERSE of <see cref="EmitParseParams"/>, emitted beside it:
+    /// <c>FormatParams(memory, capacity)</c> returns the params region as a JSON object keyed by parameter name,
+    /// holding only the fields whose JSON differs from the declared default's (<see cref="EmitParamsDefaults"/>), or
+    /// <c>null</c> when all are at their defaults. Each field is written with the SAME options <c>ParseParams</c> reads
+    /// it with, so <c>ParseParams(FormatParams(r))</c> restores <c>r</c>. Also emits <c>ParamNames</c>.
+    /// </summary>
+    private static void EmitFormatParams(CSharpEmitter e, IrAsset asset)
+    {
+        e.WriteLine("public static readonly string[] ParamNames = { "
+                  + string.Join(", ", asset.Parameters.Select(f => $"\"{f.Name}\"")) + " };");
+        e.WriteLine();
+        e.WriteLine("public static unsafe string? FormatParams(byte* memory, int capacity)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("if (capacity < sizeof(Params))");
+        e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
+        e.WriteLine("        $\"the params region holds {capacity} bytes but this asset's Params needs {sizeof(Params)} (CE-331).\");");
+        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);");
+        e.WriteLine("var __d = default(Params);");
+        EmitParamsDefaults(e, asset, "__d");
+        e.WriteLine("var __o = new global::System.Text.Json.Nodes.JsonObject();");
+        foreach (var f in asset.Parameters)
+        {
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"var __v = global::System.Text.Json.JsonSerializer.Serialize<{CSharpType(f.Type)}>(p.{f.Name}, __ParamJsonOptions);");
+            e.WriteLine($"if (__v != global::System.Text.Json.JsonSerializer.Serialize<{CSharpType(f.Type)}>(__d.{f.Name}, __ParamJsonOptions))");
+            e.WriteLine($"    __o[\"{f.Name}\"] = global::System.Text.Json.Nodes.JsonNode.Parse(__v);");
+            e.Outdent();
+            e.WriteLine("}");
+        }
+        e.WriteLine("return __o.Count == 0 ? null : __o.ToJsonString();");
         e.Outdent();
         e.WriteLine("}");
     }

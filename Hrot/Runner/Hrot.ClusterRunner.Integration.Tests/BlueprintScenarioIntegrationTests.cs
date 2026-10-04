@@ -357,72 +357,121 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
     }
 
-    /// <summary>
-    /// ⭐⭐ MX-031/MX-032 round-trip rail — a NON-default param on an instance blueprint survives
-    /// Extract (save) → Inject → Materialize (reload). Before this batch, Extract wrote only AssetId and
-    /// Materialize called InitDefault only, so the param reset to its default on reload.
-    /// <para><b>Inverse-edit red-proof:</b> remove the <c>WriteParamsRegion</c> call in
-    /// <c>BlueprintMaterializationSystem</c> and the final assertion reads the default (all-zero) instead
-    /// of the saved value; drop the diff+emit in <c>BlueprintStateTranslator.Extract</c> and
-    /// <c>dtos[0].Params</c> is null.</para>
-    /// </summary>
-    [Fact]
-    public unsafe void ParamPersistence_NonDefaultParams_SurviveSaveThenReload()
+    // ── CE-3044 (R-191) — params persist as JSON by name ─────────────────────────────────────────────────────────
+    //  A hand-built Instance with two int params, A (default 0) and B (default 5), and the generated shape of its
+    //  ParseParams (defaults, then overlay by name) and FormatParams (non-default fields by name).
+
+    private static unsafe void TwoIntParse(string json, byte* memory, int capacity, EntityRepository world, Entity self)
     {
-        var assetId = Guid.Parse("E50117E7-0000-0000-0000-0000000000AA");
-        int bpId = BlueprintIdHash.Compute(assetId);
-        // A blueprint with a real params region: [Cursor 16][Params 8][State 8].
+        var p = (int*)memory;
+        p[0] = 0;
+        p[1] = 5;
+        if (string.IsNullOrWhiteSpace(json)) return;
+        using var doc = JsonDocument.Parse(json);
+        foreach (var prop in doc.RootElement.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, "A", StringComparison.OrdinalIgnoreCase)) p[0] = prop.Value.GetInt32();
+            else if (string.Equals(prop.Name, "B", StringComparison.OrdinalIgnoreCase)) p[1] = prop.Value.GetInt32();
+        }
+    }
+
+    private static unsafe string? TwoIntFormat(byte* memory, int capacity)
+    {
+        var p = (int*)memory;
+        var o = new JsonObject();
+        if (p[0] != 0) o["A"] = p[0];
+        if (p[1] != 5) o["B"] = p[1];
+        return o.Count == 0 ? null : o.ToJsonString();
+    }
+
+    private BlueprintDefinition RegisterTwoIntParamBlueprint(Guid assetId)
+    {
         var def = new BlueprintDefinition
         {
             Name          = "ParamBp",
             Kind          = BlueprintDispatchKind.Instance,
             StructureHash = 0xABCDEF01UL,
-            StateSize     = 32,
+            StateSize     = 32,                      // [Cursor 16][Params 8][State 8]
             ParamsOffset  = 16,
             ParamsSize    = 8,
             AssetId       = assetId,
-            InitDefault   = span => span.Clear(),   // default params = all zero
+            InitDefault   = span => span.Clear(),    // ⚠ bakes STATE only — the params' declared B=5 comes from ParseParams
+            ParseParams   = TwoIntParse,
+            FormatParams  = TwoIntFormat,
+            ParamNames    = new[] { "A", "B" },
         };
-        _registry.RegisterInstance(bpId, def);
+        _registry.RegisterInstance(BlueprintIdHash.Compute(assetId), def);
+        return def;
+    }
 
-        // ── Author: attach, then set a NON-default param value in the slot's param region ──
+    private Dictionary<string, object> SaveOneParamInstance(BlueprintDefinition def, string? paramsJson)
+    {
+        int bpId = BlueprintIdHash.Compute(def.AssetId);
         var src = _repo.CreateEntity();
         _repo.AddComponent(src, default(BlueprintBlackboard1024));
         Assert.Equal(BlueprintAttachStatus.Attached,
-            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId, src).Status);
-
-        var nonDefault = new byte[] { 42, 0, 0, 0, 7, 0, 0, 0 };
-        WriteSlotParams(_repo, src, bpId, def, nonDefault);
-        Assert.Equal(nonDefault, ReadSlotParams(_repo, src, bpId, def));
-
-        // ── Save: Extract captures the non-default params (diffed against InitDefault) + the hash ──
-        var translator = new BlueprintStateTranslator(_registry);
-        var extracted = translator.Extract(_repo, src, new StubGuidResolver());
-        var dtos = JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(
-            (JsonNode)extracted["BlueprintAssignments"], FdpJsonOptionsRegistry.DefaultRelaxed);
-        Assert.NotNull(dtos);
-        Assert.Single(dtos!);
-        Assert.Equal(nonDefault, dtos![0].Params);
-        Assert.Equal(def.StructureHash, dtos[0].ParamsStructureHash);
-
-        // ── Reload: Inject onto a FRESH entity, materialize; the param must survive (not reset) ──
-        var dst = _repo.CreateEntity();
-        translator.Inject(_repo, dst, extracted, new StubGuidResolver());
-        Assert.True(_repo.HasManagedComponent<InitialBlueprintsIntent>(dst));
-        new BlueprintMaterializationSystem(_registry).Execute(_repo, 0f);
-
-        Assert.Equal(nonDefault, ReadSlotParams(_repo, dst, bpId, def));
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId, src, paramsJson).Status);
+        return new BlueprintStateTranslator(_registry).Extract(_repo, src, new StubGuidResolver());
     }
 
-    private static unsafe void WriteSlotParams(
-        EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def, byte[] bytes)
+    private int[] Reload(BlueprintDefinition def, Dictionary<string, object> saved)
     {
-        // ⭐ Through the store seam: the reloaded entity is provisioned by materialization at the smallest tier that fits,
-        //   not at the 1024 tier the AUTHOR side hand-attached ("missing BlueprintBlackboard1024" was a named-tier read).
-        byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-        Assert.True(mem != null, "the entity must carry a store");
-        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
-        BlueprintInstanceService.WriteParamsRegion(mem + off, def, bytes);
+        var dst = _repo.CreateEntity();
+        new BlueprintStateTranslator(_registry).Inject(_repo, dst, saved, new StubGuidResolver());
+        Assert.True(_repo.HasManagedComponent<InitialBlueprintsIntent>(dst));
+        new BlueprintMaterializationSystem(_registry).Execute(_repo, 0f);
+        var bytes = ReadSlotParams(_repo, dst, BlueprintIdHash.Compute(def.AssetId), def);
+        return new[] { BitConverter.ToInt32(bytes, 0), BitConverter.ToInt32(bytes, 4) };
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3044 — a NON-default param survives save → reload, and the scenario holds it as JSON BY NAME with only the
+    /// non-default field (B is at its default, so it is not written). Supersedes the MX-031 byte rail.
+    /// <para><b>Inverse-edit red-proof:</b> drop the <c>ApplyParams</c> call in <c>BlueprintMaterializationSystem</c> and
+    /// the reload reads <c>[0, 0]</c>; drop the <c>FormatParams</c> call in <c>Extract</c> and <c>Params</c> is null.</para>
+    /// </summary>
+    [Fact]
+    public void ParamPersistence_NonDefaultParams_SurviveSaveThenReload_AsJsonByName()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AA"));
+        var saved = SaveOneParamInstance(def, "{\"A\":42}");
+
+        var array = (JsonArray)saved["BlueprintAssignments"];
+        var paramsNode = Assert.IsType<JsonObject>(array[0]!["Params"]);
+        Assert.Equal("{\"A\":42}", paramsNode.ToJsonString());          // by name, only the non-default field
+
+        Assert.Equal(new[] { 42, 5 }, Reload(def, saved));
+    }
+
+    /// <summary>⭐ CE-3044 — a reload with NOTHING saved bakes the DECLARED param defaults, as a fresh attach does
+    /// (it used to run InitDefault only, which leaves params zero).</summary>
+    [Fact]
+    public void ParamPersistence_ADefaultAssignment_ReloadsWithTheDeclaredDefaults()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AB"));
+        var saved = SaveOneParamInstance(def, null);
+
+        var array = (JsonArray)saved["BlueprintAssignments"];
+        Assert.Null(array[0]!["Params"]);                                    // a default assignment saves no params
+        Assert.Equal(new[] { 0, 5 }, Reload(def, saved));
+    }
+
+    /// <summary>⭐⭐ CE-3044 (R-191's reason) — a field RENAMED between save and load loses only itself: it keeps its
+    /// default and is reported, the other saved fields still load.</summary>
+    [Fact]
+    public void ParamPersistence_ARenamedField_DegradesToItsDefault_TheOthersLoad()
+    {
+        var def = RegisterTwoIntParamBlueprint(Guid.Parse("E50117E7-0000-0000-0000-0000000000AC"));
+        var saved = SaveOneParamInstance(def, "{\"A\":42,\"B\":9}");
+
+        // The scenario was saved when A was called "Alpha".
+        var p = (JsonObject)((JsonArray)saved["BlueprintAssignments"])[0]!["Params"]!;
+        var a = p["A"]!.DeepClone();
+        p.Remove("A");
+        p["Alpha"] = a;
+
+        Assert.Equal(new[] { "Alpha" }, BlueprintInstanceService.UnknownParamKeys(def, p));
+        Assert.Equal(new[] { 0, 9 }, Reload(def, saved));
     }
 
     private static unsafe byte[] ReadSlotParams(

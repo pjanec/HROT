@@ -162,22 +162,26 @@ namespace Hrot.SimHost.Systems
                         def.InitDefault(initSpan);
                     }
 
-                    // ⭐⭐ MX-032 — re-apply persisted params (the resolver-shape bytes) AFTER InitDefault,
-                    //    through the SAME writer AttachToEntity uses. Guarded by StructureHash: a blueprint
-                    //    recompiled since save has a different layout, so its stale bytes are ignored and
-                    //    the declared defaults stand (logged), rather than being read at the wrong offsets.
-                    if (dto.Params is { Length: > 0 } paramBytes && def.ParamsSize > 0)
+                    // ⭐⭐ CE-3044 (R-191) — the params through the blueprint's OWN ParseParams, AFTER InitDefault, exactly as
+                    //    AttachToEntity does: the declared defaults first, then the saved JSON overlaid by name.
+                    //    ⭐ ALWAYS, even with nothing saved — InitDefault bakes STATE defaults only, so skipping this left
+                    //    a reloaded instance with all-zero params where a fresh attach had the declared defaults.
+                    //    A key the blueprint no longer declares (renamed / removed since the save) loses only itself.
+                    if (def.ParseParams != null && def.ParamsSize > 0)
                     {
-                        if (dto.ParamsStructureHash == def.StructureHash)
-                        {
-                            BlueprintInstanceService.WriteParamsRegion(memory + payloadOffset, def, paramBytes);
-                        }
-                        else
-                        {
+                        foreach (var key in BlueprintInstanceService.UnknownParamKeys(def, dto.Params))
                             FdpLog<BlueprintMaterializationSystem>.Warn(
-                                $"[BlueprintMat] Persisted params for bpId 0x{bpId:X8} on entity {entity} " +
-                                $"were saved under StructureHash {dto.ParamsStructureHash:X} but the live " +
-                                $"definition is {def.StructureHash:X}; ignoring stale params, defaults stand.");
+                                $"[BlueprintMat] Saved param '{key}' of blueprint '{def.Name}' on entity {entity} is not " +
+                                "declared by the blueprint any more (renamed or removed since the save); it is ignored and " +
+                                "the parameter keeps its default.");
+                        string? error = BlueprintInstanceService.ApplyParams(
+                            memory + payloadOffset, def, dto.Params?.ToJsonString(), repo, entity);
+                        if (error != null)
+                        {
+                            BlueprintInstanceService.ApplyParams(memory + payloadOffset, def, null, repo, entity);
+                            FdpLog<BlueprintMaterializationSystem>.Warn(
+                                $"[BlueprintMat] Saved params of blueprint '{def.Name}' on entity {entity} could not be " +
+                                $"parsed; the declared defaults stand. {error}");
                         }
                     }
                 }
