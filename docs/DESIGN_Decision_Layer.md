@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-04
 build-state: DESIGN — under discussion with the user (utility integration, G3 open); G1, G2b approved; the mission stays unchanged.
-current-answer: §1 (decided), §2 (the mission stays), §3 (utility AI — the live discussion).
+current-answer: §1 (decided), §2 (the mission stays), §3 + §3.1 (utility AI and the combat-posture proposal — the live discussion).
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -68,6 +68,52 @@ related-designs:
 | blueprint `ScoreDecision` / `ReadRankedResult` nodes | ✅ compiled — ⛔ no shipped asset uses them |
 | BTree `UtilitySelectorNode`, HSM `UtilityTransitionArbiter` | ⚠ C# helpers, not authorable nodes, no callers |
 | squad tick (`CommanderUtilityTickSystem`), fire assignment (`ThreatMatrixAssignmentSystem`) | ⛔ deliberately not run — no danger-area provider (`SquadCoordinationSystem.cs:18`, Squad Wiring §5 D3) |
+
+### 3.1 The utility behaviour — combat posture as the first one *(PROPOSAL, under discussion — nothing built)*
+
+A **utility behaviour** = a decision whose options are **behaviours (+ params)**. It scores, runs the winner as a hosted
+child, re-scores on events, switches with hysteresis. Combat posture is the first instance.
+
+```mermaid
+sequenceDiagram
+  participant M as Mission task / doctrine slot
+  participant U as Posture behaviour (the run)
+  participant S as Its sensors (cover, retreat)
+  participant D as CombatPostureDecision (scorer)
+  participant C as Child behaviour (hosted)
+  M->>U: start (params: objective, ROE)
+  U->>S: spawn, owned by this run (CE-485)
+  loop on wake: sensor change, child finished, target change, slow floor
+    U->>D: score 5 options (self + memory + sensor tops)
+    D-->>U: winner, +0.08 for the running option
+    alt winner changed
+      U->>C: abort old child
+      U->>C: start new child (params: target, cover point...)
+    end
+  end
+  M->>U: end (mission trigger / operator) ⇒ child aborted, sensors released
+```
+
+*What the picture shows that prose hid: the sensors are spawned by the POSTURE run, before any child runs — an option
+is scored from a sensor that its own child behaviour would otherwise only start once it had already won.*
+
+| option | inputs it scores on (as built) | child behaviour | exists? |
+|---|---|---|---|
+| AdvanceAndAttack | health, ammo, enemy strength (inverse), have target | advance to objective + fire at target | ⚠ `MoveToLocation` + `FireAtTarget` exist separately; one move-and-shoot child is needed (G9: one behaviour owns every channel) |
+| TakeCover | health (inverse), cover sensor top score, enemy strength | move to the cover point, fire from it | ⛔ no cover behaviour; template `FindCoverFromTarget` exists |
+| Suppress | ammo, have target, ally advancing nearby | fire at target from here | ✅ `FireAtTarget`; ⛔ `AllyAdvancingNearby` is a stub returning 0 (`StandardInputs.cs` §D) ⇒ weighted product ⇒ **Suppress always scores 0** |
+| Flee (fall back) | health (inverse quadratic), retreat sensor top score, enemy strength | move to the retreat point | ⛔ no fall-back behaviour; template `FindSafeRetreatPoint` exists (`StarterTemplates.cs`) — the `CE-2051` remark in `CombatPostureDecision.cs` is stale |
+| Hold | health, constant 0.2 (weighted sum — the floor) | hold position | ✅ `HoldPosition` |
+
+📐 **Measured against the decided rulings:**
+
+| fact | source | consequence |
+|---|---|---|
+| `EnemyStrengthRatio` sums `TargetMemory.ThreatScores`, which DECAY over time | `StandardInputs.cs` `EnemyStrengthRatio`; `ThreatEvaluationSystem.cs:57` | ⛔ contradicts **G1** (`R-194`: danger does not fade). Three of five options read it ⇒ a hidden enemy makes the unit braver |
+| `HaveLiveTarget` = memory count > 0, no freshness | `StandardInputs.cs` `HaveLiveTarget` | a contact seen once long ago keeps `AdvanceAndAttack`/`Suppress` alive — needs the memory stage's freshness |
+| `EqsTopScore` finds ANY EQS child of the unit with the template id | `StandardInputs.cs` `TryFindEqsChild` | a sensor only scores while something has spawned it ⇒ the posture run must own it |
+| behaviour-owned sensors are stamped with the ROOT run and keyed by (site, key, run) | `EqsChildSensor.cs:30–37` | a child switch does not release them (good); a child spawning the same template at its own site makes a SECOND sensor |
+| a doctrine cannot replace a mission task | `R-188` (`Operator > Superior > Doctrine`) | a posture DOCTRINE never interrupts a running mission task — see the open questions |
 
 ## ⛔ HISTORY
 
