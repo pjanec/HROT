@@ -373,5 +373,5 @@ R-195 | docs/DESIGN_Decision_Layer.md | G2b: wake on event is good.
 R-196 | docs/DESIGN_Decision_Layer.md | We are not going to change this, this an ordinary end-user-facing surface which
 R-197 | docs/DESIGN_Decision_Layer.md | We are building infrastructure so such assets can be created at all.
 R-198 | docs/DESIGN_Decision_Layer.md | SOP name accepted.
-R-199 | docs/DESIGN_Decision_Layer.md | 3 words and 4 rules accepted. Urgency accepted. Restart with resume as followup accepted.
+R-199 | docs/DESIGN_Decision_Layer.md | 3 words and 4 rules accepted. Urgency accepted.
 ```
