@@ -310,6 +310,42 @@ part of this plan.*
 | `CE-3031` *(existing, ours)* | the children: take cover, fall back, advance-and-fire | `CE-2071` | no |
 | `CE-3041` *(existing, ours)* | `ObserverSelector` aborts the running lower branch | — | no |
 
+## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
+
+> 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename
+> sweep deferred until this section settles) · *"if a unit is directly ordered to patrol or something that does not
+> involve combat directly, i do not want to embed in each behavior that when fired upon, the unit should take cover, and
+> maybe return fire or whatever which is ok with the rules of engagement."*
+
+📐 **The gap, measured `2026-10-04`:** an order outranks standing orders (`R-188`), so a patrol ordered at `Superior`
+cannot be interrupted by them; the only built interrupt is `CognitiveInterruptType.MobilityLost`, which each HSM must
+handle itself (`CognitiveInterruptType.cs`); no reaction, battle-drill or suspend/resume concept exists (grep
+`ReactToContact|battle drill|Reaction(Layer|System)`: none); ROE exists nowhere in code (G7). ⚠ A behaviour that is
+REPLACED publishes no finish (the only publisher is `BrainTickSystem.cs:298`), but a behaviour that ENDS does, and
+`MissionDirectorSystem` advances on any `BehaviorFinishedEvent` for the entity ⇒ a drill ending would advance the
+mission unless the finish says whose run ended.
+
+```mermaid
+sequenceDiagram
+  participant SO as Standing orders (always ticking)
+  participant I as BehaviorIngressSystem (the one gate)
+  participant B as main slot
+  participant M as MissionDirector
+  M->>I: assign Patrol, Origin Superior, ROE ReturnFire
+  I->>B: run Patrol
+  Note over SO: hit / contact (SensorChangedEvent) ⇒ wakes
+  SO->>I: DRILL ReactToContact (Origin Drill)
+  I->>I: the running order permits drills? (its ROE / reaction policy)
+  I->>B: remember {Patrol, params, Superior} · run ReactToContact
+  Note over B: take cover · return fire only if ROE allows
+  B-->>I: drill finished
+  I->>B: re-start Patrol with its saved params and origin (no progress kept, like the snapshot R-192)
+  Note over M: the drill's finish is NOT the mission task's finish
+```
+
+*What the picture shows that prose hid: the reaction lives once, in the unit's standing orders, not in Patrol; the order
+decides whether it may be interrupted; and the gate — not the drill author — remembers and restores the task.*
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
