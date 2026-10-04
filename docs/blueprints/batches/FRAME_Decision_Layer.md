@@ -3,6 +3,7 @@ state: LIVE — a FRAME (backend → behaviors), design + discussion task, not a
 updated: 2026-10-04
 current-answer: the whole file
 related-designs:
+  - docs/DESIGN_Decision_Layer.md — the answer to this frame (behaviors lane): G1, G2b approved; G2 under discussion.
   - docs/DESIGN_Sensors_And_Doctrine.md — §6–§7 the APPROVED doctrine slot + origin gate (the build half handed over here), §7.3 reacting to sensors, §7.5 the scenario snapshot, §10 O1–O3, §11 the critical review this frame continues.
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine / origin rulings (R-188, R-189).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings; the backend lane builds the sensor side.

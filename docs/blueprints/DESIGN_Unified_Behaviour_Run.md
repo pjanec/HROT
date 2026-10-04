@@ -12,6 +12,7 @@ known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
   (§5 U-1); Q77 §5.14 points to this document.
 related-designs:
+  - ../DESIGN_Decision_Layer.md — the decision layer (doctrine, utility); ⛔ it does NOT change the mission or Demo_MissionPlan (user, 2026-10-04).
   - DESIGN_Entity_Reference.md — generalises "S8o"'s type-plan walker to the `EntityRef` type (objects, lists); retires `[RemapNetworkId]`.
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint behaviour (dispatch, Return = finish, own
     resolver). This document changes where its brain state lives and lets it host and be hosted.
