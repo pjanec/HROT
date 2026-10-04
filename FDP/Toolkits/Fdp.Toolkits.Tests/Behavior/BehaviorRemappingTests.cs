@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 {
     // ─── C005c Tests ────────────────────────────────────────────────────────────
 
-    public class BehaviorParamRemapperCompilerTests
+    public class EntityRefJsonRemapTests
     {
         // Private DTO used only for the caching test to guarantee the first compile.
         private class CachingProbeDto

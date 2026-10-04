@@ -5132,8 +5132,8 @@ namespace Hrot.Editor
                         TitleBarColor:  EditorWindowColor.TitleBar,
                         ArchitecturePanel: editorArchitecturePanel,
                         ExecutionStats:    editorExecutionStats,
-                        PickBridge: _mapPickAdapter != null
-                            ? new MapPickServiceBridge(_mapPickAdapter)
+                        PickBroker: _mapPickAdapter != null
+                            ? new MapPickBroker(_mapPickAdapter)
                             : null)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));

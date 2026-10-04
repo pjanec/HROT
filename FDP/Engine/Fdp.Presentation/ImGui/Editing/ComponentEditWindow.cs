@@ -76,7 +76,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Entity targetEntity,
         Type componentType,
         Func<IInspectableSession?> sessionGetter,
-        IComponentPickerContext? pickerCtx = null,
+        IMapPickContext? pickerCtx = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
         IMutationInterceptor? interceptor = null,
         object? baseline = null)

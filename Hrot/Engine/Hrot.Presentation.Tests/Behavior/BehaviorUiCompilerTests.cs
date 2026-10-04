@@ -10,7 +10,7 @@ namespace Hrot.Presentation.Tests.Behavior
     public sealed class BehaviorUiCompilerTests
     {
         // Null pick context for tests that do not exercise the pick flow.
-        private sealed class NullPickContext : Fdp.Presentation.Editing.IComponentPickerContext
+        private sealed class NullPickContext : Fdp.Presentation.Editing.IMapPickContext
         {
             public bool IsPickPendingFor(string path) => false;
             public bool TryConsumeEntityPick(string path, out Fdp.Toolkit.Replication.EntityRef picked)
@@ -59,7 +59,7 @@ namespace Hrot.Presentation.Tests.Behavior
 
         // ── CE-2023 ③ (S8n): the contracts are STRUCTS — a pick must land in the JSON, not in a copy ──
 
-        private sealed class PickingContext : Fdp.Presentation.Editing.IComponentPickerContext
+        private sealed class PickingContext : Fdp.Presentation.Editing.IMapPickContext
         {
             public long Entity;
             public PickableGeoPoint? Location;
@@ -73,7 +73,7 @@ namespace Hrot.Presentation.Tests.Behavior
             public void RequestLocationPick(string path) { }
         }
 
-        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, Fdp.Presentation.Editing.IComponentPickerContext pick)
+        private static string DrawOneFrame(BehaviorUiDrawDelegate draw, string json, Fdp.Presentation.Editing.IMapPickContext pick)
         {
             var ctx = ImGuiNET.ImGui.CreateContext();
             ImGuiNET.ImGui.SetCurrentContext(ctx);

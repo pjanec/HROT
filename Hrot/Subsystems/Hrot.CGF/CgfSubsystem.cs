@@ -1878,8 +1878,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                   geoTransform: _context.GeoTransform)   // ⭐ P2 — a location pick is geodetic
             : null;
         _cgfMapPick = cgfCanvasAdapter;   // ⭐ also the Watch's entity picker (BuildAiShell)
-        MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
-            ? new MapPickServiceBridge(cgfCanvasAdapter)
+        MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
+            ? new MapPickBroker(cgfCanvasAdapter)
             : null;
 
         // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch
@@ -1896,7 +1896,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   wrappers are exactly what E5 deleted (two copies existed: Hrot.Editor and Hrot.ExCon).
         // ⚠ Each is guarded on its own panel+adapter pair rather than on one flag: a host that cannot
         //   service a window must not show it (ruling 49), and the pairs are independent.
-        // ⭐ Mission takes `cgfPickBridge`'s underlying `CanvasMapPickAdapter` — the shared IMapPickService
+        // ⭐ Mission takes `cgfPickBroker`'s underlying `CanvasMapPickAdapter` — the shared IMapPickService
         //   this host ALREADY built two lines up, ⛔ not a second pick implementation (design §8 D2).
         if (_spawnerPanel != null && _spawnAdapter != null)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
@@ -1943,7 +1943,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
                     // BP-327 — the module/system execution-stats profiler.
                     ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
-                    PickBridge:     cgfPickBridge)),
+                    PickBroker:     cgfPickBroker)),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

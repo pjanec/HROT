@@ -25,7 +25,7 @@ namespace Hrot.Presentation.Tests.Behavior
         [Fact]
         public void P4_MissionPanel_PicksThroughTheSharedBroker()
         {
-            Assert.IsType<Hrot.Presentation.Facades.MapPickServiceBridge>(new MissionPanel().Picks);
+            Assert.IsType<Hrot.Presentation.Facades.MapPickBroker>(new MissionPanel().Picks);
         }
 
         // ── C010 SC2: Constructor accepts a pre-populated BehaviorUiRegistry ──

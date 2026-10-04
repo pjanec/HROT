@@ -80,9 +80,9 @@ file sealed class FakeContainerBinding : IContainerBinding
 }
 
 /// <summary>
-/// IComponentPickerContext spy that records method calls.
+/// IMapPickContext spy that records method calls.
 /// </summary>
-file sealed class SpyPickerContext : IComponentPickerContext
+file sealed class SpyPickerContext : IMapPickContext
 {
     private readonly HashSet<string> _pendingPaths = new();
     public List<string> RequestEntityPickCalls { get; } = new();

@@ -20,13 +20,13 @@ using ImGuiApi = ImGuiNET.ImGui;
 public sealed class ComponentEditDrawer
 {
     private readonly IEditSession _session;
-    private readonly IComponentPickerContext? _pickerCtx;
+    private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
     private readonly ISpatialPickerContext? _spatialPickerCtx;
 
     public ComponentEditDrawer(
         IEditSession session,
-        IComponentPickerContext? pickerCtx,
+        IMapPickContext? pickerCtx,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
         ISpatialPickerContext? spatialPickerCtx = null)
     {

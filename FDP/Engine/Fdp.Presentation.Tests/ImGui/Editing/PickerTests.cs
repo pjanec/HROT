@@ -52,13 +52,13 @@ public class PickerAttributesTests
 }
 
 // ---------------------------------------------------------------------------
-// CE05 -- IComponentPickerContext
+// CE05 -- IMapPickContext
 // ---------------------------------------------------------------------------
 
-public class IComponentPickerContextTests
+public class IMapPickContextTests
 {
     // NOP implementation used by both tests.
-    private sealed class NopPickerContext : IComponentPickerContext
+    private sealed class NopPickerContext : IMapPickContext
     {
         public bool IsPickPendingFor(string jsonPath) => false;
         public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
@@ -80,7 +80,7 @@ public class IComponentPickerContextTests
     [Fact]
     public void T_CE05a_NopPickerContext_AllMethodsInvokableWithoutError()
     {
-        IComponentPickerContext ctx = new NopPickerContext();
+        IMapPickContext ctx = new NopPickerContext();
 
         _ = ctx.IsPickPendingFor("$.Field");
         ctx.RequestEntityPick("$.Field", null);
@@ -96,7 +96,7 @@ public class IComponentPickerContextTests
     [Fact]
     public void T_CE05b_TryConsumeEntityPick_NoPendingPick_ReturnsFalseAndDefault()
     {
-        IComponentPickerContext ctx = new NopPickerContext();
+        IMapPickContext ctx = new NopPickerContext();
 
         bool result = ctx.TryConsumeEntityPick("$.Targets[0]", out EntityRef e);
 

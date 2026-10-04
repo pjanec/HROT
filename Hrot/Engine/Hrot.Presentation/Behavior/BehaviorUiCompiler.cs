@@ -18,7 +18,7 @@ namespace Hrot.Presentation.Behavior
     /// Signature: (currentJson, taskIndex, context) -> newJson (same reference when unchanged).
     /// </summary>
     public delegate string BehaviorUiDrawDelegate(
-        string currentJson, int taskIndex, IComponentPickerContext context);
+        string currentJson, int taskIndex, IMapPickContext context);
 
     // ── BehaviorUiRegistry ────────────────────────────────────────────────────
 
@@ -164,7 +164,7 @@ namespace Hrot.Presentation.Behavior
                     var getter        = BuildGetter<TDto, EntityRef>(prop);
                     var setter        = BuildSetter<TDto, EntityRef>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         bool changed = false;
 
@@ -193,7 +193,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, PickableGeoPoint>(prop);
                     var setter = BuildSetter<TDto, PickableGeoPoint>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         bool changed = false;
 
@@ -225,7 +225,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, float>(prop);
                     var setter = BuildSetter<TDto, float>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         float val = getter(dto);
                         if (ImGui.InputFloat($"{propName}##{propName}_{taskIdx}", ref val))
@@ -241,7 +241,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, double>(prop);
                     var setter = BuildSetter<TDto, double>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         double val = getter(dto);
                         if (ImGui.InputDouble($"{propName}##{propName}_{taskIdx}", ref val))
@@ -257,7 +257,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, int>(prop);
                     var setter = BuildSetter<TDto, int>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         int val = getter(dto);
                         if (ImGui.InputInt($"{propName}##{propName}_{taskIdx}", ref val))
@@ -273,7 +273,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildLongGetter<TDto>(prop);
                     var setter = BuildSetter<TDto, long>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         string strVal = getter(dto).ToString();
                         if (ImGui.InputText($"{propName}##{propName}_{taskIdx}", ref strVal, 64))
@@ -292,7 +292,7 @@ namespace Hrot.Presentation.Behavior
                     var getter = BuildGetter<TDto, bool>(prop);
                     var setter = BuildSetter<TDto, bool>(prop);
 
-                    renderers.Add((ref TDto dto, int taskIdx, IComponentPickerContext ctx) =>
+                    renderers.Add((ref TDto dto, int taskIdx, IMapPickContext ctx) =>
                     {
                         bool val = getter(dto);
                         if (ImGui.Checkbox($"{propName}##{propName}_{taskIdx}", ref val))
@@ -339,7 +339,7 @@ namespace Hrot.Presentation.Behavior
         }
 
         private delegate void RefSetter<TDto, in TProp>(ref TDto dto, TProp val);
-        private delegate bool Renderer<TDto>(ref TDto dto, int taskIndex, IComponentPickerContext context);
+        private delegate bool Renderer<TDto>(ref TDto dto, int taskIndex, IMapPickContext context);
 
         /// <summary>A mutation of a DTO in place — <see cref="TestHook_ApplyChange{TDto}"/>.</summary>
         internal delegate void RefAction<TDto>(ref TDto dto);

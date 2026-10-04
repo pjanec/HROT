@@ -338,7 +338,7 @@ namespace Hrot.SimHost
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
-                        PickBridge:     vis.GetMapPickBridge())),
+                        PickBroker:     vis.GetMapPickBroker())),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

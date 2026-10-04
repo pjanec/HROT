@@ -69,7 +69,7 @@ public sealed class MissionPanel
     /// behaviour-parameter UI requests and consumes picks through it, keyed <c>$.tasks[i].Prop</c>. ⛔ Replaces this
     /// panel's own copy of the pending-pick state machine and its <c>IPickInteractionContext</c>.
     /// </summary>
-    private readonly Hrot.Presentation.Facades.MapPickServiceBridge _picks;
+    private readonly Hrot.Presentation.Facades.MapPickBroker _picks;
 
     // ── Trigger types ─────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ public sealed class MissionPanel
     {
         _localNodeId        = localNodeId;
         _behaviorUiRegistry = behaviorUiRegistry ?? new BehaviorUiRegistry();
-        _picks              = new Hrot.Presentation.Facades.MapPickServiceBridge(() => _framePickService);
+        _picks              = new Hrot.Presentation.Facades.MapPickBroker(() => _framePickService);
     }
 
     // ── Public state accessors ────────────────────────────────────────────────
@@ -372,7 +372,7 @@ public sealed class MissionPanel
     // ── Map picking ───────────────────────────────────────────────────────────
 
     /// <summary>The pick context the behaviour-parameter UI draws against (exposed for tests and hosts).</summary>
-    public Fdp.Presentation.Editing.IComponentPickerContext Picks => _picks;
+    public Fdp.Presentation.Editing.IMapPickContext Picks => _picks;
 
     /// <summary>True when an async location pick is in flight for any task.</summary>
     public bool IsLocationPickPending => _picks.IsLocationPickPending;

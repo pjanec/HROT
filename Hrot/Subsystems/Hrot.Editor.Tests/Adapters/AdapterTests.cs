@@ -267,7 +267,7 @@ namespace Hrot.Editor.Tests.Adapters
         /// <para>🔴 These tests used <c>(long)entity.Index</c> as the network id, and 📐 the FIRST entity
         /// in a fresh repository has <c>Index == 0</c> ⇒ they were exercising <b>network id 0</b>.
         /// ⛔ That is the "no network identity assigned" sentinel everywhere else in the system —
-        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickServiceBridge</c>
+        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickBroker</c>
         /// already refused it, and the scenario allocator starts far above it. ⇒ ⚠ <b>a fixture artefact,
         /// not a product requirement</b>: the consolidated <c>NetworkIdResolver</c> refuses <c>id ≤ 0</c>
         /// on purpose, and the tests are corrected to the measured behaviour rather than the guard being
@@ -684,7 +684,7 @@ namespace Hrot.Editor.Tests.Adapters
     //   CanvasMapPickAdapter with its capabilities (DESIGN_Map_Picking_Unification P2); these rails moved with it.
     // ═══════════════════════════════════════════════════════════════════════════
 
-    public sealed class EditorMapPickAdapterTests
+    public sealed class MapPickAdapterTests
     {
         private readonly TestMapCanvas        _canvas = new();
         private readonly DebugPrimitiveBuffer _buffer = new();
@@ -983,7 +983,7 @@ namespace Hrot.Editor.Tests.Adapters
         /// <para>🔴 These tests used <c>(long)entity.Index</c> as the network id, and 📐 the FIRST entity
         /// in a fresh repository has <c>Index == 0</c> ⇒ they were exercising <b>network id 0</b>.
         /// ⛔ That is the "no network identity assigned" sentinel everywhere else in the system —
-        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickServiceBridge</c>
+        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickBroker</c>
         /// already refused it, and the scenario allocator starts far above it. ⇒ ⚠ <b>a fixture artefact,
         /// not a product requirement</b>: the consolidated <c>NetworkIdResolver</c> refuses <c>id ≤ 0</c>
         /// on purpose, and the tests are corrected to the measured behaviour rather than the guard being

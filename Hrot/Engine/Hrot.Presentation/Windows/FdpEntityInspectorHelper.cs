@@ -37,20 +37,20 @@ public static class FdpEntityInspectorHelper
     ///   which is exactly what the <c>Editor</c>→<c>Scenario</c> rename exposed.</para>
     /// </param>
     /// <param name="sessionGetter">Callback that returns the current repository session.</param>
-    /// <param name="pickBridge">Map-pick bridge for in-world component editing (may be null).</param>
+    /// <param name="pickBroker">Map-pick broker for in-world component editing (may be null).</param>
     /// <param name="titleBarColor">Title-bar color for spawned watch windows.</param>
     public static void WireInspectorWithInspectContextMenu(
         EntityInspectorPanel       panel,
         WindowManager              windowManager,
         string                     owningPerspective,
         Func<IInspectableSession?> sessionGetter,
-        MapPickServiceBridge?      pickBridge,
+        MapPickBroker?      pickBroker,
         Vector4?                   titleBarColor)
     {
         panel.Reflector.EditWindowManager     = windowManager;
         panel.Reflector.EditSessionGetter     = sessionGetter;
         panel.Reflector.EditOwningPerspective = owningPerspective;
-        panel.Reflector.EditPickerContext     = pickBridge;
+        panel.Reflector.EditPickerContext     = pickBroker;
 
         string prefix = owningPerspective.ToLowerInvariant();
         panel.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -76,7 +76,7 @@ public static class FdpEntityInspectorHelper
                 watchPanel.Reflector.EditWindowManager     = windowManager;
                 watchPanel.Reflector.EditSessionGetter     = sessionGetter;
                 watchPanel.Reflector.EditOwningPerspective = owningPerspective;
-                watchPanel.Reflector.EditPickerContext     = pickBridge;
+                watchPanel.Reflector.EditPickerContext     = pickBroker;
                 windowManager.RegisterWindow(new FdpEntityWatchWindow(
                     id, title, owningPerspective, watchPanel, sessionGetter, titleBarColor));
             });

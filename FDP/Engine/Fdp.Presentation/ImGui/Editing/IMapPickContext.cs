@@ -10,7 +10,7 @@ namespace Fdp.Presentation.Editing
     /// Requests are keyed on the stable <c>EditNode.JsonPath</c> so pending picks
     /// survive a <c>RebuildDocument</c> call.
     /// </summary>
-    public interface IComponentPickerContext
+    public interface IMapPickContext
     {
         /// <summary>Returns <see langword="true"/> if a pick is currently in flight for the given path.</summary>
         bool IsPickPendingFor(string jsonPath);

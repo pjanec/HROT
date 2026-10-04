@@ -83,7 +83,7 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
             TitleBarColor:  color,
             ArchitecturePanel: withKernel ? Panel() : null,
             ExecutionStats:    withKernel ? () => null : null,
-            PickBridge:        null);
+            PickBroker:        null);
 
     private static (string Title, string Perspective, Vector4? Color) Get(WindowManager wm, string id)
     {

@@ -1,6 +1,6 @@
 # Hrot.Presentation
 
-> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `IPickInteractionContext` is deleted: `BehaviorUiCompiler` draws against `IComponentPickerContext` with `$.tasks[i].Prop` paths, and `MissionPanel` owns a `MapPickServiceBridge` (THE broker) instead of implementing a pick state machine. `CanvasMapPickAdapter` is the only map-pick adapter (geodetic location picks).
+> ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `IPickInteractionContext` is deleted: `BehaviorUiCompiler` draws against `IMapPickContext` with `$.tasks[i].Prop` paths, and `MissionPanel` owns a `MapPickBroker` (THE broker) instead of implementing a pick state machine. `CanvasMapPickAdapter` is the only map-pick adapter (geodetic location picks).
 
 **Project file:** `Hrot/Engine/Hrot.Presentation/Hrot.Presentation.csproj`
 **Target framework:** net8.0

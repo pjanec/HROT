@@ -638,7 +638,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     /// ⭐⭐ That is exactly why this reuses <c>SimHostVisualization</c> WHOLE (<c>R-S18</c>, <i>"the more
     /// unified, the better"</i>): what it builds beyond the four panels — <c>MapCanvas</c>,
     /// <c>SelectionInteractionSystem</c>, <c>GlobalGizmoManager</c>, <c>DebugGizmoLayer</c>,
-    /// <c>MapPickServiceBridge</c> and the entity context menu — <b>IS the working map</b>. ⚠ Building
+    /// <c>MapPickBroker</c> and the entity context menu — <b>IS the working map</b>. ⚠ Building
     /// a parallel handful of panels would have produced a map with no gizmos and no context menu.</para>
     ///
     /// <para><b>📐 The four inputs this node lacks natively, and why each is safe:</b> an <b>empty</b>
@@ -720,7 +720,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                             new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel)),
                         ExecutionStats: () => ctx.Kernel.GetExecutionStats(),
                         // ⭐ R-S15 — the map's pick bridge is part of the deliverable, not an extra.
-                        PickBridge:     _visualization.GetMapPickBridge())),
+                        PickBroker:     _visualization.GetMapPickBroker())),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(wm));
 

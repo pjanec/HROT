@@ -57,7 +57,7 @@ public class ComponentReflector
     public Func<IInspectableSession?>? EditSessionGetter { get; set; }
 
     /// <summary>Optional picker context for map/entity picking inside the editor.</summary>
-    public IComponentPickerContext? EditPickerContext { get; set; }
+    public IMapPickContext? EditPickerContext { get; set; }
 
     /// <summary>
     /// Optional interceptor; when set and IsPaused, commits route to StageMutation.

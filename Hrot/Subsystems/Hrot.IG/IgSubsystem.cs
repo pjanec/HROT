@@ -246,7 +246,7 @@ namespace Hrot.IG
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
-                        PickBridge:     _app.GetMapPickBridge())),
+                        PickBroker:     _app.GetMapPickBroker())),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

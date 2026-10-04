@@ -6,7 +6,7 @@ namespace Hrot.Presentation.Facades;
 
 /// <summary>
 /// ⭐⭐ THE per-frame pick broker: adapts the async <see cref="Hrot.UI.Common.Facades.IMapPickService"/> to the
-/// synchronous polling contract of <see cref="IComponentPickerContext"/> — one pick in flight, keyed by the field's
+/// synchronous polling contract of <see cref="IMapPickContext"/> — one pick in flight, keyed by the field's
 /// path, its result handed to whoever asks for that path. 📄 <c>docs/blueprints/DESIGN_Map_Picking_Unification.md</c> P4.
 ///
 /// <para>Used by the component editor (path = the edit node's <c>JsonPath</c>, via
@@ -14,7 +14,7 @@ namespace Hrot.Presentation.Facades;
 /// over its per-frame service). ⛔ The mission panel's own copy of this state machine — and the
 /// <c>IPickInteractionContext</c> it implemented — were deleted.</para>
 /// </summary>
-public sealed class MapPickServiceBridge : IComponentPickerContext
+public sealed class MapPickBroker : IMapPickContext
 {
     private readonly Func<Hrot.UI.Common.Facades.IMapPickService?> _pickService;
 
@@ -23,7 +23,7 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
     private Task<Hrot.Core.Mission.GeoPoint>? _locationPickTask;
 
     /// <summary>A broker over a fixed pick service.</summary>
-    public MapPickServiceBridge(Hrot.UI.Common.Facades.IMapPickService pickService)
+    public MapPickBroker(Hrot.UI.Common.Facades.IMapPickService pickService)
     {
         if (pickService == null) throw new ArgumentNullException(nameof(pickService));
         _pickService = () => pickService;
@@ -31,7 +31,7 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
 
     /// <summary>A broker over a service read at REQUEST time — for a host that receives it per frame (the mission
     /// panel's <c>DrawContent(service, pick)</c>). A request with no service available is ignored.</summary>
-    public MapPickServiceBridge(Func<Hrot.UI.Common.Facades.IMapPickService?> pickService)
+    public MapPickBroker(Func<Hrot.UI.Common.Facades.IMapPickService?> pickService)
         => _pickService = pickService ?? throw new ArgumentNullException(nameof(pickService));
 
     /// <summary><c>true</c> while an entity pick is in flight (for any path).</summary>

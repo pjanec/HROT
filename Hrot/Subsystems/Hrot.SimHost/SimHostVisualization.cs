@@ -83,7 +83,7 @@ namespace Hrot.SimHost
         private FdpRepositoryAdapter?                _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
-        private MapPickServiceBridge?   _mapPickBridge;
+        private MapPickBroker?   _mapPickBroker;
 
         /// <summary>When set, the Window Manager renders these panels; DrawUI skips them.</summary>
         private bool _panelsWindowManaged;
@@ -128,7 +128,7 @@ namespace Hrot.SimHost
         /// <summary>The FDP inspector state.</summary>
         public FdpInspectorState         FdpInspectorState  => _fdpInspectorState;
         /// <summary>Map-pick bridge for component-editor map picking (available after Initialize).</summary>
-        public MapPickServiceBridge?     GetMapPickBridge()  => _mapPickBridge;
+        public MapPickBroker?     GetMapPickBroker()  => _mapPickBroker;
         /// <summary>Gizmo primitive buffer (non-null after Initialize). Exposed for sharing with SimHostApp kernel systems.</summary>
         public DebugPrimitiveBuffer?     GizmoBuffer         => _gizmoBuffer;
 
@@ -365,7 +365,7 @@ namespace Hrot.SimHost
             //    became, for every cause, and there is no second store left to sync.
 
             // 🔒 UXI-07 step 4b — a pick SUSPENDS the active tool instead of arming beside it.
-            _mapPickBridge = new MapPickServiceBridge(
+            _mapPickBroker = new MapPickBroker(
                 new CanvasMapPickAdapter(
                     _map, repo,
                     globalGizmoManager: _globalGizmoManager,
