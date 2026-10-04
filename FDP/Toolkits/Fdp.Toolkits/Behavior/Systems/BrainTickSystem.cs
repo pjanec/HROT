@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fbt;
@@ -177,6 +178,122 @@ namespace Fdp.Toolkit.Behavior.Systems
                         Finish(repo, entity, behavior, NodeStatus.Failure);
                 }
             }
+
+            TickSopSlots(repo, deltaTime);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
+        }
+
+        // ════ ⭐⭐ CE-3035 — THE SOP SLOT (R-189, R-195, R-198) ════════════════════════════════════════════════════════════
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §6–§7 · docs/DESIGN_Decision_Layer.md §4.
+        //   The SAME runners, inside a BrainSlotScope (storage, owned parts and faults resolve the SOP's run). It ticks every
+        //   SopTickPeriod — staggered by entity index so units do not all decide on one frame — and at once when woken: a
+        //   sensing change, a finished task, or a refused SOP assignment. It never finishes (Success / Failure restart it),
+        //   a FAULT stops it and leaves it visible (R-193), and it commands no channels: a write is reverted — the task keeps
+        //   its command — and the SOP faults (design §4.5).
+
+        /// <summary>⭐ <c>CE-3035</c> — how often an SOP decides when nothing wakes it (5 Hz, design §11 G5).</summary>
+        public const double SopTickPeriod = 0.2;
+
+        private EntityQuery? _sopQuery;
+        private readonly HashSet<int> _sopWokenThisFrame = new();
+        private double _sopClock;
+
+        private void TickSopSlots(EntityRepository repo, float deltaTime)
+        {
+            if (!repo.IsComponentTypeRegistered<SopState>()) return;
+            _sopQuery ??= repo.Query().With<SopState>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
+
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
+
+            _sopWokenThisFrame.Clear();
+            foreach (var evt in repo.Bus.Read<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
+            foreach (var evt in repo.Bus.Read<BehaviorFinishedEvent>()) _sopWokenThisFrame.Add(evt.Entity.Index);
+
+            foreach (var entity in _sopQuery)
+            {
+                ref var sop = ref repo.GetComponentRW<SopState>(entity);
+                if (sop.SopHash == BehaviorIds.None || sop.SopFaulted != 0) continue;
+
+                bool woken = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index);
+                if (!woken && now < sop.SopNextTick) continue;
+                sop.SopWake = 0;
+                sop.SopNextTick = now + SopTickPeriod + (entity.Index % 10) * (SopTickPeriod / 10.0);   // staggered
+
+                if (!_registry.TryGetDefinition(sop.SopHash, out var def)) continue;
+                if (BehaviorRunners.For(sop.SopBrainTier) is not { } runner) continue;
+
+                TickOneSop(runner, repo, entity, sop.SopHash, sop.SopInstanceId, def, deltaTime);
+            }
+        }
+
+        private void TickOneSop(IBehaviorRunner runner, EntityRepository repo, Entity entity, int sopHash, uint sopRun,
+                                BehaviorDefinition def, float deltaTime)
+        {
+            using var view = BrainSlotScope.Enter(entity, sopHash, sopRun);
+
+            if (!runner.TryGetRootBrain(repo, entity, def, out byte* brain, out int brainBytes)) return;
+            ref byte block = ref BehaviorBlock.None;
+            if (RootParamsAccess.RootParamsBytes(def) > 0)
+            {
+                if (!RootParamsAccess.TryGetRootBytes(repo, entity, out _)) return;
+                block = ref RootParamsAccess.RootRef(repo, entity);
+            }
+
+            var guard = new ChannelGuard(repo, entity);
+            var ctx = new BehaviorRunContext
+            {
+                World = repo, Self = entity, Definition = def, InstanceId = sopRun, Ecb = _ecb, DeltaTime = deltaTime,
+            };
+            var status = runner.Tick(ref ctx, brain, brainBytes, ref block);
+
+            if (guard.RevertIfWritten(repo, entity))
+                BehaviorFault.Raise(repo, entity, BehaviorFaultCode.SopCommandedChannel,
+                    $"The SOP '{def.Name}' wrote a movement / weapon / interaction channel. An SOP acts only by assigning " +
+                    "behaviours (Do when idle / React); the write was reverted and the task keeps its command.");
+
+            if (BehaviorFault.IsPending(repo, entity, sopRun))
+            {
+                BehaviorFault.Take(repo, entity, sopRun);
+                repo.GetComponentRW<SopState>(entity).SopFaulted = 1;   // stopped, logged (BehaviorFault.Raise), visible
+                return;
+            }
+
+            if (status == NodeStatus.Success || status == NodeStatus.Failure)
+                runner.Start(def, brain, brainBytes);   // an SOP never finishes — it starts over
+        }
+
+        /// <summary>⭐ <c>CE-3035</c> — a copy of the unit's three channels before an SOP tick, to catch and revert any write.</summary>
+        private readonly struct ChannelGuard
+        {
+            private readonly bool _hasLoco, _hasWeapon, _hasInteract;
+            private readonly LocomotionChannel _loco;
+            private readonly WeaponChannel _weapon;
+            private readonly InteractionChannel _interact;
+
+            public ChannelGuard(EntityRepository repo, Entity entity)
+            {
+                _hasLoco     = repo.IsComponentTypeRegistered<LocomotionChannel>()  && repo.HasComponent<LocomotionChannel>(entity);
+                _hasWeapon   = repo.IsComponentTypeRegistered<WeaponChannel>()      && repo.HasComponent<WeaponChannel>(entity);
+                _hasInteract = repo.IsComponentTypeRegistered<InteractionChannel>() && repo.HasComponent<InteractionChannel>(entity);
+                _loco     = _hasLoco     ? repo.GetComponentRO<LocomotionChannel>(entity)  : default;
+                _weapon   = _hasWeapon   ? repo.GetComponentRO<WeaponChannel>(entity)      : default;
+                _interact = _hasInteract ? repo.GetComponentRO<InteractionChannel>(entity) : default;
+            }
+
+            /// <summary>Restore every channel the tick changed; <c>true</c> if any was.</summary>
+            public bool RevertIfWritten(EntityRepository repo, Entity entity)
+            {
+                bool written = false;
+                if (_hasLoco && !Same(repo.GetComponentRO<LocomotionChannel>(entity), _loco))
+                { repo.GetComponentRW<LocomotionChannel>(entity) = _loco; written = true; }
+                if (_hasWeapon && !Same(repo.GetComponentRO<WeaponChannel>(entity), _weapon))
+                { repo.GetComponentRW<WeaponChannel>(entity) = _weapon; written = true; }
+                if (_hasInteract && !Same(repo.GetComponentRO<InteractionChannel>(entity), _interact))
+                { repo.GetComponentRW<InteractionChannel>(entity) = _interact; written = true; }
+                return written;
+            }
+
+            private static bool Same<T>(in T a, in T b) where T : unmanaged
+                => MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in a)).SequenceEqual(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in b)));
         }
 
         /// <summary>
@@ -295,9 +412,20 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ CE-482: a fault the run raised overrides how it ended — even a Success returned in the same tick.
             var fault = BehaviorFault.Take(repo, entity, behavior.InstanceId);
             if (fault != BehaviorFaultCode.None) result = NodeStatus.Failure;
-            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result, FaultCode = fault });
+            var origin = behavior.Origin;   // ⚠ `behavior` may alias the component Clear rewrites — read it first
+            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result, FaultCode = fault, Origin = origin });
             _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
             BehaviorIngressSystem.Clear(repo, entity, _registry);
+            // ⭐ CE-2078 (R-199 ②) — a reaction ended ⇒ the task it paused restarts, through the gate, next frame.
+            if (origin == BehaviorOrigin.Reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
+        }
+
+        /// <summary>⭐ <c>CE-2078</c> — a run that cannot go on is cleared; if it was a reaction, the task it paused restarts.</summary>
+        private void ClearResumingAPausedTask(EntityRepository repo, Entity entity)
+        {
+            bool reaction = repo.GetComponentRO<BehaviorState>(entity).Origin == BehaviorOrigin.Reaction;
+            BehaviorIngressSystem.Clear(repo, entity, _registry);
+            if (reaction) BehaviorIngressSystem.ResumePausedTask(repo, entity);
         }
 
         /// <summary>⭐ CE-446: the frame's command buffer, handed to every runner (a blueprint tick records into it).</summary>
@@ -343,7 +471,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (known && started.Pending)
             {
                 _blueprintLayout.Remove(entity.Index);
-                BehaviorIngressSystem.Clear(repo, entity, _registry);
+                ClearResumingAPausedTask(repo, entity);
                 return false;
             }
 
@@ -364,7 +492,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             if (name == null && !_registry.TryGetName(behavior.ActiveBehaviorHash, out name))
             {
-                BehaviorIngressSystem.Clear(repo, entity, _registry);
+                ClearResumingAPausedTask(repo, entity);
                 return false;
             }
 

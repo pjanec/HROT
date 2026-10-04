@@ -108,8 +108,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
 
                 // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
-                if (!Admit(repo, evt.Entity, evt.Origin)) continue;
-                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin)) continue;
+                // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
+                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause)) continue;
+                var paused = pause ? PauseRecord(repo, evt.Entity) : null;
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency)) continue;
+                AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
 
@@ -121,8 +124,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
-                if (!Admit(repo, evt.Entity, evt.Origin)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
+                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out _)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
+                bool endsAReaction = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin == BehaviorOrigin.Reaction;
                 Clear(repo, evt.Entity, _registry);
+                // ⭐ CE-2078 — a reaction ending ITSELF resumes the task it paused; an order's clear drops it.
+                if (evt.Origin == BehaviorOrigin.Self && endsAReaction) ResumePausedTask(repo, evt.Entity);
+                else AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
 
             // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
@@ -143,12 +150,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
                 if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
                     continue;
-                if (!Admit(repo, evt.Entity, evt.Origin)) continue;   // ⭐ CE-3034
+                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out bool pauseByHash)) continue;   // ⭐ CE-3034
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
                     && _registry.TryGetName(evt.BehaviorHash, out var name))
                 {
+                    var pausedByHash = pauseByHash ? PauseRecord(repo, evt.Entity) : null;
                     // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
-                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin);
+                    if (Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin))
+                        AfterAdmitted(repo, evt.Entity, evt.Origin, pausedByHash);
                     continue;
                 }
 
@@ -167,9 +176,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
                 ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
+                unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unchecked { unhosted.InstanceId++; }
+                AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
+
+            // ── ⭐ CE-3035 — the SOP slot's assign / clear ─────────────────────────────────────────────────────────────────
+            ApplySopEvents(repo);
         }
 
         /// <summary>⭐ <c>CE-3034</c> — refusals by the gate since this system was built (a test / diagnostics probe).</summary>
@@ -181,15 +195,123 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⚠ The INTERNAL finish (<c>BrainTickSystem</c> → <see cref="Clear"/>) is not gated — a behaviour ending never needs
         /// permission. A refusal is counted and logged; it never throws.
         /// </summary>
-        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency, out bool pause)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
-            if (BehaviorOriginRank.Admits(origin, running)) return true;
+            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause)) return true;
             RefusedCount++;
+            if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
             Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                 "[BehaviorIngress] refused {0} assignment for entity #{1}: it runs behaviour {2} at {3}.",
                 origin, entity.Index, running.ActiveBehaviorHash, running.Origin);
             return false;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2078</c> — the gate with the four SOP rules (R-199, <c>docs/DESIGN_Decision_Layer.md</c> §4.1):
+        /// <list type="number">
+        /// <item>a task beats the SOP's idle choice — the rank rule (<see cref="BehaviorOriginRank.Admits(BehaviorOrigin, in BehaviorState)"/>);</item>
+        /// <item>a reaction PAUSES the task (<paramref name="pause"/>) unless the ROE says <see cref="RoeReactions.StayOnTask"/>;
+        ///   over an empty slot or the SOP's idle choice it simply starts;</item>
+        /// <item>a running reaction yields only to a MORE urgent reaction, or to an order that may replace the task it paused;
+        ///   the SOP's own idle choice never replaces it;</item>
+        /// <item>at most one thing is paused — a reaction replacing a reaction leaves the paused task as it was.</item>
+        /// </list>
+        /// <see cref="BehaviorOrigin.Self"/> is always admitted (a reaction restarting itself stays a reaction).
+        /// </summary>
+        internal static bool AdmitsWithReactions(EntityRepository repo, Entity entity, BehaviorOrigin origin,
+            ReactionUrgency urgency, in BehaviorState running, out bool pause)
+        {
+            pause = false;
+            bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                if (slotEmpty || running.Origin == BehaviorOrigin.Sop) return true;              // ② nothing to pause
+                if (running.Origin == BehaviorOrigin.Reaction)                                   // ③ only a MORE urgent one
+                    return EffectiveUrgency(urgency) > running.Urgency;
+                if (RoeOf.Reactions(repo, entity) == RoeReactions.StayOnTask) return false;      // ② the order forbids it
+                pause = true;                                                                    // ② the task waits
+                return true;
+            }
+            if (!slotEmpty && running.Origin == BehaviorOrigin.Reaction && origin != BehaviorOrigin.Self)
+            {
+                if (origin == BehaviorOrigin.Sop) return false;                                  // ③ the idle choice waits
+                var paused = PausedTaskOf(repo, entity);
+                return paused == null                                                            // ③ an order: weighed against
+                    || BehaviorOriginRank.Of(origin) >= BehaviorOriginRank.Of(paused.Origin);    //   the task it would end
+            }
+            return BehaviorOriginRank.Admits(origin, running);                                   // ① the rank rule
+        }
+
+        /// <summary>⭐ <c>CE-2078</c> — a reaction published with no urgency counts as <see cref="ReactionUrgency.Alert"/>.</summary>
+        private static ReactionUrgency EffectiveUrgency(ReactionUrgency urgency)
+            => urgency == ReactionUrgency.NotAReaction ? ReactionUrgency.Alert : urgency;
+
+        /// <summary>⭐ <c>CE-2078</c> — the urgency the slot carries after an admitted assignment: a reaction's own;
+        /// <see cref="BehaviorOrigin.Self"/> keeps the running one; anything else is not a reaction.</summary>
+        private static ReactionUrgency UrgencyAfterAssign(BehaviorOrigin origin, ReactionUrgency urgency, ReactionUrgency running)
+            => origin switch
+            {
+                BehaviorOrigin.Reaction => EffectiveUrgency(urgency),
+                BehaviorOrigin.Self     => running,
+                _                       => ReactionUrgency.NotAReaction,
+            };
+
+        /// <summary>⭐ <c>CE-2078</c> — what a reaction is about to pause: the running task's start record and origin, read
+        /// BEFORE the start replaces them. <c>null</c> when the task was stamped directly (no start record) — it cannot be
+        /// restarted, so it is simply replaced.</summary>
+        private static PausedTask? PauseRecord(EntityRepository repo, Entity entity)
+        {
+            ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            if (!repo.HasManagedComponent<BehaviorStartRecord>(entity)) return null;
+            var record = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
+            if (record == null || record.InstanceId != running.InstanceId) return null;
+            return new PausedTask { BehaviorName = record.BehaviorName, JsonParams = record.JsonParams, Origin = running.Origin };
+        }
+
+        /// <summary>⭐ <c>CE-2078</c> — after an admitted start / clear: a reaction that paused a task records it; an ORDER
+        /// (not <see cref="BehaviorOrigin.Self"/>, not a reaction) ends whatever was paused — it replaced the task.</summary>
+        private void AfterAdmitted(EntityRepository repo, Entity entity, BehaviorOrigin origin, PausedTask? paused)
+        {
+            if (paused != null)
+            {
+                if (!ReferenceEquals(_pausedRegisteredOn, repo))
+                {
+                    repo.RegisterManagedComponent<PausedTask>();
+                    _pausedRegisteredOn = repo;
+                }
+                repo.SetManagedComponent(entity, paused);
+                return;
+            }
+            if (origin != BehaviorOrigin.Self && origin != BehaviorOrigin.Reaction) DropPausedTask(repo, entity);
+        }
+
+        private EntityRepository? _pausedRegisteredOn;
+
+        /// <summary>⭐ <c>CE-2078</c> — the task a reaction paused on <paramref name="entity"/>, or <c>null</c>.</summary>
+        public static PausedTask? PausedTaskOf(EntityRepository repo, Entity entity)
+            => repo.HasManagedComponent<PausedTask>(entity) ? ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity) : null;
+
+        private static void DropPausedTask(EntityRepository repo, Entity entity)
+        {
+            if (repo.HasManagedComponent<PausedTask>(entity)) repo.SetManagedComponent<PausedTask>(entity, null!);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2078</c> (R-199 ②) — a reaction ENDED (finished, or cleared itself): restart the task it paused, through
+        /// the gate, with the parameters and the origin it had — published, so next frame's ingress starts it like any order.
+        /// ⚠ Restart, not resume (<c>CE-2081</c>): the task begins again from its root. A no-op when nothing was paused.
+        /// </summary>
+        internal static void ResumePausedTask(EntityRepository repo, Entity entity)
+        {
+            var paused = PausedTaskOf(repo, entity);
+            if (paused == null) return;
+            DropPausedTask(repo, entity);
+            if (!repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return;
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = entity, BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, Origin = paused.Origin,
+            });
         }
 
         /// <summary>
@@ -229,7 +351,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
         private unsafe bool Start(
             EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json,
-            BehaviorOrigin origin)
+            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction)
         {
             // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
             // Strategy: parse into stack memory and commit only on success, so a ParseParams
@@ -254,62 +376,15 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   `JoinFormation`) got NO block here and the very next tick THREW "no ROOT PARAMS slot". Measured
             //   through the real curated registrar, ingress and tick. ⇒ the block exists iff it has a width;
             //   the PARSE is the optional part (baked defaults, or zeros, when there is no parser).
-            int rootBytes = RootParamsAccess.RootParamsBytes(def);
-            Span<byte> shadow = rootBytes > 0 ? EnsureShadow(rootBytes) : default;
-
-            if (rootBytes > 0 && def.ParseParams == null)
+            // ⭐ CE-3035: storage is keyed by behaviour, so the task and the SOP must be different behaviours.
+            if (IsTheSop(repo, entity, behaviorId))
             {
-                shadow.Clear();
-                if (def.BakeDefaults != null)
-                    fixed (byte* dst = shadow) def.BakeDefaults(dst, shadow.Length);
+                RefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused task {0} for entity #{1}: it is the unit's SOP.", behaviorName, entity.Index);
+                return false;
             }
-            else if (def.ParseParams != null)
-            {
-                // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
-                //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
-                //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
-                //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
-                //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
-                //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
-                // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
-                //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
-                //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
-                //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
-                //   without reading that row. Both are gone.
-                // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
-                //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
-                //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
-                // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
-                //   frames, so a stale event's bytes would otherwise leak into this one.
-                shadow.Clear();
-
-                // Attempt parse on the shadow.
-                bool parseOk;
-                fixed (byte* dst = shadow)
-                {
-                    try
-                    {
-                        // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
-                        //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
-                        //   will pass its host's variable access here, at E7a, without another
-                        //   signature change.
-                        // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
-                        //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
-                        //   region, and handing anything wider would license the overrun this
-                        //   parameter exists to stop.
-                        def.ParseParams(json, dst, shadow.Length, repo, entity);
-                        parseOk = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Suppress — do NOT rethrow; a parse failure must not crash the loop.
-                        _ = ex;
-                        parseOk = false;
-                    }
-                }
-
-                if (!parseOk) return false; // ParseParams failed — entity stays on old behavior entirely.
-            }
+            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow)) return false;
 
             // ParseParams succeeded (or was not required). Commit behavior transition.
 
@@ -321,6 +396,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
+            behavior.Urgency = UrgencyAfterAssign(origin, urgency, behavior.Urgency);   // ⭐ CE-2078 — before Origin moves
             behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
@@ -357,6 +433,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ProvisionStatefulSlots(repo, entity, effectiveSlots!, KindOf(def),
                                        hosted, RootParamsCost(def), RootBrainStateCost(def));
             }
+            else if (HasSop(repo, entity))
+            {
+                // ⭐ CE-3035: the SOP's slots share the store ⇒ size by FREE space, which counts them (capacity does not).
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                ProvisionStatefulSlots(repo, entity, Array.Empty<StatefulSlotInfo>(), KindOf(def),
+                                       hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
             else
             {
                 _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
@@ -365,7 +448,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
             // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
-            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots);
+            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots, _registry);
 
             // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
             //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
@@ -482,6 +565,245 @@ namespace Fdp.Toolkit.Behavior.Systems
                 InstanceId   = repo.GetComponentRO<BehaviorState>(entity).InstanceId,
             });
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3035</c> — STAGE 0–2 of every start (extracted, not copied, so the task slot and the SOP slot parse the
+        /// same way): clear → bake defaults → parse / resolve the JSON into the reused shadow. <c>false</c> = the parse
+        /// failed and nothing may be committed. 📄 <c>DESIGN_Parameter_Model.md</c> §P.
+        /// </summary>
+        private unsafe bool ParseIntoShadow(EntityRepository repo, Entity entity, BehaviorDefinition def, string json,
+                                            out int rootBytes, out Span<byte> shadow)
+        {
+            rootBytes = RootParamsAccess.RootParamsBytes(def);
+            shadow = rootBytes > 0 ? EnsureShadow(rootBytes) : default;
+
+            if (rootBytes > 0 && def.ParseParams == null)
+            {
+                shadow.Clear();
+                if (def.BakeDefaults != null)
+                    fixed (byte* dst = shadow) def.BakeDefaults(dst, shadow.Length);
+            }
+            else if (def.ParseParams != null)
+            {
+                // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
+                //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
+                //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
+                //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
+                //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
+                //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
+                // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
+                //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
+                //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
+                //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
+                //   without reading that row. Both are gone.
+                // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
+                //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
+                //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
+                // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
+                //   frames, so a stale event's bytes would otherwise leak into this one.
+                shadow.Clear();
+
+                // Attempt parse on the shadow.
+                bool parseOk;
+                fixed (byte* dst = shadow)
+                {
+                    try
+                    {
+                        // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
+                        //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
+                        //   will pass its host's variable access here, at E7a, without another
+                        //   signature change.
+                        // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
+                        //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
+                        //   region, and handing anything wider would license the overrun this
+                        //   parameter exists to stop.
+                        def.ParseParams(json, dst, shadow.Length, repo, entity);
+                        parseOk = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Suppress — do NOT rethrow; a parse failure must not crash the loop.
+                        _ = ex;
+                        parseOk = false;
+                    }
+                }
+
+                if (!parseOk) return false; // ParseParams failed — the caller keeps the previous behaviour entirely.
+            }
+            return true;
+        }
+
+        // ════ ⭐⭐ CE-3035 — THE SOP SLOT (R-189, R-198) ═══════════════════════════════════════════════════════════════════
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §6–§7 · docs/DESIGN_Decision_Layer.md §4. The SOP is a SECOND behaviour on the
+        //   unit: its own SopState, its own storage (keyed by its own behaviour — the task and the SOP must differ), its own
+        //   run tokens (high bit), started through THIS pipeline's parse and the same root attach, and run by the same runners
+        //   inside a BrainSlotScope. It acts only by ASSIGNING behaviours (Do when idle / React, CE-2079).
+
+        /// <summary>⭐ <c>CE-3035</c> — refused SOP assignments / clears since this system was built (a test / diagnostics probe).</summary>
+        public int SopRefusedCount { get; private set; }
+
+        private EntityRepository? _sopRecordRegisteredOn;
+
+        private void ApplySopEvents(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<SopState>()) return;
+
+            foreach (var evt in repo.Bus.ReadManaged<AssignSopEvent>())
+            {
+                if (evt == null || !repo.IsAlive(evt.Entity)) continue;
+                if (!_registry.TryGetId(evt.BehaviorName, out int id) || !_registry.TryGetDefinition(id, out var def))
+                {
+                    SopRefusedCount++;
+                    Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                        "[BehaviorIngress] refused SOP '{0}' for entity #{1}: no such behaviour on this node.", evt.BehaviorName, evt.Entity.Index);
+                    continue;
+                }
+                StartSop(repo, evt.Entity, evt.BehaviorName, id, def, evt.JsonParams ?? "{}", evt.Origin);
+            }
+
+            foreach (var evt in repo.Bus.Read<ClearSopEvent>())
+            {
+                if (!repo.HasComponent<SopState>(evt.Entity)) continue;
+                var sop = repo.GetComponentRO<SopState>(evt.Entity);
+                if (!BehaviorOriginRank.Admits(evt.Origin, sop.SopHash, sop.SopOrigin)) { SopRefusedCount++; continue; }
+                EndSop(repo, evt.Entity, _registry);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3035</c> — start <paramref name="def"/> in the unit's SOP slot: gate (against the SOP's own origin), refuse
+        /// the unit's current task, parse (the same <see cref="ParseIntoShadow"/>), end the previous SOP run, make room beside
+        /// the task (by FREE space), attach the SOP's roots, reset them inside its <see cref="BrainSlotScope"/>, record the start.
+        /// </summary>
+        internal unsafe bool StartSop(EntityRepository repo, Entity entity, string behaviorName, int behaviorId,
+                                       BehaviorDefinition def, string json, BehaviorOrigin origin)
+        {
+            if (!repo.HasComponent<SopState>(entity)) repo.AddComponent(entity, new SopState());
+            var before = repo.GetComponentRO<SopState>(entity);
+
+            if (!BehaviorOriginRank.Admits(origin, before.SopHash, before.SopOrigin))
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused {0} SOP '{1}' for entity #{2}: its SOP was set at {3}.", origin, behaviorName, entity.Index, before.SopOrigin);
+                return false;
+            }
+            if (repo.HasComponent<BehaviorState>(entity) && repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash == behaviorId)
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: it is the unit's current task.", behaviorName, entity.Index);
+                return false;
+            }
+            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
+            {
+                SopRefusedCount++;
+                return false;
+            }
+
+            EndSop(repo, entity, _registry);   // the previous SOP run ends here (its parts and slots go with it)
+            uint run = SopTokens.Next();
+
+            _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+            hosted = WithDescendantDemand(hosted, def);
+            var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
+            ProvisionStatefulSlots(repo, entity, effectiveSlots ?? (IReadOnlyList<StatefulSlotInfo>)Array.Empty<StatefulSlotInfo>(),
+                                   KindOf(def), hosted, RootParamsCost(def), RootBrainStateCost(def));
+
+            if (rootBytes > 0)
+            {
+                byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(repo, entity, behaviorId, rootBytes, KindOf(def), out _);
+                if (rootParams == null)
+                {
+                    SopRefusedCount++;
+                    Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                        "[BehaviorIngress] SOP '{0}' for entity #{1}: no room for its parameters beside the task.", behaviorName, entity.Index);
+                    return false;
+                }
+                fixed (byte* src = shadow)
+                    Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
+            }
+
+            ref var sop = ref repo.GetComponentRW<SopState>(entity);
+            sop.SopHash       = behaviorId;
+            sop.SopInstanceId = run;
+            sop.SopBrainTier  = def.BrainTier;
+            sop.SopOrigin     = BehaviorOriginRank.AfterAssign(origin, before.SopOrigin);
+            sop.SopFaulted    = 0;
+            sop.SopWake       = 1;   // decide at once
+            sop.SopNextTick   = 0;
+
+            using (BrainSlotScope.Enter(entity, behaviorId, run))
+            {
+                if (RootStateAccess.RootStateBytes(def) > 0)
+                {
+                    RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _, RootStateAccess.RootStateBytes(def));
+                    RootStateAccess.ResetState(repo, entity);
+                }
+                ResetHostedTreeStates(repo, entity, def);
+                if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+                {
+                    RootHsmAccess.ResolveOrAttachRoot(repo, entity, behaviorId,
+                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                    RootHsmAccess.ResetInstance(repo, entity, def.HsmDefinition);
+                }
+            }
+
+            if (!ReferenceEquals(_sopRecordRegisteredOn, repo))
+            {
+                if (!repo.TryGetTable(typeof(SopStartRecord), out _)) repo.RegisterManagedComponent<SopStartRecord>();
+                _sopRecordRegisteredOn = repo;
+            }
+            repo.SetManagedComponent(entity, new SopStartRecord { BehaviorName = behaviorName, JsonParams = json, InstanceId = run });
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-3035</c> — end the unit's SOP run (the unit keeps <see cref="SopState"/>, empty): its owned parts
+        /// and its slots go. Not gated — the gate is the caller's.</summary>
+        internal static void EndSop(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        {
+            if (!repo.HasComponent<SopState>(entity)) return;
+            var sop = repo.GetComponentRO<SopState>(entity);
+            if (sop.SopHash == BehaviorIds.None) return;
+
+            BehaviorOwnedParts.Release(repo, entity, sop.SopInstanceId);
+            if (registry.TryGetDefinition(sop.SopHash, out var def) && def.StatefulWorkingSlots is { Count: > 0 })
+                DetachStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots));
+            RootHsmAccess.DetachRoot(repo, entity, sop.SopHash);
+            RootStateAccess.DetachRoot(repo, entity, sop.SopHash);
+            RootParamsAccess.DetachRoot(repo, entity, sop.SopHash);
+
+            repo.GetComponentRW<SopState>(entity) = default;
+            if (repo.HasManagedComponent<SopStartRecord>(entity))
+                repo.SetManagedComponent<SopStartRecord>(entity, null!);
+        }
+
+        private static bool HasSop(EntityRepository repo, Entity entity)
+            => repo.IsComponentTypeRegistered<SopState>() && repo.HasComponent<SopState>(entity)
+               && repo.GetComponentRO<SopState>(entity).SopHash != BehaviorIds.None;
+
+        private static bool IsTheSop(EntityRepository repo, Entity entity, int behaviorId)
+            => HasSop(repo, entity) && repo.GetComponentRO<SopState>(entity).SopHash == behaviorId;
+
+        private static void WakeSop(EntityRepository repo, Entity entity)
+        {
+            if (HasSop(repo, entity)) repo.GetComponentRW<SopState>(entity).SopWake = 1;
+        }
+
+        /// <summary>⭐ <c>CE-3035</c> — is <paramref name="key"/> one of the SOP slot's own storage slots (its roots, its manifest)?
+        /// The task's sweeps leave those alone. ⚠ The SOP's LAZILY attached hosted occurrences are not named anywhere, so a
+        /// task start still resets them — an SOP tree re-reads from its root each wake, so this costs at most a hosted
+        /// child's progress.</summary>
+        private static bool IsHeldBySop(EntityRepository repo, Entity entity, BehaviorRegistry? registry, int key)
+        {
+            if (!HasSop(repo, entity)) return false;
+            int h = repo.GetComponentRO<SopState>(entity).SopHash;
+            if (key == RootParamsAccess.KeyForBehaviour(h) || key == RootStateAccess.KeyForBehaviour(h)
+                || key == RootHsmAccess.KeyForBehaviour(h))
+                return true;
+            return registry != null && registry.TryGetDefinition(h, out var d) && d.StatefulWorkingSlots is { Count: > 0 }
+                   && IsNamedByManifest(HostedSubtree.EffectiveSlots(d.StatefulWorkingSlots), key);
         }
 
         private EntityRepository? _startRecordRegisteredOn;
@@ -644,7 +966,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// (<c>:188-199</c>), so an ascending walk would skip the entry that slid into the hole.</para>
         /// </summary>
         private static unsafe void DetachHostedOccurrenceSlots(
-            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest, BehaviorRegistry? registry)
         {
             byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
             if (store == null) return;
@@ -656,6 +978,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
                 if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
+                if (IsHeldBySop(repo, entity, registry, key)) continue;   // ⭐ CE-3035 — the SOP slot's storage is not the task's to sweep
 
                 BlueprintBlackboardPartitions.TryDetach(store, key);
             }
@@ -1043,7 +1366,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
             // too — the same leak S3-5 fixed for manifest slots.
-            DetachHostedOccurrenceSlots(repo, entity, manifest: null);
+            DetachHostedOccurrenceSlots(repo, entity, manifest: null, registry);
 
             // 🔴🔴 O7c-② — THE ROOT SLOTS MUST BE DETACHED **BEFORE** THE HASH IS CLEARED, AND BOTH
             //    OF THEM. 📄 §31.
@@ -1079,6 +1402,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             unchecked { behavior.InstanceId++; }
             behavior.BrainTier = 0;
             behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
+            behavior.Urgency = ReactionUrgency.NotAReaction;   // ⭐ CE-2078
 
             // ⭐ CE-452: no behaviour ⇒ nothing to restart.
             if (repo.HasManagedComponent<BehaviorStartRecord>(entity))

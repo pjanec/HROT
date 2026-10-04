@@ -466,6 +466,54 @@ of two components, and the only things that learn about slots are the tick loop,
 >
 > Rails: `BehaviorIngressSystemTests.CE3034_*` (12, red-proved: 5 fail with the gate disabled) · `BehaviorTkbDefaultStartTests` (3, red-proved: 2 fail with the stamp restored).
 
+> ⭐⭐ **AS-BUILT `CE-3035` + `CE-2077` (`2026-10-04`, behaviors lane — fold-back, declared). "Doctrine" = SOP (`R-198`).**
+>
+
+```mermaid
+classDiagram
+  class SopState { <<NEW component 313>> SopHash SopInstanceId SopBrainTier SopOrigin SopFaulted SopWake SopNextTick }
+  class BrainSlotScope { <<NEW, thread-static view>> Enter(entity, hash, run) TryGetHash TryGetInstanceId }
+  class RootParamsAccess { <<existing>> KeyFor consults the scope }
+  class RootStateAccess { <<existing>> KeyFor consults the scope }
+  class RootHsmAccess { <<existing>> KeyFor consults the scope }
+  class BehaviorOwnedParts { <<existing>> OwnerOf consults the scope }
+  class BehaviorFault { <<existing>> Raise consults the scope }
+  class BehaviorIngressSystem { <<existing, grows>> StartSop EndSop ApplySopEvents · task sweep skips IsHeldBySop }
+  class BrainTickSystem { <<existing, grows>> TickSopSlots TickOneSop ChannelGuard }
+  class AssignSopEvent { <<NEW managed>> }
+  class ClearSopEvent { <<NEW 3105>> }
+  class SopStartRecord { <<NEW managed 314>> }
+  BrainTickSystem ..> BrainSlotScope : runs the SOP inside
+  BehaviorIngressSystem ..> BrainSlotScope : resets the SOP's roots inside
+  BrainSlotScope <.. RootParamsAccess
+  BrainSlotScope <.. RootStateAccess
+  BrainSlotScope <.. RootHsmAccess
+  BrainSlotScope <.. BehaviorOwnedParts
+  BrainSlotScope <.. BehaviorFault
+  BehaviorIngressSystem ..> SopState
+  BrainTickSystem ..> SopState
+```
+
+>
+> *What the picture shows that prose hid: "the slot is a VIEW" is literal — the three runners and all generated node code are
+> UNCHANGED; five existing readers of "the unit's running behaviour" consult one thread-static scope, and nothing else learns
+> that there are two slots.*
+>
+> | as designed (§6, §7.2) | as built | why |
+> |---|---|---|
+> | `BrainSlot` value type + re-keyed storage (`"$occ.doctrine.rootState"` salts) | ⭐ deviation: `BrainSlotScope` — storage stays keyed by BEHAVIOUR; the task and the SOP must be different behaviours (both directions refused at the gate) | storage is already per behaviour hash, so salting was only needed for "the same asset in both slots" — which the refusal removes; zero runner / generated-code change |
+> | "a doctrine's channel command is cancelled by construction (disjoint tokens)" | 🔴 **FALSE, measured**: generated and hand-written channel actions stamp `world.GetComponent<BehaviorState>(self).InstanceId` — the TASK's token — so an SOP's command would survive arbitration and clobber the task's. ⭐ Built instead: `ChannelGuard` copies the three channels before an SOP tick, reverts any write and faults the SOP (`SopCommandedChannel`) | the guard catches every tier and C#, needs no metadata; the assign-time refusal (§4.5 of the decision-layer design) is a follow-up |
+> | finish dedup / start record / fault latch per slot | SOP never finishes (Success / Failure → `runner.Start` restarts it, no `BehaviorFinishedEvent`); `SopStartRecord`; the fault latch is shared but keyed by run token, and SOP tokens have the high bit | — |
+> | owned parts take the owner from the run | `BehaviorOwnedParts.OwnerOf` returns the scope's run inside an SOP tick ⇒ an SOP's sensors outlive the task it assigns and end with the SOP | — |
+> | 5 Hz + wake on events (R-195) | `SopTickPeriod` 0.2 s, staggered by entity index; woken by `SensorChangedEvent`, `BehaviorFinishedEvent`, a refused Sop-origin assignment, and its own start | — |
+> | the task's storage sweeps | `DetachHostedOccurrenceSlots` skips the SOP's roots and manifest slots (`IsHeldBySop`); ⚠ the SOP's LAZILY attached hosted occurrences are not protected (a task start resets them) | an SOP tree re-reads from its root each wake |
+> | store sizing | with an SOP present the task start sizes by FREE space (`ProvisionStatefulSlots`), which counts the SOP's slots | capacity-only sizing ignored them |
+> | `DefaultDoctrineHash` | `BehaviorProfileDto.DefaultSop` (name) + `DefaultSopParamsJson`, started by `AssignSopEvent` at origin Sop where registered | — |
+>
+> Rails: `SopSlotTests` (6 — red-proved: the channel guard and the sweep protection each fail when disabled) ·
+> `BehaviorTkbDefaultStartTests.CE2077_*`. ⏳ Not yet: the SOP's two actions (`CE-2079`), reactions (`CE-2078`), saving (`CE-3042`),
+> the editor row (`CE-3043`), authority hand-over (`CE-3048`).
+
 ## 7. Doctrine — the paths
 
 ### 7.1 Autonomy, an order, and back

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1 as-built); next CE-2079 (the two SOP actions). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -368,6 +368,54 @@ decides whether it may be interrupted; and the gate — not the drill author —
 | ③ a running reaction yields only to a MORE urgent reaction or a new order; same or lower urgency is refused |
 | ④ at most ONE thing is paused: the task (a more urgent reaction replaces a less urgent one, it is not stacked) |
 
+⭐ **AS-BUILT `CE-2078` (`2026-10-04`) — the four rules are in the gate.** `BehaviorIngressSystem.AdmitsWithReactions`
+applies them; a reaction is an assignment with `Origin = Reaction` and an `Urgency` (`Alert < Contact < UnderFire < Hit`;
+none given ⇒ `Alert`), both stored on `BehaviorState`.
+
+```mermaid
+sequenceDiagram
+  participant SOP as SOP (React action, CE-2079)
+  participant Bus
+  participant Ingress as BehaviorIngressSystem
+  participant Brain as BrainTickSystem
+  participant MD as MissionDirectorSystem
+  SOP->>Bus: AssignBehaviorEvent(cover, Origin=Reaction, Urgency=Hit)
+  Bus->>Ingress: next frame
+  Ingress->>Ingress: AdmitsWithReactions — task running, ROE allows ⇒ pause
+  Ingress->>Ingress: PausedTask = {task name, JSON, its origin} (from BehaviorStartRecord)
+  Ingress->>Ingress: Start(cover): Origin=Reaction, Urgency=Hit
+  Brain->>Brain: cover ends (Success / Failure / fault)
+  Brain->>Bus: BehaviorFinishedEvent(Origin=Reaction)
+  Bus->>MD: skipped — a reaction never advances the mission
+  Brain->>Bus: ResumePausedTask ⇒ AssignBehaviorEvent(task, JSON, its origin)
+  Bus->>Ingress: next frame — the task restarts through the gate at its own rank
+```
+
+*What the picture shows that the rules table cannot: the paused task is never held in the slot — it is a RECORD
+(`PausedTask`, managed, transient) and comes back as an ordinary assignment through the same gate, one frame after the
+reaction ends. ⇒ restart, not resume (`CE-2081`).*
+
+| incoming ↓ · running → | empty / SOP idle choice | a task (Superior / Operator) | a reaction (urgency r) |
+|---|---|---|---|
+| **reaction, urgency u** | start, pause nothing | ROE `StayOnTask` ⇒ refuse · else **pause the task**, start | u > r ⇒ replace (the paused task stays) · else refuse |
+| **SOP idle choice** | rank rule | rank rule (refused) | refuse (and wake the SOP) |
+| **an order** (assign or clear) | rank rule | rank rule | weighed against the PAUSED task's origin; admitted ⇒ the paused task is dropped |
+| **Self** | admit | admit | admit — a reaction restarting itself stays a reaction; a reaction clearing itself **restarts the task** |
+
+| as built | where |
+|---|---|
+| a reaction ENDS three ways, each restarts the paused task: finish, self-clear, a failed hot-reload restart | `BrainTickSystem.Finish` · `ClearResumingAPausedTask` · the ingress clear path |
+| a task stamped directly (no `BehaviorStartRecord`) cannot be restarted ⇒ the reaction simply replaces it | `PauseRecord` |
+| the hash path (`AssignBehaviorHashEvent`, mission phase advance) is gated the same; it carries no urgency | `Execute` |
+| ⚠ not built: a reaction published to the SOP slot (`AssignSopEvent`) is ranked as an order — the React action never does that | follow-up, with `CE-2079` |
+
+Rails: `SopSlotTests.CE2078_*` (6) · `MissionDirectorSystemTests.CE2078_AReactionsFinish_DoesNotAdvanceTheMission`.
+
+⭐ **Planned demo (`CE-2082`, user `2026-10-04`):** a recipe scenario `Recipes/Scenarios/sop-demo` that exercises exactly
+this table — a squad fired upon on a move task (reaction, pause, restart), a squad under ROE `StayOnTask` (refused), an
+idle unit whose idle choice yields to an order — with a headless rail asserting the sequence. Built after the recipe
+(`CE-2080`).
+
 📐 **What resume would take — measured `2026-10-04`:**
 
 | run state | where it lives | on pause / resume |
@@ -513,7 +561,8 @@ deviate from my task" axis (the shape many simulators use — e.g. hold fire / d
 > `RoeOf` (no component / zero ⇒ `FireAtWill` / `React`). ⚠ Deviation: the zero members are `FireUnset` /
 > `ReactionsUnset`, not `Unset` — the DDS code generator emits IDL for every component and IDL puts every enum member of
 > a module in one scope. `RecentSenses` (`Behavior/Components/RecentSenses.cs`) is written by `RecentSensesSystem`, the
-> FIRST system of `CognitiveRuntimeModule`; conditions read `RecentSensesOf.Within(view, unit, kind, seconds)`.
+> Input-phase system of `CognitiveRuntimeModule` (⛔ first drafted as the first SIMULATION system — that shifted the
+> rails that index the simulation list, so it moved, `2026-10-04`); conditions read `RecentSensesOf.Within(view, unit, kind, seconds)`.
 > Not yet: the fire guard (`CE-2075`, backend's executor), saving (`CE-3042`), the editor row (`CE-3043`).
 
 

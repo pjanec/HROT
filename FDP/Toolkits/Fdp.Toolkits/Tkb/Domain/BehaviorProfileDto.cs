@@ -35,6 +35,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default reaction rule; <c>Unset</c> = reactions allowed.</summary>
         public Fdp.Toolkit.Behavior.Components.RoeReactions DefaultRoeReactions { get; init; }
 
+        /// <summary>⭐ <c>CE-2077</c> — the unit type's SOP (its own logic: idle choice + reactions, R-198) by behaviour NAME;
+        /// <c>null</c> = no SOP (the unit does only what it is told). Started through the ingress at spawn, origin Sop.</summary>
+        public string? DefaultSop { get; init; }
+
+        /// <summary>⭐ <c>CE-2077</c> — the SOP's params as JSON (R-191); <c>null</c> = its authored defaults.</summary>
+        public string? DefaultSopParamsJson { get; init; }
+
         /// <summary>Whether the entity can move under its own power.</summary>
         public bool CanMove { get; init; }
 

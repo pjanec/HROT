@@ -100,6 +100,20 @@ namespace Fdp.Toolkit.Behavior.Translators
                     });
             }
 
+            // ── SOP (CE-2077, R-198): the unit type's own logic, started through the ingress like the default behaviour ──
+            if (!string.IsNullOrEmpty(dto.DefaultSop) && repo.IsComponentTypeRegistered<SopState>()
+                && repo.Bus.IsRegisteredManaged<AssignSopEvent>())
+            {
+                if (!repo.HasComponent<SopState>(entity)) repo.AddComponent(entity, new SopState());
+                repo.Bus.PublishManaged(new AssignSopEvent
+                {
+                    Entity       = entity,
+                    BehaviorName = dto.DefaultSop!,
+                    JsonParams   = dto.DefaultSopParamsJson ?? "{}",
+                    Origin       = BehaviorOrigin.Sop,   // the template's default: any order may replace it
+                });
+            }
+
             // ── ROE (CE-2074, R-200): the unit type's default, set by nobody (Unmarked) so any order may change it ──
             if (repo.IsComponentTypeRegistered<Roe>() && !repo.HasComponent<Roe>(entity))
                 repo.AddComponent(entity, new Roe { Fire = dto.DefaultRoeFire, Reactions = dto.DefaultRoeReactions });

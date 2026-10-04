@@ -99,6 +99,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             var behaviorFinishedEvents = repo.Bus.Read<BehaviorFinishedEvent>();
             foreach (var finishedEvt in behaviorFinishedEvents)
             {
+                // ⭐ CE-2078 — a REACTION ending is not the phase's task ending (the paused task restarts after it).
+                if (finishedEvt.Origin == BehaviorOrigin.Reaction) continue;
                 _behaviorFinishedThisFrame.Add(finishedEvt.Entity.Index);
                 // A fault outranks any other end reported for the same entity in the same frame.
                 if (!_outcomeThisFrame.TryGetValue(finishedEvt.Entity.Index, out var seen) || seen != BehaviorOutcome.Faulted)

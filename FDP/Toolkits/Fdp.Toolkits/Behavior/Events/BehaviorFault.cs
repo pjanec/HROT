@@ -34,6 +34,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ S6a — an event arrived for a blueprint Event graph whose fiber is still waiting. U-6: never dropped
         /// silently (<c>DESIGN_Unified_Behaviour_Run</c> §4a).</summary>
         EventOverflow   = 5,
+        /// <summary>⭐ <c>CE-3035</c> — an SOP wrote a movement / weapon / interaction channel. The write is reverted (the
+        /// task keeps its command) and the SOP stops: an SOP acts only by assigning behaviours (R-199, design §4.5).</summary>
+        SopCommandedChannel = 6,
         /// <summary>First code free for behaviour-specific faults.</summary>
         Custom          = 1000,
     }
@@ -92,6 +95,12 @@ namespace Fdp.Toolkit.Behavior.Events
             if (view is not EntityRepository repo || !repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity))
                 return false;
             var behavior = repo.GetComponentRO<BehaviorState>(entity);
+            // ⭐ CE-3035 — inside the SOP slot's view the fault is the SOP run's, never the task's.
+            if (BrainSlotScope.TryGetInstanceId(entity, out uint slotRun) && BrainSlotScope.TryGetHash(entity, out int slotHash))
+            {
+                behavior.InstanceId = slotRun;
+                behavior.ActiveBehaviorHash = slotHash;
+            }
             if (behavior.InstanceId == 0) return false;
 
             if (repo.HasComponent<BehaviorFaultLatch>(entity))

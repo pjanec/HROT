@@ -129,6 +129,9 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>⭐ <c>CE-2074</c> — <c>SetRoeEvent</c>. 3104 is free by a census of every literal and constant event id, 2026-10-04.</summary>
         public const int EventId_SetRoe = 3104;
 
+        /// <summary>⭐ <c>CE-3035</c> — <c>ClearSopEvent</c>. 3105 is free by the same census.</summary>
+        public const int EventId_ClearSop = 3105;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;

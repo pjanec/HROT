@@ -168,8 +168,9 @@ namespace Hrot.SimHost.Tests
             // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1) = 2
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
             // SimulationSystems: 18 (unchanged)
-            // ⭐ CE-2074 (2026-10-04) — 1 MORE: RoeSystem joins MissionControlModule's input systems.
-            Assert.Equal(3,  pack.InputSystems.Count);
+            // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
+            //   (CognitiveRuntimeModule's input phase).
+            Assert.Equal(4,  pack.InputSystems.Count);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
@@ -189,8 +190,7 @@ namespace Hrot.SimHost.Tests
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
-            // ⭐ CE-2076 (2026-10-04) — 1 MORE: RecentSensesSystem leads CognitiveRuntimeModule.
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            Assert.Equal(17, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
@@ -373,8 +373,9 @@ namespace Hrot.SimHost.Tests
 
             // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
-            // ⭐ CE-2074 (2026-10-04) — 1 MORE: RoeSystem joins MissionControlModule's input systems.
-            Assert.Equal(3,  pack.InputSystems.Count);
+            // ⭐ CE-2074 / CE-2076 (2026-10-04) — 2 MORE: RoeSystem (MissionControlModule) and RecentSensesSystem
+            //   (CognitiveRuntimeModule's input phase).
+            Assert.Equal(4,  pack.InputSystems.Count);
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
@@ -394,8 +395,7 @@ namespace Hrot.SimHost.Tests
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
-            // ⭐ CE-2076 (2026-10-04) — 1 MORE: RecentSensesSystem leads CognitiveRuntimeModule.
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            Assert.Equal(17, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
         }
 

@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-3034</c> — who started the running behaviour (<see cref="BehaviorOrigin"/>); the gate in
         /// <c>BehaviorIngressSystem</c> refuses a lower-ranked replacement. <see cref="BehaviorOrigin.Unmarked"/> when empty.</summary>
         public BehaviorOrigin Origin;
+        /// <summary>⭐ <c>CE-2078</c> — the urgency of the running REACTION; <see cref="ReactionUrgency.NotAReaction"/> otherwise.</summary>
+        public ReactionUrgency Urgency;
     }
 
     [StructLayout(LayoutKind.Sequential)]

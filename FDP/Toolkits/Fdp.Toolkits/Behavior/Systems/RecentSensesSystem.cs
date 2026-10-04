@@ -7,9 +7,10 @@ namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// ⭐ <c>CE-2076</c> — records every <see cref="SensorChangedEvent"/> into the unit's <see cref="RecentSenses"/>
-    /// (added on first use), stamped with <see cref="GlobalTime.TotalTime"/>. Runs before the brain tick so a condition sees
-    /// last frame's changes. The event's producers are not touched.
+    /// (added on first use), stamped with <see cref="GlobalTime.TotalTime"/>. Runs in Input, before the brain tick, so a
+    /// condition sees last frame's changes. The event's producers are not touched.
     /// </summary>
+    [UpdateInPhase(SystemPhase.Input)]
     public sealed class RecentSensesSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>

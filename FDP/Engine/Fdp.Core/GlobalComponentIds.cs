@@ -621,5 +621,13 @@
         /// <summary><c>SopState</c> — the unit's SOP slot, beside <c>BehaviorState</c> (<c>CE-3035</c>, R-189, R-198).
         /// 📄 docs/DESIGN_Sensors_And_Doctrine.md §6.</summary>
         public const int SopState = 313;
+
+        /// <summary><c>SopStartRecord</c> (managed) — what the SOP slot was started with, for a restart (<c>CE-3035</c>);
+        /// 314 is free by the same census.</summary>
+        public const int SopStartRecord = 314;
+
+        /// <summary><c>PausedTask</c> (managed) — the task a running reaction paused, restarted when it ends (<c>CE-2078</c>,
+        /// R-199); 315 is free by the same census (grep of every <c>*Ids*.cs</c> and literal <c>[ComponentId(315)]</c>, <c>2026-10-04</c>).</summary>
+        public const int PausedTask = 315;
     }
 }

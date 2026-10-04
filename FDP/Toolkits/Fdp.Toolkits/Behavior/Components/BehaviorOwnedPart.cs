@@ -38,7 +38,8 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         /// <summary>The run that owns parts created under <paramref name="parent"/> right now (0 when it runs no behaviour).</summary>
         public static uint OwnerOf(ISimulationView view, Entity parent)
-            => view.IsAlive(parent) && view.HasComponent<BehaviorState>(parent)
+            => BrainSlotScope.TryGetInstanceId(parent, out uint slotRun) ? slotRun   // ⭐ CE-3035 — a part the SOP spawns is the SOP run's
+            : view.IsAlive(parent) && view.HasComponent<BehaviorState>(parent)
                 ? view.GetComponentRO<BehaviorState>(parent).InstanceId
                 : 0u;
 
