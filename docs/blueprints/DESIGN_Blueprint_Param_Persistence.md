@@ -271,4 +271,4 @@ sequenceDiagram
 |---|---|
 | new rails | `InstanceParamsJsonTests` (compiled blueprint: only non-default fields by name, save → reload identical) · ClusterRunner `ParamPersistence_*` ×3 (non-default survives as JSON · a default assignment reloads with the DECLARED defaults · a renamed field keeps its default, the others load) |
 | Toolkits · SimHost · Blueprints · Editor | 2626/0 · 1083/0 · 4130/0 · 463/0 |
-| ClusterRunner `--filter Blueprint` | 22/0 |
+| ClusterRunner `--filter Blueprint` · AiEditor.Generators (restored first — it had no assets file) | 22/0 · 378/0 |
