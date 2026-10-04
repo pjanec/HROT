@@ -71,7 +71,7 @@ public sealed class SopDemoScenarioTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = _scenarioId }),
         }).ConfigureAwait(false);
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
             $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
