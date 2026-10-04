@@ -30,12 +30,10 @@ namespace Fdp.Toolkit.Tests.Core;
 ///
 /// <para>
 /// ⚠⚠ <b>The closure boundary, stated rather than hidden.</b> This suite sees <c>Fdp.Core</c> and
-/// <c>Fdp.Toolkits</c>; it does <b>not</b> see <c>Hrot.SimHost</c>, whose
-/// <c>CognitiveSpatialModule.PerceptionScopedCommandBuffer</c> is the third production implementer.
-/// That one currently delegates correctly (verified at
-/// <c>Hrot/Subsystems/Hrot.SimHost/Modules/CognitiveSpatialModule.cs:145</c>) but is <b>outside this
-/// rail</b> — covering it needs the same scan run from a suite whose closure includes SimHost.
-/// ⭐ Recorded so the gap reads as a known boundary rather than as coverage.
+/// <c>Fdp.Toolkits</c>, not <c>Hrot.*</c>. ⭐ <c>CE-3052</c> (<c>2026-10-04</c>): the production wrappers it used to
+/// find — <c>AutonomousPerceptionModule.PerceptionScopedCommandBuffer</c> here and its twin in the deleted
+/// <c>CognitiveSpatialModule</c> — are both gone with the toolkit's vision chain; measured, <c>EntityCommandBuffer</c>
+/// is the only production implementer left in the repo. The rail stays: a wrapper added tomorrow is still caught.
 /// </para>
 /// </summary>
 public sealed class EntityCommandBufferSurgicalWriteCoverageTests
@@ -99,10 +97,9 @@ public sealed class EntityCommandBufferSurgicalWriteCoverageTests
     public void TheScanFindsTheRealBuffer_SoTheRailIsNotVacuous()
     {
         var found = ProductionImplementers().ToList();
+        // ⭐ The real buffer is enough to make the scan non-vacuous. ⚠ CE-3052: it used to also require a production
+        //   WRAPPER (≥ 2) — the only one, the perception chain's scoped buffer, was deleted with the chain.
         Assert.Contains(typeof(EntityCommandBuffer), found);
-        Assert.True(found.Count >= 2,
-            "expected at least the real buffer and one production wrapper; found: "
-            + string.Join(", ", found.Select(t => t.FullName)));
     }
 
     /// <summary>
