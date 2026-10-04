@@ -409,6 +409,53 @@ namespace Hrot.SimHost.Tests
             return sensor;
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-3056 — two QUERY sensors asking the identical question (same unit, template, area, force) are solved ONCE:
+        /// the second copies the first's answer this tick and both buffers hold it. A sensor over a DIFFERENT area is solved on
+        /// its own. 📄 DESIGN_Sensors_And_Doctrine.md §5.6.
+        /// </summary>
+        [Fact]
+        public void CE3056_IdenticalQueries_AreSolvedOnce_AndBothOwnersGetTheAnswer()
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var areaA = CreateAreaEntity(new List<Vector2> { new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f) });
+            _world.GetComponentRW<SimTransform>(areaA).Position = new Vector3(50f, 50f, 0f);
+            var areaB = CreateAreaEntity(new List<Vector2> { new(-5f, -5f), new(5f, -5f), new(5f, 5f), new(-5f, 5f) });
+            _world.GetComponentRW<SimTransform>(areaB).Position = new Vector3(10f, 10f, 0f);
+            var inside = CreateEnemyAt(new Vector2(50f, 50f));
+
+            // The unit the queries are FOR (context slot 0 — a placed self, as a real unit's query sensor has).
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(20f, 20f, 0f), Rotation = Quaternion.Identity });
+
+            Entity Sensor(Entity area)
+            {
+                var e = _world.CreateEntity();
+                var cfg = EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile);
+                cfg.ContextSlot0 = unit;
+                _world.AddComponent(e, cfg);
+                _world.AddComponent(e, new EqsCognitiveBuffer());
+                return e;
+            }
+            var owner1 = Sensor(areaA);
+            var owner2 = Sensor(areaA);   // the twin
+            var other  = Sensor(areaB);
+
+            var solver = new EqsSolverSystem();
+            var view = (ISimulationView)_world;
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+
+            Assert.Equal(1, solver.LastSharedCopies);                       // exactly the twin copied
+            var expected = new HashSet<long> { (long)inside.PackedValue };
+            Assert.Equal(expected, BufferEntities(owner1));
+            Assert.Equal(expected, BufferEntities(owner2));                 // the copy reached its OWN buffer
+            Assert.True(_world.GetComponentRO<EqsCognitiveBuffer>(other).IsReady);
+            Assert.Empty(BufferEntities(other));                            // solved on its own: nothing in area B
+        }
+
         private HashSet<long> BufferEntities(Entity sensor)
         {
             var set = new HashSet<long>();
@@ -705,6 +752,7 @@ namespace Hrot.SimHost.Tests
             }
 
             Step();
+            Assert.Equal(0, solver.LastSharedCopies);                // ⭐ CE-3056: perception sensors never share (own capability)
             var one = Assert.Single(acquired);                       // two sensors see it ⇒ ONE unit-level Acquired
             Assert.Equal(unit, one.Observer);
             Assert.Equal(enemy, one.Target);

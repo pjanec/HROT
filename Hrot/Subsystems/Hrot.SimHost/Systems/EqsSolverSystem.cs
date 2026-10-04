@@ -36,6 +36,16 @@ namespace Hrot.SimHost.Systems
         private readonly SensorMemoryStage _memory = new();
         private readonly List<Entity> _lastSchedule = new();
 
+        // ⭐ CE-3056 — this tick's answers by what DECIDES them; a twin due later in the tick copies instead of solving.
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §5.6. Cleared every tick, so an answer is never older than its delivery.
+        private readonly Dictionary<QueryShareKey, EqsResult[]> _shared = new();
+
+        /// <summary>What decides a QUERY sensor's answer — and nothing about its delivery (epoch, publish policy, priority
+        /// stay per owner). Two sensors with equal keys answer identically in one tick.</summary>
+        private readonly record struct QueryShareKey(
+            Entity Self, uint BlueprintId, float SearchRadius, uint FactionFilter, float ThreatThreshold,
+            Entity Context0, Entity Context1, Entity Context2);
+
         // Frame context for the per-sensor evaluation.
         private IEntityCommandBuffer _currentCmd = null!;
         private ISimulationView _currentView = null!;
@@ -58,6 +68,9 @@ namespace Hrot.SimHost.Systems
 
         /// <summary>Work units spent last tick.</summary>
         public int LastSpentUnits { get; private set; }
+
+        /// <summary>⭐ CE-3056 — sensors answered last tick by COPYING a twin's answer instead of solving (diagnostics / rails).</summary>
+        public int LastSharedCopies { get; private set; }
 
         /// <summary>The memory stage (test hook).</summary>
         public SensorMemoryStage Memory => _memory;
@@ -93,6 +106,8 @@ namespace Hrot.SimHost.Systems
             _currentRepo = repo;
             _memory.Begin(repo);
             _lastSchedule.Clear();
+            _shared.Clear();
+            LastSharedCopies = 0;
 
             // ── order every live sensor; an ended one costs nothing and is handled at once ──
             _schedule.Begin();
@@ -228,6 +243,18 @@ namespace Hrot.SimHost.Systems
                 return 0;
             }
 
+            // ⭐ CE-3056 — a twin of a query already answered THIS tick copies that answer, then goes through its OWN publish
+            //   policy and epoch (§5.6). Only a completed answer is ever stored, so a copy is never a half-solved one.
+            bool shareable = TryShareKey(entity, in sensor, out var shareKey);
+            if (shareable && _shared.TryGetValue(shareKey, out var sharedAnswer))
+            {
+                evalState.Phase = EqsEvalPhase.Idle;
+                LastSharedCopies++;
+                if (sharedAnswer.Length == 0) PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
+                else WriteResultsToPoolAndPublish(parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, sharedAnswer.AsSpan());
+                return EqsCost.Cheap;
+            }
+
             // 1. Generation.
             Span<EqsResult> candidates = stackalloc EqsResult[template.MaxCandidates];
             int count = template.Generator.Generate(entity, ref Unsafe.AsRef(in sensor), repo, candidates);
@@ -241,6 +268,7 @@ namespace Hrot.SimHost.Systems
             if (count == 0)
             {
                 // Nothing generated: still publish an empty event so Brain's IsReady ticks.
+                if (shareable) _shared[shareKey] = Array.Empty<EqsResult>();
                 PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
                 return cost;
             }
@@ -313,9 +341,33 @@ namespace Hrot.SimHost.Systems
             //   still a sighting).
             _memory.Observe(_currentView, entity, _currentTick, activeCandidates);
 
+            if (shareable) _shared[shareKey] = activeCandidates.ToArray();
+
             // 10. Write to pool and publish (updates LastPublishedTopK / PublishedThisEpoch).
             WriteResultsToPoolAndPublish(parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
             return cost;
+        }
+
+        // ⭐ CE-3056 — a QUERY sensor (no SensorTag, no SensorCapability) with a PLACED self is shareable: a perception sensor's
+        //   tests read its own capability, so two of them can differ with equal EqsSensor fields, and each feeds the memory
+        //   stage itself.
+        private bool TryShareKey(Entity entity, in EqsSensor sensor, out QueryShareKey key)
+        {
+            var repo = _currentRepo;
+            if ((repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.SensorTag>()
+                    && repo.HasComponent<Fdp.Toolkit.Perception.Components.SensorTag>(entity))
+                || ((ISimulationView)repo).HasManagedComponent<Fdp.Toolkit.Perception.Components.SensorCapability>(entity))
+            {
+                key = default;
+                return false;
+            }
+            // ⚠ No placed self ⇒ the answer may depend on the carrier itself (a local sensor's generator can read it): never share.
+            var self = EqsContext.Self(_currentView, entity, sensor);
+            if (self.IsNull) { key = default; return false; }
+            key = new QueryShareKey(self, sensor.BlueprintId, sensor.SearchRadius,
+                                    sensor.FactionFilter, sensor.ThreatThreshold,
+                                    sensor.ContextSlot0, sensor.ContextSlot1, sensor.ContextSlot2);
+            return true;
         }
 
         private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)
