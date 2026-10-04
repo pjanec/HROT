@@ -30,6 +30,8 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
+            world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
             world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
@@ -94,6 +96,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<BehaviorFinishedEvent>();
             world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
             world.RegisterEvent<AssignBehaviorHashEvent>();
+            world.RegisterEvent<SetRoeEvent>();        // CE-2074
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
 

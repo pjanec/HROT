@@ -608,5 +608,18 @@
         /// <summary><c>SensorConfigPayload</c> (managed) — on the Brain, the JSON config a sensor's wire sample carries:
         /// a behaviour-made sensor's per-kind config, or an OVERRIDE of a TKB sensor (R-186 M′, R-187 N′).</summary>
         public const int SensorConfigPayload = 308;
+
+        /// <summary><c>Roe</c> — a unit's rules of engagement (<c>CE-2074</c>, R-200). 311–313 are free by a census of every
+        /// <c>*Ids*.cs</c> and every literal <c>[ComponentId(n)]</c>, <c>2026-10-04</c> (309 left free; 310 is a test's) — <c>R-44</c>.
+        /// 📄 docs/DESIGN_Decision_Layer.md §4.4.</summary>
+        public const int Roe = 311;
+
+        /// <summary><c>RecentSenses</c> — the last tick of each <c>SensorChange</c> kind per unit, so a condition can ask
+        /// "was hit within N s" (<c>CE-2076</c>). 📄 docs/DESIGN_Decision_Layer.md §4.3.</summary>
+        public const int RecentSenses = 312;
+
+        /// <summary><c>SopState</c> — the unit's SOP slot, beside <c>BehaviorState</c> (<c>CE-3035</c>, R-189, R-198).
+        /// 📄 docs/DESIGN_Sensors_And_Doctrine.md §6.</summary>
+        public const int SopState = 313;
     }
 }

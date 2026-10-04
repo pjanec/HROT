@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(ActorCapabilityState);
             yield return typeof(PreviousCapabilities);
             yield return typeof(BehaviorState);
+            yield return typeof(Roe);   // CE-2074
             yield return typeof(LocomotionChannel);
             yield return typeof(WeaponChannel);
             yield return typeof(InteractionChannel);
@@ -98,6 +99,10 @@ namespace Fdp.Toolkit.Behavior.Translators
                         Origin       = BehaviorOrigin.Sop,
                     });
             }
+
+            // ── ROE (CE-2074, R-200): the unit type's default, set by nobody (Unmarked) so any order may change it ──
+            if (repo.IsComponentTypeRegistered<Roe>() && !repo.HasComponent<Roe>(entity))
+                repo.AddComponent(entity, new Roe { Fire = dto.DefaultRoeFire, Reactions = dto.DefaultRoeReactions });
 
             // ── LocomotionChannel: all moveable entities (including tier-0 civilians
             //    driven by TrafficBrainSystem) need a locomotion channel so the system

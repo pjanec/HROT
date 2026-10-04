@@ -29,6 +29,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         public int DefaultBehaviorHash { get; init; }
 
+        /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default ROE fire rule; <c>Unset</c> = fire at will.</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeFire DefaultRoeFire { get; init; }
+
+        /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default reaction rule; <c>Unset</c> = reactions allowed.</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeReactions DefaultRoeReactions { get; init; }
+
         /// <summary>Whether the entity can move under its own power.</summary>
         public bool CanMove { get; init; }
 

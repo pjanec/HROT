@@ -506,6 +506,15 @@ deviate from my task" axis (the shape many simulators use — e.g. hold fire / d
 | edited | a row in the editor AI section (`CE-3043`) |
 | later | `WeaponsTight` (identified hostiles only) needs identification (G11) — not now |
 
+> ⭐ **AS-BUILT `CE-2074` + `CE-2076` (`2026-10-04`).** `Roe {Fire, Reactions, SetBy}` (`Behavior/Components/Roe.cs`),
+> changed only by `SetRoeEvent` through `RoeSystem` (gated like a behaviour: a lower origin than `SetBy` is refused; the TKB
+> default has `SetBy = Unmarked` and yields to anyone); TKB `DefaultRoeFire` / `DefaultRoeReactions`; reads go through
+> `RoeOf` (no component / zero ⇒ `FireAtWill` / `React`). ⚠ Deviation: the zero members are `FireUnset` /
+> `ReactionsUnset`, not `Unset` — the DDS code generator emits IDL for every component and IDL puts every enum member of
+> a module in one scope. `RecentSenses` (`Behavior/Components/RecentSenses.cs`) is written by `RecentSensesSystem`, the
+> FIRST system of `CognitiveRuntimeModule`; conditions read `RecentSensesOf.Within(view, unit, kind, seconds)`.
+> Not yet: the fire guard (`CE-2075`, backend's executor), saving (`CE-3042`), the editor row (`CE-3043`).
+
 
 ### 4.5 Keeping the SOP off the channels — measured *(PROPOSAL)*
 
