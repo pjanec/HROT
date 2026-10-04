@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Hrot.Common.EntityCreation;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
@@ -313,7 +314,6 @@ namespace Hrot.Editor
         private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
-        private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
         /// <summary>
         /// The capability set this host resolved from <see cref="EditorCapabilities.DefaultRole"/>
@@ -1557,15 +1557,12 @@ namespace Hrot.Editor
                 Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
             SimHostCoreLogicPack?    simHostCorePack = null;
-            CognitiveSpatialModule?  perceptionMod   = null;
 
             if (MuscleCapabilitiesFactory == null)
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-                // ⭐ 3-D sight through the resident terrain world and a perception grid that follows it — CGF ≡ editor,
-                //    the same factory as SimHost and Stride (R-182; docs/DESIGN_Terrain_World.md §4.3, §4.4, CE-3018).
-                perceptionMod    = CognitiveSpatialModule.ForTerrainHost(_world!);
-                _perceptionMod = perceptionMod;
+                // ⭐ CE-3038 — vision is an EQS sensor now: the EQS capability (PerceptionEqsSolver) carries the perception
+                //    grid and 3-D sight (docs/DESIGN_Sensors_And_Doctrine.md §5.5); there is no separate perception module.
 
                 muscleInputSystems   = simHostCorePack.InputSystems;
                 muscleSimSystems     = simHostCorePack.SimulationSystems;
@@ -1609,7 +1606,7 @@ namespace Hrot.Editor
             //    a null capability registered as if it were real is the silent-default shape this
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
-                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!, _navSolverCapability!)
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, _navSolverCapability!)
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
@@ -1783,7 +1780,10 @@ namespace Hrot.Editor
             // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
             var logicPacks = new List<IEcsModule> { cgfLogicPackInst };
             if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
-            if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
+            // ⭐ CE-3038 — the EQS module carries vision (it replaced the perception module this slot held), so it is
+            //    uninstalled with the local logic tier as the perception module was.
+            foreach (var eqs in _capabilities.OfType<EditorCapabilities.PerceptionEqsSolver>())
+                if (eqs.RegisteredModule != null) logicPacks.Insert(Math.Min(1, logicPacks.Count), eqs.RegisteredModule);
             foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
             // ⭐ CE-3017 — the solver's modules are registered by its Register hook (SimHost's capability, unchanged), so
             //    they are not in _capabilityModules; add them so SwitchToExternalAsync uninstalls them with the rest.

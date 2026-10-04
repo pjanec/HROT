@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// <see cref="SensorContactList"/>: its sightings, debounced by <see cref="ContactHysteresis"/> — the same rule the
     /// visual chain uses. Each sensor runs at most once per tick, so each list has exactly one writer.</para>
     /// <para>⭐ What reaches the Brain is the UNIT's view: a <see cref="SensorTrackStateEvent"/> is published only where the
-    /// union of the unit's acquired contacts (over all its sensors, plus the unit's own visual-chain list until S5)
+    /// union of the unit's acquired contacts over all its sensors (vision included since S5, <c>CE-3038</c>)
     /// CHANGED this tick. One sensor losing a target another still holds sends nothing.</para>
     /// </summary>
     public sealed class SensorMemoryStage
@@ -110,13 +110,6 @@ namespace Fdp.Toolkit.Perception.Sensors
                 _before.Clear();
                 _after.Clear();
 
-                // The unit's own (visual-chain) list counts on both sides — it is not this stage's to change.
-                if (view.HasComponent<SensorContactList>(unit))
-                {
-                    ref readonly var own = ref view.GetComponentRO<SensorContactList>(unit);
-                    AddAcquired(in own, _before);
-                    AddAcquired(in own, _after);
-                }
                 if (_sensorsOfUnit.TryGetValue(unit, out var siblings))
                     foreach (var s in siblings)
                     {

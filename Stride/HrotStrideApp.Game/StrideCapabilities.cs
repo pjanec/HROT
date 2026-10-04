@@ -72,21 +72,13 @@ public static class StrideCapabilities
     /// lifetime and needs the individual objects to wire the physics bracket, so constructing a
     /// second set here would mean two of everything.
     /// </param>
-    /// <param name="publishPerceptionModule">
-    /// Optional sink for the constructed <c>CognitiveSpatialModule</c>. Diagnostics read the module
-    /// directly on the other hosts; this hands it back the same way rather than inventing a second
-    /// lookup path.
-    /// </param>
-    public static NodeCompositionPlan Build(
-        StrideMuscleModuleSet muscleSet,
-        Action<CognitiveSpatialModule>? publishPerceptionModule = null)
+    public static NodeCompositionPlan Build(StrideMuscleModuleSet muscleSet)
     {
         if (muscleSet is null) throw new ArgumentNullException(nameof(muscleSet));
 
         return new NodeCompositionPlan()
             .Capability(NodeRole.MuscleGround, new MuscleGround(muscleSet))
             .Capability(NodeRole.Perception,   new PerceptionSolver())
-            .Capability(NodeRole.Perception,   new PerceptionSpatial(publishPerceptionModule))
             // ⭐⭐ CE-221 — the two systems StrideMuscleModule used to register itself. Registering them
             //    from inside a PROVIDED MODULE is exactly what killed the hosted editor: the module path
             //    is invisible to the host's DistinctByType fuse, so Stride's copy collided with
@@ -204,38 +196,6 @@ public static class StrideCapabilities
         }
     }
 
-    /// <summary>
-    /// Perception's spatial half: the cognitive grid.
-    /// </summary>
-    /// <remarks>
-    /// <para><b>⚠ This ships with SimHost's 2-D line of sight, deliberately and temporarily.</b>
-    /// <c>LosRequestBatchingSystem</c> resolves visibility with an inline segment-circle sweep that
-    /// knows nothing about terrain or height — so a Stride node will report LOS that does not match
-    /// what is visibly occluded in its own 3-D window. That is an accepted transitional limitation
-    /// with a task against it (<c>CE-210</c>), and any report claiming Stride perception works must
-    /// say so.</para>
-    ///
-    /// <para>Separate from <see cref="PerceptionSolver"/> for the same reason SimHost splits them:
-    /// the two register at different points and merging them would reorder the list.</para>
-    /// </remarks>
-    public sealed class PerceptionSpatial : INodeCapability
-    {
-        private readonly Action<CognitiveSpatialModule>? _publishModule;
-
-        internal PerceptionSpatial(Action<CognitiveSpatialModule>? publishModule)
-            => _publishModule = publishModule;
-
-        public string Key => CapabilityKeys.Perception + ":spatial";
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-        {
-            // ⭐ 3-D sight through the resident terrain world and a perception grid that follows it, as every ECS host
-            //    (docs/DESIGN_Terrain_World.md §4.3, §4.4, CE-3018).
-            var module = CognitiveSpatialModule.ForTerrainHost(context.World);
-
-            _publishModule?.Invoke(module);
-            context.Kernel.RegisterModule(module);
-        }
-    }
+    // ⛔ PerceptionSpatial (CognitiveSpatialModule) DELETED by CE-3038 — vision is a sensor solved by the EQS module
+    //    PerceptionSolver registers (EqsSolverStartup). docs/DESIGN_Sensors_And_Doctrine.md §5.5.
 }

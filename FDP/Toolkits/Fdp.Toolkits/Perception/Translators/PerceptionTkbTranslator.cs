@@ -19,14 +19,13 @@ namespace Fdp.Toolkit.Perception.Translators
         }
 
         /// <summary>⭐ None of these carries <c>[PerInstanceValue]</c> — a receptor is a template constant and
-        /// the three memories legitimately start empty — so this translator contributes nothing to any
+        /// the two memories legitimately start empty — so this translator contributes nothing to any
         /// promotion gate. ⚠ It is still declared: the set is a statement about the TRANSLATOR, not about
         /// today's attribute list, and a later <c>[PerInstanceValue]</c> must find it already here.</summary>
         public IEnumerable<Type> GetProducedComponents()
         {
             yield return typeof(PerceptionReceptor);
             yield return typeof(TargetMemory);
-            yield return typeof(SensorContactList);
             yield return typeof(ActiveSensorTracks);
             yield return typeof(SensorMount);
             yield return typeof(SensorTag);
@@ -67,9 +66,6 @@ namespace Fdp.Toolkit.Perception.Translators
                 if (repo.IsComponentTypeRegistered<TargetMemory>() && !repo.HasComponent<TargetMemory>(entity))
                     repo.AddComponent(entity, new TargetMemory());
 
-                if (repo.IsComponentTypeRegistered<SensorContactList>() && !repo.HasComponent<SensorContactList>(entity))
-                    repo.AddComponent(entity, new SensorContactList());
-
                 if (repo.IsComponentTypeRegistered<ActiveSensorTracks>() && !repo.HasComponent<ActiveSensorTracks>(entity))
                     repo.AddComponent(entity, new ActiveSensorTracks());
             }
@@ -77,6 +73,21 @@ namespace Fdp.Toolkit.Perception.Translators
             // ⭐ The unit's SENSORS — one child per entry, built the same way on every node (R-185 K, design §5.1).
             for (int i = 0; i < dto.Sensors.Count; i++)
                 Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(repo, entity, i, dto.Sensors[i]);
+
+            // ⭐⭐ CE-3038 — a TKB that lists no sensors but can SEE gets ONE implicit visual sensor (part 1000): vision is a
+            //    sensor like any other, solved by the EQS solver and debounced by its memory stage (design §5.5). ⛔ The
+            //    unit no longer carries a SensorContactList — each perception sensor keeps its own.
+            if (dto.Sensors.Count == 0 && dto.VisionRange > 0f)
+            {
+                var visual = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(
+                    repo, entity, 0, Fdp.Toolkit.Perception.Sensors.VisualPerception.ImplicitEntry(dto));
+                if (!visual.IsNull)
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(visual);
+                    tag.Implicit = 1;
+                    repo.SetComponent(visual, tag);
+                }
+            }
         }
     }
 }

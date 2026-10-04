@@ -92,11 +92,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     public PhysicsToolkitModule? PhysicsModule { get; private set; }
 
     /// <summary>
-    /// Perception module. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
-    /// </summary>
-    public CognitiveSpatialModule? PerceptionModule { get; private set; }
-
-    /// <summary>
     /// Behavior registry. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
     /// </summary>
     public BehaviorRegistry? BehaviorRegistry { get; private set; }
@@ -330,7 +325,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
             .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule, BuildSolver))
-            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m))
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
             //    a Brain+Muscle node register it ONCE instead of twice.

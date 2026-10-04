@@ -237,7 +237,6 @@ namespace Hrot.SimHost
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
         // ── Perception module (stored to expose ScopedBus to the event browser) ───
-        private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
         private readonly DiagnosticEventHistoryService _eventHistoryService = new();
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -557,7 +556,6 @@ namespace Hrot.SimHost
             _checkpointWorker = _bootstrapper.CheckpointWorker;
             _simCorePack    = _bootstrapper.CoreLogicPack;
             _physicsModule  = _bootstrapper.PhysicsModule;
-            _perceptionMod  = _bootstrapper.PerceptionModule;
             _behaviorRegistry = _bootstrapper.BehaviorRegistry;
 
             // Update base.World and base.Kernel for FdpApplication compatibility.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CarKinem.Spatial;
@@ -107,40 +108,16 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EqsModule_Policy_IsSlowBackground10Hz()
         {
-            var module = new EqsModule();
+            using var module = new EqsModule();   // it owns a perception grid since CE-3038
             var policy = module.Policy;
 
             Assert.Equal(RunMode.Asynchronous, policy.Mode);
             Assert.Equal(10, policy.TargetFrequencyHz);
         }
 
-        // ── SC-HA002-6 ────────────────────────────────────────────────────────────
+        // ── SC-HA002-6 — ⛔ CognitiveSpatialModule_Policy_IsSlowBackground10Hz deleted with the module (CE-3038): vision runs
+        //    in EqsModule, whose policy the test above pins. ──────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// <see cref="CognitiveSpatialModule.Policy"/> must return
-        /// <see cref="ExecutionPolicy.SlowBackground"/> at 10 Hz.
-        /// Both <c>CognitiveSpatialModule</c> and <c>NavigationSolverModule</c> run
-        /// at 10 Hz SoD and share a <see cref="SharedSnapshotProvider"/>.  Event
-        /// delivery to all convoy members is guaranteed by the provider's
-        /// <c>FlushToReplica</c> call — no frequency offset hack is needed.
-        /// </summary>
-        [Fact]
-        public void CognitiveSpatialModule_Policy_IsSlowBackground10Hz()
-        {
-            using var module = new CognitiveSpatialModule();
-            var policy = module.Policy;
-
-            Assert.Equal(RunMode.Asynchronous, policy.Mode);
-            Assert.Equal(DataStrategy.SoD, policy.Strategy);
-            Assert.Equal(10, policy.TargetFrequencyHz);
-        }
-
-        // ── The area query inside EQS 1.3 (design EQS §17) ─────────────────────────
-
-        /// <summary>
-        /// The template's baked id is the canonical hash of its AssetId — the id a blueprint
-        /// <c>SpawnEqsSensor</c> node bakes — so blueprint and C# callers reach the same template.
-        /// </summary>
         [Fact]
         public void EntitiesOfForceInArea_BlueprintId_IsTheCanonicalHashOfItsAssetId()
         {
@@ -745,6 +722,128 @@ namespace Hrot.SimHost.Tests
             var gone = Assert.Single(lost);
             Assert.Equal(enemy, gone.Target);
             Assert.Single(acquired);
+        }
+
+        // ── CE-3038 (S5) — vision as a sensor ──────────────────────────────────────────────────────────────────────────
+
+        // A world of units (two forces, varied facing and field of view) and colliders; every unit built through the
+        // TKB translator, so it has BOTH the receptor the old chain reads and the implicit visual sensor.
+        private static (EntityRepository World, List<Entity> Units) VisionWorld(int seed)
+        {
+            var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            var rnd = new Random(seed);
+            var units = new List<Entity>();
+            var translator = new PerceptionTkbTranslator();
+            for (int i = 0; i < 40; i++)
+            {
+                var e = w.CreateEntity();
+                float yaw = (float)(rnd.NextDouble() * Math.PI * 2);
+                w.AddComponent(e, new SimTransform
+                {
+                    Position = new Vector3((float)rnd.NextDouble() * 300f, (float)rnd.NextDouble() * 300f, 0f),
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw),
+                });
+                w.AddComponent(e, new EntityInfo { ForceId = i % 2 == 0 ? ForceId.Friend : ForceId.Hostile });
+                w.AddComponent(e, new NetworkIdentity { Value = 9000 + i });
+                var t = new TkbTemplate("Unit" + i, 500 + i);
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 80f + (i % 3) * 40f, FieldOfViewDegrees = (i % 3) switch { 0 => 360f, 1 => 120f, _ => 60f } });
+                translator.Inject(w, e, t);
+                units.Add(e);
+            }
+            for (int i = 0; i < 25; i++)   // blockers
+            {
+                var c = w.CreateEntity();
+                w.AddComponent(c, new SimTransform { Position = new Vector3((float)rnd.NextDouble() * 300f, (float)rnd.NextDouble() * 300f, 0f), Rotation = Quaternion.Identity });
+                w.AddComponent(c, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 4f });
+            }
+            return (w, units);
+        }
+
+        private static float ColliderRadius(ISimulationView v, Entity e)
+            => v.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e) ? v.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius : 0f;
+
+        /// <summary>
+        /// ⭐⭐ CE-3038 — the PARITY proof: on one world, the visual sensor (EQS solver + memory stage) sees exactly the
+        /// (observer, target) pairs the old chain (VisionBroadphaseSystem → LosRequestBatchingSystem) produced. The
+        /// broadphase and the sight strategy are the chain's own code, so any difference is a wiring defect.
+        /// 📄 DESIGN_Sensors_And_Doctrine.md §5.5.
+        /// </summary>
+        [Fact]
+        public void S5_TheVisualSensor_SeesExactlyWhatTheOldChainSaw()
+        {
+            var (w, units) = VisionWorld(seed: 3038);
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            try
+            {
+                var view = (ISimulationView)w;
+                var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+
+                // ── the old chain ──
+                new Fdp.Toolkit.Perception.Systems.VisionBroadphaseSystem(grid.Grid).Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+                w.Bus.SwapBuffers();
+                int requests = view.ReadEvents<Fdp.Toolkit.Perception.Events.LosCheckRequestEvent>().Length;
+                new Fdp.Toolkit.Perception.Systems.LosRequestBatchingSystem(losStrategy: strategy).Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+                w.Bus.SwapBuffers();
+                var chain = new HashSet<(int, long)>();
+                foreach (var e in view.ReadEvents<TargetVisibleEvent>()) chain.Add((e.Observer.Index, (long)e.Target.PackedValue));
+
+                // ── the visual sensor ──
+                var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(w);
+                VisualPerception.Register(registry, grid.Grid, strategy);
+                new EqsSolverSystem { BudgetUnits = int.MaxValue }.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+                var sensed = new HashSet<(int, long)>();
+                foreach (var u in units)
+                {
+                    var s = UnitSensors.Of(w, u, SensorModality.Visual);
+                    Assert.False(s.IsNull, "every unit that can see gets an implicit visual sensor");
+                    if (!w.HasComponent<SensorContactList>(s)) continue;
+                    var list = w.GetComponentRO<SensorContactList>(s);
+                    unsafe { for (int i = 0; i < list.Count; i++) sensed.Add((u.Index, list.EntityIds[i])); }
+                }
+
+                Assert.True(chain.Count > 20, $"the scene must exercise sight (chain saw {chain.Count} pairs)");
+                Assert.True(requests > chain.Count, $"the scene must contain BLOCKED lines, or the sight test is not proven ({requests} candidates, {chain.Count} seen)");
+                Assert.Equal(chain.OrderBy(p => p).ToList(), sensed.OrderBy(p => p).ToList());
+            }
+            finally { DisposeEqsSingletons(w); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
+        /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot
+        /// see gets none. The unit no longer carries a SensorContactList.
+        /// </summary>
+        [Fact]
+        public void S5_TheImplicitVisualSensor_IsBuiltOnlyForASeeingUnitWithNoSensorList()
+        {
+            var seeing = _world.CreateEntity();
+            var t1 = new TkbTemplate("Seeing", 601);
+            t1.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, FieldOfViewDegrees = 90f });
+            new PerceptionTkbTranslator().Inject(_world, seeing, t1);
+            var v = UnitSensors.Of(_world, seeing, SensorModality.Visual);
+            Assert.False(v.IsNull);
+            Assert.Equal(SensorChildFactory.FirstTkbPartId, _world.GetComponentRO<PartMetadata>(v).InstanceId);
+            Assert.Equal(1, _world.GetComponentRO<SensorTag>(v).Implicit);
+            Assert.Equal(VisualPerception.BlueprintId, _world.GetComponentRO<EqsSensor>(v).BlueprintId);
+            Assert.False(_world.HasComponent<SensorContactList>(seeing));
+
+            var listed = _world.CreateEntity();
+            var t2 = new TkbTemplate("Listed", 602);
+            t2.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, listed, t2);
+            Assert.True(UnitSensors.Of(_world, listed, SensorModality.Visual).IsNull);
+            Assert.False(UnitSensors.Of(_world, listed, SensorModality.Radar).IsNull);
+
+            var blind = _world.CreateEntity();
+            var t3 = new TkbTemplate("Blind", 603);
+            t3.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 0f });
+            new PerceptionTkbTranslator().Inject(_world, blind, t3);
+            Assert.True(UnitSensors.Of(_world, blind, SensorModality.Visual).IsNull);
         }
     }
 }

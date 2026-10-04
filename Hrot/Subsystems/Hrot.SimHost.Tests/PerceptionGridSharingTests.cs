@@ -9,8 +9,8 @@ namespace Hrot.SimHost.Tests;
 /// <b><c>B3</c> — the point of splitting the resource out: two capabilities, ONE allocation.</b>
 ///
 /// <para>This is the rail the whole split exists for, and it needs both assemblies:
-/// <c>PerceptionGridProvider</c> is in <c>Fdp.Toolkits</c> and <c>CognitiveSpatialModule</c> is in
-/// <c>Hrot.SimHost</c>. A node whose role union selects both perception capabilities used to allocate a
+/// <c>PerceptionGridProvider</c> is in <c>Fdp.Toolkits</c> and <c>EqsModule</c> (which owns the perception grid since
+/// <c>CE-3038</c>; <c>CognitiveSpatialModule</c> was deleted) is in <c>Hrot.SimHost</c>. A node whose role union selects both perception capabilities used to allocate a
 /// persistent <c>SpatialHashGrid</c> twice — the memory-owning form of the double-registration hazard
 /// <c>[SingleInstance]</c> catches on the system axis.</para>
 /// </summary>
@@ -22,7 +22,7 @@ public sealed class PerceptionGridSharingTests
         using var world    = new EntityRepository();
         var provider = new PerceptionGridProvider();
 
-        var cognitive  = new CognitiveSpatialModule(provider);
+        var cognitive  = new EqsModule(provider, terrainSource: null);
         var autonomous = new AutonomousPerceptionModule(gridProvider: provider);
 
         // Disposing both capabilities must be safe and must not free the borrowed grid: it belongs to the
@@ -41,11 +41,11 @@ public sealed class PerceptionGridSharingTests
     /// so every existing host and test is unaffected by the split.
     /// </summary>
     [Fact]
-    public void ACognitiveSpatialModuleWithNoProviderStillOwnsAndFreesItsOwnGrid()
+    public void AnEqsModuleWithNoProviderStillOwnsAndFreesItsOwnGrid()
     {
         using var world = new EntityRepository();
 
-        var module = new CognitiveSpatialModule();
+        var module = new EqsModule();
         module.Dispose();
         module.Dispose();   // idempotent
     }
@@ -59,9 +59,9 @@ public sealed class PerceptionGridSharingTests
     public void TheTerrainHostFactory_ComposesAGridThatFollowsTheTerrain_CE3018()
     {
         using var world = new EntityRepository();
-        using var module = CognitiveSpatialModule.ForTerrainHost(world);
+        using var module = EqsModule.ForTerrainHost(world);
         Assert.True(module.FollowsTerrain);
-        using var bare = new CognitiveSpatialModule();
+        using var bare = new EqsModule();
         Assert.False(bare.FollowsTerrain);
     }
 }

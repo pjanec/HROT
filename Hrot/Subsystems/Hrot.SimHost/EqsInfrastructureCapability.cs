@@ -60,13 +60,17 @@ public sealed class EqsResultUpdateCapability : INodeCapability
 /// </remarks>
 public static class EqsSolverStartup
 {
-    /// <summary>Installs the template registry on the node's world, then registers the solver module.</summary>
-    public static void Register(HrotNodeContext context)
+    /// <summary>Installs the template registry on the node's world, then registers the solver module (returned, so a
+    /// host that hot-swaps its logic tier can uninstall it).</summary>
+    public static Modules.EqsModule Register(HrotNodeContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
         // CE-465: without a registry every sensor gets the empty stub. Installed BEFORE the module so
         // its first tick sees it.
         Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
-        context.Kernel.RegisterModule(new Modules.EqsModule());
+        // ⭐ CE-3038 — the module carries vision too (its grid, the visual template, 3-D sight): design §5.5.
+        var module = Modules.EqsModule.ForTerrainHost(context.World);
+        context.Kernel.RegisterModule(module);
+        return module;
     }
 }

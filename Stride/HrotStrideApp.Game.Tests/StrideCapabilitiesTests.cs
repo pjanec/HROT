@@ -53,7 +53,8 @@ public class StrideCapabilitiesTests
             StrideCapabilities.Build(BuildMuscleSet()).Resolve(StrideCapabilities.DefaultRole);
 
         Assert.Contains(resolved, c => c.Key == CapabilityKeys.Perception);
-        Assert.Contains(resolved, c => c.Key == CapabilityKeys.Perception + ":spatial");
+        // ⭐ CE-3038 — ONE perception capability: vision is an EQS sensor; the ":spatial" half was deleted.
+        Assert.DoesNotContain(resolved, c => c.Key == CapabilityKeys.Perception + ":spatial");
     }
 
     /// <summary>The muscle tier resolves too — the half that already worked, kept honest.</summary>

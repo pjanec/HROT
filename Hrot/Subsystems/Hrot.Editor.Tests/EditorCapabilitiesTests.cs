@@ -63,16 +63,15 @@ public class EditorCapabilitiesTests : IDisposable
         _disposables.Clear();
     }
 
-    private (CgfLogicPack cgf, SimHostCoreLogicPack muscle, CognitiveSpatialModule perception)
+    private (CgfLogicPack cgf, SimHostCoreLogicPack muscle)
         BuildPacks(EntityRepository world)
     {
         var entityMap  = new NetworkEntityMap();
         var mapper     = new TacticalIntentMapperRegistry();
         var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, new ScenarioEntityCreationRequestSource(), mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
         var muscle     = new SimHostCoreLogicPack(entityMap);
-        var perception = new CognitiveSpatialModule(colliderRadiusReader: static (_, _) => 0f);
-        Track(cgf); Track(muscle); Track(perception);
-        return (cgf, muscle, perception);
+        Track(cgf); Track(muscle);
+        return (cgf, muscle);
     }
 
     private void Track(object o)
@@ -98,9 +97,9 @@ public class EditorCapabilitiesTests : IDisposable
     public void DefaultArm_ComposesTheNavigationSolver_AfterThePerceptionSolvers_CE3017()
     {
         using var world = new EntityRepository();
-        var (cgf, muscle, perception) = BuildPacks(world);
+        var (cgf, muscle) = BuildPacks(world);
 
-        var keys = EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
+        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
                                      .Resolve(EditorCapabilities.DefaultRole)
                                      .Select(c => c.Key).ToList();
 
@@ -108,7 +107,7 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.True(nav >= 0, "the editor must compose the NavigationSolver capability its role declares");
         Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception + ":eqs"),
             "appended after the EQS solver, so every module registered before it keeps its slot");
-        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, perception, null!));
+        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, null!));
     }
 
     /// <summary>
@@ -121,7 +120,7 @@ public class EditorCapabilitiesTests : IDisposable
     public void ResolvedSet_ProducesTheSameSystemSequencesAsTheHandWrittenBlock()
     {
         using var world = new EntityRepository();
-        var (cgf, muscle, perception) = BuildPacks(world);
+        var (cgf, muscle) = BuildPacks(world);
 
         // ── The hand-written block, as EditorSubsystem builds it today ──────────────
         //    Note the argument order: CGF first, muscle second. DistinctByType keeps the FIRST
@@ -134,7 +133,7 @@ public class EditorCapabilitiesTests : IDisposable
 
         // ── The same thing, resolved from the plan ─────────────────────────────────
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
+            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
@@ -187,10 +186,10 @@ public class EditorCapabilitiesTests : IDisposable
     public void BrainResolvesBeforeMuscleGround()
     {
         using var world = new EntityRepository();
-        var (cgf, muscle, perception) = BuildPacks(world);
+        var (cgf, muscle) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
+            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
                               .Resolve(EditorCapabilities.DefaultRole);
 
         int brain  = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.Brain);
@@ -206,9 +205,9 @@ public class EditorCapabilitiesTests : IDisposable
     public void DefaultRole_ResolvesToANonEmptySet()
     {
         using var world = new EntityRepository();
-        var (cgf, muscle, perception) = BuildPacks(world);
+        var (cgf, muscle) = BuildPacks(world);
 
-        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, perception, Nav(muscle))
+        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
                                           .Resolve(EditorCapabilities.DefaultRole));
     }
 
@@ -221,7 +220,7 @@ public class EditorCapabilitiesTests : IDisposable
     public void InjectedArm_ContributesNoMuscleSystemsOfItsOwn()
     {
         using var world = new EntityRepository();
-        var (cgf, _, _) = BuildPacks(world);
+        var (cgf, _) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
             EditorCapabilities.BuildWithInjectedMuscle(cgf, Array.Empty<INodeCapability>())

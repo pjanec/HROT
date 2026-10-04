@@ -455,11 +455,14 @@ public sealed class NedReplicationModule : INedReplicationModule
                         new INetworkTranslator[] { ownershipUpdate }));
             }
 
-            // IG ghost lifecycle: sub-entity cleanup. (OwnershipIngressSystem is now registered
-            // role-independently below — CE-276 — so it is not registered here.)
-            registry.RegisterSystem(new SubEntityCleanupSystem());
-
+            // (OwnershipIngressSystem is registered role-independently below — CE-276 — so it is not registered here.)
         }
+
+        // ⭐⭐ CE-3053 — sub-entity cleanup on EVERY node, as the replication design makes it (REPL-DESIGN §4.4, §5.2: replication
+        //    infrastructure, PostSimulation). 🔴 It was registered only for a PURE IG, so on SimHost and CGF a unit's children —
+        //    weapon mounts, EQS carriers, sensors — outlived it forever (EqsSensorConfigIngressTranslator relied on it). Found
+        //    when CE-3038 gave every seeing unit a visual sensor child and SubEntityCascadeDestroyTests stopped passing vacuously.
+        registry.RegisterSystem(new SubEntityCleanupSystem());
 
         // ── Dead reckoning: EVERY node, regardless of role (CE-211) ──────────
         // Holding a usable position for entities this node does not own is what lets the network

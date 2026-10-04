@@ -20,9 +20,10 @@ namespace Hrot.SimHost.Systems
     /// the SAME <see cref="PointInPolygon"/> — which moved here when that pipeline was retired
     /// (EQS design §18). Force and wreck filtering are the template's tests, not this generator's.</para>
     ///
-    /// <para>⚠ <b>A walk, not a grid query</b> (user, <c>2026-09-30</c>: "slow walk is ok for now"). The
-    /// perception grid is handed by constructor to <c>CognitiveSpatialModule</c> and rebuilt on its
-    /// thread, so reading it from <c>EqsModule</c> would race; the CarKinem <c>SpatialGridData</c> holds
+    /// <para>⚠ <b>A walk, not a grid query</b> (user, <c>2026-09-30</c>: "slow walk is ok for now"). ⭐ Since
+    /// <c>CE-3038</c> the perception grid is rebuilt INSIDE <c>EqsModule</c> (before the solver), so a grid query is
+    /// now race-free and possible — not done here (it would cap reach at the grid's footprint). ⛔ HISTORY: it was
+    /// rebuilt on <c>CognitiveSpatialModule</c>'s thread, so reading it from <c>EqsModule</c> would have raced; the CarKinem <c>SpatialGridData</c> holds
     /// only collider entities and would silently drop targets. A polygon bounding-box test prunes the walk.
     /// ⭐ It also means no reach limit: the retired query's grid saw only x, y ∈ [0, 1000) m.</para>
     ///

@@ -222,9 +222,18 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            // EntityInfo.ForceId will be stamped by translator in Phase 6.
+            // ⭐⭐ CE-3051 — the faction reaches the BEHAVIOUR PROFILE, which is what stamps EntityInfo.ForceId on a node with
+            //    no presentation tier (SimHost). 🔴 This used to be a no-op ("stamped by translator in Phase 6", which never
+            //    landed — the WithHeavyMemory pattern below): CGF derived the force from the map symbol (M1 = Friend, T-72 =
+            //    Hostile) while SimHost left every unit Neutral, so vision — which ignores its own force — saw nobody on a
+            //    cluster. Found by the CE-3050 rail. Either call order works.
+            _factions[tkbId] = (ForceId)factionId;
+            var profile = template.GetDescriptor<BehaviorProfileDto>();
+            if (profile != null) template.AddDescriptor(profile with { Faction = (ForceId)factionId });
             return this;
         }
+
+        private readonly System.Collections.Generic.Dictionary<long, ForceId> _factions = new();
 
         /// <summary>
         /// Stamps the navigation and behavior-brain components required for the
@@ -256,7 +265,8 @@ namespace Hrot.Map.Definitions.Tkb
                 BrainTier  = BehaviorConstants.BrainTierBTree,
                 CanMove    = true,
                 CanShoot   = true,
-                CanInteract = true
+                CanInteract = true,
+                Faction    = _factions.TryGetValue(tkbId, out var faction) ? faction : ForceId.Neutral,   // CE-3051
             });
 
             return this;

@@ -43,13 +43,15 @@ namespace Hrot.SimHost.Systems
         private EntityRepository _currentRepo = null!;
 
         /// <summary>
-        /// ⭐ Work units one solver tick may spend (<see cref="EqsCost"/>). 📐 The default is the old 4 ms wall budget in
-        /// measured units (~0.34 µs per unit, debug build — DESIGN_Sensors_And_Doctrine.md §9.3): ~40 typical sensors a tick.
+        /// ⭐ Work units one solver tick may spend (<see cref="EqsCost"/>). 📐 Sized for VISION since <c>CE-3038</c> (it rides in
+        /// this budget now): a 500 m all-round visual sensor costs ~280 units, so 150 000 solves EVERY sensor of ~500 units
+        /// each tick — what the old perception chain did — and beyond that the oldest go first (measured 2026-10-04, debug
+        /// build: 500 units = 142 k units / 76 ms; DESIGN_Sensors_And_Doctrine.md §9.4).
         /// </summary>
         public int BudgetUnits { get; set; } = DefaultBudgetUnits;
 
         /// <summary>The default <see cref="BudgetUnits"/>.</summary>
-        public const int DefaultBudgetUnits = 12_000;
+        public const int DefaultBudgetUnits = 150_000;
 
         /// <summary>The sensors that ran last tick, in run order (diagnostics / the determinism rail).</summary>
         public IReadOnlyList<Entity> LastSchedule => _lastSchedule;

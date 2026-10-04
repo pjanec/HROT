@@ -178,6 +178,11 @@ Before proceeding with the fix, it is critical to understand why these systems a
 
 **Why required:** Many TKB entities are composite — a Tank has a child Turret entity. When the network destroys the Tank root entity, the child Turret must also be destroyed to prevent invisible leaked "zombie turrets". This system queries all entities with `PartMetadata` components and destroys those whose parent is dead.
 
+> ⭐ **AS-BUILT `2026-10-04` (`CE-3053`)** — in the NED stack (`NedReplicationModule`) this system was registered ONLY for a pure
+> IG node, so on SimHost and CGF a unit's children (weapon mounts, EQS carriers, sensors) outlived it. It is now registered on
+> every node, as this section intends. Found by `SubEntityCascadeDestroyTests`, which had passed vacuously while the test
+> unit had no children ([`DESIGN_Sensors_And_Doctrine.md`](../../DESIGN_Sensors_And_Doctrine.md) §9.4).
+
 ### 4.5 Disposal Monitoring (`DisposalMonitoringSystem`)
 
 **Why required:** Prevents the `NetworkEntityMap` memory leak described in §3.

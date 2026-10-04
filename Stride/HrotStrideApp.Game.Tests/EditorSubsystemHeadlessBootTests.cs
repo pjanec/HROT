@@ -234,7 +234,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
     /// asserts the BOOTED kernel, which is the hop a plan-level test structurally cannot reach.</para>
     /// </summary>
     [Fact]
-    public void SI2b_KernelContainsCognitiveSpatialModule_AndEqsModule_SoAreaQueriesCanBeSolved()
+    public void SI2b_KernelContainsEqsModule_SoVisionAndAreaQueriesCanBeSolved()
     {
         var kernel = _editor.Kernel;
         Assert.NotNull(kernel);
@@ -242,16 +242,8 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         var moduleTypeNames = kernel.GetRegisteredModuleTypeNames();
         Assert.NotNull(moduleTypeNames);
 
-        bool hasCognitiveSpatial = moduleTypeNames.Any(
-            n => n.Contains("CognitiveSpatial", StringComparison.OrdinalIgnoreCase));
-
-        Assert.True(hasCognitiveSpatial,
-            "CE-233: CognitiveSpatialModule (perception: grid, vision, LOS) must be registered in the "
-          + "hosted composition. The injected arm (EditorCapabilities.BuildWithInjectedMuscle) "
-          + "deliberately does NOT supply it, so the supplying host must resolve "
-          + "StrideCapabilities.DefaultRole, not MuscleGround alone. "
-          + $"Registered module types: [{string.Join(", ", moduleTypeNames)}].");
-
+        // ⭐ CE-3038 — CognitiveSpatialModule was DELETED: vision (grid, broadphase, LOS) is an EQS sensor solved by
+        //   EqsModule, so the one module asserted below carries perception as well as the area query.
         // ⭐ The area query is an EQS template since the AreaQuery pipeline was retired (2026-10-01, EQS
         //   design §18) — so the module that ANSWERS the platoon commander's area sensor is EqsModule.
         //   Without it every area sensor stays unanswered and the commander times out after 5 s, forever.

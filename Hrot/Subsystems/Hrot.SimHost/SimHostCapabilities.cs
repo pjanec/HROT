@@ -25,7 +25,9 @@ namespace Hrot.SimHost;
 /// execution order</b>. Any capability split that reorders registrations is therefore <i>not</i>
 /// behaviour-preserving, which is the whole constraint <c>B1</c>–<c>B4</c> operate under.</para>
 ///
-/// <para>⚠ <b>That is why perception appears as TWO capabilities.</b> Today SimHost registers
+/// <para>⛔ <b>SUPERSEDED by <c>CE-3038</c> (2026-10-04):</b> the spatial half (<c>CognitiveSpatialModule</c>) is gone —
+/// vision is an EQS sensor — so perception is ONE capability again. History:</para>
+/// <para>⚠ <b>That is why perception appeared as TWO capabilities.</b> Today SimHost registers
 /// <c>EqsModule</c>, then the navigation module, then <c>CognitiveSpatialModule</c> — perception concerns
 /// interleaved <i>around</i> navigation *(<c>AreaQueryResultMaterializationSystem</c> sat before the module
 /// until the AreaQuery pipeline was retired, 2026-10-01)*. Collapsing
@@ -69,9 +71,7 @@ public static class SimHostCapabilities
             => context.Kernel.RegisterModule(_pack);
     }
 
-    /// <summary>The EQS solver — perception's off-thread query half.</summary>
-    /// <remarks>Separate from <see cref="PerceptionSpatial"/> only to preserve registration order; see
-    /// the type-level remarks.</remarks>
+    /// <summary>The EQS solver — ALL of perception since <c>CE-3038</c>: its grid, vision and every other sensor.</summary>
     internal sealed class PerceptionSolver : INodeCapability
     {
         public string Key => CapabilityKeys.Perception;
@@ -123,28 +123,6 @@ public static class SimHostCapabilities
         }
     }
 
-    /// <summary>Perception's spatial half: the cognitive grid systems.</summary>
-    internal sealed class PerceptionSpatial : INodeCapability
-    {
-        private readonly Action<CognitiveSpatialModule> _publishModule;
-
-        internal PerceptionSpatial(Action<CognitiveSpatialModule> publishModule)
-            => _publishModule = publishModule;
-
-        public string Key => CapabilityKeys.Perception + ":spatial";
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-        {
-            // ⭐ 3-D sight through the resident terrain world (§4.3, R-182) and a perception grid that follows it (§4.4,
-            //    CE-3018) — one factory for every terrain host (docs/DESIGN_Terrain_World.md).
-            var module = CognitiveSpatialModule.ForTerrainHost(context.World);
-
-            // The host still exposes this module publicly (diagnostics read it), so hand it back.
-            // ⚠ Migration boundary, like NodeBootPlan.Value<T> — it should disappear once the
-            // consumers of PerceptionModule read it from the capability set instead.
-            _publishModule(module);
-            context.Kernel.RegisterModule(module);
-        }
-    }
+    // ⛔ PerceptionSpatial (CognitiveSpatialModule) DELETED by CE-3038 — vision is a sensor solved by EqsModule
+    //    (PerceptionSolver above). docs/DESIGN_Sensors_And_Doctrine.md §5.5.
 }

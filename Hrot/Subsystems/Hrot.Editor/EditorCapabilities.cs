@@ -85,12 +85,10 @@ public static class EditorCapabilities
     public static NodeCompositionPlan BuildDefault(
         CgfLogicPack cgfPack,
         SimHostCoreLogicPack musclePack,
-        CognitiveSpatialModule perceptionModule,
         SimHostCapabilities.NavigationSolver navigationSolver)
     {
         if (cgfPack is null)          throw new ArgumentNullException(nameof(cgfPack));
         if (musclePack is null)       throw new ArgumentNullException(nameof(musclePack));
-        if (perceptionModule is null) throw new ArgumentNullException(nameof(perceptionModule));
         if (navigationSolver is null) throw new ArgumentNullException(nameof(navigationSolver));
 
         // ⭐ CE-3017 — the solver is APPENDED after the EQS solver: it contributes modules only (no PopulateSystems), so
@@ -98,7 +96,6 @@ public static class EditorCapabilities
         return new NodeCompositionPlan()
             .Capability(NodeRole.Brain,        new Brain(cgfPack))
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
-            .Capability(NodeRole.Perception,   new PerceptionSpatial(perceptionModule))
             .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
             .Capability(NodeRole.NavigationSolver, navigationSolver)
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
@@ -110,7 +107,7 @@ public static class EditorCapabilities
     /// own muscle modules through <c>MuscleModuleFactory</c>.
     /// </summary>
     /// <remarks>
-    /// The injected arm has no <c>SimHostCoreLogicPack</c> and no <c>CognitiveSpatialModule</c>: the
+    /// The injected arm has no <c>SimHostCoreLogicPack</c> and no EQS module of its own: the
     /// supplying host owns both. It still gets the Brain *(and, until the AreaQuery pipeline was retired
     /// on 2026-10-01, the area-query materialisation — EQS design §18)*. ⚠ Keeping the two arms as two plan shapes — rather than one plan
     /// with nullable capabilities — is what stops a null capability being registered as if it were
@@ -192,18 +189,8 @@ public static class EditorCapabilities
     //    INodeCapability directly there is nothing to adapt, and keeping the wrapper would be a
     //    second way to express the same thing.
 
-    /// <summary>Perception's spatial half — the cognitive grid. Default arm only.</summary>
-    public sealed class PerceptionSpatial : INodeCapability
-    {
-        private readonly CognitiveSpatialModule _module;
-        internal PerceptionSpatial(CognitiveSpatialModule module) => _module = module;
-
-        public string Key => CapabilityKeys.Perception + ":spatial";
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(_module);
-    }
+    // ⛔ PerceptionSpatial (CognitiveSpatialModule) DELETED by CE-3038 — vision is a sensor solved by the EQS module
+    //    PerceptionEqsSolver registers. docs/DESIGN_Sensors_And_Doctrine.md §5.5.
 
     /// <summary>
     /// The EQS 1.3 solver and its template registry — default arm only (an injected muscle brings its
@@ -219,8 +206,12 @@ public static class EditorCapabilities
         public string Key => CapabilityKeys.Perception + ":eqs";
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
+        /// <summary>⭐ CE-3038 — the module <see cref="Register"/> registered (it carries vision): the editor's
+        /// <c>SwitchToExternalAsync</c> uninstalls it with the rest of the local logic tier.</summary>
+        public Hrot.SimHost.Modules.EqsModule? RegisteredModule { get; private set; }
+
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => EqsSolverStartup.Register(context);
+            => RegisteredModule = EqsSolverStartup.Register(context);
     }
 
 }

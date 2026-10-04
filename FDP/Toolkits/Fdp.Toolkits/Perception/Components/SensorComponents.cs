@@ -21,6 +21,13 @@ namespace Fdp.Toolkit.Perception.Components
 
         /// <summary>1 = built from the unit's TKB on every node (part id <c>1000 + TkbIndex</c>), 0 = made by a behaviour.</summary>
         public byte FromTkb;
+
+        /// <summary>
+        /// ⭐ CE-3038 — 1 = the IMPLICIT visual sensor of a TKB that lists no sensors but has a vision range. Its range and
+        /// field of view are the unit's <see cref="PerceptionReceptor"/> — the value a Brain retunes over the wire
+        /// (<c>SensorConfig</c>) — not a capability record. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.5.
+        /// </summary>
+        public byte Implicit;
     }
 
     /// <summary>

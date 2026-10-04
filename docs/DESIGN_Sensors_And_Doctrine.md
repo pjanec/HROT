@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: BUILDING — S0 (§9.1), S3 (§9.2) and S4 (§9.3) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
+build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
@@ -302,6 +302,61 @@ sensor losing a target another sensor sees changes nothing on the wire.
 | ⚠ until S5: the visual chain debounces on its own | a radar keeps a target the eyes lost? the eyes' own Lost still reaches the Brain. S5 removes the second producer |
 | ⏳ modality on the wire (`SensorTrackState`) | an IDL change — S5, where `TargetMemory` is fed with the sensor's modality |
 | ⭐ `CE-3046`: forget = target dead · OR faded below `ForgetScore` while no sensor tracks it | the score already IS a function of unseen time (10 %/s decay) — a second "unseen N s" clock would restate it. A new contact always enters, evicting the lowest score (ties: the oldest sighting) |
+
+### 5.5 Vision moves onto the sensor form (S5, `CE-3038` / `CE-3050`)
+
+```mermaid
+graph TD
+  subgraph Before["before S5 — two background modules"]
+    E0["EqsModule: EqsSolverSystem"]
+    C0["CognitiveSpatialModule: LocalGridBuilder → VisionBroadphase → LosRequestBatching → SensorTrackDebounce"]:::gone
+  end
+  subgraph After["after S5 — ONE module, every ECS host (SimHost, Stride, editor via EqsSolverStartup)"]
+    E1["EqsModule"]
+    G1["LocalGridBuilderSystem (moved in, runs first)"]
+    S1["EqsSolverSystem + memory stage"]
+    V1["Visual template: VisualSensorGenerator + StrategySightTest"]
+    E1 --> G1 --> S1 --> V1
+  end
+  T["PerceptionTkbTranslator: an implicit visual sensor (part 1000) when the TKB lists none and VisionRange > 0"] --> S1
+  S1 -- "SensorTrackStateEvent (unit union)" --> W["SensorTrackState egress → CGF → ActiveSensorTracks → TargetMemory (unchanged)"]
+  classDef gone fill:#eee,stroke:#888,stroke-dasharray:4 3,color:#555
+```
+
+*What the picture shows that prose hid:* the perception grid moves INTO the module that reads it — before, it was
+rebuilt on `CognitiveSpatialModule`'s thread while `EqsModule`'s area query could not touch it (the race noted in
+`EntitiesInAreaGenerator`). Everything after the egress is untouched.
+
+```mermaid
+classDiagram
+  direction LR
+  class VisionBroadphase { <<NEW, extracted>> +Rebuild(view, grid) coarse 50 m index +Select(view, observer, range, fovCos, into) nearest 32 }
+  class VisionBroadphaseSystem { <<existing toolkit>> now calls VisionBroadphase }
+  class VisualSensorGenerator { <<NEW IEqsGenerator>> unit = the sensor's parent · receptor or capability }
+  class StrategySightTest { <<NEW IEqsTest, Sight>> ILosStrategy.IsVisible(unit, target) · BeginBatch once per tick }
+  class ILosStrategy { <<existing>> TerrainWorldLosStrategy on every terrain host }
+  class VisualPerception { <<NEW>> +AssetId +Template(grid, strategy) +ImplicitEntry(dto) }
+  class EqsModule { <<existing, grows>> +ForTerrainHost(world) owns the grid + LocalGridBuilderSystem }
+  class CognitiveSpatialModule { <<DELETED>> }
+  VisualSensorGenerator ..> VisionBroadphase
+  VisionBroadphaseSystem ..> VisionBroadphase
+  StrategySightTest ..> ILosStrategy
+  VisualPerception ..> VisualSensorGenerator
+  VisualPerception ..> StrategySightTest
+  EqsModule ..> VisualPerception
+```
+
+*What the picture shows that prose hid:* the broadphase and the sight test are the chain's OWN code — extracted and
+called from both places — so the visual template finds exactly what the chain found (a parity rail runs both on one
+world).
+
+| why | |
+|---|---|
+| ⭐ the generator reads the unit's `PerceptionReceptor` (range, FOV) for the IMPLICIT sensor | the receptor stays the truth it is today — `SensorConfigIngressTranslator` retunes it over the wire. An EXPLICIT visual entry reads its `SensorCapability` |
+| ⭐ the observer for sight is the UNIT, not the sensor child | eye height follows the unit's posture and `SensorMount` (Terrain §4.3) |
+| ⭐ a visual sensor is a perception sensor (`SensorTag` Visual) ⇒ the memory stage debounces it | the chain's `SensorTrackDebounceSystem` has no Hrot caller left; the unit-level `SensorContactList` is no longer added |
+| ⏳ the toolkit's own chain (`AutonomousPerceptionModule`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`) stays for the FDP examples | no Hrot host runs it after S5; it shares the extracted code, so no logic is duplicated. Retiring it with the examples is a follow-up row |
+| ⭐ `CE-3050` | the end-to-end rail spawns two FORCES in range and lets real perception drive it — no injected events |
 
 ## 6. Doctrine and origin — classes
 
@@ -662,6 +717,31 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | cross-node EQS + sensors (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | 95/1 — the one red is `SensorMechanism_EndToEnd_…`, red on base (`CE-3050`). ⚠ Five EQS rails seeded `TargetMemory` with FAKE target ids (`1L`, `2L`, `999L`, `0`); `CE-3046` now forgets a target that does not exist, so they were given live targets — the realistic case |
 | editor | `dotnet test Hrot.Editor.Tests` | 463/0, 2 skipped |
 | examples · overlays · blueprints *(restored first — they had no `project.assets.json`)* | each project's full suite | Examples.Scenarios 53/3 — ⚠ the 3 `UrbanCombatNew…` reds are red on base `d26f23ec1` too (`CE-321`: the insurgent takes no damage); UrbanCombat 29/0 · Overlays 29/0 · Blueprints 4128/0 |
+
+### 9.4 As-built — S5 / `CE-3038` + `CE-3050` + `CE-3051` *(`2026-10-04`)*
+
+⭐ §5.5's diagrams are the as-built picture. What the build decided or found:
+
+| decision / finding | why |
+|---|---|
+| ⭐ **parity is PROVEN, not argued** | a rail runs the old chain (`VisionBroadphaseSystem` → `LosRequestBatchingSystem`) and the visual sensor on ONE world of 40 units / 25 blockers / mixed FOV: identical (observer, target) sets, and the scene must contain blocked lines so the sight test is exercised |
+| ⭐ **the broadphase is EXTRACTED (`VisionBroadphase`), not copied** | the toolkit system and the generator call the same code; the toolkit chain lives on only for the FDP examples (`CE-3052`) |
+| ⭐ **`EqsModule.ForTerrainHost(world)`** owns the grid, the builder and the visual template; `EqsSolverStartup` uses it on every host | one factory, so a host cannot wire sight and forget the grid. The editor's `SwitchToExternalAsync` now uninstalls the EQS module (it carries vision, as the deleted perception module did) |
+| ⭐ **budget 150 000 units** (was 12 000) | 📐 measured (debug, 500 m all-round vision, 1 km²): 100 / 250 / 500 / 1000 units = 23 k / 71 k / 142 k / 281 k units, 9.6 / 36 / 76 / 230 ms — the old chain was 7–10 / 22–33 / 52–72 / 168–283 ms (§9.1). ⇒ every sensor every tick up to ~500 units, as the chain did; beyond, oldest first. The 400 ms timeout moved to `EqsModule` |
+| 🔴 **`CE-3051` — every catalog unit was `Neutral` on SimHost** | `WithFaction` was a no-op; SimHost's force comes from the behaviour profile, CGF's from the map symbol ⇒ the nodes disagreed, and vision (old and new) ignores its own force ⇒ real perception saw nobody on a cluster. Found by the rewritten `CE-3050` rail's per-hop diagnostics |
+| ⭐ **`CE-3050`** — real M1 vs T-72 | acquire → CGF track → score → out of sight → Lost → decay. ⚠ the decay is measured from the moment the track is LOST: the score keeps rising through the hysteresis window |
+| 🔴 **`CE-3053` — a unit's children outlived it on SimHost and CGF** | `SubEntityCleanupSystem` was registered only on a pure IG (against `REPL-DESIGN.md` §4.4). `SubEntityCascadeDestroyTests` had passed VACUOUSLY — the test unit had no children; the implicit visual sensor gave it one. Registered on every node |
+| ⏳ modality on the wire | still Visual-only in practice (no other kind has a template yet) — lands with S7 thermal / acoustic |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2623/0, 1 skipped |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1082/0, 3 skipped (+2: parity · implicit sensor; the CognitiveSpatialModule policy rail deleted with it) |
+| Editor · Core · NodeComposition · NED · Blueprints | each full suite | 463/0 · 185/0 · 55/0 · 133/0 · 4128/0 |
+| cross-node EQS + sensors (row 8) | `ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | ⭐ **96/0** — `SensorMechanism_EndToEnd` GREEN for the first time (real perception) |
+| cross-node, the suites a full run failed | `--filter` SubEntityCascade, SplitAuthority, EgressShadow, SimTimeSync, Gizmo, Lifecycle, Ghost, Ownership, … | 40/2 — `MapPlacement…` and `UrbanCombatFileLifecycle…` red on base `749266ddc` too. ⚠ The FULL suite is not gateable (75 of several hundred ran, then cascading 1 ms failures — the known DDS-allocator crash, run under load) |
+| Stride | `dotnet build HrotStrideApp.Game.Tests -p:EnableWindowsTargeting=true` | builds; ⚠ its tests need Windows |
+| examples | Examples.Scenarios · UrbanCombat · Overlays | 53/3 (the 3 `UrbanCombatNew…` = `CE-321`, red on base) · 29/0 · 29/0 |
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 
