@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-04
 build-state: READY-TO-BUILD — every decision approved (R-185 … R-189); §9 lists the details the build must verify first.
-current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin, §9 build plan.
+current-answer: the whole file — §1 rulings, §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine), §9 build plan.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict:
@@ -23,7 +23,7 @@ related-designs:
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
 
-Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3039` (§9).
+Tracker: [`CE-3033`](blueprints/Blueprint_Issues_Tracker.md) (design) · build rows `CE-3034` … `CE-3041` (§9).
 
 ## 1. What was decided *(all approved by the user, `2026-10-04`)*
 
@@ -306,6 +306,88 @@ the gate keeps refusing, and the first tick after the order ends is autonomous a
 | `BehaviorStartRecord` (reload restart) | one per entity | ⭐ one per slot |
 | channel preemption (`ChannelArbitrationSystem.cs:44`) | `BehaviorState.InstanceId` | unchanged — the disjoint token space is the point (§6) |
 
+### 7.3 How a BTree, an HSM and a blueprint REACT to a sensor *(user, `2026-10-04`: "Agreed, add it to the design")*
+
+> 🔒 *"How can btree and hsm respond to sensor results? Can sensor result change be propagated as fdp bus event or
+> something or the polled conditions are enough?"*
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsResultUpdateSystem { <<existing Brain, PRODUCER>> writes EqsCognitiveBuffer +publishes SensorChangedEvent }
+  class ThreatEvaluationSystem { <<existing Brain, PRODUCER>> writes TargetMemory +publishes FirstThreat / AllClear }
+  class SensorChangedEvent { <<NEW unmanaged bus event>> +Entity Unit +Entity Sensor +SensorModality Kind +SensorChange What }
+  class SensorChange { <<NEW enum>> Acquired Lost TopChanged FirstThreat AllClear }
+  class SensorHsmEventIds { <<NEW reserved HSM ids, beside MobilityLost>> one id per SensorChange }
+  class HsmRunner { <<existing, grows>> MobilityLost bridge +SensorChangedEvent bridge }
+  class HsmEventQueue { <<existing>> TryEnqueue(HsmEvent: id + 16-byte payload) }
+  class ObserverSelector { <<existing NodeType, interpreter grows>> re-checks higher branches each tick, aborts the lower one }
+  class WhenNode { <<existing blueprint>> EventFired(SensorChanged) · EqsResult TopChanged / ScoreCrossed }
+  EqsResultUpdateSystem ..> SensorChangedEvent
+  ThreatEvaluationSystem ..> SensorChangedEvent
+  SensorChangedEvent --> SensorChange
+  HsmRunner ..> SensorChangedEvent : reads, for ctx.Self
+  HsmRunner ..> SensorHsmEventIds
+  HsmRunner ..> HsmEventQueue : payload = Kind + Sensor
+  WhenNode ..> SensorChangedEvent
+```
+
+*What the picture shows that prose hid:* ONE producer per fact (the system that already writes it), and each tier
+consumes it the way it already consumes anything — the HSM through the queue that carries MobilityLost today, the
+blueprint through `When`, the BTree not through the event at all.
+
+| tier | how it reacts | why this way |
+|---|---|---|
+| **HSM** | ⭐ **event-driven**: `HsmRunner` turns this frame's `SensorChangedEvent`s for its entity into reserved HSM events (kind + sensor in the 16-byte payload), exactly as it does MobilityLost (`HsmRunner.cs:45-49`). Authors write *On ThreatAppeared → Engaged*. Polled guards (CE-381) stay for "while X holds" | the queue exists and is fed by one event today; an edge is what a transition wants |
+| **BTree** | ⭐ **polled conditions — sufficient once `ObserverSelector` works**: each tick it re-checks the leading condition of every HIGHER-priority branch; one turning true aborts the running lower branch (its exit sweep, `SweepExitedNode`) and switches | a BTree ticks every frame anyway — an event adds nothing. What is missing is the ABORT: today a running branch is never re-checked (`Interpreter.cs:613-635`), and `ObserverSelector` — documented as *"abort-on-priority-change"* (`Fbt.Kernel.md:269`) — runs as a plain selector (`Interpreter.cs:267`) |
+| **Blueprint** | `When EventFired(SensorChanged)` for an edge, `When EqsResult(TopChanged / ScoreCrossed)` for a result | both exist; nothing new but the event |
+| **both slots** | the doctrine and the behaviour receive the same events (`HsmRunner` runs per slot) | a doctrine HSM switches mode on *FirstThreat* while the behaviour HSM reacts tactically |
+
+⭐ **Why edges come from the producer:** *acquired / lost / first threat / all clear* are TRANSITIONS. The producer
+already holds the previous state (the memory stage sends changes only; `TargetMemory` knows its count) — a polled
+condition would have to remember the previous state itself, in every condition that cares.
+
+⛔ **Rejected:** events only (a BTree has no event entry, and "while threatened" needs polling anyway) · polling only
+(every HSM transition a polled guard, every condition re-deriving edges) · one event type per sensor kind (the `Kind`
+field covers it).
+
+### 7.4 Replacing a doctrine at runtime
+
+> 🔒 *"How could we replace a doctrine at runtime?"*
+
+```mermaid
+sequenceDiagram
+  participant C as operator / superior / scenario script
+  participant W as TacticalIntentRequest (DDS, only when the unit is on another node)
+  participant I as BehaviorIngressSystem
+  participant D0 as old doctrine (slot 2)
+  participant D1 as new doctrine (slot 2)
+  participant B as behaviour (slot 1)
+  C->>W: Kind = Doctrine, name, params, Origin
+  W->>I: AssignDoctrineEvent {Entity, Doctrine, Params, Origin}
+  I->>I: gate: Origin ≥ DoctrineState.Origin (who set the current doctrine)?
+  alt refused
+    I-->>C: logged once
+  else admitted
+    I->>D0: ClearDoctrine — BehaviorOwnedParts.Release(doctrine token): its sensors go, its overrides revert to TKB
+    I->>D1: StartDoctrine — new token (high bit), slot-salted keys
+    Note over B: keeps running — the unit does not freeze mid-move
+    D1->>I: first tick: may replace B (B was assigned with Origin = Doctrine)
+  end
+```
+
+*What the picture shows that prose hid:* a doctrine change does NOT touch the running behaviour — the new doctrine
+takes over through the same gate on its first tick; and the old doctrine's sensors die with it because they are
+owned by ITS token, not the behaviour's (the §7.2 `OwnerOf` re-key is what makes this true).
+
+| rule | |
+|---|---|
+| who may replace | the same origin rule against `DoctrineState.Origin`: an operator, a superior (a commander setting *aggressive / defensive* — the natural "goal, not order" lever, Utility §10.4), a scenario script. The TKB default is the lowest rank |
+| clear | `ClearDoctrineEvent` ⇒ no doctrine ⇒ brain-dead, manual control (R-188 A) |
+| hot reload | the behaviour reload path with a start record per slot (§7.2) |
+| across nodes | assign / clear stay local-bus; the ONE wire path is the intent topic, which gains a `Kind` (Behaviour / Doctrine) beside `Origin` |
+| ⛔ rejected | resetting the running behaviour on a doctrine change (a frozen tick mid-action) · a separate doctrine topic (two wire paths for one kind of order) |
+
 ## 8. Claim table
 
 | claim | code — how it IS | design — how it was MEANT |
@@ -319,6 +401,10 @@ the gate keeps refusing, and the first tick after the order ends is autonomous a
 | perception forwards only `SensorTrackStateEvent` to the world | ✅ `CognitiveSpatialModule.cs:124-127` | — |
 | only `AssignTacticalIntentEvent` crosses nodes | ✅ DDS `TacticalIntentRequest`; assign / clear are local-bus | ⛔ searched, none — so Origin must ride that topic too |
 | the solver budget is wall clock | ✅ `EqsModule.cs:42` (4 ms), `QueryTimeSliced` | ✅ EQS §7.6 — superseded by §5.3 |
+| an HSM has an event queue with a payload; only MobilityLost is fed | ✅ `HsmEvent.cs` (id, priority, 16-byte payload); `HsmRunner.cs:45-49` | ✅ AI_DEV_GUIDE §8 |
+| an HSM has polled transitions | ✅ `ReservedEventIds.Polled` (`Enums.cs`) | ✅ CE-381 |
+| a running BTree branch is never re-checked; `ObserverSelector` = plain selector | ✅ `Interpreter.cs:613-635`, `:267` | ✅ `Fbt.Kernel.md:269` — designed as abort-on-priority-change, not built |
+| the Brain writes sensor results in one place | ✅ `EqsResultUpdateSystem.cs:41` | ✅ EQS §3.1 step 6 |
 
 ## 9. Build plan
 
@@ -326,11 +412,13 @@ the gate keeps refusing, and the first tick after the order ends is autonomous a
 |---|---|---|---|
 | **S0** | `CE-3032` | perception never trips the breaker: log the breaker opening loudly; cap the visual pass until S4 replaces it | a load rail: N observers, breaker stays closed |
 | **S1** | `CE-3034` | `BehaviorOrigin` on the four events + `BehaviorState.Origin` + the gate in `BehaviorIngressSystem`; origin on the DDS intent topic; the existing publishers stamped (§6 table) | gate rails: Doctrine cannot replace Operator / Superior; Self chains keep origin; finish is never gated; unmarked = Operator |
-| **S2** | `CE-3035` | `DoctrineState` + `BrainSlot`; `BrainTickSystem` loops both slots; the §7.2 re-keys; `AssignDoctrineEvent` / `ClearDoctrineEvent`; `BehaviorTkbTranslator.DefaultDoctrineHash` (pending start on the authority node); the *assign behaviour to self* action for BTree / HSM / blueprint; a doctrine never finishes, a fault stops it | one rail per tier: a doctrine assigns, an operator order preempts, the order ends, the doctrine resumes (§7.1) — on the editor AND `--mode all` |
+| **S2** | `CE-3035` | `DoctrineState` + `BrainSlot`; `BrainTickSystem` loops both slots; the §7.2 re-keys; `AssignDoctrineEvent` / `ClearDoctrineEvent` with the origin gate against `DoctrineState.Origin` and the intent topic's `Kind` (§7.4); `BehaviorTkbTranslator.DefaultDoctrineHash` (pending start on the authority node); the *assign behaviour to self* action for BTree / HSM / blueprint; a doctrine never finishes, a fault stops it | one rail per tier: a doctrine assigns, an operator order preempts, the order ends, the doctrine resumes (§7.1) — on the editor AND `--mode all` |
 | **S3** | `CE-3036` | the sensor list in the TKB (+ implicit visual entry), `SensorChildFactory`, `SensorTag`, `SensorCapability`, children 1000+i on every node, `AllocatePartId` skips 1000+, `ConfigKind` / `ConfigJson` on the wire, refusal on bad JSON, `Disabled`, override + switch, `Sensors.Of` | a NEW sensor kind in tests only (I ①): TKB child on both nodes with matching keys; behaviour-spawned thermal; override; switch off ⇒ solver skips; run end ⇒ back to default |
 | **S4** | `CE-3037` | the memory stage in the solver (debounce, acquired / lost, push stimuli); cost-unit budget (§5.3) replacing wall-clock slicing; EQS §7.5–7.6 marked SUPERSEDED | determinism rail: same scenario, same schedule twice; heavy sensor runs alone; result age visible |
 | **S5** | `CE-3038` | visual perception MOVES: a visual template = today's broadphase + sight; `CognitiveSpatialModule` chain deleted in the same change; `TargetMemory` fed from the memory stage | ⭐ the EXISTING perception suites stay green unchanged — they are the parity proof |
 | **S6** | `CE-3039` | the AI side: read-sensor node (BTree / HSM / blueprint) keyed by kind; `TargetMemory` accessors (top threat, count above score); hit / shot-heard as blueprint events; `When` EQS modes verified live | a doctrine blueprint that reacts to a threat end to end |
+| **S6b** | `CE-3040` | `SensorChangedEvent` from its two producers; the `HsmRunner` bridge with reserved HSM ids (§7.3) | an HSM doctrine switches to *Engaged* on *FirstThreat*, both slots receive it |
+| **S6c** | `CE-3041` | ⭐ **behaviors lane** (BTree infrastructure): `ObserverSelector` re-checks higher branches and aborts the running lower one via the exit sweep | a BTree in a long move branch switches to cover the tick a threat appears |
 | S7 | later | thermal / acoustic templates | — |
 
 ⭐ **Order:** S0 first (a live defect). S1 → S2 are independent of S3 → S6 and can run in parallel lanes.
@@ -344,3 +432,4 @@ the gate keeps refusing, and the first tick after the order ends is autonomous a
 | **V3** | who owns result part 1000+i for the publish gate when no config sample recorded a solver (R-179)? | the parent's Perception owner by the default ownership rule; with one SimHost, today's behaviour |
 | **V4** | can a doctrine's high-bit token alias a behaviour token in `StampOwner`'s 16 bits? | stamp the slot into bit 15 of the stamp |
 | **V5** | `BehaviorTkbTranslator` writes `BehaviorState` directly, skipping params and HSM init — does the doctrine default need the full start? | ⭐ yes: the doctrine uses a pending start through `BehaviorIngressSystem`; the behaviour default gets the same fix (finding) |
+| **V6** | is a bus event published by `EqsResultUpdateSystem` visible to `BrainTickSystem` the SAME frame or the next? | either is fine — state the latency in the rail (≤ 1 frame) |
