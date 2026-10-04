@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// for everything, a gate on the OBSERVER's <c>TargetMemory</c> (a child sensor's carrier has none ⇒ the test never ran),
     /// and flag bit 0 meaning "covered from slot 1".
     /// </summary>
-    public sealed class CheapLineOfSightTest : IEqsTest
+    public sealed class CheapLineOfSightTest : IEqsTest, IEqsCostWeight
     {
         private readonly ILosService? _los;
 
@@ -62,6 +62,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public EqsLosRequire Require { get; set; } = EqsLosRequire.Hidden;
 
         /// <inheritdoc/>
+        /// <inheritdoc/>
+        public int CostPerCandidate => EqsCost.Sight;   // CE-3037 — sight weight (DESIGN_Sensors_And_Doctrine §5.3)
+
         public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
 
         /// <inheritdoc/>

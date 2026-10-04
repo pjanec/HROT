@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03
+updated: 2026-10-04
 build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01) · §19 — the terrain EQS slice BUILT (2026-10-03)
 current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
@@ -8,6 +8,7 @@ stale-below: nothing is superseded, but §6.4 (hot reload) describes intent that
   pack is 6 of 8 since §19 (FindNearestEnemy/Ally and FindAllyForFormation not built; FindThreatsInView, FindFlankingPosition,
   FindSafeRetreatPoint, FindOpenFiringPosition built §19.6). §9.1's "baked occluder grid" is the terrain world (§19.5).
 known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordinator ... registrars invoked" — the
+  ALSO: §7.6 (wall-clock time slicing) is SUPERSEDED by docs/DESIGN_Sensors_And_Doctrine.md §5.3–§5.4 (S4, 2026-10-04); §7.5's shares are kept, counted in work units.
   generated registrar registers a BlueprintDefinition, not the template, and the coordinator has no EQS code (§16).
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
@@ -565,6 +566,9 @@ Consequence: a fully-accurate-LOS query has a **minimum latency of approximately
 
 ### 7.5 Budget bands
 
+> ⭐ **AS-BUILT `2026-10-04` (S4, `CE-3037`)** — the shares below are KEPT, but counted in WORK UNITS, not milliseconds:
+> [`DESIGN_Sensors_And_Doctrine.md`](../../DESIGN_Sensors_And_Doctrine.md) §5.3–§5.4, §9.3 (`EqsSchedule`, `EqsCost`).
+
 Three priority bands with proportional budget allocation:
 
 - Critical: ~50% of soft budget. Unused slack rolls to Normal.
@@ -574,6 +578,10 @@ Three priority bands with proportional budget allocation:
 Within a band, FIFO with age tiebreak. No cross-instance cost prediction in v1.
 
 ### 7.6 Time-slicing within a phase
+
+> ⛔ **SUPERSEDED `2026-10-04` (S4, `CE-3037`)** — wall-clock slicing scheduled a different set of sensors on every run and
+> machine. The solver now runs whole sensors in a deterministic order within a counted-work budget:
+> [`DESIGN_Sensors_And_Doctrine.md`](../../DESIGN_Sensors_And_Doctrine.md) §5.3–§5.4. The text below is HISTORY.
 
 Uses `EntityRepository.QueryTimeSliced` with `TimeSliceMetric.WallClockTime` and a per-sensor `IteratorState`. The enumerator interrupts between candidates when the band's allocated budget is exhausted, saving `NextCandidateIndex`. Next solver tick resumes from where it left off.
 

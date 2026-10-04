@@ -275,6 +275,9 @@ namespace Hrot.Network.NED.SimHost
             if (config != null)
             {
                 cmd.AddComponent(child, new SensorTag { Kind = config.Kind });
+                // ⚠ registered on first use, as SensorChildFactory.SetCapability does — 🔴 a node that had built no TKB sensor
+                //   yet threw at playback ("SensorCapability not registered"), found by the CE-3036 cross-node rail.
+                if (view is EntityRepository repoN) repoN.RegisterManagedComponent<SensorCapability>();
                 cmd.AddManagedComponent(child, new SensorCapability { Default = config, Current = config });
             }
             Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, child, view);   // CE-3045 — a carrier is never saved

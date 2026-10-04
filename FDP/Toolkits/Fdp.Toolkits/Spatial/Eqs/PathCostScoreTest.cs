@@ -11,9 +11,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// Rejects candidates where no navmesh path exists (EntityId = -1L).
     /// Runs in ScoreExpensive phase.
     /// </summary>
-    public sealed class PathCostScoreTest : IEqsTest
+    public sealed class PathCostScoreTest : IEqsTest, IEqsCostWeight
     {
         /// <inheritdoc/>
+        /// <inheritdoc/>
+        public int CostPerCandidate => EqsCost.Path;   // CE-3037 — path weight (DESIGN_Sensors_And_Doctrine §5.3)
+
         public EqsTestPhase Phase => EqsTestPhase.ScoreExpensive;
 
         /// <inheritdoc/>

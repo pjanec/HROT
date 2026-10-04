@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-04
-build-state: BUILDING — S0 (§9.1) and S3 (§9.2) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
+build-state: BUILDING — S0 (§9.1), S3 (§9.2) and S4 (§9.3) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
 known-rot: §7.5's first version (an authored AiAssignment component, R-190) is SUPERSEDED by the snapshot concept (R-192) — the section was rewritten in place, 2026-10-04.
 known-conflict:
-  - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.5–7.6 (wall-clock budget bands, QueryTimeSliced) — superseded by §5.3 here (cost-unit budget) once step S4 lands; that doc gets the SUPERSEDED marker in the same change.
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
@@ -221,9 +221,9 @@ there is no second wire mechanism (the per-unit bitmask was rejected for exactly
 
 | rule | |
 |---|---|
-| each evaluation COUNTS its work | candidates generated ×1 · cheap test ×1 per candidate · sight check ×4 · path query ×16 (weights are constants, tuned once) |
+| each evaluation COUNTS its work | ⭐ as-built: **+100 per evaluation** (the measured fixed overhead, §9.3) · candidates generated ×1 · cheap test ×1 per candidate · sight check ×4 · path query ×16 (`EqsCost`; a test declares its weight with `IEqsCostWeight`) |
 | a tick stops starting new sensors when the budget is spent | a sensor already started finishes this tick; a single sensor over the whole budget still completes and runs alone |
-| order | priority band (Critical / Normal / Low), then OLDEST result first |
+| order | priority band (Critical / Normal / Low), then OLDEST result first. ⭐ as-built: each band SPENDS ITS SHARE (Critical 50 %, Normal 35 %, Low the rest, slack rolling down — EQS 1.3 §7.5's shares, kept) and the oldest of every band always starts. ⛔ A strict band order would starve Low forever under load |
 | every result carries its age | `EqsCognitiveBuffer.LastUpdateTick` (exists) |
 | replaces | `QueryTimeSliced(…, WallClockTime)` (EQS §7.6) — ⛔ not deterministic |
 | ⛔ never | the ballistics raycast queue: sync, every request per frame, outside this budget (H) |
@@ -231,6 +231,77 @@ there is no second wire mechanism (the per-unit bitmask was rejected for exactly
 ⭐ **Why counted work:** a sensor count treats a 200-candidate thermal sweep like a 4-point offset query; milliseconds
 differ per machine and per run. Counted work is proportional AND repeatable — the same scenario schedules the same
 sensors on every run.
+
+### 5.4 The solver tick — budget + memory stage (S4, `CE-3037` / `CE-3046`)
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<BUILT, reworked>> +BudgetUnits=12000 +LastSchedule +LastSpentUnits ⛔ EqsBudgetMs ⛔ QueryTimeSliced }
+  class EqsSchedule { <<BUILT>> +Add() +Ordered() band, oldest, index +ShouldStart(bandSpent, estimate, bandBudget) +CumulativeShare(rank) }
+  class EqsCost { <<BUILT static>> Sensor=100 Candidate=1 Cheap=1 Sight=4 Path=16 +WeightOf(test) }
+  class IEqsCostWeight { <<NEW interface, optional>> +CostPerCandidate }
+  class EqsPriorityBand { <<NEW enum>> Normal=0 Critical=1 Low=2 }
+  class SensorEvalState { <<existing, grows>> +LastSolvedTick +LastCost }
+  class SensorMemoryStage { <<BUILT, in the solver>> +Begin(repo) +Observe(view, sensor, tick, results) +Clear(view, sensor) +Flush(view, cmd) }
+  class ContactHysteresis { <<NEW static, ONE rule>> +Apply(ref list, tick, onAcquired, onLost) }
+  class SensorContactList { <<existing>> now ALSO on each perception sensor child }
+  class SensorTrackDebounceSystem { <<existing, S5 deletes>> uses ContactHysteresis }
+  class SensorTrackStateEvent { <<existing>> Observer = the UNIT }
+  class TargetMemory { <<existing>> +Forget() · a new contact always enters }
+  class ThreatEvaluationSystem { <<existing, CGF>> forgets dead / faded / untracked }
+  EqsSolverSystem ..> EqsSchedule
+  EqsSolverSystem ..> EqsCost
+  EqsCost ..> IEqsCostWeight
+  EqsSchedule ..> EqsPriorityBand
+  EqsSchedule ..> SensorEvalState
+  EqsSolverSystem ..> SensorMemoryStage
+  SensorMemoryStage ..> ContactHysteresis
+  SensorTrackDebounceSystem ..> ContactHysteresis
+  SensorMemoryStage ..> SensorContactList
+  SensorMemoryStage ..> SensorTrackStateEvent
+  ThreatEvaluationSystem ..> TargetMemory
+```
+
+*What the picture shows that prose hid:* the debounce rule exists ONCE (`ContactHysteresis`) and both the old visual
+chain and the new memory stage call it until S5 deletes the chain; the memory stage writes one list PER SENSOR (each
+sensor is evaluated once per tick, so it has exactly one writer) and reports transitions of the UNIT's union.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (Muscle, 10 Hz)
+  participant O as EqsSchedule
+  participant T as template (generate, tests)
+  participant M as SensorMemoryStage
+  participant E as SensorTrackState egress
+  S->>O: every live sensor
+  O-->>S: ordered: band, then oldest LastSolvedTick, then entity index
+  loop each sensor in order
+    alt spent >= budget, or (spent > 0 and spent + LastCost > budget)
+      S->>S: not started this tick (stays oldest ⇒ first next tick, alone if heavy)
+    else
+      S->>T: evaluate, counting work units
+      T-->>S: results + cost
+      S->>M: sightings of a perception sensor (has SensorTag)
+    end
+  end
+  S->>M: Flush
+  M->>M: per sensor: ContactHysteresis on its own list
+  M->>M: per unit: union of its sensors' acquired sets, before vs after
+  M->>E: SensorTrackStateEvent only where the UNION changed
+```
+
+*What the picture shows that prose hid:* a unit's track is lost only when NO sensor of the unit still holds it — one
+sensor losing a target another sensor sees changes nothing on the wire.
+
+| why | |
+|---|---|
+| ⭐ estimate = the sensor's cost LAST time it ran | deterministic (counted, not timed); a sensor too heavy for what is left waits one tick and then runs first in its band, alone if it must |
+| ⭐ `EqsPriorityBand.Normal = 0` | every existing creator leaves `Priority` 0 — it stays Normal with no change |
+| ⭐ the memory stage only for a sensor with a `SensorTag` | a cover or position query is not a sighting |
+| ⚠ until S5: the visual chain debounces on its own | a radar keeps a target the eyes lost? the eyes' own Lost still reaches the Brain. S5 removes the second producer |
+| ⏳ modality on the wire (`SensorTrackState`) | an IDL change — S5, where `TargetMemory` is fed with the sensor's modality |
+| ⭐ `CE-3046`: forget = target dead · OR faded below `ForgetScore` while no sensor tracks it | the score already IS a function of unseen time (10 %/s decay) — a second "unseen N s" clock would restate it. A new contact always enters, evicting the lowest score (ties: the oldest sighting) |
 
 ## 6. Doctrine and origin — classes
 
@@ -565,7 +636,32 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 |---|---|---|
 | Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2621/0, 1 skipped (base 2612 + 9 new) |
 | SimHost perception / EQS / LOS | `dotnet test Hrot.SimHost.Tests --filter Perception\|Sensor\|Eqs\|Los` | 30/0 (+1 new: a new sensor kind built, solved, overridden, switched, restored) |
-| cross-node EQS (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs` | 93/0 (+2 new: a TKB sensor answered with no config on the wire + override reaches the Muscle; JSON config, refusal, TKB restore) |
+| cross-node EQS (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs` | ⛔ **CORRECTED with S4:** the *93/0* first recorded here ran a STALE test binary — the two new rails did not compile (`EntityRepository.GetManagedComponentRO` is not visible there), and the build line was misread. Re-run with S4 (§9.3): the rails pass, and one of them found a real defect ⇒ next row |
+| ⭐ found by the corrected rail | — | the Muscle ingress added a `SensorCapability` on a node that had built no TKB sensor yet ⇒ *"SensorCapability not registered"* at playback. Fixed: registered on first use, as `SensorChildFactory.SetCapability` does |
+
+### 9.3 As-built — S4 / `CE-3037` + `CE-3046` *(`2026-10-04`)*
+
+⭐ §5.4's diagrams are the as-built picture. What the build decided or changed, and why:
+
+| decision / deviation | why |
+|---|---|
+| ⭐ **band SHARES, not strict band order** | strict order (§5.3 as first written) starves Low whenever Critical + Normal fill the budget; EQS 1.3 §7.5's shares do not, and stay deterministic |
+| ⭐ **+100 units per evaluation** (`EqsCost.Sensor`) | 📐 measured: 100 sensors over 50 / 200 / 800 targets = 4.2 / 8.5 / 21.3 ms for 3 042 / 12 981 / 53 073 counted units ⇒ ~32 µs fixed per sensor + ~0.34 µs per unit. Without the fixed term, 100 tiny sensors would read as cheap |
+| ⭐ **`BudgetUnits = 12 000`** | the old 4 ms wall budget in measured units (debug build) — ~40 typical sensors a tick |
+| ⚠ O5 only partly measured | sight (×4) and path (×16) stay design constants: the probe had no terrain or navmesh to time them against |
+| ⭐ the memory stage keeps a `SensorContactList` on each perception SENSOR CHILD; the visual chain's query now excludes sensor children | one writer per component — the visual chain owns the unit's list, the solver owns each sensor's |
+| ⭐ a suspended perception sensor clears its list | an ended sensor holds nothing; its targets leave the unit's union |
+| ⭐ the solver persists `SensorEvalState` ONCE per evaluation (was: up to four places) | the schedule fields ride along; an unknown template now also records its state |
+| ⏳ the 400 ms `CognitiveSpatialModule` timeout (S0) STAYS | the budget bounds the EQS solver, not the visual chain — S5 moves vision onto EQS, then the margin goes |
+| ⭐ `CE-3046`: a new contact always enters (lowest score evicted, ties: oldest sighting); dead or faded-and-untracked entries are forgotten | §5.4 table |
+
+| gate | command | result |
+|---|---|---|
+| Toolkits full | `dotnet test Fdp.Toolkits.Tests` | 2623/0, 1 skipped (+3 CE-3046, one test re-pinned: *17th contact enters*) |
+| SimHost full | `dotnet test Hrot.SimHost.Tests` | 1081/0, 3 skipped (+4 S4: deterministic schedule · every band every tick · heavy waits then runs alone · memory-stage union) |
+| cross-node EQS + sensors (row 8) | `dotnet test ClusterRunner.Integration.Tests --filter Eqs\|Sensor\|Perception` | 95/1 — the one red is `SensorMechanism_EndToEnd_…`, red on base (`CE-3050`). ⚠ Five EQS rails seeded `TargetMemory` with FAKE target ids (`1L`, `2L`, `999L`, `0`); `CE-3046` now forgets a target that does not exist, so they were given live targets — the realistic case |
+| editor | `dotnet test Hrot.Editor.Tests` | 463/0, 2 skipped |
+| examples · overlays · blueprints *(restored first — they had no `project.assets.json`)* | each project's full suite | Examples.Scenarios 53/3 — ⚠ the 3 `UrbanCombatNew…` reds are red on base `d26f23ec1` too (`CE-321`: the insurgent takes no damage); UrbanCombat 29/0 · Overlays 29/0 · Blueprints 4128/0 |
 
 ### Verify before building — ✅ MEASURED `2026-10-04` *(user: "measure the checks so they dont come from the build late")*
 

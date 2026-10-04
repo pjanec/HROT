@@ -168,7 +168,7 @@ public sealed class EqsFlatTerrainGoldenTests
         });
 
         var mem = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem, entityId: 999L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         harness.Repo.AddComponent(observer, mem);
 
         var targetEntity = harness.Repo.CreateEntity();

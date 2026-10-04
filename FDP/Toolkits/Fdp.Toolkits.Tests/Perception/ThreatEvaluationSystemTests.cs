@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Seed TargetMemory with a single entry at score 100.
             var initMem = new TargetMemory();
             TargetMemory.AddOrUpdateTarget(ref initMem,
-                entityId:   42L,
+                entityId:   Target(world),
                 posX:       10f,
                 posY:       20f,
                 scoreBoost: 100f,
@@ -86,7 +86,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
 
-            const long targetEntityId = 12345L;
+            long targetEntityId = Target(world);   // CE-3046 — a live target (a dead one is forgotten)
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
@@ -114,16 +114,16 @@ namespace Fdp.Toolkit.Perception.Tests
                 "Boost rate must be approximately 50 * deltaTime per second.");
         }
 
-        // ── Test 3: zero-score retention policy ──────────────────────────────────────
+        // ── Test 3: CE-3046 — a faded entry no sensor tracks is FORGOTTEN ───────────
 
         /// <summary>
-        /// Phase 2 policy: zero-score entries are retained (not evicted).
-        /// When eviction is added in a future phase, change assertion to Count == 0.
+        /// ⭐ CE-3046 — once a score fades below <see cref="PerceptionConstants.ForgetThreatScore"/> and no sensor tracks the
+        /// target, the entry is removed. 🔴 It used to be retained forever ("Phase 2 policy"), so a long scenario filled the
+        /// table with dead and long-lost targets.
         /// </summary>
         [Fact]
-        public unsafe void ThreatEvaluation_ZeroScoreEntry_IsRetained()
+        public unsafe void ThreatEvaluation_FadedUntrackedEntry_IsForgotten_CE3046()
         {
-            // Arrange
             var world = PerceptionTestWorldFactory.Create();
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
@@ -132,7 +132,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
             var initMem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: 99L, posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: Target(world), posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
             world.AddComponent(observer, initMem);
 
             // Apply dt large enough to drive score to 0.
@@ -141,10 +141,61 @@ namespace Fdp.Toolkit.Perception.Tests
             sys.Execute(view, dt);
             FlushEcbAndSwap(view, world);
 
-            var resultMem = world.GetComponent<TargetMemory>(observer);
-            Assert.Equal(1, resultMem.Count);
-            Assert.Equal(0f, resultMem.ThreatScores[0]);
+            Assert.Equal(0, world.GetComponent<TargetMemory>(observer).Count);
         }
+
+        /// <summary>⭐ CE-3046 — a target that no longer exists is forgotten at once, whatever its score.</summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_DeadTarget_IsForgotten_CE3046()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long alive = Target(world);
+            var gone   = world.CreateEntity();
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: alive, posX: 0f, posY: 0f, scoreBoost: 100f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: (long)gone.PackedValue, posX: 0f, posY: 0f, scoreBoost: 400f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            world.DestroyEntity(gone);
+
+            sys.Execute(view, 0.1f);
+            FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(alive, mem.EntityIds[0]);
+        }
+
+        /// <summary>⭐ CE-3046 — a faded entry a sensor STILL tracks is kept (it is boosted back up).</summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_FadedButTrackedEntry_IsKept_CE3046()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long id = Target(world);
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: id, posX: 0f, posY: 0f, scoreBoost: 0.01f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = id;
+            tracks.Count = 1;
+            world.AddComponent(observer, tracks);
+
+            sys.Execute(view, 0.001f);   // boost 0.05: still under the forget threshold
+            FlushEcbAndSwap(view, world);
+
+            Assert.Equal(1, world.GetComponent<TargetMemory>(observer).Count);
+        }
+
+        private static long Target(EntityRepository world) => (long)world.CreateEntity().PackedValue;
 
         // ── Test 4: no crash with no TargetMemory entities ───────────────────────────
 
@@ -181,7 +232,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
             var initMem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: 7L, posX: 1f, posY: 1f, scoreBoost: 100f, tick: 0u);
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: Target(world), posX: 1f, posY: 1f, scoreBoost: 100f, tick: 0u);
             world.AddComponent(observer, initMem);
 
             sys.Execute(view, 1.0f);
@@ -207,7 +258,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var view  = (ISimulationView)world;
             var sys   = new ThreatEvaluationSystem();
 
-            const long targetId = 999L;
+            long targetId = Target(world);
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
@@ -349,10 +400,10 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Two active tracks.
             var tracks = new ActiveSensorTracks();
-            tracks.EntityIds[0]  = 111L;
+            tracks.EntityIds[0]  = Target(world);
             tracks.PositionsX[0] = 10f;
             tracks.PositionsY[0] = 0f;
-            tracks.EntityIds[1]  = 222L;
+            tracks.EntityIds[1]  = Target(world);
             tracks.PositionsX[1] = 20f;
             tracks.PositionsY[1] = 0f;
             tracks.Count = 2;

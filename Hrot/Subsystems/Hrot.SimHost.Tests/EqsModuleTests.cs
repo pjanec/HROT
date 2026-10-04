@@ -10,6 +10,7 @@ using Fdp.ModuleHost.Providers;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Perception.Translators;
 using Fdp.Toolkit.Replication.Components;
@@ -533,6 +534,217 @@ namespace Hrot.SimHost.Tests
             Assert.True(UnitSensors.TryGetResults(_world, unit, SensorModality.Radar, out var r3));
             Assert.Equal(1, r3.Count);                       // back to the TKB default: 100 m, ON
             _ = before;
+        }
+
+        // ── CE-3037 (S4) — counted-work budget + the memory stage ──────────────────────────────────────────────────────
+
+        /// <summary>Generates <c>n</c> positional candidates — a sensor whose cost is exactly <c>EqsCost.Sensor + n</c> units
+        /// (light = 110, heavy = 1100).</summary>
+        private sealed class FixedCostGenerator : IEqsGenerator
+        {
+            private readonly int _n;
+            public FixedCostGenerator(int n) => _n = n;
+            public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+            {
+                for (int i = 0; i < _n; i++) candidates[i] = new EqsResult { EntityId = 0L, PositionX = i, Score = 1f };
+                return _n;
+            }
+        }
+
+        private const uint Light = 0x5401u, Heavy = 0x5402u;
+
+        private static EntityRepository ScheduleWorld()
+        {
+            var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            var reg = new SimpleTemplates();
+            reg.Add(new EqsQueryTemplate { BlueprintId = Light, Generator = new FixedCostGenerator(10), MaxCandidates = 16 });
+            reg.Add(new EqsQueryTemplate { BlueprintId = Heavy, Generator = new FixedCostGenerator(1000), MaxCandidates = 1024 });
+            w.SetSingletonManaged<IEqsTemplateRegistry>(reg);
+            return w;
+        }
+
+        private sealed class SimpleTemplates : IEqsTemplateRegistry
+        {
+            private readonly Dictionary<uint, EqsQueryTemplate> _t = new();
+            public void Add(EqsQueryTemplate t) => _t[t.BlueprintId] = t;
+            public bool TryGetTemplate(uint id, out EqsQueryTemplate t) => _t.TryGetValue(id, out t!);
+        }
+
+        private static Entity LocalSensor(EntityRepository w, uint template, EqsPriorityBand band = EqsPriorityBand.Normal)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new EqsSensor { BlueprintId = template, Epoch = 1, SearchRadius = 10f, Priority = (byte)band });
+            w.AddComponent(e, new EqsCognitiveBuffer());
+            return e;
+        }
+
+        // One solver tick on w; returns the run order as entity indices.
+        private static List<int> Tick(EntityRepository w, EqsSolverSystem solver)
+        {
+            var view = (ISimulationView)w;
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(w);
+            w.Bus.SwapBuffers();
+            w.Tick();
+            var order = new List<int>();
+            foreach (var e in solver.LastSchedule) order.Add(e.Index);
+            return order;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3037 — the schedule is DETERMINISTIC: the same sensors scheduled twice give the same run order, tick by
+        /// tick, and every sensor gets its turn (oldest first). 🔴 Before: wall-clock slicing ran whatever fitted in 4 ms —
+        /// a different set on every run and every machine. 📄 DESIGN_Sensors_And_Doctrine.md §5.3–§5.4.
+        /// </summary>
+        [Fact]
+        public void S4_TheSchedule_IsTheSameOnEveryRun_AndEverySensorGetsItsTurn()
+        {
+            List<List<int>> Run()
+            {
+                var w = ScheduleWorld();
+                try
+                {
+                    for (int i = 0; i < 6; i++) LocalSensor(w, Light);
+                    var solver = new EqsSolverSystem { BudgetUnits = 275 };
+                    var ticks = new List<List<int>>();
+                    for (int t = 0; t < 6; t++) ticks.Add(Tick(w, solver));
+                    return ticks;
+                }
+                finally { DisposeEqsSingletons(w); }
+            }
+
+            var a = Run();
+            var b = Run();
+            Assert.Equal(a.Count, b.Count);
+            for (int t = 0; t < a.Count; t++) Assert.Equal(a[t], b[t]);
+
+            var ran = new HashSet<int>();
+            for (int t = 1; t < 4; t++) foreach (int e in a[t]) ran.Add(e);   // after the first tick, within three ticks
+            Assert.Equal(6, ran.Count);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3037 — the bands share the budget (Critical 50 %, Normal 35 %, the rest Low, unused slack rolling down): a
+        /// tick runs the oldest of EACH band, so a busy Critical band never starves Low. The first sensor of a band always
+        /// starts.
+        /// </summary>
+        [Fact]
+        public void S4_EveryBand_RunsEveryTick_CriticalFirst_ThenTheOldest()
+        {
+            var w = ScheduleWorld();
+            try
+            {
+                var low1  = LocalSensor(w, Light, EqsPriorityBand.Low);
+                var low2  = LocalSensor(w, Light, EqsPriorityBand.Low);
+                var norm1 = LocalSensor(w, Light);
+                var norm2 = LocalSensor(w, Light);
+                var crit1 = LocalSensor(w, Light, EqsPriorityBand.Critical);
+                var crit2 = LocalSensor(w, Light, EqsPriorityBand.Critical);
+                var solver = new EqsSolverSystem { BudgetUnits = 330 };
+
+                Tick(w, solver);                                   // warm-up: no estimates yet
+                var t2 = Tick(w, solver);
+                var t3 = Tick(w, solver);
+                Assert.Equal(3, t2.Count);
+                Assert.Equal(3, t3.Count);
+                Assert.Equal(new[] { crit1.Index, crit2.Index }, Sorted(t2[0], t3[0]));   // Critical first, alternating
+                Assert.Equal(new[] { norm1.Index, norm2.Index }, Sorted(t2[1], t3[1]));
+                Assert.Equal(new[] { low1.Index, low2.Index }, Sorted(t2[2], t3[2]));     // Low is never starved
+            }
+            finally { DisposeEqsSingletons(w); }
+
+            static int[] Sorted(int a, int b) => a < b ? new[] { a, b } : new[] { b, a };
+        }
+
+        /// <summary>
+        /// ⭐ CE-3037 — a sensor heavier than what is left waits one tick, is then the oldest, and runs FIRST — alone when it
+        /// costs the whole budget. It is never skipped for good.
+        /// </summary>
+        [Fact]
+        public void S4_AHeavySensor_WaitsATick_ThenRunsAlone()
+        {
+            var w = ScheduleWorld();
+            try
+            {
+                var light1 = LocalSensor(w, Light);
+                var light2 = LocalSensor(w, Light);
+                var heavy  = LocalSensor(w, Heavy);
+                var solver = new EqsSolverSystem { BudgetUnits = 330 };
+
+                Tick(w, solver);                                   // warm-up: everyone runs once, costs are learnt
+                var t2 = Tick(w, solver);
+                Assert.Equal(new[] { light1.Index, light2.Index }, t2);   // the heavy one does not fit after them
+                var t3 = Tick(w, solver);
+                Assert.Equal(new[] { heavy.Index }, t3);                  // oldest ⇒ first ⇒ alone
+                Assert.Equal(1100, solver.LastSpentUnits);
+                Assert.Equal(1100, w.GetComponentRO<SensorEvalState>(heavy).LastCost);
+            }
+            finally { DisposeEqsSingletons(w); }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3037 — the MEMORY STAGE: a perception sensor's sightings become its unit's acquired / lost transitions
+        /// (the same hysteresis as the visual chain), and a unit's track is lost only when NO sensor of the unit still holds
+        /// it. 📄 DESIGN_Sensors_And_Doctrine.md §5.4.
+        /// </summary>
+        [Fact]
+        public void S4_TheMemoryStage_ReportsTheUnitsUnion_AcquiredThenLost()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4243 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("TwoRadars", 78);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f), TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var near = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+            var far  = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId + 1);
+
+            var solver = new EqsSolverSystem();
+            var acquired = new List<SensorTrackStateEvent>();
+            var lost     = new List<SensorTrackStateEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorTrackStateEvent>())
+                    (e.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? acquired : lost).Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            var one = Assert.Single(acquired);                       // two sensors see it ⇒ ONE unit-level Acquired
+            Assert.Equal(unit, one.Observer);
+            Assert.Equal(enemy, one.Target);
+
+            // One sensor loses it (its range shrinks); the other still holds it ⇒ nothing on the wire.
+            UnitSensors.Configure(_world, near, TestRadar(10f));
+            for (int i = 0; i < 30; i++) Step();
+            Assert.Empty(lost);
+
+            // The other loses it too ⇒ ONE Lost, after the hysteresis window.
+            UnitSensors.Configure(_world, far, TestRadar(10f));
+            for (int i = 0; i < (int)Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks; i++) Step();
+            Assert.Empty(lost);                                      // not before the window
+            for (int i = 0; i < 3; i++) Step();
+            var gone = Assert.Single(lost);
+            Assert.Equal(enemy, gone.Target);
+            Assert.Single(acquired);
         }
     }
 }

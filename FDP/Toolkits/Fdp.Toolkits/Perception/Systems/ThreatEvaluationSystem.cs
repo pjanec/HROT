@@ -17,6 +17,10 @@ namespace Fdp.Toolkit.Perception.Systems
     ///     providing smooth temporal forgetting.
     ///   </item>
     ///   <item>
+    ///     <b>Forget</b> (CE-3046): drops an entry whose target is gone, or whose score faded below
+    ///     <see cref="PerceptionConstants.ForgetThreatScore"/> while no sensor tracks it.
+    ///   </item>
+    ///   <item>
     ///     <b>Boost:</b> For entities that also carry an <see cref="ActiveSensorTracks"/>
     ///     cognitive buffer (written by <c>SensorTrackStateIngressTranslator</c>),
     ///     calls <see cref="TargetMemory.AddOrUpdateTarget"/> for each acquired track,
@@ -111,9 +115,30 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
 
+                // ⭐ CE-3046 — FORGET: a target that no longer exists, or one no sensor tracks whose score has faded.
+                //   🔴 Nothing used to remove an entry, so dead and long-lost targets kept their slots forever.
+                bool hasTracks = view.HasComponent<ActiveSensorTracks>(entity);
+                for (int i = mem.Count - 1; i >= 0; i--)
+                {
+                    var target = new Entity((ulong)mem.EntityIds[i]);
+                    bool dead  = !view.IsAlive(target);
+                    bool faded = mem.ThreatScores[i] < PerceptionConstants.ForgetThreatScore
+                              && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
+                    if (!dead && !faded) continue;
+                    TargetMemory.Forget(ref mem, i);
+                    changed = true;
+                }
+
                 if (changed)
                     ecb.SetComponent(entity, mem);
             }
+        }
+
+        private static unsafe bool IsTracked(in ActiveSensorTracks tracks, long id)
+        {
+            for (int i = 0; i < tracks.Count; i++)
+                if (tracks.EntityIds[i] == id) return true;
+            return false;
         }
     }
 }

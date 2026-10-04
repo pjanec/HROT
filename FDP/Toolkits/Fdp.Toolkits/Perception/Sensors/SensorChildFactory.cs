@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             Epoch         = 1u,
             SearchRadius  = entry.SearchRadius > 0f ? entry.SearchRadius : entry.Range,
             PublishPolicy = (byte)EqsPublishPolicy.TopChanged,
-            Priority      = 1,
+            Priority      = (byte)EqsPriorityBand.Normal,
             Suspended     = entry.Disabled,
         };
 

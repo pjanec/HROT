@@ -1,45 +1,64 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 
 namespace Hrot.SimHost.Systems
 {
     /// <summary>
-    /// Phase 2 EQS solver system (Muscle-tier, time-sliced).
+    /// The EQS solver (Muscle tier), driven at 10 Hz by <see cref="Modules.EqsModule"/>.
     ///
-    /// <para>Reads <see cref="IEqsTemplateRegistry"/> from the repo's managed singleton slot
-    /// (registered by EqsModule.Initialize or tests). If no registry is found or the template
-    /// lookup fails, falls back to Phase 1 stub behaviour (empty event).</para>
+    /// <para>⭐⭐ <c>CE-3037</c> (S4) — <b>a budget of COUNTED work, not milliseconds</b> (docs/DESIGN_Sensors_And_Doctrine.md
+    /// §5.3–§5.4): every live sensor is ordered by band, then oldest result, then entity index (<see cref="EqsSchedule"/>);
+    /// sensors run in that order until <see cref="BudgetUnits"/> is spent, each counting its work (<see cref="EqsCost"/>).
+    /// A sensor whose last cost does not fit what is left waits a tick — and is then the oldest, so it runs first (alone if
+    /// it must). 🔴 It replaces wall-clock slicing (<c>QueryTimeSliced(…, WallClockTime)</c>), which scheduled a different
+    /// set of sensors on every run and every machine. ⭐ The memory stage (<see cref="SensorMemoryStage"/>) turns a perception
+    /// sensor's answers into acquired / lost transitions of its unit.</para>
     ///
-    /// <para>Pool lazy-init: creates <see cref="EqsResultPool"/> singleton on first Execute
-    /// if not already present.</para>
-    ///
-    /// <para>Driven at 10 Hz by <see cref="Modules.EqsModule"/>.</para>
+    /// <para>Reads <see cref="IEqsTemplateRegistry"/> from the repo's managed singleton slot. An unknown template answers
+    /// "empty". The <see cref="EqsResultPool"/> singleton is created on first Execute.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class EqsSolverSystem : IEcsModuleSystem
     {
-        // Iterator state for time-sliced entity traversal.
-        private readonly IteratorState _iteratorState = new IteratorState();
-
         // Query cached after first use.
         private EntityQuery? _sensorQuery;
 
-        // Pre-allocated context fields to prevent hidden closure allocations.
-        // EvaluateSensor is passed as Action<Entity> to QueryTimeSliced.
+        private readonly EqsSchedule _schedule = new();
+        private readonly SensorMemoryStage _memory = new();
+        private readonly List<Entity> _lastSchedule = new();
+
+        // Frame context for the per-sensor evaluation.
         private IEntityCommandBuffer _currentCmd = null!;
         private ISimulationView _currentView = null!;
         private uint _currentTick;
         private EntityRepository _currentRepo = null!;
 
-        /// <summary>Wall-clock budget in milliseconds per Execute call.</summary>
-        public double EqsBudgetMs { get; set; } = 4.0;
+        /// <summary>
+        /// ⭐ Work units one solver tick may spend (<see cref="EqsCost"/>). 📐 The default is the old 4 ms wall budget in
+        /// measured units (~0.34 µs per unit, debug build — DESIGN_Sensors_And_Doctrine.md §9.3): ~40 typical sensors a tick.
+        /// </summary>
+        public int BudgetUnits { get; set; } = DefaultBudgetUnits;
+
+        /// <summary>The default <see cref="BudgetUnits"/>.</summary>
+        public const int DefaultBudgetUnits = 12_000;
+
+        /// <summary>The sensors that ran last tick, in run order (diagnostics / the determinism rail).</summary>
+        public IReadOnlyList<Entity> LastSchedule => _lastSchedule;
+
+        /// <summary>Work units spent last tick.</summary>
+        public int LastSpentUnits { get; private set; }
+
+        /// <summary>The memory stage (test hook).</summary>
+        public SensorMemoryStage Memory => _memory;
 
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
@@ -66,68 +85,105 @@ namespace Hrot.SimHost.Systems
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            // Store frame context in fields to avoid closure allocation.
             _currentView = view;
             _currentCmd  = view.GetCommandBuffer();
             _currentTick = view.Tick;
             _currentRepo = repo;
+            _memory.Begin(repo);
+            _lastSchedule.Clear();
 
-            // Time-sliced iteration: yields if EqsBudgetMs is exceeded.
-            repo.QueryTimeSliced(
-                _sensorQuery,
-                _iteratorState,
-                EqsBudgetMs,
-                TimeSliceMetric.WallClockTime,
-                EvaluateSensor);
+            // ── order every live sensor; an ended one costs nothing and is handled at once ──
+            _schedule.Begin();
+            foreach (var entity in _sensorQuery)
+            {
+                ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
+                if (sensor.Suspended)
+                {
+                    // ⭐ CE-486 — an ended sensor publishes NOTHING and drops its evaluation state: the carrier OUTLIVES a
+                    //   lifetime (a part id is reused, the instance is never disposed), so the next lifetime starts exactly
+                    //   as a fresh carrier did. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③. It also holds nothing.
+                    if (repo.HasComponent<SensorEvalState>(entity)) _currentCmd.RemoveComponent<SensorEvalState>(entity);
+                    _memory.Clear(view, entity);
+                    continue;
+                }
+                var eval = repo.HasComponent<SensorEvalState>(entity) ? repo.GetComponentRO<SensorEvalState>(entity) : default;
+                _schedule.Add(entity, sensor.Priority, eval.LastSolvedTick, eval.LastCost);
+            }
+
+            // ── run them in order within the budget ──
+            // ⭐ Each band gets its share (Critical 50 %, Normal 35 %, Low the rest), unused slack rolling down, and the
+            //   oldest sensor of every band always starts — so a busy Critical band never starves Low.
+            int spent = 0, bandSpent = 0, bandBudget = 0, rank = -1;
+            foreach (var item in _schedule.Ordered())
+            {
+                if (item.Rank != rank)
+                {
+                    rank       = item.Rank;
+                    bandSpent  = 0;
+                    bandBudget = EqsSchedule.CumulativeShare(rank, BudgetUnits) - spent;
+                }
+                if (!EqsSchedule.ShouldStart(bandSpent, item.Estimate, bandBudget)) continue;
+                int cost = RunSensor(item.Sensor);
+                spent     += cost;
+                bandSpent += cost;
+                _lastSchedule.Add(item.Sensor);
+            }
+            LastSpentUnits = spent;
+
+            _memory.Flush(view, _currentCmd);
         }
 
-        private void EvaluateSensor(Entity entity)
+        // Evaluates one sensor and persists its state ONCE (schedule fields included). Returns the work units spent.
+        private int RunSensor(Entity entity)
         {
             var repo = _currentRepo;
+            ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
+            bool had = repo.HasComponent<SensorEvalState>(entity);
+            SensorEvalState evalState = had
+                ? repo.GetComponentRO<SensorEvalState>(entity)
+                : new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
+
+            int cost = EvaluateSensor(entity, ref evalState, out bool keyed);
+            if (!keyed) return 0;   // not solvable here (no wire key): no state, no cost
+
+            evalState.LastSolvedTick = _currentTick;
+            evalState.LastCost       = cost;
+            if (had) _currentCmd.SetComponent(entity, evalState);
+            else     _currentCmd.AddComponent(entity, evalState);
+            return cost;
+        }
+
+        // One evaluation. evalState is updated in place (the caller persists it once); returns the work units counted.
+        private int EvaluateSensor(Entity entity, ref SensorEvalState evalState, out bool keyed)
+        {
+            var repo = _currentRepo;
+            keyed = false;
 
             ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
-
-            // ⭐ CE-486 — an ended sensor publishes NOTHING. ⚠ It must return before the unknown-template fallback
-            //   below, which answers "empty" every solve. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
-            //   ⭐ It also drops its evaluation state: the carrier now OUTLIVES a lifetime (a part id is reused, the instance
-            //   is never disposed), so the next lifetime must start exactly as a fresh carrier did — no ScoreDelta history
-            //   suppressing its first answer, no half-finished raycast phase.
-            if (sensor.Suspended)
-            {
-                if (repo.HasComponent<SensorEvalState>(entity)) _currentCmd.RemoveComponent<SensorEvalState>(entity);
-                return;
-            }
 
             // --- the wire key: the ONE rule (EqsSensorKey) ---
             // A child whose parent is gone or local-only is not solved; a purely local sensor (offline / editor) is keyed
             // (0, its entity index) — the local path EqsResultUpdateSystem matches.
             var kind = EqsSensorKey.Resolve(repo, entity, out long parentNetworkId, out int localChildIndex, out _);
-            if (kind == EqsSensorKeyKind.None) return;
+            if (kind == EqsSensorKeyKind.None) return 0;
             if (kind == EqsSensorKeyKind.LocalOnly) localChildIndex = entity.Index;
-
-            // --- SensorEvalState management ---
-            // Lazy-read SensorEvalState if present; otherwise create a default.
-            SensorEvalState evalState;
-            if (repo.HasComponent<SensorEvalState>(entity))
-                evalState = repo.GetComponentRO<SensorEvalState>(entity);
-            else
-                evalState = new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
+            keyed = true;
 
             // Reset on epoch change (sensor parameters changed -> discard in-flight raycasts).
             // Preserve CurrentStructureHash so a soft reset does not trigger a spurious hard reset,
             // and preserve LastPublishedTopK so the ScoreDelta publish policy is not defeated after the new
             // epoch's first answer (a soft reset keeps publish-suppression state; PublishedThisEpoch resets, so
-            // that first answer always goes out).
+            // that first answer always goes out). The schedule fields are kept (they are the caller's).
             if (evalState.CurrentEpoch != sensor.Epoch)
             {
-                ulong savedHash = evalState.CurrentStructureHash;
-                var   savedTopK = evalState.LastPublishedTopK;
                 evalState = new SensorEvalState
                 {
                     Phase                = EqsEvalPhase.Idle,
                     CurrentEpoch         = sensor.Epoch,
-                    CurrentStructureHash = savedHash,
-                    LastPublishedTopK    = savedTopK,
+                    CurrentStructureHash = evalState.CurrentStructureHash,
+                    LastPublishedTopK    = evalState.LastPublishedTopK,
+                    LastSolvedTick       = evalState.LastSolvedTick,
+                    LastCost             = evalState.LastCost,
                 };
             }
 
@@ -139,16 +195,8 @@ namespace Hrot.SimHost.Systems
             if (registry == null || !registry.TryGetTemplate(sensor.BlueprintId, out var template))
             {
                 // No registry or unknown template: Phase 1 stub fallback (empty result).
-                _currentCmd.PublishEvent(new EqsResultEvent
-                {
-                    ParentNetworkId = parentNetworkId,
-                    LocalChildIndex = localChildIndex,
-                    Epoch           = sensor.Epoch,
-                    RefreshTick     = (uint)(_currentTick + 1),
-                    ResultHandle    = 0,
-                    EntryCount      = 0,
-                });
-                return;
+                PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
+                return 0;
             }
 
             // Hard-reset: detect structural hot-reload by comparing template's StructureHash
@@ -172,20 +220,10 @@ namespace Hrot.SimHost.Systems
             // _AwaitingRaycasts indefinitely because nothing else resets the phase.
             if (evalState.Phase == EqsEvalPhase._AwaitingRaycasts)
             {
-                if (evalState.AwaitingSinceTick == _currentTick)
-                {
-                    // Same tick as submission -- state already saved, just skip.
-                    return;
-                }
-
-                // Subsequent tick: reset to Idle so the full pipeline re-runs and reads
-                // ring-buffer results that arrived since the original submission.
-                evalState.Phase = EqsEvalPhase.Idle;
-                if (repo.HasComponent<SensorEvalState>(entity))
-                    _currentCmd.SetComponent(entity, evalState);
-                else
-                    _currentCmd.AddComponent(entity, evalState);
-                return;
+                // Same tick as submission: nothing to do. Subsequent tick: back to Idle so the full pipeline re-runs and
+                // reads the ring-buffer results that arrived since the submission.
+                if (evalState.AwaitingSinceTick != _currentTick) evalState.Phase = EqsEvalPhase.Idle;
+                return 0;
             }
 
             // 1. Generation.
@@ -194,34 +232,15 @@ namespace Hrot.SimHost.Systems
             if (count < 0)
             {
                 // Not evaluable yet (IEqsGenerator contract): publish NOTHING, so the reader keeps
-                // waiting rather than reading an empty result as "nothing there". Persist evalState so
-                // a hard-reset's CurrentStructureHash is not lost.
-                evalState.CurrentStructureHash = liveHash != 0 ? liveHash : evalState.CurrentStructureHash;
-                if (repo.HasComponent<SensorEvalState>(entity))
-                    _currentCmd.SetComponent(entity, evalState);
-                else
-                    _currentCmd.AddComponent(entity, evalState);
-                return;
+                // waiting rather than reading an empty result as "nothing there".
+                return 0;
             }
+            int cost = EqsCost.Sensor + (count * EqsCost.Candidate);
             if (count == 0)
             {
                 // Nothing generated: still publish an empty event so Brain's IsReady ticks.
-                _currentCmd.PublishEvent(new EqsResultEvent
-                {
-                    ParentNetworkId = parentNetworkId,
-                    LocalChildIndex = localChildIndex,
-                    Epoch           = sensor.Epoch,
-                    RefreshTick     = (uint)(_currentTick + 1),
-                    ResultHandle    = 0,
-                    EntryCount      = 0,
-                });
-                // Persist evalState so CurrentStructureHash from hard-reset is not lost.
-                evalState.CurrentStructureHash = liveHash != 0 ? liveHash : evalState.CurrentStructureHash;
-                if (repo.HasComponent<SensorEvalState>(entity))
-                    _currentCmd.SetComponent(entity, evalState);
-                else
-                    _currentCmd.AddComponent(entity, evalState);
-                return;
+                PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
+                return cost;
             }
 
             var activeCandidates = candidates.Slice(0, count);
@@ -229,12 +248,18 @@ namespace Hrot.SimHost.Systems
             // 2. FilterCheap.
             if (template.FilterCheap != null)
                 foreach (var test in template.FilterCheap)
+                {
+                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                }
 
             // 3. FilterExpensive (stubs go here in Phase 3+).
             if (template.FilterExpensive != null)
                 foreach (var test in template.FilterExpensive)
+                {
+                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                }
 
             // 4. Compact rejected (-1L) candidates BEFORE cheap scoring so scoring tests never
             //    see rejection sentinels. Do NOT truncate here: no scoring has run yet, so the
@@ -246,7 +271,10 @@ namespace Hrot.SimHost.Systems
             // 5. ScoreCheap.
             if (template.ScoreCheap != null)
                 foreach (var test in template.ScoreCheap)
+                {
+                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                }
 
             // 6. Top-K reduction: now that cheap scores exist, rank by Score and truncate to
             //    MaxTopK so the expensive phase (raycasts, path cost) runs only on the viable
@@ -256,41 +284,50 @@ namespace Hrot.SimHost.Systems
             // 7. ScoreExpensive.
             if (template.ScoreExpensive != null)
                 foreach (var test in template.ScoreExpensive)
+                {
+                    cost += activeCandidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                }
 
             // Check if any candidate has FlagPendingRay set.
             // If so, yield without writing to pool — wait for ring buffer results.
-            bool anyPendingRay = false;
             for (int i = 0; i < activeCandidates.Length; i++)
             {
                 if ((activeCandidates[i].Flags & AccurateLineOfSightTest.FlagPendingRay) != 0)
                 {
-                    anyPendingRay = true;
-                    break;
+                    evalState.Phase             = EqsEvalPhase._AwaitingRaycasts;
+                    evalState.AwaitingSinceTick = _currentTick;
+                    return cost; // DO NOT publish EqsResultEvent while awaiting raycasts.
                 }
             }
 
-            if (anyPendingRay)
-            {
-                evalState.Phase           = EqsEvalPhase._AwaitingRaycasts;
-                evalState.AwaitingSinceTick = _currentTick;
-                if (repo.HasComponent<SensorEvalState>(entity))
-                    _currentCmd.SetComponent(entity, evalState);
-                else
-                    _currentCmd.AddComponent(entity, evalState);
-                return; // DO NOT publish EqsResultEvent while awaiting raycasts.
-            }
-
             // All raycasts resolved (or no AccurateLOS test in template): proceed to sort + write.
-            // Update structure hash so next tick does not trigger a spurious hard-reset.
-            evalState.CurrentStructureHash = template.ComputeStructureHash();
             evalState.Phase = EqsEvalPhase.Idle;
 
             // 9. Final sort descending by Score.
             MemoryExtensions.Sort(activeCandidates, (a, b) => b.Score.CompareTo(a.Score));
 
-            // 10. Write to pool and publish (persists evalState, including LastPublishedTopK update).
-            WriteResultsToPoolAndPublish(entity, parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
+            // ⭐ CE-3037 — the memory stage sees every answer, published or suppressed (a ScoreDelta that did not move is
+            //   still a sighting).
+            _memory.Observe(_currentView, entity, _currentTick, activeCandidates);
+
+            // 10. Write to pool and publish (updates LastPublishedTopK / PublishedThisEpoch).
+            WriteResultsToPoolAndPublish(parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
+            return cost;
+        }
+
+        private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)
+        {
+            _memory.Observe(_currentView, entity, _currentTick, ReadOnlySpan<EqsResult>.Empty);
+            _currentCmd.PublishEvent(new EqsResultEvent
+            {
+                ParentNetworkId = parentNetworkId,
+                LocalChildIndex = localChildIndex,
+                Epoch           = epoch,
+                RefreshTick     = (uint)(_currentTick + 1),
+                ResultHandle    = 0,
+                EntryCount      = 0,
+            });
         }
 
         // Compacts the span in place by removing rejection sentinels (EntityId == -1L),
@@ -324,7 +361,6 @@ namespace Hrot.SimHost.Systems
         }
 
         private void WriteResultsToPoolAndPublish(
-            Entity entity,
             long parentNetworkId,
             int  localChildIndex,
             uint epoch,
@@ -349,14 +385,7 @@ namespace Hrot.SimHost.Systems
                         anyExceedsThreshold = true;
                 }
                 if (!anyExceedsThreshold)
-                {
-                    // No significant change — persist evalState and skip publish.
-                    if (_currentRepo.HasComponent<SensorEvalState>(entity))
-                        _currentCmd.SetComponent(entity, evalState);
-                    else
-                        _currentCmd.AddComponent(entity, evalState);
-                    return;
-                }
+                    return;   // no significant change — skip publish (the caller persists evalState)
                 // Update cache with current top-K scores before publishing.
                 Span<float> cache = MemoryMarshal.CreateSpan(
                     ref Unsafe.As<TopKScoreCache, float>(ref evalState.LastPublishedTopK), 16);
@@ -381,11 +410,6 @@ namespace Hrot.SimHost.Systems
                 EntryCount      = finalCandidates.Length,
             });
             evalState.PublishedThisEpoch = true;
-
-            if (_currentRepo.HasComponent<SensorEvalState>(entity))
-                _currentCmd.SetComponent(entity, evalState);
-            else
-                _currentCmd.AddComponent(entity, evalState);
         }
     }
 }

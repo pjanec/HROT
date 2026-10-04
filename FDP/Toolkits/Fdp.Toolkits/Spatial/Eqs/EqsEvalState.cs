@@ -44,6 +44,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
         //   refreshed (or a new sensor lifetime on a reused part id, CE-485/CE-486) waits for exactly that answer.
         [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool
         public bool PublishedThisEpoch;
+
+        // ⭐ CE-3037 (S4) — the schedule: the tick this sensor last ran (oldest runs first) and the work units it cost then
+        //   (the estimate that decides whether it fits what is left of a tick's budget). 📄 DESIGN_Sensors_And_Doctrine §5.4.
+        public uint LastSolvedTick;
+        public int LastCost;
     }
 
     /// <summary>

@@ -1381,7 +1381,7 @@ public sealed class EqsDistributedTests
         var c32 = rig.Carrier(32);
         Assert.False(c32.IsNull, "A valid config must build the carrier.");
         Assert.Equal(SensorModality.Thermal, rig.Sim.GetComponentRO<SensorTag>(c32).Kind);
-        Assert.Equal(150f, rig.Sim.GetManagedComponentRO<SensorCapability>(c32).Current.Range);
+        Assert.Equal(150f, ((ISimulationView)rig.Sim).GetManagedComponentRO<SensorCapability>(c32).Current.Range);
 
         // ③ a TKB override with JSON ⇒ Current changes, Default stays; ④ Override=false ⇒ back to the default.
         var tkb = SensorChildFactory.EnsureTkbChild(rig.Sim, onSim, 0, TkbRadar);
@@ -1389,11 +1389,11 @@ public sealed class EqsDistributedTests
         var longer = TkbRadar with { Radar = new RadarSensorDto { Range = 800f } };
         Arrive(Config(tkbPart, SensorConfigCodec.KindSensorEntry, SensorConfigCodec.Encode(longer), @override: true));
         Assert.Equal(tkb, rig.Carrier(tkbPart));
-        Assert.Equal(800f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
-        Assert.Equal(300f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Default.Range);
+        Assert.Equal(800f, ((ISimulationView)rig.Sim).GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
+        Assert.Equal(300f, ((ISimulationView)rig.Sim).GetManagedComponentRO<SensorCapability>(tkb).Default.Range);
 
         Arrive(Config(tkbPart, string.Empty, string.Empty, @override: false));
-        Assert.Equal(300f, rig.Sim.GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
+        Assert.Equal(300f, ((ISimulationView)rig.Sim).GetManagedComponentRO<SensorCapability>(tkb).Current.Range);
         Assert.Equal(300f, rig.CarrierSensor(tkbPart).SearchRadius);
         Assert.Equal(1, ingress.RefusedConfigCount);
     }

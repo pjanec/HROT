@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -19,7 +20,7 @@ namespace Fdp.Toolkit.Perception.Systems
     ///     <see cref="SensorContactState.Pending"/> / <see cref="SensorContactState.Lost"/>
     ///     to <see cref="SensorContactState.Acquired"/> when seen in the current tick,
     ///     and from <see cref="SensorContactState.Acquired"/> to <see cref="SensorContactState.Lost"/>
-    ///     when the occlusion age exceeds <see cref="TrackLostThresholdTicks"/>.</item>
+    ///     when the occlusion age exceeds <see cref="ContactHysteresis.TrackLostThresholdTicks"/>.</item>
     ///   <item>Publishes a <see cref="SensorTrackStateEvent"/> to the command buffer whenever
     ///     a contact transitions to <see cref="SensorContactState.Acquired"/> or
     ///     <see cref="SensorContactState.Lost"/>.  Inside <c>AutonomousPerceptionModule</c>
@@ -37,9 +38,6 @@ namespace Fdp.Toolkit.Perception.Systems
     [UpdateInPhase(SystemPhase.Manual)]
     public class SensorTrackDebounceSystem : IEcsModuleSystem
     {
-        // 20 ticks at 10 Hz perception rate = 2 seconds of occlusion tolerance.
-        private const uint TrackLostThresholdTicks = 20;
-
         // ⭐ CE-3032 — this tick's sightings GROUPED BY OBSERVER, built once. 🔴 Pass 1 used to scan every
         //   TargetVisibleEvent for every observer: observers × (observers × visible targets) — CUBIC. Measured
         //   (2026-10-04): 757 ms at 500 units for this system alone, past the module's 100 ms limit, so the circuit
@@ -58,7 +56,10 @@ namespace Fdp.Toolkit.Perception.Systems
             GroupByObserver(visibleEvents);
 
             // ── Pass 1: update entities that already have SensorContactList ───────
-            var query = view.Query().With<SensorContactList>().Build();
+            Span<(long TargetId, SensorTrackStatus State)> transitions = stackalloc (long, SensorTrackStatus)[PerceptionConstants.MaxTrackedTargets];
+            // ⚠ CE-3037 — a perception SENSOR CHILD carries its own SensorContactList too, written by the EQS memory stage
+            //   (SensorMemoryStage); this chain owns only the UNIT's list (one writer per component).
+            var query = view.Query().With<SensorContactList>().Without<Fdp.Toolkit.Spatial.Eqs.EqsSensor>().Build();
             foreach (var entity in query)
             {
                 ref readonly var listRO = ref view.GetComponentRO<SensorContactList>(entity);
@@ -78,57 +79,28 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
 
-                // Evaluate hysteresis transitions.
-                for (int i = 0; i < list.Count; i++)
+                // Evaluate hysteresis transitions — ⭐ the ONE rule (ContactHysteresis), shared with the EQS memory stage.
+                int n = ContactHysteresis.Apply(ref list, currentTick, transitions, out bool hysteresisChanged);
+                changed |= hysteresisChanged;
+                for (int t = 0; t < n; t++)
                 {
-                    var currentState = (SensorContactState)list.State[i];
-                    uint age = currentTick - list.LastSeenTick[i];
-
-                    if (currentState == SensorContactState.Pending ||
-                        currentState == SensorContactState.Lost)
+                    var targetEntity = new Entity((ulong)transitions[t].TargetId);
+                    float posX = 0f, posY = 0f;
+                    if (transitions[t].State == SensorTrackStatus.Acquired &&
+                        view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
                     {
-                        if (age == 0)
-                        {
-                            list.State[i] = (byte)SensorContactState.Acquired;
-                            changed = true;
-
-                            var targetEntity = new Entity((ulong)list.EntityIds[i]);
-                            float posX = 0f, posY = 0f;
-                            if (view.IsAlive(targetEntity) &&
-                                view.HasComponent<SimTransform>(targetEntity))
-                            {
-                                ref readonly var tf = ref view.GetComponentRO<SimTransform>(targetEntity);
-                                posX = tf.Position.X;
-                                posY = tf.Position.Y;
-                            }
-                            ecb.PublishEvent(new SensorTrackStateEvent
-                            {
-                                Observer  = entity,
-                                Target    = targetEntity,
-                                State     = SensorTrackStatus.Acquired,
-                                PositionX = posX,
-                                PositionY = posY,
-                            });
-                        }
+                        ref readonly var tf = ref view.GetComponentRO<SimTransform>(targetEntity);
+                        posX = tf.Position.X;
+                        posY = tf.Position.Y;
                     }
-                    else if (currentState == SensorContactState.Acquired)
+                    ecb.PublishEvent(new SensorTrackStateEvent
                     {
-                        if (age > TrackLostThresholdTicks)
-                        {
-                            list.State[i] = (byte)SensorContactState.Lost;
-                            changed = true;
-
-                            var targetEntity = new Entity((ulong)list.EntityIds[i]);
-                            ecb.PublishEvent(new SensorTrackStateEvent
-                            {
-                                Observer  = entity,
-                                Target    = targetEntity,
-                                State     = SensorTrackStatus.Lost,
-                                PositionX = 0f,
-                                PositionY = 0f,
-                            });
-                        }
-                    }
+                        Observer  = entity,
+                        Target    = targetEntity,
+                        State     = transitions[t].State,
+                        PositionX = posX,
+                        PositionY = posY,
+                    });
                 }
 
                 if (changed)

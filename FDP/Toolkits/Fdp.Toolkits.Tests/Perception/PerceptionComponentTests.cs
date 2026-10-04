@@ -144,25 +144,32 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.True(entity17Found, "Entity 17 should be in the table.");
         }
 
-        // ── Test 8 (SC-P0-03-5): 17th with lower score than all existing → rejected ───
+        // ── Test 8 (SC-P0-03-5, CE-3046): a 17th contact ALWAYS enters, evicting the least dangerous ───
 
+        /// <summary>
+        /// ⭐ CE-3046 — a NEW contact enters a full table even with a score below every entry, evicting the lowest score.
+        /// 🔴 It used to be rejected (this test pinned that), and a fresh contact's first boost (50 x dt) never beats an
+        /// accumulated score — so a unit holding 16 contacts was blind to every new threat.
+        /// </summary>
         [Fact]
-        public unsafe void AddOrUpdateTarget_17thWithLowerScore_IsRejected_TableUnchanged()
+        public unsafe void AddOrUpdateTarget_17thWithLowerScore_EntersAndEvictsTheLowest_CE3046()
         {
             var mem = new TargetMemory();
             for (int i = 1; i <= 16; i++)
                 TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, 100f + i, (uint)i);
-            // All scores are >= 101. Add entity 17 with score 1 (lower than all).
+            // All scores are >= 101; entity 1 (101) is the least dangerous. Add entity 17 with score 1.
 
             TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 1f, 17u);
 
             Assert.Equal(16, mem.Count);
-
-            // Entity 17 should NOT be present
-            bool entity17Found = false;
+            bool found17 = false, found1 = false;
             for (int i = 0; i < mem.Count; i++)
-                if (mem.EntityIds[i] == 17L) entity17Found = true;
-            Assert.False(entity17Found, "Entity 17 (score too low) should be rejected.");
+            {
+                if (mem.EntityIds[i] == 17L) found17 = true;
+                if (mem.EntityIds[i] == 1L) found1 = true;
+            }
+            Assert.True(found17, "A new contact must enter a full table.");
+            Assert.False(found1, "The least dangerous entry is the one evicted.");
         }
 
         // ── Test 6 (P3D-206): PositionsZ moves in lockstep through eviction + sort ──

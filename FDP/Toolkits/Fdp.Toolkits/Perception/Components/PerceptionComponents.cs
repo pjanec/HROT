@@ -91,7 +91,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// <list type="bullet">
         ///   <item>If <paramref name="entityId"/> already exists, its score is incremented by <paramref name="scoreBoost"/> and its position updated.</item>
         ///   <item>If not found and <see cref="Count"/> &lt; <see cref="PerceptionConstants.MaxTrackedTargets"/>, a new slot is allocated.</item>
-        ///   <item>If the table is full, the slot with the lowest current score is replaced (if it is lower than <paramref name="scoreBoost"/>).</item>
+        ///   <item>If the table is full, the slot with the lowest current score is replaced — a new contact always enters (CE-3046).</item>
         ///   <item>The table is then sorted descending by threat score so slot 0 is always the highest threat.</item>
         /// </list>
         /// </summary>
@@ -150,19 +150,18 @@ namespace Fdp.Toolkit.Perception.Components
             }
             else
             {
-                // Table is full — replace the lowest-score slot if the new score exceeds it.
+                // ⭐ CE-3046 — the table is full: a NEW contact ALWAYS enters, evicting the least dangerous entry (lowest
+                //   score; ties: the oldest sighting, then the later slot). 🔴 It used to enter only when its first boost beat
+                //   the lowest ACCUMULATED score — which a fresh contact (50 x dt) never does, so a unit holding 16 contacts
+                //   was blind to every new threat. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.4, §11.1.
                 int lowestIdx = 0;
-                float lowestScore = mem.ThreatScores[0];
                 for (int i = 1; i < PerceptionConstants.MaxTrackedTargets; i++)
                 {
-                    if (mem.ThreatScores[i] < lowestScore)
-                    {
-                        lowestScore = mem.ThreatScores[i];
-                        lowestIdx   = i;
-                    }
+                    float si = mem.ThreatScores[i], sl = mem.ThreatScores[lowestIdx];
+                    if (si < sl || (si == sl && mem.LastSeenTick[i] <= mem.LastSeenTick[lowestIdx]))
+                        lowestIdx = i;
                 }
 
-                if (scoreBoost > lowestScore)
                 {
                     mem.EntityIds[lowestIdx]    = entityId;
                     mem.PositionsX[lowestIdx]   = posX;
@@ -208,6 +207,26 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.LastSeenTick[j + 1] = tickTmp;
                 mem.Modalities[j + 1]   = modTmp;
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3046 — removes entry <paramref name="slot"/>; the entries after it move up, so the table stays sorted.
+        /// </summary>
+        public static void Forget(ref TargetMemory mem, int slot)
+        {
+            if ((uint)slot >= (uint)mem.Count) return;
+            for (int i = slot; i < mem.Count - 1; i++)
+            {
+                mem.EntityIds[i]    = mem.EntityIds[i + 1];
+                mem.PositionsX[i]   = mem.PositionsX[i + 1];
+                mem.PositionsY[i]   = mem.PositionsY[i + 1];
+                mem.PositionsZ[i]   = mem.PositionsZ[i + 1];
+                mem.ThreatScores[i] = mem.ThreatScores[i + 1];
+                mem.LastSeenTick[i] = mem.LastSeenTick[i + 1];
+                mem.Modalities[i]   = mem.Modalities[i + 1];
+            }
+            mem.Count--;
+            mem.ChangeEpoch++;
         }
     }
 

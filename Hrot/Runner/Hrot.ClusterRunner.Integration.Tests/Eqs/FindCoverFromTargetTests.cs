@@ -84,7 +84,7 @@ public sealed class FindCoverFromTargetTests : IDisposable
 
         // Threat at (20, 0) with score 100.
         var mem = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem, entityId: 999L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)_harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         _harness.Repo.AddComponent(observer, mem);
 
         // Context slot 1 entity -- provides threat position (20, 0) for CheapLineOfSightTest.

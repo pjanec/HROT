@@ -11,9 +11,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// Reachable candidates are marked with flag bit 3. Runs in FilterExpensive phase.
     /// Rejection sentinel: EntityId = -1L.
     /// </summary>
-    public sealed class NavmeshReachableTest : IEqsTest
+    public sealed class NavmeshReachableTest : IEqsTest, IEqsCostWeight
     {
         /// <inheritdoc/>
+        /// <inheritdoc/>
+        public int CostPerCandidate => EqsCost.Path;   // CE-3037 — path weight (DESIGN_Sensors_And_Doctrine §5.3)
+
         public EqsTestPhase Phase => EqsTestPhase.FilterExpensive;
 
         /// <inheritdoc/>

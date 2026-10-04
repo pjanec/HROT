@@ -141,7 +141,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
 
         // Threat score 10 < threshold 50 → bypass.
         var mem1 = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem1, entityId: 1L, posX: 20f, posY: 0f, scoreBoost: 10f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem1, entityId: (long)_harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 10f, tick: 1);
         _harness.Repo.AddComponent(observer, mem1);
 
         // Context slot 1 entity -- needed to reach the threshold bypass gate.
@@ -207,7 +207,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         });
 
         var mem3 = new TargetMemory();
-        TargetMemory.AddOrUpdateTarget(ref mem3, entityId: 2L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
+        TargetMemory.AddOrUpdateTarget(ref mem3, entityId: (long)_harness.Repo.CreateEntity().PackedValue, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         _harness.Repo.AddComponent(observer, mem3);
 
         // Context slot 1 entity -- provides threat position for CheapLineOfSightTest.

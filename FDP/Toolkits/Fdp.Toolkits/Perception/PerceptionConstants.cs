@@ -40,6 +40,13 @@ namespace Fdp.Toolkit.Perception
         /// </summary>
         public const float ThreatScoreDecayPerSecond = 0.1f;
 
+        /// <summary>
+        /// ⭐ CE-3046 — an entry no sensor tracks is FORGOTTEN once its score fades below this. With the 10 %/s decay that is
+        /// ~44 s after a contact seen for one second, ~66 s after one seen long enough to saturate (score 500): the score
+        /// already IS a function of unseen time, so no second clock is kept. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.4.
+        /// </summary>
+        public const float ForgetThreatScore = 0.5f;
+
         // ── LocalGridBuilderSystem grid dimensions ────────────────────────────────
         // These values define the module-private SpatialHashGrid owned by PerceptionModule.
         // 200×200 cells × 5 m/cell = 1 000 m × 1 000 m coverage.
