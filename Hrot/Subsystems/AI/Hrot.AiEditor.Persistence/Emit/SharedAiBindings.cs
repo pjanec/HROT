@@ -304,6 +304,11 @@ public sealed class BindingNamer
         _offsets = offsets; _sharedAi = sharedAi; _assetId = assetId;
     }
 
+    /// <summary>⭐ <c>CE-2083</c> — the action name a state's SOP order is addressed by (its <c>ActionKey</c> at the baked host
+    /// offset), or null when the state issues none.</summary>
+    public string? SopOrderName(BTree.SopOrderPayloadDto? order, string where)
+        => order == null ? null : order.ActionKey(SopOrderEmit.Offset(order, _offsets, where));
+
     /// <summary>The name for <paramref name="b"/>, or null when it names no method.</summary>
     public string? Name(BehaviorActionBindingDto? b, bool legacyCompound = false)
     {

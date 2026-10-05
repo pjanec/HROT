@@ -62,6 +62,15 @@ public sealed class StateNodeDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BehaviorActionBindingDto? Timer { get; set; }
 
+    /// <summary>
+    /// ⭐ <c>CE-2083</c> — an SOP order ("Do when idle" / "React") this state issues: it RUNS AS THE STATE'S ACTIVITY (every
+    /// tick — <c>SopActions</c> dedupes, and a refused order is retried), so a state carries an order XOR an
+    /// <see cref="Activity"/> binding. The BTree action node's payload, unchanged. 📄 <c>DESIGN_Decision_Layer.md</c> §4.10.
+    /// </summary>
+    /// <remarks>⭐ Omitted from JSON when null, so every existing asset stays byte-identical.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BTree.SopOrderPayloadDto? SopOrder { get; set; }
+
     // Region membership
     public int RegionIndex { get; set; }
 

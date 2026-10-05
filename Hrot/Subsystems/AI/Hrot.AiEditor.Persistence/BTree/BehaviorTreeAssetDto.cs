@@ -220,7 +220,7 @@ public sealed class BTreeSubtreePayloadDto
     public string? ParamsVariable { get; set; }
 }
 
-/// <summary>⭐ <c>CE-2079</c> — which of the two SOP actions an action node's <see cref="BTreeSopOrderPayloadDto"/> performs.</summary>
+/// <summary>⭐ <c>CE-2079</c> — which of the two SOP actions an action node's <see cref="SopOrderPayloadDto"/> performs.</summary>
 public enum SopOrderKindDto
 {
     /// <summary>The unit's idle choice — an assignment at origin Sop (the lowest rank).</summary>
@@ -247,7 +247,7 @@ public enum SopUrgencyDto
 /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6. Lowered to an ordinary action key whose generated thunk calls
 /// <c>Fdp.Toolkit.Behavior.SopActions</c>.
 /// </summary>
-public sealed class BTreeSopOrderPayloadDto
+public sealed class SopOrderPayloadDto
 {
     public SopOrderKindDto Kind { get; set; }
     public Guid BehaviorAssetId { get; set; }
@@ -336,7 +336,7 @@ public sealed class BTreeActionNodeDto : BTreeNodeDto
     /// <summary>⭐ <c>CE-2079</c> — set INSTEAD of <see cref="Action"/> when the node is an SOP order ("Do when idle" /
     /// "React"); <c>null</c> for an ordinary method binding.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BTreeSopOrderPayloadDto? SopOrder { get; set; }
+    public SopOrderPayloadDto? SopOrder { get; set; }
     // ⭐⭐ CE-504 C-1 — DERIVED (BTreeCallShapes), never read from or written to the file: the bound method says it.
     [JsonIgnore]
     public BTreeDelegateShapeDto DelegateShape { get; set; }

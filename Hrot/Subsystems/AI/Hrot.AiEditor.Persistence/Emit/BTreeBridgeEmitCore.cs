@@ -752,11 +752,6 @@ public static class BTreeBridgeEmitCore
             if (!seen.Add(key)) continue;
 
             string ind     = $"{pad2}{Indent}{Indent}";
-            string name    = order.BehaviorName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            string tail    = order.Kind == SopOrderKindDto.React
-                ? $"\"{name}\", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.{order.Urgency}"
-                : $"\"{name}\"";
-            string method  = order.Kind == SopOrderKindDto.React ? "React" : "DoWhenIdle";
 
             if (seen.Count == 1)
             {
@@ -768,7 +763,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{{");
             if (offset < 0)
             {
-                sb.AppendLine($"{ind}return global::Fdp.Toolkit.Behavior.SopActions.{method}(ctx.World, ctx.Self, {tail}, \"{{}}\");");
+                sb.AppendLine($"{ind}return {SopOrderEmit.Call(order, "ctx.World", "ctx.Self", null)};");   // CE-2083: one spelling
             }
             else
             {
@@ -777,7 +772,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{ind}{{");
                 sb.AppendLine($"{ind}{Indent}ref var dto = ref Unsafe.As<byte, {typeFqn}>(");
                 sb.AppendLine($"{ind}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", (int)offset)});");
-                sb.AppendLine($"{ind}{Indent}return global::Fdp.Toolkit.Behavior.SopActions.{method}(ctx.World, ctx.Self, {tail}, in dto);");
+                sb.AppendLine($"{ind}{Indent}return {SopOrderEmit.Call(order, "ctx.World", "ctx.Self", "in dto")};");
                 sb.AppendLine($"{ind}}}");
             }
             sb.AppendLine($"{pad2}{Indent}}});");

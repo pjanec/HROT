@@ -129,10 +129,15 @@ public static class HsmBridgeEmitCore
         // ⭐⭐⭐ CE-417 B-2 (a′) — one generated call per bound C# [SharedAi*] binding (SharedAiBindings).
         var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi, sizeResolver);
 
-        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries);
+        // ⭐ CE-2083 — one SopActions call per distinct state SOP order key (§4.10).
+        var sopOrders = CollectSopOrders(dto, packedFields);
+
+        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries, sopOrders);
 
         for (int i = 0; i < sharedAiEntries.Count; i++)
             SharedAiBindings.EmitThunk(sb, sharedAiEntries[i], SharedAiThunkName(i), Indent);
+        for (int i = 0; i < sopOrders.Count; i++)
+            EmitSopOrderThunk(sb, sopOrders[i], SopOrderThunkName(i), Indent);
 
         sb.AppendLine("}");
 
@@ -145,7 +150,8 @@ public static class HsmBridgeEmitCore
         StringBuilder sb, HsmAssetDto dto, string coreClass,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
         BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned, bool isManaged,
-        IReadOnlyList<SharedAiBindings.Entry> sharedAiEntries)
+        IReadOnlyList<SharedAiBindings.Entry> sharedAiEntries,
+        IReadOnlyList<SopOrderEntry> sopOrders)
     {
         string pad  = Indent;
         string pad2 = Indent + Indent;
@@ -216,6 +222,18 @@ public static class HsmBridgeEmitCore
                     sb.AppendLine($"{pad2}unsafe {{ global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard({id}, (global::System.IntPtr)(delegate* <void*, void*, ushort, global::Fhsm.Kernel.Data.HsmCommandWriter*, bool>)&{SharedAiThunkName(i)}); }}   // {e.Key}");
                 else
                     sb.AppendLine($"{pad2}unsafe {{ global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction({id}, (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{SharedAiThunkName(i)}); }}   // {e.Key}");
+            }
+        }
+
+        // ⭐ CE-2083 — each state SOP order, under the id its .Activity(key) hashes to (HsmActionKey.ForCompoundKey).
+        if (sopOrders.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{pad2}// CE-2083: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the states' activities key them.");
+            for (int i = 0; i < sopOrders.Count; i++)
+            {
+                ushort id = Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForCompoundKey(sopOrders[i].Key);
+                sb.AppendLine($"{pad2}unsafe {{ global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction({id}, (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{SopOrderThunkName(i)}); }}   // {sopOrders[i].Key}");
             }
         }
 
@@ -755,4 +773,63 @@ public static class HsmBridgeEmitCore
         => string.IsNullOrEmpty(b?.ExpressionTargetField) ? null : b!.ExpressionTargetField;
 
     private static string SharedAiThunkName(int i) => "__SharedAiBinding" + i;
+    private static string SopOrderThunkName(int i) => "__SopOrder" + i;
+
+    /// <summary>⭐ <c>CE-2083</c> — one state SOP order: its key, the payload, the params offset (<c>-1</c> = none) and type.</summary>
+    internal sealed class SopOrderEntry
+    {
+        public SopOrderEntry(string key, SopOrderPayloadDto order, long offset, string? paramsTypeFqn)
+        { Key = key; Order = order; Offset = offset; ParamsTypeFqn = paramsTypeFqn; }
+        public string Key { get; }
+        public SopOrderPayloadDto Order { get; }
+        public long Offset { get; }
+        public string? ParamsTypeFqn { get; }
+    }
+
+    /// <summary>⭐ <c>CE-2083</c> — the distinct SOP orders of the asset's states, keyed exactly as <see cref="BindingNamer.SopOrderName"/>
+    /// keys the topology's <c>.Activity(key)</c> (both read <see cref="SopOrderEmit.Offset"/> over the same packer).</summary>
+    private static List<SopOrderEntry> CollectSopOrders(
+        HsmAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
+    {
+        var offsets = new Dictionary<string, int>(StringComparer.Ordinal);
+        var types   = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var f in packedFields) { offsets[f.Name] = f.ByteOffset; types[f.Name] = f.TypeId; }
+
+        var list = new List<SopOrderEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var st in dto.States)
+        {
+            if (st.SopOrder is not { } order) continue;
+            long offset = SopOrderEmit.Offset(order, offsets, $"in state '{st.Name}'");
+            string key  = order.ActionKey(offset);
+            if (!seen.Add(key)) continue;
+            list.Add(new SopOrderEntry(key, order, offset,
+                offset < 0 ? null : BTreeBridgeEmitCore.DtoTypeToGlobal(types[order.ParamsVariable!])));
+        }
+        return list;
+    }
+
+    /// <summary>⭐ <c>CE-2083</c> — the activity thunk: the host variable LIVE at its baked offset (as a shared binding reads it),
+    /// one <see cref="SopOrderEmit.Call"/>. The status is not needed — a refused order is simply retried on the next tick.</summary>
+    private static void EmitSopOrderThunk(StringBuilder sb, SopOrderEntry e, string thunkName, string pad)
+    {
+        sb.AppendLine($"{pad}/// <summary>CE-2083: the SOP order <c>{e.Key}</c>.</summary>");
+        sb.AppendLine($"{pad}private static unsafe void {thunkName}(void* instancePtr, void* contextPtr, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
+        sb.AppendLine($"{pad}{{");
+        sb.AppendLine($"{pad}    var __bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
+        sb.AppendLine($"{pad}    var __repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(__bridge->WorldHandle).Target!;");
+        if (e.Offset < 0)
+        {
+            sb.AppendLine($"{pad}    {SopOrderEmit.Call(e.Order, "__repo", "__bridge->Self", null)};");
+        }
+        else
+        {
+            sb.AppendLine($"{pad}    byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(__repo, __bridge->Self, out int __len);");
+            sb.AppendLine($"{pad}    if ({e.Offset} + sizeof({e.ParamsTypeFqn}) > __len)");
+            sb.AppendLine($"{pad}        throw new global::System.InvalidOperationException(\"CE-2083: {e.Key} does not fit the root block.\");");
+            sb.AppendLine($"{pad}    {SopOrderEmit.Call(e.Order, "__repo", "__bridge->Self", $"in *({e.ParamsTypeFqn}*)(__root + {e.Offset})")};");
+        }
+        sb.AppendLine($"{pad}}}");
+        sb.AppendLine();
+    }
 }
