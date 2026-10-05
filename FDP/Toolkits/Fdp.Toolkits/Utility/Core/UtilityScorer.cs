@@ -169,7 +169,9 @@ namespace Fdp.Toolkit.Utility
             var local = new UtilityResultBuffer();
             bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
-            return SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
+            byte winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
+            LogDecision(repo, self, decisionId, in output, isOption: true);
+            return winner;
         }
 
         /// <summary>
@@ -204,11 +206,23 @@ namespace Fdp.Toolkit.Utility
             bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
             EvaluateCandidates(repo, self, in def, default, ref output, TraceOf(repo, self), tick);
+            LogDecision(repo, self, decisionId, in output, isOption: false);
             if (output.Count == 0) return false;
             var best = output.GetSpanRO()[0];
             top = new Entity((ulong)best.CandidateHandle);
             topScore = best.Score;
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on an observed unit's
+        /// <see cref="UtilityDecisionLog"/>; nothing when the unit is not observed.
+        /// </summary>
+        private static void LogDecision(EntityRepository repo, Entity self, int decisionId, in UtilityResultBuffer output, bool isOption)
+        {
+            if (!repo.HasComponent<UtilityDecisionLog>(self) || !repo.HasComponent<UtilityDebugFlags>(self)) return;
+            if (repo.GetComponentRO<UtilityDebugFlags>(self).TraceEnabled == 0) return;
+            repo.GetComponentRW<UtilityDecisionLog>(self).Record(decisionId, in output, isOption);
         }
 
         private static UtilityTraceWorkingMemory1024* TraceOf(EntityRepository repo, Entity self)
@@ -351,7 +365,8 @@ namespace Fdp.Toolkit.Utility
             Entity context,
             ref UtilityResultBuffer output,
             UtilityTraceWorkingMemory1024* trace,
-            ushort tick = 0)
+            ushort tick = 0,
+            bool writeWinnerRecord = true)
         {
             int optionCount = def.Options.Length;
             if (optionCount == 0)
@@ -394,8 +409,9 @@ namespace Fdp.Toolkit.Utility
             output.Count          = fillCount;
             output.RunnerUpMargin = (fillCount >= 2) ? (scores[0] - scores[1]) : 0f;
 
-            // Winner summary trace record.
-            if (trace != null && fillCount > 0)
+            // Winner summary trace record — ⭐ CE-3069 F3: skipped when SelectPosture will re-rank with hysteresis and
+            // write the record for the option that ACTUALLY wins.
+            if (writeWinnerRecord && trace != null && fillCount > 0)
             {
                 trace->WriteWinnerRecord(tick,
                     winnerOptionId:      (byte)def.Options[indices[0]].OptionId,
@@ -428,8 +444,8 @@ namespace Fdp.Toolkit.Utility
             UtilityTraceWorkingMemory1024* trace,
             ushort tick = 0)
         {
-            // Step 1: score all options normally (no bias).
-            Evaluate(repo, self, in def, default, ref output, trace, tick);
+            // Step 1: score all options normally (no bias). The winner record waits for step 5 (CE-3069 F3).
+            Evaluate(repo, self, in def, default, ref output, trace, tick, writeWinnerRecord: false);
 
             if (output.Count == 0)
                 return 0;
@@ -482,10 +498,28 @@ namespace Fdp.Toolkit.Utility
 
             output.RunnerUpMargin = (output.Count >= 2) ? (scores[0] - scores[1]) : 0f;
 
+            // ⭐ CE-3069 F3 — the winner record names the option chosen AFTER hysteresis (it used to be written before the
+            // bonus, so a trace could name an option the unit did not pick).
+            if (trace != null)
+            {
+                trace->WriteWinnerRecord(tick,
+                    winnerOptionId:      outSpan[0].WinningPostureId,
+                    winnerDefinitionIdx: (byte)OptionIndexOf(in def, outSpan[0].WinningPostureId),
+                    winnerScore:         scores[0],
+                    runnerUpMargin:      output.RunnerUpMargin);
+            }
+
             return outSpan[0].WinningPostureId;
         }
 
         // ── Private helpers ────────────────────────────────────────────────────────
+
+        private static int OptionIndexOf(in UtilityDecisionDef def, byte optionId)
+        {
+            for (int i = 0; i < def.Options.Length; i++)
+                if (def.Options[i].OptionId == optionId) return i;
+            return 0;
+        }
 
         private static float EvaluateOption(
             EntityRepository repo,

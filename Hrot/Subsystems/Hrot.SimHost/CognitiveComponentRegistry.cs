@@ -87,6 +87,11 @@ namespace Hrot.SimHost
             //   SimHost readers are extract-only translators gated on BehaviorState (design §3.9a).
             world.RegisterComponent<BTreeTraceWorkingMemory1024>();
             world.RegisterComponent<HsmTraceWorkingMemory1024>();
+            // ⭐ CE-3069 G2 — the utility record an observed unit carries (GET /entities/{id}/utility); attached and removed
+            //   by TraceBufferLifecycleSystem with the BTree/HSM rings above.
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityDebugFlags>();
+            world.RegisterComponent<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>();
             // ⭐ DebugState + PatchDebugStateCommand MOVED 2026-09-12 to
             //   BehaviorDiagnosticsComponentRegistry — SimHost's OWN ToggleAiTrace action writes them.
 

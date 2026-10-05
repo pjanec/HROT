@@ -503,6 +503,116 @@ namespace Fdp.Toolkit.Tests
             Assert.False(scorer.RankCandidates(world, unit, 0x2069, 0, out _, out _));   // an option decision
         }
 
+        // ── ⭐ CE-3069 G2 — the per-decision log of an OBSERVED unit (docs/DESIGN_Utility_AI_Demo_Scenarios.md §5.1) ──
+
+        private static Entity ObservedUnit(EntityRepository world)
+        {
+            world.RegisterComponent<UtilityDecisionLog>();
+            world.RegisterComponent<UtilityDebugFlags>();
+            world.RegisterComponent<UtilityTraceWorkingMemory1024>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new UtilityDecisionLog());
+            world.AddComponent(unit, new UtilityTraceWorkingMemory1024());
+            world.AddComponent(unit, new UtilityDebugFlags { TraceEnabled = 1 });
+            return unit;
+        }
+
+        [Fact]
+        public unsafe void CE3069_ObservedUnit_LogsTheWinnerAfterHysteresis_AndCountsTheSwitch()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);    // option 1 = 0.70
+            UtilityInputReaderStore.Register(61, &Stub075);   // option 2 = 0.75
+            var scorer = PostureScorer(out int id);
+            using var world = new EntityRepository();
+            var unit = ObservedUnit(world);
+
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 0));
+            var slot = world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0];
+            Assert.Equal(id, slot.DecisionId);
+            Assert.Equal(2, slot.Winner);
+            Assert.Equal(0, slot.SwitchCount);   // the first winner is not a switch
+
+            Assert.Equal(1, scorer.ChooseOption(world, unit, id, lastWinner: 1));   // 0.70 + 0.08 holds over 0.75
+            slot = world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0];
+            Assert.Equal(1, slot.Winner);
+            Assert.Equal(2, slot.PreviousWinner);
+            Assert.Equal(1, slot.SwitchCount);
+            Assert.Equal(2, slot.EvalCount);
+            Assert.Equal(1, slot.RankedRO()[0].WinningPostureId);
+            Assert.Equal(0.78f, slot.RankedRO()[0].Score, 3);   // the logged score includes the bonus
+        }
+
+        [Fact]
+        public unsafe void CE3069_F3_TheTracedWinner_IsTheOptionChosenAfterHysteresis()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);
+            UtilityInputReaderStore.Register(61, &Stub075);
+            var scorer = PostureScorer(out int id);
+            using var world = new EntityRepository();
+            var unit = ObservedUnit(world);
+
+            // Raw scores favour option 2 (0.75 > 0.70); the bonus keeps option 1. The trace used to name option 2.
+            Assert.Equal(1, scorer.ChooseOption(world, unit, id, lastWinner: 1));
+            var traced = world.GetComponentRW<UtilityTraceWorkingMemory1024>(unit).LatestSelected();
+            Assert.Equal(1, traced.OptionId);
+        }
+
+        [Fact]
+        public unsafe void CE3069_ObservedUnit_LogsARankingAsItsTopCandidate_BesideTheOptionDecision()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);
+            UtilityInputReaderStore.Register(61, &Stub075);
+            UtilityInputReaderStore.Register(62, &FavouredReader);
+            var registry = new UtilityRegistry();
+            registry.Register(0x2067, new UtilityDecisionDef
+            {
+                DebugName = "Posture", Kind = DecisionKind.PostureSelect,
+                Options = new[] { BuildSingleLinearOption(optionId: 1, inputId: 60), BuildSingleLinearOption(optionId: 2, inputId: 61) },
+            }, hysteresisBonus: 0.08f);
+            registry.Register(0x2068, new UtilityDecisionDef
+            {
+                DebugName = "Rank", Kind = DecisionKind.ThreatRanking,
+                Options = new[] { BuildSingleLinearOption(optionId: 0, inputId: 62) },
+            });
+            var scorer = new UtilityScorer(registry);
+
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            var unit = ObservedUnit(world);
+            var a = world.CreateEntity();
+            var b = world.CreateEntity();
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 2 };
+            mem.EntityIds[0] = (long)a.PackedValue;
+            mem.EntityIds[1] = (long)b.PackedValue;
+            world.AddComponent(unit, mem);
+            s_favoured = b;
+
+            scorer.ChooseOption(world, unit, 0x2067, lastWinner: 0);
+            Assert.True(scorer.TopCandidate(world, unit, 0x2068, 0, out var top, out _));
+            Assert.Equal(b, top);
+
+            // Both decisions keep their own slot — the unit's one result buffer could only show the last of them.
+            var slots = world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO();
+            Assert.Equal(0x2067, slots[0].DecisionId);
+            Assert.Equal(2, slots[0].Winner);
+            Assert.Equal(0x2068, slots[1].DecisionId);
+            Assert.Equal((long)b.PackedValue, slots[1].Winner);
+        }
+
+        [Fact]
+        public unsafe void CE3069_AnUnobservedUnit_IsNotLogged()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);
+            UtilityInputReaderStore.Register(61, &Stub075);
+            var scorer = PostureScorer(out int id);
+            using var world = new EntityRepository();
+            var unit = ObservedUnit(world);
+            world.GetComponentRW<UtilityDebugFlags>(unit).TraceEnabled = 0;
+
+            scorer.ChooseOption(world, unit, id, lastWinner: 0);
+            Assert.Equal(0, world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0].DecisionId);
+        }
+
         private static UtilityOption BuildSingleLinearOption(ushort optionId, ushort inputId)
         {
             return new UtilityOption

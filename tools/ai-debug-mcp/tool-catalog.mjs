@@ -1537,6 +1537,39 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_entity_utility",
+    "group": "K — AI behavior traces",
+    "summary": "What an observed unit's utility decisions chose, and why (CE-3069).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/utility"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
+    "notes": [
+      "observe_trace arms the BTree/HSM trace AND the utility record — one switch.",
+      "One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.",
+      "switchCount counts winner changes since arming — poll it to see a posture switch.",
+      "lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read which posture a unit chose and the scores behind it"
+    },
+    "hint": "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "observe_trace",
     "group": "K — AI behavior traces",
     "summary": "Arm or disarm AI behavior trace buffer allocation for an entity.",

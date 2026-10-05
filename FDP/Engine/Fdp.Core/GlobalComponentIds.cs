@@ -648,5 +648,10 @@
 
         /// <summary><c>WorldEpoch</c> — which world this is; bumped at every world boundary (<c>CE-2101</c>).</summary>
         public const int WorldEpoch = 332;
+
+        /// <summary><c>UtilityDecisionLog</c> — what each utility decision of an OBSERVED unit chose, one slot per decision, for
+        /// <c>GET /entities/{id}/utility</c> (<c>CE-3069</c> G2). 333 is free by a census of every <c>*Ids*.cs</c> and literal
+        /// <c>[ComponentId(333)]</c>, <c>2026-10-05</c> — <c>R-44</c>.</summary>
+        public const int UtilityDecisionLog = 333;
     }
 }

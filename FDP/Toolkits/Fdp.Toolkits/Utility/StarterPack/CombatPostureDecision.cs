@@ -25,7 +25,8 @@ namespace Fdp.Toolkit.Utility
         displayName:     "Combat posture",
         kind:            DecisionKind.PostureSelect,
         category:        "Tactical/Posture",
-        hysteresisBonus: 0.08f)]
+        hysteresisBonus: 0.08f,
+        OptionNames = typeof(Posture))]
     public sealed partial class CombatPostureDecision : IUtilityDecisionDefinition
     {
         /// <summary>Builds the decision definition via the fluent builder.</summary>

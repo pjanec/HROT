@@ -149,6 +149,9 @@ public static class HrotRoleComponentSets
         //   authority bit.
         brainOnly.SetBit(ComponentType<BTreeTraceWorkingMemory1024>.ID);
         brainOnly.SetBit(ComponentType<HsmTraceWorkingMemory1024>.ID);
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityDecisionLog>.ID);   // CE-3069 G2 — same writer
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityDebugFlags>.ID);
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>.ID);
 
         // ── READ on a Muscle node: Brain-OWNED, replicated IN, consumed here (§3.9) ────────────────
         var muscleRead = default(BitMask512);

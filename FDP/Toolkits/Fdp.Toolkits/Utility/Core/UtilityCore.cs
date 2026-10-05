@@ -168,6 +168,14 @@ namespace Fdp.Toolkit.Utility
         public string        AssetId = string.Empty;
         public DecisionKind  Kind;
         public UtilityOption[] Options = Array.Empty<UtilityOption>();
+        /// <summary>⭐ <c>CE-3069</c> G2 — the enum naming the option ids (<see cref="UtilityDecisionAttribute.OptionNames"/>);
+        /// null = options are shown by number.</summary>
+        public System.Type?  OptionNames;
+
+        /// <summary>The option's name from <see cref="OptionNames"/>, else its number.</summary>
+        public string OptionName(int optionId)
+            => OptionNames is { IsEnum: true } t && System.Enum.GetName(t, System.Convert.ChangeType(optionId, System.Enum.GetUnderlyingType(t))) is { } n
+                ? n : optionId.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     // ── UtilityConstants ─────────────────────────────────────────────────────────

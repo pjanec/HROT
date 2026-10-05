@@ -938,6 +938,15 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-3069 G2 — the utility record of a unit armed by POST /trace/observe.
+            _routes.Add(new("GET", "/entities/{networkId}/utility", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityUtility(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));

@@ -345,6 +345,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`get_entity_trace`** — Extract AI behavior trace for an entity. Req `networkId` (number). Returns BTree active node path + history, HSM active leaves, or blueprint live state. Includes traceArmed flag.
   Notes: Arm the entity with observe_trace first to populate trace data.; Returns tier field indicating the AI tier type (BTree/HSM/blueprint)..
   Example: `get_entity_trace({"networkId":1000})` — read AI behavior trace for entity 1000 after arming.
+- **`get_entity_utility`** — What an observed unit's utility decisions chose, and why (CE-3069). Req `networkId` (number). Returns { observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.
+  Notes: observe_trace arms the BTree/HSM trace AND the utility record — one switch.; One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.; switchCount counts winner changes since arming — poll it to see a posture switch.; lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner..
+  Example: `get_entity_utility({"networkId":1000})` — read which posture a unit chose and the scores behind it.
 - **`observe_trace`** — Arm or disarm AI behavior trace buffer allocation for an entity. Req `networkId` (number), Req `on` (boolean). Returns { armed, networkId }
   Notes: Must arm before get_entity_trace will return populated trace data.; Without arming, get_entity_trace returns empty trace..
   Example: `observe_trace({"networkId":1000,"on":true})` — arm AI behavior tracing for entity 1000.

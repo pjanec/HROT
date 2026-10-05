@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
@@ -25,13 +26,23 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </para>
     ///
     /// <para><b>Read-modify-write contract:</b>
-    /// Reads (or bootstraps) <see cref="ActiveSensorTracks"/> from the snapshot, modifies a
-    /// local copy, then writes via <c>ecb.SetComponent</c> / <c>ecb.AddComponent</c>.
+    /// Reads (or bootstraps) <see cref="ActiveSensorTracks"/> from the snapshot ONCE per observer per frame, applies every
+    /// event of that observer to the one local copy, then writes it once via <c>ecb.SetComponent</c> / <c>ecb.AddComponent</c>.
     /// </para>
+    /// <para>⭐⭐ <c>CE-3073</c> — it used to read the snapshot per EVENT and write the whole component per event. The snapshot
+    /// does not see the command buffer's queued writes, so with several contacts acquired in one frame each event started
+    /// from the frame-start list and the LAST overwrite won: a rifleman facing three visible enemies remembered ONE
+    /// (measured live on <c>ua-threat-ranking</c>, <c>docs/DESIGN_Utility_AI_Demo_Scenarios.md</c> §2.2). The memory stage
+    /// publishes only on a change, so the lost contacts never came back.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class ActiveSensorTracksUpdateSystem : IEcsModuleSystem
     {
+        // ⭐ CE-3073 — this frame's working copy per observer, and the order observers were first seen (reused, no per-frame
+        //   allocation once warm).
+        private readonly Dictionary<Entity, (ActiveSensorTracks Tracks, bool Had)> _working = new();
+        private readonly List<Entity> _order = new();
+
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -39,6 +50,8 @@ namespace Fdp.Toolkit.Perception.Systems
             if (events.IsEmpty) return;
 
             var ecb = view.GetCommandBuffer();
+            _working.Clear();
+            _order.Clear();
 
             foreach (ref readonly var evt in events)
             {
@@ -46,10 +59,13 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 long localTargetId = (long)evt.Target.PackedValue;
 
-                bool hasComponent = view.HasComponent<ActiveSensorTracks>(evt.Observer);
-                ActiveSensorTracks tracks = hasComponent
-                    ? view.GetComponentRO<ActiveSensorTracks>(evt.Observer)
-                    : new ActiveSensorTracks();
+                if (!_working.TryGetValue(evt.Observer, out var entry))
+                {
+                    bool had = view.HasComponent<ActiveSensorTracks>(evt.Observer);
+                    entry = (had ? view.GetComponentRO<ActiveSensorTracks>(evt.Observer) : new ActiveSensorTracks(), had);
+                    _order.Add(evt.Observer);
+                }
+                ActiveSensorTracks tracks = entry.Tracks;
 
                 if (evt.State == SensorTrackStatus.Acquired)
                 {
@@ -98,10 +114,16 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
 
-                if (hasComponent)
-                    ecb.SetComponent(evt.Observer, tracks);
+                _working[evt.Observer] = (tracks, entry.Had);
+            }
+
+            foreach (var observer in _order)
+            {
+                var (tracks, had) = _working[observer];
+                if (had)
+                    ecb.SetComponent(observer, tracks);
                 else
-                    ecb.AddComponent(evt.Observer, tracks);
+                    ecb.AddComponent(observer, tracks);
             }
         }
     }

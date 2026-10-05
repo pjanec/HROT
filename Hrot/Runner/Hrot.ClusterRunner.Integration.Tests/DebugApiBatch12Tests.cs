@@ -184,4 +184,60 @@ public sealed class DebugApiBatch12Tests
         Assert.NotNull(traceObj["tier"]);
         Assert.Equal(TestNetworkId + 10, traceObj["networkId"]?.GetValue<long>());
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3069</c> G2 — <c>GET /entities/{id}/utility</c>: unobserved ⇒ says how to arm; observed ⇒ each logged decision
+    /// by NAME with its winner by option name, previous winner, switch count and ranking. 📄
+    /// <c>docs/DESIGN_Utility_AI_Demo_Scenarios.md</c> §5.1.
+    /// </summary>
+    [Fact]
+    public void GetEntityUtility_NamesTheDecisionAndItsWinners_OnceTheUnitIsObserved()
+    {
+        using var h = new EditorHarness();
+        var svc = h.BuildDebugApiService();
+        long id = TestNetworkId + 20;
+        h.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType          = 1L,
+            NetworkId        = id,
+            OwnerNodeId      = 0,
+            InitType         = ReliableInitType.None,
+            InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(1f, 0f, 1f) },
+        });
+        Assert.True(h.PumpUntil(() => h.EntityMap.TryGetEntity(id, out _), 5000), "Entity did not spawn within timeout.");
+        h.EntityMap.TryGetEntity(id, out var unit);
+
+        var before = (JsonObject)svc.GetEntityUtility(id);
+        Assert.False(before["observed"]!.GetValue<bool>());
+        Assert.Contains("/trace/observe", before["note"]!.GetValue<string>());
+
+        // What the scorer records on an observed unit: TakeCover, then a switch from it to Flee.
+        Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
+        if (!h.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Utility.UtilityDecisionLog>())
+            h.Repo.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+        var log = new Fdp.Toolkit.Utility.UtilityDecisionLog();
+        log.Record(Fdp.Toolkit.Utility.CombatPostureDecision.Id, Ranked((Fdp.Toolkit.Utility.Posture.TakeCover, 0.6f), (Fdp.Toolkit.Utility.Posture.Hold, 0.3f)), isOption: true);
+        log.Record(Fdp.Toolkit.Utility.CombatPostureDecision.Id, Ranked((Fdp.Toolkit.Utility.Posture.Flee, 0.7f), (Fdp.Toolkit.Utility.Posture.TakeCover, 0.5f)), isOption: true);
+        h.Repo.AddComponent(unit, log);
+
+        var after = (JsonObject)svc.GetEntityUtility(id);
+        Assert.True(after["observed"]!.GetValue<bool>());
+        var d = (JsonObject)after["decisions"]![0]!;
+        Assert.Equal("Combat posture", d["decision"]!.GetValue<string>());
+        Assert.Equal("Flee", d["winner"]!.GetValue<string>());
+        Assert.Equal("TakeCover", d["previousWinner"]!.GetValue<string>());
+        Assert.Equal(1, d["switchCount"]!.GetValue<int>());
+        Assert.Equal("Flee", d["ranked"]![0]!["option"]!.GetValue<string>());
+        Assert.Equal(0.7, d["ranked"]![0]!["score"]!.GetValue<double>(), 3);
+    }
+
+    private static Fdp.Toolkit.Utility.UtilityResultBuffer Ranked(params (Fdp.Toolkit.Utility.Posture option, float score)[] rows)
+    {
+        var buf = new Fdp.Toolkit.Utility.UtilityResultBuffer { Count = rows.Length };
+        var span = buf.GetSpanRW();
+        for (int i = 0; i < rows.Length; i++)
+            span[i] = new Fdp.Toolkit.Utility.UtilityResultEntry { WinningPostureId = (byte)rows[i].option, Score = rows[i].score };
+        buf.RunnerUpMargin = rows.Length > 1 ? rows[0].score - rows[1].score : 0f;
+        return buf;
+    }
 }

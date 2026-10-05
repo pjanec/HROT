@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1 started: G1 BUILT (CE-3070). §9 (ammunition vs armour) and §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour) and §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
 current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10 (danger sensor). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
@@ -26,7 +26,7 @@ related-designs:
 > best. Ideally if there is just few terrains, like 2 or 3, shared by the scenarios. Can we start designing such demo
 > scenarios for the features and discovering what features need to be built?"*
 
-Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3071` (§9 armour model), `CE-3072` (§10 danger sensor). Written by the backend lane; the utility AI is the behaviors lane's topic, so this is a cross-lane design (allowed,
+Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3073` (F10, fixed), `CE-3074` (F11, fixed), `CE-3071` (§9 armour model), `CE-3072` (§10 danger sensor). Written by the backend lane; the utility AI is the behaviors lane's topic, so this is a cross-lane design (allowed,
 `2026-10-02`). §8 Q6 proposes who builds what.
 
 ## 1. INVENTORY *(`2026-10-05`, code graph + grep + four read-only corpus sweeps)*
@@ -71,6 +71,8 @@ Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3071` (§9 armou
 | **F6** | the danger-area buffer is written on a sensor CHILD but read from the commander | `DangerAreaRefreshSystem.cs:51` vs `SquadInputs.cs:194,215` | every danger-area input reads 0 |
 | **F7** | `tt-*` recipe scenarios are seeded onto the NAS only by the editor; `--mode all` seeds `scenarios/*` (folders with the curated marker) | `Program.cs:384`, `CuratedScenarios.cs:139-153`, `EditorSubsystem.cs:2251-2262` | demo scenarios live in `scenarios/` |
 | **F8** | the only unit with two weapons is the M2 Bradley (TKB 101: 25 mm, TOW); infantry 2002 has one rifle and no `WeaponCapabilitiesDto` (range 0) | `NedTkbCatalog`, `UrbanCombatTkbCatalog.cs` | U5 uses a Bradley |
+| **F10** ✅ fixed `CE-3073` | a unit kept only ONE of several contacts acquired in the same frame — `ActiveSensorTracksUpdateSystem` overwrote the whole track list per event (measured live on U2: three visible hostiles, one track) | `ActiveSensorTracksUpdateSystem.cs` (pre-fix :43-105) | every multi-enemy fight; U2 could not rank what the unit never remembered |
+| **F11** ✅ fixed `CE-3074` | ThreatRanking scored every HEALTHY contact 0: `ContactHealthFraction` through `InverseLinear` (1 − health) in a product ⇒ full health = 0 ⇒ the whole score 0; live, an unarmed civilian (no Health) ranked first | `ThreatRankingDecision.cs` (pre-fix) | target choice in every fight; now `1 − 0.5·health` |
 | **F9** | no route shows a utility winner or scores: a BTree working state (`UtilityChoice`) has no route (`/variables` is blueprint-only); the trace is never attached; fixed arrays dump collapsed | `DebugApiService.Variables.cs:111-120`; RUNBOOK §6 | "is it really working" can only be inferred from side effects today |
 
 ## 3. Terrains — two, shared
@@ -125,10 +127,14 @@ classDiagram
     +POST /trace/observe
   }
   class UtilityDebugRoutes {
-    <<NEW, G2>>
-    +POST /entities/id/utility/observe
+    <<NEW, G2 as built>>
     +GET /entities/id/utility
   }
+  class TraceBufferLifecycleSystem {
+    <<existing, grows>>
+    POST /trace/observe also attaches the utility record
+  }
+  class UtilityDecisionLog { <<NEW component 333>> one slot per decision: winner, previous, switchCount, ranking }
   class UtilityScorer {
     <<existing>>
     +ChooseOption(repo, self, decision, lastWinner, tick)
@@ -142,9 +148,12 @@ classDiagram
     +GET /entities/id/squad
   }
   class SquadCognitiveState { <<existing>> contacts, assignments, maneuver }
-  UtilityDebugRoutes --> UtilityResultBuffer : attaches on observe
-  UtilityDebugRoutes --> UtilityDebugFlags : attaches on observe
-  UtilityDebugRoutes --> UtilityTraceWorkingMemory1024 : attaches, decodes
+  TraceBufferLifecycleSystem --> UtilityDecisionLog : attaches on observe
+  TraceBufferLifecycleSystem --> UtilityDebugFlags : attaches on observe
+  TraceBufferLifecycleSystem --> UtilityTraceWorkingMemory1024 : attaches on observe
+  UtilityDebugRoutes --> UtilityDecisionLog : decodes
+  UtilityDebugRoutes --> UtilityTraceWorkingMemory1024 : decodes the last option pass
+  UtilityScorer ..> UtilityDecisionLog : records the final ranking when observed
   UtilityScorer ..> UtilityResultBuffer : writes when present
   UtilityScorer ..> UtilityTraceWorkingMemory1024 : writes when TraceEnabled
   SquadDebugRoute --> SquadCognitiveState : decodes
@@ -154,6 +163,12 @@ classDiagram
 
 *What the picture shows that prose hid: the scorer already writes everything a check needs — the route only ATTACHES
 the components it writes into and DECODES them; no new scoring path.*
+
+⭐ **As built (`2026-10-05`) — two deviations, both simplifications:** ① no separate observe route: the existing
+`POST /trace/observe` arms the utility record too (`TraceBufferLifecycleSystem`), one switch for "observe this unit's
+AI"; ② the scores live in a NEW per-decision `UtilityDecisionLog`, not the unit's `UtilityResultBuffer` — a unit has one
+buffer and the posture and the threat ranking both write it every tick, so it shows whichever ran last. ⛔ SUPERSEDED:
+the `POST /entities/{id}/utility/observe` route this section first drew.
 
 `GET /entities/{id}/utility` answers per decision run on that unit: `decision`, `winner` (name), `previousWinner`,
 `switchedAtSimTime`, per-option `score` (after hysteresis — F3 fixed), and per-consideration `input / raw / curved /
@@ -169,7 +184,7 @@ sequenceDiagram
   participant H as SimHost
   S->>R: POST /scenario/load/live {name: ua-posture}
   S->>R: POST /perspective {Scenario}
-  S->>R: POST /entities/rifleman/utility/observe
+  S->>R: POST /trace/observe {rifleman, on}
   S->>R: POST /sim/play
   loop until each expected winner is seen or timeout
     S->>B: GET /entities/rifleman/utility
@@ -218,7 +233,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | id | item | size | for | depends |
 |---|---|---|---|---|
 | **G1** ✅ BUILT `2026-10-05` | the two distance readers read `SimTransform` (as EQS does, `EqsContext.cs:64`) — fixes F1 live (`CE-3070`) | S | U2, U4–U6 | — |
-| **G2** | `/entities/{id}/utility` observe + read; fix F3; pass the tick | M | all | — |
+| **G2** ✅ BUILT `2026-10-05` | `/entities/{id}/utility` + a per-decision `UtilityDecisionLog` (armed by the EXISTING `POST /trace/observe` — one switch); F3 fixed; options named by `[UtilityDecision(OptionNames = typeof(…))]` | M | all | — |
 | **G3** | `/entities/{id}/squad`: contacts, assignments, maneuver, danger areas | S | U6, U7 | — |
 | **G4** | `CombatPostureHsm` asset + a runtime switch rail (Decision Layer D3) | M | U3 | — |
 | **G5** | `CombatPostureBp` blueprint (ScoreDecision + Behaviour Task per option) + a decision picker on `ScoreDecision` (BP-27) | M | U3 | — |
@@ -227,7 +242,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | **G8** | call `ThreatMatrixAssignmentSystem` from `SquadCoordinationSystem`; feed it the merged pool (F4); an infantry squad hierarchy in a scenario | M | U6 | G1, G3 |
 | **G9** | CE-507 D2/D3: a danger-area provider (interim: features authored in the terrain file), F5, F6, a squad-maneuver behaviour on the commander, members reading their role | L | U7 | user decisions |
 | **G10** | `basic-desert` ridge + wadi; measure navmesh and `SurfaceZ` on the ramps | S | U5–U7 | — |
-| **G11** | the seven scenario folders, `utility-demo-check.py`, the runbook, one in-process rail each | M | all | per scenario |
+| **G11** ⚠ PARTIAL `2026-10-05` | the seven scenario folders, `utility-demo-check.py` (asserting; `--launch` = a fresh cluster per run, CE-295), the runbook, one in-process rail each — ✅ U1 `ua-posture` and U2 `ua-threat-ranking` built and PASS ×2 live; ⏳ their in-process rails, U3–U7 | M | all | per scenario |
 
 ## 7. Out of scope — and why
 

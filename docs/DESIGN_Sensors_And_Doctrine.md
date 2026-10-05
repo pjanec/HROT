@@ -331,6 +331,14 @@ graph TD
 rebuilt on `CognitiveSpatialModule`'s thread while `EqsModule`'s area query could not touch it (the race noted in
 `EntitiesInAreaGenerator`). Everything after the egress is untouched.
 
+⚠ **Corrected `2026-10-05` (`CE-3073`, backend):** "unchanged" hid a defect on the CGF side of that egress.
+`ActiveSensorTracksUpdateSystem` re-read the frame-start snapshot for EVERY `SensorTrackStateEvent` and wrote the whole
+component per event, so when several contacts were acquired in one frame only the last survived — a unit facing three
+visible enemies remembered ONE, and since the memory stage publishes only on a change the others never came back.
+Measured live on `ua-threat-ranking` ([`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §2.2).
+Every earlier scenario had a single hostile. Fixed: one working copy per observer per frame, written once
+(rail `SensorChangedEventTests.SeveralContactsInOneFrame_AreAllKept_AndAllRemoved_CE3073`, red-proved 1 of 3).
+
 ```mermaid
 classDiagram
   direction LR

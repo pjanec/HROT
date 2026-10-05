@@ -64,6 +64,39 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Empty(Run(w, sys));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3073</c> — several contacts acquired in ONE frame are all kept, and several lost in one frame are all
+        /// removed. Every track update used to re-read the frame-start snapshot and overwrite the whole component, so the
+        /// last event won: a unit facing three visible enemies remembered one (measured live, <c>ua-threat-ranking</c>).
+        /// </summary>
+        [Fact]
+        public unsafe void SeveralContactsInOneFrame_AreAllKept_AndAllRemoved_CE3073()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var a = w.CreateEntity();
+            var b = w.CreateEntity();
+            var c = w.CreateEntity();
+            var sys = new ActiveSensorTracksUpdateSystem();
+
+            foreach (var t in new[] { a, b, c })
+                w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = t, State = SensorTrackStatus.Acquired });
+            w.Bus.SwapBuffers();
+            var acquired = Run(w, sys);
+
+            Assert.Equal(3, w.GetComponentRO<ActiveSensorTracks>(unit).Count);
+            Assert.Equal(3, acquired.Count(e => e.What == SensorChange.Acquired));
+
+            foreach (var t in new[] { a, c })
+                w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = t, State = SensorTrackStatus.Lost });
+            w.Bus.SwapBuffers();
+            Run(w, sys);
+
+            ref readonly var tracks = ref w.GetComponentRO<ActiveSensorTracks>(unit);
+            Assert.Equal(1, tracks.Count);
+            Assert.Equal((long)b.PackedValue, tracks.EntityIds[0]);
+        }
+
         /// <summary>⭐ CE-3060 — the track keeps the kinds the event carries, and the memory takes them (not an assumed Visual).</summary>
         [Fact]
         public unsafe void TheTrackKeepsItsKinds_AndTheMemoryTakesThem_CE3060()

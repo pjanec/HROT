@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Utility;
 
 namespace Fdp.Toolkit.Behavior.Diagnostics
 {
@@ -30,6 +31,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         private readonly List<Entity> _toRemoveBTree = new();
         private readonly List<Entity> _toAddHsm = new();
         private readonly List<Entity> _toRemoveHsm = new();
+        private readonly List<Entity> _toAddUtility = new();
+        private readonly List<Entity> _toRemoveUtility = new();
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -42,6 +45,15 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             _toRemoveBTree.Clear();
             _toAddHsm.Clear();
             _toRemoveHsm.Clear();
+            _toAddUtility.Clear();
+            _toRemoveUtility.Clear();
+
+            // ⭐ CE-3069 G2 — the same switch arms the utility record (the decision log + its trace), on every brain tier:
+            //   ONE arming mechanism for "observe this unit's AI" (POST /trace/observe). Skipped on a world that does not
+            //   register the utility components (a test world, a non-Brain host).
+            bool utility = repo.IsComponentTypeRegistered<UtilityDecisionLog>()
+                        && repo.IsComponentTypeRegistered<UtilityDebugFlags>()
+                        && repo.IsComponentTypeRegistered<UtilityTraceWorkingMemory1024>();
 
             var q = repo.Query()
                 .With<DebugState>()
@@ -52,6 +64,13 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             {
                 ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
                 bool enabled = (dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0;
+
+                if (utility)
+                {
+                    bool logged = repo.HasComponent<UtilityDecisionLog>(entity);
+                    if (enabled && !logged) _toAddUtility.Add(entity);
+                    else if (!enabled && logged) _toRemoveUtility.Add(entity);
+                }
 
                 byte tier = repo.GetComponentRO<BehaviorState>(entity).BrainTier;
 
@@ -78,6 +97,18 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 repo.AddComponent(e, new HsmTraceWorkingMemory1024());
             foreach (var e in _toRemoveHsm)
                 repo.RemoveComponent<HsmTraceWorkingMemory1024>(e);
+            foreach (var e in _toAddUtility)
+            {
+                repo.AddComponent(e, new UtilityDecisionLog());
+                repo.AddComponent(e, new UtilityTraceWorkingMemory1024());
+                repo.AddComponent(e, new UtilityDebugFlags { TraceEnabled = 1 });
+            }
+            foreach (var e in _toRemoveUtility)
+            {
+                repo.RemoveComponent<UtilityDecisionLog>(e);
+                if (repo.HasComponent<UtilityTraceWorkingMemory1024>(e)) repo.RemoveComponent<UtilityTraceWorkingMemory1024>(e);
+                if (repo.HasComponent<UtilityDebugFlags>(e)) repo.RemoveComponent<UtilityDebugFlags>(e);
+            }
         }
     }
 }

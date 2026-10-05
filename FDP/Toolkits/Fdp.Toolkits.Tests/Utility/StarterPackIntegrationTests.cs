@@ -247,6 +247,29 @@ namespace Fdp.Toolkit.Tests
             Assert.True(ranked[0].Score > ranked[1].Score, $"closer {ranked[0].Score} vs farther {ranked[1].Score}");
         }
 
+        /// <summary>
+        /// ⭐ CE-3074 — a HEALTHY armed contact ranks above an unarmed one. Full health used to read 1 − 1 = 0 through the
+        /// health consideration, zeroing the armed contact's whole product, so the unarmed civilian (no Health) won live.
+        /// The unarmed contact is seeded FIRST so a 0–0 tie broken by order cannot pass.
+        /// </summary>
+        [Fact]
+        public void CE3074_ThreatRanking_AHealthyArmedContact_OutranksAnUnarmedOne()
+        {
+            var agent   = _world.SpawnAgent(1.0f, 1.0f);
+            var unarmed = _world.Repo.CreateEntity();
+            var armed   = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(armed, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _world.SeedContact(agent, unarmed, 50f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+            _world.SeedContact(agent, armed,   50f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+
+            _world.Scorer.Evaluate(_world.Repo, agent, ThreatRankingDecision.Id);
+
+            var ranked = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO();
+            Assert.Equal((long)armed.PackedValue, ranked[0].CandidateHandle);
+            Assert.True(ranked[0].Score > 0f, $"a full-health armed contact must not score 0 (got {ranked[0].Score})");
+            Assert.True(ranked[0].Score > ranked[1].Score);
+        }
+
         // SC-P1-06-5: Assigned target bias promotes leader choice
         [Fact]
         public void Assigned_Target_Bias_Promotes_Leader_Choice()

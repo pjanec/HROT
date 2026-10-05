@@ -1687,6 +1687,26 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read AI behavior trace for entity 1000 after arming"),
 
+        [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
+            Tool:    "get_entity_utility",
+            Group:   "K — AI behavior traces",
+            Summary: "What an observed unit's utility decisions chose, and why (CE-3069).",
+            Returns: "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
+            Hint:    "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "observe_trace arms the BTree/HSM trace AND the utility record — one switch.",
+                "One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.",
+                "switchCount counts winner changes since arming — poll it to see a posture switch.",
+                "lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "read which posture a unit chose and the scores behind it"),
+
         [("GET", "/attributes/schema")] = new RouteDoc(
             Tool:    "get_attributes_schema",
             Group:   "L — Mutation / fault injection",
