@@ -35,6 +35,7 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 |---|---|
 | `127.0.0.1` | every route 404s — the listener binds the `localhost` HOSTNAME (HTTP runbook §2) |
 | a proxy | the script never uses one; with `curl` pass `--noproxy '*'` |
+| `hill-attack*` after another scenario | ⚠ ends differently than on a fresh cluster (`CE-3076`, open) — run it with a fresh cluster |
 | network ids | a load renumbers entities (the Rifleman is `1000`, not the scenario's `7101`) — the script finds them by NAME via `GET /entities` |
 | stopping | `pgrep -f 'ClusterRunner[.]dll'`, then `kill` the ids in a SEPARATE command — `pkill -f` matches its own shell |
 | a scenario not found | only folders under `scenarios/` are seeded in `--mode all`; the `tt-*` recipes are seeded by the editor only |
