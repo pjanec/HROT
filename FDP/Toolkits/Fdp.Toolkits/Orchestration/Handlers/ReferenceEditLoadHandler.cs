@@ -33,7 +33,11 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         ClusterState TargetState = ClusterState.LoadingEdit,
         System.Guid ExerciseId = default,
         string? TkbName = null,
-        string? TerrainName = null);
+        string? TerrainName = null,
+        // ⭐ CE-2101 — true on the load step entered FROM Idle: the world boundary, where every node clears its world
+        //   before the load builds the new one (docs/DESIGN_Deterministic_Network_Ids.md §11b, §11g.4). Set by the
+        //   master, by the same rule that resets the id authority.
+        bool IsWorldBoundary = false);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

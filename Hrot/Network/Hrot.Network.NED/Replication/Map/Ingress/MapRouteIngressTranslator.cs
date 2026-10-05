@@ -52,6 +52,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     /// the entire <see cref="_pendingRoutes"/> dictionary on every tick.
     /// </summary>
     private readonly HashSet<long> _recentlyRegistered = new();
+    private int _worldEpoch;   // ⭐ CE-2101 — deferred samples belong to ONE world (WorldEpoch)
 
     public string TopicName => DdsTopicName;
     public long DescriptorOrdinal => OrdinalValue;
@@ -75,6 +76,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _pendingRoutes.Clear(); _recentlyRegistered.Clear(); }   // CE-2101
         // Retry deferred samples — only for net IDs registered since the last poll.
         if (_recentlyRegistered.Count > 0 && _pendingRoutes.Count > 0)
         {

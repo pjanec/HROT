@@ -60,6 +60,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         /// <summary>CE-517: ghosts whose owner is still unknown, keyed by network id → the writer's publication handle.</summary>
         private readonly Dictionary<long, long> _ownerUnresolved = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
         private readonly List<long> _resolvedScratch = new();
 
         public string TopicName => DdsTopicName;
@@ -95,6 +96,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _ownerUnresolved.Clear();   // CE-2101
             if (_reader is null) return; // test mode — no DDS participant supplied
             RetryUnresolvedOwners(cmd, view);
             using var loan = _reader.Take();

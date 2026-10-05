@@ -28,6 +28,7 @@ namespace Hrot.BDC.Replication
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreation;
         private readonly HashSet<long> _publishedNetIds = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName => "BDC_EntityMaster";
         // BDC ordinal space starts at 1000 to avoid collisions with NED
@@ -57,6 +58,7 @@ namespace Hrot.BDC.Replication
 
         public void ScanAndPublish(ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _publishedNetIds.Clear();   // CE-2101
             var query = view.Query()
                 .With<NetworkIdentity>()
                 .With<TkbIdentity>()

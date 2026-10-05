@@ -81,6 +81,7 @@ public sealed class ScenarioFileService
         if (repo == null) throw new ArgumentNullException(nameof(repo));
         _worldResetObservers?.Invoke();   // synchronous callbacks BEFORE clear
         repo.SoftClear();                 // also clears Bus — so we publish bus event AFTER this
+        Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(repo);   // ⭐ CE-2101 — translators drop the last world's per-id state
         // Reset simulation time: SoftClear() does not touch singletons.
         if (repo.HasSingletonUnmanaged<GlobalTime>())
             repo.SetSingletonUnmanaged(default(GlobalTime));

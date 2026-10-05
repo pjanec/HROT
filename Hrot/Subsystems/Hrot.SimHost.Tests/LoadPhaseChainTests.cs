@@ -266,6 +266,44 @@ public sealed class LoadPhaseChainTests
         Assert.True(a.Aborted);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-2101 — a load at the WORLD BOUNDARY (entered from Idle) starts from an empty world, before any step commits:
+    /// every entity destroyed (generations move on, so a stale handle goes dead) and the network map cleared. A load
+    /// that is NOT at the boundary (live-from-replay) keeps the world. 📄 DESIGN_Deterministic_Network_Ids §11b.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheWorldBoundary_ClearsTheWorldBeforeAnyStepCommits_CE2101(bool boundary)
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var stale = world.CreateEntity();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        map.Register(1000, stale);
+        int seenAtCommit = -1;
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase) { OnCommit = w => seenAtCommit = w!.EntityCount }, new FakeStep(LoadPart.Terrain) },
+            world, entityMap: map);
+
+        chain.Commit(new ExecuteNodeOpIntent
+        {
+            Operation     = NodeOpType.PrepareLive,
+            TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: ClusterState.LoadingLive, IsWorldBoundary: boundary),
+        }, null);
+
+        Assert.Equal(boundary ? 0 : 1, seenAtCommit);              // the step saw the cleared world
+        Assert.Equal(!boundary, world.IsAlive(stale));
+        Assert.Equal(!boundary, map.TryGetEntity(1000, out _));
+        if (boundary)
+        {
+            var fresh = world.CreateEntity();
+            Assert.False(fresh.Equals(stale), "the stale handle must not alias the next entity (generation moved on)");
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
 
     private static ExecuteNodeOpIntent LoadIntent()
@@ -300,7 +338,9 @@ public sealed class LoadPhaseChainTests
             return Task.CompletedTask;
         }
 
-        public void Commit(LoadPhaseContext context, EntityRepository? world) { }
+        public Action<EntityRepository?>? OnCommit { get; init; }
+
+        public void Commit(LoadPhaseContext context, EntityRepository? world) => OnCommit?.Invoke(world);
         public void Abort(LoadPhaseContext context) => Aborted = true;
         public bool IsResolved(EntityRepository? world) => Resolved;
     }

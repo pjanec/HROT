@@ -394,7 +394,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         };
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World, hostLabel: "IG"));
+            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World, hostLabel: "IG",
+            entityMap: context.EntityMap));   // CE-2101 — the world boundary clears it
 
         // Wire ReferenceReplayLoadHandler (PrepareReplay / FinalizeReplay
         // unconditional; PrepareLive only when replay active).

@@ -1498,7 +1498,8 @@ namespace Hrot.Editor
                 EditorCapabilities.DefaultRole, editorLoadProviders, _world,
                 recordingController: rrController,
                 storageDirectory:    isolatedTempRoot,
-                hostLabel:           "Editor"));
+                hostLabel:           "Editor",
+                entityMap:           _entityMap));   // CE-2101 — the world boundary clears it
 
             // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register). When the
             //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared

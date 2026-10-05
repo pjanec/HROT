@@ -1265,7 +1265,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             DefaultRole, cgfLoadProviders, _context.World,
             recordingController: rrController,
             storageDirectory:    isolatedTempRoot,
-            hostLabel:           "CGF"));
+            hostLabel:           "CGF",
+            entityMap:           _context.EntityMap));   // CE-2101 — the world boundary clears it
 
         // ⭐⭐⭐ CE-275 ③ — CGF registers the SAME scenario SAVE handler as the editor (CGF == editor). On a
         //   SaveScenarioJson fan-out it writes CGF's owned slice via the shared ScenarioSaveCore, using CGF's

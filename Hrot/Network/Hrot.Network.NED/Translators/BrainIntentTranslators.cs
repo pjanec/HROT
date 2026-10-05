@@ -32,6 +32,7 @@ namespace Hrot.Network.Translators
         private readonly BehaviorRegistry _registry;
         private readonly Dictionary<long, Signature> _lastSignature = new();
         private readonly Dictionary<long, string> _lastSent = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
@@ -58,6 +59,7 @@ namespace Hrot.Network.Translators
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _lastSignature.Clear(); _lastSent.Clear(); }   // CE-2101 — the next world resends
             if (view is not EntityRepository repo) return;
             long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             var query = view.Query().With<NetworkIdentity>().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();
@@ -123,6 +125,7 @@ namespace Hrot.Network.Translators
         private readonly DdsReader<EntityBrainIntent>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, string> _held = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName         => BrainIntentEgressTranslator.DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
@@ -140,6 +143,7 @@ namespace Hrot.Network.Translators
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _held.Clear();   // CE-2101 — held for the last world
             if (_reader is not null)
             {
                 using var loan = _reader.Take();
