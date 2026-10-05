@@ -450,6 +450,25 @@ namespace Hrot.SimHost.Systems
                     cache[i] = 0f;
             }
 
+            // ⭐ CE-2097 — TopChanged policy: publish only when the top candidate's identity changes (EqsPublishPolicy docs;
+            //   EQS 1.3: "the top entry's identity changes"). Same first-answer-of-an-epoch exception as ScoreDelta.
+            //   Empty ⇄ non-empty is a change.
+            if ((EqsPublishPolicy)sensor.PublishPolicy == EqsPublishPolicy.TopChanged)
+            {
+                bool hasTop = finalCandidates.Length > 0;
+                if (evalState.PublishedThisEpoch && hasTop == evalState.LastPublishedHadTop
+                    && (!hasTop || SameIdentity(finalCandidates[0], in evalState)))
+                    return;   // same top — skip publish (the caller persists evalState)
+                evalState.LastPublishedHadTop = hasTop;
+                if (hasTop)
+                {
+                    evalState.LastPublishedTopEntityId = finalCandidates[0].EntityId;
+                    evalState.LastPublishedTopX        = finalCandidates[0].PositionX;
+                    evalState.LastPublishedTopY        = finalCandidates[0].PositionY;
+                    evalState.LastPublishedTopZ        = finalCandidates[0].PositionZ;
+                }
+            }
+
             ref var pool = ref _currentRepo.GetSingletonUnmanaged<EqsResultPool>();
             // WriteAndWrap takes ReadOnlySpan<EqsResult>.
             int handle = pool.WriteAndWrap((ReadOnlySpan<EqsResult>)finalCandidates);
@@ -465,5 +484,15 @@ namespace Hrot.SimHost.Systems
             });
             evalState.PublishedThisEpoch = true;
         }
+
+        /// <summary>⭐ CE-2097 — is <paramref name="top"/> the same candidate as the last published top? An entity-shaped
+        /// answer compares the entity; a positional one (EntityId 0) compares the position.</summary>
+        private static bool SameIdentity(in EqsResult top, in SensorEvalState evalState)
+            => top.EntityId != 0
+                ? top.EntityId == evalState.LastPublishedTopEntityId
+                : evalState.LastPublishedTopEntityId == 0
+                  && top.PositionX == evalState.LastPublishedTopX
+                  && top.PositionY == evalState.LastPublishedTopY
+                  && top.PositionZ == evalState.LastPublishedTopZ;
     }
 }

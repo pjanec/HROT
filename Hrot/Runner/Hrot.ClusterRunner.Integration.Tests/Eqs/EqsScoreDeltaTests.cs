@@ -135,6 +135,59 @@ public sealed class EqsScoreDeltaTests : IDisposable
             "Phase 3: LastUpdateTick must advance after large score change");
     }
 
+    // ── T-SD1b (CE-2097): TopChanged policy publishes only when the top candidate changes ──
+
+    /// <summary>
+    /// ⭐ <c>CE-2097</c> — under <see cref="EqsPublishPolicy.TopChanged"/> a score change that keeps the same top candidate
+    /// is suppressed, and a change of the top candidate is published. 🔴 Before: the solver filtered only ScoreDelta, so
+    /// TopChanged published every solve like AlwaysPush.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void TopChanged_SuppressesWhileTheTopStays_PublishesWhenItChanges_CE2097()
+    {
+        const uint blueprintId = 2210003u;
+        var generator = new MutableScoreGenerator();
+        var registry = new SimpleEqsTemplateRegistry();
+        registry.Register(new EqsQueryTemplate { BlueprintId = blueprintId, Generator = generator, MaxCandidates = 8 });
+        _harness.Repo.SetSingletonManaged<IEqsTemplateRegistry>(registry);
+
+        var observer = _harness.Repo.CreateEntity();
+        _harness.Repo.AddComponent(observer, new SimTransform
+        {
+            Position = System.Numerics.Vector3.Zero,
+            Rotation = System.Numerics.Quaternion.Identity,
+        });
+        _harness.Repo.AddComponent(observer, new EqsSensor
+        {
+            BlueprintId   = blueprintId,
+            Epoch         = 1u,
+            SearchRadius  = 50f,
+            PublishPolicy = (byte)EqsPublishPolicy.TopChanged,
+        });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8402L });
+
+        bool first = _harness.PumpUntil(
+            () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
+               && _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).IsReady
+               && _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).Count > 0,
+            timeoutMs: 5000);
+        Assert.True(first, "the first answer of an epoch is always published");
+        uint tick1 = _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick;
+
+        // Scores move a lot, but candidate 0 (PositionX 0) stays on top ⇒ suppressed.
+        generator.Scores = new float[] { 5.0f, 0.1f, 2.0f };
+        _harness.PumpFrames(40);
+        Assert.Equal(tick1, _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick);
+
+        // Candidate 2 (PositionX 2) takes the top ⇒ published, and the buffer's top is the new candidate.
+        generator.Scores = new float[] { 1.0f, 0.1f, 2.0f };
+        bool changed = _harness.PumpUntil(
+            () => _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).LastUpdateTick > tick1,
+            timeoutMs: 3000);
+        Assert.True(changed, "a new top candidate must be published");
+        Assert.Equal(2f, _harness.Repo.GetComponentRO<EqsCognitiveBuffer>(observer).GetTop().PositionX);
+    }
+
     // ── T-SD2: ScoreDeltaThreshold change increments Epoch ───────────────────
 
     /// <summary>

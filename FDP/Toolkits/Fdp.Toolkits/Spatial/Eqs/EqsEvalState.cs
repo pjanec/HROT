@@ -49,6 +49,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
         //   (the estimate that decides whether it fits what is left of a tick's budget). 📄 DESIGN_Sensors_And_Doctrine §5.4.
         public uint LastSolvedTick;
         public int LastCost;
+
+        // ⭐ CE-2097 — the top of the last PUBLISHED answer, for the TopChanged publish policy: its identity is the entity for
+        //   an entity-shaped answer and the position for a positional one (the same (entity, position) comparison
+        //   EqsResultUpdateSystem uses for a perception sensor's TopChanged). LastPublishedHadTop = false ⇔ it was empty.
+        public long LastPublishedTopEntityId;
+        public float LastPublishedTopX;
+        public float LastPublishedTopY;
+        public float LastPublishedTopZ;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool LastPublishedHadTop;
     }
 
     /// <summary>

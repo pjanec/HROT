@@ -120,11 +120,9 @@ public static class StrideCapabilities
 
         /// <summary>
         /// ⭐ <b><c>ProvideModules</c>, not <c>Register</c> — and the difference is load-bearing.</b>
-        /// A host that only registers cannot be ASKED what it contributed. The editor needs exactly
-        /// that: <c>EditorApplication.SwitchToExternalAsync</c> uninstalls the logic packs by
-        /// reference, so it must hold the module this capability creates, not merely know that one was
-        /// registered. This is the hook the seam grew for hosts whose modules land at the
-        /// <c>additional-modules</c> step (§4.1t), and it is why that third hook exists.
+        /// This is the hook the seam grew for hosts whose modules land at the <c>additional-modules</c>
+        /// step (§4.1t). ⚠ It was also how the editor's Go External switch found the modules to uninstall; that
+        /// switch is retired (R-204, CE-3058).
         /// </summary>
         public IEnumerable<IEcsModule> ProvideModules()
         {

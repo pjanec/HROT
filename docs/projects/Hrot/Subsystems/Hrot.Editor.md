@@ -1,5 +1,7 @@
 # Hrot.Editor
 
+> ⛔ **SUPERSEDED IN PART `2026-10-05` — R-204 / CE-3058:** the Go External / Internal mode switch (`SimHostMode`, `SwitchToExternalAsync` / `SwitchToInternalAsync`, `CurrentMode`, the toolbar toggle, the `logicPacks` / `translatorPacks` ctor parameters) is deleted. 🔒 User: *"Editor go external us deprecated, cgf==editor is what replaces it."* Every mention of it below is history.
+
 > ⛔ **SUPERSEDED IN PART `2026-10-03` — [DESIGN_Map_Picking_Unification](../../../blueprints/DESIGN_Map_Picking_Unification.md):** `EditorMapPickAdapter` and `LocationPickerGizmo` are deleted (CE-063): the editor builds the shared `CanvasMapPickAdapter` with its filter factory, geographic transform and modal area gizmo.
 
 | Field       | Value                                                                          |

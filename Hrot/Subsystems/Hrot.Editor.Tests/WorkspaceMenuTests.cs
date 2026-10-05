@@ -31,9 +31,6 @@ public sealed class WorkspaceMenuTests
         public void ActivateTool(EditorTool tool) { }
         public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
         public IDerRepo View => null!;
-        public Task SwitchToExternalAsync() => Task.CompletedTask;
-        public Task SwitchToInternalAsync() => Task.CompletedTask;
-        public SimHostMode CurrentMode => SimHostMode.Internal;
         public void CenterOnEntity(long entityId) { }
         public void SelectEntity(long entityId) { }
         public void OpenRenameDialog(long entityId) { }

@@ -110,8 +110,7 @@ public static class SimHostCapabilities
         /// </remarks>
         public IReadOnlyList<string> Needs { get; } = new[] { ResourceKeys.TrajectoryPool };
 
-        /// <summary>The modules <see cref="Register"/> registered, in order — what a host that hot-swaps its logic tier
-        /// (the editor's <c>SwitchToExternalAsync</c>) must uninstall with it. Empty before <see cref="Register"/>.</summary>
+        /// <summary>The modules <see cref="Register"/> registered, in order. Empty before <see cref="Register"/>.</summary>
         public IReadOnlyList<IEcsModule> RegisteredModules => _registered;
 
         public void Register(HrotNodeContext context, NodeBootValues values)

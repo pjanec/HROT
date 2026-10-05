@@ -8,10 +8,10 @@ namespace Hrot.Editor.UI;
 
 /// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="EditorToolbarPanel"/> shows, this
 /// frame. ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
-/// (<c>EditorToolbarWindow</c>) supplies both. ⭐ Not static chrome: <c>CurrentMode</c> drives the
-/// toggle button's label, so the panel has real, testable state.</summary>
+/// (<c>EditorToolbarWindow</c>) supplies both. ⚠ Static chrome since the Go External toggle — its only state, the
+/// editor's <c>CurrentMode</c> — was retired (R-204, CE-3058).</summary>
 public sealed record EditorToolbarPanelViewModel(
-    string PanelId, string PanelKind, string CurrentMode) : IPanelViewModel
+    string PanelId, string PanelKind) : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -30,19 +30,11 @@ public sealed class EditorToolbarPanel
     public void HandleEditClick(IEditorLogic logic)   => logic.ActivateTool(EditorTool.Edit);
     public void HandleRouteClick(IEditorLogic logic)  => logic.ActivateTool(EditorTool.Route);
 
-    public void HandleToggleModeClick(IEditorLogic logic)
-    {
-        if (logic.CurrentMode == SimHostMode.Internal)
-            _ = logic.SwitchToExternalAsync();   // fire-and-forget; kernel drains during game loop
-        else
-            _ = logic.SwitchToInternalAsync();
-    }
-
     public void HandleReloadAIClick(IEditorLogic logic) => logic.RebuildAndReloadAI();
 
-    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="IEditorLogic.CurrentMode"/>. No ImGui.</summary>
+    /// <summary>⭐⭐⭐ BUILD — the panel's snapshot. No ImGui.</summary>
     public EditorToolbarPanelViewModel BuildViewModel(IEditorLogic logic, string panelId, string panelKind) =>
-        new(panelId, panelKind, logic.CurrentMode.ToString());
+        new(panelId, panelKind);
 
     // ── ImGui rendering ───────────────────────────────────────────────────────
 
@@ -57,9 +49,6 @@ public sealed class EditorToolbarPanel
         if (ImGui.Button("Edit Shape"))   HandleEditClick(logic);
         ImGui.SameLine();
         if (ImGui.Button("Edit Route"))   HandleRouteClick(logic);
-        ImGui.SameLine();
-        string modeLabel = logic.CurrentMode == SimHostMode.Internal ? "Go External" : "Go Internal";
-        if (ImGui.Button(modeLabel)) HandleToggleModeClick(logic);
         ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button, new Vector4(0.8f, 0.4f, 0.0f, 1.0f));
         if (ImGui.Button("Reload BTrees")) HandleReloadAIClick(logic);
