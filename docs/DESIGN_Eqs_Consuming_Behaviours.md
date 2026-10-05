@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: READY-TO-BUILD — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204); nothing built except the prerequisite fix CE-2089.
-current-answer: §2 diagrams (BTree variant), §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 (scenario + live run) next.
+current-answer: §2 diagrams (BTree variant) with §6 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
@@ -57,13 +57,11 @@ available through the CLI, so the absence claims in §1 are grep-corroborated.)*
 classDiagram
   class TakeCoverTree {
     <<btree.json asset NEW>>
-    ObserverSelector
-    HasTarget then TakeCover
-    Idle
+    Root then TakeCover
   }
   class FallBackTree {
     <<btree.json asset NEW>>
-    Sequence HasTarget then FallBack
+    Root then FallBack
   }
   class EqsTacticsNodes {
     <<SharedAiAction NEW>>
@@ -87,7 +85,6 @@ classDiagram
     Moving byte
   }
   class EqsCombatNodes {
-    Condition_HasTarget
     MoveToOptimalCover
   }
   class LocomotionMoveTo {
@@ -96,7 +93,7 @@ classDiagram
     Status(world, self) NodeStatus
   }
   class UtilityScorer {
-    RankCandidates(repo, self, decisionId, tick, out Entity, out score) NEW overload
+    TopCandidate(repo, self, decisionId, tick, out Entity, out score) NEW
   }
   class ThreatRankingDecision {
     <<starter pack>>
@@ -108,7 +105,6 @@ classDiagram
   }
   class FindCoverFromTarget
   class FindSafeRetreatPoint
-  TakeCoverTree --> EqsCombatNodes : HasTarget
   TakeCoverTree --> EqsTacticsNodes : TakeCover
   FallBackTree --> EqsTacticsNodes : FallBack
   EqsTacticsNodes --> EqsTacticsParams
@@ -124,7 +120,8 @@ classDiagram
 
 *What the picture shows that prose hid: the only new C# is one node class (two actions + one deactivator), one helper
 that MoveToOptimalCover is routed through (one channel-MoveTo write, not two), and an overload of the existing scorer
-that returns the threat as an entity. The trees are 3–4 nodes; the tunables are the params a designer edits.*
+that returns the threat as an entity. Each tree is Root → the action (as-built §6 A1); the tunables are the params a
+designer edits.*
 
 ### 2.2 Sequence — `TakeCover`, from start to a moving threat
 
@@ -135,7 +132,7 @@ sequenceDiagram
     participant S as Cover sensor child
     participant M as Muscle EqsSolverSystem 10 Hz
     participant L as LocomotionChannel
-    T->>U: RankCandidates over TargetMemory
+    T->>U: TopCandidate over TargetMemory
     U-->>T: top threat entity
     T->>S: Ensure FindCoverFromTarget, slot1 = threat, ScoreDelta
     M-->>S: answer, points hidden from slot1
@@ -293,7 +290,7 @@ composing small BTree actions that pass the threat between nodes — a node bind
 | row | as first written (blueprint) | ⭐ now |
 |---|---|---|
 | D2 | Behavior blueprint | BTree assets around shared C# actions (§4.2) |
-| D3 | `ScoreDecision` → `Entity From Ref`, re-point by a new callable | the action calls `UtilityScorer.RankCandidates` (new overload returning the `Entity`) and re-points with `EqsChildSensor.Refresh(view, child, config)` |
+| D3 | `ScoreDecision` → `Entity From Ref`, re-point by a new callable | the action calls `UtilityScorer.TopCandidate` (new, returns the `Entity`; `RankCandidates` is routed through it) and re-points with `EqsChildSensor.Refresh(view, child, config)` |
 | D4 | a new `ScoreDeltaThreshold` pin; move on `When TopChanged` | the action sets `ScoreDelta` + the threshold from its params, and re-moves when a NEW answer (`LastUpdateTick` changed) has a top ≥ `MinRepositionMetres` from the goal |
 | D6 | `TakeCoverBp` / `FallBackBp` | the `TakeCover` / `FallBack` trees |
 
@@ -305,6 +302,31 @@ composing small BTree actions that pass the threat between nodes — a node bind
 | `CE-2093` | `EqsTacticsNodes.FallBack` + the `FallBack` tree | moves to the retreat top once; Success when the channel reports arrival |
 | `CE-2094` | `scenarios/tt-take-cover` + the hidden check on the editor and `--mode all` (D5), then the SOP swap (D6) | the `SegmentBlocked` assertion, as `EqsDistributedTests` |
 | `CE-2090`, `CE-2091` | ⛔ no longer on this path — a blueprint EQS round-out (re-point callable, `ScoreDeltaThreshold` pin), unscheduled | — |
+
+## 6. As-built — `CE-2092` / `CE-2093` *(`2026-10-05`)*
+
+Built as §2 draws it: `EqsTacticsNodes.TakeCover` / `FallBack` (+ stateful deactivators), `EqsTacticsParams`,
+`EqsTacticsState`, `LocomotionMoveTo` (`MoveToOptimalCover` now writes the channel through it),
+`UtilityScorer.TopCandidate(…, out Entity, out float)` (`RankCandidates` routed through it — a separate name: an overload on the `out` type made every `out var` caller ambiguous, CS0121), and the trees
+`Assets/BTrees/Tactics/TakeCover.btree.json` / `FallBack.btree.json`. What the build found that §2 did not say:
+
+| # | as built | ⛔ §2 / §4.2 said |
+|---|---|---|
+| A1 | ⭐ each tree is **Root → the action** (2 nodes). The action itself returns Success when the unit remembers no threat, so no `HasTarget` guard and no idle branch are needed; a reaction or task simply ends when nothing is left to hide from | "3–4 nodes: ObserverSelector[ Sequence(HasTarget, TakeCover) · Idle ]" |
+| A2 | ⭐ **the tie rule:** the starter ranking keeps zero-score candidates (`UtilityScorer.cs` EvaluateCandidates fills every candidate), so when nothing is in sight — the unit already hidden — all score 0 and the order is the memory's. The action then KEEPS its current threat while it is still remembered, so the sensor is not re-pointed back and forth | — |
+| A3 | a MoveTo that fails (or that another command took over) is re-issued on the next answer | — |
+| A4 | `FallBack` re-points only until its one move is issued; a later, different answer does not turn the unit around | §2.2 drew TakeCover only |
+| A5 | `EqsTacticsParams.FactionFilter` (0 = every acquired contact, `StarterTemplates.cs:5`) — the query's exposure scoring needs it | not listed |
+| A6 | ⚠ **step 1 (does infantry fill `TargetMemory` on a live run) moves to `CE-2094`** — it needs the acceptance scenario; the rails here set the memory directly | §5: "step 1 also measures…" in CE-2092 |
+
+**Rails:** `EqsCombatNodesTests.CE2092_*` (6) + `CE2093_*` (1) — the feature's own suite, called directly: no threat ⇒
+Success and no sensor · first answer ⇒ MoveTo the top · a new answer < 5 m ⇒ no new move, ≥ 5 m ⇒ a new one, the same
+answer twice ⇒ looked at once · a different threat ⇒ the same sensor re-pointed with `NextEpoch` and its old answer gone
+· a failed move is retried on the NEXT answer, not every tick (pins the per-answer stamp) · leaving the node ⇒ sensor destroyed and the move stopped · fall back moves once and succeeds on arrival.
+`TacticsTreesTests` (SimHost, 2) — both trees compiled and registered; `TakeCover` ordered through the real ingress and
+brain moves to the answer and ends (sensor gone) when the threat is forgotten. Red-proved: always re-move ⇒ the
+re-position rail · no re-point ⇒ the re-point rail · no per-answer stamp ⇒ the retry rail (this mutation stayed green
+until that rail was added).
 
 ## ⛔ HISTORY
 

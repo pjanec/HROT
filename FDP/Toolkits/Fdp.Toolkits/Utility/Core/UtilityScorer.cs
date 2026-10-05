@@ -182,6 +182,21 @@ namespace Fdp.Toolkit.Utility
                                    out Fdp.Toolkit.Replication.EntityRef top, out float topScore)
         {
             top = Fdp.Toolkit.Replication.EntityRef.None;
+            if (!TopCandidate(repo, self, decisionId, tick, out Entity winner, out topScore)) return false;
+            top = Fdp.Toolkit.Replication.EntityRef.Of(repo, winner);
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2092</c> — <see cref="RankCandidates"/> for a C# caller: the best candidate as the local
+        /// <see cref="Entity"/> (never lost for want of a network id). <see cref="RankCandidates"/> is routed through this
+        /// one, so there is one ranking. ⚠ A separate NAME, not an overload: overloading on the <c>out</c> type makes every
+        /// <c>out var</c> caller ambiguous (CS0121).
+        /// </summary>
+        public bool TopCandidate(EntityRepository repo, Entity self, int decisionId, ushort tick,
+                                 out Entity top, out float topScore)
+        {
+            top = Entity.Null;
             topScore = 0f;
             if (!_registry.TryGet(decisionId, out var def, out _) || def == null) return false;
             if (def.Kind == DecisionKind.PostureSelect) return false;
@@ -191,7 +206,7 @@ namespace Fdp.Toolkit.Utility
             EvaluateCandidates(repo, self, in def, default, ref output, TraceOf(repo, self), tick);
             if (output.Count == 0) return false;
             var best = output.GetSpanRO()[0];
-            top = Fdp.Toolkit.Replication.EntityRef.Of(repo, new Entity((ulong)best.CandidateHandle));
+            top = new Entity((ulong)best.CandidateHandle);
             topScore = best.Score;
             return true;
         }

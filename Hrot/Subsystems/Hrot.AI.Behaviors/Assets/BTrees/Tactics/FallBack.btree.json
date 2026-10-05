@@ -1,0 +1,74 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2093000-0000-0000-0000-000000000001",
+  "Name": "FallBack",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2093000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2093000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack",
+        "ExpressionTargetField": "tactics",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c2093000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Fall back from the top threat",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": "CE-2093 — docs/DESIGN_Eqs_Consuming_Behaviours.md §2. One move to a FindSafeRetreatPoint answer (hidden from the top threat, far from it); Success on arrival.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "tactics",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":80,\"MinRepositionMetres\":0,\"Speed\":3.5,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "The tunables: query radius, re-position distance, speed, arrival radius, the sensor's ScoreDelta threshold, which forces count as threats (0 = all)."
+      }
+    ]
+  }
+}

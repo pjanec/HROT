@@ -57,7 +57,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="LocomotionChannel"/> with a MoveTo action toward that position.
         /// </summary>
         [SharedAiAction]
-        public static unsafe NodeStatus Action_MoveToOptimalCover(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
+        public static NodeStatus Action_MoveToOptimalCover(ref MoveToOptimalCoverParams p, Entity self, EntityRepository world)
         {
             // 1. Resolve the entity to read the buffer from.
             Entity bufferEntity = p.SensorHandle.IsValid && world.IsAlive(p.SensorHandle.ChildId)
@@ -80,11 +80,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
 
             // 4. Propagate behavior instance ID to prevent channel arbitration stomping
-            if (world.HasComponent<BehaviorState>(self))
-            {
-                var behavior = world.GetComponent<BehaviorState>(self);
-                channel.BehaviorInstanceId = behavior.InstanceId;
-            }
+            LocomotionMoveTo.StampOwner(world, self, ref channel);
 
             // 5. Forward terminal status from the executor
             if (channel.ActiveAction == NavigationConstants.ActionIdMoveTo)
@@ -93,29 +89,12 @@ namespace Hrot.AI.Behaviors.Brains
                 if (channel.Status == NodeStatus.Failure) return NodeStatus.Failure;
             }
 
-            // 6. Activate or update the locomotion channel
+            // 6. Activate the locomotion channel (⭐ CE-2092: the one channel write, LocomotionMoveTo)
             bool needsActivation = channel.ActiveAction != NavigationConstants.ActionIdMoveTo ||
                                    channel.Status == NodeStatus.Failure;
 
             if (needsActivation)
-            {
-                unchecked { channel.ActionInstanceId++; }
-                channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
-                channel.Status = NodeStatus.Running;
-
-                var moveToParams = new MoveToParams
-                {
-                    Destination   = targetPos,
-                    ArrivalRadius = p.ArrivalRadius,
-                    Speed         = p.Speed,
-                    ReverseAllowed = 0,
-                };
-
-                fixed (byte* dst = channel.Params)
-                {
-                    *(MoveToParams*)dst = moveToParams;
-                }
-            }
+                LocomotionMoveTo.Issue(world, self, targetPos, p.Speed, p.ArrivalRadius);
 
             return NodeStatus.Running;
         }

@@ -107,6 +107,8 @@ public sealed class BTreeCallShapeTests
         ("BTreeRenderShowcase.btree.json", "bb080000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("CombatShowcase.btree.json", "50000000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2080 — the shipped SOP: its four SOP-order rows (DoWhenIdle / React) are plain actions.
+        ("TakeCover.btree.json", "c2092000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),   // CE-2092
+        ("FallBack.btree.json", "c2093000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),    // CE-2093
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),

@@ -217,4 +217,175 @@ public sealed class EqsCombatNodesTests : IDisposable
         Assert.False(_repo.HasComponent<EqsCognitiveBuffer>(_entity),
             "EqsCognitiveBuffer must be removed when the branch is aborted");
     }
+
+    // ── CE-2092 / CE-2093: EqsTacticsNodes (take cover, fall back) ─────────────
+    //   📄 docs/DESIGN_Eqs_Consuming_Behaviours.md §2 (R-204). Called directly, as the rails above.
+
+    private Entity Remember(params Entity[] threats)
+    {
+        if (!_repo.HasComponent<TargetMemory>(_entity)) _repo.AddComponent(_entity, new TargetMemory());
+        ref var mem = ref _repo.GetComponentRW<TargetMemory>(_entity);
+        unsafe
+        {
+            for (int i = 0; i < threats.Length; i++) { mem.EntityIds[i] = (long)threats[i].PackedValue; mem.ThreatScores[i] = 10f; }
+        }
+        mem.Count = threats.Length;
+        return threats.Length > 0 ? threats[0] : Entity.Null;
+    }
+
+    private void Answer(Entity sensor, uint tick, float x, float y)
+    {
+        var buf = new EqsCognitiveBuffer { Count = 1, LastUpdateTick = tick };
+        buf.GetSpanRW()[0] = new EqsResult { PositionX = x, PositionY = y, Score = 1f };
+        _repo.SetComponent(sensor, buf);
+    }
+
+    private unsafe Vector3 Destination()
+    {
+        ref readonly var ch = ref _repo.GetComponentRO<LocomotionChannel>(_entity);
+        fixed (byte* src = ch.Params) return ((MoveToParams*)src)->Destination;
+    }
+
+    private static EqsTacticsParams Tunables() => new()
+    {
+        SearchRadius = 60f, MinRepositionMetres = 5f, Speed = 2.5f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f,
+    };
+
+    [Fact]
+    public void CE2092_TakeCover_WithNothingRemembered_Succeeds_AndMakesNoSensor()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        Assert.Equal(NodeStatus.Success, EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo));
+        Assert.False(ws.Sensor.IsValid);
+    }
+
+    [Fact]
+    public void CE2092_TakeCover_PointsItsOwnSensorAtTheThreat_AndMovesOnTheFirstAnswer()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        var threat = Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo));
+        Assert.True(ws.Sensor.IsValid);
+        var sensor = _repo.GetComponentRO<EqsSensor>(ws.Sensor.ChildId);
+        Assert.Equal(FindCoverFromTarget.BlueprintId, sensor.BlueprintId);
+        Assert.Equal(threat, sensor.ContextSlot1);
+        Assert.Equal((byte)EqsPublishPolicy.ScoreDelta, sensor.PublishPolicy);
+        Assert.Equal(0, _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);   // no answer yet ⇒ no move
+
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo));
+        Assert.Equal(NavigationConstants.ActionIdMoveTo, _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);
+        Assert.Equal(new Vector3(10f, 20f, 0f), Destination());
+    }
+
+    [Fact]
+    public void CE2092_TakeCover_ANewAnswer_MovesAgainOnlyPastTheRepositionDistance()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        uint first = _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId;
+
+        Answer(ws.Sensor.ChildId, 6, 12f, 20f);   // 2 m away
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Assert.Equal(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+
+        Answer(ws.Sensor.ChildId, 7, 20f, 20f);   // 10 m away
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Assert.NotEqual(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+        Assert.Equal(new Vector3(20f, 20f, 0f), Destination());
+
+        uint second = _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId;
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);   // the same answer again: looked at once
+        Assert.Equal(second, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+    }
+
+    [Fact]
+    public void CE2092_TakeCover_ADifferentThreat_RePointsTheSameSensor_WithANewEpoch()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        var child = ws.Sensor.ChildId;
+        uint epoch = _repo.GetComponentRO<EqsSensor>(child).Epoch;
+
+        var second = Remember(_repo.CreateEntity());   // the first threat is forgotten, another remembered
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+
+        Assert.Equal(child, ws.Sensor.ChildId);
+        var sensor = _repo.GetComponentRO<EqsSensor>(child);
+        Assert.Equal(second, sensor.ContextSlot1);
+        Assert.Equal(EqsChildSensor.NextEpoch(epoch), sensor.Epoch);
+        Assert.False(_repo.GetComponentRO<EqsCognitiveBuffer>(child).IsReady);   // the old answer is gone
+    }
+
+    [Fact]
+    public void CE2092_LeavingTheNode_DestroysItsSensor_AndStopsItsMove()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        var child = ws.Sensor.ChildId;
+
+        EqsTacticsNodes.Deactivate_TakeCover(ref p, ref ws, _entity, _repo);
+        _repo.FlushCommandBuffers();   // the sensor is destroyed through the command buffer
+
+        Assert.False(_repo.IsAlive(child));
+        Assert.Equal(0, _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);
+        Assert.False(ws.Sensor.IsValid);
+    }
+
+    [Fact]
+    public void CE2092_TakeCover_AFailedMove_IsRetriedOnTheNextAnswer_NotEveryTick()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        uint first = _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId;
+
+        _repo.GetComponentRW<LocomotionChannel>(_entity).Status = NodeStatus.Failure;   // e.g. unreachable
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Assert.Equal(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);   // the same answer: no churn
+
+        Answer(ws.Sensor.ChildId, 6, 11f, 20f);   // the next answer, even close by, moves again
+        EqsTacticsNodes.TakeCover(ref p, ref ws, _entity, _repo);
+        Assert.NotEqual(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+    }
+
+    [Fact]
+    public void CE2093_FallBack_MovesOnce_AndSucceedsOnArrival()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.FallBack(ref p, ref ws, _entity, _repo);
+        Assert.Equal(FindSafeRetreatPoint.BlueprintId, _repo.GetComponentRO<EqsSensor>(ws.Sensor.ChildId).BlueprintId);
+
+        Answer(ws.Sensor.ChildId, 5, 40f, 50f);
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.FallBack(ref p, ref ws, _entity, _repo));
+        uint move = _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId;
+
+        Answer(ws.Sensor.ChildId, 6, 90f, 90f);   // a later, different answer does not turn the unit around
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.FallBack(ref p, ref ws, _entity, _repo));
+        Assert.Equal(move, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+        Assert.Equal(new Vector3(40f, 50f, 0f), Destination());
+
+        _repo.GetComponentRW<LocomotionChannel>(_entity).Status = NodeStatus.Success;   // the executor reports arrival
+        Assert.Equal(NodeStatus.Success, EqsTacticsNodes.FallBack(ref p, ref ws, _entity, _repo));
+    }
 }

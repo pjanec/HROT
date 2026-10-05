@@ -70,7 +70,10 @@ public sealed class BTreeGoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐ It is 26. ⭐ <b>25 → 26 in <c>CE-2080</c>:</b> <c>Sop/BasicInfantrySop.btree.json</c>, the shipped SOP — the first asset that
+    /// ⭐ It is 28. ⭐ <b>26 → 28 in <c>CE-2092</c> / <c>CE-2093</c>:</b> <c>Tactics/TakeCover.btree.json</c> and
+    /// <c>Tactics/FallBack.btree.json</c> — Root → one shared stateful action (<c>EqsTacticsNodes</c>), the first assets
+    /// that take cover / fall back on the terrain EQS queries (<c>DESIGN_Eqs_Consuming_Behaviours.md</c> §2, R-204).
+    /// ⭐ <b>25 → 26 in <c>CE-2080</c>:</b> <c>Sop/BasicInfantrySop.btree.json</c>, the shipped SOP — the first asset that
     /// carries SOP orders ("Do when idle" / "React", <c>DESIGN_Decision_Layer.md</c> §4.6–§4.7); compiled so a TKB template can
     /// name it, and published as the BTree recipe. (The method name keeps its old number — a rename is a Roslyn rename.)
     /// ⭐ <b>24 → 25 in <c>CE-417</c> slice 3b:</b> <c>BTreeCuratedBindingDemo.btree.json</c>, the first BTree
@@ -86,7 +89,7 @@ public sealed class BTreeGoldenCorpusTests
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(26, AiAssetCorpus.EnumerateFiles(Kind).Count);
+        => Assert.Equal(28, AiAssetCorpus.EnumerateFiles(Kind).Count);
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.
