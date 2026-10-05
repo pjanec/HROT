@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
-current-answer: §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+build-state: BUILDING — §9 (Flank / FiringPosition) DESIGN, leans F1–F6 for the user; §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
+current-answer: §9 (Flank / FiringPosition — DESIGN, leans F1–F6); §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
@@ -425,6 +425,160 @@ sequenceDiagram
 **Slices** (one commit each): **A1** E1 + E2 (validator, WS key field, `NextKey`, lowering) + rail: two BTree nodes using one EQS
 action keep two sensors · **A2** E3 (`ReleaseParts`, HSM exit, BTree deactivator form) + rail: leaving the node destroys its sensor ·
 **A3** E4 (When(EqsResult) memory in WS) + rail: it fires once per new answer in an action.
+
+## 9. `Flank` and `FiringPosition` — the rest of `CE-3031`'s scope *(behaviors, `2026-10-05`; build-state: DESIGN — leans F1–F6 for the user)*
+
+> 🔒 **User, `2026-10-05`:** *"yes design flank and firing position"* — the two left from CE-3031's scope *"(take cover,
+> fall back, flank, firing position)"* (frame goal, `FRAME_Eqs_Consuming_Behaviours.md:19`).
+
+### 9.1 INVENTORY *(measured `2026-10-05`)*
+
+| query | total | found |
+|---|---|---|
+| `[EqsTemplate]` classes (grep + graph) | 9 | ⭐ `FindOpenFiringPosition` (`0xE045506B`) and `FindFlankingPosition` (`0xC33075C4`) **exist** (`StarterTemplates.cs:10-44`, EQS §19.6) — used by tests only (`TerrainEqsTests.cs:346,380,397`, `EqsFlatTerrainGoldenTests.cs:62-65`); the rest: cover, retreat, threats-in-view, entities-in-area, three perception templates |
+| query names `Flank*` / `FiringPosition*` / `Overwatch*` / `Attack*` in C# outside the templates | 0 | no behaviour, node or squad code consumes them (`RESUME_Backend_Lane.md:17`: *"No behaviour consumes the four new templates yet"*) |
+| EQS use in `Fdp.Toolkits/Squad/` | 1 | only `DangerAreaSensorComponent` (not a query id). `BoundingOverwatch`, `SuppressAndManeuver`, … carry roles (incl. `Flanker`) but compute NO positions with EQS |
+| fire actions | 3 | ⭐ `PostureNodes.Engage` (Running, fires at the top threat, `PostureNodes.cs:117`) · `AdvanceAndAttack` (move + fire) · `CgfNodes.Action_FireAtTarget` (older, ends on kill / max rounds) |
+| move-to-a-query-point actions | 2 | `EqsTacticsNodes.TakeCover` (re-positions, never ends) · `FallBack` (one move, Success on arrival) — one shared step set (`TopAim`, `EnsureSensor`, `TryNewAnswer`, `Release`) |
+
+**Design docs checked:**
+`EQS_Design_v1.3_final.md` §19.6 — ⭐ applies: owns both templates (generator, filters, scores); its §6.6 / §6.6a are superseded by §19.
+`Squad_Coordination_Design_v1_1.md:218-220,326-330` — applies as a CONSUMER: *"flanking positions come from a standard EQS query fired by the squad HSM"*; the `Flanker` role is the squad's, the position query is not built there ⇒ F5.
+`DESIGN_Decision_Layer.md` §3.3 — owns CombatPosture (Advance / TakeCover / Suppress / Flee / Hold); neither new behaviour is a posture option today ⇒ F4; `:1026` names *"taking up a firing position"* only as an ROE example.
+`Architect_Question_83_*.md:81` — an order outranks doctrine (*"a soldier told to hold does not wander off to flank"*): already true by the one gate (R-199), nothing to add.
+`Utility_AI_Design_v1_1.md:87` — flank SELECTION stays in EQS, never re-implemented in scoring ⇒ consistent with F1.
+
+### 9.2 Classes
+
+```mermaid
+classDiagram
+  class EqsTacticsNodes {
+    <<SharedAiAction, existing + NEW>>
+    TakeCover(ref P, ref WS, self, world) Running
+    FallBack(ref P, ref WS, self, world) Success on arrival
+    Flank(ref P, ref WS, self, world) Success on arrival NEW
+    FiringPosition(ref P, ref WS, self, world) Success on arrival NEW
+    -Run(template, site, mode) the ONE body NEW
+  }
+  class TacticMode {
+    <<NEW private flags>>
+    EndOnArrival
+    RepositionWhileMoving
+    NeedsEntity
+  }
+  class EqsTacticsParams { <<existing, unchanged>> }
+  class EqsTacticsState { <<existing, unchanged>> }
+  class PostureNodes {
+    Engage(ref P, ref WS, self, world) Running
+  }
+  class FlankTree {
+    <<btree.json NEW>>
+    Sequence: Flank then Engage
+  }
+  class FiringPositionTree {
+    <<btree.json NEW>>
+    Sequence: FiringPosition then Engage
+  }
+  class FindFlankingPosition { <<existing template>> }
+  class FindOpenFiringPosition { <<existing template>> }
+  EqsTacticsNodes --> TacticMode
+  EqsTacticsNodes --> EqsTacticsParams
+  EqsTacticsNodes --> EqsTacticsState
+  EqsTacticsNodes ..> FindFlankingPosition : Flank
+  EqsTacticsNodes ..> FindOpenFiringPosition : FiringPosition
+  FlankTree --> EqsTacticsNodes : Flank
+  FlankTree --> PostureNodes : Engage
+  FiringPositionTree --> EqsTacticsNodes : FiringPosition
+  FiringPositionTree --> PostureNodes : Engage
+```
+
+*What the picture shows that prose hid: no new params, state, template or fire code. The two new actions are two more
+entry points into ONE body that TakeCover and FallBack are routed through too (a mode says "end on arrival / re-position
+while moving / needs a seen target"), and the shooting is the posture's existing `Engage`.*
+
+### 9.3 Sequence — `Flank`, from the order to firing
+
+```mermaid
+sequenceDiagram
+    participant B as Flank tree tick
+    participant F as Flank action
+    participant S as Flank sensor child
+    participant M as EQS solver 10 Hz
+    participant L as LocomotionChannel
+    participant E as Engage action
+    participant W as WeaponChannel
+    B->>F: tick
+    F->>F: TopThreat, an identified entity
+    F->>S: Ensure FindFlankingPosition, slot1 = threat
+    M-->>S: answer, side-on points that see the threat
+    F->>L: MoveTo the top
+    M-->>S: new answer, top moved 5 m or more
+    F->>L: MoveTo the new top
+    L-->>F: arrived
+    F->>S: destroy the sensor
+    F-->>B: Success
+    B->>E: tick
+    E->>W: AimAndFire at the top threat
+    Note over E,W: Running until the parent ends it, ROE enforced by the executor
+```
+
+*What the picture shows that prose hid: the sensor lives only while the unit is getting there — once it fires, nothing
+keeps solving — and moving and firing are two channels, so a later variant could fire on the way (as AdvanceAndAttack
+does) without new machinery.*
+
+### 9.4 Modules
+
+```mermaid
+graph TD
+  BTS["BrainTickSystem (existing)<br/>ticks the Flank / FiringPosition tree"] -->|Ensure / Refresh| SENS["EqsSensor child"]
+  SENS --> SOL["EqsSolverSystem, Muscle 10 Hz (existing)"]
+  SOL --> BUF["EqsCognitiveBuffer"] --> BTS
+  BTS -->|MoveTo| LOC["LocomotionDispatcherSystem (existing)"]
+  BTS -->|AimAndFire| WPN["AimAndFireExecutor (existing)"]
+  SQ["Squad Flanker role"]:::dead -.->|"does not start it yet (F5)"| BTS
+  POS["CombatPosture options"]:::dead -.->|"not an option yet (F4)"| BTS
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+```
+
+*What the picture shows that prose hid: nothing new is scheduled or registered. In red, the two starters that do NOT
+reach these behaviours yet — a mission task or an SOP row can start them on day one; the posture and the squad role are
+separate decisions.*
+
+### 9.5 Claim table
+
+| claim the leans rest on | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| both templates exist, slot 1 = the target, keep only points that SEE it | ✅ `StarterTemplates.cs:10-44` (`RequireVisible`, viewer = candidate) | ✅ EQS §19.6 |
+| the flank is side-on to the target→self line, not "behind the target's facing" | ✅ `DotProductTest{Pivot 1, Reference 0, PreferredDot 0}` (`:40`); golden *"the flank is side-on"* | ✅ EQS §19.6 / §19.7 rails |
+| firing position stays near the unit (donut around self, nearer scores more) | ✅ `:18-21` (`AnchorSlot 0`, `DistanceScoreTest`) | ✅ EQS §19.6 |
+| one body can serve all four: they differ only in template, site, "end on arrival", "re-position while moving" | ✅ `EqsTacticsNodes.cs:88-153` (TakeCover / FallBack share every step but those) | ✅ ruling *"unification and simplification is our goal"* |
+| `Engage` fires at the top threat, re-aims, Running; ROE is the executor's | ✅ `PostureNodes.cs:117,207-226` | ✅ Decision Layer §3.3b, CE-2075 |
+| moving and firing are separate channels | ✅ `LocomotionChannel` vs `WeaponChannel`; `AdvanceAndAttack` does both (`:125`) | ✅ Decision Layer §3.3b |
+| a HEARD contact cannot be flanked or shot at: both templates need a visible target, and `Engage` aims at an entity | ✅ `Engage` → `TopThreat` (entities only, `PostureNodes.cs:210`) | ⛔ searched EQS §19 / Thermal §8: no rule for "see a point" ⇒ F2 refuses it rather than guessing |
+| squad code computes no flank positions | ✅ `Fdp.Toolkits/Squad/` (no `Eqs` query use) | ✅ Squad §218-220 says the squad will FIRE the query ⇒ it can start this behaviour (F5) |
+
+### 9.6 Decisions — leans for the user
+
+| # | question | ⭐ lean | rejected (one line each) | blast radius |
+|---|---|---|---|---|
+| **F1** | shape | ⭐ **move there, then fire**: each tree is `Sequence[ Flank \| FiringPosition , Engage ]`; the action ends (Success) on arrival and its sensor goes | ✗ move-and-fire in one action — AdvanceAndAttack already is that, for an objective; a flanker firing en route gives itself away · ✗ a "FlankAndEngage" action — a second copy of Engage | ours, 2 trees |
+| **F2** | target | ⭐ an **identified entity** only (`TopThreat`); with none, the action FAILS so the parent picks something else | ✗ a heard point (as TakeCover hides from one) — "visible from P" and `Engage` both need an entity (claim table) | ours |
+| **F3** | while moving | ⭐ **re-position** like TakeCover (a new answer ≥ `MinRepositionMetres` from the goal re-issues the move) **until arrival**, then end like FallBack; a NEW top threat re-points the sensor | ✗ FallBack's "move once" — a flank on a moving target goes stale · ✗ keep re-positioning after arrival — that is TakeCover's job, and Engage owns the unit then | ours |
+| **F4** | the unification | ⭐ ONE private body `Run(template, site, mode)`; all **four** actions are thin entry points into it; TakeCover / FallBack routed through it, their 7 + 2 rails unchanged | ✗ two more copies of the FallBack body (four near-identical bodies) | ours; `EqsTacticsNodes` only |
+| **F5** | who starts them | ⭐ today: a **mission task** or an **SOP row** (as TakeCover). ⛔ NOT now: a CombatPosture option (needs a scoring row in the posture decision, Decision Layer's call) and the squad `Flanker` role (Squad §218-220) — both filed as one row | ✗ add them to CombatPosture now — changes a shipped decision's behaviour without a demand | ours; 1 filed row |
+| **F6** | acceptance | ⭐ the feature's suites: direct-call rails in `EqsCombatNodesTests` (as CE-2092), both trees in `TacticsTreesTests`, and two variants in `TakeCoverScenarioTests` on `tt-take-cover`: ordered after the hostile is remembered, the rifleman ends where `!SegmentBlocked(own standing eye, hostile aim)` and (flank) the bearing is side-on within 30° | ✗ a new scenario — `tt-take-cover` already has the geometry and the hidden-check machinery | ours |
+
+⚠ **What would change the leans:** wanting the flanker to fire on the move flips F1 to a third mode (fire while
+moving), still in the one body. Wanting flank from a heard contact needs a "visible from a point" rule in EQS first
+(backend). Wanting them in CombatPosture now turns F5 into a Decision Layer change with its own scoring.
+
+### 9.7 Build plan *(after approval)*
+
+| id | what | rails |
+|---|---|---|
+| `CE-2108` | `EqsTacticsNodes.Run` + `Flank` / `FiringPosition` (+ deactivators, sites `0x21080001` / `0x21080002`); TakeCover / FallBack routed through `Run`; trees `Tactics/Flank.btree.json`, `Tactics/FiringPosition.btree.json` | direct calls: no seen threat ⇒ Failure, no sensor · first answer ⇒ MoveTo the top · new answer ≥ 5 m while moving ⇒ re-move, < 5 m ⇒ none · arrival ⇒ Success + sensor gone · a new threat ⇒ re-pointed; the existing CE-2092/2093 rails green unchanged |
+| `CE-2109` | the two `tt-take-cover` variants (F6) | `TakeCoverScenarioTests`: ends with sight of the hostile; flank side-on |
+| `CE-2110` | 💡 filed, unscheduled: Flank / FiringPosition as CombatPosture options and as the squad `Flanker` role's child (F5) | — |
 
 ## ⛔ HISTORY
 
