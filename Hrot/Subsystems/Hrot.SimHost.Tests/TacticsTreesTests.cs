@@ -109,6 +109,14 @@ namespace Hrot.SimHost.Tests
                 mem.Count = 1;
             }
 
+            /// <summary>⭐ CE-3063 — a HEARD contact (no entity) in the unit's memory; returns its memory id.</summary>
+            public long Hear(float x, float y, float radius)
+            {
+                if (!Repo.HasComponent<TargetMemory>(Unit)) Repo.AddComponent(Unit, new TargetMemory());
+                ref var mem = ref Repo.GetComponentRW<TargetMemory>(Unit);
+                return TargetMemory.HearContact(ref mem, x, y, 0f, radius, 4 /* small arms */, 100f, (uint)_frame);
+            }
+
             public void Answer(Entity sensor, uint tick, float x, float y)
             {
                 var buf = new EqsCognitiveBuffer { Count = 1, LastUpdateTick = tick };
@@ -219,6 +227,39 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             Assert.NotEqual("TakeCover", w.TaskName);
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "the run's sensor must go with it");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ③ — a unit that only HEARD a shot hides from where it came from (🔒 user: "hide from a point is OK"):
+        /// the run's sensor names no entity and carries the heard contact's point; the answer moves it. A NEW heard estimate far
+        /// away re-points the sensor; a refresh of the same contact a little off does not. 📄 DESIGN_Thermal_And_Acoustic_Sensing §8.
+        /// </summary>
+        [Fact]
+        public void CE3063_TakeCover_FromAHeardShot_PointsTheSensorAtThePoint_AndMoves()
+        {
+            var w = new World();
+            w.Hear(80f, 20f, 15f);
+            w.Order("TakeCover");
+            w.Tick();
+            w.Tick();
+            Assert.Equal("TakeCover", w.TaskName);
+
+            var sensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite);
+            Assert.False(sensor.IsNull, "a heard contact is something to hide from — TakeCover must not end at once");
+            var cfg = w.Repo.GetComponentRO<EqsSensor>(sensor);
+            Assert.True(cfg.ContextSlot1.IsNull, "a heard contact is not an entity");
+            Assert.Equal(EqsSensor.Point1Bit, cfg.ContextPointMask);
+            Assert.Equal(new Vector3(80f, 20f, 0f), cfg.ContextPoint1);
+            uint epoch = cfg.Epoch;
+
+            w.Answer(sensor, 5, -30f, -40f);
+            w.Tick();
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(-30f, -40f, 0f), w.Destination());
+
+            w.Hear(81f, 20.5f, 15f);   // the same shot heard again: fused, it hardly moves ⇒ no re-point
+            w.Tick();
+            Assert.Equal(epoch, w.Repo.GetComponentRO<EqsSensor>(sensor).Epoch);
         }
     }
 }

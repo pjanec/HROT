@@ -766,7 +766,9 @@ namespace Fdp.Examples.Scenarios.Integrated
                 var mem = ctx.World.GetComponent<TargetMemory>(ctx.Self);
                 if (mem.Count == 0) return NodeStatus.Failure;
 
-                var targetEntity = new Entity((ulong)mem.EntityIds[0]);
+                int first = TargetMemory.FirstIdentified(in mem);   // ⭐ CE-3063 — a heard contact is not an entity to shoot
+                if (first < 0) return NodeStatus.Failure;
+                var targetEntity = new Entity((ulong)mem.EntityIds[first]);
 
                 ref var channel = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
 

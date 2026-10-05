@@ -145,6 +145,10 @@ namespace Hrot.Network.NED.SimHost
                     ConfigKind            = payload?.Kind ?? string.Empty,
                     ConfigJson            = payload?.Json ?? string.Empty,
                     Override              = tkb && payload != null,
+                    ContextPoint1X        = sensor.ContextPoint1.X,   // ⭐ CE-3063 ③
+                    ContextPoint1Y        = sensor.ContextPoint1.Y,
+                    ContextPoint1Z        = sensor.ContextPoint1.Z,
+                    ContextPointMask      = sensor.ContextPointMask,
                 };
                 if (topic.SolverNodeId != 0 && !parent.IsNull && view is EntityRepository repo)
                     RecordSolver(repo, parent, (parentNetworkId, localChildIndex), topic.SolverNodeId);
@@ -350,6 +354,8 @@ namespace Hrot.Network.NED.SimHost
             && a.Suspended             == b.Suspended
             && a.SolverNodeId          == b.SolverNodeId    // R-179: a re-pick is a change the solvers must hear
             && a.Override              == b.Override        // CE-3036: an override starting or ending is a change
+            && a.ContextPointMask      == b.ContextPointMask   // CE-3063: a heard contact's point
+            && a.ContextPoint1X.Equals(b.ContextPoint1X) && a.ContextPoint1Y.Equals(b.ContextPoint1Y) && a.ContextPoint1Z.Equals(b.ContextPoint1Z)
             && string.Equals(a.ConfigKind, b.ConfigKind, StringComparison.Ordinal)
             && string.Equals(a.ConfigJson, b.ConfigJson, StringComparison.Ordinal);
     }

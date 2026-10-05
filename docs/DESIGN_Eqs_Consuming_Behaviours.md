@@ -15,6 +15,7 @@ related-designs:
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS a behaviour's child-sensor lifetime (CE-485/486): the sensors here die with the run.
   - docs/DESIGN_Terrain_World.md — OWNS the sight (SegmentBlocked) the acceptance checks with.
   - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the inspector binding; §5.6 (CE-2099) is the gap that keeps a designer from picking TakeCover / FallBack in the editor today.
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS heard contacts (CE-3063); its §8 makes TakeCover / FallBack hide from a HEARD point (ThreatAim, the sensor's context point 1).
 -->
 
 # Behaviours that use the terrain EQS queries — take cover, fall back *(`CE-3031`)*

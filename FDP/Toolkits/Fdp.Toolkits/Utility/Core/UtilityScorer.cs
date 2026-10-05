@@ -240,6 +240,8 @@ namespace Fdp.Toolkit.Utility
                     ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(self);
                     for (int i = 0; i < mem.Count && candidateCount < MaxCandidates; i++)
                     {
+                        // ⭐ CE-3063 ② — a HEARD contact is a position, not an entity: it is never a ranking candidate.
+                        if (TargetMemory.IsAnonymous(in mem, i)) continue;
                         candidates[candidateCount]  = new Entity((ulong)mem.EntityIds[i]);
                         isSelfMount[candidateCount] = false;
                         candidateCount++;

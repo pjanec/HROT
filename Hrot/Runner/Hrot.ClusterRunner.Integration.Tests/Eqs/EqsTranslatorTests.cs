@@ -52,8 +52,10 @@ public sealed class EqsTranslatorTests
 
         // Add EqsSensor to the Brain (CGF) entity.
         harness.Cgf!.GhostEntityMap!.TryGetEntity(networkId, out Entity cgfEntity);
+        // ⭐ CE-3063 ③ — with a heard contact's POINT standing in for slot 1: it must cross too.
+        var heard = new System.Numerics.Vector3(120f, -35f, 2f);
         harness.Cgf!.World!.AddComponent(cgfEntity, new EqsSensor
-            { BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f });
+            { BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f, ContextPoint1 = heard, ContextPointMask = EqsSensor.Point1Bit });
 
         // PumpUntil the Muscle ghost entity carries the replicated EqsSensor.
         bool replicated = harness.PumpUntil(() =>
@@ -62,10 +64,11 @@ public sealed class EqsTranslatorTests
                 return false;
             if (!harness.SimHost.World!.HasComponent<EqsSensor>(simEntity))
                 return false;
-            return harness.SimHost.World.GetComponent<EqsSensor>(simEntity).SearchRadius == 25f;
+            var s = harness.SimHost.World.GetComponent<EqsSensor>(simEntity);
+            return s.SearchRadius == 25f && s.ContextPointMask == EqsSensor.Point1Bit && s.ContextPoint1 == heard;
         }, timeoutFrames: 2000);
 
-        Assert.True(replicated, "EqsSensor must replicate from Brain to Muscle (SearchRadius == 25f) within timeout.");
+        Assert.True(replicated, "EqsSensor must replicate from Brain to Muscle (SearchRadius == 25f, and the heard point, CE-3063) within timeout.");
     }
 
     // ── T9 — EqsResult round-trip populates Brain EqsCognitiveBuffer ─────────

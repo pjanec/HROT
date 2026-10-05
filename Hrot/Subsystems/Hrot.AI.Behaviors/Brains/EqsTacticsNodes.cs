@@ -39,12 +39,26 @@ namespace Hrot.AI.Behaviors.Brains
         public EqsSensorHandle Sensor;
         /// <summary>The threat the sensor is pointed at (slot 1).</summary>
         public Entity Threat;
+        /// <summary>⭐ <c>CE-3063</c> ③ — the HEARD contact it is pointed at instead (its memory id; 0 = none) …</summary>
+        public long HeardId;
+        /// <summary>… and the point it was pointed at (the sensor's context point 1).</summary>
+        public Vector3 HeardPoint;
         /// <summary>Where the unit was last sent.</summary>
         public Vector3 Goal;
         /// <summary>The answer stamp (<see cref="EqsCognitiveBuffer.LastUpdateTick"/>) last acted on — one look per answer.</summary>
         public uint LastAnswerTick;
         /// <summary>1 once a move was issued.</summary>
         public byte Moving;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3063</c> ③ — what a sensor hides FROM: an identified threat (an entity), or a HEARD contact (its memory id and its
+    /// fused position — 🔒 user <c>2026-10-05</c>: "hide from a point is OK"). 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
+    /// </summary>
+    public readonly record struct ThreatAim(Entity Entity, long HeardId, Vector3 Point)
+    {
+        /// <summary>True when the aim is a heard contact's point.</summary>
+        public bool IsPoint => Entity.IsNull && HeardId != 0;
     }
 
     /// <summary>
@@ -75,7 +89,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus TakeCover(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
-            if (!TopThreat(world, self, ws.Threat, out var threat))
+            if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out var threat))
             {
                 Release(ref ws, self, world);
                 return NodeStatus.Success;
@@ -120,7 +134,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.LastAnswerTick = 0;
             }
 
-            if (!TopThreat(world, self, ws.Threat, out var threat))
+            if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out var threat))
             {
                 Release(ref ws, self, world);
                 return NodeStatus.Success;
@@ -169,6 +183,54 @@ namespace Hrot.AI.Behaviors.Brains
             return !threat.IsNull;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ③ — what to hide from: <see cref="TopThreat"/> when the unit knows an ENTITY; else a HEARD contact — the
+        /// one it already hides from while still remembered (so the sensor is not re-pointed between two shots), else the freshest
+        /// heard slot. False = nothing remembered at all. ⚠ An identified threat always wins over a heard one.
+        /// </summary>
+        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim)
+        {
+            aim = default;
+            if (TopThreat(world, self, current.Entity, out var threat)) { aim = new ThreatAim(threat, 0, default); return true; }
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+
+            int slot = -1;
+            for (int i = 0; current.HeardId != 0 && i < mem.Count; i++)
+                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i)) { slot = i; break; }
+            for (int i = 0; slot < 0 && i < mem.Count; i++)
+                if (TargetMemory.IsAnonymous(in mem, i)) slot = i;   // slots are sorted by score: the first is the freshest
+            if (slot < 0) return false;
+
+            aim = new ThreatAim(Entity.Null, mem.EntityIds[slot], new Vector3(mem.PositionsX[slot], mem.PositionsY[slot], mem.PositionsZ[slot]));
+            return true;
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> — points a sensor config at <paramref name="aim"/>: slot 1 for an entity, context point 1 for a
+        /// heard contact.</summary>
+        internal static void Point(ref EqsSensor config, in ThreatAim aim)
+        {
+            config.ContextSlot1 = aim.Entity;
+            config.ContextPoint1 = aim.IsPoint ? aim.Point : default;
+            config.ContextPointMask = aim.IsPoint ? EqsSensor.Point1Bit : (byte)0;
+        }
+
+        /// <summary>A heard contact's fused point moving this far re-points the sensor (m).</summary>
+        internal const float RepointMetres = 2f;
+
+        /// <summary>⭐ <c>CE-3063</c> — does the sensor need re-pointing from <paramref name="was"/> to <paramref name="now"/>?</summary>
+        internal static bool Moved(in ThreatAim was, in ThreatAim now)
+            => !now.Entity.Equals(was.Entity) || now.HeardId != was.HeardId
+            || (now.IsPoint && Vector3.Distance(now.Point, was.Point) > RepointMetres);
+
+        /// <summary>Is the sensor already pointed at <paramref name="aim"/>?</summary>
+        internal static bool PointsAt(in EqsSensor s, in ThreatAim aim)
+        {
+            if (!s.ContextSlot1.Equals(aim.Entity)) return false;
+            bool hasPoint = (s.ContextPointMask & EqsSensor.Point1Bit) != 0;
+            return aim.IsPoint ? hasPoint && Vector3.Distance(s.ContextPoint1, aim.Point) <= RepointMetres : !hasPoint;
+        }
+
         private static unsafe bool Remembers(EntityRepository world, Entity self, Entity e)
         {
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
@@ -177,43 +239,48 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        private static EqsSensor Config(in EqsTacticsParams p, uint template, Entity self, Entity threat) => new EqsSensor
+        private static EqsSensor Config(in EqsTacticsParams p, uint template, Entity self, in ThreatAim threat)
         {
-            BlueprintId         = template,
-            Epoch               = 1,
-            SearchRadius        = p.SearchRadius,
-            FactionFilter       = p.FactionFilter,
-            PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
-            ScoreDeltaThreshold = p.ScoreDeltaThreshold,
-            ContextSlot0        = self,
-            ContextSlot1        = threat,
-        };
+            var config = new EqsSensor
+            {
+                BlueprintId         = template,
+                Epoch               = 1,
+                SearchRadius        = p.SearchRadius,
+                FactionFilter       = p.FactionFilter,
+                PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
+                ScoreDeltaThreshold = p.ScoreDeltaThreshold,
+                ContextSlot0        = self,
+            };
+            Point(ref config, in threat);
+            return config;
+        }
 
         /// <summary>The run's own sensor, created on first use and re-pointed (a new epoch) when the threat changes.</summary>
         private static Entity EnsureSensor(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world,
-                                           Entity threat, uint template, int site)
+                                           in ThreatAim threat, uint template, int site)
         {
-            var config = Config(in p, template, self, threat);
+            var config = Config(in p, template, self, in threat);
             var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
+            bool repoint;
             if (child.IsNull)
             {
                 child = EqsChildSensor.Ensure(world, self, site, in config);
                 if (child.IsNull) return Entity.Null;
                 ws.Sensor = new EqsSensorHandle(child);
-                if (world.GetComponentRO<EqsSensor>(child).ContextSlot1.Equals(threat))
-                {
-                    ws.Threat = threat;
-                    return child;
-                }
-                ws.Threat = Entity.Null;   // re-found from an earlier tick with another threat: re-point below
+                repoint = !PointsAt(world.GetComponentRO<EqsSensor>(child), in threat);   // re-found from an earlier tick
             }
+            else repoint = Moved(new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), in threat);
 
-            if (!threat.Equals(ws.Threat))
+            if (repoint)
             {
                 EqsChildSensor.Refresh(world, child, in config);
-                ws.Threat = threat;
                 ws.LastAnswerTick = 0;
             }
+            // ⚠ the point stored is the one the sensor was pointed at, so a slowly drifting heard contact re-points once it has
+            //   moved RepointMetres in all, not never.
+            if (repoint || ws.HeardId != threat.HeardId) ws.HeardPoint = threat.Point;
+            ws.Threat = threat.Entity;
+            ws.HeardId = threat.HeardId;
             return child;
         }
 

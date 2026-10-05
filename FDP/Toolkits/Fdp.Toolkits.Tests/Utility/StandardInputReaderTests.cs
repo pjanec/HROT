@@ -357,6 +357,21 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
         }
 
+        /// <summary>⭐ <c>CE-3063</c> ② — a HEARD contact weighs by its class (a heard tank as much as a seen armed enemy), but it
+        /// is not a live TARGET: <c>HaveLiveTarget</c> gates the firing postures, and a point cannot be shot.</summary>
+        [Fact]
+        public void CE3063_AHeardContact_CountsAsStrength_ButIsNotALiveTarget()
+        {
+            var self = _world.SpawnAgent(1f, 1f);   // healthy, armed: own strength 1
+            _world.SeedHeard(self, 120f, 0f, 25f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine);
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+
+            var enemy = _world.Repo.CreateEntity();
+            _world.SeedContact(self, enemy, 50f, 1f, -1f, true);
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+        }
+
         [Fact]
         public void ContactThreatLevel_ReturnsZero_WhenContactNotFound()
         {

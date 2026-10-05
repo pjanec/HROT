@@ -81,6 +81,8 @@ namespace Fdp.Toolkit.Utility
                 var member = roster.SubordinateEntities[memberIdx];
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
+                    // ⭐ CE-3063 ② — a heard contact cannot be assigned as a target to fire at: it scores 0 and is never picked.
+                    if (TargetMemory.IsAnonymous(in leaderMem, tIdx)) { matrixBuf[memberIdx * maxTargets + tIdx] = 0f; continue; }
                     var target = new Entity((ulong)leaderMem.EntityIds[tIdx]);
                     // Score this (member, target) pair directly via the static scorer.
                     // EvaluateOption will call readers with ctx.Self=member, ctx.Context=target.

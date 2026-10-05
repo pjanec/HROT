@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Behavior
             for (int i = 0; i < mem.Count; i++)
             {
                 if (p.LiveOnly && !ThreatFreshness.IsLive(world, self, in mem, i)) continue;
-                if (ThreatDanger.Of(world, self, new Entity((ulong)mem.EntityIds[i])) < p.MinDanger) continue;
+                if (ThreatDanger.OfSlot(world, self, in mem, i) < p.MinDanger) continue;   // ⭐ CE-3063 ② — heard ones by class
                 if (++found >= need) return true;
             }
             return false;

@@ -61,6 +61,9 @@ namespace Fdp.Toolkit.Squad.Systems
 
             // 5. Build new contact pool on the stack.
             SquadContactPool localPool = default;
+            // ⭐ CE-3063 ② — a heard contact's radius and class, per pool slot, for the merge only (SquadContact keeps its 32 bytes).
+            float* heardRadius = stackalloc float[16];
+            byte*  heardClass  = stackalloc byte[16];
 
             for (int m = 0; m < roster.Count; m++)
             {
@@ -71,6 +74,13 @@ namespace Fdp.Toolkit.Squad.Systems
 
                 for (int k = 0; k < mem.Count; k++)
                 {
+                    if (TargetMemory.IsAnonymous(in mem, k))
+                    {
+                        MergeHeard(ref localPool, heardRadius, heardClass, mem.EntityIds[k],
+                                   mem.PositionsX[k], mem.PositionsY[k], mem.PositionsZ[k], mem.Radius[k], mem.SourceClass[k],
+                                   mem.ThreatScores[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit);
+                        continue;
+                    }
                     MergeContact(
                         ref localPool,
                         mem.EntityIds[k],
@@ -110,6 +120,68 @@ namespace Fdp.Toolkit.Squad.Systems
             var src = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref localPool.Contacts), 16);
             src.Slice(0, localPool.Count).CopyTo(dst);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ② — pool a member's HEARD contact by POSITION: one already pooled whose circle meets it (and whose
+        /// sound class is compatible) is the same contact, fused as <see cref="TargetMemory.HearContact"/> fuses (inverse-variance
+        /// mean, the radius shrinks); else a new pooled contact flagged <see cref="SquadContact.AnonymousFlag"/>. Two members
+        /// hearing one shot are ONE squad contact. 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
+        /// </summary>
+        private static void MergeHeard(
+            ref SquadContactPool pool, float* radii, byte* classes,
+            long id, float x, float y, float z, float radius, byte sourceClass,
+            float threatScore, uint lastSeenTick, byte modalities, ushort sourceMemberBit)
+        {
+            var span = MemoryMarshal.CreateSpan(
+                ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
+            radius = radius > 0f ? radius : 1f;
+
+            int best = -1; float bestD2 = float.MaxValue;
+            for (int i = 0; i < pool.Count; i++)
+            {
+                if ((span[i].Flags & SquadContact.AnonymousFlag) == 0 || !TargetMemory.ClassesCompatible(classes[i], sourceClass)) continue;
+                float dx = span[i].PositionX - x, dy = span[i].PositionY - y, d2 = dx * dx + dy * dy;
+                float reach = radii[i] + radius;
+                if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
+            }
+            if (best >= 0)
+            {
+                ref var c = ref span[best];
+                float w1 = 1f / (radii[best] * radii[best]), w2 = 1f / (radius * radius), w = w1 + w2;
+                c.PositionX = (c.PositionX * w1 + x * w2) / w;
+                c.PositionY = (c.PositionY * w1 + y * w2) / w;
+                c.PositionZ = (c.PositionZ * w1 + z * w2) / w;
+                radii[best] = 1f / System.MathF.Sqrt(w);
+                if (classes[best] == 0) classes[best] = sourceClass;
+                if (threatScore > c.ThreatScore) c.ThreatScore = threatScore;
+                if (lastSeenTick > c.LastSeenTick) c.LastSeenTick = lastSeenTick;
+                c.SourceMembersMask = (ushort)(c.SourceMembersMask | sourceMemberBit);
+                c.Flags             = (ushort)(c.Flags | modalities);
+                return;
+            }
+
+            int slot;
+            if (pool.Count < 16) slot = pool.Count++;
+            else
+            {
+                slot = 0;
+                for (int i = 1; i < 16; i++) if (span[i].ThreatScore < span[slot].ThreatScore) slot = i;
+                if (threatScore <= span[slot].ThreatScore) return;   // loses the eviction race
+            }
+            span[slot] = new SquadContact
+            {
+                EntityId          = id,
+                PositionX         = x,
+                PositionY         = y,
+                PositionZ         = z,
+                ThreatScore       = threatScore,
+                LastSeenTick      = lastSeenTick,
+                Flags             = (ushort)(modalities | SquadContact.AnonymousFlag),
+                SourceMembersMask = sourceMemberBit,
+            };
+            radii[slot] = radius;
+            classes[slot] = sourceClass;
         }
 
         private static void MergeContact(

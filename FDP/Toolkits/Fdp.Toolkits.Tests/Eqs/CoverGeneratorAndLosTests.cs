@@ -26,6 +26,12 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             public bool HasLineOfSight(Vector3 eye, Vector3 aim) => false;
         }
 
+        private sealed class RecordingLos : ILosService
+        {
+            public Vector3 LastEye;
+            public bool HasLineOfSight(Vector3 eye, Vector3 aim) { LastEye = eye; return true; }
+        }
+
         public CoverGeneratorAndLosTests()
         {
             _repo = new EntityRepository();
@@ -199,6 +205,31 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0L, candidates[0].EntityId);
             Assert.Equal(2, candidates[0].FlagsMeaningful & 2);
             Assert.Equal(0, candidates[0].Flags & 2);
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> ③ — with NO entity in slot 1 the sensor's context POINT is the other side (a heard contact):
+        /// the sight is judged from that point at the default eye height, so a candidate it sees is dropped. Without the point
+        /// (mask clear) the test has nothing to judge against and keeps the candidate unjudged, as before.</summary>
+        [Fact]
+        public void CE3063_CheapLineOfSight_JudgesFromTheContextPoint_WhenSlotOneIsEmpty()
+        {
+            var observer = _repo.CreateEntity();
+            var los = new RecordingLos();
+            var test = new CheapLineOfSightTest(los) { Viewer = EqsLosViewer.Slot };
+
+            var withPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f), ContextPointMask = EqsSensor.Point1Bit };
+            var seen = new[] { new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f } };
+            test.ExecuteBatch(observer, ref withPoint, _repo, seen.AsSpan());
+            Assert.Equal(-1L, seen[0].EntityId);   // seen from the heard point ⇒ not cover
+            Assert.Equal(40f, los.LastEye.X);
+            Assert.Equal(5f, los.LastEye.Y);
+            Assert.True(EqsContext.AnchorPosition(_repo, observer, withPoint, 1, out var anchor) && anchor == withPoint.ContextPoint1);
+
+            var noPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f) };   // mask clear ⇒ no point
+            var kept = new[] { new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f } };
+            test.ExecuteBatch(observer, ref noPoint, _repo, kept.AsSpan());
+            Assert.Equal(0L, kept[0].EntityId);
+            Assert.Equal(0, (int)kept[0].FlagsMeaningful);
         }
     }
 }

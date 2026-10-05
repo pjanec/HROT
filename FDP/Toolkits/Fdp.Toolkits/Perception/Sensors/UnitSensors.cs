@@ -122,6 +122,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             restored.ContextSlot0 = s.ContextSlot0;
             restored.ContextSlot1 = s.ContextSlot1;
             restored.ContextSlot2 = s.ContextSlot2;
+            restored.ContextPoint1    = s.ContextPoint1;      // ⭐ CE-3063
+            restored.ContextPointMask = s.ContextPointMask;
             s = restored;
             SensorChildFactory.SetCapability(repo, sensor, def, def);
         }

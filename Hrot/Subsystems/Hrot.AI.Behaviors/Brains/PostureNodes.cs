@@ -36,6 +36,10 @@ namespace Hrot.AI.Behaviors.Brains
         public EqsSensorHandle Retreat;
         /// <summary>The threat both are pointed at.</summary>
         public Entity Threat;
+        /// <summary>⭐ <c>CE-3063</c> ③ — or the HEARD contact (memory id; 0 = none) …</summary>
+        public long HeardId;
+        /// <summary>… and the point they were pointed at.</summary>
+        public Vector3 HeardPoint;
     }
 
     /// <summary>⭐ <c>CE-2073</c> — how the posture fires.</summary>
@@ -95,11 +99,15 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
         {
-            if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat)) return NodeStatus.Running;   // nothing to score yet
-            bool retarget = !threat.Equals(ws.Threat);
-            ws.Cover   = Keep(ws.Cover,   world, self, CoverSite,   FindCoverFromTarget.BlueprintId,  in p, threat, retarget);
-            ws.Retreat = Keep(ws.Retreat, world, self, RetreatSite, FindSafeRetreatPoint.BlueprintId, in p, threat, retarget);
-            ws.Threat = threat;
+            // ⭐ CE-3063 ③ — an entity, or a HEARD contact's point: cover is scored against either.
+            var was = new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint);
+            if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat)) return NodeStatus.Running;   // nothing to score yet
+            bool retarget = EqsTacticsNodes.Moved(in was, in threat);
+            ws.Cover   = Keep(ws.Cover,   world, self, CoverSite,   FindCoverFromTarget.BlueprintId,  in p, in threat, retarget);
+            ws.Retreat = Keep(ws.Retreat, world, self, RetreatSite, FindSafeRetreatPoint.BlueprintId, in p, in threat, retarget);
+            if (retarget || ws.HeardId != threat.HeardId) ws.HeardPoint = threat.Point;
+            ws.Threat = threat.Entity;
+            ws.HeardId = threat.HeardId;
             return NodeStatus.Running;
         }
 
@@ -164,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
         // ── the shared steps ─────────────────────────────────────────────────────────────────────────
 
         private static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
-                                            in PostureSensorsParams p, Entity threat, bool retarget)
+                                            in PostureSensorsParams p, in ThreatAim threat, bool retarget)
         {
             var config = new EqsSensor
             {
@@ -175,14 +183,14 @@ namespace Hrot.AI.Behaviors.Brains
                 PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
                 ScoreDeltaThreshold = p.ScoreDeltaThreshold,
                 ContextSlot0        = self,
-                ContextSlot1        = threat,
             };
+            EqsTacticsNodes.Point(ref config, in threat);
             var child = handle.IsValid && world.IsAlive(handle.ChildId) ? handle.ChildId : Entity.Null;
             if (child.IsNull)
             {
                 child = EqsChildSensor.Ensure(world, self, site, in config);
                 if (child.IsNull) return default;
-                if (!world.GetComponentRO<EqsSensor>(child).ContextSlot1.Equals(threat)) EqsChildSensor.Refresh(world, child, in config);
+                if (!EqsTacticsNodes.PointsAt(world.GetComponentRO<EqsSensor>(child), in threat)) EqsChildSensor.Refresh(world, child, in config);
                 return new EqsSensorHandle(child);
             }
             if (retarget) EqsChildSensor.Refresh(world, child, in config);

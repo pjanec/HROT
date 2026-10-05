@@ -120,6 +120,10 @@ namespace Fdp.Toolkit.Squad
         public ushort Flags;
         /// <summary>Bitmask of which squad members have reported this contact (bit i = member slot i).</summary>
         public ushort SourceMembersMask;
+
+        /// <summary>⭐ <c>CE-3063</c> ② — the <see cref="Flags"/> bit of a HEARD contact (its <see cref="EntityId"/> is a member's
+        /// synthetic negative serial, never an entity). The low byte of <see cref="Flags"/> is the modality set.</summary>
+        public const ushort AnonymousFlag = 0x8000;
     }
 
     /// <summary>
