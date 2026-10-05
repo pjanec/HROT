@@ -79,12 +79,12 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "Demo_TakeCover",
+        "BehaviorName": "TakeCover",
         "Urgency": "Hit"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000012",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: Demo_TakeCover",
+      "DisplayLabel": "React: TakeCover",
       "EditorMetadata": {
         "X": 220,
         "Y": 400,
@@ -148,12 +148,12 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "Demo_Retreat",
+        "BehaviorName": "FallBack",
         "Urgency": "Contact"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000023",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: Demo_Retreat",
+      "DisplayLabel": "React: FallBack",
       "EditorMetadata": {
         "X": 720,
         "Y": 400,
@@ -199,12 +199,12 @@
       "kind": "Action",
       "SopOrder": {
         "Kind": "React",
-        "BehaviorName": "Demo_TakeCover",
+        "BehaviorName": "TakeCover",
         "Urgency": "Contact"
       },
       "VisualId": "c2080000-0000-0000-0000-000000000032",
       "ChildVisualIds": [],
-      "DisplayLabel": "React: Demo_TakeCover",
+      "DisplayLabel": "React: TakeCover",
       "EditorMetadata": {
         "X": 1040,
         "Y": 400,

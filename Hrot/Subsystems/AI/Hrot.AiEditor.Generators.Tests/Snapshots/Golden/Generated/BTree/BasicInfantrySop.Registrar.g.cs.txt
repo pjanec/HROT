@@ -72,20 +72,20 @@ public static class BasicInfantrySopRegistrar
             });
 
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
-        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:Demo_TakeCover:Hit@-1",
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Hit@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
-                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "Demo_TakeCover", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Hit, "{}");
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "TakeCover", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Hit, "{}");
             });
-        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:Demo_Retreat:Contact@-1",
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:FallBack:Contact@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
-                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "Demo_Retreat", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "FallBack", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
             });
-        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:Demo_TakeCover:Contact@-1",
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Contact@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
-                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "Demo_TakeCover", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "TakeCover", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
             });
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.DoWhenIdle:Idle:-@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>

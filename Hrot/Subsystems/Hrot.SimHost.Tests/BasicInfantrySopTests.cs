@@ -74,6 +74,19 @@ namespace Hrot.SimHost.Tests
 
             public void Sense(SensorChange what) => Repo.Bus.Publish(new SensorChangedEvent { Unit = Unit, What = what });
 
+            /// <summary>⭐ D6 (<c>CE-2094</c>): the reactions are the REAL <c>TakeCover</c> / <c>FallBack</c> trees, which run while
+            /// the unit remembers a threat — so a reaction test gives it one, and ends it by forgetting it.</summary>
+            public unsafe void Remember(bool threat)
+            {
+                if (!Repo.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit))
+                    Repo.AddComponent(Unit, new Fdp.Toolkit.Perception.Components.TargetMemory());
+                ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
+                if (!threat) { mem.Count = 0; return; }
+                mem.EntityIds[0] = (long)Repo.CreateEntity().PackedValue;
+                mem.ThreatScores[0] = 10f;
+                mem.Count = 1;
+            }
+
             public void Order(string behaviour)
                 => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
 
@@ -103,14 +116,18 @@ namespace Hrot.SimHost.Tests
             w.Run(0.3);
             Assert.Equal(BehaviorOrigin.Superior, w.Task.Origin);
 
+            w.Remember(true);
             w.Sense(SensorChange.Hit);
             w.Run(0.1);
-            Assert.Equal("Demo_TakeCover", w.TaskName);                        // row 1: hit → React(cover, Hit)
+            Assert.Equal("TakeCover", w.TaskName);                             // row 1: hit → React(cover, Hit)
             Assert.Equal(BehaviorOrigin.Reaction, w.Task.Origin);
             Assert.Equal(ReactionUrgency.Hit, w.Task.Urgency);
             Assert.Equal("Idle", BehaviorIngressSystem.PausedTaskOf(w.Repo, w.Unit)!.BehaviorName);
 
-            w.Run(1.3);                                                        // the stand-in cover lasts 1 s
+            w.Run(1.3);
+            Assert.Equal("TakeCover", w.TaskName);                             // cover lasts while a threat is remembered
+            w.Remember(false);                                                 // … and ends when it is forgotten
+            w.Run(0.1);
             Assert.Equal("Idle", w.TaskName);                                  // the task is back, at its own rank
             Assert.Equal(BehaviorOrigin.Superior, w.Task.Origin);
             uint run = w.Task.InstanceId;
@@ -128,17 +145,19 @@ namespace Hrot.SimHost.Tests
             held.Order("Idle");
             held.StartSop();
             held.Run(0.3);
+            held.Remember(true);
             held.Sense(SensorChange.FirstThreat);
             held.Run(0.1);
-            Assert.Equal("Demo_Retreat", held.TaskName);                       // row 2 (ROE ≤ HoldFire)
+            Assert.Equal("FallBack", held.TaskName);                           // row 2 (ROE ≤ HoldFire)
 
             var free = new World();
             free.Order("Idle");
             free.StartSop();
             free.Run(0.3);
+            free.Remember(true);
             free.Sense(SensorChange.FirstThreat);
             free.Run(0.1);
-            Assert.Equal("Demo_TakeCover", free.TaskName);                     // row 3
+            Assert.Equal("TakeCover", free.TaskName);                          // row 3
             Assert.Equal(ReactionUrgency.Contact, free.Task.Urgency);
         }
     }

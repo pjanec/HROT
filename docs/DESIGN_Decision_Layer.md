@@ -781,7 +781,7 @@ hold fire withdraws instead of taking up a firing position" is expressed, with n
 |---|---|
 | ⭐ rows ask **SensedFresh**, not "sensed within N s" | 📐 measured on this recipe: the stand-in cover lasts 1 s, so a plain 3-second window re-fired the same hit's reaction after the task restarted (rail red-proved). ⭐ Fresh = within N s **and** since the task slot's current run began (`BehaviorState.RunSince`, set by every start and clear) — an event that already caused a reaction is older than the restarted task |
 | conditions are shared C# (`Fdp.Toolkits/Behavior/SopConditions.cs`: `SensedWithin`, `SensedFresh`, `RoeFireAtLeast`, `RoeFireAtMost`) | any BTree / HSM asset binds them; params `SopSenseParams {Kind, Seconds}`, `SopRoeParams {Fire}` |
-| the reactions are the existing `Demo_TakeCover` / `Demo_Retreat` stand-ins (a 1 s / 0.5 s delay) | ⚠ no real take-cover behaviour exists yet; a project swaps them in the React node's behaviour picker — the recipe shows the SHAPE |
+| ⛔ ~~the reactions are the existing `Demo_TakeCover` / `Demo_Retreat` stand-ins (a 1 s / 0.5 s delay)~~ SUPERSEDED `2026-10-05` (`CE-2094`, D6): the reactions are the REAL `TakeCover` / `FallBack` trees (`DESIGN_Eqs_Consuming_Behaviours.md` §6) — cover lasts while the unit remembers a threat, and the paused task restarts when it is forgotten | the stand-in assets stay (other rails and demos name them); only the shipped SOP's React rows moved |
 | ⚠ not built | edge-latching for conditions that are not sensing changes (e.g. "health below 30 %" stays true) — a row on such a condition re-fires after each reaction; the fresh rule covers sensed EVENTS only |
 
 Rails: `BasicInfantrySopTests` (SimHost, the production registry through the real ingress + brain: idles with no order; a

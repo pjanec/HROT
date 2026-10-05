@@ -21,7 +21,7 @@ public static class BasicInfantrySop
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000011"));
-                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:Demo_TakeCover:Hit@-1",
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Hit@-1",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000012"));
                 },
                     visualId: new Guid("c2080000-0000-0000-0000-000000000010"));
@@ -31,7 +31,7 @@ public static class BasicInfantrySop
                         visualId: new Guid("c2080000-0000-0000-0000-000000000021"));
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.RoeFireAtMost@16",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000022"));
-                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:Demo_Retreat:Contact@-1",
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:FallBack:Contact@-1",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000023"));
                 },
                     visualId: new Guid("c2080000-0000-0000-0000-000000000020"));
@@ -39,7 +39,7 @@ public static class BasicInfantrySop
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@8",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000031"));
-                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:Demo_TakeCover:Contact@-1",
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Contact@-1",
                         visualId: new Guid("c2080000-0000-0000-0000-000000000032"));
                 },
                     visualId: new Guid("c2080000-0000-0000-0000-000000000030"));
