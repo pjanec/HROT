@@ -238,7 +238,7 @@ rule is the guard, not the ballistics.
 examples) and **not** on a split cluster.
 
 ⭐ **Simplification in force (`CE-3059`, 🔒 user `2026-10-05`):** *"brain deciding where to place the dismounting soldiers to
-avoid friendly fire is a non trivial task. Could we for now simplify that the bullets are starting their trajectory around 1
+avoid friendly fire is a non trivial task. Could we for now simplify that the bullets are starting their trajectoey around 1
 meter from the soldier"*. `FireProcessingSystem` spawns the bullet `CombatConstants.MuzzleOffsetMeters` (1 m) along the aim
 line, capped at half the distance to the target, and the swept ray starts there. ⇒ squad-mates on the shooter's own spot are
 not hit; ⚠ a friendly further out on the line still is (the hold-fire guard above covers that). Correct dismount placement on a
