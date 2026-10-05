@@ -14,6 +14,7 @@ related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the When-on-EQS trigger fix this relies on (§7.9, CE-2089) and the threat inputs (§7.8, CE-3054).
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS a behaviour's child-sensor lifetime (CE-485/486): the sensors here die with the run.
   - docs/DESIGN_Terrain_World.md — OWNS the sight (SegmentBlocked) the acceptance checks with.
+  - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the inspector binding; §5.6 (CE-2099) is the gap that keeps a designer from picking TakeCover / FallBack in the editor today.
 -->
 
 # Behaviours that use the terrain EQS queries — take cover, fall back *(`CE-3031`)*
@@ -317,6 +318,7 @@ Built as §2 draws it: `EqsTacticsNodes.TakeCover` / `FallBack` (+ stateful deac
 | A3 | a MoveTo that fails (or that another command took over) is re-issued on the next answer | — |
 | A4 | `FallBack` re-points only until its one move is issued; a later, different answer does not turn the unit around | §2.2 drew TakeCover only |
 | A5 | `EqsTacticsParams.FactionFilter` (0 = every acquired contact, `StarterTemplates.cs:5`) — the query's exposure scoring needs it | not listed |
+| A7 | ⚠ the trees are hand-authored JSON: the inspector cannot yet bind a C# stateful node's working state (`DESIGN_Behavior_Action_Binding.md` §5.6, `CE-2099`) | — |
 | A6 | ⚠ **step 1 (does infantry fill `TargetMemory` on a live run) moves to `CE-2094`** — it needs the acceptance scenario; the rails here set the memory directly | §5: "step 1 also measures…" in CE-2092 |
 
 **Rails:** `EqsCombatNodesTests.CE2092_*` (6) + `CE2093_*` (1) — the feature's own suite, called directly: no threat ⇒

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-01
-build-state: BUILT — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
+updated: 2026-10-05
+build-state: BUILT (§5.6 CE-2099 is a DESIGN gap, not built) — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
   F7/F8/F9 were measured; it covers BOTH hosts (F8). The hot-path allocation half (F9) shipped separately as CE-505.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
@@ -10,6 +10,7 @@ known-rot: none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first hand-written stateful nodes a designer would pick (TakeCover / FallBack), which §5.6's gap blocks from editor authoring.
   - DESIGN_BTree_Node_Call_Shapes.md — owns CE-504: what DelegateShape is FOR; proposes deriving it from the method and one C# node signature for both hosts.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns decision B (one carrier, approved
     2026-09-28) and §5.1b (DelegateShape stays BTree-side). This document only BUILDS B.
@@ -628,6 +629,23 @@ graph TD
 > | **the build-side fallback** | when the `.bp.json` is not part of the build, the class comes from the persisted name (`BlueprintClassNaming`); a wrong name fails the C# compile, never silently. Neither id nor name ⇒ left unbound ⇒ the existing `BTREE0002` skip |
 > | **rails** | `BTreeBlueprintBindingsTests` (5, persistence): the corpus class is the one always emitted; id beats a stale name; name fallback; methods untouched; unresolvable left alone. `BTreeBlueprintBindingByIdTests` (8, BTree editor): legacy FQN healed to id; hand-written AiPrimitive method kept; id-first with two same-named blueprints + rename heal; never-erase; derived method; validator by id; palette drop persists id; inspector pick composes params + working state and clearing restores the plain shape. 🔴 Red-proved by mutation: persisted name preferred over the catalogue id, name-first heal, shape not set, palette drop keeps the FQN — each reddens its rail; removing the generator call reddens `TheGeneratedBTreeSourcesAreUnchanged` — ⚠ **only after fixing that test** (next row) |
 > | 🔴 **finding: the generated-source golden could not see a MISSING asset** | it compared only the parts a run produced, so an asset that stopped generating (here: T32/T33/T39 skipped as BTREE0002 once the derivation was removed) left its baselines unread and the test GREEN. ⭐ Fixed in `BTreeGeneratedEmitGoldenTests`: the produced hint set must equal the baselined set; red-proved. ⚠ **Not fixed, recorded:** `GeneratedEmitGoldenTests` (the HSM generator's tier, `:117`) has the same loop |
+
+## 5.6 GAP — the inspector binds only ONE variable for a hand-written C# stateful node *(measured `2026-10-05`; build-state: DESIGN — `CE-2099`)*
+
+> 🔒 **User, `2026-10-05`:** *"Is the ui for setring 2-vaeiable condirion and action available? If not pls put to plan."*
+
+| claim | code (how it IS) |
+|---|---|
+| the inspector offers ONE variable combo (params) + "Promote to new variable" | ✅ `ActionBindingDrawer.cs:112` |
+| the working-state half is composed only for a BLUEPRINT-backed primitive | ✅ `BehaviorActionBindingEditor.cs:116-132`, `BTreeCommandSink.cs:252-262` |
+| for a C# `[SharedAiAction]` with `(ref P, ref WS, …)` nothing sets `WorkingStateTypeId`; the emitter then GUESSES it from the method name | ✅ `BTreeBridgeEmitCore.cs:655-659,1440-1452` (`Action_X` → `+XState`) ⇒ 🔴 picking `EqsTacticsNodes.TakeCover` in the editor would emit `EqsTacticsNodes+TakeCoverState`, which does not exist — the shipped `TakeCover` / `FallBack` trees bind it only because their JSON names `EqsTacticsState` by hand |
+| a two-variable CONDITION does not exist yet | ✅ `SharedNodeCondition<P>` has one `ref P` (`SharedNodeBinder.cs:17`) — `CE-2069` lean A adds it (R-202) |
+
+⭐ **Lean (`CE-2099`), one place for both hosts:** when the inspector picks a C# method whose signature is the stateful
+form (an action now, a condition after `CE-2069`), set `WorkingStateTypeId` FROM THE SIGNATURE's `ref WS` type, and draw
+a second combo "working state": `(this node)` = Node scope (the default, no variable) · any `Role=State` variable of
+that type (sharing one slot, as T35) · "Promote to new variable". ⛔ The name-convention fallback becomes a diagnostic,
+not a guess. ⛔ Rejected: a separate inspector per host — `BehaviorActionBindingEditor` is already the one both use.
 
 ## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 
