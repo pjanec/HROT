@@ -24,6 +24,11 @@ public struct BehaviorActionBindingFacet
     /// <summary>The host variable this binding reads/writes.</summary>
     public string? ExpressionTargetField;
 
+    /// <summary>⭐ <c>CE-2099</c> — the <c>Role=State</c> variable a STATEFUL C# method's working state lives in; empty = the
+    /// node's own state (no variable). Two nodes naming the same Behavior-scoped variable share one state (e.g. a
+    /// <c>ChooseOption</c> action and its <c>IsOption</c> guards). Ignored for every other form.</summary>
+    public string? WorkingStateTargetField;
+
     /// <summary>Read-only for the drawer: the site's identity, used to name a promoted variable (<c>_auto_{id}</c>).</summary>
     public string? SiteId;
 

@@ -104,8 +104,13 @@ public record ActionSchemaEntry(
     BlackboardAccess Access,
     bool IsCondition = false,
     IReadOnlyList<DtoFieldDescriptor>? DtoFields = null,
-    bool IsAiPrimitive = false
-);
+    bool IsAiPrimitive = false,
+    Type? WorkingStateType = null
+)
+{
+    // ⭐ CE-2099 — WorkingStateType: the method's SECOND `ref` parameter, the stateful form `(ref P, ref WS, Entity,
+    //   EntityRepository)` (an action or, since CE-2069, a condition); null for every other form. The inspector binds it.
+}
 
 /// <summary>
 /// Provides a dictionary of all reflected action/condition/guard entries keyed by FQN.

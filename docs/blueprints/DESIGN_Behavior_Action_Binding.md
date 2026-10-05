@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILT (§5.6 CE-2099 is a DESIGN gap, not built) — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
+build-state: BUILT (§5.6 CE-2099 BUILT 2026-10-05, as-built §5.6a) — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
   F7/F8/F9 were measured; it covers BOTH hosts (F8). The hot-path allocation half (F9) shipped separately as CE-505.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
@@ -630,7 +630,7 @@ graph TD
 > | **rails** | `BTreeBlueprintBindingsTests` (5, persistence): the corpus class is the one always emitted; id beats a stale name; name fallback; methods untouched; unresolvable left alone. `BTreeBlueprintBindingByIdTests` (8, BTree editor): legacy FQN healed to id; hand-written AiPrimitive method kept; id-first with two same-named blueprints + rename heal; never-erase; derived method; validator by id; palette drop persists id; inspector pick composes params + working state and clearing restores the plain shape. 🔴 Red-proved by mutation: persisted name preferred over the catalogue id, name-first heal, shape not set, palette drop keeps the FQN — each reddens its rail; removing the generator call reddens `TheGeneratedBTreeSourcesAreUnchanged` — ⚠ **only after fixing that test** (next row) |
 > | 🔴 **finding: the generated-source golden could not see a MISSING asset** | it compared only the parts a run produced, so an asset that stopped generating (here: T32/T33/T39 skipped as BTREE0002 once the derivation was removed) left its baselines unread and the test GREEN. ⭐ Fixed in `BTreeGeneratedEmitGoldenTests`: the produced hint set must equal the baselined set; red-proved. ⚠ **Not fixed, recorded:** `GeneratedEmitGoldenTests` (the HSM generator's tier, `:117`) has the same loop |
 
-## 5.6 GAP — the inspector binds only ONE variable for a hand-written C# stateful node *(measured `2026-10-05`; build-state: DESIGN — `CE-2099`)*
+## 5.6 The inspector binds a hand-written C# stateful node's SECOND variable — `CE-2099` *(gap measured `2026-10-05`; build-state: BUILT `2026-10-05` — as-built at the end of the section)*
 
 > 🔒 **User, `2026-10-05`:** *"Is the ui for setring 2-vaeiable condirion and action available? If not pls put to plan."*
 
@@ -646,6 +646,83 @@ form (an action now, a condition after `CE-2069`), set `WorkingStateTypeId` FROM
 a second combo "working state": `(this node)` = Node scope (the default, no variable) · any `Role=State` variable of
 that type (sharing one slot, as T35) · "Promote to new variable". ⛔ The name-convention fallback becomes a diagnostic,
 not a guess. ⛔ Rejected: a separate inspector per host — `BehaviorActionBindingEditor` is already the one both use.
+
+### 5.6a As-built *(`2026-10-05`)*
+
+```mermaid
+classDiagram
+  class ActionSchemaEntry {
+    <<existing, widened>>
+    +Type DtoType
+    +Type WorkingStateType NEW
+  }
+  class ActionSchemaExporter {
+    <<existing>>
+    second ref param of (ref P, ref WS, Entity, Repo) NEW
+  }
+  class BehaviorActionBindingFacet {
+    <<existing, widened>>
+    +string ExpressionTargetField
+    +string WorkingStateTargetField NEW
+  }
+  class BehaviorActionBindingEditor {
+    <<existing>>
+    Apply()
+    BindCSharpWorkingState() NEW
+  }
+  class ActionBindingSources {
+    <<existing>>
+    WorkingStateType() NEW
+    GetWorkingStateVariables() NEW
+    PromoteWorkingState() NEW
+  }
+  class ActionBindingDrawer {
+    <<existing>>
+    working state combo + New shared state NEW
+  }
+  class BTreeBridgeEmitCore {
+    <<existing>>
+    WS type from the signature before the name guess
+  }
+  ActionSchemaExporter --> ActionSchemaEntry
+  ActionBindingSources ..> ActionSchemaEntry
+  BehaviorActionBindingEditor ..> ActionSchemaEntry
+  ActionBindingDrawer ..> ActionBindingSources
+  ActionBindingDrawer ..> BehaviorActionBindingFacet
+  BehaviorActionBindingEditor ..> BehaviorActionBindingFacet
+```
+
+*What the picture shows that prose hid: the working-state TYPE has ONE source — the method's signature, read once by the
+catalogue — and both the inspector and the emitter take it from there; only the VARIABLE is an authoring choice.*
+
+```mermaid
+sequenceDiagram
+  participant U as Designer
+  participant D as ActionBindingDrawer
+  participant S as ActionBindingSources
+  participant A as BehaviorActionBindingEditor.Apply
+  U->>D: pick method UtilityNodes.IsOption
+  D->>S: WorkingStateType(facet)
+  S-->>D: UtilityChoice
+  D->>U: working state combo, (this node) or a State variable of UtilityChoice
+  U->>D: pick shared variable choice, or New shared state
+  D->>A: facet with WorkingStateTargetField
+  A->>A: WorkingStateTypeId = UtilityChoice, WorkingStateTargetField = choice
+```
+
+*What the picture shows that prose hid: a picker appears only for a stateful method; for any other form the applier
+CLEARS both fields, so a re-pick never leaves a stale working state behind.*
+
+| # | as built | ⛔ the lean said |
+|---|---|---|
+| C1 | ⭐ both hosts, one place: `BTreeFacetMapper` and `HsmFacetDispatcher` already pass the exporter to the applier, so every BTree node and every HSM slot (entry, exit, activity, timer, guard, transition action) gets it | — |
+| C2 | the emitter takes the type from the signature (`SharedAiMethodInfo.WorkingStateTypeFqn`) when the binding names none — ONE rule, `BTreeBridgeEmitCore.ResolveWorkingStateType`, used by the stateful thunks AND the working-slot manifest (🔴 found by its rail: the manifest still guessed `+PickState` after the thunks were fixed); ⚠ the name guess is kept as the LAST fallback (not yet a diagnostic) — every asset that reaches it today names its type, so turning it into an error is a separate, unforced step | "the name-convention fallback becomes a diagnostic" |
+| C3 | ⚠ HSM: `(this node)` is not a valid choice for a stateful C# method — its working state must be a Behavior-scoped `Role=State` block variable (S8-1), else `HSM0003`; the picker offers it on both hosts and the validator speaks on the HSM | — |
+
+**Rails:** `ActionBindingTests.CE2099_*` (4: type from the signature + the facet's variable · a non-stateful re-pick
+clears both · the picker lists only `Role=State` variables of that type and promotes a SHARED one · the real catalogue
+reflects `UtilityNodes.IsOption` / `ChooseOption`). `SharedAiBindingCompilesTests.CE2069_ABTreeBindsAStatefulCondition_*`
+and `CE2099_ANodeScopedStatefulNode_WithNoTypeNamed_*` pin the emitter half (a shared and a node-scoped binding naming no type compile; red when the signature fallback is removed).
 
 ## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 

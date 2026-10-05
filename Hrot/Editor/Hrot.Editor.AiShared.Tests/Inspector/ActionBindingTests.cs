@@ -4,6 +4,7 @@ using System.Linq;
 using Fhsm.Compiler;
 using FluentAssertions;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Model;
@@ -39,6 +40,14 @@ public sealed class ActionBindingTests
         public Exporter Method(string fqn, Type dto)
         {
             _map[fqn] = new ActionSchemaEntry(fqn, dto, ActionHosting.Hsm | ActionHosting.HsmActivity, BlackboardAccess.ReadWrite);
+            return this;
+        }
+
+        /// <summary>⭐ CE-2099 — a stateful C# method <c>(ref P, ref WS, Entity, EntityRepository)</c>.</summary>
+        public Exporter Stateful(string fqn, Type dto, Type ws, bool condition = false)
+        {
+            _map[fqn] = new ActionSchemaEntry(fqn, dto, ActionHosting.Shared, BlackboardAccess.ReadWrite,
+                IsCondition: condition, WorkingStateType: ws);
             return this;
         }
 
@@ -124,6 +133,88 @@ public sealed class ActionBindingTests
                                                new Exporter().Blueprint(PatrolTickCore, typeof(PatrolParams)));
 
         sources.GetVariables(new BehaviorActionBindingFacet { BlueprintName = "Patrol" }).Should().Equal("patrol");
+    }
+
+    // ── ⭐ CE-2099 — the second variable of a STATEFUL C# method (DESIGN_Behavior_Action_Binding.md §5.6) ──────────
+
+    public struct ChoiceState { public byte Winner; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2099</c> — picking a stateful C# method sets the working-state TYPE from the method's own signature and the
+    /// variable from the facet (empty = the node's own state). 🔴 Before: nothing set the type, and the emitter guessed it
+    /// from the method's name (<c>Action_X → +XState</c>), which does not exist for e.g. <c>EqsTacticsNodes.TakeCover</c>.
+    /// </summary>
+    [Fact]
+    public void CE2099_AStatefulMethod_GetsItsWorkingStateTypeFromTheSignature_AndTheFacetsVariable()
+    {
+        var asset    = MakeAsset(Var("choose", typeof(PatrolParams)));
+        var exporter = new Exporter().Stateful("Ns.Choose", typeof(PatrolParams), typeof(ChoiceState));
+        var ctx      = new ActionBindingApplyContext(asset, Exporter: exporter, KeepWhenEmpty: true);
+
+        var nodeScoped = BehaviorActionBindingEditor.Apply(new BehaviorActionBinding(),
+            new BehaviorActionBindingFacet { MethodFqn = "Ns.Choose", ExpressionTargetField = "choose" }, ctx)!;
+        nodeScoped.WorkingStateTypeId.Should().Be(typeof(ChoiceState).FullName);
+        nodeScoped.WorkingStateTargetField.Should().BeNull("an empty pick is the node's own state");
+
+        var shared = BehaviorActionBindingEditor.Apply(new BehaviorActionBinding(),
+            new BehaviorActionBindingFacet { MethodFqn = "Ns.Choose", ExpressionTargetField = "choose", WorkingStateTargetField = "choice" }, ctx)!;
+        shared.WorkingStateTargetField.Should().Be("choice");
+        BehaviorActionBindingEditor.ToFacet(shared, siteId: null).WorkingStateTargetField.Should().Be("choice", "the facet round-trips it");
+    }
+
+    [Fact]
+    public void CE2099_RePickingAMethodThatIsNotStateful_ClearsTheWorkingState()
+    {
+        var asset    = MakeAsset();
+        var exporter = new Exporter().Stateful("Ns.Choose", typeof(PatrolParams), typeof(ChoiceState)).Method("Ns.Plain", typeof(float));
+        var ctx      = new ActionBindingApplyContext(asset, Exporter: exporter, KeepWhenEmpty: true);
+        var b = BehaviorActionBindingEditor.Apply(new BehaviorActionBinding(),
+            new BehaviorActionBindingFacet { MethodFqn = "Ns.Choose", WorkingStateTargetField = "choice" }, ctx)!;
+
+        b = BehaviorActionBindingEditor.Apply(b, new BehaviorActionBindingFacet { MethodFqn = "Ns.Plain", WorkingStateTargetField = "choice" }, ctx)!;
+
+        b.WorkingStateTypeId.Should().BeNull();
+        b.WorkingStateTargetField.Should().BeNull("a method with no working state has nowhere to put one");
+    }
+
+    [Fact]
+    public void CE2099_TheWorkingStatePicker_ListsStateVariablesOfThatType_AndPromotesASharedOne()
+    {
+        var asset = MakeAsset(
+            new BlackboardVariableEntry("choice", typeof(ChoiceState), null, Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Behavior),
+            new BlackboardVariableEntry("input",  typeof(ChoiceState), null),                                    // Input role: not a state
+            new BlackboardVariableEntry("other",  typeof(int),         null, Role: BlackboardVariableRole.State));
+        var sources = new ActionBindingSources(asset, _ => Array.Empty<string>(),
+            new Exporter().Stateful("Ns.IsOption", typeof(PatrolParams), typeof(ChoiceState), condition: true).Method("Ns.Plain", typeof(float)));
+
+        var facet = new BehaviorActionBindingFacet { MethodFqn = "Ns.IsOption" };
+        sources.WorkingStateType(facet).Should().Be(typeof(ChoiceState));
+        sources.GetWorkingStateVariables(facet).Should().Equal("choice");
+        sources.WorkingStateType(new BehaviorActionBindingFacet { MethodFqn = "Ns.Plain" }).Should().BeNull("not stateful: no picker");
+
+        string? made = sources.PromoteWorkingState(facet);
+        made.Should().NotBeNull();
+        var v = asset.BlackboardVariables.Single(x => x.Name == made);
+        v.Role.Should().Be(BlackboardVariableRole.State);
+        v.Scope.Should().Be(WorkingStateScope.Behavior, "a promoted state is SHARED — other nodes bind it too");
+        v.FieldType.Should().Be(typeof(ChoiceState));
+    }
+
+    /// <summary>⭐ <c>CE-2099</c> — the real catalogue reflects a stateful method's working state, for an action AND (since
+    /// <c>CE-2069</c>) a condition.</summary>
+    [Fact]
+    public void CE2099_TheCatalogue_ReflectsTheWorkingStateOfStatefulActionsAndConditions()
+    {
+        _ = typeof(Fdp.Toolkit.Utility.UtilityNodes);   // load Fdp.Toolkits
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var isOption = exporter.Lookup("Fdp.Toolkit.Utility.UtilityNodes.IsOption");
+        isOption.Should().NotBeNull();
+        isOption!.WorkingStateType.Should().Be(typeof(Fdp.Toolkit.Utility.UtilityChoice));
+        isOption.IsCondition.Should().BeTrue();
+        exporter.Lookup("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption")!.WorkingStateType.Should().Be(typeof(Fdp.Toolkit.Utility.UtilityChoice));
+        exporter.Lookup("Fdp.Toolkit.Behavior.SopConditions.SensedWithin")!.WorkingStateType.Should().BeNull("a plain condition has none");
     }
 
     // ── the drawer's pick rules ───────────────────────────────────────────────

@@ -196,7 +196,8 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
 
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
         collected[fqn] = new ActionSchemaEntry(
-            fqn, dtoType, hosting, access, isCondition, dtoFields, isAiPrimitive);
+            fqn, dtoType, hosting, access, isCondition, dtoFields, isAiPrimitive,
+            WorkingStateType: isAiPrimitive ? null : ExtractSecondRefParamType(method));   // ⭐ CE-2099
     }
 
     /// <summary>
@@ -218,6 +219,16 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         for (int i = 0; i < fields.Length; i++)
             result[i] = new DtoFieldDescriptor(fields[i].Name, fields[i].FieldType);
         return result;
+    }
+
+    /// <summary>⭐ <c>CE-2099</c> — the working-state type of the stateful shared form: the SECOND leading <c>ref</c>
+    /// parameter when the method is <c>(ref P, ref WS, Entity, EntityRepository)</c>; otherwise null.</summary>
+    private static Type? ExtractSecondRefParamType(MethodInfo method)
+    {
+        var ps = method.GetParameters();
+        return ps.Length == 4 && ps[0].ParameterType.IsByRef && ps[1].ParameterType.IsByRef
+            ? ps[1].ParameterType.GetElementType()
+            : null;
     }
 
     /// <summary>

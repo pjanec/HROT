@@ -45,6 +45,15 @@ namespace Hrot.AI.Behaviors.Brains
             => builder.Action(
                 SharedNodeBinder.RegisterStatefulAction(builder.GetRegistry(), paramSelector, stateSelector, logic), visualId);
 
+        /// <summary>⭐ <c>CE-2069</c> — a shared stateful <c>bool</c> condition leaf (params + a working memory it reads).</summary>
+        public static BTreeBuilder<TBB, BTreeContext> StatefulCondition<TBB, TParams, TWorkingState>(
+            this BTreeBuilder<TBB, BTreeContext> builder,
+            Expression<Func<TBB, TParams>> paramSelector, Expression<Func<TBB, TWorkingState>> stateSelector,
+            SharedNodeStatefulCondition<TParams, TWorkingState> logic, Guid visualId = default)
+            where TBB : struct where TParams : unmanaged where TWorkingState : unmanaged
+            => builder.Condition(
+                SharedNodeBinder.RegisterStatefulCondition(builder.GetRegistry(), paramSelector, stateSelector, logic), visualId);
+
         public static BTreeBuilder<TBB, BTreeContext> Action<TBB>(
             this BTreeBuilder<TBB, BTreeContext> builder, SharedNodeNoParams logic, Guid visualId = default)
             where TBB : struct

@@ -1,6 +1,12 @@
 using System;
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Compiler;
+using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Utility;
+using Hrot.AI.Behaviors.Brains;
 using Xunit;
 
 namespace Fdp.Toolkit.Tests
@@ -343,6 +349,82 @@ namespace Fdp.Toolkit.Tests
 
         private static Entity s_favoured;
         private static unsafe float FavouredReader(in UtilityInputCtx ctx) => ctx.Context.Equals(s_favoured) ? 0.9f : 0.2f;
+
+        // ── ⭐ CE-2069 — the utility nodes switch a BTree branch on the winner (DESIGN_Decision_Layer.md §3.3) ──────
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Ran { public int N; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PostureBlackboard
+        {
+            public ChooseOptionParams Choose;
+            public UtilityChoice      Choice;   // ⭐ the ONE working state ChooseOption writes and both guards read
+            public IsOptionParams     IsOne;
+            public IsOptionParams     IsTwo;
+            public Ran                One;
+            public Ran                Two;
+        }
+
+        private static float s_one, s_two;
+        private static unsafe float OneReader(in UtilityInputCtx ctx) => s_one;
+        private static unsafe float TwoReader(in UtilityInputCtx ctx) => s_two;
+        private static NodeStatus Run(ref Ran p, Entity self, EntityRepository world) { p.N++; return NodeStatus.Running; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2069</c> — a tree <c>Parallel[ ChooseOption, ObserverSelector[ IsOption(1) → one, IsOption(2) → two ] ]</c>
+        /// runs the winner's branch and SWITCHES when the scores move past the hysteresis; the guards read the winner the
+        /// action wrote, through one shared working-state field. (The Parallel-repeat shape §3.2 assumed, measured here.)
+        /// </summary>
+        [Fact]
+        public unsafe void CE2069_UtilityNodes_SwitchTheBranch_WhenTheWinnerChanges()
+        {
+            UtilityDecisionCatalog.EnsureRegistered();
+            const int id = 0x20690001;
+            UtilityDecisionCatalog.Shared.Register(id, new UtilityDecisionDef
+            {
+                DebugName = "CE2069Posture", Kind = DecisionKind.PostureSelect,
+                Options = new[] { BuildSingleLinearOption(optionId: 1, inputId: 2069), BuildSingleLinearOption(optionId: 2, inputId: 2070) },
+            }, hysteresisBonus: 0.08f);
+            UtilityInputReaderStore.Register(2069, &OneReader);
+            UtilityInputReaderStore.Register(2070, &TwoReader);
+
+            var builder = new BTreeBuilder<PostureBlackboard, BTreeContext>()
+                .Parallel(0, par => par
+                    .StatefulAction<PostureBlackboard, ChooseOptionParams, UtilityChoice>(bb => bb.Choose, bb => bb.Choice, UtilityNodes.ChooseOption)
+                    .ObserverSelector(obs => obs
+                        .Sequence(one => one
+                            .StatefulCondition<PostureBlackboard, IsOptionParams, UtilityChoice>(bb => bb.IsOne, bb => bb.Choice, UtilityNodes.IsOption)
+                            .Action(bb => bb.One, Run))
+                        .Sequence(two => two
+                            .StatefulCondition<PostureBlackboard, IsOptionParams, UtilityChoice>(bb => bb.IsTwo, bb => bb.Choice, UtilityNodes.IsOption)
+                            .Action(bb => bb.Two, Run))));
+            var interp = new Interpreter<PostureBlackboard, BTreeContext>(builder.Compile("CE2069Posture"), builder.GetRegistry());
+
+            using var world = new EntityRepository();
+            var bb = new PostureBlackboard { Choose = { Decision = new UtilityDecisionRef(id) }, IsOne = { Option = 1 }, IsTwo = { Option = 2 } };
+            var ctx = new BTreeContext { Self = world.CreateEntity(), World = world };
+            var state = new BehaviorTreeState();
+
+            s_one = 0.9f; s_two = 0.2f;
+            interp.Tick(ref bb, ref state, ref ctx);
+            interp.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(1, bb.Choice.Winner);
+            Assert.Equal(2, bb.One.N);
+            Assert.Equal(0, bb.Two.N);
+
+            s_one = 0.75f; s_two = 0.8f;   // inside the 0.08 hysteresis: option 1 holds
+            interp.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(1, bb.Choice.Winner);
+            Assert.Equal(3, bb.One.N);
+
+            s_one = 0.2f; s_two = 0.9f;    // past it: the winner moves, and so does the branch
+            interp.Tick(ref bb, ref state, ref ctx);
+            interp.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(2, bb.Choice.Winner);
+            Assert.Equal(3, bb.One.N);
+            Assert.True(bb.Two.N >= 1, $"the second branch must run once its option wins; ran {bb.Two.N}");
+        }
 
         private static UtilityScorer PostureScorer(out int id)
         {

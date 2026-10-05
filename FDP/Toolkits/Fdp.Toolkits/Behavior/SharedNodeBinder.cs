@@ -20,6 +20,11 @@ namespace Fdp.Toolkit.Behavior
     public delegate NodeStatus SharedNodeStatefulAction<TParams, TWorkingState>(
         ref TParams p, ref TWorkingState ws, Entity self, EntityRepository world);
 
+    /// <summary>⭐ <c>CE-2069</c> — the shared stateful C# condition: params plus a working memory it READS (e.g. a shared
+    /// winner a sibling action writes). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3 "CE-2069 build design".</summary>
+    public delegate bool SharedNodeStatefulCondition<TParams, TWorkingState>(
+        ref TParams p, ref TWorkingState ws, Entity self, EntityRepository world);
+
     /// <summary>⭐ <c>CE-504</c> C-3 — the shared param-less C# node: binds no variable.</summary>
     public delegate NodeStatus SharedNodeNoParams(Entity self, EntityRepository world);
 
@@ -147,6 +152,29 @@ namespace Fdp.Toolkit.Behavior
                 logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), po)),
                       ref Unsafe.As<byte, TWorkingState>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), so)),
                       ctx.Self, ctx.World));
+            PairDeactivator<TBB, TParams, TWorkingState>(registry, key, logic.Method, po, so);
+            return key;
+        }
+
+        /// <summary>⭐ <c>CE-2069</c> — the stateful <c>bool</c> condition form; both halves are fields of the block.
+        /// Key <c>{Fqn}@{paramOffset}@{stateOffset}</c>, as <see cref="RegisterStatefulAction{TBB, TParams, TWorkingState}"/>.</summary>
+        public static string RegisterStatefulCondition<TBB, TParams, TWorkingState>(
+            ActionRegistry<TBB, BTreeContext> registry,
+            Expression<Func<TBB, TParams>> paramSelector, Expression<Func<TBB, TWorkingState>> stateSelector,
+            SharedNodeStatefulCondition<TParams, TWorkingState> logic)
+            where TBB : struct where TParams : unmanaged where TWorkingState : unmanaged
+        {
+            Require(registry, logic);
+            nint po = FieldOffset(paramSelector), so = FieldOffset(stateSelector);
+            string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);
+            registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
+                      ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),
+                      ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), po)),
+                      ref Unsafe.As<byte, TWorkingState>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), so)),
+                      ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
             PairDeactivator<TBB, TParams, TWorkingState>(registry, key, logic.Method, po, so);
             return key;
         }

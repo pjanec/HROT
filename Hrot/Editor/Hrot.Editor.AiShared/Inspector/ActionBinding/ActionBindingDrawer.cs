@@ -116,9 +116,37 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
             }
         }
 
+        // ── ⭐ CE-2099 — a stateful C# method's working state ──
+        if (_sources.WorkingStateType(b) is { } wsType)
+        {
+            ImGuiNET.ImGui.SetNextItemWidth(width);
+            var stateVars = _sources.GetWorkingStateVariables(b);
+            if (Combo("working state##abw", b.WorkingStateTargetField, stateVars,
+                      n => n.Length == 0 ? "(this node)" : n, out picked))
+            {
+                PickWorkingState(ref b, picked);
+                changed = true;
+            }
+            if (ImGuiNET.ImGui.IsItemHovered())
+                ImGuiNET.ImGui.SetTooltip(
+                    $"Where this node's {wsType.Name} lives. (none) = the node's own state.\n" +
+                    "Pick a shared state variable to let other nodes read the same state " +
+                    "(e.g. ChooseOption and its IsOption guards).");
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.SmallButton("New shared state") && _sources.PromoteWorkingState(b) is { } newState)
+            {
+                PickWorkingState(ref b, newState);
+                changed = true;
+            }
+        }
+
         if (changed) value = b;
         return changed;
     }
+
+    /// <summary>⭐ <c>CE-2099</c> — picks the working-state variable (empty = the node's own state).</summary>
+    public static void PickWorkingState(ref BehaviorActionBindingFacet b, string? name)
+        => b.WorkingStateTargetField = string.IsNullOrEmpty(name) ? null : name;
 
     /// <summary>One combo with a "(none)" row; the ImGui id of each row is its VALUE so equal labels stay distinct.</summary>
     private static bool Combo(string id, string? current, IReadOnlyList<string> items,

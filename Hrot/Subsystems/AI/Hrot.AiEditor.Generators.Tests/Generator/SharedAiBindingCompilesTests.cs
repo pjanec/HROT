@@ -309,6 +309,172 @@ namespace Probe
                                     string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
         }
 
+        // ---- CE-2069: the stateful CONDITION, sharing a working state with a stateful action ----------
+
+        private const string StatefulConditionSource = @"
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Probe
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PickParams { public int Limit; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AtParams { public int At; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Choice { public int Winner; }
+
+    public static class ChoiceNodes
+    {
+        [SharedAiAction]
+        public static NodeStatus Pick(ref PickParams p, ref Choice ws, Entity self, EntityRepository world)
+        { ws.Winner = p.Limit; return NodeStatus.Running; }
+
+        [SharedAiCondition]
+        public static bool IsAt(ref AtParams p, ref Choice ws, Entity self, EntityRepository world) => ws.Winner == p.At;
+    }
+}";
+
+        // ⚠ The condition names NO WorkingStateTypeId: the emitter must take it from the method's own `ref WS` (CE-2099).
+        private const string StatefulConditionAsset = """
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb002069-0000-0000-0000-0000000000aa", "Name": "StatefulConditionProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb002069-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb002069-0000-0000-0000-000000000002" ] },
+                { "kind": "Sequence", "VisualId": "bb002069-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb002069-0000-0000-0000-000000000003", "bb002069-0000-0000-0000-000000000004" ] },
+                { "kind": "Action", "VisualId": "bb002069-0000-0000-0000-000000000003", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.ChoiceNodes.Pick", "ExpressionTargetField": "pick",
+                              "WorkingStateTypeId": "Probe.Choice", "WorkingStateTargetField": "choice" } },
+                { "kind": "Condition", "VisualId": "bb002069-0000-0000-0000-000000000004", "ChildVisualIds": [],
+                  "Condition": { "MethodFqn": "Probe.ChoiceNodes.IsAt", "ExpressionTargetField": "at",
+                                 "WorkingStateTargetField": "choice" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "pick",   "Type": { "TypeId": "Probe.PickParams" } },
+                { "Name": "at",     "Type": { "TypeId": "Probe.AtParams" } },
+                { "Name": "choice", "Type": { "TypeId": "Probe.Choice" }, "Role": "State", "Scope": "Behavior" } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-2069</c> — a BTree binds a STATEFUL CONDITION <c>(ref P, ref WS, Entity, EntityRepository) → bool</c>,
+        /// sharing one Behavior-scoped working state with a stateful action</b> (📄 <c>DESIGN_Decision_Layer.md</c> §3.3
+        /// "CE-2069 build design"). 🔴 Before: the topology threw "has no call form" ⇒ <c>BTREE0002</c>, asset skipped.
+        /// ⭐ Both nodes bake the SAME slot key (one shared slot), and the condition's working-state type comes from the
+        /// method's signature (it names none — <c>CE-2099</c>; the old name guess would emit a non-existent <c>+IsAtState</c>).
+        /// </summary>
+        [Fact]
+        public void CE2069_ABTreeBindsAStatefulCondition_SharingTheActionsWorkingState_AndItCompiles()
+        {
+            var (compilation, generated, diagnostics) = Run(StatefulConditionSource, StatefulConditionAsset);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null))
+                .Should().BeEmpty("a stateful condition is a valid shared form now");
+            all.Should().Contain("Probe.ChoiceNodes.IsAt(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure");
+            all.Should().NotContain("IsAtState", "the working-state type comes from the signature, not the name guess");
+            var keys = System.Text.RegularExpressions.Regex.Matches(all, @"Probe\.ChoiceNodes\.(Pick|IsAt)@\d+@(-?\d+)")
+                .Select(m => (m.Groups[1].Value, m.Groups[2].Value)).Distinct().ToList();
+            keys.Select(k => k.Item2).Distinct().Should().ContainSingle("both nodes bind the Behavior-scoped 'choice': one slot");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        // ⚠ NODE-scoped (no WorkingStateTargetField) and naming NO WorkingStateTypeId: the occurrence-slot path needs the type,
+        //   and only the method's signature can supply it (CE-2099). A shared variable's type comes from the variable instead.
+        private const string NodeScopedStatefulAsset = """
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb002099-0000-0000-0000-0000000000aa", "Name": "NodeScopedStatefulProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb002099-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb002099-0000-0000-0000-000000000002" ] },
+                { "kind": "Sequence", "VisualId": "bb002099-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb002099-0000-0000-0000-000000000003", "bb002099-0000-0000-0000-000000000004" ] },
+                { "kind": "Action", "VisualId": "bb002099-0000-0000-0000-000000000003", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.ChoiceNodes.Pick", "ExpressionTargetField": "pick" } },
+                { "kind": "Condition", "VisualId": "bb002099-0000-0000-0000-000000000004", "ChildVisualIds": [],
+                  "Condition": { "MethodFqn": "Probe.ChoiceNodes.IsAt", "ExpressionTargetField": "at" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "pick", "Type": { "TypeId": "Probe.PickParams" } },
+                { "Name": "at",   "Type": { "TypeId": "Probe.AtParams" } } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-2099</c> — a node-scoped stateful node that names no working-state type compiles: the type comes from
+        /// the method's signature.</b> 🔴 Before: the emitter guessed <c>+PickState</c> / <c>+IsAtState</c> from the names —
+        /// types that do not exist — and the generated code did not compile (the same would hit <c>EqsTacticsNodes.TakeCover</c>).
+        /// </summary>
+        [Fact]
+        public void CE2099_ANodeScopedStatefulNode_WithNoTypeNamed_TakesItFromTheSignature_AndCompiles()
+        {
+            var (compilation, generated, diagnostics) = Run(StatefulConditionSource, NodeScopedStatefulAsset);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null)).Should().BeEmpty();
+            all.Should().NotContain("PickState").And.NotContain("IsAtState");
+            all.Should().Contain("Probe.Choice", "the signature's working-state type");
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        private const string StatefulGuardHsm = """
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00002069-0000-0000-0000-0000000000aa", "Name": "StatefulGuardProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "StatefulGuardProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "20690000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "20690000-0000-0000-0000-00000000000a", "20690000-0000-0000-0000-00000000000b" ], "ParentStableId": null, "IsInitial": false, "RegionIndex": 0,
+                  "Activity": { "MethodFqn": "Probe.ChoiceNodes.Pick", "ExpressionTargetField": "pick",
+                                "WorkingStateTargetField": "choice", "WorkingStateTypeId": "Probe.Choice" } },
+                { "StableId": "20690000-0000-0000-0000-00000000000a", "Name": "A",
+                  "ChildStableIds": [], "ParentStableId": "20690000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0 },
+                { "StableId": "20690000-0000-0000-0000-00000000000b", "Name": "B",
+                  "ChildStableIds": [], "ParentStableId": "20690000-0000-0000-0000-000000000000", "IsInitial": false, "RegionIndex": 0 } ],
+              "Regions": [],
+              "Transitions": [
+                { "VisualId": "20690000-0000-0000-0000-0000000000c1", "SourceStableId": "20690000-0000-0000-0000-00000000000a",
+                  "TargetStableId": "20690000-0000-0000-0000-00000000000b", "EventName": null, "Priority": 0, "Kind": "External",
+                  "SyncGroupId": 0, "IsPolled": true, "Waypoints": [],
+                  "Guard": { "MethodFqn": "Probe.ChoiceNodes.IsAt", "ExpressionTargetField": "at",
+                             "WorkingStateTargetField": "choice", "WorkingStateTypeId": "Probe.Choice" } } ],
+              "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "StatefulGuardProbeMachine_Blackboard", "Variables": [
+                { "Name": "pick",   "Type": { "TypeId": "Probe.PickParams" } },
+                { "Name": "at",     "Type": { "TypeId": "Probe.AtParams" } },
+                { "Name": "choice", "Type": { "TypeId": "Probe.Choice" }, "Role": "State", "Scope": "Behavior" } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐ <b><c>CE-2069</c> — an HSM binds a STATEFUL GUARD over the same <c>St</c> member a parent's stateful activity
+        /// writes</b> (the agent's measurement: the HSM path already supports it, `SharedAiBindings.cs:243-287` — this rail pins it).
+        /// </summary>
+        [Fact]
+        public void CE2069_AnHsmBindsAStatefulGuard_OverTheActivitysWorkingState_AndItCompiles()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(StatefulConditionSource, StatefulGuardHsm);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id.StartsWith("HSM")).Select(d => d.GetMessage(null))
+                .Should().BeEmpty("a stateful guard is a valid shared form on an HSM");
+            all.Should().Contain("global::Probe.ChoiceNodes.IsAt(", "the guard calls the shared method");
+            all.Should().Contain(".St.choice;", "its working state is the block's St member the activity writes");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
         // ---- S8: the HSM binds the same shared forms -----------------------------------------------
 
         private static string HsmFormsAsset(string wsVariable) => $$"""

@@ -54,6 +54,7 @@ public static class BehaviorActionBindingEditor
             MethodFqn              = binding?.MethodFqn,
             BlueprintName          = binding?.BlueprintName,
             ExpressionTargetField  = binding?.ExpressionTargetField,
+            WorkingStateTargetField = binding?.WorkingStateTargetField,
             SiteId                 = siteId,
             SiteSlot               = siteSlot,
             TargetsWholeBlackboard = targetsWholeBlackboard,
@@ -91,11 +92,36 @@ public static class BehaviorActionBindingEditor
             && !string.Equals(previousBlueprint, pickedBlueprint, StringComparison.Ordinal))
             ComposeBlueprintParams(b, pickedBlueprint, ctx);
 
+        BindCSharpWorkingState(b, facet, ctx);
+
         if (!ctx.KeepWhenEmpty && b.NamesNothing
             && b.ExpressionTargetField is null
             && string.IsNullOrEmpty(b.WorkingStateTypeId) && string.IsNullOrEmpty(b.WorkingStateTargetField))
             return null;
         return b;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2099</c> — a C# STATEFUL method's second variable.</b> 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.6.
+    /// The working-state TYPE comes from the method's own signature (<see cref="ActionSchemaEntry.WorkingStateType"/>) —
+    /// ⛔ never guessed from its name — and the facet names the variable (empty = the node's own state). A method that is
+    /// not stateful clears both. ⚠ A blueprint binding is left alone: its compose owns those fields.
+    /// </summary>
+    private static void BindCSharpWorkingState(BehaviorActionBinding b, in BehaviorActionBindingFacet facet, in ActionBindingApplyContext ctx)
+    {
+        if (b.MethodFqn is null || b.BlueprintName is not null || ctx.Exporter is null) return;
+        var entry = ctx.Exporter.Lookup(b.MethodFqn);
+        if (entry is null) return;   // an FQN the exporter does not know: leave what the asset says
+        if (entry.WorkingStateType is { } ws)
+        {
+            b.WorkingStateTypeId      = ws.FullName;
+            b.WorkingStateTargetField = NullIfEmpty(facet.WorkingStateTargetField);
+        }
+        else
+        {
+            b.WorkingStateTypeId      = null;
+            b.WorkingStateTargetField = null;
+        }
     }
 
     /// <summary>

@@ -447,7 +447,7 @@ public static class BTreeBridgeEmitCore
         if (WritesChannelsLiteral(dto, sharedAi, hostsSubtrees) is { } writes)   // ⭐ CE-3043 / CE-2084 — omitted = unknown
             sb.AppendLine($"{pad2}{Indent}WritesChannels = {writes},");
         if (isManaged)
-            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
+            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields, sharedAi);
         else if (hostsSubtrees)
             // ⚠ A NON-managed asset emits no authored slot array at all, so a hosting one would get
             //   no manifest and HostedSubtree.Tick would throw. The hosted slots stand alone here.
@@ -638,25 +638,30 @@ public static class BTreeBridgeEmitCore
 
         foreach (var node in dto.Nodes)
         {
-            if (node is not BTreeActionNodeDto actNode) continue;
-            var p = actNode.Action;
+            // ⭐ CE-2069 — a stateful CONDITION node takes the same thunk as a stateful action (its bool becomes
+            //   Success/Failure through the ReturnsBool arm below; RegisterCondition and Register share one table).
+            //   📄 docs/DESIGN_Decision_Layer.md §3.3 "CE-2069 build design".
+            (BehaviorActionBindingDto? p, BTreeDelegateShapeDto? shape, Guid visualId) = node switch
+            {
+                BTreeActionNodeDto a    => (a.Action,    a.DelegateShape, a.VisualId),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape, c.VisualId),
+                _                       => ((BehaviorActionBindingDto?)null, (BTreeDelegateShapeDto?)null, Guid.Empty),
+            };
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (actNode.DelegateShape != BTreeDelegateShapeDto.Stateful) continue;
+            if (shape != BTreeDelegateShapeDto.Stateful) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
             // S3-3: scope-aware baked const — Behavior-scoped co-bound nodes bake the same key
             // (and dedup via `seen` below), so they dispatch to one thunk over one shared slot.
-            // Must stay in lockstep with the topology blob key in BTreeEmitCore.EmitAction.
+            // Must stay in lockstep with the topology blob key in BTreeEmitCore.EmitAction / EmitCondition.
             // S3-G: scope is governed by the working-state variable when distinct from params.
-            int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
+            int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), visualId);
 
-            // WorkingState type is taken from WorkingStateTypeId (added to BTreeActionPayloadDto in S2-1).
-            // If missing, fall back to the naming convention (Action_AdvanceCursor → DemoCursorState).
-            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
-                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
-                : p.WorkingStateTypeId!;
+            // WorkingState type: the binding's WorkingStateTypeId (S2-1); ⭐ CE-2099 — else the METHOD's own `ref WS`
+            //   parameter (the shared-method resolver reads it from the signature); only then the old name guess.
+            string wsTypeId = ResolveWorkingStateType(p.WorkingStateTypeId, p.MethodFqn ?? string.Empty, sharedAi);
 
             string key = Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(p.MethodFqn, field.ByteOffset, slotKey);   // ⭐ CE-2032
             if (!seen.Add(key)) continue;
@@ -1180,7 +1185,8 @@ public static class BTreeBridgeEmitCore
     private static void EmitStatefulWorkingSlotsArray(
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad,
         bool appendHostedSlots,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? blockPackedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? blockPackedFields,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         // Collect unique stateful entries (deduped by SlotKey).
         var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Role, int Scope)>();
@@ -1241,9 +1247,7 @@ public static class BTreeBridgeEmitCore
             // ⭐ CE-437: a Behavior-scoped State variable lives in the block, not in a side slot.
             if (TryGetBlockStateVariable(dto, blockPackedFields, slotKey, out _)) continue;
 
-            string wsTypeId = string.IsNullOrEmpty(wsTypeIdRaw)
-                ? DeriveWorkingStateTypeFromMethod(methodFqn)
-                : wsTypeIdRaw!;
+            string wsTypeId = ResolveWorkingStateType(wsTypeIdRaw, methodFqn, sharedAi);   // ⭐ CE-2099
 
             // NodeLabel: prefer DisplayLabel, fall back to VisualId string.
             string nodeLabel = !string.IsNullOrEmpty(displayLabel)
@@ -1437,6 +1441,20 @@ public static class BTreeBridgeEmitCore
     /// whose name ends with "State". This is a fallback for when WorkingStateTypeId
     /// is not explicitly stored on the payload DTO.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-2099</c> — THE working-state type of a stateful binding, one rule for every site (thunks, slot manifest):
+    /// the binding's authored <c>WorkingStateTypeId</c>; else the METHOD's own <c>ref WS</c> parameter (the shared-method
+    /// resolver reads it from the signature); only then the old name guess (<see cref="DeriveWorkingStateTypeFromMethod"/>),
+    /// which names a non-existent type for any method not following <c>Action_X → +XState</c>.
+    /// </summary>
+    internal static string ResolveWorkingStateType(string? authored, string methodFqn, Func<string, SharedAiMethodInfo?>? sharedAi)
+    {
+        if (!string.IsNullOrEmpty(authored)) return authored!;
+        if (sharedAi?.Invoke(methodFqn)?.WorkingStateTypeFqn is { Length: > 0 } fromSignature)
+            return fromSignature.StartsWith("global::", StringComparison.Ordinal) ? fromSignature.Substring(8) : fromSignature;
+        return DeriveWorkingStateTypeFromMethod(methodFqn);
+    }
+
     private static string DeriveWorkingStateTypeFromMethod(string methodFqn)
     {
         // Fallback: WorkingStateTypeId should always be set on Stateful payloads.

@@ -374,6 +374,118 @@ batch).** The diagram has the guard read *"the bound variable `Winner`"* that `C
 
 ✅ **APPROVED `2026-10-05`: A** (R-202). 🔒 **User:** *"2069 approved, pls file option (B) as potential improvement."* ⇒ B is filed as `CE-2098` (a per-node constant on condition nodes), not scheduled. `CE-2069` is unblocked and builds with A.
 
+#### `CE-2069` build design — the stateful condition and the utility nodes *(build-state: BUILT `2026-10-05` — as-built after the claim table)*
+
+```mermaid
+classDiagram
+  class UtilityChoice {
+    <<NEW working state>>
+    +byte Winner
+  }
+  class ChooseOptionParams {
+    <<NEW>>
+    +UtilityDecisionRef Decision
+  }
+  class IsOptionParams {
+    <<NEW>>
+    +byte Option
+  }
+  class RankCandidatesParams {
+    <<NEW>>
+    +UtilityDecisionRef Decision
+  }
+  class UtilityRanking {
+    <<NEW working state>>
+    +EntityRef Top
+    +float TopScore
+  }
+  class UtilityNodes {
+    <<NEW static, SharedAi>>
+    +ChooseOption(ref ChooseOptionParams, ref UtilityChoice, self, world) Running
+    +IsOption(ref IsOptionParams, ref UtilityChoice, self, world) bool
+    +RankCandidates(ref RankCandidatesParams, ref UtilityRanking, self, world) Running
+  }
+  class SharedNodeBinder {
+    <<existing, widened>>
+    +RegisterStatefulAction
+    +RegisterStatefulCondition NEW
+  }
+  class BTreeEmitCore {
+    <<existing, widened>>
+    EmitCondition: Stateful keyed like EmitAction
+  }
+  class BTreeBridgeEmitCore {
+    <<existing, widened>>
+    stateful thunks for condition nodes too
+    WS type from the method signature before the name guess
+  }
+  class HsmBridgeEmitCore {
+    <<existing, unchanged>>
+    stateful guard already emitted
+  }
+  UtilityNodes ..> UtilityScorer
+  UtilityNodes ..> UtilityChoice
+  UtilityNodes ..> ChooseOptionParams
+  UtilityNodes ..> IsOptionParams
+  UtilityNodes ..> RankCandidatesParams
+  UtilityNodes ..> UtilityRanking
+  BTreeBridgeEmitCore ..> UtilityNodes : thunks
+  HsmBridgeEmitCore ..> UtilityNodes : thunks
+  SharedNodeBinder ..> UtilityNodes : hand-written trees
+```
+
+*What the picture shows that prose hid: the winner is NOT in `ChooseOption`'s params. A node's params variable lives at a
+blackboard offset; its working state lives in a slot keyed by the state variable's NAME (BTree) or in the block's `St`
+(HSM). So `ChooseOption` keeps the winner in its working state `UtilityChoice`, and every `IsOption` binds the SAME
+`Role=State` variable as its working state — one shared slot, the mechanism `T35_SharedWorkingState` proves. Lean A's
+wording ("`ref ChooseOptionParams ws`") would have read a different memory.*
+
+```mermaid
+sequenceDiagram
+  participant N as BTree Parallel or HSM parent state
+  participant C as ChooseOption
+  participant W as shared variable choice UtilityChoice
+  participant G as IsOption Option=k
+  N->>C: tick, params Decision
+  C->>W: Winner = ChooseOption(self, Decision, Winner)
+  C-->>N: Running
+  N->>G: guard, params Option=k
+  G->>W: read Winner
+  G-->>N: Winner == k
+```
+
+*What the picture shows that prose hid: the guard reads, never writes — the HSM kernel may evaluate a guard more than once
+per event (`HsmKernelCore.cs:681,725`), so a writing guard would be a design question; this one is not.*
+
+| claim | code |
+|---|---|
+| shape rules already classify `(ref P, ref WS, Entity, EntityRepository) → bool` as Stateful for a condition | ✅ `BTreeCallShapes.cs:46-47` (by parameter list), `SharedAiMethodResolver.cs:46-59`, `SharedAiBindings.cs:85-86` |
+| the BTree topology throws for a Stateful condition today (`BTREE0002`, asset skipped) | ✅ `BTreeEmitCore.cs:999` (AiPrimitive-only arm), throw at `:1040-1046` |
+| the BTree bridge emits stateful thunks for ACTION nodes only | ✅ `BTreeBridgeEmitCore.cs:641` (node filter); the `ReturnsBool` arm already exists (`:680-682`) |
+| the HSM side already binds a stateful guard (block `St`, `HSM0003` on a wrong variable) | ✅ `SharedAiBindings.cs:100-105,184-191,243-287` |
+| the hand-written builder has no stateful condition | ✅ `SharedNodeBinder.cs:20` (action only), `SharedNodeBuilderExtensions.cs:40-46` |
+
+⭐ **As-built `CE-2069` (`2026-10-05`)** — as the two diagrams draw it: `UtilityNodes` (`Fdp.Toolkits/Utility/Integration`)
+with `ChooseOptionParams`, `UtilityChoice`, `IsOptionParams`, `RankCandidatesParams`, `UtilityRanking`;
+`SharedNodeStatefulCondition` + `SharedNodeBinder.RegisterStatefulCondition` + the builder verb `StatefulCondition`;
+`BTreeEmitCore.EmitCondition` keys a Stateful condition like an action; `BTreeBridgeEmitCore`'s stateful thunks cover
+condition nodes and take the working-state type from the method's signature before the old name guess (`CE-2099`). ⛔
+`UtilitySelectorNode` / `UtilityTransitionArbiter` DELETED (referenced only by their own tests; utility design §7.1–§7.2
+marked superseded). What the build found:
+
+| # | as built | ⛔ the design above said |
+|---|---|---|
+| D1 | `IsOption` is false while `Winner == 0` (nothing decided yet), so no branch runs before the first decision | — |
+| D2 | the HSM side needed NO code: a stateful guard over the block's `St` member was already emitted; a compile rail now pins it | "both emitters gain the twin" |
+| D3 | ⚠ the HSM RUNTIME switch (a parent activity + guarded transitions actually changing state) is railed at compile level only; the BTree switch is railed at runtime | "rails: a BTree and an HSM switch on the winner" |
+
+**Rails:** `SharedAiBindingCompilesTests.CE2069_*` (2: a BTree binds a stateful condition sharing the action's working
+state — one slot key, compiles, no name-guessed type · an HSM binds a stateful guard over the activity's `St` member,
+compiles) · `UtilityScorerTests.CE2069_UtilityNodes_SwitchTheBranch_WhenTheWinnerChanges` (a code-built `Parallel[
+ChooseOption, ObserverSelector[ IsOption(1) → one, IsOption(2) → two ] ]`: runs option 1, holds inside the hysteresis,
+switches to option 2 past it — the §3.2 Parallel-repeat shape, measured).
+
+
 Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*

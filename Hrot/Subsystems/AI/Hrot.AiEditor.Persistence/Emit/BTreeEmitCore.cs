@@ -996,7 +996,8 @@ public static class BTreeEmitCore
                     "(a non-managed blackboard, or the variable is not packed) — a binding with params needs a managed blackboard (CE-504).");
             }
         }
-        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
+        else if ((node.DelegateShape == BTreeDelegateShapeDto.Stateful ||          // ⭐ CE-2069 — a C# stateful condition
+                  node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(condTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(condTargetField!, out int statefulParamOffset))

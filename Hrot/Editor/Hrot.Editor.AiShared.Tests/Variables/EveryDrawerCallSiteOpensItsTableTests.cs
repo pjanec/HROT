@@ -47,6 +47,8 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         //   Details view (§7.6 ②). ⚠ Still TWO drawer calls in one file, both in tables.
         "Hrot/Editor/Hrot.Editor.AiShared/Shell/NodePropertiesDetailsView.cs",
         "Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs",
+        // ⭐ CE-3043 — the Scenario Details "AI" section draws a behaviour's params form (inside a "params" table).
+        "Hrot/Subsystems/Hrot.Editor/Scenario/EntityAiDetailsView.cs",
     };
 
     /// <summary>⭐ How far a <c>BeginTable</c>/<c>EndTable</c> may sit from the call it wraps. ⚠ Every
@@ -71,7 +73,7 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
     // ══ the enumeration is complete ══════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>No SEVENTH call site.</b> 📌 A per-file rail cannot see a file it does not name, and the
+    /// ⭐⭐⭐ <b>No call site beyond the listed six (CE-3043 added the sixth).</b> 📌 A per-file rail cannot see a file it does not name, and the
     /// defect this batch fixes was exactly <i>"one caller nobody checked"</i>. ⇒ the sweep is over the
     /// repository, and a new caller fails here until it is listed — and therefore checked.
     /// </summary>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.AiEditor.Persistence;
 
 namespace Hrot.Editor.AiShared.Inspector.ActionBinding;
 
@@ -71,6 +72,33 @@ public sealed class ActionBindingSources
         => ActionBindingCompatibility.CompatibleVariables(
                ActionBindingCompatibility.ParameterType(_exporter, binding.MethodFqn, binding.BlueprintName),
                _asset.BlackboardVariables);
+
+    /// <summary>⭐ <c>CE-2099</c> — the working-state type of a STATEFUL C# method, or null (not stateful, a blueprint,
+    /// an unknown FQN, no exporter).</summary>
+    public Type? WorkingStateType(in BehaviorActionBindingFacet binding)
+        => _exporter is null || string.IsNullOrEmpty(binding.MethodFqn) || !string.IsNullOrEmpty(binding.BlueprintName)
+            ? null
+            : _exporter.Lookup(binding.MethodFqn!)?.WorkingStateType;
+
+    /// <summary>⭐ <c>CE-2099</c> — the <c>Role=State</c> variables of the binding's working-state type, sorted.</summary>
+    public IReadOnlyList<string> GetWorkingStateVariables(in BehaviorActionBindingFacet binding)
+    {
+        var ws = WorkingStateType(binding);
+        if (ws is null) return Array.Empty<string>();
+        return _asset.BlackboardVariables
+            .Where(v => v.Role == BlackboardVariableRole.State && v.FieldType == ws)
+            .Select(v => v.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>⭐ <c>CE-2099</c> — creates a SHARED (<c>Scope=Behavior</c>) <c>Role=State</c> variable of the binding's
+    /// working-state type, for other nodes to bind too; returns its name, or null when the method is not stateful.</summary>
+    public string? PromoteWorkingState(in BehaviorActionBindingFacet binding)
+    {
+        var ws = WorkingStateType(binding);
+        return ws is null ? null
+            : AutoManagedVariables.Create(_asset, char.ToLowerInvariant(ws.Name[0]) + ws.Name.Substring(1), ws,
+                                          BlackboardVariableRole.State, WorkingStateScope.Behavior);
+    }
 
     /// <summary>
     /// True when the binding's parameter type is known and no variable has it — the state in which the drawer offers
