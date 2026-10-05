@@ -84,6 +84,11 @@ public sealed record BlueprintDefinition
 
     // For inspector / debugger
     public Type? StateClrType { get; init; }
+
+    /// <summary>⭐ <c>CE-2086</c> — the generated <c>Params</c> struct (the params region's type, what the editor's one params
+    /// form edits): nested in the generated class beside <see cref="StateClrType"/> (<c>InstanceEmitter</c>). DERIVED, so no
+    /// registrar emits it; <c>null</c> when the blueprint declares no parameters. 📄 <c>DESIGN_Sensors_And_Doctrine.md</c> §7.6a A2.</summary>
+    public Type? ParamsClrType => ParamsSize > 0 ? StateClrType?.DeclaringType?.GetNestedType("Params") : null;
     public IReadOnlyDictionary<string, BlueprintFieldDescriptor> StateFields { get; init; }
         = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal);
 

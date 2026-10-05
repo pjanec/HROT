@@ -3566,7 +3566,8 @@ namespace Hrot.Editor
                 Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
                     world:       () => _world,
                     registry:    () => _behaviorRegistry,
-                    editService: () => aiParamsEditService));
+                    editService: () => aiParamsEditService,
+                    blueprints:  () => _blueprintRegistry));   // ⭐ CE-2086: the instance params rows
 
             // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
             // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),

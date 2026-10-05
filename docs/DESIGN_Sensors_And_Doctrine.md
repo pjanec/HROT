@@ -946,7 +946,7 @@ Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits 
 still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
 known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
 
-### 7.6a Instance-blueprint params rows — `CE-2086` *(behaviors, `2026-10-05`; build-state: READY-TO-BUILD)*
+### 7.6a Instance-blueprint params rows — `CE-2086` *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
 
 > 🔒 Approved with §7.5 (*"add the missing editor: each attached instance gets the same params form as the doctrine row,
 > committed … through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)`"*) and §7.6's last row; 🔒 *"Yes pls do
@@ -1009,6 +1009,15 @@ sequenceDiagram
 | **A2** `ParamsClrType` DERIVED from `StateClrType` (the nested `Params` beside `State`) | no registrar emission change ⇒ no golden moves; a rail pins it against `ParamsSize` for every corpus instance | emitting `ParamsClrType = typeof(X.Params)` in every registrar (every instance golden moves for a value already reachable) |
 | **A3** the rows live in the AI section; `EntityBlueprintsPanel` stays the attach / detach editor | §7.6's last row | moving attach / detach into the AI section (a second surface for one action) |
 | **A4** a row with no `Params` (size 0) shows the name only | nothing to edit | — |
+
+⭐ **AS-BUILT (`2026-10-05`)** — A1–A4 as drawn. `BlueprintDefinition.ParamsClrType` (derived; null when `ParamsSize` is 0) ·
+`EntityAiEditModel.InstanceRows` / `ApplyInstanceParams` + an optional blueprint-registry provider, which
+`EntityAiDetailsViewDescriptor.For(…, blueprints)` and `EditorSubsystem` pass (the silent-default rule) · the view draws one
+`BehaviorParamsForm` per row. ⚠ A running edit needs `ReplaceInstanceBlueprintEvent` registered (production does; an
+unregistered bus is a refusal, never a silent drop). ⚠ The ImGui drawing itself is not rail-tested (as §7.6). Rails
+(`Hrot.Blueprints.Tests/Editor/EntityAiInstanceRowsTests`, red-proved: the paused write stubbed ⇒ red): a row carries its
+`Params` type (size = `ParamsSize`) and its non-default JSON · paused applies in place, publishes nothing · running publishes
+the replace (id → id, the JSON) and writes nothing.
 
 ### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
 
