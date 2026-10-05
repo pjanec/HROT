@@ -236,6 +236,28 @@ public sealed class BTreeJsonGeneratorTests
             "topology core must NOT contain [BTreeLayout( (§6.2)");
     }
 
+    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — CombatPosture's RequireOne (1) survives the
+    /// model → DTO → model round-trip and reaches the builder call; the default (0) stays out of the JSON.</summary>
+    [Fact]
+    public void CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted()
+    {
+        var contributor = new BTreeAssetContributor();
+        contributor.LoadFrom(BehaviorsAssembly);
+        var model = (BehaviorTreeAsset)contributor.Enumerate().Single(a => a.Name == "CombatPosture");
+        model.Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy.Should().Be(1);
+
+        var dto = BehaviorTreeAssetMapper.ToDto(model);
+        var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
+        par.Policy.Should().Be(1);
+        BehaviorTreeAssetMapper.FromDto(dto).Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel)
+            .ParallelPolicy.Should().Be(1, "the policy must survive DTO → model");
+        BTreeEmitCore.EmitTopologyCore(dto).Should().Contain("Parallel(1, ", "the builder takes the authored policy");
+
+        par.Policy = 0;
+        BTreeEmitCore.EmitTopologyCore(dto).Should().Contain("Parallel(0, ");
+        System.Text.Json.JsonSerializer.Serialize(par).Should().NotContain("Policy", "the default is omitted, so old assets stay byte-identical");
+    }
+
     [Fact]
     public void EmitTopologyCore_EmptyTypeNames_NeverEmitAnUnboundGeneric()
     {
