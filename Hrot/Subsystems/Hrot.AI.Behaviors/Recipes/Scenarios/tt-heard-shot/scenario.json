@@ -121,8 +121,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 100000,
+        "Max": 100000
       },
       "NetworkIdentity": {
         "Value": 7103
