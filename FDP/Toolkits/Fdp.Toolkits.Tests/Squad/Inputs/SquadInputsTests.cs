@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var (commander, members) = CreateSquadWorld(2);
 
             ref var mem0 = ref _repo.GetComponentRW<TargetMemory>(members[0]);
-            TargetMemory.AddOrUpdateTarget(ref mem0, 100L, 5f, 0f, 0.5f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem0, 100L, 5f, 0f, 250f, tick: 1);   // ⭐ CE-3054 — score 250 = freshness 0.5; the fake contact is not alive here ⇒ danger 1 (unknown)
 
             Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(_repo, commander, currentTick: 10, mergeIntervalTicks: 1);
 

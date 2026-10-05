@@ -1394,6 +1394,7 @@ internal static class InstanceEmitter
             e.Indent();
             e.WriteLine(StateParamDecl(asset));
             e.WriteLine($"global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+            e.WriteLine($"global::Fdp.Core.Entity self,");
             e.WriteLine($"int resultIndex)");
             e.Outdent();
             e.WriteLine("{");
@@ -1401,7 +1402,11 @@ internal static class InstanceEmitter
 
             e.WriteLine($"var result = default({op.ResultStructTypeName});");
             e.WriteLine();
-            e.WriteLine($"ref readonly var handle = ref {VarsContainer(asset)}.{op.SensorVariableName};");
+            if (op.UnitSensorKind != 0)
+                // ⭐ CE-3054 D — the unit's own sensor of this kind (a TKB sensor the blueprint never spawned).
+                e.WriteLine($"var handle = new global::FDP.Eqs.EqsSensorHandle(global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(view, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.UnitSensorKind}));");
+            else
+                e.WriteLine($"ref readonly var handle = ref {VarsContainer(asset)}.{op.SensorVariableName};");
             e.WriteLine($"if (!view.IsAlive(handle.ChildId))");
             e.Indent();
             e.WriteLine("return result;");

@@ -1052,7 +1052,7 @@ that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests
 | Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
 | cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
 
-### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: READY-TO-BUILD)*
+### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: B–D BUILT (§7.8a), A (backend rename) open)*
 
 > 🔒 **User, `2026-10-05`:** *"3054 approved."* ⭐ A is the backend's (the `ThreatScores` → `Freshness` rename, FRAME_Decision_Layer Addendum 7); B–D are ours.
 
@@ -1079,6 +1079,107 @@ mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and t
 
 ⚠ **What would change the lean:** if the backend wants `ThreatScores` to keep a danger meaning, A flips to "add a
 `Freshness` field", which costs a memory-layout change on every node and a scenario-format change.
+
+### 7.8a `CE-3054` B–D — the build design *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
+
+**INVENTORY** *(measured `2026-10-05`)*: the readers of `TargetMemory` scores are in §6.1 of `DESIGN_Thermal_And_Acoustic_Sensing.md`
+(grep of `EntityIds[` and of every file naming `TargetMemory`; the graph's `search_code` returned 0 for the pattern). The
+inputs that read them: `StandardInputs.ContactThreatLevel` / `HaveLiveTarget` / `EnemyStrengthRatio`,
+`SquadInputs.SquadContactThreatLevel`. The decisions that read those: `ThreatRankingDecision`, `LeaderAssignmentDecision`,
+`CombatPostureDecision`. TKB data a danger can come from: `WeaponSuiteDto.Mounts` (→ `WeaponState` on the unit, stamped by
+`CombatTkbTranslator`, which also runs for REPLICAS — `NetworkSpawningSystem.cs:142`), `WeaponCapabilitiesDto`
+(range, rate), `CombatPlatformDefDto` (health, armour), `TkbMasterDto.DisType` (the DIS class).
+
+```mermaid
+classDiagram
+  class ThreatDanger { <<NEW static>> +Of(view, self, target) float }
+  class ThreatFreshness { <<NEW static>> +Of(score) float  +IsLive(mem, i, tracks) bool }
+  class PerceptionConstants { <<existing>> +TrackBoostPerSecond 50 (NEW, was a literal) +FreshnessSaturation = boost / decay = 500 (NEW) }
+  class StandardInputs { <<existing>> ContactThreatLevel = danger x freshness (CHANGED) · ContactDanger (NEW) · ContactFreshness (NEW) · HaveLiveTarget = a live contact (CHANGED) · EnemyStrengthRatio = danger sum (CHANGED) }
+  class SquadInputs { <<existing>> SquadContactThreatLevel = freshness of the pooled score (CHANGED) }
+  class SensorNodes { <<NEW shared nodes>> +Sees(ref SensorReadParams) bool +Read(ref SensorReadParams, ref SensorReading) NodeStatus +ThreatsAtLeast(ref ThreatCountParams) bool }
+  class UnitSensors { <<existing>> +Of(view, unit, kind) }
+  class TargetMemory { <<existing, backend>> ThreatScores = freshness score · LastSeenTick }
+  class WeaponState { <<existing>> on every armed unit, replicas included }
+  ThreatDanger ..> WeaponState : armed?
+  ThreatFreshness ..> PerceptionConstants
+  StandardInputs ..> ThreatDanger
+  StandardInputs ..> ThreatFreshness
+  StandardInputs ..> TargetMemory
+  SquadInputs ..> ThreatFreshness
+  SensorNodes ..> UnitSensors
+  SensorNodes ..> ThreatDanger
+  SensorNodes ..> ThreatFreshness
+```
+
+*What the picture shows that prose hid:* danger and freshness each have ONE function, and every reader goes through them. No
+reader divides a score by its own constant any more.
+
+```mermaid
+sequenceDiagram
+  participant N as BTree / HSM node (RankCandidates, ChooseOption) or blueprint ScoreDecision
+  participant S as UtilityScorer
+  participant I as StandardInputs
+  participant M as TargetMemory (backend)
+  participant D as ThreatDanger
+  participant F as ThreatFreshness
+  N->>S: score decision for self
+  S->>I: ContactThreatLevel(self, candidate)
+  I->>M: the candidate's slot
+  I->>F: Of(ThreatScores[i])  (score / 500, clamped)
+  I->>D: Of(view, self, candidate)  (armed 1, unarmed 0.3, unknown 1)
+  I-->>S: danger x freshness
+  S->>I: EnemyStrengthRatio(self)
+  I->>D: Of(...) for every remembered contact (freshness NOT applied: hidden is not harmless)
+  I-->>S: enemy / (enemy + own)
+```
+
+```mermaid
+graph TD
+  REG["UtilityInputRegistrar (generated) + StandardInputs.RegisterAll"] -->|registers| INP["StandardInputs readers"]
+  CGF["CgfLogicPack (Brain)"] -->|starts| RUN["BTree / HSM runners"]
+  RUN -->|each tick of a running node| SN["SensorNodes"]
+  RUN -->|ChooseOption / RankCandidates| SC["UtilityScorer"]
+  BP["blueprint ScoreDecision"] --> SC
+  SC --> INP
+  SN --> US["UnitSensors.Of (EqsCognitiveBuffer on the Brain, fed by the result ingress)"]
+  BPR["blueprint ReadEqsResult / When EqsResult"] -.->|"NOT YET: reads a SENSOR VARIABLE only"| US
+  linkStyle 7 stroke:#d33,stroke-width:2px
+```
+
+*Caption:* the red edge is the gap in D's blueprint half — a blueprint can read only a sensor IT spawned (a variable), never
+the unit's TKB sensor of a kind. Closing it is the last step below.
+
+| decision | why (code / design) | rejected |
+|---|---|---|
+| freshness = `ThreatScores / 500`, clamped | ✅ 500 is the equilibrium of +50/s and −10 %/s (`ThreatEvaluationSystem.cs:95`, `PerceptionConstants.cs:44`); ✅ lean A: the score IS freshness | dividing by a reader's own constant (today: clamp to [0,1], so every contact reads 1 for ~44 s) |
+| danger: armed (`WeaponState` on the target) = 1, unarmed = 0.3, not alive here = 1 | ✅ `CombatTkbTranslator` stamps `WeaponState` exactly when the TKB has a mount, replicas included (`NetworkSpawningSystem.cs:142`); ✅ R-194 *"hidden does not mean harmless"* ⇒ unknown is dangerous | a TKB lookup in the reader (readers have no TKB handle); a stored danger (R-194) |
+| `HaveLiveTarget` = a contact currently tracked OR freshness ≥ 0.25 | ✅ a new contact's score RAMPS (50 after 1 s), so freshness alone would hide a contact for its first seconds; 0.25 ≈ 14 s unseen after saturation | `Count > 0` (the stale-attack defect, Decision Layer §3); last-seen ticks (needs a tick→seconds rate the inputs do not have) |
+| `EnemyStrengthRatio` = Σ danger / (Σ danger + own), own = health fraction × (armed ? 1 : 0.3) | ✅ Decision Layer §3 line 114 (*"contradicts G1"*); one armed enemy vs a healthy armed unit = 0.5, three = 0.75 | Σ danger / (health × 16): one enemy would read 0.06 |
+| D, BTree/HSM: `SensorNodes.Sees` (condition), `Read` (stateful action → `SensorReading`), `ThreatsAtLeast` (the handover's "count above a threshold") | ✅ FRAME_Decision_Layer handover ①②; the CE-2069 shared stateful forms | one node per modality (the kind is a param) |
+| D, blueprint: `ReadEqsResult` / `When EqsResult` take EITHER a sensor variable OR a unit sensor kind | ✅ reuses the two existing blueprint EQS nodes and their CE-2089 answer gate | a new blueprint node family beside them (two ways to read one buffer) |
+
+⚠ **Anonymous contacts (`CE-3063`, R-207) come later:** `ThreatDanger` gains the per-slot sound class; until then an
+anonymous slot does not exist.
+
+⭐ **As-built `CE-3054` B–D (`2026-10-05`)** — matches the diagrams above, with these precisions:
+- **files:** `Perception/ThreatDanger.cs` (`ThreatDanger.Of` + `OwnStrength`, `ThreatFreshness.Of` + `IsLive`),
+  `PerceptionConstants.TrackBoostPerSecond / FreshnessSaturation / LiveFreshness` (the boost literal in
+  `ThreatEvaluationSystem` now reads the constant — a one-line cross-lane edit), `Behavior/SensorNodes.cs`
+  (`Sees`, `Read`, `ThreatsAtLeast`). Inputs `ContactDanger` (0xF4D0) and `ContactFreshness` (0x73FA) join the generated
+  registrar and `StandardInputs.RegisterAll` (19 readers).
+- **`SquadContactThreatLevel`** follows `ContactThreatLevel` (danger × freshness of the pooled score).
+- **blueprint half:** `EqsResultPayload.UnitSensorKind` / `ReadEqsResultNode.UnitSensorKind` (a `SensorModality` byte,
+  0 = the variable). Both emitters resolve `UnitSensors.Of(view, self, kind)` each read, so every trigger (and CE-2089's
+  per-answer gate) works unchanged; the `ReadEqsResult_` helper takes `self`. Stage 2 accepts a kind instead of a variable
+  (BP2010 / BP2021 refuse a value that is not one `SensorModality` bit). ⭐ The editor: one `EqsSensorSourcePicker` for both
+  nodes; the When node's EQS form, a placeholder until now, gets the sensor, trigger, threshold and max-age fields.
+- **measured effect on `CombatPostureDecision`:** with the strength ratio weighing the enemy against the unit's OWN
+  strength, a badly hurt unit no longer advances: one unarmed contact, health < 0.15 → Hold, 0.16–0.18 → Suppress,
+  ≥ 0.20 → AdvanceAndAttack. The hysteresis rail was re-pinned to that boundary (0.20 → 0.18).
+- **rails:** `StandardInputReaderTests.CE3054_*` (4), `SensorNodesTests` (3), `ReadEqsResultLoweringTests.CE3054_*`,
+  `ReadEqsResultValidatorTests.CE3054_*`, `WhenNodeRuntimeTests.CE3054_TopChanged_OnTheUnitsOwnSensorOfAKind`. Red-proof:
+  `IsLive` always-true + danger always-1 ⇒ 3 rails red.
 
 ### 7.9 A blueprint `When` on an EQS result compares once per ANSWER — `CE-2089` *(build-state: BUILT `2026-10-05`)*
 

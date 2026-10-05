@@ -73,7 +73,8 @@ namespace Fdp.Toolkit.Tests
             var self    = w.SpawnAgent(1f, 1f);
             var contact = w.Repo.CreateEntity();
 
-            w.SeedContact(self, contact, distanceM: 50f, threatBoost: 100f, contactHealth01: 1f, hasLos: true);
+            // ⭐ CE-3054 — threatBoost is a freshness: 0.2 × 500 = a score of 100.
+            w.SeedContact(self, contact, distanceM: 50f, threatBoost: 0.2f, contactHealth01: 1f, hasLos: true);
 
             ref readonly var mem = ref w.Repo.GetComponentRO<TargetMemory>(self);
             Assert.Equal(1, mem.Count);

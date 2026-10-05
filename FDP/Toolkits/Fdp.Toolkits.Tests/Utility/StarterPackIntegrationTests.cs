@@ -92,29 +92,31 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.Hold, posture);
         }
 
-        // SC-SP-04: Hysteresis prevents a 1% health-drop from flipping posture.
-        // Step 1 — Evaluate at health=0.08 (AdvanceAndAttack beats Hold by ~0.019).
-        // Step 2 — Drop health to 0.07 (Hold would win by ~0.007 without the bonus).
-        // Step 3 — SelectPosture reads the previous winner, applies +0.08 hysteresis, AA still wins.
+        // SC-SP-04: Hysteresis prevents a small health drop from flipping posture.
+        // ⭐ CE-3054 — re-pinned: EnemyStrengthRatio now weighs the enemy against the unit's OWN strength, so a badly hurt
+        //   unit no longer advances (at health 0.08 it holds). The AdvanceAndAttack / Suppress boundary sits near 0.19:
+        //   health 0.20 → AA 0.254 vs Suppress 0.251; health 0.18 → Suppress 0.229 vs AA 0.226 (measured).
+        //   ⛔ SUPERSEDED: tipping point 0.08 → 0.07 between AA and Hold (the old ratio read decaying scores).
         [Fact]
         public void CombatPosture_Hysteresis_SmallHealthDrop_DoesNotFlipPosture()
         {
             var enemy = _world.Repo.CreateEntity();
-            var agent = _world.SpawnAgent(0.08f, 1.0f);
+            var agent = _world.SpawnAgent(0.20f, 1.0f);
             _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
 
-            // Prime buffer: at health=0.08, AdvanceAndAttack wins (score ~0.191 vs Hold ~0.172).
+            // Prime buffer: at health=0.20, AdvanceAndAttack wins.
             _world.Scorer.Evaluate(_world.Repo, agent, CombatPostureDecision.Id);
-
-            // Confirm AdvanceAndAttack was the winner before the health drop.
             byte primePosture = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO()[0].WinningPostureId;
             Assert.Equal((byte)Posture.AdvanceAndAttack, primePosture);
 
-            // Drop health by 1% absolute — without hysteresis Hold would win (~0.163 vs ~0.170).
-            ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
-            h.Current = 7f; // 0.07 * 100
+            // The counterfactual: a unit with NO previous winner at health 0.18 suppresses.
+            var fresh = _world.SpawnAgent(0.18f, 1.0f);
+            _world.SeedContact(fresh, _world.Repo.CreateEntity(), 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+            Assert.Equal((byte)Posture.Suppress, _world.Scorer.SelectPosture(_world.Repo, fresh, CombatPostureDecision.Id));
 
-            // Hysteresis bonus +0.08 is applied to the previous winner: 0.163+0.08=0.243 > Hold 0.170.
+            // Drop health by 2 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
+            ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
+            h.Current = 18f;
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);

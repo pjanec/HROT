@@ -5,6 +5,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Squad;
@@ -297,8 +298,63 @@ namespace Fdp.Toolkit.Tests.Utility
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
             _world.SeedContact(self, contact, 50f, 0.75f, -1f, true);
+            _world.Repo.AddComponent(contact, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // armed ⇒ danger 1
             float result = StandardInputs.ContactThreatLevel(MakeCtx(self, contact));
             Assert.Equal(0.75f, result, precision: 4);
+        }
+
+        // ⭐ CE-3054 C — threat = danger × freshness: an UNARMED contact as fresh reads 0.3 of it.
+        [Fact]
+        public void CE3054_ContactThreatLevel_IsDangerTimesFreshness()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.75f, -1f, true);
+            Assert.Equal(0.3f, StandardInputs.ContactDanger(MakeCtx(self, contact)), precision: 4);
+            Assert.Equal(0.75f, StandardInputs.ContactFreshness(MakeCtx(self, contact)), precision: 4);
+            Assert.Equal(0.225f, StandardInputs.ContactThreatLevel(MakeCtx(self, contact)), precision: 4);
+        }
+
+        // ⭐ CE-3054 B — a contact this node does not hold (destroyed / never replicated) counts as dangerous.
+        [Fact]
+        public void CE3054_ContactDanger_UnknownTarget_IsDangerous()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.Repo.DestroyEntity(contact);
+            Assert.Equal(1f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+        }
+
+        // ⭐ CE-3054 C — HaveLiveTarget: a contact long unseen (faded) is NOT a live target; one a sensor tracks is,
+        //   however new (its score still ramping).
+        [Fact]
+        public unsafe void CE3054_HaveLiveTarget_FadedIsNotLive_TrackedIs()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.1f, -1f, true);   // faded below LiveFreshness (0.25)
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+
+            if (!_world.Repo.IsComponentTypeRegistered<ActiveSensorTracks>()) _world.Repo.RegisterComponent<ActiveSensorTracks>();
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)contact.PackedValue;
+            _world.Repo.AddComponent(self, tracks);
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+        }
+
+        // ⭐ CE-3054 C — EnemyStrengthRatio sums DANGER, not freshness: a hidden enemy does not make the unit braver.
+        [Fact]
+        public void CE3054_EnemyStrengthRatio_DoesNotFadeWithFreshness()
+        {
+            var self  = _world.SpawnAgent(1f, 1f);   // healthy, armed: own strength 1
+            var enemy = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(enemy, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _world.SeedContact(self, enemy, 50f, 1f, -1f, true);
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+
+            ref var mem = ref _world.Repo.GetComponentRW<TargetMemory>(self);
+            unsafe { mem.ThreatScores[0] = 1f; }   // nearly forgotten
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
         }
 
         [Fact]

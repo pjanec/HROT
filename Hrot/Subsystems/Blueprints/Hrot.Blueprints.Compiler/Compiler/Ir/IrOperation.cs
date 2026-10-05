@@ -719,7 +719,9 @@ public sealed record IrOp_WhenEqsResultCheck(
     /// <summary>Block to goto when condition fires (RisingEdge). Null if no RisingEdge.</summary>
     IrBlockId? OnFiredBlock,
     /// <summary>Block to goto when condition ends (FallingEdge). Null if no FallingEdge.</summary>
-    IrBlockId? OnEndedBlock
+    IrBlockId? OnEndedBlock,
+    /// <summary>⭐ CE-3054 D — non-zero: read the unit's sensor of this <c>SensorModality</c> instead of the variable.</summary>
+    byte UnitSensorKind = 0
 ) : IrOperation;
 
 /// <summary>
@@ -736,7 +738,9 @@ public sealed record IrOp_ReadEqsResult(
     /// <summary>8-char hex prefix of the node ID, used for naming the helper/struct.</summary>
     string NodeId8,
     /// <summary>Name of the local generated result struct type (e.g. "_EqsResultRead_a3f7c218").</summary>
-    string ResultStructTypeName
+    string ResultStructTypeName,
+    /// <summary>⭐ CE-3054 D — non-zero: read the unit's sensor of this <c>SensorModality</c> instead of the variable.</summary>
+    byte UnitSensorKind = 0
 ) : IrOperation;
 
 /// <summary>
