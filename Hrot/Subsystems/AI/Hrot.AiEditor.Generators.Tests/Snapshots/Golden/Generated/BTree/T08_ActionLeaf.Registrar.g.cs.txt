@@ -43,6 +43,7 @@ public static class T08_ActionLeafRegistrar
             Name         = "T08_ActionLeaf",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

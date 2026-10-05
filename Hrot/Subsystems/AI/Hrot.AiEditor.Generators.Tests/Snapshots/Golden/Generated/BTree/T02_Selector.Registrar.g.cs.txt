@@ -35,6 +35,7 @@ public static class T02_SelectorRegistrar
             Name         = "T02_Selector",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

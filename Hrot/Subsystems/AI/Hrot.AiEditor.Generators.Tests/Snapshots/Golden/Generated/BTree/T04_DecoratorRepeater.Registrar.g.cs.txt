@@ -43,6 +43,7 @@ public static class T04_DecoratorRepeaterRegistrar
             Name         = "T04_DecoratorRepeater",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

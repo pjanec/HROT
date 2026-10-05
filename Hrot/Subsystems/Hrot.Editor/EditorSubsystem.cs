@@ -3581,6 +3581,16 @@ namespace Hrot.Editor
                                    && NetworkIdOf(e) is var id and not 0
                                    && svc.GetAvailableBehaviors(id).Count > 0));
 
+            // ⭐⭐ CE-3043 — THE AI SECTION: the unit's task, SOP and ROE, edited LIVE through the one gate (paused: the
+            //   ingress's own pipeline at once; running: the events). 📄 DESIGN_Sensors_And_Doctrine.md §7.6.
+            //   ⚠ Its own StructEdit service: the facet service is built later in RegisterWindows' AI half.
+            var aiParamsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
+                    world:       () => _world,
+                    registry:    () => _behaviorRegistry,
+                    editService: () => aiParamsEditService));
+
             // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
             // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),
             //    and Update() already does exactly this lookup at :1816 to feed the Mission window.

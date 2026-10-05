@@ -118,6 +118,7 @@ public static class T09_BlackboardManagedRegistrar
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

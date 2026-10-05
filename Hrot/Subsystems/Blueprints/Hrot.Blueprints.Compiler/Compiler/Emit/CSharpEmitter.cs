@@ -644,6 +644,15 @@ internal sealed class CSharpEmitter
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
         WriteLine($"BlueprintStructureHash = {className}.StructureHash,");
+        // ⭐ CE-3043 / CE-2084 — the behaviour's channel set, from the SAME derivation the instance path uses; an
+        //   incomplete derivation emits nothing (UNKNOWN), never an empty set.
+        var behaviourChannels = BlueprintChannelDerivation.Derive(asset);
+        if (behaviourChannels.IsComplete)
+            WriteLine(behaviourChannels.ChannelComponentFqns.Count == 0
+                ? "WritesChannels = global::System.Array.Empty<global::System.Type>(),"
+                : "WritesChannels = new global::System.Type[] { "
+                  + string.Join(", ", System.Linq.Enumerable.Select(behaviourChannels.ChannelComponentFqns, f => $"typeof(global::{f})"))
+                  + " },");
         // ⭐ S5d — each Run Behaviour site declares its hosted slot (ingress provisions it, recursively, S5b) …
         //   S6b — a site inside a fiber graph declares one slot per copy (copy 0 = the plain key).
         var siteKeys = InstanceEmitter.RunBehaviorSitesByGraph(asset)

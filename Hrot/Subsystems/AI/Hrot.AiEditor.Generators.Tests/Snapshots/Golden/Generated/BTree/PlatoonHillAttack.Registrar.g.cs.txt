@@ -216,6 +216,7 @@ public static class PlatoonHillAttackRegistrar
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

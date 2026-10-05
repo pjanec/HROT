@@ -43,6 +43,7 @@ public static class T06_ObserverSelectorRegistrar
             Name         = "T06_ObserverSelector",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

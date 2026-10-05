@@ -444,6 +444,8 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
         EmitRootParamsMembers(sb, dto, packedFields, isManaged, hasParseParams, pad2);
+        if (WritesChannelsLiteral(dto, sharedAi, hostsSubtrees) is { } writes)   // ⭐ CE-3043 / CE-2084 — omitted = unknown
+            sb.AppendLine($"{pad2}{Indent}WritesChannels = {writes},");
         if (isManaged)
             EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
         else if (hostsSubtrees)
@@ -693,6 +695,40 @@ public static class BTreeBridgeEmitCore
     /// call <c>Fdp.Toolkit.Behavior.SopActions.DoWhenIdle</c> / <c>React</c>, which serialise it with the ONE params options
     /// object, pre-check the gate and publish the assignment. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-3043</c> / <c>CE-2084</c> — the tree's channel set: the union of its bound methods' <c>[WritesChannel]</c>.
+    /// ⛔ <c>null</c> (emit nothing ⇒ UNKNOWN) when any node's channels cannot be known here — a composed blueprint, a method
+    /// the resolver does not describe, a hosted subtree. An SOP order commands nothing itself (it assigns through the gate).
+    /// </summary>
+    internal static string? WritesChannelsLiteral(BehaviorTreeAssetDto dto, Func<string, SharedAiMethodInfo?>? sharedAi, bool hostsSubtrees)
+    {
+        if (hostsSubtrees) return null;
+        var kinds = new SortedSet<int>();
+        foreach (var node in dto.Nodes)
+        {
+            var (binding, shape) = node switch
+            {
+                BTreeActionNodeDto { SopOrder: not null } => (null, default(BTreeDelegateShapeDto)),
+                BTreeActionNodeDto a    => (a.Action, a.DelegateShape),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape),
+                _                       => (null, default(BTreeDelegateShapeDto)),
+            };
+            if (binding == null || string.IsNullOrEmpty(binding.MethodFqn)) continue;
+            if (shape == BTreeDelegateShapeDto.AiPrimitiveTickCore) return null;
+            if (sharedAi?.Invoke(binding.MethodFqn!) is not { } info) return null;
+            foreach (int k in info.WritesChannels) kinds.Add(k);
+        }
+        var types = new List<string>();
+        foreach (int k in kinds)
+        {
+            if (ChannelClearEmit.ChannelKindToType(k) is not { } t) return null;
+            types.Add($"typeof({t})");
+        }
+        return types.Count == 0
+            ? "global::System.Array.Empty<global::System.Type>()"
+            : "new global::System.Type[] { " + string.Join(", ", types) + " }";
+    }
+
     private static void EmitSopOrderThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad2, string bbShort, string ctxShort,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)

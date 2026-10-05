@@ -116,6 +116,7 @@ public static class T11_AliasingRegistrar
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T11_Aliasing_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

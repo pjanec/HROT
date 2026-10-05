@@ -35,6 +35,7 @@ public static class T01_SequenceRegistrar
             Name         = "T01_Sequence",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

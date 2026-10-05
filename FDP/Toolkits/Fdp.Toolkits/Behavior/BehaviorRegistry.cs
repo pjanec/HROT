@@ -289,6 +289,17 @@ namespace Fdp.Toolkit.Behavior
         public Type? JsonParamsDtoType { get; set; }
 
         /// <summary>
+        /// ⭐ <c>CE-3043</c> / <c>CE-2084</c> — the channel components this behaviour COMMANDS (<c>LocomotionChannel</c>,
+        /// <c>WeaponChannel</c>, <c>InteractionChannel</c>). ⛔⛔ <c>null</c> = UNKNOWN, never "none": an empty list means the
+        /// behaviour provably commands no channel. Emitted by the generators — a blueprint copies its derived set, a BTree
+        /// unions its bound methods' <c>[WritesChannel]</c> (unknown when a node's channels cannot be known); hand-written and
+        /// HSM behaviours are unknown for now. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.6.
+        /// <para>Read by the SOP slot (refuses a known channel-driving behaviour) and the editor's AI section (offers only
+        /// known channel-free ones as an SOP).</para>
+        /// </summary>
+        public IReadOnlyList<Type>? WritesChannels { get; set; }
+
+        /// <summary>
         /// 🔒 <b>ENGINE-INTERNAL.</b> The blittable struct laid out at the start of
         /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>). Consumers project it <b>over raw
         /// blackboard bytes</b> (<c>Marshal.PtrToStructure</c> / <c>Unsafe.As</c>), so its field order

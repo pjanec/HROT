@@ -677,6 +677,54 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
         }
 
+        /// <summary>⭐ <c>CE-2084</c> (§4.5 ①) — an SOP must not drive a channel: a behaviour KNOWN to command one is refused
+        /// at assign time (unknown is allowed; the runtime <c>ChannelGuard</c> is the backstop).</summary>
+        public static bool DrivesAChannel(BehaviorDefinition def) => def.WritesChannels is { Count: > 0 };
+
+        // ── ⭐ CE-3043 — the editor's PAUSED edits: the SAME gate and start pipeline, applied at once ────────────────────
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.6. Nothing ticks while the editor is paused, so an author's change
+        //   must not wait for a frame; ⛔ these are NOT a second start path — each is exactly what the matching event does.
+
+        /// <summary>What an <see cref="AssignBehaviorEvent"/> does, now. <c>false</c> = refused (gate, unknown name, parse).</summary>
+        public bool AssignNow(EntityRepository repo, Entity entity, string behaviorName, string json, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return false;
+            if (!_registry.TryGetId(behaviorName, out int id) || !_registry.TryGetDefinition(id, out var def)) return false;
+            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out bool pause)) return false;
+            var paused = pause ? PauseRecord(repo, entity) : null;
+            if (!Start(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin)) return false;
+            AfterAdmitted(repo, entity, origin, paused);
+            return true;
+        }
+
+        /// <summary>What a <see cref="ClearBehaviorEvent"/> does, now.</summary>
+        public bool ClearNow(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return false;
+            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out _)) return false;
+            Clear(repo, entity, _registry);
+            AfterAdmitted(repo, entity, origin, null);
+            return true;
+        }
+
+        /// <summary>What an <see cref="AssignSopEvent"/> does, now.</summary>
+        public bool AssignSopNow(EntityRepository repo, Entity entity, string behaviorName, string json, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.IsComponentTypeRegistered<SopState>()) return false;
+            if (!_registry.TryGetId(behaviorName, out int id) || !_registry.TryGetDefinition(id, out var def)) return false;
+            return StartSop(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin);
+        }
+
+        /// <summary>What a <see cref="ClearSopEvent"/> does, now.</summary>
+        public bool ClearSopNow(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            if (!repo.IsAlive(entity) || !repo.IsComponentTypeRegistered<SopState>() || !repo.HasComponent<SopState>(entity)) return false;
+            var sop = repo.GetComponentRO<SopState>(entity);
+            if (!BehaviorOriginRank.Admits(origin, sop.SopHash, sop.SopOrigin)) { SopRefusedCount++; return false; }
+            EndSop(repo, entity, _registry);
+            return true;
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3035</c> — start <paramref name="def"/> in the unit's SOP slot: gate (against the SOP's own origin), refuse
         /// the unit's current task, parse (the same <see cref="ParseIntoShadow"/>), end the previous SOP run, make room beside
@@ -700,6 +748,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 SopRefusedCount++;
                 Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                     "[BehaviorIngress] refused SOP '{0}' for entity #{1}: it is the unit's current task.", behaviorName, entity.Index);
+                return false;
+            }
+            if (DrivesAChannel(def))   // ⭐ CE-2084
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: it commands a channel ({2}) — an SOP must not move or fire the unit; use React to start a behaviour that does.",
+                    behaviorName, entity.Index, string.Join(", ", def.WritesChannels!));
                 return false;
             }
             if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))

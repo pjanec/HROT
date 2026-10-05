@@ -35,6 +35,7 @@ public static class SampleScoutRegistrar
             Name         = "SampleScout",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

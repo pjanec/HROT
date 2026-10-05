@@ -35,6 +35,7 @@ public static class T03_ParallelRegistrar
             Name         = "T03_Parallel",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

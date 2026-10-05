@@ -24,23 +24,26 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.IsComponentTypeRegistered<Roe>()) return;
 
             foreach (var evt in repo.Bus.Read<SetRoeEvent>())
-            {
-                if (!repo.IsAlive(evt.Entity)) continue;
-                if (!repo.HasComponent<Roe>(evt.Entity)) repo.AddComponent(evt.Entity, new Roe());
+                if (!Apply(repo, evt)) RefusedCount++;
+        }
 
-                ref var roe = ref repo.GetComponentRW<Roe>(evt.Entity);
-                var origin = evt.Origin == BehaviorOrigin.Self ? roe.SetBy : evt.Origin;
-                if (roe.SetBy != BehaviorOrigin.Unmarked
-                    && BehaviorOriginRank.Of(origin) < BehaviorOriginRank.Of(roe.SetBy))
-                {
-                    RefusedCount++;
-                    continue;
-                }
+        /// <summary>⭐ <c>CE-3043</c> — what a <see cref="SetRoeEvent"/> does, applied NOW (the editor's paused edit and this
+        /// system share it). <c>false</c> = refused by the gate, or a dead entity.</summary>
+        public static bool Apply(EntityRepository repo, in SetRoeEvent evt)
+        {
+            if (!repo.IsAlive(evt.Entity) || !repo.IsComponentTypeRegistered<Roe>()) return false;
+            if (!repo.HasComponent<Roe>(evt.Entity)) repo.AddComponent(evt.Entity, new Roe());
 
-                if (evt.Fire != RoeFire.FireUnset) roe.Fire = evt.Fire;
-                if (evt.Reactions != RoeReactions.ReactionsUnset) roe.Reactions = evt.Reactions;
-                roe.SetBy = origin == BehaviorOrigin.Unmarked ? BehaviorOrigin.Operator : origin;
-            }
+            ref var roe = ref repo.GetComponentRW<Roe>(evt.Entity);
+            var origin = evt.Origin == BehaviorOrigin.Self ? roe.SetBy : evt.Origin;
+            if (roe.SetBy != BehaviorOrigin.Unmarked
+                && BehaviorOriginRank.Of(origin) < BehaviorOriginRank.Of(roe.SetBy))
+                return false;
+
+            if (evt.Fire != RoeFire.FireUnset) roe.Fire = evt.Fire;
+            if (evt.Reactions != RoeReactions.ReactionsUnset) roe.Reactions = evt.Reactions;
+            roe.SetBy = origin == BehaviorOrigin.Unmarked ? BehaviorOrigin.Operator : origin;
+            return true;
         }
     }
 }

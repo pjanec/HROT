@@ -181,6 +181,7 @@ public static class BasicInfantrySopRegistrar
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.BasicInfantrySop_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

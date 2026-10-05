@@ -149,6 +149,7 @@ public static class BTreeCuratedBindingDemoRegistrar
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.BTreeCuratedBindingDemo_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
         });
     }
 }

@@ -749,6 +749,83 @@ things in sync) · saving the raw `BehaviorState` / `DoctrineState` (a run token
 behaviour progress (needs a stable on-disk format for internal state) · a per-entity TKB override file (a second
 authoring place).
 
+### 7.6 The editor's AI section — `CE-3043` *(build-state: BUILT `2026-10-05` for task / SOP / ROE — as-built below the table; instance-blueprint params rows → `CE-2086`)*
+
+**INVENTORY** *(grep + an Explore sweep, `2026-10-05`; the code graph was not indexed this session)*: Details views are
+`IDetailsViewInstance` + `DetailsViewDescriptor` registered per perspective (`ScenarioMissionView` rank 40 is the template);
+**no editor UI publishes `AssignBehaviorEvent` / `AssignSopEvent` / `SetRoeEvent`** (searched `Hrot.Editor`, `Hrot/Editor`,
+`Hrot.Presentation`); the instance-blueprint editor is `EntityBlueprintsPanel` (Blueprint perspective, attach / detach only);
+the reusable value form is `IComponentEditService` + `ComponentEditDrawer` (as `VariableEditModal` uses it);
+**`BehaviorDefinition` carries no channel set** (`BlueprintDefinition.WritesChannels` exists for blueprints only).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityAiDetailsView { <<NEW, Hrot.Editor/Scenario, id details.ai, rank 45, OneEntityWithBrain>> draws the rows }
+  class EntityAiEditModel {
+    <<NEW, no ImGui — the testable half>>
+    +Read(world, entity) Snapshot
+    +TaskChoices() · SopChoices()
+    +ApplyTask(name, json) · ClearTask()
+    +ApplySop(name, json) · ClearSop()
+    +ApplyRoe(fire, reactions)
+  }
+  class BehaviorParamsForm { <<NEW, AiShared/Inspector>> Open(type, json) · CommitToJson() — BehaviorParams.JsonOptions }
+  class BehaviorIngressSystem { <<existing>> +AssignNow() +ClearNow() +AssignSopNow() +ClearSopNow() NEW public, the SAME pipeline }
+  class RoeSystem { <<existing>> +Apply() NEW static, the SAME rule }
+  class BehaviorDefinition { <<existing>> +WritesChannels : Type list or null  NEW }
+  EntityAiDetailsView --> EntityAiEditModel
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiEditModel ..> BehaviorIngressSystem : paused — direct
+  EntityAiEditModel ..> RoeSystem : paused — direct
+  EntityAiEditModel ..> BehaviorDefinition : SOP choices = WritesChannels known EMPTY
+```
+
+```mermaid
+sequenceDiagram
+  participant U as author
+  participant V as EntityAiDetailsView
+  participant M as EntityAiEditModel
+  participant I as BehaviorIngressSystem
+  participant B as world bus
+  U->>V: pick behaviour, edit params, Apply
+  V->>M: ApplyTask(name, json) at origin Superior (R-193 — an editor-authored assignment)
+  alt sim running
+    M->>B: AssignBehaviorEvent — the ingress takes it next frame
+  else planning / paused (nothing ticks)
+    M->>I: AssignNow(...) — Admit + Start, the same pipeline, at once
+  end
+  Note over M,I: the scenario save then snapshots it (CE-3042) — the editor never writes a component itself
+```
+
+*What the pictures show that prose hid: the section owns NO apply logic — a paused edit and a running edit go through the
+same gate and start pipeline; only WHEN differs. The SOP row's filter is data on the definition, which the assign-time
+refusal (`CE-2084`) reads too.*
+
+| decision | why |
+|---|---|
+| ⭐ origin **Superior** for every edit | R-193: an editor-authored assignment ranks as a superior; an operator (Operator) still outranks it |
+| ⭐ paused ⇒ the ingress's own pipeline called directly (`AssignNow`…), running ⇒ the event | nothing ticks while paused, and the author must see the result; ⛔ never a second start path |
+| ⭐ `BehaviorDefinition.WritesChannels` — `null` unknown, empty = drives none | blueprints copy their derived set; a generated BTree unions its bound methods' `[WritesChannel]` (unknown when a node's channels cannot be known — a composed blueprint, a hosted subtree); curated and HSM stay unknown for now |
+| ⭐ the SOP row offers only KNOWN-empty behaviours; the slot REFUSES a known-non-empty one (`CE-2084`) | §4.5 ①②; unknown stays allowed — the runtime `ChannelGuard` is the backstop |
+| ⭐ one params form, `BehaviorParams.JsonOptions` | §4.4: one options object both ways; the form edits the behaviour's `JsonParamsDtoType` (fields and properties) |
+| ⚠ instance-blueprint rows | the existing `EntityBlueprintsPanel` stays the attach/detach editor; params editing for instances is the next step of this item |
+
+⭐ **AS-BUILT (`2026-10-05`)** — matches the diagrams; what the build measured:
+
+| as built | where / why |
+|---|---|
+| the section | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` — `EntityAiDetailsView` (ImGui, thin) + `EntityAiEditModel` (no ImGui: `Read`, `TaskChoices`, `SopChoices`, `Apply*` / `Clear*`); registered on the Scenario catalogue (`details.ai`, rank 45, applies to one entity with a `BehaviorState`) |
+| the apply-now pipeline | `BehaviorIngressSystem.AssignNow` / `ClearNow` / `AssignSopNow` / `ClearSopNow` (public; the event handlers' own admit + start), `RoeSystem.Apply` (static; `Execute` now calls it) |
+| the channel set | `BehaviorDefinition.WritesChannels` — 📐 measured on the shipped corpus: **17 of 26 BTrees are known-empty** (incl. `BasicInfantrySop`), 9 unknown; ⚠ **every blueprint behaviour in the corpus is UNKNOWN** — the derivation treats a pure call (a `Delay` is one) as opaque, so it never emits a set for them (no blueprint golden moved). ⇒ today the SOP row offers BTrees only; widening the derivation is a separate question |
+| `CE-2084` | the SOP slot refuses a behaviour KNOWN to drive a channel (`BehaviorIngressSystem.DrivesAChannel`), logged as a warning; unknown is allowed (the runtime guard stays the backstop) |
+| the params form | `Hrot.Editor.AiShared/Inspector/BehaviorParamsForm.cs` — opens a StructEdit session over the behaviour's `JsonParamsDtoType`, commits to JSON with `BehaviorParams.JsonOptions`; drawn by `ComponentEditDrawer` |
+| ⚠ not rail-tested | the ImGui drawing itself (the model is); a first look in the running editor is the check |
+
+Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits apply at once at Superior and clear; the gate
+still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
+known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
+
 ## 8. Claim table
 
 | claim | code — how it IS | design — how it was MEANT |
