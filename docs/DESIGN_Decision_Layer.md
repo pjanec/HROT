@@ -857,8 +857,8 @@ restoring four `BehaviorState` fields.
 | a BTree channel action re-issues when its channel was reset | ✅ `CgfNodes.cs:257-268` | ✅ §4.1 table, row "in-flight channel commands" |
 | restoring the old `InstanceId` resets the reaction's channel commands | ✅ `ChannelArbitrationSystem.cs:44-48` (`BehaviorInstanceId != InstanceId`) | ✅ same row |
 | owned parts are released by run id on a switch | ✅ `BehaviorIngressSystem.cs:163, :295` (§4.1) | ✅ §4.1 |
-| an HSM resumes in its current state: its instance stays, activities tick each frame | ⛔ **assumed**: needs one measurement (an activity that issues once on entry) | §4.1 *"HSM re-enter the state"* |
-| a blueprint latent wait survives a channel reset | ⛔ **not measured**: `WaitForChannel` may wait forever on an `ActionInstanceId` that was bumped | §4.1 *"blueprint latent re-issue"* |
+| an HSM resumes in its current state: its instance stays, activities tick each frame | ✅ measured `2026-10-05`: activities run EVERY tick in steady state (`HsmKernelCore.cs:120-155`, CE-334), and a channel activity is the same shared node as the BTree's ⇒ it re-activates | §4.1 *"HSM re-enter the state"* |
+| a blueprint latent wait survives a channel reset | 🔴 measured `2026-10-05`: **it does NOT.** The wait checks only `Status == Running` (`WaitLowering_Instance.cs:398-404`); a reset runs the old executor's `OnExit` and stops executing (`LocomotionDispatcherSystem.cs:62-90`) but leaves `Status` as it was ⇒ a resumed blueprint waits on a cancelled command, likely forever | §4.1 *"blueprint latent re-issue"* |
 
 **Leans:**
 
@@ -868,7 +868,7 @@ restoring four `BehaviorState` fields.
 | **B** | same asset as task and reaction | ⭐ refuse the reaction (it would share one block key), as the tracker row says |
 | **C** | a more urgent reaction pre-empts the running one | ⭐ the paused task stays as it is (one deep, R-199). The pre-empted reaction is ended normally |
 | **D** | an order replaces the paused task | ⭐ `DropPausedTask` detaches `HeldKeys` and releases the paused run's parts: no leak |
-| **E** | the two ⛔ rows | ⭐ measure both before building; if either fails, that tier keeps RESTART (today's behaviour) and the others resume |
+| **E** | the blueprint tier | ⭐ **BTree and HSM resume; a blueprint task keeps RESTART** (today's behaviour) until a latent wait can re-issue its command (a cursor that re-runs the issuing statement when the channel's `ActionInstanceId` moved under it — a separate item). Both rows are now measured |
 
 ⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
 · Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
