@@ -39,6 +39,12 @@ namespace Fdp.Toolkit.Utility
             return false;
         }
 
+        /// <summary>⭐ CE-2068 — every registered decision, by id (the picker's list).</summary>
+        public IEnumerable<(int Id, UtilityDecisionDef Def)> Entries
+        {
+            get { foreach (var kv in _map) yield return (kv.Key, kv.Value.Def); }
+        }
+
         /// <summary>
         /// Merges all entries from <paramref name="source"/> into this registry,
         /// overwriting any existing entry with the same ID.
@@ -70,6 +76,25 @@ namespace Fdp.Toolkit.Utility
         /// Initialized to an empty registry so callers never receive <c>null</c>.
         /// </summary>
         public static UtilityRegistry Shared => _shared ??= new UtilityRegistry();
+
+        private static volatile bool _scanned;
+        private static readonly object _scanLock = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-2068</c> — fills <see cref="Shared"/> with every authored decision ONCE (idempotent). 🔴 Nothing in production
+        /// ever did: <c>UtilityAutoDiscovery.ScanAndRegister</c> registers the INPUT readers only (CE-454 W1), so every
+        /// production <c>ScoreDecision</c> found no decision and a decision picker listed nothing. Every Brain host builds
+        /// <c>CgfLogicPack</c>, which calls this. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3 (as-built).
+        /// </summary>
+        public static void EnsureRegistered()
+        {
+            if (_scanned) return;
+            lock (_scanLock)
+            {
+                if (_scanned) return;
+                RegisterAll(out _);
+            }
+        }
 
         /// <summary>
         /// Scans all currently-loaded assemblies for <see cref="IUtilityDecisionDefinition"/>
@@ -110,6 +135,7 @@ namespace Fdp.Toolkit.Utility
             }
 
             _shared = registry;
+            _scanned = true;
         }
 
         /// <summary>

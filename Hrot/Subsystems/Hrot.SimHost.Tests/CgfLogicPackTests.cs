@@ -147,6 +147,20 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         // A (Stale Test TH-3): DebugStatePatchSystem removed from CognitiveRuntimeModule.InputSystems;
         // InputSystems count dropped from 3 to 2; total from 21 to 20.
+        /// <summary>⭐ CE-2068 — a Brain host's pack fills the decision catalog (nothing in production did: every
+        /// ScoreDecision found no decision). The starter pack's ThreatRanking is there, with its asset id.</summary>
+        [Fact]
+        public void CE2068_BuildingThePack_FillsTheUtilityDecisionCatalog()
+        {
+            _ = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+            const string threatRanking = "1a4f7c20-3b9e-4d18-8a01-threat0000001";
+            var reference = Fdp.Toolkit.Utility.UtilityDecisionRef.FromAssetId(threatRanking);
+            Assert.True(Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared.TryGet(reference.Id, out var def, out _));
+            Assert.Equal(threatRanking, def!.AssetId);
+            Assert.Equal(threatRanking, reference.AssetIdIn(Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared));
+        }
+
         [Fact]
         public void CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {

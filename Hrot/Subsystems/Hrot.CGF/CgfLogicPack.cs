@@ -183,6 +183,9 @@ namespace Hrot.CGF
             //   [UtilityRegistrar]s, which NOTHING in production ever invoked — so every input read 0. One
             //   idempotent call, here, because every Brain host builds this pack.
             Fdp.Toolkit.Utility.UtilityAutoDiscovery.ScanAndRegister();
+            //   ⭐ CE-2068 — …and the DECISIONS: nothing filled UtilityDecisionCatalog.Shared in production either, so every
+            //   ScoreDecision found no decision. Idempotent. 📄 docs/DESIGN_Decision_Layer.md §3.3 (as-built).
+            Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
             //   W2: the squad layer's one frame driver (perception merge on every owned commander).
             _squadCoordinationSystem   = new Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(gateOnAuthority);
 

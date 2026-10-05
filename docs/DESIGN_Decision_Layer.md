@@ -278,8 +278,9 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  CGF["CgfLogicPack (CGF and the editor)"] -->|start| DISC["UtilityAutoDiscovery.ScanAndRegister<br/>(CgfLogicPack.cs:185)"]
-  DISC --> CAT["UtilityDecisionCatalog.Shared"]
+  CGF["CgfLogicPack (CGF and the editor)"] -->|start| DISC["UtilityAutoDiscovery.ScanAndRegister<br/>(input readers only)"]
+  CGF -->|start, CE-2068| ENS["UtilityDecisionCatalog.EnsureRegistered<br/>(the decisions)"]
+  ENS --> CAT["UtilityDecisionCatalog.Shared"]
   CGF --> CRM["CognitiveRuntimeModule (CgfLogicPack.cs:160)"]
   CRM -->|every frame| BTS["BrainTickSystem"]
   BTS --> RUN["IBehaviorRunner: BTree · HSM · Blueprint"]
@@ -317,6 +318,16 @@ part of this plan.*
 network id comes back as `EntityRef.None` with `true` (an all-in-one world). `Evaluate` / `SelectPosture` stay public
 until `CE-2070` reroutes the bridge. Rails: `UtilityScorerTests.CE2067_*` (3), red-proved (no caller hysteresis ⇒ red).
 Toolkits 2673/0.
+
+⭐ **As-built `CE-2068` (`2026-10-05`):** `UtilityDecisionRef` (`Fdp.Toolkit.Utility`, the decision id; JSON = the
+decision's ASSET id, a bare number and null still read), `UtilityDecisionDef.AssetId` (set by the builder from
+`[UtilityDecision]`), `UtilityRegistry.Entries`. The "Details drawer" is the ONE params / component drawer
+(`ComponentEditDrawer`): the type is registered as a leaf (`PickableLeafFieldEditor`) and drawn as a combo of the
+catalog, so every surface that edits a params struct offers it. 🔴 **Measured while building it: nothing in production
+filled `UtilityDecisionCatalog.Shared`.** The module diagram above said `ScanAndRegister` fills it, but that call
+registers the INPUT readers only (CE-454 W1), so every production `ScoreDecision` found no decision. Fixed:
+`CgfLogicPack` now also calls `UtilityDecisionCatalog.EnsureRegistered()` (idempotent), and the diagram is corrected.
+⚠ `ScoreDecision`'s own `AssetId` field moves to the type with `CE-2070`, which reroutes that node.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

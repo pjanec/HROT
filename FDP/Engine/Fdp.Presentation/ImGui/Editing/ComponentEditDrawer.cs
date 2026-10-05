@@ -397,6 +397,30 @@ public sealed class ComponentEditDrawer
             return latChanged || lonChanged;
         }
 
+        if (type == typeof(Fdp.Toolkit.Utility.UtilityDecisionRef))
+        {
+            // ⭐ CE-2068 (R-184) — the TYPE makes the field pickable: the authored decisions, by display name.
+            var current = value is Fdp.Toolkit.Utility.UtilityDecisionRef d ? d : default;
+            var registry = Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared;
+            string preview = current.IsNone ? "(none)"
+                : registry.TryGet(current.Id, out var cur, out _) && cur != null ? cur.DebugName : current.ToString();
+            bool picked = false;
+            if (ImGuiApi.BeginCombo("##decision", preview))
+            {
+                if (ImGuiApi.Selectable("(none)", current.IsNone)) { value = Fdp.Toolkit.Utility.UtilityDecisionRef.None; picked = true; }
+                foreach (var (id, def) in DecisionChoices(registry))
+                {
+                    if (ImGuiApi.Selectable(def.DebugName + "##" + id, id == current.Id))
+                    {
+                        value = new Fdp.Toolkit.Utility.UtilityDecisionRef(id);
+                        picked = true;
+                    }
+                }
+                ImGuiApi.EndCombo();
+            }
+            return picked;
+        }
+
         if (type == typeof(EntityRef))
         {
             // The network id, typed in or set by the picker; 0 = none.
@@ -591,5 +615,14 @@ public sealed class ComponentEditDrawer
         if (type == typeof(string)) return string.Empty;
         if (type.IsValueType)       return Activator.CreateInstance(type)!;
         return null!;
+    }
+
+    /// <summary>⭐ CE-2068 — the decisions a <c>UtilityDecisionRef</c> field offers: every registered one, by display name.</summary>
+    internal static System.Collections.Generic.List<(int Id, Fdp.Toolkit.Utility.UtilityDecisionDef Def)> DecisionChoices(
+        Fdp.Toolkit.Utility.UtilityRegistry registry)
+    {
+        var list = registry.Entries.ToList();
+        list.Sort((a, b) => string.CompareOrdinal(a.Def.DebugName, b.Def.DebugName));
+        return list;
     }
 }

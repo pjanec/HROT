@@ -257,7 +257,8 @@ namespace Fdp.Toolkit.Utility
                 BlueprintId = ComputeId(attr.AssetId),
                 Kind        = attr.Kind,
                 Options     = _options.ToArray(),
-                DebugName   = attr.DisplayName
+                DebugName   = attr.DisplayName,
+                AssetId     = attr.AssetId,     // ⭐ CE-2068 — what a UtilityDecisionRef saves as
             };
         }
 

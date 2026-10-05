@@ -163,6 +163,9 @@ namespace Fdp.Toolkit.Utility
         public ulong         ParamHash;
         /// <summary>Human-readable name for logs and profiler markers.</summary>
         public string        DebugName = string.Empty;
+        /// <summary>⭐ CE-2068 — the authored asset id (<c>[UtilityDecision(assetId)]</c>), what a <see cref="UtilityDecisionRef"/>
+        /// saves as; empty for a decision registered by hand.</summary>
+        public string        AssetId = string.Empty;
         public DecisionKind  Kind;
         public UtilityOption[] Options = Array.Empty<UtilityOption>();
     }
