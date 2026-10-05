@@ -61,6 +61,7 @@ internal static class Stage2_Validate
         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
         new V_FormatStringRules(),   // BP-108 (BP2072)
+        new V_SopOrderRules(),       // CE-2083 (BP1688)
         new V_DeclarationNameUniqueness(),  // U-12: BP1673
     };
 
@@ -2688,6 +2689,29 @@ internal sealed class V_FlowForEachRules : IValidator
 /// never re-implements the grammar; it only reports what <c>Parse</c> already decided.
 /// </para>
 /// </summary>
+/// <summary>
+/// ⭐ <c>CE-2083</c> (<c>DESIGN_Decision_Layer</c> §4.10 D6) — an SOP order names a behaviour and acts on the unit: one with no
+/// behaviour, or in a Library function (no unit in scope), is <c>BP1688</c>. ⚠ A resolver graph is refused by
+/// <see cref="V_ResolverPurity"/> (it is a side effect), not here.
+/// </summary>
+internal sealed class V_SopOrderRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        foreach (var node in graph.Nodes.OfType<SopOrderNode>())
+        {
+            if (string.IsNullOrWhiteSpace(node.BehaviorName))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1688,
+                    $"SOP order node '{node.Id}' names no behaviour — pick one.", asset.AssetId, graph.Id, node.Id));
+            if (asset.Dispatch == BlueprintDispatchKind.Library && graph.Kind != GraphKind.Construction)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1688,
+                    $"SOP order node '{node.Id}' is in a Library function, which has no unit to give the order to.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
+    }
+}
+
 internal sealed class V_FormatStringRules : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)

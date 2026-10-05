@@ -67,7 +67,7 @@ public sealed class BTreeSubtreePayload
 
 /// <summary>
 /// ⭐ <c>CE-2079</c> — an action node that is an SOP ORDER ("Do when idle" / "React"), not a method binding. Mirrors
-/// <c>BTreeSopOrderPayloadDto</c>; 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
+/// <c>SopOrderPayloadDto</c>; 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.
 /// </summary>
 public sealed class BTreeSopOrderPayload
 {

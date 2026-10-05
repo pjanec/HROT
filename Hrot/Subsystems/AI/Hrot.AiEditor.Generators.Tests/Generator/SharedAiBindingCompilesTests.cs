@@ -538,6 +538,72 @@ namespace Probe
             generated.Should().BeEmpty();
         }
 
+        // ---- CE-2083: an HSM state issues an SOP order ---------------------------------------------
+
+        private static string SopHsm(string extraOnIdle = "") => $$"""
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00002083-0000-0000-0000-0000000000aa", "Name": "SopOrderProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "SopOrderProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "20830000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "20830000-0000-0000-0000-00000000000a", "20830000-0000-0000-0000-00000000000b" ],
+                  "ParentStableId": null, "IsInitial": false, "RegionIndex": 0 },
+                { "StableId": "20830000-0000-0000-0000-00000000000a", "Name": "Idle",
+                  "ChildStableIds": [], "ParentStableId": "20830000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0,
+                  "SopOrder": { "Kind": "DoWhenIdle", "BehaviorName": "Patrol" }{{extraOnIdle}} },
+                { "StableId": "20830000-0000-0000-0000-00000000000b", "Name": "UnderFire",
+                  "ChildStableIds": [], "ParentStableId": "20830000-0000-0000-0000-000000000000", "IsInitial": false, "RegionIndex": 0,
+                  "SopOrder": { "Kind": "React", "BehaviorName": "TakeCover", "ParamsVariable": "cover", "Urgency": "Hit" } } ],
+              "Regions": [], "Transitions": [], "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "SopOrderProbeMachine_Blackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "System.Int32" } },
+                { "Name": "cover",    "Type": { "TypeId": "Probe.CoverParams" } } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-2083</c> — an HSM state's SOP order runs as its ACTIVITY: the topology names the order's key, the
+        /// bridge registers ONE <c>SopActions</c> call under that key's id, the params variable read LIVE at its host
+        /// offset.</b> 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.10 (D1, D2).
+        /// </summary>
+        [Fact]
+        public void CE2083_AnHsmStatesSopOrder_RunsAsItsActivity_OneSopActionsCall_KeyedAsTheTopologyKeysIt()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(SopSource, SopHsm());
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id.StartsWith("HSM")).Select(d => d.GetMessage(null)).Should().BeEmpty();
+            all.Should().Contain("global::Fdp.Toolkit.Behavior.SopActions.React(__repo, __bridge->Self, \"TakeCover\", " +
+                                 "global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Hit, in *(global::Probe.CoverParams*)(__root + ");
+            all.Should().Contain("global::Fdp.Toolkit.Behavior.SopActions.DoWhenIdle(__repo, __bridge->Self, \"Patrol\", \"{}\")");
+
+            // ⭐ the BTree's key spelling; the topology's .Activity(key) and the registration's comment name the same key
+            var reactKeys = Regex.Matches(all, @"Fdp\.Toolkit\.Behavior\.SopActions\.React:TakeCover:Hit@(\d+)")
+                .Select(m => m.Groups[1].Value).ToList();
+            reactKeys.Should().HaveCountGreaterThanOrEqualTo(2).And.OnlyContain(k => k == reactKeys[0]);
+            reactKeys[0].Should().NotBe("0", "the sentinel sits at 0 — the HOST offset is baked");
+            all.Should().Contain(".Activity(\"Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Hit@" + reactKeys[0] + "\")");
+            ushort id = Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForCompoundKey(
+                "Fdp.Toolkit.Behavior.SopActions.React:TakeCover:Hit@" + reactKeys[0]);
+            all.Should().Contain($"HsmActionDispatcher.RegisterAction({id}, ", "registered under the id the activity name hashes to");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        /// <summary>⛔ <c>CE-2083</c> D3 — an order AND an activity binding on one state is one slot with two owners: an error
+        /// naming the state, and the asset is not emitted.</summary>
+        [Fact]
+        public void CE2083_AStateWithAnSopOrderAndAnActivity_IsAnError()
+        {
+            var (_, generated, diagnostics) = RunHsm(SopSource,
+                SopHsm(extraOnIdle: ", \"Activity\": { \"MethodFqn\": \"Probe.Nowhere.Run\" }"));
+
+            diagnostics.Where(d => d.Id == "HSM0001").Select(d => d.GetMessage(null))
+                .Should().ContainSingle().Which.Should().Contain("Idle").And.Contain("SOP order");
+            generated.Should().NotContain(t => t.FilePath.EndsWith(".Registrar.g.cs"));
+        }
+
         private static (Compilation Compilation, IReadOnlyList<SyntaxTree> Generated, IReadOnlyList<Diagnostic> Diagnostics)
             RunHsm(string source, string hsmJson)
         {

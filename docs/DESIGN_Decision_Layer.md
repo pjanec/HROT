@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING §4 — READY-TO-BUILD §4.10 (CE-2083, SOP orders in an HSM state and a blueprint node). BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -869,6 +869,16 @@ deviate from my task" axis (the shape many simulators use — e.g. hold fire / d
 > rails that index the simulation list, so it moved, `2026-10-04`); conditions read `RecentSensesOf.Within(view, unit, kind, seconds)`.
 > Not yet: the fire guard (`CE-2075`, backend's executor), saving (`CE-3042`), the editor row (`CE-3043`).
 
+> ⭐ **AS-BUILT `CE-2095` (`2026-10-05`, behaviors; mirror of the `Fire` / `Reactions` plumbing above, FRAME Addendum 7).**
+> `Roe.ReturnFireWindowSeconds` (float, LAST so the earlier fields keep their offsets; `0` = unset ⇒
+> `RoeOf.DefaultReturnFireWindowSeconds` = 5 s, so nothing changes until something sets it) · `SetRoeEvent.ReturnFireWindowSeconds`
+> (`0` keeps, as `Unset` does) applied by `RoeSystem.Apply` under the same origin gate · TKB
+> `BehaviorProfileDto.DefaultRoeReturnFireWindowSeconds` · `SavedRoe.ReturnFireWindowSeconds`, carried by the scenario save, the
+> replicated brain intent (JSON — no wire change; the egress `Signature` includes it so a change re-publishes), the hand-over
+> and the materialisation. ⚠ Cross-lane, named: `AimAndFireExecutor.RoePermitsFire` reads `RoeOf.ReturnFireWindowSeconds`
+> (the backend's "one line"); its constant stays as the default's alias. Rails: `RoeAndRecentSensesTests.CE2095_*`,
+> `AimAndFireExecutorTests.AimAndFire_ReturnFire_UsesTheUnitsOwnWindow_CE2095`.
+
 
 ### 4.5 Keeping the SOP off the channels — measured *(PROPOSAL)*
 
@@ -1215,7 +1225,7 @@ new Brain restarts from the published intent, `CE-3048`); ⛔ there is no path t
   `BlueprintBehaviourTests.CE2081_*` (2: re-issue · a non-re-issuable block fails the wait). Red-proofs: resume forced to restart
   ⇒ the progress rail red; tokens forced to `++` ⇒ the de-dup rail red.
 
-### 4.10 `CE-2083` — SOP orders in an HSM state and as a blueprint node *(behaviors, `2026-10-05`; build-state: READY-TO-BUILD)*
+### 4.10 `CE-2083` — SOP orders in an HSM state and as a blueprint node *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
 
 > 🔒 Scope approved with §4.3–§4.6 (*"ok approved. start building"*, `2026-10-04`: "BTree/HSM shared actions, blueprint
 > nodes"); 🔒 *"Yes pls do them, autonomously move to next"* (`2026-10-05`). §4.6 built the C# core and the BTree node; this
@@ -1306,6 +1316,23 @@ graph TD
 **Slices** (one commit each, green at each): **H1** HSM emit + validator + generated-compile rail · **H2** HSM editor (state
 facet "SOP order", compose the params variable on pick) · **B1** blueprint compiler (node, IR, emit, diagnostics, coverage +
 purity) + a run-through rail · **B2** blueprint editor (palette "SOP: Do when idle" / "SOP: React", picker, typed pin).
+
+⭐ **AS-BUILT (`2026-10-05`)** — D1–D6 built as drawn. Where the build differs, and why:
+
+| as built | where | differs because |
+|---|---|---|
+| the rename went through Roslyn's PREVIEW; its apply step reported success and wrote nothing, so its five computed hunks were applied verbatim | `BehaviorTreeAssetDto.cs`, `BTreeEmitCore.cs`, `BehaviorTreeAssetMapper.cs` | the semantic set is Roslyn's; only the write was manual |
+| ⭐ ONE offset rule too: `SopOrderEmit.Offset` (the BTree's `SopOrderOffset` now delegates) and `BindingNamer.SopOrderName` | `Emit/SopOrderEmit.cs`, `SharedAiBindings.cs` | the HSM topology and its bridge must key the same — the BTree already had this pair |
+| ⚠ the BLUEPRINT call is spelled in `StatementEmitter` (`IrOp_SopOrder`), not by `SopOrderEmit` | `Blueprints.Compiler/…/StatementEmitter.cs` | the blueprint compiler is netstandard2.0 and references no `AiEditor.Persistence`; both spellings end at `SopActions` and each has a run-or-compile rail |
+| `SopOrderUrgency` — a third mirror of `ReactionUrgency` (beside `SopUrgencyDto`) | `Blueprints.Compiler/Assets/Nodes.cs` | same netstandard2.0 wall; `CE2083_SopOrderUrgency_MirrorsReactionUrgency` pins names AND values |
+| the HSM editor model holds the persisted payload itself (`StateNode.SopOrder`); the mapper deep-copies both ways | `Hsm.Editor/Model/HsmAsset.cs`, `HsmAssetMapper.cs` | the BTree's editor-side copy (`BTreeSopOrderPayload`) lives in `BTree.Editor`, which the HSM editor does not reference |
+| editor rule `HsmDiagnosticCode.SopOrderInvalid` beside the generator's HSM0001 | `HsmValidator.CheckSopOrders` | the author sees it on the canvas before a build |
+| `HsmPickerDrawerFactory.BuildDrawers(…, behaviourNames)`; both production hosts pass `ChildInputTypes.ParamsDtoLookup` as the new `SopParamsType` (⚠ cross-lane, named: `CgfSubsystem.cs`, `EditorSubsystem.cs`) | `AiFacetPickerBinder.cs`, `AiBlueprintNodeAuthoringBinder.cs` | the silent-default rule: a host that has the registry passes it |
+
+Rails (each feature's suite; red-proved): H1 `SharedAiBindingCompilesTests.CE2083_*` (thunk collection off ⇒ red; XOR guard
+off ⇒ red) · H2 `HsmSubtreeAuthoringTests.CE2083_*` (apply removed ⇒ 3 red) · B1 `CE2083_SopOrderNodeTests` (React publishes
+the reaction with its params and is Accepted; Do when idle under an order publishes nothing and is not Accepted; BP1688; the
+urgency mirror) + `NodeCoverageTests` `Inline/SopOrder` · B2 `BehaviorTaskNodeDrawerTests.CE2083_*`.
 
 ## ⛔ HISTORY
 

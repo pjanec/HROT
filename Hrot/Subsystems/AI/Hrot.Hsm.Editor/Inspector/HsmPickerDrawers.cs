@@ -262,7 +262,8 @@ public static class HsmPickerDrawerFactory
     public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
         HsmAsset               asset,
         IActionSchemaExporter? exporter = null,
-        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
+        Func<IEnumerable<string>>? behaviourNames = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
@@ -272,6 +273,10 @@ public static class HsmPickerDrawerFactory
         var composite = new HsmCompositeStringDrawer()
             .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
             .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset));
+        // ⭐ CE-2083 — the SOP order's behaviour picker (the BTree's drawer); only with a registry to list, as the catalogue rule.
+        if (behaviourNames is not null)
+            composite.Register<Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute>(
+                new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames));
 
         // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
         //    null catalogue could only ever draw an empty list, and an empty dropdown reads as

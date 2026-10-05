@@ -946,6 +946,79 @@ Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits 
 still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
 known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
 
+### 7.6a Instance-blueprint params rows — `CE-2086` *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
+
+> 🔒 Approved with §7.5 (*"add the missing editor: each attached instance gets the same params form as the doctrine row,
+> committed … through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)`"*) and §7.6's last row; 🔒 *"Yes pls do
+> them, autonomously move to next"* (`2026-10-05`).
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-05`; ⚠ `check_index_coverage` is not reachable through the CLI)*:
+
+| exists | where | reused how |
+|---|---|---|
+| the AI section: `EntityAiEditModel` (no ImGui) + `EntityAiDetailsView` | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` | ⭐ grows one row kind |
+| the ONE params form `BehaviorParamsForm` (StructEdit over a CLR type ⇄ JSON, `BehaviorParams.JsonOptions` = `DefaultRelaxed`) | `Hrot.Editor.AiShared/Inspector/BehaviorParamsForm.cs` | ⭐ the instance row's form — the instance `ParseParams` reads with the same options object |
+| the live instances: occurrence store partitions (`OccurrenceStoreAccess`, `BlueprintBlackboardPartitions.GetSlot`) — the walk the save already does | `Hrot.SimHost/Serializers/BlueprintStateTranslator.cs:153` | ⭐ the same walk lists the rows |
+| an instance's params as JSON: `BlueprintDefinition.FormatParams` / `ParseParams`; `BlueprintInstanceService.ApplyParams(payload, def, json)` | `Fdp.Toolkits/Blueprints` | ⭐ read the row / commit a paused edit |
+| a running re-param: `ReplaceInstanceBlueprintEvent {Old = New = id, ParamsJson}` (detach, then attach with the JSON) | `BlueprintEventIngressSystem.cs:51-80` | ⭐ commit a running edit |
+| the generated `Params` struct, nested in the instance class beside `State` (`InstanceEmitter.cs:388`); `StateClrType = typeof(X.State)` (`CSharpEmitter.cs:693`) | | ⭐ the form's type: `StateClrType.DeclaringType.GetNestedType("Params")` |
+
+```mermaid
+classDiagram
+  class EntityAiEditModel {
+    <<existing — grows>>
+    +InstanceRows(entity) InstanceRow list NEW
+    +ApplyInstanceParams(entity, blueprintId, json, running) bool NEW
+  }
+  class InstanceRow { <<NEW record>> BlueprintId · Name · ParamsType · ParamsJson }
+  class BlueprintDefinition { <<existing — grows>> +ParamsClrType : Type? NEW derived (StateClrType's sibling Params) }
+  class BlueprintInstanceService { <<existing>> ApplyParams(payload, def, json) }
+  class BlueprintEventIngressSystem { <<existing>> ReplaceInstanceBlueprintEvent ⇒ detach + attach(json) }
+  class BehaviorParamsForm { <<existing — the one form>> Open(type, json) · CommitToJson() }
+  class EntityAiDetailsView { <<existing — grows>> one row per attached instance }
+  EntityAiDetailsView --> EntityAiEditModel
+  EntityAiDetailsView --> BehaviorParamsForm
+  EntityAiEditModel ..> BlueprintDefinition : FormatParams · ParamsClrType
+  EntityAiEditModel ..> BlueprintInstanceService : paused
+  EntityAiEditModel ..> BlueprintEventIngressSystem : running (event)
+```
+
+*What the picture shows that prose hid:* nothing new runs — the rows read the save's own walk, a paused edit is the load's
+own `ApplyParams`, a running edit is the existing replace event; the only new member is a derived type lookup.
+
+```mermaid
+sequenceDiagram
+  participant U as author
+  participant V as EntityAiDetailsView
+  participant M as EntityAiEditModel
+  participant S as BlueprintInstanceService
+  participant B as world bus
+  V->>M: InstanceRows(entity) — one per occupied slot, params as JSON (FormatParams)
+  U->>V: edit a row's params, Apply
+  alt paused (nothing ticks)
+    M->>S: ApplyParams(payload, def, json) — in place, the instance keeps its state
+  else running
+    M->>B: ReplaceInstanceBlueprintEvent(id → id, json) — the instance restarts with the new params
+  end
+  Note over M: the scenario save then snapshots the params (CE-3044) — the editor never writes bytes itself
+```
+
+| decision *(lean = built unless the user changes it)* | why | rejected |
+|---|---|---|
+| **A1** paused ⇒ `ApplyParams` in place; running ⇒ the replace event (a restart) | paused matches the load path exactly; a running instance's state was built from its old params, so a restart is the honest re-param (as re-assigning a behaviour) | ⛔ writing the region of a RUNNING instance (state half from the old params) |
+| **A2** `ParamsClrType` DERIVED from `StateClrType` (the nested `Params` beside `State`) | no registrar emission change ⇒ no golden moves; a rail pins it against `ParamsSize` for every corpus instance | emitting `ParamsClrType = typeof(X.Params)` in every registrar (every instance golden moves for a value already reachable) |
+| **A3** the rows live in the AI section; `EntityBlueprintsPanel` stays the attach / detach editor | §7.6's last row | moving attach / detach into the AI section (a second surface for one action) |
+| **A4** a row with no `Params` (size 0) shows the name only | nothing to edit | — |
+
+⭐ **AS-BUILT (`2026-10-05`)** — A1–A4 as drawn. `BlueprintDefinition.ParamsClrType` (derived; null when `ParamsSize` is 0) ·
+`EntityAiEditModel.InstanceRows` / `ApplyInstanceParams` + an optional blueprint-registry provider, which
+`EntityAiDetailsViewDescriptor.For(…, blueprints)` and `EditorSubsystem` pass (the silent-default rule) · the view draws one
+`BehaviorParamsForm` per row. ⚠ A running edit needs `ReplaceInstanceBlueprintEvent` registered (production does; an
+unregistered bus is a refusal, never a silent drop). ⚠ The ImGui drawing itself is not rail-tested (as §7.6). Rails
+(`Hrot.Blueprints.Tests/Editor/EntityAiInstanceRowsTests`, red-proved: the paused write stubbed ⇒ red): a row carries its
+`Params` type (size = `ParamsSize`) and its non-default JSON · paused applies in place, publishes nothing · running publishes
+the replace (id → id, the JSON) and writes nothing.
+
 ### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
 
 ⭐ Approved basis: §9 **V7** (*"each slot's `{Name, Params, Origin}` is ALSO published as a small TransientLocal

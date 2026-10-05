@@ -415,6 +415,34 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
         }
 
+        /// <summary>⭐ <c>CE-2095</c> — the unit's own ReturnFire window replaces the 5 s default: hit 7 s ago fires under a 10 s
+        /// window and not under the default (0 = unset); a 2 s window refuses a hit 3 s ago.</summary>
+        [Theory]
+        [InlineData(10f, 7.0, true)]
+        [InlineData(0f,  7.0, false)]   // unset ⇒ the 5 s default
+        [InlineData(2f,  3.0, false)]
+        [InlineData(2f,  1.0, true)]
+        public void AimAndFire_ReturnFire_UsesTheUnitsOwnWindow_CE2095(float window, double hitSecondsAgo, bool fires)
+        {
+            _world.RegisterComponent<Roe>();
+            _world.RegisterComponent<RecentSenses>();
+            const double now = 100.0;
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = 0.016f, TimeScale = 1f });
+
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new Roe { Fire = RoeFire.ReturnFire, ReturnFireWindowSeconds = window });
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, now - hitSecondsAgo);
+            _world.AddComponent(shooter, senses);
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
+        }
+
         /// <summary>⭐ <c>CE-2075</c> — a world without the ROE component types fires as before (fire at will).</summary>
         [Fact]
         public void AimAndFire_FiresAtWill_WhenTheWorldHasNoRoe_CE2075()

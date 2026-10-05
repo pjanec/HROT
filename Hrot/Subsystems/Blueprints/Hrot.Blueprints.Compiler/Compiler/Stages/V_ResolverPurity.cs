@@ -58,6 +58,7 @@ internal sealed class V_ResolverPurity : IValidator
         typeof(ChannelCommandNode),
         typeof(PublishEventNode),
         typeof(SendIntentNode),           // CE-472: publishes AssignTacticalIntentEvent
+        typeof(SopOrderNode),             // CE-2083: assigns a behaviour to the unit (SopActions)
         typeof(CallEventDispatcherNode),
         typeof(BindEventDispatcherNode),
         typeof(CallCustomEventNode),

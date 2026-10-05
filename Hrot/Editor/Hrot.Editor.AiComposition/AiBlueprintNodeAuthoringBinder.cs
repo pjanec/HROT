@@ -38,6 +38,10 @@ public sealed record AiBlueprintNodeAuthoringServices
     /// <summary>⭐ S8 / CE-2022 — a child's hosted input type id, so the Behaviour Task shows a typed <c>Params</c> pin
     /// (<c>BehaviorTaskNodeDrawer.ParamsTypeLookup</c>). ⛔ A host with a <c>BehaviorRegistry</c> must pass it.</summary>
     public Func<string, string?>? BehaviourParamsType { get; init; }
+
+    /// <summary>⭐ <c>CE-2083</c> — a behaviour's AUTHORED params type id (<c>ChildInputTypes.ParamsDtoLookup</c>), so an SOP order
+    /// node shows a typed <c>Params</c> pin. ⛔ A host with a <c>BehaviorRegistry</c> must pass it.</summary>
+    public Func<string, string?>? SopParamsType { get; init; }
 }
 
 /// <summary>
@@ -102,7 +106,7 @@ public static class AiBlueprintNodeAuthoringBinder
         var drawers = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
             BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, edit, predicate, eqsTemplates,
             peerProvider: services.PeerProvider, behaviourNames: services.BehaviourNames,
-            behaviourParamsType: services.BehaviourParamsType);
+            behaviourParamsType: services.BehaviourParamsType, sopParamsType: services.SopParamsType);
         var attachments = BlueprintEditorBootstrap.CreateAttachmentProviders(
             eqsTemplates, new PeerNameCache(services.PeerProvider).Resolve);
         return new AiBlueprintNodeAuthoring(drawers, eqsTemplates, attachments);

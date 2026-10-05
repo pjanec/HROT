@@ -1060,16 +1060,8 @@ public static class BTreeEmitCore
 
     /// <summary>⭐ <c>CE-2079</c> — the baked offset of an SOP order's params variable, or <c>-1</c> when it has none (authored
     /// defaults). ⛔ A named variable with no packed offset fails loud — the order would silently drop its params.</summary>
-    internal static long SopOrderOffset(BTreeSopOrderPayloadDto order, BTreeNodeDto node, IReadOnlyDictionary<string, int>? variableOffsets)
-    {
-        if (string.IsNullOrEmpty(order.BehaviorName))
-            throw new InvalidOperationException($"SOP order node {node.VisualId:D} names no behaviour — pick one in the editor.");
-        if (string.IsNullOrEmpty(order.ParamsVariable)) return -1;
-        if (variableOffsets != null && variableOffsets.TryGetValue(order.ParamsVariable!, out int offset)) return offset;
-        throw new InvalidOperationException(
-            $"SOP order node {node.VisualId:D} binds params variable '{order.ParamsVariable}', which has no packed offset " +
-            "(a non-managed blackboard, or no such variable).");
-    }
+    internal static long SopOrderOffset(SopOrderPayloadDto order, BTreeNodeDto node, IReadOnlyDictionary<string, int>? variableOffsets)
+        => SopOrderEmit.Offset(order, variableOffsets, $"node {node.VisualId:D}");   // ⭐ CE-2083: the one rule, shared with the HSM
 
     private static void EmitSubtree(StringBuilder sb, BTreeSubtreeNodeDto node, string pad, bool isLast, string methodPrefix = ".")
     {

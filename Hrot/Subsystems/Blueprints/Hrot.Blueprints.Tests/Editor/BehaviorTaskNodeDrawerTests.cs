@@ -142,4 +142,54 @@ public sealed class BehaviorTaskNodeDrawerTests
         s.SetBehaviourForTest("Guard");
         Assert.Equal("My.Ns.AnyParams", node.ParamsTypeId);
     }
+
+    // ── ⭐ CE-2083 — the SOP order node's Details: the same picker, its own params lookup (DESIGN_Decision_Layer §4.10) ──
+
+    /// <summary>⭐ Picking the behaviour bakes its AUTHORED params type, so the order grows a typed <c>Params</c> pin; undo
+    /// restores the previous shape.</summary>
+    [Fact]
+    public void CE2083_PickingAnSopOrdersBehaviour_BakesItsParamsType_AndProjectsAParamsPin_Undoably()
+    {
+        var node = new SopOrderNode { Id = Guid.NewGuid(), Kind = SopOrderKind.React };
+        var asset = Asset();
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function };
+        graph.Nodes.Add(node);
+        asset.Graphs.Add(graph);
+        node.Pins.AddRange(Hrot.Blueprints.Editor.Host.NodePinSchema.GetCanonicalPins(node, containingGraph: graph));
+        var edits = new RecordingEditService();
+        var s = (SopOrderNodeSession)new SopOrderNodeDrawer(edits, () => Names,
+            name => name == "Patrol" ? "My.Ns.PatrolDto" : null).CreateSession(node, asset);
+        Pin? ParamsPin() => node.Pins.FirstOrDefault(p => p.Name == SopOrderNode.ParamsPin);
+
+        Assert.NotNull(node.Pins.FirstOrDefault(p => p.Name == SopOrderNode.AcceptedPin && p.Direction == "Out"));
+        Assert.Null(ParamsPin());
+        s.SetBehaviourForTest("Patrol");
+        Assert.Equal("Patrol", node.BehaviorName);
+        Assert.Equal("My.Ns.PatrolDto", node.ParamsTypeId);
+        Assert.Equal("global::My.Ns.PatrolDto", ParamsPin()?.TypeRef.TypeId);
+
+        edits.LastUndo!();
+        Assert.Equal("", node.BehaviorName);
+        Assert.Null(ParamsPin());
+    }
+
+    /// <summary>⭐ The registry forwards the SOP params lookup — NOT the Behaviour Task's hosted-input one — to the SOP drawer
+    /// (silent-default rule), and the palette offers both orders with their kind preset.</summary>
+    [Fact]
+    public void CE2083_TheRegistry_ForwardsTheSopParamsLookup_AndThePaletteOffersBothOrders()
+    {
+        var registry = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+            BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, new RecordingEditService(),
+            new NullPredicateCompiler(), new EqsTemplateRegistry(), behaviourNames: () => Names,
+            behaviourParamsType: _ => "My.Ns.HostedInputs", sopParamsType: _ => "My.Ns.AuthoredDto");
+        var node = new SopOrderNode();
+        var s = (SopOrderNodeSession)registry.GetDrawerFor(node)!.CreateSession(node, Asset());
+        s.SetBehaviourForTest("Guard");
+        Assert.Equal("My.Ns.AuthoredDto", node.ParamsTypeId);
+
+        var entries = BlueprintNodePaletteEntries.All().Where(e => e.Kind is "SopDoWhenIdle" or "SopReact").ToList();
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(SopOrderKind.React, ((SopOrderNode)entries.Single(e => e.Kind == "SopReact").CreateInstance!()).Kind);
+        Assert.Equal(SopOrderKind.DoWhenIdle, ((SopOrderNode)entries.Single(e => e.Kind == "SopDoWhenIdle").CreateInstance!()).Kind);
+    }
 }

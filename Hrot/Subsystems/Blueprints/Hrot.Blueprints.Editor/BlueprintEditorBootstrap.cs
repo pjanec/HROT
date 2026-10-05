@@ -39,7 +39,8 @@ public static class BlueprintEditorBootstrap
         IComponentTypeProvider? writableComponentTypeProvider = null,
         IBlueprintPeerProvider? peerProvider = null,
         Func<IReadOnlyList<string>>? behaviourNames = null,
-        Func<string, string?>? behaviourParamsType = null)
+        Func<string, string?>? behaviourParamsType = null,
+        Func<string, string?>? sopParamsType = null)
     {
         sharedStructTypeProvider     ??= new ReflectionSharedStructTypeProvider();
         componentTypeProvider        ??= new ReflectionComponentTypeProvider();
@@ -85,6 +86,8 @@ public static class BlueprintEditorBootstrap
         registry.Register(typeof(EventEntryNode),       new EventEntryNodeDrawer(editService));
         // ⭐ S7a — the Behaviour Task's child picker, over the host's registered behaviour names.
         registry.Register(typeof(RunBehaviorNode),      new BehaviorTaskNodeDrawer(editService, behaviourNames, behaviourParamsType));
+        // ⭐ CE-2083 — the SOP order's behaviour picker; its Params pin is the behaviour's AUTHORED params type.
+        registry.Register(typeof(SopOrderNode),         new SopOrderNodeDrawer(editService, behaviourNames, sopParamsType));
         registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
 
         // BP-108: Print String / Format String -- Format (text) + Level/ResultTypeId (combo).

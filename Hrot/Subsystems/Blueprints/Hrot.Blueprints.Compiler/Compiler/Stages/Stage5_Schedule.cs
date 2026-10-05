@@ -2070,6 +2070,35 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            // ⭐ CE-2083 — SOP order: one SopActions call (DESIGN_Decision_Layer §4.10 D4); "Accepted" = it was not refused.
+            //   The Params pin (typed as the behaviour's authored params) is passed `in`; unwired ⇒ "{}" (authored defaults).
+            case SopOrderNode son:
+            {
+                var paramsPin = son.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, SopOrderNode.ParamsPin, StringComparison.OrdinalIgnoreCase));
+                var paramsLink = paramsPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == son.Id && l.ToPinId == paramsPin.Id);
+                IrValue? paramsValue = paramsLink is null ? null
+                    : ResolveNodeOutput(paramsLink.FromNodeId, paramsLink.FromPinId, stmts);
+
+                var accepted = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = accepted,
+                    Operation   = new IrOp_SopOrder(son.Kind == SopOrderKind.React, son.BehaviorName,
+                                                    (byte)son.Urgency, son.Urgency.ToString(), paramsValue),
+                    Debug       = DebugOf(son),
+                });
+                var acceptedPin = son.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, SopOrderNode.AcceptedPin, StringComparison.OrdinalIgnoreCase));
+                if (acceptedPin is not null)
+                {
+                    _pinValueCache[acceptedPin.Id]     = accepted;
+                    _statementPinCache[acceptedPin.Id] = accepted;
+                }
+                break;
+            }
+
             // ⭐ CE-472 — Send Intent: DTO from the member pins → JSON → PublishManaged(AssignTacticalIntentEvent).
             // The event shape comes from the EngineEventCatalog entry (the same one PublishEvent uses).
             case SendIntentNode sin:

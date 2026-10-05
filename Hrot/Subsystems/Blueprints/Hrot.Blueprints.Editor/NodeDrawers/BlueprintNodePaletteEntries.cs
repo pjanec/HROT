@@ -124,6 +124,13 @@ public static class BlueprintNodePaletteEntries
             "Run a behaviour (BTree, HSM or blueprint) here: wait for it (Succeeded / Failed, While Running each frame), " +
             "or wire Started to run it alongside.");
 
+        // ⭐ CE-2083 (DESIGN_Decision_Layer §4.10) — the two SOP orders: start a behaviour in the unit's task slot through the
+        //   gate, instantly (the BTree palette's "SOP" group). The behaviour is picked in the node's Details.
+        yield return MakeSop("SopDoWhenIdle", "SOP: Do when idle", SopOrderKind.DoWhenIdle,
+            "The unit's idle choice: start a behaviour unless an order or a reaction holds the task. Accepted = not refused.");
+        yield return MakeSop("SopReact", "SOP: React", SopOrderKind.React,
+            "Answer an event: start a behaviour as a reaction (it pauses the task, by urgency). Accepted = not refused.");
+
         // ── Variables ──────────────────────────────────────────────────────
         yield return Make<GetVariableNode>(
             "GetVariable", "Get Variable", Categories.Variables,
@@ -495,6 +502,17 @@ public static class BlueprintNodePaletteEntries
     /// node of type <typeparamref name="TNode"/> with a new <see cref="Node.Id"/> and empty pins
     /// (the projection hydrates pins).
     /// </summary>
+    private static NodeKindDescriptor MakeSop(string kind, string displayName, SopOrderKind order, string tooltip)
+        => new()
+        {
+            Kind        = kind,
+            DisplayName = displayName,
+            Category    = Categories.Event,
+            Tooltip     = tooltip,
+            Icon        = CategoryIcon(Categories.Event),
+            CreateInstance = () => new SopOrderNode { Id = Guid.NewGuid(), Kind = order },
+        };
+
     private static NodeKindDescriptor Make<TNode>(
         string kind, string displayName, string category, string tooltip)
         where TNode : Node, new()

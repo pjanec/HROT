@@ -116,7 +116,8 @@ namespace Fdp.Toolkit.Behavior.Translators
 
             // ── ROE (CE-2074, R-200): the unit type's default, set by nobody (Unmarked) so any order may change it ──
             if (repo.IsComponentTypeRegistered<Roe>() && !repo.HasComponent<Roe>(entity))
-                repo.AddComponent(entity, new Roe { Fire = dto.DefaultRoeFire, Reactions = dto.DefaultRoeReactions });
+                repo.AddComponent(entity, new Roe { Fire = dto.DefaultRoeFire, Reactions = dto.DefaultRoeReactions,
+                                                ReturnFireWindowSeconds = dto.DefaultRoeReturnFireWindowSeconds });
 
             // ── LocomotionChannel: all moveable entities (including tier-0 civilians
             //    driven by TrafficBrainSystem) need a locomotion channel so the system

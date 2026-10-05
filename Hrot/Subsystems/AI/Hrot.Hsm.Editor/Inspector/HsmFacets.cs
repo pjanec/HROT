@@ -65,6 +65,23 @@ public struct StateFacet
     [EditDisplayName("Subtree resolves")]
     public bool IsSubtreeResolved;
 
+    // ⭐ CE-2083 — an SOP order this state issues; it RUNS AS the activity, so leave "Activity (tick)" empty when one is set.
+    //   📄 DESIGN_Decision_Layer.md §4.10. The behaviour is picked (every registered behaviour, any tier); picking one composes
+    //   a variable of its params type (edited in the blackboard); none ⇒ the behaviour's authored defaults.
+    [EditDisplayName("SOP order")]
+    public HsmSopOrderKind SopOrder;
+
+    [EditDisplayName("SOP behaviour")]
+    [Hrot.Editor.AiShared.Inspector.AiBehaviorPicker]
+    public string? SopBehavior;
+
+    [EditReadOnly]
+    [EditDisplayName("SOP params variable")]
+    public string SopParamsVariable;
+
+    [EditDisplayName("SOP urgency (React)")]
+    public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto SopUrgency;
+
     public StateFlags Flags;
 
     [EditDisplayName("Deferred events")]
@@ -89,6 +106,14 @@ public struct StateFacet
 
     [EditReadOnly]
     public int OutgoingTransitionCount;
+}
+
+/// <summary>⭐ <c>CE-2083</c> — whether a state issues an SOP order, and which.</summary>
+public enum HsmSopOrderKind
+{
+    None = 0,
+    DoWhenIdle = 1,
+    React = 2,
 }
 
 // Inspector facet struct for a TransitionNode. Shown when a transition is selected.

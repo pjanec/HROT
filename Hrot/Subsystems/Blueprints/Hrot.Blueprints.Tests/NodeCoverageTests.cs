@@ -629,6 +629,9 @@ public sealed class NodeCoverageTests
         yield return ("Inline/RunBehavior", new[] { Hrot.Blueprints.Tests.Builders.BlueprintAssetBuilder.Behavior("CoverageRunBehaviour")
             .WithGraph("Tick", g => g.Entry().RunBehavior("CoverageAnyChild").Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build() },
             Hrot.Blueprints.Tests.Golden.GoldenCorpus.Options(), CoverageMode.FullRoslynPipeline);
+        // CE-2083: an SOP order in a behaviour (React, typed Params from a literal); CE2083_SopOrderNodeTests runs it.
+        yield return ("Inline/SopOrder", new[] { Hrot.Blueprints.Tests.Compiler.CE2083_SopOrderNodeTests.CoverageSender() },
+            Hrot.Blueprints.Tests.Golden.GoldenCorpus.Options(), CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetTime", new[] { Hrot.Blueprints.Tests.Compiler.CE470_GetTimeNodeTests.Build(TimeKind.DeltaTime) }, null, CoverageMode.FullRoslynPipeline);
         // BP-108: Print String / Format String -- both compile as pure C# (Fdp.Core.Logging.BlueprintLog +
         // Fdp.Core.FixedString32), no game-assembly deps, so this is FULL Roslyn coverage.

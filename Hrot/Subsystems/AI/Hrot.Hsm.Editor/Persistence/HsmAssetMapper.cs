@@ -65,6 +65,7 @@ public static class HsmAssetMapper
                 SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
                 SubtreeParamsVariable = s.SubtreeParamsVariable,   // CE-439
+                SopOrder       = CopySopOrder(s.SopOrder),          // CE-2083
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -255,6 +256,7 @@ public static class HsmAssetMapper
                 SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
                 SubtreeParamsVariable = sDto.SubtreeParamsVariable,   // CE-439
+                SopOrder      = CopySopOrder(sDto.SopOrder),          // CE-2083
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,
@@ -548,4 +550,12 @@ public static class HsmAssetMapper
     // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
         => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
+
+    /// <summary>⭐ <c>CE-2083</c> — a state's SOP order, copied so the model and the DTO never share one instance.</summary>
+    private static Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? CopySopOrder(Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? o)
+        => o is null ? null : new Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto
+        {
+            Kind = o.Kind, BehaviorAssetId = o.BehaviorAssetId, BehaviorName = o.BehaviorName,
+            ParamsVariable = o.ParamsVariable, Urgency = o.Urgency,
+        };
 }

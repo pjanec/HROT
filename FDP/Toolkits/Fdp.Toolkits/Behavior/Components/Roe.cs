@@ -52,11 +52,27 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Who set it last — a lower origin cannot change it (<see cref="BehaviorOriginRank"/>).
         /// <see cref="BehaviorOrigin.Unmarked"/> = the TKB default, which anything may change.</summary>
         public BehaviorOrigin SetBy;
+        /// <summary>⭐ <c>CE-2095</c> — how long after being hit (or near-missed) a <see cref="RoeFire.ReturnFire"/> unit may shoot
+        /// back, in seconds; <c>0</c> = unset ⇒ <see cref="RoeOf.DefaultReturnFireWindowSeconds"/>. Last, so the earlier fields
+        /// keep their offsets.</summary>
+        public float ReturnFireWindowSeconds;
     }
 
     /// <summary>⭐ <c>CE-2074</c> — reading a unit's ROE with the defaults applied, in one place.</summary>
     public static class RoeOf
     {
+        /// <summary>⭐ <c>CE-2095</c> — the ReturnFire window when nothing set one: the 5 s the design's own SOP example uses
+        /// (<c>DESIGN_Decision_Layer.md</c> §4.3, "was hit within 5 s"; it was <c>AimAndFireExecutor</c>'s constant).</summary>
+        public const float DefaultReturnFireWindowSeconds = 5f;
+
+        /// <summary>⭐ <c>CE-2095</c> — the unit's ReturnFire window, defaults applied.</summary>
+        public static float ReturnFireWindowSeconds(ISimulationView view, Entity unit)
+        {
+            if (!view.HasComponent<Roe>(unit)) return DefaultReturnFireWindowSeconds;
+            float w = view.GetComponentRO<Roe>(unit).ReturnFireWindowSeconds;
+            return w > 0f ? w : DefaultReturnFireWindowSeconds;
+        }
+
         /// <summary>The unit's fire rule; <see cref="RoeFire.FireAtWill"/> when it has no ROE or it is unset.</summary>
         public static RoeFire Fire(ISimulationView view, Entity unit)
         {

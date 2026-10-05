@@ -790,6 +790,15 @@ public static class HsmEmitCore
         if (onEntry  != null) parts.Add($".OnEntry({QuoteStr(namer.Name(s.OnEntry)!)})");
         if (onExit   != null) parts.Add($".OnExit({QuoteStr(namer.Name(s.OnExit)!)})");
         if (activity != null) parts.Add($".Activity({QuoteStr(namer.Name(s.Activity)!)})");
+        // ⭐ CE-2083 (§4.10 D1/D3) — an SOP order RUNS AS the state's activity, under its ActionKey (the bridge registers the
+        //   SopActions thunk there). ⛔ An order AND an activity binding is one slot with two owners: fail loud (HSM0001).
+        if (s.SopOrder != null)
+        {
+            if (activity != null || activityBp != Guid.Empty)
+                throw new InvalidOperationException(
+                    $"State '{s.Name}' carries an SOP order AND an Activity binding — the order runs as the activity; remove one.");
+            parts.Add($".Activity({QuoteStr(namer.SopOrderName(s.SopOrder, $"in state '{s.Name}'")!)})");
+        }
         // ⭐⭐⭐ CE-384 — a BLUEPRINT activity is addressed by ASSET ID and baked as an EXPLICIT id.
         //   ⛔ There is no name to emit: the thunk registers under BlueprintId = FNV-1a32(assetId),
         //   which no authorable string hashes to (§3.2), and the generated class name embeds that
@@ -884,6 +893,7 @@ public static class HsmEmitCore
             Add(namer.Name(s.OnExit));
             Add(namer.Name(s.Activity));
             Add(namer.Name(s.Timer));
+            Add(namer.SopOrderName(s.SopOrder, $"in state '{s.Name}'"));   // CE-2083
         }
         // ⭐⭐ E7b / CE-417 — the SAME naming the transition itself emits (BindingNamer). ⛔ If these two disagreed the
         //    builder would register one name and the transition would address another, which is

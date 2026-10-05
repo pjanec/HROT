@@ -93,8 +93,10 @@ public static class AiFacetPickerBinder
         else if (active?.Kind == AssetKind.Hsm
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
         {
+            var registry = services.BehaviorRegistry;
             var drawers = HsmPickerDrawerFactory.BuildDrawers(
-                hsmAsset, services.ActionSchema, services.Catalog);
+                hsmAsset, services.ActionSchema, services.Catalog,
+                registry is null ? null : () => registry.GetRegisteredNames());   // ⭐ CE-2083: the SOP behaviour picker
 
             services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at
@@ -105,7 +107,8 @@ public static class AiFacetPickerBinder
             //   so it composes no variable and the author is back to hand-mirroring a byte layout.
             services.HsmRegistrar?.NodeProperties.SetFacetDispatcher(
                 new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(
-                    hsmAsset, services.Catalog, services.ActionSchema, childInputsTypeOf));
+                    hsmAsset, services.Catalog, services.ActionSchema, childInputsTypeOf,
+                    ChildInputTypes.ParamsDtoLookup(() => services.BehaviorRegistry)));   // ⭐ CE-2083
         }
         else
         {

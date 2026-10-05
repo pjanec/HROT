@@ -97,6 +97,7 @@ public sealed class HsmValidator
         CheckSubtreeAssetCycles(asset, diagnostics);
         CheckSubtreeReferenceDangling(asset, diagnostics);
         CheckMethodAndBlueprintBothBound(asset, diagnostics);
+        CheckSopOrders(asset, diagnostics);   // CE-2083
         CheckResolverShape(asset, diagnostics);
 
         if (blackboard != null)
@@ -323,6 +324,22 @@ public sealed class HsmValidator
             $"Resolver '{r.Name}' was derived for a different blackboard than this behaviour now has. "
             + "Re-derive it, pick another resolver, or clear the binding.",
             Array.Empty<Guid>()));
+    }
+
+    /// <summary>⭐ <c>CE-2083</c> — a state's SOP order names a behaviour, and is the state's only activity (§4.10 D3).</summary>
+    private static void CheckSopOrders(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.SopOrder is not { } order) continue;
+            if (string.IsNullOrWhiteSpace(order.BehaviorName))
+                out_.Add(new HsmDiagnostic(HsmDiagnosticCode.SopOrderInvalid, HsmDiagnosticSeverity.Error,
+                    $"State '{s.Name}' issues an SOP order with no behaviour — pick one.", new[] { s.StableId }));
+            if (s.Activity is { IsEmpty: false })
+                out_.Add(new HsmDiagnostic(HsmDiagnosticCode.SopOrderInvalid, HsmDiagnosticSeverity.Error,
+                    $"State '{s.Name}' issues an SOP order AND binds an Activity — the order runs as the activity; remove one.",
+                    new[] { s.StableId }));
+        }
     }
 
     private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)

@@ -215,6 +215,8 @@ public static class DiagnosticCodes
     public const string BP1685 = "BP1685";  // a Behaviour Task's Abort driven from outside its own While Running chain (D3)
     public const string BP1686 = "BP1686";  // [retired] a Behaviour Task's Started wired — S7b (CE-2020) built it
     public const string BP1687 = "BP1687";  // S7b: a Started task's chains read a value or a graph-local of the graph that starts it
+    // ⭐ CE-2083 (DESIGN_Decision_Layer §4.10 D6) — an SOP order node that cannot issue: no behaviour, or no unit in scope.
+    public const string BP1688 = "BP1688";  // SOP order node with no behaviour, or in a Library function
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

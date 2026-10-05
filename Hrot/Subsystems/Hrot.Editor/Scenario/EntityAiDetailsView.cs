@@ -7,6 +7,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using System.Runtime.CompilerServices;
 using Hrot.Editor.AiShared.Inspector;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
@@ -29,13 +30,62 @@ public sealed class EntityAiEditModel
 
     private readonly Func<EntityRepository?> _world;
     private readonly Func<BehaviorRegistry?> _registry;
+    private readonly Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?> _blueprints;
     private BehaviorRegistry? _ingressFor;
     private BehaviorIngressSystem? _ingress;
 
-    public EntityAiEditModel(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry)
+    /// <param name="blueprints">⭐ <c>CE-2086</c> — the instance blueprints' registry, for the params rows. ⚠ Optional for
+    /// headless fixtures (no rows); ⛔ a host that has one must pass it (the silent-default rule).</param>
+    public EntityAiEditModel(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry,
+                             Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
     {
-        _world    = world    ?? throw new ArgumentNullException(nameof(world));
-        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _world      = world    ?? throw new ArgumentNullException(nameof(world));
+        _registry   = registry ?? throw new ArgumentNullException(nameof(registry));
+        _blueprints = blueprints ?? (() => null);
+    }
+
+    /// <summary>⭐ <c>CE-2086</c> — one attached instance blueprint: its params type (null = none) and params as JSON (only the
+    /// fields that differ from the declared defaults — the save's own rule; <c>"{}"</c> = all defaults).</summary>
+    public sealed record InstanceRow(int BlueprintId, string Name, Type? ParamsType, string ParamsJson);
+
+    /// <summary>⭐ <c>CE-2086</c> — the unit's attached instances, walked as the scenario save walks them (§7.6a).</summary>
+    public unsafe IReadOnlyList<InstanceRow> InstanceRows(Entity entity)
+    {
+        var rows = new List<InstanceRow>();
+        if (_world() is not { } world || _blueprints() is not { } reg || !world.IsAlive(entity)) return rows;
+        byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
+        if (memory == null || Unsafe.AsRef<Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardHeader>(memory).MagicAndVersion != 0x42504257u)
+            return rows;
+        int count = Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlotCount(memory);
+        for (int i = 0; i < count; i++)
+        {
+            ref var slot = ref Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.GetSlot(memory, i);
+            if (slot.BlueprintId == 0 || !reg.TryGetById(slot.BlueprintId, out var def) || def == null) continue;
+            string? json = def.FormatParams != null && def.ParamsSize > 0
+                ? def.FormatParams(memory + slot.PayloadOffset + def.ParamsOffset, def.ParamsSize) : null;
+            rows.Add(new InstanceRow(slot.BlueprintId, def.Name, def.ParamsClrType, json ?? "{}"));
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2086</c> (§7.6a A1) — commit an instance's params: paused ⇒ in place through the load's own
+    /// <c>BlueprintInstanceService.ApplyParams</c> (the instance keeps its state); running ⇒ a replace of the instance by
+    /// itself with the new params (a restart — its state was built from the old ones). <c>false</c> = not attached, or bad JSON.
+    /// </summary>
+    public unsafe bool ApplyInstanceParams(Entity entity, int blueprintId, string json, bool running)
+    {
+        if (_world() is not { } world || _blueprints() is not { } reg || !reg.TryGetById(blueprintId, out var def) || def == null)
+            return false;
+        if (running)
+            return PublishManaged(new Fdp.Toolkit.Blueprints.Events.ReplaceInstanceBlueprintEvent
+            {
+                Entity = entity, OldBlueprintId = blueprintId, NewBlueprintId = blueprintId, ParamsJson = Json(json),
+            });
+        byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (memory == null || !Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int off))
+            return false;
+        return Fdp.Toolkit.Blueprints.BlueprintInstanceService.ApplyParams(memory + off, def, Json(json), world, entity) == null;
     }
 
     /// <summary>What a unit runs now — names and JSON from the start records, never a hash.</summary>
@@ -159,6 +209,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     private string _taskPick = "", _sopPick = "";
     private IEditSession? _taskForm, _sopForm;
     private Type? _taskType, _sopType;
+    private readonly Dictionary<int, IEditSession> _instanceForms = new();   // CE-2086: one form per instance row
     private string _status = "";
 
     public EntityAiDetailsView(EntityAiEditModel model, Func<IComponentEditService?> editService)
@@ -173,7 +224,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     {
         if (context.Entities is not { Count: 1 }) { ImGui.TextDisabled("Select one unit."); return; }
         var entity = context.Entities[0];
-        if (entity != _entity) { _entity = entity; _taskPick = _sopPick = ""; _taskForm = _sopForm = null; _status = ""; }
+        if (entity != _entity) { _entity = entity; _taskPick = _sopPick = ""; _taskForm = _sopForm = null; _instanceForms.Clear(); _status = ""; }
         if (_model.Read(entity) is not { } now) { ImGui.TextDisabled("This entity has no brain."); return; }
         bool running = context.Mode == VariableRunState.Running;
 
@@ -206,6 +257,16 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         if (changed)
             _status = _model.ApplyRoe(entity, (RoeFire)fire, (RoeReactions)reactions, running) ? "ROE applied." : "ROE refused (a higher rank set it).";
         ImGui.TextDisabled($"Set by: {now.RoeSetBy}");
+
+        // ── instance blueprints (CE-2086, §7.6a) ────────────────────────────────────────
+        var instances = _model.InstanceRows(entity);
+        if (instances.Count > 0)
+        {
+            ImGui.Separator();
+            ImGui.TextUnformatted("Instance blueprints");
+            foreach (var row in instances) InstanceRowUi(entity, row, running);
+            ImGui.TextDisabled("Attach / detach in the Blueprint perspective; running: Apply restarts the instance with these params.");
+        }
 
         if (_status.Length > 0) ImGui.TextWrapped(_status);
         ImGui.TextDisabled(running ? "Running: changes apply next frame." : "Paused: changes apply now.");
@@ -249,6 +310,33 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         ImGui.PopID();
     }
 
+    /// <summary>⭐ <c>CE-2086</c> — one attached instance: its params in the ONE params form, committed through the model.</summary>
+    private void InstanceRowUi(Entity entity, EntityAiEditModel.InstanceRow row, bool running)
+    {
+        ImGui.PushID("bp" + row.BlueprintId);
+        ImGui.TextUnformatted(row.Name);
+        if (row.ParamsType is { } type)
+        {
+            if (!_instanceForms.TryGetValue(row.BlueprintId, out var form) && _editService() is { } svc)
+                _instanceForms[row.BlueprintId] = form = BehaviorParamsForm.Open(svc, type, row.ParamsJson);
+            if (form != null && ImGui.BeginTable("params", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+            {
+                if (form.RebuildState == EditRebuildState.RebuildRequired) form.RebuildDocument();
+                new Fdp.Presentation.Editing.ComponentEditDrawer(form, pickerCtx: null).DrawEditNode(form.Document.Root);
+                ImGui.EndTable();
+            }
+            if (form != null && ImGui.Button("Apply"))
+            {
+                string json = BehaviorParamsForm.CommitToJson(form, type);
+                _status = _model.ApplyInstanceParams(entity, row.BlueprintId, json, running)
+                    ? $"Applied {row.Name}'s params." : $"Refused: {row.Name}'s params (see the log).";
+                _instanceForms.Remove(row.BlueprintId);
+            }
+        }
+        else ImGui.TextDisabled("(no parameters)");
+        ImGui.PopID();
+    }
+
     public void Dispose() { }
 }
 
@@ -259,9 +347,10 @@ public static class EntityAiDetailsViewDescriptor
     public const int Rank = 45;
 
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry,
-                                            Func<IComponentEditService?> editService)
+                                            Func<IComponentEditService?> editService,
+                                            Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
     {
-        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry), editService);
+        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService);
         return new DetailsViewDescriptor(
             Id:        ViewId,
             Title:     "AI",

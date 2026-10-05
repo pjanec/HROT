@@ -301,7 +301,7 @@ public static class BehaviorTreeAssetMapper
         }
         if (dto is BTreeActionNodeDto sopDto && node.SopOrder is { } order)   // ⭐ CE-2079
         {
-            sopDto.SopOrder = new BTreeSopOrderPayloadDto
+            sopDto.SopOrder = new SopOrderPayloadDto
             {
                 Kind = order.Kind, BehaviorAssetId = order.BehaviorAssetId, BehaviorName = order.BehaviorName,
                 ParamsVariable = order.ParamsVariable, Urgency = order.Urgency,
