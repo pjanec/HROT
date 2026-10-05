@@ -236,26 +236,38 @@ public sealed class BTreeJsonGeneratorTests
             "topology core must NOT contain [BTreeLayout( (§6.2)");
     }
 
-    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — CombatPosture's RequireOne (1) survives the
-    /// model → DTO → model round-trip and reaches the builder call; the default (0) stays out of the JSON.</summary>
+    /// <summary>⭐ <c>CE-2073</c>: a Parallel's policy is authorable — CombatPosture's RequireOne (1) is in the shipped JSON,
+    /// survives DTO → model → DTO, and comes back when the editor projects the COMPILED tree (the compiler keeps it in
+    /// IntParams). The default (0) stays out of the JSON, so older assets are byte-identical. ⭐ The EMITTED call is pinned by
+    /// the generated-source golden (<c>CombatPosture.g.cs.txt</c>: <c>.Parallel(1, …)</c>; <c>T03_Parallel</c>: <c>Parallel(0, …)</c>) —
+    /// emitting this asset outside the generator fails on purpose (its bindings need the packed managed blackboard).</summary>
     [Fact]
     public void CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted()
     {
+        string path = null!;
+        for (var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory); d != null && path == null; d = d.Parent)
+        {
+            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Tactics", "CombatPosture.btree.json");
+            if (System.IO.File.Exists(c)) path = c;
+        }
+        path.Should().NotBeNull("the shipped CombatPosture asset must be found above the test output");
+
+        var dto = BTreeJsonServices.Deserialize(System.IO.File.ReadAllText(path))!;
+        var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
+        par.Policy.Should().Be(1, "CombatPosture is authored RequireOne");
+
+        var model = BehaviorTreeAssetMapper.FromDto(dto);
+        model.Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy.Should().Be(1, "DTO → model");
+        BehaviorTreeAssetMapper.ToDto(model).Nodes.OfType<BTreeParallelNodeDto>().Single().Policy.Should().Be(1, "model → DTO");
+
         var contributor = new BTreeAssetContributor();
         contributor.LoadFrom(BehaviorsAssembly);
-        var model = (BehaviorTreeAsset)contributor.Enumerate().Single(a => a.Name == "CombatPosture");
-        model.Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy.Should().Be(1);
-
-        var dto = BehaviorTreeAssetMapper.ToDto(model);
-        var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
-        par.Policy.Should().Be(1);
-        BehaviorTreeAssetMapper.FromDto(dto).Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel)
-            .ParallelPolicy.Should().Be(1, "the policy must survive DTO → model");
-        BTreeEmitCore.EmitTopologyCore(dto).Should().Contain("Parallel(1, ", "the builder takes the authored policy");
+        ((BehaviorTreeAsset)contributor.Enumerate().Single(a => a.Name == "CombatPosture"))
+            .Nodes.Single(n => n.KernelType == Fbt.NodeType.Parallel).ParallelPolicy
+            .Should().Be(1, "the editor's projection of the compiled tree must show the policy it runs with");
 
         par.Policy = 0;
-        BTreeEmitCore.EmitTopologyCore(dto).Should().Contain("Parallel(0, ");
-        System.Text.Json.JsonSerializer.Serialize(par).Should().NotContain("Policy", "the default is omitted, so old assets stay byte-identical");
+        System.Text.Json.JsonSerializer.Serialize(par).Should().NotContain("Policy", "the default is omitted");
     }
 
     [Fact]

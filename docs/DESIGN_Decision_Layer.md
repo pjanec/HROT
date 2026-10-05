@@ -488,7 +488,7 @@ switches to option 2 past it — the §3.2 Parallel-repeat shape, measured).
 
 Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
 
-### 3.3b `CE-2073` — CombatPosture, the build design *(behaviors, `2026-10-05`; build-state: BUILDING)*
+### 3.3b `CE-2073` — CombatPosture, the build design *(behaviors, `2026-10-05`; build-state: BUILT)*
 
 ⚠ **A HOST CHANGE, argued here and reported (lean, reversible):** §3.3 drew CombatPosture as a BLUEPRINT that spawns its two
 sensors and Starts / Aborts one hosted child per winner. Since then `CE-2069` built the utility step as shared BTree / HSM
@@ -586,7 +586,28 @@ graph TD
 | `Hold` = a NoParams shared node that stops the move it may have issued | `Action_HoldPosition` is a raw BTree action, not bindable from an asset | — |
 | the posture's two sensors are its OWN (sites `0x20730001` / `0x20730002`), and TakeCover keeps its own | `CE-2071` (SUPERSEDED reuse): every behaviour owns the sensors it needs; `OfTemplate` reads the current run's own first | sharing one sensor between scoring and moving |
 | `Parallel` gets an authorable `Policy` (DTO + emitter + editor field) | RequireAll never finishes while ChooseOption runs; the asset format could not say RequireOne | a Repeater (spins inside one tick) |
-| acceptance on a NEW recipe `tt-posture` (a copy of `tt-nav-los` with the posture as the mission task) | `tt-nav-los` is a terrain-EQS fixture other rails read | editing `tt-nav-los` in place |
+| ⛔ SUPERSEDED by the as-built below — acceptance on a NEW recipe `tt-posture` (a copy of `tt-nav-los` with the posture as the mission task) | `tt-nav-los` is a terrain-EQS fixture other rails read | editing `tt-nav-los` in place |
+
+⭐ **AS-BUILT (`2026-10-05`)** — the tree, nodes and sequence above are built as drawn. Where the build differs:
+
+| as built | where | differs from the design because |
+|---|---|---|
+| the editor's projection of a COMPILED tree also carries the policy | `BehaviorTreeAssetProjector` (`case NodeType.Parallel` ← `blob.IntParams`, as `TreeCompiler` stores it) | the design named DTO + emitter + editor field and missed this fourth reader: a tree loaded from the assembly showed RequireAll |
+| the acceptance recipe copies `tt-take-cover`, not `tt-nav-los` | `Recipes/Scenarios/tt-posture` | `tt-nav-los` is a TANK on a road net; the posture is infantry. The rifleman is TKB 2002 (armed) ordered `CombatPosture` by its `Behavior` component, with no SOP (so nothing pauses it); the hostile is TKB 1001 (no weapon mount ⇒ unarmed, `ThreatDanger` 0.3), so the weaker-enemy branch wins |
+| a `Vector3` in the params JSON is an ARRAY `[x, y, z]` | `CombatPosture.btree.json`, the recipe | the registered converter rejects the object form; a wrong form starts nothing |
+| rounds are spent on CGF | `AimAndFireExecutor` (registered in `CgfLogicPack`) decrements CGF's `WeaponState`; SimHost's copy is not the counter | — (the acceptance reads CGF's ammo) |
+
+Rails: `TacticsTreesTests.CE2073_*` (4: compiled + registered · a weak enemy ⇒ advances firing, ends at the objective · nothing
+to fight ⇒ holds, does not end · hurt with cover ⇒ switches to TakeCover; red-proved by authoring the Parallel back to
+RequireAll — the posture then never ends) · `BTreeJsonGeneratorTests.CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted` (JSON,
+mapper both ways, the compiled-tree projection; red before the projector case) · the generated-source golden
+(`CombatPosture.g.cs.txt` emits `.Parallel(1, …)`) · live: `PostureScenarioTests.CE2073_*` on `tt-posture` (posture starts,
+rounds spent, ends within the arrival radius of the objective).
+
+⚠ **Gap found, not built — `CE-2105`:** with nothing left to fight (the enemy killed or lost), `CombatPostureDecision` scores
+Advance 0 (`HaveLiveTarget` is a Step) and Hold wins; Hold stays put. ⇒ an advance whose enemy falls short of the objective
+**never reaches it and never ends**. Lean: the tree's Hold leaf becomes "move on to the objective without firing" when the
+posture was given one (the decision stays unchanged, so "hold" keeps meaning "nothing worth doing here").
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

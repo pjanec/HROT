@@ -95,13 +95,15 @@ public sealed class PostureScenarioTests : IDisposable
 
         string? Task() => cgf.HasComponent<BehaviorState>(rifleman)
                        && registry.TryGetName(cgf.GetComponent<BehaviorState>(rifleman).ActiveBehaviorHash, out var n) ? n : null;
+        // AimAndFireExecutor runs on CGF (CgfLogicPack) and spends the round from CGF's WeaponState.
+        int Ammo() => cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;
         string State()
         {
             var s = $"task={Task()} pos={Pos()} start={start}";
             if (cgf.HasComponent<TargetMemory>(rifleman)) s += $" memory={cgf.GetComponent<TargetMemory>(rifleman).Count}";
             if (cgf.HasComponent<WeaponChannel>(rifleman)) { var w = cgf.GetComponent<WeaponChannel>(rifleman); s += $" weapon action={w.ActiveAction} status={w.Status}"; }
             if (cgf.HasComponent<LocomotionChannel>(rifleman)) { var l = cgf.GetComponent<LocomotionChannel>(rifleman); s += $" loco action={l.ActiveAction} status={l.Status}"; }
-            if (sim.HasComponent<WeaponState>(simRifleman)) s += $" ammo={sim.GetComponent<WeaponState>(simRifleman).Ammo}";
+            s += $" ammo={Ammo()}";
             return s;
         }
 
@@ -111,10 +113,10 @@ public sealed class PostureScenarioTests : IDisposable
         // ② the rifleman sees the hostile, and the posture fires on it while it advances (AdvanceAndAttack drives both channels).
         Assert.True(harness.PumpUntil(() => cgf.HasComponent<TargetMemory>(rifleman) && cgf.GetComponent<TargetMemory>(rifleman).Count > 0,
             timeoutFrames: 3000), $"the rifleman must remember the hostile; {State()}");
-        bool fired = harness.PumpUntil(() => cgf.HasComponent<WeaponChannel>(rifleman) && cgf.GetComponent<WeaponChannel>(rifleman).ActiveAction != 0,
-            timeoutFrames: 3000);
+        int full = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).MaxAmmo : -1;
+        bool fired = harness.PumpUntil(() => Ammo() >= 0 && Ammo() < full, timeoutFrames: 3000);
         _out.WriteLine("on fire: " + State());
-        Assert.True(fired, $"AdvanceAndAttack must fire at the top threat; {State()}");
+        Assert.True(fired, $"AdvanceAndAttack must SPEND rounds at the top threat (magazine {full}); {State()}");
 
         // ③ it arrives, and the posture ENDS there (RequireOne: AdvanceAndAttack's Success ends the Parallel).
         bool ended = harness.PumpUntil(() => Task() != "CombatPosture", timeoutFrames: 6000);
