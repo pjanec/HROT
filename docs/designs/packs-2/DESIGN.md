@@ -3,10 +3,10 @@ state: LIVE (partly SUPERSEDED)
 updated: 2026-10-05
 current-answer: the shared Scenario Editor pack, the host UI packs and the local file operations (§1–§5.B) describe what was built.
 stale-below: ⛔ the FEATURE SWITCH — "Target B", §5.C–§5.E, the State-B sequence and IT-3 (FeatureSwitchRcuIntegrationTests) — is
-  RETIRED. 🔒 R-204, user 2026-10-05: "Editor go external us deprecated, cgf==editor is what replaces it." The code
+  RETIRED. 🔒 R-204 (backend), user 2026-10-05: "Editor go external us deprecated, cgf==editor is what replaces it." The code
   (SimHostMode, IEditorLogic.SwitchToExternal/InternalAsync, the toolbar toggle) and IT-3 were deleted by CE-3058.
   Do not quote those sections as current.
-superseded-by: docs/blueprints/RULINGS.md R-204 (for the feature switch only)
+superseded-by: docs/blueprints/RULINGS.md R-204 (backend) (for the feature switch only)
 related-designs:
   - docs/blueprints/Architect_Question_63_Unify_Subsystem_Composition.md — the subsystem-composition question that measured the switch (§8, §8.2)
 -->
@@ -78,7 +78,7 @@ All Logic Packs share a single `ModuleHostKernel` and `EntityRepository`. No Tra
 are installed. Entity commands emitted by map tools are consumed directly by local systems
 (`NetworkSpawningSystem`).
 
-**Target B — HROT Editor with Feature Switch → External** ⛔ *SUPERSEDED — retired by R-204 / CE-3058 (2026-10-05)*
+**Target B — HROT Editor with Feature Switch → External** ⛔ *SUPERSEDED — retired by R-204 (backend) / CE-3058 (2026-10-05)*
 
 At runtime the Editor hot-plugs out the `SimHost Core Logic Pack` and snaps in the network
 Translator Packs (Actuator Intents Egress + Entity States Ingress). Map tools continue emitting
@@ -517,7 +517,7 @@ Instantiate `Hrot.Editor.UI` panels (Phase 3.D) and wire them to the shared tool
 `ScenarioEditorModule`. Panel interactions publish FDP events; the local logic packs consume
 them instantly at memory-bus speed.
 
-### 5.C — Implement the Dynamic Reconfiguration (Feature Switch) ⛔ *SUPERSEDED (R-204, CE-3058) — §5.C–§5.E are history*
+### 5.C — Implement the Dynamic Reconfiguration (Feature Switch) ⛔ *SUPERSEDED (R-204 (backend), CE-3058) — §5.C–§5.E are history*
 
 Expose a configuration toggle in `EditorToolbarPanel` or application settings.
 
@@ -802,7 +802,7 @@ backwards-compatible file headers.
 | `LoadScenario_AcceptsHrotSimHostFile` | Load a file stamped `"Hrot.SimHost"` | Entities populated; no exception |
 | `LoadScenario_RejectsUnknownSubsystemType` | Load a file stamped `"UnknownApp"` | Exception/error logged; repo remains empty |
 
-#### IT-3: `FeatureSwitchRcuIntegrationTests` — RCU Topology Swap ⛔ *SUPERSEDED — suite deleted by CE-3058 (R-204)*
+#### IT-3: `FeatureSwitchRcuIntegrationTests` — RCU Topology Swap ⛔ *SUPERSEDED — suite deleted by CE-3058 (R-204 (backend))*
 
 **What it tests:** The `ModuleHostKernel` hot-plug API (Phase 5.D/5.E) correctly removes
 Logic Packs and installs Translator Packs in one atomic RCU reconfiguration, without observable

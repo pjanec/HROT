@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: DESIGN — D1, D3–D6 approved (user 2026-10-05); D2 (host) re-opened, lean BTree in §4.2; nothing built except the prerequisite fix CE-2089.
-current-answer: §4.2 for the host (BTree lean); §2 diagrams are the blueprint variant until D2 is decided; §3 claim table; §5 build plan.
-stale-below: nothing — new document.
+build-state: READY-TO-BUILD — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); nothing built except the prerequisite fix CE-2089.
+current-answer: §2 diagrams (BTree variant), §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — D1 (one "cover, fall back if overrun" loop), D3 (re-point "with an epoch bump") and D5 (extend tt-nav-los) are adjusted here, each with the measured reason (§4).
@@ -20,9 +20,10 @@ related-designs:
 
 > 🔒 **User, `2026-10-04`:** *"We will hand the eqs-using behaviors as a design and discussion task to the behavior lane."*
 
-**In one line:** two small blueprint behaviours, `TakeCoverBp` and `FallBackBp`. Each finds its own top threat, owns
-one standing EQS sensor pointed at that threat, and walks the unit to the sensor's best point through the locomotion
-channel. Whoever starts them chooses between them: a mission task, an SOP reaction, or the CombatPosture parent.
+**In one line:** two small BTree behaviours, `TakeCover` and `FallBack`, each a 3–4 node tree around ONE shared C#
+action. The action finds the unit's top threat, owns one standing EQS sensor pointed at it, and walks the unit to the
+sensor's best point through the locomotion channel. Whoever starts them chooses between them: a mission task, an SOP
+reaction, or the CombatPosture parent.
 
 ## 1. INVENTORY *(measured before designing, `2026-10-05`)*
 
@@ -48,137 +49,139 @@ available through the CLI, so the absence claims in §1 are grep-corroborated.)*
 | `MoveToOptimalCoverParams` | `Hrot.AI.Behaviors/Brains/EqsCombatNodes.cs` | the BTree move action — the blueprint uses the channel MoveTo instead (same executor) |
 | `CoverAwarePatrolEndToEndTest` | tests | an existing cover rail, not a behaviour |
 
-## 2. Diagrams
+## 2. Diagrams *(the BTree variant — D2 approved `2026-10-05`, R-204 (behaviors))*
 
-### 2.1 Classes — what exists (plain) and what is new (⭐)
+### 2.1 Classes — what exists (plain) and what is new (⭐ NEW)
 
 ```mermaid
 classDiagram
-  class TakeCoverBp {
-    <<Behavior blueprint NEW>>
-    +SearchRadius float = 60
-    +MinRepositionMetres float = 5
-    Tick() Running
+  class TakeCoverTree {
+    <<btree.json asset NEW>>
+    ObserverSelector
+    HasTarget then TakeCover
+    Idle
   }
-  class FallBackBp {
-    <<Behavior blueprint NEW>>
-    +SearchRadius float = 80
-    Tick() Success at the point
+  class FallBackTree {
+    <<btree.json asset NEW>>
+    Sequence HasTarget then FallBack
   }
-  class ScoreDecisionNode {
-    <<built-in, CE-2070>>
-    TopCandidate EntityRef
+  class EqsTacticsNodes {
+    <<SharedAiAction NEW>>
+    TakeCover(ref P, ref WS, self, world) Running
+    FallBack(ref P, ref WS, self, world) Success on arrival
+    Deactivate(ref P, ref WS, self, world) destroys the sensor
+  }
+  class EqsTacticsParams {
+    <<NEW>>
+    SearchRadius float
+    MinRepositionMetres float
+    Speed float
+    ArrivalRadius float
+    ScoreDeltaThreshold float
+  }
+  class EqsTacticsState {
+    <<NEW, working state>>
+    Sensor EqsSensorHandle
+    Threat Entity
+    Goal Vector3
+    Moving byte
+  }
+  class EqsCombatNodes {
+    Condition_HasTarget
+    MoveToOptimalCover
+  }
+  class LocomotionMoveTo {
+    <<NEW helper, factored out of MoveToOptimalCover>>
+    Issue(world, self, point, speed, radius)
+    Status(world, self) NodeStatus
+  }
+  class UtilityScorer {
+    RankCandidates(repo, self, decisionId, tick, out Entity, out score) NEW overload
   }
   class ThreatRankingDecision {
     <<starter pack>>
   }
-  class SpawnEqsSensorNode {
-    <<built-in>>
-    ContextSlot1 Entity
-    Key Entity
-    ScoreDeltaThreshold float NEW pin
-  }
-  class BlueprintWorldLibrary {
-    EntityFromRef(ref) Entity
-    RefreshEqsSensor(handle) bool
-    RetargetEqsSensor(handle, target) bool NEW
-  }
   class EqsChildSensor {
-    Ensure() find-or-create
-    Refresh(view, child, config) bool
-  }
-  class WhenEqsResult {
-    <<built-in, per answer since CE-2089>>
-    TopChanged
-  }
-  class ReadEqsResultNode {
-    Position Vector2
-    Score float
-  }
-  class ChannelCommandNode {
-    LocomotionChannel MoveTo
-  }
-  class MoveToExecutor {
-    PathToPoint
+    Ensure() find-or-create, owned by the run
+    Refresh(view, child, config) re-point
+    Destroy()
   }
   class FindCoverFromTarget
   class FindSafeRetreatPoint
-  TakeCoverBp --> ScoreDecisionNode : top threat
-  FallBackBp --> ScoreDecisionNode : top threat
-  ScoreDecisionNode --> ThreatRankingDecision
-  TakeCoverBp --> SpawnEqsSensorNode : one sensor
-  FallBackBp --> SpawnEqsSensorNode : one sensor
-  TakeCoverBp --> BlueprintWorldLibrary : re-point
-  BlueprintWorldLibrary --> EqsChildSensor
-  SpawnEqsSensorNode --> EqsChildSensor
-  SpawnEqsSensorNode ..> FindCoverFromTarget : template
-  SpawnEqsSensorNode ..> FindSafeRetreatPoint : template
-  TakeCoverBp --> WhenEqsResult
-  TakeCoverBp --> ReadEqsResultNode
-  TakeCoverBp --> ChannelCommandNode
-  FallBackBp --> ChannelCommandNode
-  ChannelCommandNode --> MoveToExecutor
+  TakeCoverTree --> EqsCombatNodes : HasTarget
+  TakeCoverTree --> EqsTacticsNodes : TakeCover
+  FallBackTree --> EqsTacticsNodes : FallBack
+  EqsTacticsNodes --> EqsTacticsParams
+  EqsTacticsNodes --> EqsTacticsState
+  EqsTacticsNodes --> UtilityScorer : top threat
+  UtilityScorer --> ThreatRankingDecision
+  EqsTacticsNodes --> EqsChildSensor
+  EqsChildSensor ..> FindCoverFromTarget : TakeCover
+  EqsChildSensor ..> FindSafeRetreatPoint : FallBack
+  EqsTacticsNodes --> LocomotionMoveTo
+  EqsCombatNodes --> LocomotionMoveTo : MoveToOptimalCover routed through it
 ```
 
-*What the picture shows that prose hid: the only new C# is ONE callable and ONE pin. Everything else is an existing node
-wired in a blueprint, so there is no second cover mechanism (frame fence 2).*
+*What the picture shows that prose hid: the only new C# is one node class (two actions + one deactivator), one helper
+that MoveToOptimalCover is routed through (one channel-MoveTo write, not two), and an overload of the existing scorer
+that returns the threat as an entity. The trees are 3–4 nodes; the tunables are the params a designer edits.*
 
-### 2.2 Sequence — `TakeCoverBp`, from start to a moving threat
+### 2.2 Sequence — `TakeCover`, from start to a moving threat
 
 ```mermaid
 sequenceDiagram
-    participant BP as TakeCoverBp tick
-    participant SD as ScoreDecision ThreatRanking
+    participant T as TakeCover node tick
+    participant U as UtilityScorer ThreatRanking
     participant S as Cover sensor child
     participant M as Muscle EqsSolverSystem 10 Hz
     participant L as LocomotionChannel
-    BP->>SD: rank the unit's TargetMemory contacts
-    SD-->>BP: TopCandidate, then Entity From Ref
-    BP->>S: SpawnEqsSensor FindCoverFromTarget, slot1 = threat, ScoreDelta
-    M-->>S: answer, cover points hidden from slot1
-    BP->>S: When TopChanged, first answer
-    BP->>L: MoveTo top Position
-    Note over BP,L: the unit walks, the sensor keeps answering
+    T->>U: RankCandidates over TargetMemory
+    U-->>T: top threat entity
+    T->>S: Ensure FindCoverFromTarget, slot1 = threat, ScoreDelta
+    M-->>S: answer, points hidden from slot1
+    T->>S: read the top, answer is new
+    T->>L: Issue MoveTo top, Goal = top
+    Note over T,L: the unit walks, the sensor keeps answering
     M-->>S: new answer, top moved
-    BP->>BP: farther than MinRepositionMetres from the current goal
-    BP->>L: MoveTo the new top
-    SD-->>BP: a different top threat
-    BP->>S: Retarget EQS Sensor, slot1 = new threat
+    T->>T: top farther than MinRepositionMetres from Goal
+    T->>L: Issue MoveTo new top
+    U-->>T: a different top threat
+    T->>S: Refresh with slot1 = new threat, new epoch
     M-->>S: answer for the new threat
-    BP->>L: MoveTo the new top
+    T->>L: Issue MoveTo new top
 ```
 
-*What the picture shows that the frame's prose hid: a threat change and a better point are two different arrows. The
-first re-points the sensor (new epoch); the second is only a new answer under the same epoch. Before `CE-2089` the
-second arrow never reached the blueprint.*
+*What the picture shows that prose hid: a threat change and a better point are two different arrows. The first re-points
+the sensor (new epoch, buffer emptied); the second is only a new answer under the same epoch, recognised by the
+buffer's `LastUpdateTick` (the same per-answer stamp CE-2089 gave the blueprint `When`).*
 
 ### 2.3 Modules — who registers each system, who ticks it each frame
 
 ```mermaid
 graph TD
   subgraph Brain["Brain node (editor, CGF)"]
-    BTS["BrainTickSystem<br/>ticks the Behavior blueprint"]
+    BTS["BrainTickSystem<br/>ticks the BTree, which calls TakeCover"]
     UPD["EqsResultUpdateSystem<br/>writes the answer + LastUpdateTick"]
     LOC["LocomotionDispatcherSystem<br/>ActionDispatchModule"]
   end
   subgraph Muscle["Muscle (EqsModule, 10 Hz, async)"]
     SOL["EqsSolverSystem<br/>every non-suspended sensor, by band"]
   end
-  BTS -->|SpawnEqsSensor / Retarget| SENS["EqsSensor child<br/>replicated Brain to Muscle"]
+  BTS -->|Ensure / Refresh| SENS["EqsSensor child<br/>replicated Brain to Muscle"]
   SENS --> SOL
   SOL -->|EqsResultEvent| UPD
   UPD --> BUF["EqsCognitiveBuffer"]
-  BUF -->|When / ReadEqsResult| BTS
-  BTS -->|ChannelCommand MoveTo| LOC
+  BUF -->|read top| BTS
+  BTS -->|MoveTo| LOC
   LOC --> NAV["NavigationIntent PathToPoint"]
   HIDE["HideInCover_BT / _v2"]:::dead
   HIDE -.->|"no scenario runs it"| BTS
   classDef dead stroke:#c00,stroke-dasharray: 4 3
 ```
 
-*What the picture shows that prose hid: nothing new is scheduled. The blueprint runs inside the brain tick it already
-has, and the solver is the one the EQS slice registered on every host (EQS §17.3, §19.4). In red: the BTree versions
-that exist but are never ticked; they stay out of this plan.*
+*What the picture shows that prose hid: nothing new is scheduled. The tree runs inside the brain tick it already has,
+and the solver is the one the EQS slice registered on every host (EQS §17.3, §19.4). In red: the older C#-built BTree
+versions that are never ticked; they are left as they are (no rush removals) and named superseded-by this design.*
 
 ## 3. Claim table
 
@@ -196,6 +199,11 @@ that exist but are never ticked; they stay out of this plan.*
 | ⛔ `SendIntent(MoveToLocation)` to SELF would replace the running behaviour | ✅ it publishes `AssignTacticalIntentEvent` (`Nodes.cs:1182`) | ✅ Decision Layer §4: one task slot, a new assignment replaces |
 | the top threat can be read in a blueprint today | ✅ `ScoreDecision` `TopCandidate` (`BuiltInNodeRegistry.cs:340`) over `ThreatRankingDecision`, then `Entity From Ref` (`BlueprintWorldLibrary.cs:47`) | ✅ Decision Layer §3.3 (CE-2070) |
 | ⛔ a Rifleman (TKB 200) fills `TargetMemory` / `SensorContactList` on a live run | ⛔ **not measured** — it has `SensorRange = 500` (`BdcTkbCatalog.cs:174`) | — ⇒ **build step 1 measures it** (if empty, perception for infantry is a backend request; the design does not change) |
+| a BTree asset binds a stateful shared action: params variable + a working-state variable | ✅ `T35_SharedWorkingState.btree.json` (`ExpressionTargetField` + `WorkingStateTargetField`); delegate `SharedNodeBinder.cs:20`, paired stateful deactivator `:33` | ✅ CE-504 C-2 |
+| the threat ranking is callable from C#, keyed by the decision's asset id | ✅ `UtilityScorer.RankCandidates` (`UtilityScorer.cs:181`), `UtilityDecisionCatalog.ComputeId(assetId)` (`:144`), `ThreatRankingDecision` asset id `1a4f7c20-…threat0000001` | ✅ Decision Layer §3.3 (CE-2067) |
+| ⚠ `RankCandidates` returns an `EntityRef`, which is `None` for an entity with no network id (an all-in-one world) | ✅ `UtilityScorer.cs:176-179,195` | ✅ CE-2067 as-built note ⇒ the action needs the ENTITY: a new overload returns it, and the `EntityRef` one is routed through it (one ranking) |
+| the template id a C# caller puts in `EqsSensor.BlueprintId` | ✅ `FindCoverFromTarget.BlueprintId` const (`FindCoverFromTarget.cs:23`), the retreat template's in `StarterTemplates.cs` | ✅ EQS §19.6, CE-2034 |
+| the channel MoveTo write already exists, once | ✅ `EqsCombatNodes.cs:80-120` (bumps `ActionInstanceId`, writes `MoveToParams`) | ✅ frame fence 3 ⇒ factored into one helper, not copied |
 | the acceptance check already exists | ✅ `EqsDistributedTests.cs:449-457`: threat eye = `Mount(threat).Standing`, aim = point + `Mount(self).Crouched`, `SegmentBlocked` | ✅ frame acceptance ③ |
 
 ## 4. Decisions — leans for the user
@@ -278,12 +286,159 @@ optional blueprint round-out, not a prerequisite.*
 composing small BTree actions that pass the threat between nodes — a node binds one variable plus one working state
 (`CE-2069`'s measurement), so the threat would need a shared variable per tree.
 
-## 5. Build plan *(after approval)*
+### 4.3 Approved — the BTree host *(`2026-10-05`, R-204 (behaviors))*
+
+🔒 **User:** *"BTree with C# actions approved."* ⇒ what moves in §4's table:
+
+| row | as first written (blueprint) | ⭐ now |
+|---|---|---|
+| D2 | Behavior blueprint | BTree assets around shared C# actions (§4.2) |
+| D3 | `ScoreDecision` → `Entity From Ref`, re-point by a new callable | the action calls `UtilityScorer.RankCandidates` (new overload returning the `Entity`) and re-points with `EqsChildSensor.Refresh(view, child, config)` |
+| D4 | a new `ScoreDeltaThreshold` pin; move on `When TopChanged` | the action sets `ScoreDelta` + the threshold from its params, and re-moves when a NEW answer (`LastUpdateTick` changed) has a top ≥ `MinRepositionMetres` from the goal |
+| D6 | `TakeCoverBp` / `FallBackBp` | the `TakeCover` / `FallBack` trees |
+
+## 5. Build plan *(approved `2026-10-05`)*
 
 | id | what | rails |
 |---|---|---|
-| `CE-2090` | callable `Retarget EQS Sensor(handle, target)` in `BlueprintWorldLibrary` | the sensor's slot 1 and epoch change; a dead handle → false |
-| `CE-2091` | `SpawnEqsSensor` pin `ScoreDeltaThreshold` (last In pin) | lowering rail: the config carries it; a legacy asset without it still loads |
-| `CE-2092` | `TakeCoverBp` (+ measure step 1: infantry contacts on a live run) | blueprint runtime rails: moves to the top; re-moves only past 5 m; re-points on a new threat |
-| `CE-2093` | `FallBackBp` | moves to the retreat top, Success on arrival |
+| `CE-2092` | `EqsTacticsNodes.TakeCover` + its params / state + deactivator; `LocomotionMoveTo` helper (`MoveToOptimalCover` routed through it); `RankCandidates` Entity overload (the `EntityRef` one routed through it); the `TakeCover` tree. Step 1 also measures that infantry fills `TargetMemory` on a live run | direct-call rails: no threat ⇒ Failure; first answer ⇒ MoveTo the top; a new answer < 5 m away ⇒ no new move, ≥ 5 m ⇒ a new move; a new threat ⇒ slot 1 re-pointed + epoch bumped; abort ⇒ the sensor is destroyed |
+| `CE-2093` | `EqsTacticsNodes.FallBack` + the `FallBack` tree | moves to the retreat top once; Success when the channel reports arrival |
 | `CE-2094` | `scenarios/tt-take-cover` + the hidden check on the editor and `--mode all` (D5), then the SOP swap (D6) | the `SegmentBlocked` assertion, as `EqsDistributedTests` |
+| `CE-2090`, `CE-2091` | ⛔ no longer on this path — a blueprint EQS round-out (re-point callable, `ScoreDeltaThreshold` pin), unscheduled | — |
+
+## ⛔ HISTORY
+
+### The blueprint variant's diagrams *(SUPERSEDED `2026-10-05` by §2 — D2 = BTree, R-204 (behaviors); kept for the comparison in §4.2)*
+
+#### (was §2) Diagrams — blueprint variant
+
+#### 2.1 Classes — what exists (plain) and what is new (⭐)
+
+```mermaid
+classDiagram
+  class TakeCoverBp {
+    <<Behavior blueprint NEW>>
+    +SearchRadius float = 60
+    +MinRepositionMetres float = 5
+    Tick() Running
+  }
+  class FallBackBp {
+    <<Behavior blueprint NEW>>
+    +SearchRadius float = 80
+    Tick() Success at the point
+  }
+  class ScoreDecisionNode {
+    <<built-in, CE-2070>>
+    TopCandidate EntityRef
+  }
+  class ThreatRankingDecision {
+    <<starter pack>>
+  }
+  class SpawnEqsSensorNode {
+    <<built-in>>
+    ContextSlot1 Entity
+    Key Entity
+    ScoreDeltaThreshold float NEW pin
+  }
+  class BlueprintWorldLibrary {
+    EntityFromRef(ref) Entity
+    RefreshEqsSensor(handle) bool
+    RetargetEqsSensor(handle, target) bool NEW
+  }
+  class EqsChildSensor {
+    Ensure() find-or-create
+    Refresh(view, child, config) bool
+  }
+  class WhenEqsResult {
+    <<built-in, per answer since CE-2089>>
+    TopChanged
+  }
+  class ReadEqsResultNode {
+    Position Vector2
+    Score float
+  }
+  class ChannelCommandNode {
+    LocomotionChannel MoveTo
+  }
+  class MoveToExecutor {
+    PathToPoint
+  }
+  class FindCoverFromTarget
+  class FindSafeRetreatPoint
+  TakeCoverBp --> ScoreDecisionNode : top threat
+  FallBackBp --> ScoreDecisionNode : top threat
+  ScoreDecisionNode --> ThreatRankingDecision
+  TakeCoverBp --> SpawnEqsSensorNode : one sensor
+  FallBackBp --> SpawnEqsSensorNode : one sensor
+  TakeCoverBp --> BlueprintWorldLibrary : re-point
+  BlueprintWorldLibrary --> EqsChildSensor
+  SpawnEqsSensorNode --> EqsChildSensor
+  SpawnEqsSensorNode ..> FindCoverFromTarget : template
+  SpawnEqsSensorNode ..> FindSafeRetreatPoint : template
+  TakeCoverBp --> WhenEqsResult
+  TakeCoverBp --> ReadEqsResultNode
+  TakeCoverBp --> ChannelCommandNode
+  FallBackBp --> ChannelCommandNode
+  ChannelCommandNode --> MoveToExecutor
+```
+
+*What the picture shows that prose hid: the only new C# is ONE callable and ONE pin. Everything else is an existing node
+wired in a blueprint, so there is no second cover mechanism (frame fence 2).*
+
+#### 2.2 Sequence — `TakeCoverBp`, from start to a moving threat
+
+```mermaid
+sequenceDiagram
+    participant BP as TakeCoverBp tick
+    participant SD as ScoreDecision ThreatRanking
+    participant S as Cover sensor child
+    participant M as Muscle EqsSolverSystem 10 Hz
+    participant L as LocomotionChannel
+    BP->>SD: rank the unit's TargetMemory contacts
+    SD-->>BP: TopCandidate, then Entity From Ref
+    BP->>S: SpawnEqsSensor FindCoverFromTarget, slot1 = threat, ScoreDelta
+    M-->>S: answer, cover points hidden from slot1
+    BP->>S: When TopChanged, first answer
+    BP->>L: MoveTo top Position
+    Note over BP,L: the unit walks, the sensor keeps answering
+    M-->>S: new answer, top moved
+    BP->>BP: farther than MinRepositionMetres from the current goal
+    BP->>L: MoveTo the new top
+    SD-->>BP: a different top threat
+    BP->>S: Retarget EQS Sensor, slot1 = new threat
+    M-->>S: answer for the new threat
+    BP->>L: MoveTo the new top
+```
+
+*What the picture shows that the frame's prose hid: a threat change and a better point are two different arrows. The
+first re-points the sensor (new epoch); the second is only a new answer under the same epoch. Before `CE-2089` the
+second arrow never reached the blueprint.*
+
+#### 2.3 Modules — who registers each system, who ticks it each frame
+
+```mermaid
+graph TD
+  subgraph Brain["Brain node (editor, CGF)"]
+    BTS["BrainTickSystem<br/>ticks the Behavior blueprint"]
+    UPD["EqsResultUpdateSystem<br/>writes the answer + LastUpdateTick"]
+    LOC["LocomotionDispatcherSystem<br/>ActionDispatchModule"]
+  end
+  subgraph Muscle["Muscle (EqsModule, 10 Hz, async)"]
+    SOL["EqsSolverSystem<br/>every non-suspended sensor, by band"]
+  end
+  BTS -->|SpawnEqsSensor / Retarget| SENS["EqsSensor child<br/>replicated Brain to Muscle"]
+  SENS --> SOL
+  SOL -->|EqsResultEvent| UPD
+  UPD --> BUF["EqsCognitiveBuffer"]
+  BUF -->|When / ReadEqsResult| BTS
+  BTS -->|ChannelCommand MoveTo| LOC
+  LOC --> NAV["NavigationIntent PathToPoint"]
+  HIDE["HideInCover_BT / _v2"]:::dead
+  HIDE -.->|"no scenario runs it"| BTS
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+```
+
+*What the picture shows that prose hid: nothing new is scheduled. The blueprint runs inside the brain tick it already
+has, and the solver is the one the EQS slice registered on every host (EQS §17.3, §19.4). In red: the BTree versions
+that exist but are never ticked; they stay out of this plan.*
+
