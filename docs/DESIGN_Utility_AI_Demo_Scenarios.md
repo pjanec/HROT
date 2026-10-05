@@ -513,9 +513,9 @@ plan-only branch writes it, `:117`); no production code allocates a Brain handle
 navig-2 principle 3 intends the BRAIN to allocate (*"it allocates a nonzero int handle, sends it via NavigationIntent"*),
 lower range for Brains, upper for the solver.
 
-| ⭐ lean **B4** — the Brain allocates the handle (navig-2 principle 3, designed, not built) | rejected |
+| ⭐ lean **B4′** — the solver reports the handle it planned under, for a MOVE too *(revised `2026-10-05` after the user: "what prevents the navigation solver to return path handle back? what benefit … in same frame as the move? analyzing danger areas can take multiple frames, similarly to path finding")* | rejected |
 |---|---|
-| `MoveToExecutor` allocates a Brain handle when the behaviour gave none, sends it on `NavigationIntent` (the solver already echoes it), and keeps it on the Brain — the danger query (and any later path query) then names it in the SAME frame as the move. The Brain range carries the Brain's node id (no two Brain nodes collide in one solver's pool). The query is solved on the node that planned the route | the solver reports its own handle back on `NavigationStatus` — one line, but the Brain learns it only after the path is planned and uses the solver's private range, which §6.3 keeps Muscle-private |
+| the move branch of `PathfindingResultMaterializationSystem` writes `NavigationStatus.RouteHandle` as the plan-only branch already does (`:117`); the field is already on the wire (`NavigationStatusEgressTranslator.cs:113`). The Brain issues the danger query once its status shows a handle — the query needs the planned path anyway, so nothing is lost by waiting. A Brain-allocated handle (navig-2 §6.3) is echoed by the solver and works with the same query | **B4** (the Brain must allocate, so it can name the route in the same frame) — no benefit: the analysis waits for the plan either way. ⚠ My first objection — "the solver's range is Muscle-private" — was wrong: navig-2 (`:644`) only says the solver allocates when the Brain gives none, not that the handle may not be reported |
 
 | rejected | the one fact |
 |---|---|
