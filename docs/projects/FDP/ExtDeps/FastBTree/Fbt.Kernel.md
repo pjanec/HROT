@@ -921,8 +921,9 @@ Console.WriteLine(dump);
 | Parallel(1)        | Success if   | All simultaneously | Bitfield in Reg[3]       |
 | RequireOne         | one succeeds | Fail if all fail   |                          |
 +--------------------+--------------+--------------------+--------------------------+
-| ObserverSelector   | Same as      | Same as Selector   | Same as Selector         |
-|                    | Selector     |                    | (abort logic TBD)        |
+| ObserverSelector   | Same as      | Same as Selector;  | Higher branches' guards  |
+|                    | Selector     | aborts a running   | re-checked each tick     |
+|                    |              | lower branch       | (CE-3041, see Sensors §7.3a) |
 +--------------------+--------------+--------------------+--------------------------+
 ```
 

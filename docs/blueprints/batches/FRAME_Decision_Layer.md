@@ -33,7 +33,7 @@ the unit senses, missions that end users can still edit simply, and an order cha
 | `CE-3034` | `Origin` on assign / clear / intent events + the ONE gate in `BehaviorIngressSystem` (`Operator > Superior > Doctrine`, `Self` keeps origin, unmarked = Operator) | R-188, R-193 |
 | `CE-3035` | the doctrine = a SECOND behaviour slot, any tier, same runners; re-keys of §7.2; replace / clear a doctrine at runtime (§7.4); a faulted doctrine stays stopped | R-189, R-193 |
 | `CE-3040` | `SensorChangedEvent` → HSM events through the MobilityLost bridge (§7.3) — ⚠ the PRODUCER side sits in `EqsResultUpdateSystem` / `ThreatEvaluationSystem`; coordinate with backend | design §7.3 |
-| `CE-3041` | `ObserverSelector` actually aborts the running lower branch (documented, never built — `Interpreter.cs:267`) | design §7.3 |
+| `CE-3041` | ✅ BUILT `2026-10-05` — `ObserverSelector` aborts the running lower branch when a higher branch's guard passes | design §7.3a |
 | `CE-3047` | the TKB default behaviour throws (params) or never runs (HSM) — defaults start through the ingress | measured, §9 V5 |
 | `CE-3048` | a Brain-authority hand-over leaves the unit brain-dead — publish each slot's `{Name, Params, Origin}` for the new owner | measured, §9 V7 |
 | `CE-3042` | the scenario snapshot of a unit's AI (`{Name, Params JSON, Origin}` per slot, only ≠ TKB) — shares its shape with `CE-3048` | R-192 |

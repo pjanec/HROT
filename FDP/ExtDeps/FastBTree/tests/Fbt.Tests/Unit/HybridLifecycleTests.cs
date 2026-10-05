@@ -550,5 +550,154 @@ namespace Fbt.Tests.Unit
             // (d) No double-fire from post-tick sweep.
             Assert.Equal(1, deactivationCount);
         }
-    }
+    
+        // ================================================================
+        // CE-3041 -- ObserverSelector aborts a running LOWER branch when a HIGHER
+        // branch's guard (its leading Condition) passes. The design's L-02 / L-06
+        // cases (DEBT D-05: "cannot be exercised" until this was built).
+        // DESIGN_Sensors_And_Doctrine.md §7.3a.
+        // ================================================================
+
+        private static NodeStatus Threat(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p)
+            => bb.Priority ? NodeStatus.Success : NodeStatus.Failure;
+
+        private static void OnExit(BTreeBuilder<TestBlackboard, MockContext> builder, BehaviorTreeBlob blob, int node, Action fired)
+            => builder.GetRegistry().RegisterDeactivator(blob.MethodNames[blob.Nodes[node].PayloadIndex],
+                (ref TestBlackboard bb, ref BehaviorTreeState st, ref MockContext ctx, int p) => fired());
+
+        [Fact]
+        public void CE3041_L02_AGuardTurningTrue_AbortsTheRunningLowerBranch()
+        {
+            int moveExits = 0, coverCalls = 0;
+            NodeStatus Cover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) { coverCalls++; return NodeStatus.Running; }
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            // ObserverSelector(0) -> Sequence(1) -> Threat(2), Cover(3); Move(4)
+            builder.ObserverSelector(o => o.Sequence(q => q.Condition(Threat).Action(Cover)).Action(Move));
+            var blob = builder.Compile("CE3041a");
+            OnExit(builder, blob, 4, () => moveExits++);
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041a"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(4, state.RunningNodeIndex);                                   // moving
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(4, state.RunningNodeIndex);                                   // no threat: still moving
+
+            bb.Priority = true;                                                         // a threat appears
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(3, state.RunningNodeIndex);                                   // switched to cover THIS tick
+            Assert.Equal(1, coverCalls);
+            Assert.Equal(1, moveExits);                                                 // the move was swept
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(1, moveExits);                                                 // swept once
+        }
+
+        [Fact]
+        public void CE3041_L06_TheAbortedLeafDeepInASequence_IsSweptOnce()
+        {
+            int moveExits = 0;
+            NodeStatus Prepare(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Success;
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus Cover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Success;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            // ObserverSelector(0) -> Sequence(1) -> Threat(2), Cover(3); Sequence(4) -> Prepare(5), Move(6)
+            builder.ObserverSelector(o => o
+                .Sequence(q => q.Condition(Threat).Action(Cover))
+                .Sequence(q => q.Action(Prepare).Action(Move)));
+            var blob = builder.Compile("CE3041b");
+            OnExit(builder, blob, 6, () => moveExits++);
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041b"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            bb.Priority = true;
+            Assert.Equal(NodeStatus.Success, interpreter.Tick(ref bb, ref state, ref ctx)); // the higher branch completed
+            Assert.Equal(1, moveExits);
+            Assert.Equal(0, state.RunningNodeIndex);
+        }
+
+        [Fact]
+        public void CE3041_AHigherBranchThatCannotTakeOver_AbortsNothing_TheLowerResumes()
+        {
+            int moveExits = 0, prepareCalls = 0, coverCalls = 0;
+            NodeStatus Prepare(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) { prepareCalls++; return NodeStatus.Success; }
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus NoCover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) { coverCalls++; return NodeStatus.Failure; }
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            builder.ObserverSelector(o => o
+                .Sequence(q => q.Condition(Threat).Action(NoCover))
+                .Sequence(q => q.Action(Prepare).Action(Move)));
+            var blob = builder.Compile("CE3041c");
+            OnExit(builder, blob, 6, () => moveExits++);
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041c"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            bb.Priority = true;
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(1, coverCalls);                                                // it was tried
+            Assert.Equal(6, state.RunningNodeIndex);                                   // the move resumed
+            Assert.Equal(1, prepareCalls);                                              // ...without re-running Prepare
+            Assert.Equal(0, moveExits);
+        }
+
+        [Fact]
+        public void CE3041_AnUnguardedHigherBranch_IsNotObserved_NoActionRunsSpeculatively()
+        {
+            int tryCalls = 0;
+            NodeStatus TryFirst(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) { tryCalls++; return NodeStatus.Failure; }
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            builder.ObserverSelector(o => o.Sequence(q => q.Action(TryFirst).Condition(Threat)).Action(Move));
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041d"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(1, tryCalls);                                                  // tried once, on entry only
+        }
+
+        [Fact]
+        public void CE3041_AnInvertedGuard_IsObserved()
+        {
+            NodeStatus Cover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            // "when NOT safe": Sequence(Inverter(Threat-as-safe), Cover)
+            builder.ObserverSelector(o => o.Sequence(q => q.Inverter(i => i.Condition(Threat)).Action(Cover)).Action(Move));
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041e"), builder.GetRegistry());
+            var bb = new TestBlackboard { Priority = true }; var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(5, state.RunningNodeIndex);                                   // "safe" ⇒ moving
+            bb.Priority = false;
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(4, state.RunningNodeIndex);                                   // not safe ⇒ cover
+        }
+
+        [Fact]
+        public void CE3041_APlainSelector_StillDoesNotReCheck()
+        {
+            NodeStatus Cover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            builder.Selector(o => o.Sequence(q => q.Condition(Threat).Action(Cover)).Action(Move));
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE3041f"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            bb.Priority = true;
+            interpreter.Tick(ref bb, ref state, ref ctx);
+            Assert.Equal(4, state.RunningNodeIndex);                                   // committed to the move
+        }
+}
 }

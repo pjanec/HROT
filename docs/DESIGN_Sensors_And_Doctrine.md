@@ -585,7 +585,7 @@ classDiagram
 ```
 
 ⭐ **As-built `2026-10-04` (S6 backend half, `CE-3039`, §9.5):** the producers, the event and the catalog entry are BUILT;
-`HsmRunner`'s bridge (`CE-3040`) and `ObserverSelector` (`CE-3041`) are not. ⚠ **Deviation:** *Acquired / Lost* come
+`HsmRunner`'s bridge (`CE-3040`) is not; `ObserverSelector` (`CE-3041`) is BUILT `2026-10-05` (§7.3a). ⚠ **Deviation:** *Acquired / Lost* come
 from `ActiveSensorTracksUpdateSystem` (it holds the unit's track set), not from `EqsResultUpdateSystem` as first drawn —
 the buffer writer sees one sensor's answer, not the unit's union.
 
@@ -607,6 +607,63 @@ condition would have to remember the previous state itself, in every condition t
 ⛔ **Rejected:** events only (a BTree has no event entry, and "while threatened" needs polling anyway) · polling only
 (every HSM transition a polled guard, every condition re-deriving edges) · one event type per sensor kind (the `Kind`
 field covers it).
+
+### 7.3a `ObserverSelector` — the BTree's abort *(`CE-3041`, build-state: BUILT `2026-10-05`)*
+
+⭐ Owning records: `Fbt.Kernel.md:269` (*"Selector with abort-on-priority-change"*), the deactivator design's
+L-02 / L-06 cases (`docs/designs/ai-btree-deactivator-1/Btree-deactivator-DESIGN.md` §1.5) and its debt row D-05
+(`.dev/_DONE/ai-btree-deactivator-1/DEBT-TRACKER.md`: *"Higher-priority condition re-evaluation on each tick is NOT
+implemented"*), the editor's `ObserverGuardBadgeRenderer` (it badges an ObserverSelector's **Condition** children as
+OBSERVED). This section builds those; it adds no new concept.
+
+```mermaid
+sequenceDiagram
+  participant T as Interpreter.Tick
+  participant O as ExecuteObserverSelector
+  participant G as TryEvaluateGuard
+  participant H as higher branch
+  participant L as running lower branch
+  participant S as SweepExitedNodes
+  T->>O: ExecuteNode (cursor inside this node)
+  loop each HIGHER child (its subtree ends at or before the cursor)
+    O->>G: leading Condition (Sequence first child / Inverter child)
+    alt no guard
+      G-->>O: not observed: skip, as a plain selector does
+    else guard passes
+      O->>H: ExecuteNode fresh (cursor = 0)
+      alt Running or Success
+        H-->>O: takes over: return it
+      else Failure
+        O->>O: restore the cursor: the lower branch resumes
+      end
+    end
+  end
+  O->>L: ExecuteNode (resume)
+  T->>S: old cursor not in the new path, so the deactivator fires
+```
+
+*What the picture shows that the prose hid:* the abort is not a new mechanism. It is the ordinary exit sweep firing
+because the cursor moved. Only **Conditions** are evaluated speculatively; an Action runs only once its branch has
+been chosen.
+
+| rule | why |
+|---|---|
+| the guard is the branch's **leading Condition**: the branch itself, a Sequence's first child, or an Inverter's child (inverted) | the badge renderer already defines *observed* as a Condition child. A Sequence-led-by-Condition is the idiom (`AI-Behavior-Authoring.md:1192`) |
+| an **unguarded** higher branch is not observed | re-running an Action every tick to see whether it would succeed has side effects (an Action may publish an order). D-05's *"start from child 0 every tick"* is rejected for that reason |
+| a passing guard whose branch then **fails** aborts nothing; the lower branch **resumes** (Sequence progress kept) | a branch that cannot take over must not cost the running one its progress |
+| nothing running inside the node means it **is** a plain selector | first entry has no lower branch to abort |
+
+⛔ **Rejected:** re-run every higher branch fully (D-05's wording): speculative Actions. · Abort as soon as the
+guard passes, even if the branch then fails: the lower branch would restart and lose its progress for nothing.
+· An event-driven abort: a BTree ticks every frame, so polling a guard costs one call (§7.3 table).
+
+⚠ **Known limit (pre-existing, not widened):** composites share one register set (`Parallel` uses
+`LocalRegisters[3]`). A higher branch that contains a `Parallel` and fails after its guard passed can reset a running
+lower `Parallel`'s bits. No corpus tree has that shape (measured: the three ObserverSelector assets
+`CombatShowcase`, `BTreeRenderShowcase` and `T06_ObserverSelector` have no Parallel under them).
+
+Rails: `HybridLifecycleTests.CE3041_*` (6): L-02 abort and sweep, L-06 deep leaf, resume when the branch cannot take
+over, unguarded branch not re-run, inverted guard, a plain Selector still commits.
 
 ### 7.4 Replacing a doctrine at runtime
 

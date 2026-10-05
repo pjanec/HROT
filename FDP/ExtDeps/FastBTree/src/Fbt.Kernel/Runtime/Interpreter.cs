@@ -265,8 +265,7 @@ namespace Fbt.Runtime
                 case NodeType.UntilFailure:
                     return ExecuteUntilFailure(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.ObserverSelector:
-                    // ObserverSelector uses standard selector semantics in the interpreter.
-                    return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                    return ExecuteObserverSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.Subtree:
                     return ExecuteSubtree(nodeIndex, ref bb, ref state, ref ctx);
                 default:
@@ -692,6 +691,123 @@ namespace Fbt.Runtime
             }
 
             return NodeStatus.Failure;
+        }
+
+        /// <summary>
+        /// CE-3041 -- the priority-abort selector (<c>Fbt.Kernel.md</c>: "Selector with abort-on-priority-change").
+        /// 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.3a.
+        ///
+        /// <para>
+        /// While a LOWER branch runs, each tick re-checks the GUARD of every HIGHER branch (the branch's leading
+        /// Condition -- see <see cref="TryEvaluateGuard"/>). A guard that passes runs its branch fresh; if that
+        /// branch takes over (Running or Success) the lower branch is abandoned and the post-tick sweep fires its
+        /// deactivator, exactly as any other exit. If the higher branch FAILS anyway, the lower branch resumes where
+        /// it was -- a branch that cannot take over aborts nothing.
+        /// </para>
+        /// <para>
+        /// Only guards are evaluated speculatively: a higher branch with no leading Condition is not observed (it
+        /// behaves as in a plain selector), so no Action ever runs just to find out whether it would succeed.
+        /// With nothing running inside this node it IS a plain selector.
+        /// </para>
+        /// </summary>
+        private NodeStatus ExecuteObserverSelector(
+            int nodeIndex,
+            ref NodeDefinition node,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            ushort running = state.RunningNodeIndex;
+            bool runningInside = running > nodeIndex && running < nodeIndex + node.SubtreeOffset;
+            if (!runningInside)
+                return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
+
+            int childCount = node.ChildCount;
+            int currentChildIndex = nodeIndex + 1;
+
+            for (int i = 0; i < childCount; i++)
+            {
+                ref var childNode = ref _blob.Nodes[currentChildIndex];
+                int childEnd = currentChildIndex + childNode.SubtreeOffset;
+
+                if (running >= childEnd)
+                {
+                    // A HIGHER branch than the running one: observed through its guard.
+                    if (TryEvaluateGuard(currentChildIndex, ref bb, ref state, ref ctx, out bool passes) && passes)
+                    {
+                        state.RunningNodeIndex = 0;                          // run the higher branch fresh
+                        var taken = ExecuteNode(currentChildIndex, ref bb, ref state, ref ctx);
+                        if (taken != NodeStatus.Failure)
+                            return taken;                                    // the lower branch is abandoned
+                        state.RunningNodeIndex = running;                    // it could not take over: resume
+                    }
+                    currentChildIndex = childEnd;
+                    continue;
+                }
+
+                var status = ExecuteNode(currentChildIndex, ref bb, ref state, ref ctx);
+                if (status != NodeStatus.Failure)
+                    return status;
+                currentChildIndex = childEnd;
+            }
+
+            return NodeStatus.Failure;
+        }
+
+        /// <summary>
+        /// CE-3041 -- a branch's GUARD: the Condition it starts with. A Condition is its own guard; a Sequence's guard
+        /// is its first child's; an Inverter's is its child's, inverted (Running stays Running). Anything else has no
+        /// guard and the method returns false. A guard passes only on Success. The running cursor is left exactly as
+        /// it was found.
+        /// </summary>
+        private bool TryEvaluateGuard(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx,
+            out bool passes)
+        {
+            bool observed = TryEvaluateGuardStatus(nodeIndex, ref bb, ref state, ref ctx, out var status);
+            passes = observed && status == NodeStatus.Success;
+            return observed;
+        }
+
+        private bool TryEvaluateGuardStatus(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx,
+            out NodeStatus status)
+        {
+            ref var node = ref _blob.Nodes[nodeIndex];
+            switch (node.Type)
+            {
+                case NodeType.Condition:
+                {
+                    ushort saved = state.RunningNodeIndex;
+                    status = ExecuteAction(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                    state.RunningNodeIndex = saved;
+                    return true;
+                }
+                case NodeType.Sequence when node.ChildCount > 0:
+                    return TryEvaluateGuardStatus(nodeIndex + 1, ref bb, ref state, ref ctx, out status);
+                case NodeType.Inverter:
+                    if (!TryEvaluateGuardStatus(nodeIndex + 1, ref bb, ref state, ref ctx, out var inner))
+                    {
+                        status = NodeStatus.Failure;
+                        return false;
+                    }
+                    status = inner switch
+                    {
+                        NodeStatus.Success => NodeStatus.Failure,
+                        NodeStatus.Failure => NodeStatus.Success,
+                        _ => inner,
+                    };
+                    return true;
+                default:
+                    status = NodeStatus.Failure;
+                    return false;
+            }
         }
 
         private NodeStatus ExecuteAction(
