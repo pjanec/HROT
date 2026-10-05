@@ -304,6 +304,47 @@ namespace Fdp.ModuleHost.Tests
                 $"Expected <=10 zombie threads, found {zombieThreads}");
         }
 
+        /// <summary>
+        /// ⭐ CE-3066 — a run that TIMES OUT but keeps executing must never have a second run of the same module beside it
+        /// (they share the module's state — measured: NullReferenceException in ColliderIndex.Build every frame), and its
+        /// view must not go back to the pool under it (measured: AccessViolation in EntityIndex.IsAlive). Once it really
+        /// ends, the module runs again.
+        /// </summary>
+        [Fact(Timeout = 15000)]
+        public async Task Resilience_ASlowRunThatTimedOut_IsNeverOverlapped_AndTheModuleRunsAgainAfterIt_CE3066()
+        {
+            int running = 0, maxRunning = 0, finished = 0;
+            var slow = new TestModule
+            {
+                Name = "SlowModule",
+                TickAction = (view, dt) =>
+                {
+                    int now = Interlocked.Increment(ref running);
+                    int seen;
+                    while (now > (seen = Volatile.Read(ref maxRunning)) && Interlocked.CompareExchange(ref maxRunning, now, seen) != seen) { }
+                    Thread.Sleep(300);
+                    Interlocked.Decrement(ref running);
+                    Interlocked.Increment(ref finished);
+                },
+                MaxExpectedRuntimeMs = 50,
+                FailureThreshold = 1000,          // keep the circuit closed: this rail is about overlap, not the breaker
+            };
+
+            using var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
+            kernel.RegisterModule(slow);
+            kernel.InitializeForTest();
+
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 2000)
+            {
+                kernel.Update(0.016f);
+                await Task.Delay(10);
+            }
+
+            Assert.Equal(1, Volatile.Read(ref maxRunning));
+            Assert.True(Volatile.Read(ref finished) >= 3, $"the module must run again after each abandoned run ends (finished {finished})");
+        }
+
         [Fact(Timeout = 5000)]
         public async Task Resilience_ModuleCrashesAndTimesOut_OnlyCountsOnce()
         {

@@ -582,8 +582,9 @@ namespace Fdp.ModuleHost
             {
                 var drainingEntry = _drainingModules[i];
 
-                bool taskDone = drainingEntry.CurrentTask == null
-                             || drainingEntry.CurrentTask.IsCompleted;
+                bool taskDone = (drainingEntry.CurrentTask == null
+                             || drainingEntry.CurrentTask.IsCompleted)
+                             && ReleaseFinishedZombie(drainingEntry);   // CE-3066 — never dispose under a running zombie
 
                 if (taskDone)
                 {
@@ -635,6 +636,20 @@ namespace Fdp.ModuleHost
                 // If still running, let it continue (accumulating time for next run)
                 if (entry.CurrentTask != null)
                 {
+                    continue;
+                }
+
+                // ⭐ CE-3066 — never a second run beside an abandoned one: they share the module's state. ⚠ A run that is
+                //   DUE but blocked by the zombie counts as a failure, so a module that hangs for good still opens its
+                //   circuit (it used to, by timing out over and over) instead of reading as one old timeout.
+                if (!ReleaseFinishedZombie(entry))
+                {
+                    if (ShouldRunThisFrame(entry))
+                    {
+                        entry.CircuitBreaker?.RecordFailure("StillRunning");
+                        entry.FramesSinceLastRun = 0;   // once per scheduling period, like the timed-out run it replaces
+                    }
+                    else entry.FramesSinceLastRun++;
                     continue;
                 }
                 
@@ -876,6 +891,9 @@ namespace Fdp.ModuleHost
                     $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}' timed out after {timeout}ms. " +
                     $"Task abandoned (may continue running in background as zombie).");
                 
+ // ⭐ CE-3066 — remember it: HarvestEntry parks the view with it, and the module is not re-run until it ends.
+                entry.ZombieTask = tickTask;
+
                 // Prevent unobserved task exception if the zombie task eventually faults
                 _ = tickTask.ContinueWith(t => 
                 {
@@ -886,6 +904,21 @@ namespace Fdp.ModuleHost
 
         private void HarvestEntry(ModuleEntry entry)
         {
+            // ⭐ CE-3066 — the run timed out and is STILL executing: do not play back the buffers it is writing, and do not
+            //   release the view it is reading. Park both with the zombie; ReleaseFinishedZombie ends them.
+            //   🔴 Measured before: the view went back to the pool under the running zombie (AccessViolation in
+            //   EntityIndex.IsAlive from VisionBroadphase.Rebuild) and the next run started beside it on shared module state
+            //   (NullReferenceException in ColliderIndex.Build, every frame).
+            if (entry.ZombieTask != null && entry.ZombieView == null && !entry.ZombieTask.IsCompleted)
+            {
+                entry.ZombieView     = entry.LeasedView;
+                entry.ZombieProvider = entry.LeasedProvider;
+                entry.LeasedView     = null;
+                entry.LeasedProvider = null;
+                entry.CurrentTask    = null;
+                return;
+            }
+
             // 1. Playback commands
             PlaybackCommands(entry);
             
@@ -908,6 +941,30 @@ namespace Fdp.ModuleHost
             
             // 4. Cleanup
             entry.CurrentTask = null;
+            if (entry.ZombieTask != null && entry.ZombieView == null) entry.ZombieTask = null;   // it finished inside the harvest
+        }
+
+        /// <summary>
+        /// ⭐ CE-3066 — once an abandoned run has really ended: DISCARD what it wrote (its answers are for a snapshot several
+        /// frames old, and it was declared failed) and give its view back to the provider that issued it. Returns true when
+        /// the module may run again.
+        /// </summary>
+        private static bool ReleaseFinishedZombie(ModuleEntry entry)
+        {
+            if (entry.ZombieTask == null) return true;
+            if (!entry.ZombieTask.IsCompleted) return false;
+
+            if (entry.ZombieView is EntityRepository repo && repo._perThreadCommandBuffer != null)
+                foreach (var cmdBuffer in repo._perThreadCommandBuffer.Values)
+                    cmdBuffer.Clear();
+            if (entry.ZombieView != null) entry.ZombieProvider?.ReleaseView(entry.ZombieView);
+
+            Console.Error.WriteLine(
+                $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}': the abandoned run has ended; its output was discarded.");
+            entry.ZombieTask     = null;
+            entry.ZombieView     = null;
+            entry.ZombieProvider = null;
+            return true;
         }
 
         /// <summary>
@@ -1883,6 +1940,13 @@ namespace Fdp.ModuleHost
             
             // Async State (NEW - for World C)
             public Task? CurrentTask { get; set; }
+
+            /// <summary>⭐ CE-3066 — a run that TIMED OUT and was abandoned but is still executing: it keeps reading its view and
+            /// writing its command buffers and the module's own state. While it lives the module is NOT re-dispatched and its
+            /// view is NOT released (the pool would recycle a snapshot the run is still reading).</summary>
+            public Task? ZombieTask { get; set; }
+            public ISimulationView? ZombieView { get; set; }
+            public ISnapshotProvider? ZombieProvider { get; set; }
             public ISimulationView? LeasedView { get; set; }
 
             /// <summary>
