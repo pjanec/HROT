@@ -3,6 +3,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Xunit;
 
@@ -115,6 +116,42 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var senses = world.GetComponent<RecentSenses>(e);
             Assert.False(senses.Within(SensorChange.Hit, 5.0, now: senses.Hit + 6.0));   // too long ago
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// 🔴 <c>CE-2104</c> — "alerted" is derived: a HEARD contact in the memory makes the unit in contact; the memory
+        /// emptying ends it, unless the linger keeps it on for N s after <c>AllClear</c>.
+        /// </summary>
+        [Fact]
+        public void CE2104_InContact_FollowsTheMemory_AndLingersAfterAllClear()
+        {
+            var world = World();
+            if (!world.IsComponentTypeRegistered<TargetMemory>()) world.RegisterComponent<TargetMemory>();
+            var sys = new RecentSensesSystem();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new TargetMemory());
+            var now = new GlobalTime { TotalTime = 100.0 };
+            world.SetSingleton(now);
+            var noLinger = new SopContactParams();
+            var linger = new SopContactParams { LingerSeconds = 30f };
+
+            Assert.False(SopConditions.InContact(ref noLinger, e, world));                // relaxed: nothing remembered
+
+            ref var mem = ref world.GetComponentRW<TargetMemory>(e);
+            TargetMemory.HearContact(ref mem, 0f, 50f, 0f, 8f, sourceClass: 1, scoreBoost: 5f, tick: 1);
+            Assert.True(SopConditions.InContact(ref noLinger, e, world));                 // a heard shot ⇒ in contact
+
+            TargetMemory.Forget(ref world.GetComponentRW<TargetMemory>(e), 0);            // it faded …
+            world.Bus.Publish(new SensorChangedEvent { Unit = e, What = SensorChange.AllClear });   // … ⇒ AllClear
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.False(SopConditions.InContact(ref noLinger, e, world));                // no linger: ends with the contact
+            Assert.True(SopConditions.InContact(ref linger, e, world));                   // linger: still alerted …
+
+            now.TotalTime += 31.0;
+            world.SetSingleton(now);
+            Assert.False(SopConditions.InContact(ref linger, e, world));                  // … until 30 s after AllClear
             world.Dispose();
         }
     }
