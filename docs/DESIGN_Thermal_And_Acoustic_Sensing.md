@@ -332,6 +332,21 @@ occlusion" claims (Engine Guide §12.2, `Fdp.Toolkits.md`) and the NED / network
 ⚠ So §3's `BUF` box and §5.1's `B` participant read "the emitter's own sound state". Rails: `SoundEmissionSystemTests` (3),
 `EqsModuleTests.S7_TheAcousticSensor_HearsAnonymousEstimates_NotIdentities_CE3062`, `AudioTargetDetectedEgressTranslatorTests` (3, new shape).
 
+⭐ **As-built `CE-3063` SENSOR HALF (`2026-10-05`, backend; the memory half waits for `CE-3054` B–D per K4)** — the coarse
+source class of §6.1a K3, end to end up to the Brain:
+- **TKB:** `SoundSourceClass` (`Unknown 0 · Footsteps · WheeledEngine · TrackedEngine · SmallArms · HeavyWeapon · Explosion`, in
+  `SignaturesDto.cs`); `AcousticSignatureDto` gains `MovingClass`, `FiringClass`, `DetonationClass` (unset ⇒ `Explosion`).
+  ⚠ **Deviation from K3's "the weapon for its shot":** the firing class is per ENTITY TYPE, not per weapon mount — a tank's coax
+  reads as its main gun. ⇒ follow-up when a mixed-weapon platform needs it (a per-mount class on `WeaponMountDto`, looked up by
+  `WeaponFireNotification.WeaponIndex`).
+- **Emitter → answer → event → wire:** `AcousticEmitter.{Moving,Firing,Detonation}Class` (stamped by `SignatureTkbTranslator`);
+  the generator writes the class in answer flag bits 10–12 (`AcousticPerception.ClassShift/ClassMask`); the memory stage copies it
+  into `SoundContactEvent.SourceClass`; DDS `AudioTargetDetected.SourceClass`, both translators carry it. `Unknown` is compatible
+  with every class when the memory merges (the memory half's rule).
+- Rails: `SoundEmissionSystemTests.TheTkbAuthorsTheSourceClass_AndADetonationDefaultsToAnExplosion_CE3063`; the S7 acoustic rail
+  asserts the class; `AudioTargetDetectedEgressTranslatorTests` asserts it crosses the wire.
+- ⚠ **Finding:** no shipped TKB data authors `SignaturesDto` yet (searched the repo for `AcousticSignatureDto` / `MovingAudibleRange`:
+  code and tests only) ⇒ in every shipped scenario units are silent and cold until their types get signatures.
 
 | row | slice | depends on |
 |---|---|---|

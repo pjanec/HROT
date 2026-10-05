@@ -62,6 +62,7 @@ namespace Hrot.Network.NED.SimHost
                     OriginZ          = evt.Z,
                     Radius           = evt.Radius,
                     Kind             = evt.Kind,
+                    SourceClass      = evt.SourceClass,
                 });
                 SentSampleCount++;
             }

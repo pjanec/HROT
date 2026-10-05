@@ -1115,6 +1115,8 @@ namespace Hrot.SimHost.Tests
             {
                 MovingAudibleRange = 150f, FiringAudibleRange = 60f,   // movement carries 150 m, its shots only 60 m
                 CurrentMovingRange = 150f, ShotTimeLeft = 0.3f, ShotX = 10f, ShotY = 90f,
+                MovingClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine,   // CE-3063
+                FiringClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon,
             });
 
             var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
@@ -1127,6 +1129,8 @@ namespace Hrot.SimHost.Tests
             var one = Assert.Single(heard);                                   // the movement — the shot does not carry 80 m
             Assert.Equal(unit, one.Observer);
             Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Movement, one.Kind);
+            // ⭐ CE-3063 (R-207) — it sounds like a tracked engine: a class, never an identity.
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine, one.SourceClass);
             Assert.InRange(one.Radius, 7.9f, 8.1f);                            // 0.1 × ~80 m
             Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(10f, 90f)) <= one.Radius + 0.01f,
                 "the estimate lies inside the uncertainty radius of the truth");

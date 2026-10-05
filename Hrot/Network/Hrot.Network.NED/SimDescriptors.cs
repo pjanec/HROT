@@ -409,6 +409,8 @@ namespace Hrot.NED.Descriptors
         public float Radius;
         /// <summary>What was heard (<c>SoundKind</c>: 1 movement, 2 shot, 3 detonation).</summary>
         public byte  Kind;
+        /// <summary>⭐ CE-3063 (R-207) — what it sounded like (<c>SoundSourceClass</c>), never the source's identity.</summary>
+        public byte  SourceClass;
     }
 
 }

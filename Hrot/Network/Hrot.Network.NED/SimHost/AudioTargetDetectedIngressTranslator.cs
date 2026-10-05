@@ -45,7 +45,7 @@ namespace Hrot.Network.NED.SimHost
                 if (!_entityMap.TryGetEntity(data.ListenerEntityId, out var listener) || !view.IsAlive(listener)) continue;
                 cmd.PublishEvent(new SoundContactEvent
                 {
-                    Observer = listener, X = data.OriginX, Y = data.OriginY, Z = data.OriginZ, Radius = data.Radius, Kind = data.Kind,
+                    Observer = listener, X = data.OriginX, Y = data.OriginY, Z = data.OriginZ, Radius = data.Radius, Kind = data.Kind, SourceClass = data.SourceClass,
                 });
             }
         }
