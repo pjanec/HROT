@@ -46,9 +46,11 @@ public sealed class TerrainResidency
         internal DateTime           FileTimestamp;
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
+        /// <summary>⭐ <c>CE-3075</c> — the scenario names NO terrain while one is resident: the commit unloads it.</summary>
+        internal string? UnloadResident;
 
         /// <summary>⭐ True when this staged result would actually change residency.</summary>
-        public bool HasWork => Definition != null;
+        public bool HasWork => Definition != null || UnloadResident != null;
 
         /// <summary>The terrain this staged result is for, or <c>null</c> when there was nothing to do.</summary>
         public string? Name => TerrainName;
@@ -129,9 +131,18 @@ public sealed class TerrainResidency
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
-            _lastLoadedTerrainName = null;
+            // ⭐⭐ CE-3075 — 🔒 user, 2026-10-05: "unload terrain when scenario names none. The terrain only stays
+            //   untouched if scenario load requests same terrain as already loaded." A terrain-less scenario used to
+            //   INHERIT the previous one (measured: hill-attack-close after test-town — its platoon outside test-town's
+            //   bounds, the mission halted). The unload itself is ECS work, so it happens at the commit.
+            if (_lastLoadedTerrainName != null)
+            {
+                FdpLog<TerrainResidency>.Info(
+                    "[Terrain] Scenario names no terrain — '{0}' is resident and will be unloaded.", _lastLoadedTerrainName);
+                return new Staged { UnloadResident = _lastLoadedTerrainName };
+            }
             FdpLog<TerrainResidency>.Info(
-                "[Terrain] Scenario names no terrain — nothing to load. This is legal.");
+                "[Terrain] Scenario names no terrain and none is resident — nothing to do. This is legal.");
             return new Staged();
         }
 
@@ -220,6 +231,12 @@ public sealed class TerrainResidency
     {
         if (staged == null || !staged.HasWork) return;
 
+        if (staged.UnloadResident != null)
+        {
+            Unload(world);   // CE-3075 — a scenario that names no terrain gets none
+            return;
+        }
+
         if (world == null)
         {
             // A no-ECS host still participates; it simply has nowhere to publish.
@@ -301,17 +318,16 @@ public sealed class TerrainResidency
     }
 
     /// <summary>
-    /// ⛔⛔ <b>DELIBERATELY UNWIRED.</b> Nothing calls this, by design — 🔒 the user asked for the
-    /// capability to exist for a future <i>"clean low-memory standby mode without restarting"</i> the
-    /// hosts, and explicitly did not ask for it to be used yet.
+    /// ⭐⭐ <b>Releases the resident terrain.</b> ⚠ SUPERSEDED `2026-10-05` (<c>CE-3075</c>): this was deliberately unwired,
+    /// kept for a future standby mode; 🔒 the user has since ruled that a scenario naming NO terrain unloads the
+    /// resident one, so <see cref="Commit"/> calls it on that path. A scenario naming a DIFFERENT terrain still replaces
+    /// residency through <see cref="Commit"/> without unloading first (that would drop the graph a background solver may
+    /// still be inside, for no benefit); only the SAME terrain is left untouched.
     ///
-    /// <para>⚠ It is a real implementation rather than a stub, so that the first caller does not have to
-    /// discover what unloading means: the singleton goes, the holder retires its graph (freeing it once the
-    /// last background reader releases), and the idempotency cache is cleared so a later load re-ingests.</para>
-    ///
-    /// <para>⛔ <b>Do not wire this into the load path.</b> A load already replaces residency through
-    /// <see cref="Commit"/>; unloading first would drop the graph a background solver may still be inside,
-    /// for no benefit.</para>
+    /// <para>What unloading means: the terrain definition singleton is cleared (so a save does not stamp the old name),
+    /// the world becomes an EMPTY one (flat ground — readers keep a valid model), the cover database and the navmesh are
+    /// emptied, the holder retires its road graph (freeing it once the last background reader releases), and the
+    /// idempotency cache is cleared so a later load re-ingests.</para>
     /// </summary>
     public void Unload(EntityRepository? world)
     {
@@ -320,6 +336,8 @@ public sealed class TerrainResidency
 
         if (world != null && world.HasSingleton<ZoneEnvironmentData>())
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
+        if (world != null && world.HasSingletonManaged<TerrainDefinition>())
+            world.SetSingletonManaged<TerrainDefinition>(null!);   // CE-3075 — no terrain: a save must not stamp the old name
         if (world != null && world.HasSingletonManaged<TerrainWorld>())
             world.SetSingletonManaged(new TerrainWorld());
         if (world != null && world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>())
@@ -330,7 +348,7 @@ public sealed class TerrainResidency
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
 
-        FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released (standby).");
+        FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
 
     /// <summary>

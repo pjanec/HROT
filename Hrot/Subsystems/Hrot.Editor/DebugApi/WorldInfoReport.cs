@@ -35,7 +35,8 @@ namespace Hrot.Editor.DebugApi
                 ["colliderGrid"] = GridJson(Fdp.Toolkit.Terrain.TerrainGridCoverage.ColliderGrid(terrain),
                                             global::CarKinem.Spatial.SpatialHashConstants.GridWidth,
                                             global::CarKinem.Spatial.SpatialHashConstants.GridHeight),
-                ["terrain"] = terrain == null ? JsonValue.Create<object?>(null) : new JsonObject
+                // ⭐ CE-3075 — an unloaded terrain leaves an EMPTY, unnamed world (flat ground): report it as no terrain.
+                ["terrain"] = terrain == null || string.IsNullOrEmpty(terrain.Name) ? JsonValue.Create<object?>(null) : new JsonObject
                 {
                     ["name"]      = terrain.Name,
                     ["bounds"]    = new JsonObject

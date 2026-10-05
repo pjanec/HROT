@@ -12,7 +12,7 @@ related-designs:
     built from the prisms (TerrainCoverProvider, published by TerrainResidency.Commit), ground placement of sampled points.
   - docs/blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — the WHY and the approved decisions T1–T10; THIS doc is the WHAT.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT a terrain asset is (named, JSON definition §2.1e), zones, and the asset build for static obstacles (§2.1c); this doc fills the content its §7 postponed.
-  - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract; §5 here makes the world part universal.
+  - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract; §5 here makes the world part universal. §10 there (CE-3075, 2026-10-05) owns what a scenario naming NO terrain does: the resident terrain is UNLOADED (an empty TerrainWorld = flat ground); only the SAME name stays untouched.
   - docs/DESIGN_Node_Roles_And_Policies.md — owns the role→data table (§3.2) that the world now joins for every role.
   - docs/designs/navig-2/Navigation_Design_v2_0.md — owns INavmeshProvider, per-layer navmesh and "the solver lives on the Muscle"; W7 flips its coordinate contract to Z-up.
   - docs/DESIGN_Subsystem_Composition_Unification.md — owns CE-210 (the 3-D LOS seam, §4.1ab), which §3/§4.3 here builds, and B5 (role composition).

@@ -8,8 +8,8 @@ Brain, perspective "Scenario") with GET /entities/{id}/utility, and exits 0 on P
     python3 scripts/utility-demo-check.py ua-posture
     python3 scripts/utility-demo-check.py --launch ua-threat-ranking   # starts and stops its own fresh cluster
 
-Several scenarios may run in one cluster process (CE-295 fixed); the script verifies the loaded cast. ⚠ CE-3075: a
-scenario naming no terrain keeps the previous terrain — use --launch for those.
+Several scenarios may run in one cluster process (CE-295 fixed; CE-3075: a scenario naming no terrain unloads the
+previous one); the script verifies the loaded cast.
 
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
@@ -72,7 +72,7 @@ def load(name):
 
 
 def launch(port):
-    """Start a fresh ClusterRunner --mode all (CE-295: one live load per process); returns the process."""
+    """Start a fresh ClusterRunner --mode all for this run; returns the process."""
     if not os.path.exists(RUNNER):
         sys.exit(f"build it first: dotnet build Hrot/Runner/Hrot.ClusterRunner ({RUNNER} missing)")
     log = open(os.path.join("/tmp", f"utility-demo-cluster-{port}.log"), "w")

@@ -315,6 +315,82 @@ public sealed class TerrainLoadStepTests : IDisposable
             world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()).Points);
     }
 
+    // ── what a scenario's terrain does to the resident one (CE-3075) ──────────────────────────
+
+    /// <summary>A v2 terrain folder with one 10 m building at the origin; its name is the folder name.</summary>
+    private void WriteBlockTerrain(string name)
+    {
+        var folder = Path.Combine(_terrainDir, name);
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "terrain.json"),
+            """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3075</c> — 🔒 user, <c>2026-10-05</c>: <i>"unload terrain when scenario names none."</i> A scenario that
+    /// names no terrain, loaded over one that did, used to INHERIT it (measured live: <c>hill-attack-close</c> after
+    /// <c>test-town</c> ran on test-town). Now the commit leaves no terrain: no definition, an empty unnamed world, no
+    /// cover — and a later load of the same terrain re-ingests.
+    /// </summary>
+    [Fact]
+    public void AScenarioNamingNoTerrain_UnloadsTheResidentOne_CE3075()
+    {
+        WriteBlockTerrain("blocks");
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        residency.Commit(world, residency.Prepare("blocks"));
+        Assert.Equal("blocks", TerrainDefinition.ResidentName(world));
+
+        var staged = residency.Prepare(null);
+        Assert.True(staged.HasWork);                                    // ⛔ was: nothing to do ⇒ the old terrain stayed
+        Assert.Equal("blocks", TerrainDefinition.ResidentName(world));  // ⭐ prepare touches no ECS
+        residency.Commit(world, staged);
+
+        Assert.Null(TerrainDefinition.ResidentName(world));
+        Assert.Null(world.GetSingletonManaged<TerrainDefinition>());
+        var tw = world.GetSingletonManaged<TerrainWorld>()!;
+        Assert.True(string.IsNullOrEmpty(tw.Name));
+        Assert.Empty(tw.Prisms);
+        Assert.Equal(0f, tw.SurfaceZ(5, 5, 0f));                         // flat ground where the building stood
+        Assert.Empty(Assert.IsType<Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider>(
+            world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()).Points);
+
+        // Nothing resident any more ⇒ a second terrain-less load has nothing to do, and the same terrain loads again.
+        Assert.False(residency.Prepare(null).HasWork);
+        residency.Commit(world, residency.Prepare("blocks"));
+        Assert.Equal("blocks", TerrainDefinition.ResidentName(world));
+        Assert.Single(world.GetSingletonManaged<TerrainWorld>()!.Prisms);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3075</c> — the other two halves of the same rule: 🔒 <i>"the terrain only stays untouched if scenario load
+    /// requests same terrain as already loaded"</i>; a DIFFERENT terrain replaces it.
+    /// </summary>
+    [Fact]
+    public void TheSameTerrainStaysUntouched_ADifferentOneReplacesIt_CE3075()
+    {
+        WriteBlockTerrain("blocks");
+        WriteBlockTerrain("other");
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        residency.Commit(world, residency.Prepare("blocks"));
+        var first = world.GetSingletonManaged<TerrainWorld>();
+
+        Assert.False(residency.Prepare("blocks").HasWork);              // same ⇒ untouched
+        Assert.Same(first, world.GetSingletonManaged<TerrainWorld>());
+
+        residency.Commit(world, residency.Prepare("other"));            // different ⇒ replaced
+        Assert.Equal("other", TerrainDefinition.ResidentName(world));
+        Assert.NotSame(first, world.GetSingletonManaged<TerrainWorld>());
+    }
+
     [Fact]
     public void ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection()
     {

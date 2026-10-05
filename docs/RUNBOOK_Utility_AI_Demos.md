@@ -22,9 +22,8 @@ python3 scripts/utility-demo-check.py --launch ua-posture             # ⭐ star
 ```
 
 ⭐ **Several scenarios in one cluster process work since `CE-295` (`2026-10-05`)** — a load from Live or Edit unloads
-first. The script still verifies the loaded cast against the scenario file. ⚠ **`CE-3075`:** a scenario that names NO
-terrain (the `hill-attack*` set) inherits the previous scenario's terrain — run those on a fresh cluster (`--launch`).
-To watch a run by hand instead:
+first, and since `CE-3075` a scenario that names NO terrain (the `hill-attack*` set) unloads the previous one. The
+script still verifies the loaded cast against the scenario file. To watch a run by hand instead:
 
 ```bash
 HROT_DEBUG_API_PORT=8111 setsid nohup xvfb-run -a dotnet Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll --mode all > /tmp/cluster.log 2>&1 & disown
@@ -36,7 +35,6 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 |---|---|
 | `127.0.0.1` | every route 404s — the listener binds the `localhost` HOSTNAME (HTTP runbook §2) |
 | a proxy | the script never uses one; with `curl` pass `--noproxy '*'` |
-| a terrain-less scenario after a terrain one | ⚠ keeps the old terrain (`CE-3075`) — use a fresh cluster (`--launch`) |
 | network ids | a load renumbers entities (the Rifleman is `1000`, not the scenario's `7101`) — the script finds them by NAME via `GET /entities` |
 | stopping | `pgrep -f 'ClusterRunner[.]dll'`, then `kill` the ids in a SEPARATE command — `pkill -f` matches its own shell |
 | a scenario not found | only folders under `scenarios/` are seeded in `--mode all`; the `tt-*` recipes are seeded by the editor only |
