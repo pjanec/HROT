@@ -175,8 +175,10 @@ public sealed class WhenNodeEqsLoweringTests
     }
 
     [Fact]
-    public void Lower_EqsResult_TopChanged_EpochGated()
+    public void Lower_EqsResult_TopChanged_AnswerGated()
     {
+        // ⭐ CE-2089 — gated per ANSWER (buffer.LastUpdateTick), no longer per sensor epoch: a standing sensor's
+        //   new answers keep their epoch. 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.9.
         var nodeId  = Guid.NewGuid();
         var whenNode = MakeEqsResultNode(nodeId, EqsTrigger.TopChanged, "CoverQuery");
         var asset   = BuildAsset(whenNode, sensorVar: MakeSensorVar());
@@ -184,7 +186,8 @@ public sealed class WhenNodeEqsLoweringTests
         var src = Compile(asset);
 
         Assert.NotNull(src);
-        Assert.Contains("sensor.Epoch != prev.LastEvaluatedEpoch", src);
+        Assert.Contains("buffer.LastUpdateTick != prev.LastEvaluatedEpoch", src);
+        Assert.DoesNotContain("sensor.Epoch", src);
     }
 
     [Fact]

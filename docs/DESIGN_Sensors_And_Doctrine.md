@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-04
+updated: 2026-10-05
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
@@ -1075,6 +1075,48 @@ mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and t
 
 ⚠ **What would change the lean:** if the backend wants `ThreatScores` to keep a danger meaning, A flips to "add a
 `Freshness` field", which costs a memory-layout change on every node and a scenario-format change.
+
+### 7.9 A blueprint `When` on an EQS result compares once per ANSWER — `CE-2089` *(build-state: BUILT `2026-10-05`)*
+
+```mermaid
+sequenceDiagram
+    participant Brain
+    participant Solver as EqsSolverSystem
+    participant Upd as EqsResultUpdateSystem
+    participant Buf as EqsCognitiveBuffer
+    participant When as When TopChanged / ScoreCrossed
+    Brain->>Buf: Refresh — Epoch+1, Count=0, LastUpdateTick=0
+    When->>Buf: IsReady false — nothing recorded
+    Solver->>Upd: EqsResultEvent RefreshTick = tick+1
+    Upd->>Buf: results, LastUpdateTick = RefreshTick
+    When->>Buf: LastUpdateTick differs from prev — compare the top, maybe fire
+    Solver->>Upd: next answer, SAME epoch, new RefreshTick
+    Upd->>Buf: LastUpdateTick = new tick
+    When->>Buf: differs again — compare again
+```
+
+*What the picture shows that the old prose hid: the epoch moves only at the Brain's two arrows (a refresh or a
+parameter change). A standing sensor publishes many answers under one epoch.*
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| the trigger was gated on `sensor.Epoch` changing | ✅ `StatementEmitter.cs` before CE-2089 (`git show e98261f76:…`) | ✅ `EQS_Design_v1.3_final.md:117,135`: the solver publishes when a result is *"meaningfully changed"* (`TopChanged` = *"the top entry's identity changes"*), so a change arrives as a new ANSWER, not a new epoch |
+| only the Brain bumps the epoch | ✅ `EqsChildSensor.cs:153-156` (`Apply`, called by `Refresh` / parameter change) | ✅ EQS §17.2 |
+| every published answer gets a fresh `LastUpdateTick` | ✅ `Hrot.SimHost/Systems/EqsResultUpdateSystem.cs:67` = `EqsSolverSystem.cs:381` `RefreshTick = tick+1`; the per-tick stamp was fixed in `EntityRepository.Sync.cs:133-137` | — |
+| a refresh clears the buffer, so the old gate's first look recorded the new epoch on an empty buffer and never compared again | ✅ `EqsChildSensor.cs:162-165` | — |
+
+**As-built.** Both emitters now gate on `buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch` and
+store `buffer.LastUpdateTick`. The field keeps its name and layout, so the per-node struct and its `StructureHash`
+do not move. `EqsSensor` is no longer read by these two triggers. After a refresh, the previous top is kept, so the
+first new answer is compared against it (a re-pointed sensor whose top changed fires).
+
+**Rails:** `WhenNodeRuntimeTests.CE2089_*` (same epoch, new answer → TopChanged and ScoreCrossed fire; first answer
+after a refresh is compared). `WhenNodeEqsLoweringTests.Lower_EqsResult_TopChanged_AnswerGated` (renamed from
+`…_EpochGated`, it pinned the defect).
+
+⛔ **Rejected:** bumping the epoch on every answer (the epoch means "the question changed", which the Brain and
+`EqsChildSensor.Ensure` rely on) · a new per-node field (it moves `StructureHash` for every saved blueprint, for no
+gain over re-using the existing `uint`).
 
 ## 8. Claim table
 

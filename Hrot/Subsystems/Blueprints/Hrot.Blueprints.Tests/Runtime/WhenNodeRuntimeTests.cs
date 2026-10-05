@@ -1157,6 +1157,102 @@ public sealed class WhenNodeRuntimeTests
         Assert.True(fired, "Should fire when positional query top changes");
     }
 
+    // ⭐⭐ CE-2089 — a STANDING sensor keeps its epoch while it publishes new answers (only the Brain bumps the epoch, on
+    //   a parameter change or a refresh). Each new answer (a fresh buffer.LastUpdateTick) must be compared.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.9.
+    [Fact]
+    public void CE2089_TopChanged_FiresOnANewAnswer_UnderTheSameEpoch()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+
+        fixture.TickFrame(0.016f);                       // first answer: recorded, no fire
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        // Same epoch, same answer: no fire.
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"), "the same answer must not fire");
+
+        // Same epoch, NEW answer with a different top.
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer under the same epoch must be compared — the top changed 7 → 9");
+    }
+
+    [Fact]
+    public void CE2089_TopChanged_AfterARefresh_TheFirstNewAnswerIsCompared()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+
+        // Refresh: the Brain bumps the epoch and clears the buffer (EqsChildSensor.Refresh) — a tick with no answer.
+        fixture.World.SetComponent(childEntity, new EqsSensor { Epoch = 2u });
+        fixture.World.SetComponent(childEntity, default(EqsCognitiveBuffer));
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        // The re-pointed sensor's first answer, with a different top.
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 5u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "the first answer after a refresh must be compared, not swallowed by the empty tick");
+    }
+
+    [Fact]
+    public void CE2089_ScoreCrossed_FiresOnANewAnswer_UnderTheSameEpoch()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.ScoreCrossed, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.9f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer under the same epoch crossing 0.7 must fire");
+    }
+
     [Fact]
     public void EqsResult_BecomesStale_UsesSimTimeNotTicks()
     {

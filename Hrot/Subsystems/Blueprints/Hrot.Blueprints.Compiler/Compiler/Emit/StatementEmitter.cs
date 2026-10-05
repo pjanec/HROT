@@ -1355,15 +1355,18 @@ internal static class StatementEmitter
         }
     }
 
+    // ⭐⭐ CE-2089 — TopChanged / ScoreCrossed compare once per ANSWER, not once per epoch. 🔴 They were gated on
+    //   `sensor.Epoch != prev.LastEvaluatedEpoch`, but a STANDING sensor's new answers keep their epoch (only the Brain bumps
+    //   it, on a parameter change or a refresh), so they were compared at most once per epoch — and after a refresh the
+    //   buffer is cleared, the first look saw IsReady == false, recorded the epoch and never looked again: neither trigger
+    //   could fire. ⭐ The answer's stamp is `buffer.LastUpdateTick` (the solver's tick, fresh on every published answer,
+    //   Hrot.SimHost/Systems/EqsResultUpdateSystem.cs:67). The field keeps its name and layout (no StructureHash move); it now holds that stamp.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.9.
     private static void EmitEqsTopChanged(CSharpEmitter e, IrOp_WhenEqsResultCheck op, string id8, string wv, string sv)
     {
-        e.WriteLine($"ref readonly var sensor = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsSensor>(handle.ChildId);");
         e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId);");
         e.WriteLine();
-        e.WriteLine($"if (sensor.Epoch != prev.LastEvaluatedEpoch)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine($"if (buffer.IsReady)");
+        e.WriteLine($"if (buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine($"var results = buffer.GetSpanRO();");
@@ -1399,9 +1402,7 @@ internal static class StatementEmitter
         e.WriteLine($"prev.PrevTopScore = 0f;");
         e.Outdent();
         e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine($"prev.LastEvaluatedEpoch = sensor.Epoch;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -1425,13 +1426,10 @@ internal static class StatementEmitter
 
     private static void EmitEqsScoreCrossed(CSharpEmitter e, IrOp_WhenEqsResultCheck op, string id8, string wv, string sv)
     {
-        e.WriteLine($"ref readonly var sensor = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsSensor>(handle.ChildId);");
+        // ⭐ CE-2089 — per ANSWER (buffer.LastUpdateTick), as TopChanged above.
         e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId);");
         e.WriteLine();
-        e.WriteLine($"if (sensor.Epoch != prev.LastEvaluatedEpoch)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine($"if (buffer.IsReady)");
+        e.WriteLine($"if (buffer.IsReady && buffer.LastUpdateTick != prev.LastEvaluatedEpoch)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine($"var results = buffer.GetSpanRO();");
@@ -1462,9 +1460,7 @@ internal static class StatementEmitter
         e.WriteLine($"prev.PrevTopScore = currentScore;");
         e.Outdent();
         e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine($"prev.LastEvaluatedEpoch = sensor.Epoch;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
     }
