@@ -488,6 +488,106 @@ switches to option 2 past it — the §3.2 Parallel-repeat shape, measured).
 
 Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
 
+### 3.3b `CE-2073` — CombatPosture, the build design *(behaviors, `2026-10-05`; build-state: BUILDING)*
+
+⚠ **A HOST CHANGE, argued here and reported (lean, reversible):** §3.3 drew CombatPosture as a BLUEPRINT that spawns its two
+sensors and Starts / Aborts one hosted child per winner. Since then `CE-2069` built the utility step as shared BTree / HSM
+nodes, and `CE-2069`'s own rail proves the exact shape `Parallel[ChooseOption, ObserverSelector[IsOption(n) → child]]`
+switching in both directions (`UtilityScorerTests.CE2069_UtilityNodes_SwitchTheBranch_WhenTheWinnerChanges`). The user
+chose BTree for the same reason on `CE-3031` (R-204 (behaviors)).
+
+| host | what it takes | verdict |
+|---|---|---|
+| **BTree** | one asset; every step a shared C# node; the branch switch is `ObserverSelector` (`CE-3041`) | ⭐ **lean** — the fewest new parts |
+| HSM | five states + five global transitions guarded by `IsOption`; activities = the children | works, but more wiring for the same behaviour |
+| blueprint | `ScoreDecision` + five Behaviour Tasks + Abort / Start per change + two `SpawnEqsSensor` | the most parts; the children (`TakeCover`, `FallBack`) are BTree assets the blueprint would have to host |
+
+**INVENTORY** *(grep + reading, `2026-10-05`)*: `UtilityNodes.ChooseOption` / `IsOption` (`CE-2069`) ·
+`EqsTacticsNodes.TakeCover` / `FallBack` (`CE-2092` / `CE-2093`) · `CgfNodes.Action_FireAtTarget` (a FIXED target param — not
+usable for "the top threat") · `CgfNodes.Action_HoldPosition` (a raw BTree action, not a shared node) · `LocomotionMoveTo`
+(`CE-2092`) · `CombatPostureDecision` (5 options; inputs `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)` read the
+unit's sensor through `UnitSensors.OfTemplate`) · `ObserverSelector` · `Parallel` — ⚠ the asset format cannot set its policy
+(`BTreeEmitCore.cs:702` always emits 0 = RequireAll) · `Repeater(-1)` — ⛔ loops inside one tick while its child succeeds at
+once (`Interpreter.cs` `ExecuteRepeater`), so it cannot keep a branch alive.
+
+```mermaid
+classDiagram
+  class PostureNodes {
+    <<NEW, shared C# nodes>>
+    +PostureSensors(ref PostureSensorsParams, ref PostureSensorsState) Running
+    +Engage(ref EngageParams, ref EngageState) Running
+    +AdvanceAndAttack(ref AdvanceParams, ref AdvanceState) Success at the objective
+    +Hold() Running
+    deactivators: PostureSensors, Engage, AdvanceAndAttack
+  }
+  class EqsTacticsNodes { <<existing>> TakeCover · FallBack · TopThreat / EnsureSensor / Release become internal, reused }
+  class UtilityNodes { <<existing>> ChooseOption · IsOption }
+  class LocomotionMoveTo { <<existing>> Issue · Status }
+  class WeaponChannel { <<existing>> AimAndFire (ROE enforced in AimAndFireExecutor) }
+  class BTreeParallelNodeDto { <<existing, grows>> NEW Policy 0 RequireAll / 1 RequireOne (omitted when 0) }
+  class CombatPosture_btree { <<NEW asset>> Parallel(RequireOne) }
+  PostureNodes ..> EqsTacticsNodes : TopThreat, EnsureSensor
+  PostureNodes ..> LocomotionMoveTo
+  PostureNodes ..> WeaponChannel
+  CombatPosture_btree ..> UtilityNodes
+  CombatPosture_btree ..> PostureNodes
+  CombatPosture_btree ..> EqsTacticsNodes
+  CombatPosture_btree ..> BTreeParallelNodeDto
+```
+
+```mermaid
+graph TD
+  ROOT["Root"] --> PAR["Parallel (RequireOne)"]
+  PAR --> CH["ChooseOption(CombatPosture) → choice"]
+  PAR --> PS["PostureSensors (cover + retreat at the top threat)"]
+  PAR --> OBS["ObserverSelector"]
+  OBS --> A["IsOption(1) → AdvanceAndAttack"]
+  OBS --> C["IsOption(2) → ForceFailure(TakeCover)"]
+  OBS --> S["IsOption(3) → ForceFailure(Engage)"]
+  OBS --> F["IsOption(4) → ForceFailure(FallBack)"]
+  OBS --> H["Hold"]
+```
+
+*What the picture shows that prose hid:* the posture FINISHES only when AdvanceAndAttack reaches the objective (RequireOne:
+the first child to succeed ends the Parallel). Every other child is wrapped in ForceFailure, so "nothing to hide from"
+falls through to Hold instead of ending the mission task. `ChooseOption` and the sensors run beside the branch the whole time.
+
+```mermaid
+sequenceDiagram
+  participant M as mission task (assign by name, Origin = Superior)
+  participant B as BrainTickSystem → BTree
+  participant U as UtilityNodes
+  participant P as PostureNodes / EqsTacticsNodes
+  participant W as channels (locomotion, weapon)
+  M->>B: CombatPosture {objective, …}
+  loop every tick
+    B->>U: ChooseOption → choice.Winner (hysteresis on the last winner)
+    B->>P: PostureSensors: cover + retreat sensors pointed at the top threat (the decision's EqsTopScore reads them)
+    B->>U: IsOption(n) guards — the ObserverSelector switches branch when the winner changes (deactivator stops the old child)
+    B->>P: the winner's child: AdvanceAndAttack / TakeCover / Engage / FallBack / Hold
+    P->>W: MoveTo / AimAndFire at the top threat
+  end
+  P-->>B: AdvanceAndAttack arrives ⇒ Success ⇒ the Parallel ends ⇒ BehaviorFinished ⇒ the mission advances
+```
+
+```mermaid
+graph TD
+  SCAN["BTree asset generator (CombatPosture.btree.json)"] -->|registers| REG["BehaviorRegistry 'CombatPosture'"]
+  MIS["MissionDirector / MissionAdapter (CGF, editor)"] -->|assign by name| ING["BehaviorIngressSystem"]
+  ING --> BTS["BrainTickSystem (CognitiveRuntimeModule)"]
+  BTS -->|each tick| TREE["CombatPosture tree"]
+  CAT["CgfLogicPack → UtilityDecisionCatalog.EnsureRegistered"] -.->|"CombatPostureDecision"| TREE
+```
+
+| decision | why | rejected |
+|---|---|---|
+| Suppress = a NEW `Engage` node (fire at the top threat, retarget when it changes) | `Action_FireAtTarget` takes a fixed target | a second fixed-target copy |
+| AdvanceAndAttack = ONE node that moves AND fires | G9: one behaviour owns every channel; one node keeps the two commands in one run | two nodes in a Parallel (two writers of one run's channels) |
+| `Hold` = a NoParams shared node that stops the move it may have issued | `Action_HoldPosition` is a raw BTree action, not bindable from an asset | — |
+| the posture's two sensors are its OWN (sites `0x20730001` / `0x20730002`), and TakeCover keeps its own | `CE-2071` (SUPERSEDED reuse): every behaviour owns the sensors it needs; `OfTemplate` reads the current run's own first | sharing one sensor between scoring and moving |
+| `Parallel` gets an authorable `Policy` (DTO + emitter + editor field) | RequireAll never finishes while ChooseOption runs; the asset format could not say RequireOne | a Repeater (spins inside one tick) |
+| acceptance on a NEW recipe `tt-posture` (a copy of `tt-nav-los` with the posture as the mission task) | `tt-nav-los` is a terrain-EQS fixture other rails read | editing `tt-nav-los` in place |
+
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
 > 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename

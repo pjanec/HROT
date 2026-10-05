@@ -155,7 +155,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// already hidden) the ranking ties and its order is the memory's; the CURRENT threat is then kept while it is still
         /// remembered, so the sensor is not re-pointed back and forth. False = nothing remembered.
         /// </summary>
-        private static bool TopThreat(EntityRepository world, Entity self, Entity current, out Entity threat)
+        internal static bool TopThreat(EntityRepository world, Entity self, Entity current, out Entity threat)   // ⭐ CE-2073 — shared with PostureNodes
         {
             threat = Entity.Null;
             if (!world.HasComponent<TargetMemory>(self)) return false;

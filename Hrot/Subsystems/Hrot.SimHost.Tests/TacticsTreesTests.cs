@@ -43,6 +43,7 @@ namespace Hrot.SimHost.Tests
                 geo.SetOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
+                Fdp.Toolkit.Utility.StandardInputs.RegisterAll();   // ⭐ CE-2073 — as CgfLogicPack's input scan does in production
                 _ingress = new BehaviorIngressSystem(Registry);
                 _brain   = new BrainTickSystem(Registry);
 
@@ -65,8 +66,38 @@ namespace Hrot.SimHost.Tests
                 Repo.FlushCommandBuffers();
             }
 
-            public void Order(string behaviour)
-                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            public void Order(string behaviour, string json = "{}")
+                => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior });
+
+            /// <summary>⭐ CE-2073 — the unit as a soldier: healthy, armed, able to fire.</summary>
+            public void Arm(float health01 = 1f)
+            {
+                Repo.AddComponent(Unit, new Fdp.Toolkit.Combat.Components.Health { Current = health01 * 100f, Max = 100f });
+                Repo.AddComponent(Unit, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 30, MaxAmmo = 30, MuzzleVelocity = 800f });
+                Repo.AddComponent(Unit, new WeaponChannel());
+            }
+
+            /// <summary>⭐ CE-2073 — a contact remembered FRESH (tracked to saturation), armed or not.</summary>
+            public unsafe Entity Contact(bool armed)
+            {
+                var e = Repo.CreateEntity();
+                if (armed) Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 30, MaxAmmo = 30 });
+                if (!Repo.HasComponent<TargetMemory>(Unit)) Repo.AddComponent(Unit, new TargetMemory());
+                ref var mem = ref Repo.GetComponentRW<TargetMemory>(Unit);
+                mem.EntityIds[mem.Count] = (long)e.PackedValue;
+                mem.ThreatScores[mem.Count] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+                mem.Modalities[mem.Count] = (byte)SensorModality.Visual;
+                mem.Count++;
+                return e;
+            }
+
+            public bool Finished(out Fbt.NodeStatus result)
+            {
+                result = default;
+                foreach (var evt in Repo.Bus.Read<BehaviorFinishedEvent>())
+                    if (evt.Entity.Equals(Unit)) { result = evt.Result; return true; }
+                return false;
+            }
 
             public unsafe void Remember(Entity threat)
             {
@@ -90,6 +121,69 @@ namespace Hrot.SimHost.Tests
                 ref readonly var ch = ref Repo.GetComponentRO<LocomotionChannel>(Unit);
                 fixed (byte* src = ch.Params) return ((MoveToParams*)src)->Destination;
             }
+        }
+
+        // ── ⭐ CE-2073 — the CombatPosture tree (docs/DESIGN_Decision_Layer.md §3.3b) ───────────────────────────────────
+
+        private const string Objective = "{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}}";
+
+        [Fact]
+        public void CE2073_CombatPosture_IsCompiledAndRegistered()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId("CombatPosture", out _), "a mission task must be able to name it");
+        }
+
+        [Fact]
+        public void CE2073_AgainstAWeakEnemy_ThePostureAdvancesFiring_AndEndsAtTheObjective()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: false);                       // a weak enemy ⇒ AdvanceAndAttack
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());  // towards the OBJECTIVE
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the posture keeps its own cover sensor");
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.RetreatSite).IsNull, "…and its retreat sensor");
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            w.Tick();
+            w.Tick();
+            Assert.NotEqual("CombatPosture", w.TaskName);              // the mission task is done
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
+        }
+
+        [Fact]
+        public void CE2073_WithNothingToFight_ThePostureHolds_AndDoesNotEnd()
+        {
+            var w = new World();
+            w.Arm();
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);                 // Hold never ends the task
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        [Fact]
+        public void CE2073_HurtWithCover_ThePostureSwitchesToTakeCover()
+        {
+            var w = new World();
+            w.Arm(health01: 0.3f);
+            var enemy = w.Contact(armed: true);
+            w.Contact(armed: true);                                    // outnumbered
+            w.Order("CombatPosture", Objective);
+            w.Tick();
+            w.Tick();
+            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+            Assert.False(cover.IsNull);
+            w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull,
+                "the TakeCover child runs, with its own sensor");
         }
 
         [Fact]

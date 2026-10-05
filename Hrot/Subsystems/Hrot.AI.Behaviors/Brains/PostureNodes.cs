@@ -1,0 +1,244 @@
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Fbt;
+using FDP.Eqs;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Spatial.Eqs;
+using Fbt.Kernel;
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>⭐ <c>CE-2073</c> — the tunables of the posture's own two sensors (cover and retreat), which the decision scores.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PostureSensorsParams
+    {
+        /// <summary>How far from the unit the two queries look (m).</summary>
+        public float SearchRadius;
+        /// <summary>The sensors publish a new answer only when a top score moved by more than this.</summary>
+        public float ScoreDeltaThreshold;
+        /// <summary>Which forces count as threats for the exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
+        public uint FactionFilter;
+    }
+
+    /// <summary>⭐ <c>CE-2073</c> — the posture's sensors and the threat they are pointed at.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PostureSensorsState
+    {
+        /// <summary>The cover sensor (<see cref="FindCoverFromTarget"/>).</summary>
+        public EqsSensorHandle Cover;
+        /// <summary>The retreat sensor (<see cref="FindSafeRetreatPoint"/>).</summary>
+        public EqsSensorHandle Retreat;
+        /// <summary>The threat both are pointed at.</summary>
+        public Entity Threat;
+    }
+
+    /// <summary>⭐ <c>CE-2073</c> — how the posture fires.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct EngageParams
+    {
+        /// <summary>Seconds between shots (the AimAndFire executor's cooldown).</summary>
+        public float CooldownSeconds;
+    }
+
+    /// <summary>⭐ <c>CE-2073</c> — what <see cref="PostureNodes.Engage"/> is firing at.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct EngageState
+    {
+        /// <summary>The threat the weapon is aimed at (Null = not firing).</summary>
+        public Entity Threat;
+    }
+
+    /// <summary>⭐ <c>CE-2073</c> — where the posture advances to, and how.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AdvanceParams
+    {
+        /// <summary>The objective (world position) — the mission task's goal.</summary>
+        public Vector3 Objective;
+        /// <summary>Travel speed (m/s).</summary>
+        public float Speed;
+        /// <summary>Distance from the objective that counts as arrived (m).</summary>
+        public float ArrivalRadius;
+        /// <summary>Seconds between shots while advancing.</summary>
+        public float CooldownSeconds;
+    }
+
+    /// <summary>⭐ <c>CE-2073</c> — the advance in progress.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AdvanceState
+    {
+        /// <summary>1 once the move to the objective was issued.</summary>
+        public byte Moving;
+        /// <summary>What the weapon is aimed at while advancing.</summary>
+        public EngageState Fire;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2073</c> — the CombatPosture behaviour's own nodes (the rest are <see cref="Fdp.Toolkit.Utility.UtilityNodes"/>
+    /// and <see cref="EqsTacticsNodes"/>). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3b. The threat is always the unit's top
+    /// one (the starter threat ranking, <see cref="EqsTacticsNodes.TopThreat"/>).
+    /// </summary>
+    public static class PostureNodes
+    {
+        /// <summary>The posture's sensor sites (with the run's owner stamp they find this run's sensors again).</summary>
+        public const int CoverSite = 0x20730001, RetreatSite = 0x20730002;
+
+        /// <summary>
+        /// Keeps the posture's cover and retreat sensors pointed at the unit's top threat, so the decision's
+        /// <c>EqsTopScore</c> inputs read them (<c>UnitSensors.OfTemplate</c> finds the current run's own first). Running.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
+        {
+            if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat)) return NodeStatus.Running;   // nothing to score yet
+            bool retarget = !threat.Equals(ws.Threat);
+            ws.Cover   = Keep(ws.Cover,   world, self, CoverSite,   FindCoverFromTarget.BlueprintId,  in p, threat, retarget);
+            ws.Retreat = Keep(ws.Retreat, world, self, RetreatSite, FindSafeRetreatPoint.BlueprintId, in p, threat, retarget);
+            ws.Threat = threat;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Fires at the unit's top threat (re-aims when it changes); stops firing when nothing is remembered. Running.
+        /// Failure when the unit has no weapon channel. ⭐ The ROE is enforced by the fire executor (<c>CE-2075</c>).</summary>
+        [SharedAiAction]
+        public static NodeStatus Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => Fire(world, self, ref ws, p.CooldownSeconds) ? NodeStatus.Running : NodeStatus.Failure;
+
+        /// <summary>
+        /// Moves to the objective while firing at the top threat. Success on arrival — the posture's (and the mission task's)
+        /// end; Failure when the unit cannot move. A failed move is issued again.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus AdvanceAndAttack(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
+            Fire(world, self, ref ws.Fire, p.CooldownSeconds);   // no weapon: it still advances
+            if (ws.Moving == 1)
+            {
+                var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Success) { StopFiring(world, self, ref ws.Fire); return NodeStatus.Success; }
+                if (status == NodeStatus.Running) return NodeStatus.Running;
+                ws.Moving = 0;   // failed or taken over: issue it again
+            }
+            if (!LocomotionMoveTo.Issue(world, self, p.Objective, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
+            ws.Moving = 1;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Stays where it is: stops a move the posture issued. Running.</summary>
+        [SharedAiAction]
+        public static NodeStatus Hold(Entity self, EntityRepository world)
+        {
+            StopMoving(world, self);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the posture: its sensors go.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors")]
+        public static void Deactivate_PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
+        {
+            Drop(world, ws.Cover);
+            Drop(world, ws.Retreat);
+            ws = default;
+        }
+
+        /// <summary>Leaving the Suppress branch: the weapon stops.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage")]
+        public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => StopFiring(world, self, ref ws);
+
+        /// <summary>Leaving the advance: the move and the weapon stop.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack")]
+        public static void Deactivate_AdvanceAndAttack(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
+        {
+            StopFiring(world, self, ref ws.Fire);
+            if (ws.Moving == 1) StopMoving(world, self);
+            ws = default;
+        }
+
+        // ── the shared steps ─────────────────────────────────────────────────────────────────────────
+
+        private static EqsSensorHandle Keep(EqsSensorHandle handle, EntityRepository world, Entity self, int site, uint template,
+                                            in PostureSensorsParams p, Entity threat, bool retarget)
+        {
+            var config = new EqsSensor
+            {
+                BlueprintId         = template,
+                Epoch               = 1,
+                SearchRadius        = p.SearchRadius,
+                FactionFilter       = p.FactionFilter,
+                PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
+                ScoreDeltaThreshold = p.ScoreDeltaThreshold,
+                ContextSlot0        = self,
+                ContextSlot1        = threat,
+            };
+            var child = handle.IsValid && world.IsAlive(handle.ChildId) ? handle.ChildId : Entity.Null;
+            if (child.IsNull)
+            {
+                child = EqsChildSensor.Ensure(world, self, site, in config);
+                if (child.IsNull) return default;
+                if (!world.GetComponentRO<EqsSensor>(child).ContextSlot1.Equals(threat)) EqsChildSensor.Refresh(world, child, in config);
+                return new EqsSensorHandle(child);
+            }
+            if (retarget) EqsChildSensor.Refresh(world, child, in config);
+            return handle;
+        }
+
+        private static void Drop(EntityRepository world, EqsSensorHandle handle)
+        {
+            if (handle.IsValid && world.IsAlive(handle.ChildId)) EqsChildSensor.Destroy(world, handle.ChildId);
+        }
+
+        /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
+        /// False when the unit has no weapon channel.</summary>
+        private static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown)
+        {
+            if (!world.HasComponent<WeaponChannel>(self)) return false;
+            if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
+            {
+                StopFiring(world, self, ref ws);
+                return true;
+            }
+            ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
+            if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
+            bool reissue = !threat.Equals(ws.Threat)
+                        || channel.ActiveAction != CombatConstants.ActionIdAimAndFire
+                        || channel.Status == NodeStatus.Failure;
+            if (!reissue) return true;
+            Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams { Target = threat, CooldownSeconds = cooldown };
+            unchecked { channel.ActionInstanceId++; }
+            channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+            channel.Status = NodeStatus.Running;
+            ws.Threat = threat;
+            return true;
+        }
+
+        private static void StopFiring(EntityRepository world, Entity self, ref EngageState ws)
+        {
+            if (!ws.Threat.IsNull && world.HasComponent<WeaponChannel>(self))
+            {
+                ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
+                if (channel.ActiveAction == CombatConstants.ActionIdAimAndFire)
+                {
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; }
+                }
+            }
+            ws.Threat = Entity.Null;
+        }
+
+        private static void StopMoving(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<LocomotionChannel>(self)) return;
+            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
+            loco.ActiveAction = 0;
+            unchecked { loco.ActionInstanceId++; }
+        }
+    }
+}

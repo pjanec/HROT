@@ -126,6 +126,10 @@ public struct BTreeObserverSelectorFacet
 /// <summary>Inspector facet for Parallel composite nodes.</summary>
 public struct BTreeParallelFacet
 {
+    /// <summary>⭐ <c>CE-2073</c> — when the Parallel ends: every child succeeded, or the first one did.</summary>
+    [EditDisplayName("Finishes when")]
+    public BTreeParallelPolicy Policy;
+
     [EditDisplayName("Comment")]
     public string? Comment;
 
@@ -137,6 +141,15 @@ public struct BTreeParallelFacet
 
     [EditReadOnly]
     public int ChildCount;
+}
+
+/// <summary>⭐ <c>CE-2073</c> — a Parallel's completion policy (the kernel's int: 0 / 1).</summary>
+public enum BTreeParallelPolicy
+{
+    /// <summary>Every child must succeed (any failure fails it).</summary>
+    AllSucceed = 0,
+    /// <summary>The first child to succeed ends it.</summary>
+    OneSucceeds = 1,
 }
 
 /// <summary>Inspector facet for the Root node.</summary>

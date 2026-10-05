@@ -139,6 +139,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
                 break;
 
             case BTreeParallelFacet pf:
+                node.ParallelPolicy = (int)pf.Policy;   // ⭐ CE-2073
                 node.Comment      = pf.Comment;
                 node.IsBreakpoint = pf.IsBreakpoint;
                 break;
@@ -316,6 +317,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     private BTreeParallelFacet BuildParallelFacet(BTreeEditorNode node) =>
         new BTreeParallelFacet
         {
+            Policy       = (BTreeParallelPolicy)node.ParallelPolicy,
             Comment      = node.Comment,
             IsBreakpoint = node.IsBreakpoint,
             VisualId     = node.VisualId.ToString(),

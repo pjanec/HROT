@@ -136,6 +136,8 @@ public sealed class BTreeEditorNode
     /// </summary>
     public BTreeActionDelegateShape DelegateShape;
     public BTreeWaitPayload?      Wait;
+    /// <summary>⭐ <c>CE-2073</c> — a Parallel node's completion policy (0 RequireAll, 1 RequireOne).</summary>
+    public int ParallelPolicy;
     public BTreeSubtreePayload?   Subtree;
     /// <summary>⭐ <c>CE-2079</c> — set on an ACTION node that is an SOP order, instead of <see cref="Action"/>.</summary>
     public BTreeSopOrderPayload?  SopOrder;

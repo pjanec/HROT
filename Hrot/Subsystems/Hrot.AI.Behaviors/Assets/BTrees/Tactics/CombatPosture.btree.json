@@ -1,0 +1,488 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2073000-0000-0000-0000-000000000001",
+  "Name": "CombatPosture",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2073000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Parallel",
+      "Policy": 1,
+      "VisualId": "c2073000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000003",
+        "c2073000-0000-0000-0000-000000000004",
+        "c2073000-0000-0000-0000-000000000005"
+      ],
+      "DisplayLabel": "Decide, sense, act",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 120,
+        "Comment": "CE-2073 — docs/DESIGN_Decision_Layer.md §3.3b. RequireOne: the posture ends when the advance reaches the objective.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.ChooseOption",
+        "ExpressionTargetField": "choose",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Choose the posture",
+      "EditorMetadata": {
+        "X": 200,
+        "Y": 260,
+        "Comment": "Scores CombatPostureDecision each tick (hysteresis on the last winner) into the shared 'choice'.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors",
+        "ExpressionTargetField": "sensors",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsState"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Posture sensors",
+      "EditorMetadata": {
+        "X": 420,
+        "Y": 260,
+        "Comment": "Cover + retreat sensors at the top threat — what the decision's EqsTopScore inputs read.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "ObserverSelector",
+      "VisualId": "c2073000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000006",
+        "c2073000-0000-0000-0000-000000000009",
+        "c2073000-0000-0000-0000-000000000012",
+        "c2073000-0000-0000-0000-000000000015",
+        "c2073000-0000-0000-0000-000000000018"
+      ],
+      "DisplayLabel": "Run the winner",
+      "EditorMetadata": {
+        "X": 800,
+        "Y": 260,
+        "Comment": "Switches branch the moment the winner changes; the old child's deactivator stops it.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2073000-0000-0000-0000-000000000006",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000007",
+        "c2073000-0000-0000-0000-000000000008"
+      ],
+      "DisplayLabel": "Advance and attack",
+      "EditorMetadata": {
+        "X": 500,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000007",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is advance and attack",
+      "EditorMetadata": {
+        "X": 440,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack",
+        "ExpressionTargetField": "advance",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.AdvanceState"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000008",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Advance and attack",
+      "EditorMetadata": {
+        "X": 560,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2073000-0000-0000-0000-000000000009",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000010",
+        "c2073000-0000-0000-0000-000000000011"
+      ],
+      "DisplayLabel": "Take cover",
+      "EditorMetadata": {
+        "X": 760,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is take cover",
+      "EditorMetadata": {
+        "X": 700,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover",
+        "ExpressionTargetField": "cover",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Take cover",
+      "EditorMetadata": {
+        "X": 820,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2073000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000013",
+        "c2073000-0000-0000-0000-000000000014"
+      ],
+      "DisplayLabel": "Suppress",
+      "EditorMetadata": {
+        "X": 1020,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000013",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is suppress",
+      "EditorMetadata": {
+        "X": 960,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Engage",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000014",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Suppress",
+      "EditorMetadata": {
+        "X": 1080,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2073000-0000-0000-0000-000000000015",
+      "ChildVisualIds": [
+        "c2073000-0000-0000-0000-000000000016",
+        "c2073000-0000-0000-0000-000000000017"
+      ],
+      "DisplayLabel": "Fall back",
+      "EditorMetadata": {
+        "X": 1280,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000016",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is fall back",
+      "EditorMetadata": {
+        "X": 1220,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack",
+        "ExpressionTargetField": "fallback",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000017",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Fall back",
+      "EditorMetadata": {
+        "X": 1340,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Hold"
+      },
+      "VisualId": "c2073000-0000-0000-0000-000000000018",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hold",
+      "EditorMetadata": {
+        "X": 1540,
+        "Y": 400,
+        "Comment": "The floor: stops any move the posture issued.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [
+    {
+      "VisualId": "c2073000-0000-0000-0000-000000000109",
+      "HostNodeVisualId": "c2073000-0000-0000-0000-000000000011",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "never ends the posture: 'nothing to do' falls through to Hold",
+      "StackIndex": 0
+    },
+    {
+      "VisualId": "c2073000-0000-0000-0000-000000000112",
+      "HostNodeVisualId": "c2073000-0000-0000-0000-000000000014",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "never ends the posture: 'nothing to do' falls through to Hold",
+      "StackIndex": 0
+    },
+    {
+      "VisualId": "c2073000-0000-0000-0000-000000000115",
+      "HostNodeVisualId": "c2073000-0000-0000-0000-000000000017",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "never ends the posture: 'nothing to do' falls through to Hold",
+      "StackIndex": 0
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "choose",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.ChooseOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Decision\":\"3c6f9e42-5d10-6f3a-ac23-posture0000001\"}",
+        "Comment": "The posture decision (CombatPostureDecision)."
+      },
+      {
+        "Name": "choice",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.UtilityChoice",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "The current winner — written by ChooseOption, read by every branch guard.",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "isAdvance",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":1}",
+        "Comment": "AdvanceAndAttack = option 1."
+      },
+      {
+        "Name": "isCover",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":2}",
+        "Comment": "TakeCover = option 2."
+      },
+      {
+        "Name": "isSuppress",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":3}",
+        "Comment": "Suppress = option 3."
+      },
+      {
+        "Name": "isFallBack",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":4}",
+        "Comment": "Flee (fall back) = option 4."
+      },
+      {
+        "Name": "sensors",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "The posture's own cover and retreat queries."
+      },
+      {
+        "Name": "advance",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.AdvanceParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Objective\":[0,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}",
+        "Comment": "The objective (the mission task's goal), speed, arrival radius, fire cooldown."
+      },
+      {
+        "Name": "cover",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "Take-cover tunables (as the TakeCover tree)."
+      },
+      {
+        "Name": "engage",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"CooldownSeconds\":1}",
+        "Comment": "Suppress: seconds between shots."
+      },
+      {
+        "Name": "fallback",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "Fall-back tunables (as the FallBack tree)."
+      }
+    ]
+  }
+}
