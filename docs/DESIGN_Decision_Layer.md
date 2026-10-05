@@ -329,6 +329,25 @@ registers the INPUT readers only (CE-454 W1), so every production `ScoreDecision
 `CgfLogicPack` now also calls `UtilityDecisionCatalog.EnsureRegistered()` (idempotent), and the diagram is corrected.
 ⚠ `ScoreDecision`'s own `AssetId` field moves to the type with `CE-2070`, which reroutes that node.
 
+⛔ **`CE-2069` STOPPED `2026-10-05` — a premise of the third sequence diagram fails (`R-106`: stop the item, not the
+batch).** The diagram has the guard read *"the bound variable `Winner`"* that `ChooseOption` wrote. Measured:
+
+| claim | code |
+|---|---|
+| a BTree / HSM node binds ONE host variable to its params (`ExpressionTargetField`) | ✅ `BehaviorActionBindingDto.cs:35-37` |
+| a second variable (`WorkingStateTargetField`) exists, but for STATEFUL ACTIONS only: there is no stateful condition | ✅ `SharedNodeBinder.cs:17-20` (`SharedNodeCondition<P>` has one `ref P`) |
+| each branch's guard needs its OWN option constant, while all guards read ONE winner | ✅ by construction (N branches, 1 decision) |
+
+⇒ `IsOption(ref IsOptionParams { Winner, Option })` cannot read the winner `ChooseOption` wrote into a different variable.
+
+| lean | what | cost |
+|---|---|---|
+| ⭐ **A — a stateful CONDITION form** `(ref P, ref WS, Entity, EntityRepository) → bool` | `IsOption(ref OptionParams { Option }, ref ChooseOptionParams ws)`: each branch's own constant + the ONE decision variable as working state. It mirrors the existing stateful action (`SharedNodeStatefulAction`), so the binder, both emitters and the shape classifier gain the twin. `WorkingStateTargetField` is already in the DTO | moderate; infrastructure for every future "compare my constant with a shared variable" guard |
+| B — a per-node constant on condition nodes (like a decorator's `IntParam`) | editor + DTO + emitter + runtime payload | larger; a new authoring concept |
+| C — one condition per option (`IsOption1` … `IsOption8`) | zero infrastructure | ugly, capped, and every decision re-learns the numbering |
+
+Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
+
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
 > 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename
