@@ -120,6 +120,16 @@ published for them.** `ThermalHeatSystem` and `SoundEmissionSystem` are composed
 local events already exist — ingesting them too would count each shot twice). ⭐ Both arrive `IsRemote = true`; heat and sound
 accept remote events (only `DamageCalculationSystem` skips them).
 
+⭐ **As-built `CE-3065` (`2026-10-05`)** — `SimHostAuxiliaryTranslatorPack`: Perception && !MuscleGround ⇒ `WeaponFireIngressTranslator`
++ `MunitionDetonationIngressTranslator`; ⚠ **one correction found while building it:** the heard-contact EGRESS
+(`AudioTargetDetectedEgressTranslator`) sat behind the MuscleGround gate, but its producer is the memory stage, which runs with the
+SOLVER — it now sits beside `EqsResultEventEgressTranslator` (Perception || MuscleGround). Detonations need no extra rule: they exist
+only for a hit on an entity (`HitResolutionSystem`), and the ingress keeps exactly those. Rail: `SimHostAuxiliaryTranslatorPackTests`.
+⚠ **Known limit:** a node that is Perception AND MuscleGround reads no `WeaponFire`, so it does not hear shots of units simulated on
+ANOTHER MuscleGround node (two SimHosts). ⛔ Not built: no such topology exists, and reading its own samples back would heat each
+local shooter twice. **What would change it:** a second MuscleGround node — then the ingress skips shooters this node fires for
+(an authority check, as `EqsResultIngressTranslator`'s echo rule does) instead of keying on the role.
+
 ⛔ **Rejected: publishing `ThermalState` from the Muscle.** A continuous per-entity topic for a value every node can compute from
 what it already receives. ⚠ **What would change it:** a heat source that is NOT observable from published data — engine load,
 a running generator, a weapon's barrel temperature beyond shots fired. Then that one input gets published (or folded into an

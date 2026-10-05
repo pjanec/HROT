@@ -87,7 +87,6 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new WeaponFireNotificationEgressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationEgressTranslator(participant, entityMap));
             translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
-            translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));
             translators.Add(new NearMissEgressTranslator(participant, entityMap));   // CE-3064
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
@@ -99,6 +98,20 @@ public static class SimHostAuxiliaryTranslatorPack
         {
             translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap, localNodeId));
             translators.Add(new EqsResultEventEgressTranslator(participant, entityMap));
+            // ⭐ CE-3065 — what a unit HEARD leaves from the node that SOLVED it (the memory stage runs with the solver),
+            //   so it is keyed like the EQS result above, not on MuscleGround.
+            translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));
+        }
+
+        // ── Sensor inputs for a Perception node WITHOUT MuscleGround (CE-3065, S7 design §3a) ──
+        //    Heat and sound are derived where the sensor solves (EqsSolverStartup.PopulateSystems). Positions replicate
+        //    everywhere; shots and detonations are events, so a node that does not fire them itself must read them back.
+        //    ⛔ Not with MuscleGround: there the shots are already local events, and its own samples would loop back
+        //    through the reader and heat each shooter twice. Both arrive IsRemote = true; heat and sound accept them.
+        if (role.HasFlag(NodeRole.Perception) && !role.HasFlag(NodeRole.MuscleGround))
+        {
+            translators.Add(new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant, entityMap));
+            translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
         }
 
         return translators;
