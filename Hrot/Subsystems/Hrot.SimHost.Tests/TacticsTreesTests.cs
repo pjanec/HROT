@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
                 if (!Repo.HasComponent<TargetMemory>(Unit)) Repo.AddComponent(Unit, new TargetMemory());
                 ref var mem = ref Repo.GetComponentRW<TargetMemory>(Unit);
                 mem.EntityIds[mem.Count] = (long)e.PackedValue;
-                mem.ThreatScores[mem.Count] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+                mem.Freshness[mem.Count] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
                 mem.Modalities[mem.Count] = (byte)SensorModality.Visual;
                 mem.Count++;
                 return e;
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
                 ref var mem = ref Repo.GetComponentRW<TargetMemory>(Unit);
                 if (threat.IsNull) { mem.Count = 0; return; }
                 mem.EntityIds[0] = (long)threat.PackedValue;
-                mem.ThreatScores[0] = 10f;
+                mem.Freshness[0] = 10f;
                 mem.Count = 1;
             }
 

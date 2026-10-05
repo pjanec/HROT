@@ -434,7 +434,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < mem.Count; i++)
             {
-                if (mem.EntityIds[i] == targetPacked && mem.ThreatScores[i] > 0f)
+                if (mem.EntityIds[i] == targetPacked && mem.Freshness[i] > 0f)
                     return true;
             }
             return false;

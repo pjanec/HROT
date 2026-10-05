@@ -175,7 +175,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                             ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(entity);
                             for (int i = 0; i < mem.Count; i++)
                             {
-                                if (mem.ThreatScores[i] > 0f)
+                                if (mem.Freshness[i] > 0f)
                                 {
                                     triggered = true;
                                     break;

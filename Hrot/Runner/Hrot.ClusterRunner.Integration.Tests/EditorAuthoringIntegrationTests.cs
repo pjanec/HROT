@@ -151,7 +151,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         ref readonly var mem = ref world.GetComponent<TargetMemory>(insurgent);
         Assert.Equal(1, mem.Count);
         Assert.Equal((long)apc.PackedValue, mem.EntityIds[0]);
-        Assert.True(mem.ThreatScores[0] >= 100f);
+        Assert.True(mem.Freshness[0] >= 100f);
     }
 
     [Fact]

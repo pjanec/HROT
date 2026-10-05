@@ -128,7 +128,7 @@ namespace Hrot.SimHost.Tests
             {
                 var mem = new TargetMemory { Count = 1 };
                 mem.EntityIds[0]    = (long)target.PackedValue;
-                mem.ThreatScores[0] = 1.5f;
+                mem.Freshness[0] = 1.5f;
                 repo.AddComponent(tank, mem);
             }
 

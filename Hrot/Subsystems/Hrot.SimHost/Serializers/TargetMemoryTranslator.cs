@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Serializers
                     ["PosX"]     = ptr->PositionsX[i],
                     ["PosY"]     = ptr->PositionsY[i],
                     ["PosZ"]     = ptr->PositionsZ[i],
-                    ["Score"]    = ptr->ThreatScores[i],
+                    ["Score"]    = ptr->Freshness[i],
                     ["Tick"]     = (long)ptr->LastSeenTick[i],
                     ["Modality"] = (int)ptr->Modalities[i],
                 });

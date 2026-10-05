@@ -225,7 +225,7 @@ public class StrideRaycastLosServiceTests
         Assert.Equal(posX, mem.PositionsX[0], 5);
         Assert.Equal(posY, mem.PositionsY[0], 5);
         Assert.Equal(posZ, mem.PositionsZ[0], 5);  // CRITICAL: 3-D altitude stored
-        Assert.Equal(score, mem.ThreatScores[0], 5);
+        Assert.Equal(score, mem.Freshness[0], 5);
     }
 
     /// <summary>

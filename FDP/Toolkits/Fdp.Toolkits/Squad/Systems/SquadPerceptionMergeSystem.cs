@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     {
                         MergeHeard(ref localPool, heardRadius, heardClass, mem.EntityIds[k],
                                    mem.PositionsX[k], mem.PositionsY[k], mem.PositionsZ[k], mem.Radius[k], mem.SourceClass[k],
-                                   mem.ThreatScores[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit);
+                                   mem.Freshness[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit);
                         continue;
                     }
                     MergeContact(
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Squad.Systems
                         mem.PositionsX[k],
                         mem.PositionsY[k],
                         mem.PositionsZ[k],
-                        mem.ThreatScores[k],
+                        mem.Freshness[k],
                         mem.LastSeenTick[k],
                         mem.Modalities[k],
                         sourceBit);

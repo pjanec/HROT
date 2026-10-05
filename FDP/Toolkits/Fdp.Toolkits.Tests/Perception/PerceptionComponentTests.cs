@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Assert
             Assert.Equal(1, mem.Count);
             Assert.Equal(expectedEntityId, mem.EntityIds[0]);
-            Assert.Equal(30f, mem.ThreatScores[0]);
+            Assert.Equal(30f, mem.Freshness[0]);
         }
 
         // ── Test 4 ───────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Assert — scores are accumulated, not replaced; count remains 1
             Assert.Equal(1, mem.Count);
-            Assert.Equal(65f, mem.ThreatScores[0]); // 40 + 25
+            Assert.Equal(65f, mem.Freshness[0]); // 40 + 25
         }
 
         // ── Test 5 ───────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Perception.Tests
 
             Assert.Equal(16, mem.Count);
             // Highest score should be at index 0, second-highest at index 1
-            Assert.True(mem.ThreatScores[0] >= mem.ThreatScores[1],
+            Assert.True(mem.Freshness[0] >= mem.Freshness[1],
                 "Slot 0 must have score >= slot 1 (descending sort).");
         }
 
@@ -190,7 +190,7 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(max, mem.Count);
             for (int i = 0; i < mem.Count; i++)
             {
-                Assert.Equal(mem.ThreatScores[i], mem.PositionsZ[i]); // Z == score (lockstep)
+                Assert.Equal(mem.Freshness[i], mem.PositionsZ[i]); // Z == score (lockstep)
                 Assert.Equal((float)mem.EntityIds[i], mem.PositionsX[i]); // X == entityId (lockstep)
             }
 
@@ -202,7 +202,7 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Lockstep invariant must hold after eviction+re-sort.
             for (int i = 0; i < mem.Count; i++)
-                Assert.Equal(mem.ThreatScores[i], mem.PositionsZ[i]);
+                Assert.Equal(mem.Freshness[i], mem.PositionsZ[i]);
 
             // Entity 1 (score 10, lowest) evicted; entity max+1 (score 55) present with Z=55.
             bool entity1Found = false;

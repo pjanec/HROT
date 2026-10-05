@@ -513,4 +513,54 @@ public sealed class TimeControlIntegrationTests : IDisposable
         Assert.True(delta > 0.05,
             $"TimeScale=0 over the cluster op path does not halt the clock; delta={delta:F3}s");
     }
+
+    // ── CE-3068: Stop pauses the clock ────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3068</c> — Live → Play → <b>Stop</b> → Edit: Stop pauses the cluster clock, so Idle and the next
+    /// Edit run with a frozen sim time (mgmt-1 DESIGN §8.12, *"During RunningEdit the simulation clock is always
+    /// paused"*). 🔒 User, <c>2026-10-05</c>: *"Stop should pause the clock, for sure."* 📐 Before the fix the
+    /// clock ran on through Idle (+0.615 s / 60 frames) and the next Edit (+0.675 s), units moving while the
+    /// author edits — the only pause producer was the explicit <c>PauseTime</c> op.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public async Task Stop_PausesTheClock_SoTheNextEditIsFrozen_CE3068()
+    {
+        string scenarioId = "tc_stop_pauses_" + Guid.NewGuid().ToString("N");
+        string root = AppContext.BaseDirectory;
+        for (var dir = new System.IO.DirectoryInfo(root); dir != null; dir = dir.Parent)
+            if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) { root = dir.FullName; break; }
+        System.IO.Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
+        System.IO.File.Copy(
+            System.IO.Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json"),
+            System.IO.Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
+        try
+        {
+            async Task Transition(ClusterState target)
+            {
+                await _master.HandleClusterOpRequestAsync(new ClusterOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = ClusterOpType.TransitionState,
+                    PayloadJson   = System.Text.Json.JsonSerializer.Serialize(new { TargetState = target.ToString(), ScenarioId = scenarioId }),
+                }).ConfigureAwait(false);
+                Assert.True(PumpUntil(() => (int)_master.CurrentClusterState == (int)target, timeoutMs: 60_000),
+                    $"cluster must reach {target}; at {_master.CurrentClusterState}");
+            }
+
+            await Transition(ClusterState.OperatingLive);
+            Assert.True(ObserveSimTimeDelta(600) > 0.1, "precondition: the clock runs in Live after Play (the harness resumed it at boot)");
+
+            await Transition(ClusterState.Idle);   // ⏹ Stop
+            Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 5000), "Stop must pause the cluster clock");
+            PumpUntil(() => _simHost.TestHook_TimeControllerMode == Fdp.ModuleHost.Time.TimeMode.Deterministic, timeoutMs: 5000);
+            double inIdle = ObserveSimTimeDelta(600);
+            Assert.True(inIdle < 0.05, $"sim time must be frozen after Stop; advanced {inIdle:F3}s");
+
+            await Transition(ClusterState.OperatingEdit);
+            double inEdit = ObserveSimTimeDelta(600);
+            Assert.True(inEdit < 0.05, $"sim time must be frozen in the Edit after a Stop; advanced {inEdit:F3}s");
+        }
+        finally { NasScenarioStaging.Remove(scenarioId); }
+    }
 }

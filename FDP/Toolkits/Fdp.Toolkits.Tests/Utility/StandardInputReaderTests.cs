@@ -353,7 +353,7 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
 
             ref var mem = ref _world.Repo.GetComponentRW<TargetMemory>(self);
-            unsafe { mem.ThreatScores[0] = 1f; }   // nearly forgotten
+            unsafe { mem.Freshness[0] = 1f; }   // nearly forgotten
             Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
         }
 

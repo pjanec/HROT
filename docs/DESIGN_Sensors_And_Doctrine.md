@@ -1052,7 +1052,7 @@ that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests
 | Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
 | cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
 
-### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: B–D BUILT (§7.8a), A (backend rename) open)*
+### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: BUILT — B–D (§7.8a, behaviors), A (backend rename, `2026-10-05`: `TargetMemory.ThreatScores` → `Freshness`, a Roslyn rename over 30 files; the scenario key stays `"Score"`))*
 
 > 🔒 **User, `2026-10-05`:** *"3054 approved."* ⭐ A is the backend's (the `ThreatScores` → `Freshness` rename, FRAME_Decision_Layer Addendum 7); B–D are ours.
 
@@ -1099,7 +1099,7 @@ classDiagram
   class SquadInputs { <<existing>> SquadContactThreatLevel = freshness of the pooled score (CHANGED) }
   class SensorNodes { <<NEW shared nodes>> +Sees(ref SensorReadParams) bool +Read(ref SensorReadParams, ref SensorReading) NodeStatus +ThreatsAtLeast(ref ThreatCountParams) bool }
   class UnitSensors { <<existing>> +Of(view, unit, kind) }
-  class TargetMemory { <<existing, backend>> ThreatScores = freshness score · LastSeenTick }
+  class TargetMemory { <<existing, backend>> Freshness (was ThreatScores, CE-3054 A) · LastSeenTick }
   class WeaponState { <<existing>> on every armed unit, replicas included }
   ThreatDanger ..> WeaponState : armed?
   ThreatFreshness ..> PerceptionConstants
@@ -1126,7 +1126,7 @@ sequenceDiagram
   N->>S: score decision for self
   S->>I: ContactThreatLevel(self, candidate)
   I->>M: the candidate's slot
-  I->>F: Of(ThreatScores[i])  (score / 500, clamped)
+  I->>F: Of(Freshness[i])  (score / 500, clamped)
   I->>D: Of(view, self, candidate)  (armed 1, unarmed 0.3, unknown 1)
   I-->>S: danger x freshness
   S->>I: EnemyStrengthRatio(self)
@@ -1152,7 +1152,7 @@ the unit's TKB sensor of a kind. Closing it is the last step below.
 
 | decision | why (code / design) | rejected |
 |---|---|---|
-| freshness = `ThreatScores / 500`, clamped | ✅ 500 is the equilibrium of +50/s and −10 %/s (`ThreatEvaluationSystem.cs:95`, `PerceptionConstants.cs:44`); ✅ lean A: the score IS freshness | dividing by a reader's own constant (today: clamp to [0,1], so every contact reads 1 for ~44 s) |
+| freshness = `Freshness / 500`, clamped *(field named `ThreatScores` when this was written; renamed by A)* | ✅ 500 is the equilibrium of +50/s and −10 %/s (`ThreatEvaluationSystem.cs:95`, `PerceptionConstants.cs:44`); ✅ lean A: the score IS freshness | dividing by a reader's own constant (today: clamp to [0,1], so every contact reads 1 for ~44 s) |
 | danger: armed (`WeaponState` on the target) = 1, unarmed = 0.3, not alive here = 1 | ✅ `CombatTkbTranslator` stamps `WeaponState` exactly when the TKB has a mount, replicas included (`NetworkSpawningSystem.cs:142`); ✅ R-194 *"hidden does not mean harmless"* ⇒ unknown is dangerous | a TKB lookup in the reader (readers have no TKB handle); a stored danger (R-194) |
 | `HaveLiveTarget` = a contact currently tracked OR freshness ≥ 0.25 | ✅ a new contact's score RAMPS (50 after 1 s), so freshness alone would hide a contact for its first seconds; 0.25 ≈ 14 s unseen after saturation | `Count > 0` (the stale-attack defect, Decision Layer §3); last-seen ticks (needs a tick→seconds rate the inputs do not have) |
 | `EnemyStrengthRatio` = Σ danger / (Σ danger + own), own = health fraction × (armed ? 1 : 0.3) | ✅ Decision Layer §3 line 114 (*"contradicts G1"*); one armed enemy vs a healthy armed unit = 0.5, three = 0.75 | Σ danger / (health × 16): one enemy would read 0.06 |

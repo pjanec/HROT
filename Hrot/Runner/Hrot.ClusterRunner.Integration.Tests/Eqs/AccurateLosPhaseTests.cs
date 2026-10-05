@@ -102,7 +102,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }

@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(Unit, new WeaponState { CooldownSecondsRemaining = weaponReady ? 0f : 1f });
                 var memory = new TargetMemory { Count = 1 };
                 memory.EntityIds[0] = (long)Hostile.PackedValue;
-                memory.ThreatScores[0] = 1f;
+                memory.Freshness[0] = 1f;
                 Repo.AddComponent(Unit, memory);
             }
 

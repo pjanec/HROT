@@ -289,7 +289,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
 
         // Step 1: Condition_HasTarget -- requires TargetMemory with at least one threat.
         var mem = new TargetMemory();
-        unsafe { mem.ThreatScores[0] = 100f; mem.EntityIds[0] = 777L; }
+        unsafe { mem.Freshness[0] = 100f; mem.EntityIds[0] = 777L; }
         mem.Count = 1;
         _repo.AddComponent(_parent, mem);
 

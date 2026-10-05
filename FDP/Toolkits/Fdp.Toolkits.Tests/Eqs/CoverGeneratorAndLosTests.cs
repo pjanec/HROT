@@ -134,7 +134,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f },
             };
 
-            // ThreatScores[0] = 10f < ThreatThreshold = 50f  => bypass.
+            // Freshness[0] = 10f < ThreatThreshold = 50f  => bypass.
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService());
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
                 new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
             };
 
-            // ThreatScores[0] = 100f > ThreatThreshold = 50f => LOS test active.
+            // Freshness[0] = 100f > ThreatThreshold = 50f => LOS test active.
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService()); // always clear
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
