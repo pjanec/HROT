@@ -561,12 +561,21 @@ separate decisions.*
 
 | # | question | ⭐ lean | rejected (one line each) | blast radius |
 |---|---|---|---|---|
-| **F1** | shape | ⭐ **move there, then fire**: each tree is `Sequence[ Flank \| FiringPosition , Engage ]`; the action ends (Success) on arrival and its sensor goes | ✗ move-and-fire in one action — AdvanceAndAttack already is that, for an objective; a flanker firing en route gives itself away · ✗ a "FlankAndEngage" action — a second copy of Engage | ours, 2 trees |
+| **F1** | shape *(amended §9.6a)* | ⭐ **move there, then fire** (+ optional fire on the move, §9.6a): each tree is `Sequence[ Flank \| FiringPosition , Engage ]`; the action ends (Success) on arrival and its sensor goes | ✗ move-and-fire in one action — AdvanceAndAttack already is that, for an objective; a flanker firing en route gives itself away · ✗ a "FlankAndEngage" action — a second copy of Engage | ours, 2 trees |
 | **F2** | target | ⭐ an **identified entity** only (`TopThreat`); with none, the action FAILS so the parent picks something else | ✗ a heard point (as TakeCover hides from one) — "visible from P" and `Engage` both need an entity (claim table) | ours |
 | **F3** | while moving | ⭐ **re-position** like TakeCover (a new answer ≥ `MinRepositionMetres` from the goal re-issues the move) **until arrival**, then end like FallBack; a NEW top threat re-points the sensor | ✗ FallBack's "move once" — a flank on a moving target goes stale · ✗ keep re-positioning after arrival — that is TakeCover's job, and Engage owns the unit then | ours |
 | **F4** | the unification | ⭐ ONE private body `Run(template, site, mode)`; all **four** actions are thin entry points into it; TakeCover / FallBack routed through it, their 7 + 2 rails unchanged | ✗ two more copies of the FallBack body (four near-identical bodies) | ours; `EqsTacticsNodes` only |
 | **F5** | who starts them | ⭐ today: a **mission task** or an **SOP row** (as TakeCover). ⛔ NOT now: a CombatPosture option (needs a scoring row in the posture decision, Decision Layer's call) and the squad `Flanker` role (Squad §218-220) — both filed as one row | ✗ add them to CombatPosture now — changes a shipped decision's behaviour without a demand | ours; 1 filed row |
 | **F6** | acceptance | ⭐ the feature's suites: direct-call rails in `EqsCombatNodesTests` (as CE-2092), both trees in `TacticsTreesTests`, and two variants in `TakeCoverScenarioTests` on `tt-take-cover`: ordered after the hostile is remembered, the rifleman ends where `!SegmentBlocked(own standing eye, hostile aim)` and (flank) the bearing is side-on within 30° | ✗ a new scenario — `tt-take-cover` already has the geometry and the hidden-check machinery | ours |
+
+#### 9.6a F1 amended — fire on the move *(user `2026-10-05`: "yes to be able to fire on the move - but where to say that? do we have some ROE component or setting?")*
+
+| | |
+|---|---|
+| ⭐ **lean** | a **behaviour param** `FireWhileMoving` (byte) on `EqsTacticsParams` (appended last), read by the one body: while moving it fires at the top threat through the SAME fire step `AdvanceAndAttack` uses (`PostureNodes.Fire`, made `internal` and shared — not copied). Tree defaults: `FiringPosition` = 1, `Flank` = 0 (a flanker that fires gives itself away); an order overrides it in its params JSON like any tunable |
+| ⭐ **why not the ROE** | `Roe` (`Roe.cs:46`, Decision Layer §4.4, R-200) answers **may** the unit fire — `HoldFire` / `ReturnFire` / `FireAtWill` — and is persistent unit state that survives across tasks, changed only by `SetRoeEvent` under origin precedence. "Fire while moving" is **how this manoeuvre is flown**: put in the ROE it would leak into every later task and need an ROE order per manoeuvre |
+| ⭐ **they compose for free** | every shot still goes through `AimAndFireExecutor.RoePermitsFire` (`AimAndFireExecutor.cs:33-42`): `FireWhileMoving = 1` under `HoldFire` fires nothing; under `ReturnFire` only within the window after a hit / near miss |
+| rejected | ✗ a `Roe` field — wrong lifetime (above) · ✗ a third separate "move-and-fire" action — `AdvanceAndAttack` already exists, the param reuses its step |
 
 ⚠ **What would change the leans:** wanting the flanker to fire on the move flips F1 to a third mode (fire while
 moving), still in the one body. Wanting flank from a heard contact needs a "visible from a point" rule in EQS first
