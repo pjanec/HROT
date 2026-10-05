@@ -756,6 +756,35 @@ public sealed class StorageGatewayTkbConsensusTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3075</c> — a scenario naming NO artifacts, staged after one that named some, must not leave the
+    /// previous header behind: the node's terrain and TKB steps fall back to it when the load message is silent.
+    /// 📐 Measured live <c>2026-10-05</c>: <c>hill-attack-close</c> after <c>ua-posture</c> kept test-town on CGF.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_NamingNothing_AfterOneNamingATerrain_RemovesThePreviousHeader_CE3075()
+    {
+        var nas  = MakeNas("named", null, "test-town", out _);
+        Directory.CreateDirectory(Path.Combine(nas, OrchestrationConstants.ScenariosDirectoryName, "bare"));
+        File.WriteAllText(Path.Combine(nas, OrchestrationConstants.ScenariosDirectoryName, "bare", "Hrot.SimHost.json"),
+            "{\"header\":{},\"entities\":[]}");
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            var gateway = new StorageGatewayModule();
+            await gateway.PrefetchScenarioAsync("named", new List<NodeDistributionTarget> { TargetIn(root, 1, "named") }, nas);
+            var nodeRoot = OrchestrationConstants.GetNodeStagingRoot(root, 1);
+            Assert.Equal("test-town", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(nodeRoot));
+
+            var result = await gateway.PrefetchScenarioAsync("bare", new List<NodeDistributionTarget> { TargetIn(root, 1, "bare") }, nas);
+
+            Assert.Equal(0, result.FailureCount);
+            Assert.Null(Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(nodeRoot));   // ⛔ was: "test-town", inherited
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>S2d</c> — copying twice with no NAS change performs ZERO file writes the second time.
     /// ⚠ Asserted on the destination's own <c>LastWriteTimeUtc</c> being untouched, which is exactly the
     /// property the NODE's cache then keys on (§6). A success-count assertion would not prove it.

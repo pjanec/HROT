@@ -432,7 +432,26 @@ public sealed class StorageGatewayModule
         ref int success,
         ref int failure)
     {
-        if (!names.Any) return;
+        if (!names.Any)
+        {
+            // ⭐⭐ CE-3075 — staging nothing must not leave the PREVIOUS scenario's header behind: both node-side
+            //   readers fall back to it when the load message is silent, so a scenario naming no terrain (or no TKB)
+            //   loaded after one that named some INHERITED those names on CGF (measured live 2026-10-05:
+            //   hill-attack-close after ua-posture kept test-town resident on CGF only). Remove it; stage nothing.
+            foreach (var target in targets)
+            {
+                if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+                var stale = Path.Combine(target.TkbDestinationPath, StagedScenarioHeaderFileName);
+                try { if (File.Exists(stale)) File.Delete(stale); }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] PrefetchScenario: could not remove the previous scenario's header '{0}': {1}", stale, ex.Message);
+                    Interlocked.Increment(ref failure);
+                }
+            }
+            return;
+        }
 
         var headerJson = BuildStagedHeaderJson(names);
 
