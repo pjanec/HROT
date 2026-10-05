@@ -31,6 +31,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         LatentDelayNode => LatentDelayPins(),
         RunBehaviorNode rb => RunBehaviorPins(rb),
         BehaviorTaskAbortNode => new[] { ExecIn() },   // ⭐ S7a — compile-time only
+        SopOrderNode so => SopOrderPins(so),             // ⭐ CE-2083
 
         // Dynamic: return known static skeleton; Stage0_Rehydrate enriches from asset state.
         EventEntryNode  => new[] { ExecOut() },
@@ -302,6 +303,16 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             ? RunBehaviorPins()
             : RunBehaviorPins().Append(new PinSchema(RunBehaviorNode.ParamsPin, "In", false,
                                                       RunBehaviorNode.ParamsPinTypeId(rb.ParamsTypeId!))).ToArray();
+
+    /// <summary>⭐ <c>CE-2083</c> — SOP order: exec In/Out, bool "Accepted" out, and (once a behaviour is picked) a "Params" in
+    /// typed as its authored params DTO — the Behaviour Task's pin shape (<see cref="RunBehaviorNode.ParamsPinTypeId"/>).</summary>
+    private static IReadOnlyList<PinSchema> SopOrderPins(SopOrderNode so)
+    {
+        var pins = new List<PinSchema> { ExecIn(), ExecOut(), new PinSchema(SopOrderNode.AcceptedPin, "Out", false, "System.Boolean") };
+        if (!string.IsNullOrWhiteSpace(so.ParamsTypeId))
+            pins.Add(new PinSchema(SopOrderNode.ParamsPin, "In", false, RunBehaviorNode.ParamsPinTypeId(so.ParamsTypeId!)));
+        return pins;
+    }
 
     private static IReadOnlyList<PinSchema> RunBehaviorPins()
         => new[]

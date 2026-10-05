@@ -64,6 +64,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(RunBehaviorNode),        "BehaviorTask")]   // ⭐ S7a — was "RunBehavior" (still read, BehaviorTaskMigration)
 [JsonDerivedType(typeof(BehaviorTaskAbortNode),  "BehaviorTaskAbort")]   // compile-time only (Stage 2.6); never authored
 [JsonDerivedType(typeof(BehaviorTaskStartNode),  "BehaviorTaskStart")]   // ⭐ S7b — compile-time only (Stage 2.6); never authored
+[JsonDerivedType(typeof(SopOrderNode),           "SopOrder")]   // ⭐ CE-2083 — an SOP order (DESIGN_Decision_Layer §4.10)
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -519,6 +520,52 @@ public sealed class RunBehaviorNode : Node
 
     /// <summary>True for an exec-OUT pin that is NOT the success continuation.</summary>
     public static bool IsNonSuccessOut(string name) => IsFailedPin(name) || name is StartedPin or WhileRunningPin;
+}
+
+/// <summary>⭐ <c>CE-2083</c> — which of the two SOP actions a <see cref="SopOrderNode"/> performs (the BTree payload's
+/// <c>SopOrderKindDto</c>; this assembly cannot see that one).</summary>
+public enum SopOrderKind
+{
+    /// <summary>The unit's idle choice — an assignment at origin Sop (the lowest rank).</summary>
+    DoWhenIdle = 0,
+    /// <summary>Answer an event — an assignment at origin Reaction, which pauses the task (R-199).</summary>
+    React = 1,
+}
+
+/// <summary>⭐ <c>CE-2083</c> — <c>Fdp.Toolkit.Behavior.Components.ReactionUrgency</c>, mirrored by NAME and VALUE because this
+/// assembly is also netstandard2.0 (the same reason the BTree payload has <c>SopUrgencyDto</c>); a rail pins all three.</summary>
+public enum SopOrderUrgency : byte
+{
+    NotAReaction = 0,
+    Alert = 1,
+    Contact = 2,
+    UnderFire = 3,
+    Hit = 4,
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-2083</c> — <b>SOP order</b> ("Do when idle" / "React"): starts <see cref="BehaviorName"/> in the unit's TASK slot
+/// through the gate, instantly, by calling <c>Fdp.Toolkit.Behavior.SopActions</c> — the one implementation the BTree node and
+/// the HSM state also call. <c>Accepted</c> is false when the gate refused it (a Branch on it is the BTree Selector's "try the
+/// next row"). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.10 (D4–D6), §4.6.
+/// </summary>
+public sealed class SopOrderNode : Node
+{
+    public SopOrderKind Kind { get; set; }
+
+    /// <summary>The behaviour's REGISTRY name.</summary>
+    public string BehaviorName { get; set; } = "";
+
+    /// <summary>The behaviour's AUTHORED params type (unprefixed FQN, <c>BehaviorDefinition.JsonParamsDtoType</c>), baked when it
+    /// is picked. Set ⇒ the node projects a <see cref="ParamsPin"/> typed as it; unset or unwired ⇒ the authored defaults.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsTypeId { get; set; }
+
+    /// <summary>For <see cref="SopOrderKind.React"/>: how urgent (a running reaction yields only to a more urgent one).</summary>
+    public SopOrderUrgency Urgency { get; set; } = SopOrderUrgency.Alert;
+
+    public const string ParamsPin   = "Params";
+    public const string AcceptedPin = "Accepted";
 }
 
 /// <summary>

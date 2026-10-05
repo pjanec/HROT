@@ -813,6 +813,11 @@ public sealed record IrOp_ReadRankedResult(
 /// ⭐ CE-472 — <c>var __t{r} = JsonSerializer.Serialize(__t{Value}, FdpJsonOptionsRegistry.DefaultRelaxed);</c> — the
 /// one serializer setting every behaviour parse already reads with (DESIGN_Typed_Intent_And_Json_Nodes §4 C).
 /// </summary>
+/// <summary>⭐ <c>CE-2083</c> — an SOP order: <c>SopActions.{React|DoWhenIdle}(world, self, name[, urgency], in params | "{}")</c>;
+/// the result is <c>bool</c> — true unless the gate refused it. <see cref="UrgencyName"/> is the
+/// <c>ReactionUrgency</c> member spelled into the call.</summary>
+public sealed record IrOp_SopOrder(bool IsReact, string BehaviorName, byte Urgency, string UrgencyName, IrValue? Params) : IrOperation;
+
 public sealed record IrOp_ToJson(IrValue Value) : IrOperation;
 
 /// <summary>

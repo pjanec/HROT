@@ -100,4 +100,8 @@ public enum HsmDiagnosticCode
     // the behaviour's block. ⚠ A WARNING on purpose: the C# compile of the resolver against the generated block is the
     // backstop (BP1677), this is the ergonomic early notice. 📄 Q76 §12.21.
     ResolverOutOfDate,
+
+    // ⭐ CE-2083 — a state's SOP order RUNS AS its activity (DESIGN_Decision_Layer §4.10 D3): an order AND an Activity binding
+    // is one slot with two owners (the generator refuses it, HSM0001); and an order must name a behaviour. Hard-error.
+    SopOrderInvalid,
 }

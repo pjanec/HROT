@@ -315,6 +315,22 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>⭐ <c>CE-2083</c> — adds an SOP order node (exec in/out, the <c>Accepted</c> bool out, and a <c>Params</c> in
+    /// typed <paramref name="paramsTypeId"/> when given). Find it with <c>Nodes.OfTypeIts id is <see cref="LastNodeId"/> for wiring data by hand.</summary>lt;SopOrderNodeIts id is <see cref="LastNodeId"/> for wiring data by hand.</summary>gt;()</c> to wire data by hand.</summary>
+    public GraphBuilder SopOrder(SopOrderKind kind, string behaviorName, SopOrderUrgency urgency = SopOrderUrgency.Alert,
+                                 string? paramsTypeId = null)
+    {
+        var nodeId = MakeNodeId("SopOrder", _nodes.Count);
+        var node = new SopOrderNode { Id = nodeId, Kind = kind, BehaviorName = behaviorName, Urgency = urgency, ParamsTypeId = paramsTypeId };
+        node.Pins.Add(new Pin { Id = MakePinId(nodeId, SopOrderNode.AcceptedPin), Name = SopOrderNode.AcceptedPin, Direction = "Out",
+                                TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } });
+        if (paramsTypeId != null)
+            node.Pins.Add(new Pin { Id = MakePinId(nodeId, SopOrderNode.ParamsPin), Name = SopOrderNode.ParamsPin, Direction = "In",
+                                    TypeRef = new BlueprintTypeRef { TypeId = RunBehaviorNode.ParamsPinTypeId(paramsTypeId) } });
+        RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
     /// <summary>⭐ S5d — a Run Behaviour node with its OnFailure exec-out wired to a sub-chain (as <see cref="WaitForChannelWithFailure"/>).</summary>
     public GraphBuilder RunBehaviorWithFailure(string behaviorName, Action<GraphBuilder> onFailure)
     {

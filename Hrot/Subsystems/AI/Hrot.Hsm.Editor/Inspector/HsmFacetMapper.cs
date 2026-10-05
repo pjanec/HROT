@@ -45,6 +45,13 @@ public sealed class HsmFacetMapper
             ActivityBlueprintAssetId = (s.Activity?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty
                                          ? string.Empty
                                          : s.Activity!.BlueprintAssetId.ToString(),
+            // ⭐ CE-2083 — the state's SOP order, if any.
+            SopOrder                = s.SopOrder is null ? HsmSopOrderKind.None
+                                    : s.SopOrder.Kind == Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React ? HsmSopOrderKind.React
+                                    : HsmSopOrderKind.DoWhenIdle,
+            SopBehavior             = s.SopOrder?.BehaviorName,
+            SopParamsVariable       = s.SopOrder?.ParamsVariable ?? string.Empty,
+            SopUrgency              = s.SopOrder?.Urgency ?? Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Alert,
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19

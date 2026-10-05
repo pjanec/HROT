@@ -978,6 +978,11 @@ public sealed class StateNode : IContainerNodeModel
     //   start; set by the subtree pick's compose step. Null = unbound. Mirrors BTreeSubtreePayload.ParamsVariable.
     public string? SubtreeParamsVariable;
 
+    // ⭐ CE-2083 — an SOP order this state issues ("Do when idle" / "React"); it RUNS AS the state's activity, so a state carries
+    //   an order XOR an Activity binding (HsmValidator). The persisted payload itself — the editor edits it in place.
+    //   📄 DESIGN_Decision_Layer.md §4.10.
+    public Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto? SopOrder;
+
     // ⭐⭐ DERIVED, NOT PERSISTED — recomputed by HsmSubtreeResolver against the asset catalogue on
     //    load and after a hot reload. 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     // ⛔ Deliberately absent from StateNodeDto, mirroring BTree: a persisted `true` would outlive

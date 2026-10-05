@@ -1877,6 +1877,7 @@ namespace Hrot.Editor
                     BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
                     // ⭐ S8 / CE-2022 — and what each one takes as parameters (the task's typed Params pin).
                     BehaviourParamsType = Hrot.Editor.AiComposition.ChildInputTypes.Lookup(() => _behaviorRegistry),
+                    SopParamsType       = Hrot.Editor.AiComposition.ChildInputTypes.ParamsDtoLookup(() => _behaviorRegistry),   // CE-2083
                 });
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action

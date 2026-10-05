@@ -1552,6 +1552,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 BehaviourNames    = () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyList<string>)Array.Empty<string>(),
                 // ⭐ S8 / CE-2022 — and what each one takes as parameters (the task's typed Params pin).
                 BehaviourParamsType = Hrot.Editor.AiComposition.ChildInputTypes.Lookup(() => _behaviorRegistry),
+                SopParamsType       = Hrot.Editor.AiComposition.ChildInputTypes.ParamsDtoLookup(() => _behaviorRegistry),   // CE-2083
             });
         var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
         _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);

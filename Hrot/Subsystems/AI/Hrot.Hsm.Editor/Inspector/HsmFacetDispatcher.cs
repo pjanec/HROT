@@ -42,18 +42,24 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         HsmAsset asset,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
         Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null,
-        Func<string, string?>? childInputsTypeOf = null)
+        Func<string, string?>? childInputsTypeOf = null,
+        Func<string, string?>? sopParamsTypeOf = null)
     {
         _asset             = asset ?? throw new ArgumentNullException(nameof(asset));
         _catalog           = catalog;
         _actionSchema      = actionSchema;
         _childInputsTypeOf = childInputsTypeOf;
+        _sopParamsTypeOf   = sopParamsTypeOf;
         _mapper            = new HsmFacetMapper(asset);
     }
 
     /// <summary>⭐ S8b-2 (CE-2025) — a picked child's Inputs type id (<c>ChildInputTypes.Lookup</c>, the one answer every
     /// behaviour picker shares). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</summary>
     private readonly Func<string, string?>? _childInputsTypeOf;
+
+    /// <summary>⭐ <c>CE-2083</c> — a picked behaviour's AUTHORED params type id (<c>ChildInputTypes.ParamsDtoLookup</c>, the
+    /// answer the BTree SOP order uses). ⚠ Optional for headless fixtures; ⛔ a production host passes it.</summary>
+    private readonly Func<string, string?>? _sopParamsTypeOf;
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
 
@@ -123,8 +129,32 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         s.OnExit   = BehaviorActionBindingEditor.Apply(s.OnExit,   f.OnExit,   ApplyContext(composeBaseName: null));
         s.Activity = BehaviorActionBindingEditor.Apply(s.Activity, f.Activity, ApplyContext("bpActivityParams"));
         s.Timer    = BehaviorActionBindingEditor.Apply(s.Timer,    f.Timer,    ApplyContext(composeBaseName: null));
+        ApplySopOrder(s, f);   // ⭐ CE-2083
 
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2083</c> — the state's SOP order, applied like the BTree's (<c>BTreeFacetMapper.ApplySopOrder</c>): None removes it;
+    /// a NEWLY picked behaviour composes a variable of its params type (the shared compose step) bound as the order's
+    /// <c>ParamsVariable</c>; no params type ⇒ unbound (the authored defaults). ⚠ Only on a change, so an unchanged pick
+    /// never resurrects a variable the author deleted.
+    /// </summary>
+    private void ApplySopOrder(Hrot.Hsm.Editor.Model.StateNode s, StateFacet f)
+    {
+        if (f.SopOrder == HsmSopOrderKind.None) { s.SopOrder = null; return; }   // the variable stays (no rush removals)
+        var order = s.SopOrder ??= new Hrot.AiEditor.Persistence.BTree.SopOrderPayloadDto();
+        order.Kind = f.SopOrder == HsmSopOrderKind.React
+            ? Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React
+            : Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.DoWhenIdle;
+        order.Urgency = f.SopUrgency;
+        string picked = f.SopBehavior ?? string.Empty;
+        if (string.Equals(order.BehaviorName, picked, StringComparison.Ordinal)) return;
+        order.BehaviorName = picked;
+        order.ParamsVariable = string.IsNullOrWhiteSpace(picked) ? null
+            : Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+                _asset, picked, _sopParamsTypeOf?.Invoke(picked),
+                comment: $"CE-2083: the params state '{s.Name}' sends with '{picked}'.");
     }
 
     /// <summary>The HSM apply rules: an empty slot is unbound; only a blueprint-capable slot composes (<c>CE-414</c>).</summary>

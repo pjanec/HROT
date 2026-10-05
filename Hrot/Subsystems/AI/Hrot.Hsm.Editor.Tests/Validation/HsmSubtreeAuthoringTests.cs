@@ -290,4 +290,76 @@ public sealed class HsmSubtreeAuthoringTests
 
         state.SubtreeParamsVariable.Should().BeNull();
     }
+
+    // ── ⭐⭐ CE-2083 — a state issues an SOP order (DESIGN_Decision_Layer §4.10) ────────────────────────
+
+    private static (HsmAsset Hsm, StateNode State, HsmFacetDispatcher D) Order(HsmSopOrderKind kind, string behaviour,
+                                                                                 string? paramsTypeId)
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm, sopParamsTypeOf: n => n == behaviour ? paramsTypeId : null);
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        facet.SopOrder    = kind;
+        facet.SopBehavior = behaviour;
+        facet.SopUrgency  = Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit;
+        d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
+        return (hsm, state, d);
+    }
+
+    /// <summary>
+    /// ⭐ Picking a behaviour for a state's React order composes a variable of its params type and binds it as the order's
+    /// <c>ParamsVariable</c> — and the order survives the DTO round trip into exactly what the emitter reads.
+    /// </summary>
+    [Fact]
+    public void CE2083_AStatesReactOrder_ComposesItsParams_AndRoundTripsToTheDto()
+    {
+        var (hsm, state, d) = Order(HsmSopOrderKind.React, "TakeCover", PatrolInputsId);
+
+        state.SopOrder.Should().NotBeNull();
+        state.SopOrder!.Kind.Should().Be(Hrot.AiEditor.Persistence.BTree.SopOrderKindDto.React);
+        state.SopOrder.BehaviorName.Should().Be("TakeCover");
+        state.SopOrder.Urgency.Should().Be(Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Hit);
+        state.SopOrder.ParamsVariable.Should().Be("TakeCoverParams");
+        hsm.BlackboardVariables.Single(x => x.Name == "TakeCoverParams").FieldType.Should().Be(typeof(PatrolInputs));
+
+        var dto = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm).States.Single(x => x.Name == "Patrolling").SopOrder;
+        dto.Should().NotBeNull();
+        dto!.BehaviorName.Should().Be("TakeCover");
+        dto.ParamsVariable.Should().Be("TakeCoverParams");
+        dto.Should().NotBeSameAs(state.SopOrder, "the model and the DTO never share one instance");
+
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        facet.SopOrder.Should().Be(HsmSopOrderKind.React);
+        facet.SopParamsVariable.Should().Be("TakeCoverParams");
+    }
+
+    /// <summary>⭐ Setting the order to None removes it (the composed variable stays — no rush removals).</summary>
+    [Fact]
+    public void CE2083_SettingTheOrderToNone_RemovesIt()
+    {
+        var (hsm, state, d) = Order(HsmSopOrderKind.DoWhenIdle, "Patrol", PatrolInputsId);
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        facet.SopOrder = HsmSopOrderKind.None;
+        d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
+
+        state.SopOrder.Should().BeNull();
+        hsm.BlackboardVariables.Should().Contain(x => x.Name == "PatrolParams");
+    }
+
+    /// <summary>⛔ D3 — an order AND an Activity binding, or an order with no behaviour, is <c>SopOrderInvalid</c>.</summary>
+    [Fact]
+    public void CE2083_AnOrderBesideAnActivity_OrWithNoBehaviour_IsSopOrderInvalid()
+    {
+        var (hsm, state, _) = Order(HsmSopOrderKind.DoWhenIdle, "Patrol", null);
+        new HsmValidator().Validate(hsm).Should().NotContain(x => x.Code == HsmDiagnosticCode.SopOrderInvalid);
+
+        state.Activity = new Hrot.Editor.AiShared.BehaviorActionBinding { MethodFqn = "Probe.Nodes.Run" };
+        new HsmValidator().Validate(hsm).Should().ContainSingle(x => x.Code == HsmDiagnosticCode.SopOrderInvalid)
+            .Which.Message.Should().Contain("Activity");
+
+        state.Activity = null;
+        state.SopOrder!.BehaviorName = "";
+        new HsmValidator().Validate(hsm).Should().ContainSingle(x => x.Code == HsmDiagnosticCode.SopOrderInvalid)
+            .Which.Message.Should().Contain("no behaviour");
+    }
 }

@@ -204,6 +204,18 @@ internal static class StatementEmitter
 
             // ⭐ CE-472 — the ONE JSON emitter (DESIGN_Typed_Intent_And_Json_Nodes §4 C): the same options every
             // behaviour parse reads with, so what a blueprint writes is what every behaviour parse (BehaviorParams.JsonOptions) reads.
+            // ⭐ CE-2083 — SOP order: the ONE SopActions call (the BTree / HSM thunks spell the same call, SopOrderEmit).
+            case IrOp_SopOrder op:
+            {
+                string name = op.BehaviorName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string method = op.IsReact ? "React" : "DoWhenIdle";
+                string urgency = op.IsReact ? $", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.{op.UrgencyName}" : "";
+                string args = op.Params is { } pv ? $"in __t{pv.Index}" : "\"{}\"";
+                string call = $"global::Fdp.Toolkit.Behavior.SopActions.{method}({wv}, self, \"{name}\"{urgency}, {args})";
+                e.WriteLine(idx >= 0 ? $"var __t{idx} = {call} == global::Fbt.NodeStatus.Success;" : $"{call};");
+                break;
+            }
+
             case IrOp_ToJson op:
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = global::System.Text.Json.JsonSerializer.Serialize(__t{op.Value.Index}, "
