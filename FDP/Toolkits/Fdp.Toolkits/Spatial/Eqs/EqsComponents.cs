@@ -175,5 +175,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </summary>
         [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool (recorder / StructEdit buffers)
         public bool Suspended;
+
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> ③ — a POSITION standing in for context slot 1 when the threat is a heard contact (no entity; 🔒 user
+        /// <c>2026-10-05</c>: "hide from a point is OK"). Read through <see cref="EqsContext.AnchorPosition"/> only when slot 1 is
+        /// null and <see cref="ContextPointMask"/> has <see cref="Point1Bit"/>. 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
+        /// </summary>
+        public System.Numerics.Vector3 ContextPoint1;
+
+        /// <summary>⭐ <c>CE-3063</c> — which context slots carry a point (bit = 1 &lt;&lt; slot; only slot 1 has one).</summary>
+        public byte ContextPointMask;
+
+        /// <summary>The <see cref="ContextPointMask"/> bit of <see cref="ContextPoint1"/>.</summary>
+        public const byte Point1Bit = 1 << 1;
     }
 }

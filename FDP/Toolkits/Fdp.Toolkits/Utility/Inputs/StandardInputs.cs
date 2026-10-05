@@ -218,7 +218,8 @@ namespace Fdp.Toolkit.Utility
             if (!ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             for (int i = 0; i < mem.Count; i++)
-                if (ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)) return 1f;
+                // ⭐ CE-3063 ② — identified contacts only: this gates the FIRING postures, and a heard point cannot be shot.
+                if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)) return 1f;
             return 0f;
         }
 
@@ -237,7 +238,7 @@ namespace Fdp.Toolkit.Utility
 
             float enemy = 0f;
             for (int i = 0; i < mem.Count; i++)
-                enemy += ThreatDanger.Of(ctx.Repo, ctx.Self, new Entity((ulong)mem.EntityIds[i]));
+                enemy += ThreatDanger.OfSlot(ctx.Repo, ctx.Self, in mem, i);   // ⭐ CE-3063 ② — a heard tank counts (K3)
 
             float total = enemy + ThreatDanger.OwnStrength(ctx.Repo, ctx.Self);
             float result = total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);

@@ -166,6 +166,15 @@ namespace Fdp.Toolkit.Tests.Utility
         /// Seeds a contact into <paramref name="self"/>'s TargetMemory using real
         /// <see cref="TargetMemory.AddOrUpdateTarget"/>.
         /// </summary>
+        /// <summary>⭐ <c>CE-3063</c> — a HEARD contact in <paramref name="self"/>'s memory (no entity): heard at (x, y) within
+        /// <paramref name="radius"/>, sounding like <paramref name="sourceClass"/>, at <paramref name="freshness01"/>. Returns its id.</summary>
+        public long SeedHeard(Entity self, float x, float y, float radius, byte sourceClass, float freshness01 = 1f)
+        {
+            ref var mem = ref Repo.GetComponentRW<TargetMemory>(self);
+            return TargetMemory.HearContact(ref mem, x, y, 0f, radius, sourceClass,
+                                            freshness01 * PerceptionConstants.FreshnessSaturation, ++Tick);
+        }
+
         public void SeedContact(Entity self, Entity contact, float distanceM, float threatBoost,
             float contactHealth01, bool hasLos)
         {

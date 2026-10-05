@@ -259,5 +259,31 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.Equal(6f, contact.PositionY, precision: 5);
             Assert.Equal(7f, contact.PositionZ, precision: 5);
         }
+
+        /// <summary>⭐ <c>CE-3063</c> ② — two members HEARING one shot are ONE squad contact: their circles meet, so the pool fuses
+        /// them by position (the radius shrinks, both members' bits set), flagged heard; a shot heard far away stays a second contact.</summary>
+        [Fact]
+        public void CE3063_TwoMembersHearingOneShot_AreOnePooledContact()
+        {
+            var (repo, commander, members) = CreateSquadWorld(3);
+            const byte smallArms = 4;
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem0, 100f, 0f, 0f, 20f, smallArms, 50f, 1);
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 110f, 5f, 0f, 20f, smallArms, 60f, 1);
+            ref var mem2 = ref repo.GetComponentRW<TargetMemory>(members[2]);
+            TargetMemory.HearContact(ref mem2, -400f, 0f, 0f, 20f, smallArms, 40f, 1);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+
+            ref var state = ref GetState(commander);
+            Assert.Equal(2, state.Contacts.Count);
+            ref var fused = ref GetContact(commander, 0);   // sorted by score: the fused one (60) first
+            Assert.True((fused.Flags & SquadContact.AnonymousFlag) != 0, "a heard contact stays flagged heard in the pool");
+            Assert.Equal((ushort)0b0011, fused.SourceMembersMask);
+            Assert.Equal(60f, fused.ThreatScore);
+            Assert.InRange(fused.PositionX, 100f, 110f);   // between the two estimates
+            Assert.True((GetContact(commander, 1).Flags & SquadContact.AnonymousFlag) != 0);
+        }
     }
 }

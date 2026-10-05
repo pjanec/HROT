@@ -169,6 +169,12 @@ internal static class BehaviorTreeAssetProjector
                     Duration = blob.FloatParams[nodeDef.PayloadIndex],
                 };
                 break;
+            case NodeType.Parallel:
+                // ⭐ CE-2073 — the compiler keeps a Parallel's policy in IntParams (TreeCompiler), so a compiled tree
+                //   projects with the policy it was authored with.
+                if (nodeDef.PayloadIndex >= 0 && nodeDef.PayloadIndex < blob.IntParams.Length)
+                    editorNode.ParallelPolicy = blob.IntParams[nodeDef.PayloadIndex];
+                break;
             case NodeType.Subtree:
                 editorNode.Subtree = new BTreeSubtreePayload
                 {

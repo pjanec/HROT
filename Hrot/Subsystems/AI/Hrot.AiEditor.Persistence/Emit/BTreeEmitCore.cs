@@ -698,8 +698,8 @@ public static class BTreeEmitCore
         // Parallel's builder signature is Parallel(int policy, Action<...> children, ...);
         // every other composite (Sequence/Selector/ObserverSelector) takes only the children
         // lambda. Without this leading arg the emitted code fails to compile (CS7036).
-        // Policy 0 = RequireAll (kernel default); authoring a per-node policy is DEC follow-up.
-        string leadingArgs = methodName == "Parallel" ? "0, " : "";
+        // Policy 0 = RequireAll (kernel default), 1 = RequireOne — ⭐ CE-2073: authored on the node (was always 0).
+        string leadingArgs = methodName == "Parallel" ? $"{(node as BTreeParallelNodeDto)?.Policy ?? 0}, " : "";
 
         int childCount = node.ChildVisualIds.Count;
         if (childCount == 0)

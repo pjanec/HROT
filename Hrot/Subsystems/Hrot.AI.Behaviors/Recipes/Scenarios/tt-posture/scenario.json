@@ -1,0 +1,82 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "2a950000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          295,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7011
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "2a950000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          360,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7012
+      },
+      "TkbIdentity": {
+        "TkbType": 1001
+      },
+      "EntityInfo": {
+        "Name": "Unarmed Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

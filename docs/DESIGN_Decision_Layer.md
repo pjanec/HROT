@@ -488,6 +488,127 @@ switches to option 2 past it — the §3.2 Parallel-repeat shape, measured).
 
 Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
 
+### 3.3b `CE-2073` — CombatPosture, the build design *(behaviors, `2026-10-05`; build-state: BUILT)*
+
+⚠ **A HOST CHANGE, argued here and reported (lean, reversible):** §3.3 drew CombatPosture as a BLUEPRINT that spawns its two
+sensors and Starts / Aborts one hosted child per winner. Since then `CE-2069` built the utility step as shared BTree / HSM
+nodes, and `CE-2069`'s own rail proves the exact shape `Parallel[ChooseOption, ObserverSelector[IsOption(n) → child]]`
+switching in both directions (`UtilityScorerTests.CE2069_UtilityNodes_SwitchTheBranch_WhenTheWinnerChanges`). The user
+chose BTree for the same reason on `CE-3031` (R-204 (behaviors)).
+
+| host | what it takes | verdict |
+|---|---|---|
+| **BTree** | one asset; every step a shared C# node; the branch switch is `ObserverSelector` (`CE-3041`) | ⭐ **lean** — the fewest new parts |
+| HSM | five states + five global transitions guarded by `IsOption`; activities = the children | works, but more wiring for the same behaviour |
+| blueprint | `ScoreDecision` + five Behaviour Tasks + Abort / Start per change + two `SpawnEqsSensor` | the most parts; the children (`TakeCover`, `FallBack`) are BTree assets the blueprint would have to host |
+
+**INVENTORY** *(grep + reading, `2026-10-05`)*: `UtilityNodes.ChooseOption` / `IsOption` (`CE-2069`) ·
+`EqsTacticsNodes.TakeCover` / `FallBack` (`CE-2092` / `CE-2093`) · `CgfNodes.Action_FireAtTarget` (a FIXED target param — not
+usable for "the top threat") · `CgfNodes.Action_HoldPosition` (a raw BTree action, not a shared node) · `LocomotionMoveTo`
+(`CE-2092`) · `CombatPostureDecision` (5 options; inputs `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)` read the
+unit's sensor through `UnitSensors.OfTemplate`) · `ObserverSelector` · `Parallel` — ⚠ the asset format cannot set its policy
+(`BTreeEmitCore.cs:702` always emits 0 = RequireAll) · `Repeater(-1)` — ⛔ loops inside one tick while its child succeeds at
+once (`Interpreter.cs` `ExecuteRepeater`), so it cannot keep a branch alive.
+
+```mermaid
+classDiagram
+  class PostureNodes {
+    <<NEW, shared C# nodes>>
+    +PostureSensors(ref PostureSensorsParams, ref PostureSensorsState) Running
+    +Engage(ref EngageParams, ref EngageState) Running
+    +AdvanceAndAttack(ref AdvanceParams, ref AdvanceState) Success at the objective
+    +Hold() Running
+    deactivators: PostureSensors, Engage, AdvanceAndAttack
+  }
+  class EqsTacticsNodes { <<existing>> TakeCover · FallBack · TopThreat / EnsureSensor / Release become internal, reused }
+  class UtilityNodes { <<existing>> ChooseOption · IsOption }
+  class LocomotionMoveTo { <<existing>> Issue · Status }
+  class WeaponChannel { <<existing>> AimAndFire (ROE enforced in AimAndFireExecutor) }
+  class BTreeParallelNodeDto { <<existing, grows>> NEW Policy 0 RequireAll / 1 RequireOne (omitted when 0) }
+  class CombatPosture_btree { <<NEW asset>> Parallel(RequireOne) }
+  PostureNodes ..> EqsTacticsNodes : TopThreat, EnsureSensor
+  PostureNodes ..> LocomotionMoveTo
+  PostureNodes ..> WeaponChannel
+  CombatPosture_btree ..> UtilityNodes
+  CombatPosture_btree ..> PostureNodes
+  CombatPosture_btree ..> EqsTacticsNodes
+  CombatPosture_btree ..> BTreeParallelNodeDto
+```
+
+```mermaid
+graph TD
+  ROOT["Root"] --> PAR["Parallel (RequireOne)"]
+  PAR --> CH["ChooseOption(CombatPosture) → choice"]
+  PAR --> PS["PostureSensors (cover + retreat at the top threat)"]
+  PAR --> OBS["ObserverSelector"]
+  OBS --> A["IsOption(1) → AdvanceAndAttack"]
+  OBS --> C["IsOption(2) → ForceFailure(TakeCover)"]
+  OBS --> S["IsOption(3) → ForceFailure(Engage)"]
+  OBS --> F["IsOption(4) → ForceFailure(FallBack)"]
+  OBS --> H["Hold"]
+```
+
+*What the picture shows that prose hid:* the posture FINISHES only when AdvanceAndAttack reaches the objective (RequireOne:
+the first child to succeed ends the Parallel). Every other child is wrapped in ForceFailure, so "nothing to hide from"
+falls through to Hold instead of ending the mission task. `ChooseOption` and the sensors run beside the branch the whole time.
+
+```mermaid
+sequenceDiagram
+  participant M as mission task (assign by name, Origin = Superior)
+  participant B as BrainTickSystem → BTree
+  participant U as UtilityNodes
+  participant P as PostureNodes / EqsTacticsNodes
+  participant W as channels (locomotion, weapon)
+  M->>B: CombatPosture {objective, …}
+  loop every tick
+    B->>U: ChooseOption → choice.Winner (hysteresis on the last winner)
+    B->>P: PostureSensors: cover + retreat sensors pointed at the top threat (the decision's EqsTopScore reads them)
+    B->>U: IsOption(n) guards — the ObserverSelector switches branch when the winner changes (deactivator stops the old child)
+    B->>P: the winner's child: AdvanceAndAttack / TakeCover / Engage / FallBack / Hold
+    P->>W: MoveTo / AimAndFire at the top threat
+  end
+  P-->>B: AdvanceAndAttack arrives ⇒ Success ⇒ the Parallel ends ⇒ BehaviorFinished ⇒ the mission advances
+```
+
+```mermaid
+graph TD
+  SCAN["BTree asset generator (CombatPosture.btree.json)"] -->|registers| REG["BehaviorRegistry 'CombatPosture'"]
+  MIS["MissionDirector / MissionAdapter (CGF, editor)"] -->|assign by name| ING["BehaviorIngressSystem"]
+  ING --> BTS["BrainTickSystem (CognitiveRuntimeModule)"]
+  BTS -->|each tick| TREE["CombatPosture tree"]
+  CAT["CgfLogicPack → UtilityDecisionCatalog.EnsureRegistered"] -.->|"CombatPostureDecision"| TREE
+```
+
+| decision | why | rejected |
+|---|---|---|
+| Suppress = a NEW `Engage` node (fire at the top threat, retarget when it changes) | `Action_FireAtTarget` takes a fixed target | a second fixed-target copy |
+| AdvanceAndAttack = ONE node that moves AND fires | G9: one behaviour owns every channel; one node keeps the two commands in one run | two nodes in a Parallel (two writers of one run's channels) |
+| `Hold` = a NoParams shared node that stops the move it may have issued | `Action_HoldPosition` is a raw BTree action, not bindable from an asset | — |
+| the posture's two sensors are its OWN (sites `0x20730001` / `0x20730002`), and TakeCover keeps its own | `CE-2071` (SUPERSEDED reuse): every behaviour owns the sensors it needs; `OfTemplate` reads the current run's own first | sharing one sensor between scoring and moving |
+| `Parallel` gets an authorable `Policy` (DTO + emitter + editor field) | RequireAll never finishes while ChooseOption runs; the asset format could not say RequireOne | a Repeater (spins inside one tick) |
+| ⛔ SUPERSEDED by the as-built below — acceptance on a NEW recipe `tt-posture` (a copy of `tt-nav-los` with the posture as the mission task) | `tt-nav-los` is a terrain-EQS fixture other rails read | editing `tt-nav-los` in place |
+
+⭐ **AS-BUILT (`2026-10-05`)** — the tree, nodes and sequence above are built as drawn. Where the build differs:
+
+| as built | where | differs from the design because |
+|---|---|---|
+| the editor's projection of a COMPILED tree also carries the policy | `BehaviorTreeAssetProjector` (`case NodeType.Parallel` ← `blob.IntParams`, as `TreeCompiler` stores it) | the design named DTO + emitter + editor field and missed this fourth reader: a tree loaded from the assembly showed RequireAll |
+| the acceptance recipe copies `tt-take-cover`, not `tt-nav-los` | `Recipes/Scenarios/tt-posture` | `tt-nav-los` is a TANK on a road net; the posture is infantry. The rifleman is TKB 2002 (armed) ordered `CombatPosture` by its `Behavior` component, with no SOP (so nothing pauses it); the hostile is TKB 1001 (no weapon mount ⇒ unarmed, `ThreatDanger` 0.3), so the weaker-enemy branch wins |
+| a `Vector3` in the params JSON is an ARRAY `[x, y, z]` | `CombatPosture.btree.json`, the recipe | the registered converter rejects the object form; a wrong form starts nothing |
+| rounds are spent on CGF | `AimAndFireExecutor` (registered in `CgfLogicPack`) decrements CGF's `WeaponState`; SimHost's copy is not the counter | — (the acceptance reads CGF's ammo) |
+
+Rails: `TacticsTreesTests.CE2073_*` (4: compiled + registered · a weak enemy ⇒ advances firing, ends at the objective · nothing
+to fight ⇒ holds, does not end · hurt with cover ⇒ switches to TakeCover; red-proved by authoring the Parallel back to
+RequireAll — the posture then never ends) · `BTreeJsonGeneratorTests.CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted` (JSON,
+mapper both ways, the compiled-tree projection; red before the projector case) · the generated-source golden
+(`CombatPosture.g.cs.txt` emits `.Parallel(1, …)`) · live: `PostureScenarioTests.CE2073_*` on `tt-posture` (posture starts,
+rounds spent, ends within the arrival radius of the objective).
+
+⚠ **Gap found, not built — `CE-2105`:** with nothing left to fight (the enemy killed or lost), `CombatPostureDecision` scores
+Advance 0 (`HaveLiveTarget` is a Step) and Hold wins; Hold stays put. ⇒ an advance whose enemy falls short of the objective
+**never reaches it and never ends**. Lean: the tree's Hold leaf becomes "move on to the objective without firing" when the
+posture was given one (the decision stays unchanged, so "hold" keeps meaning "nothing worth doing here").
+
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
 > 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename
@@ -927,7 +1048,7 @@ rule (R-199 ②) that decides whether a reaction may pause a task.*
 Rail: `SopDemoScenarioTests` (live cluster `simhost,ig,excon,cgf`, DDS domain 227): C idles via its SOP · A takes cover with
 the move paused · B is hit and never reacts — red-proved (B without its ROE reacts; A without its SOP never covers).
 
-### 4.9 RESUME instead of restart — `CE-2081` *(DESIGN `2026-10-05` — leans for approval; not built)*
+### 4.9 RESUME instead of restart — `CE-2081` *(DESIGN `2026-10-05`; A–D approved, E changed — build design §4.9a)*
 
 ⭐ Basis: §4.1 (*"Restart with resume as followup accepted"*, R-199) and its measured table *"what resume would take"*.
 This section turns that table into a buildable shape.
@@ -993,6 +1114,100 @@ part of `CE-2081`, designed before the BTree/HSM half ships, so resume lands for
 
 ⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
 · Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
+
+### 4.9a `CE-2081` — the build design, all three tiers *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
+
+**INVENTORY** *(measured `2026-10-05`, grep + reading; the graph was not consulted for this list — every site is a call of
+a named helper inside `BehaviorIngressSystem.cs`)*: the places that end a task-slot run's storage — `Start` (prev manifest
+`DetachStatefulSlots`, `DetachHostedOccurrenceSlots`, prev `RootParams/RootState.DetachRoot`, `BehaviorOwnedParts.Release`),
+`Clear` (the same four, plus `RootStateAccess.ResetState`), the unhosted hash assign. The token readers: `ChannelArbitrationSystem`
+(`!=`), `BehaviorOwnedParts` (`==`), `BehaviorFault` (`==`), `BrainTickSystem._publishedTerminalForInstanceId` (`==`, finish
+de-dup), the blueprint cursor `InstanceVersion` (`!=` ⇒ restart from entry, `StatementEmitter.cs:844`). No reader orders
+tokens (`<`/`>`): searched, none found.
+
+```mermaid
+classDiagram
+  class PausedTask { <<existing, grows>> BehaviorName · JsonParams · Origin · NEW Hash · InstanceId · BrainTier · HeldKeys int[] · Restart bool }
+  class BehaviorIngressSystem { <<existing>> PauseRecord: + HeldKeys (store keys at pause, minus the SOP's) · Start(pausing): skips the prev run's sweeps, sizes by FREE space · IsHeldByPausedTask (beside IsHeldBySop) · ResumePausedTask: RESTORES · DropPausedTask(release) }
+  class RunTokens { <<NEW, the SopTokens allocator generalised>> +Next() high-bit, process-unique }
+  class BehaviorOwnedParts { <<existing>> Release(run) · NEW Restamp is NOT needed (the task keeps its token) }
+  class WaitLowering_Instance { <<existing>> channel wait: NEW "cancelled" check (ActiveAction == 0) ⇒ re-run the ChannelCommand + its pure inputs }
+  class ChannelArbitrationSystem { <<existing, unchanged>> resets a channel whose BehaviorInstanceId != InstanceId }
+  BehaviorIngressSystem ..> PausedTask
+  BehaviorIngressSystem ..> RunTokens : a run started while a task is paused
+  WaitLowering_Instance ..> ChannelArbitrationSystem : detects its reset
+```
+
+*What the picture shows that prose hid:* the task KEEPS its token. Everything that would otherwise need re-keying — owned parts,
+the blueprint cursor version, the channel stamp — matches again the moment the token comes back, so nothing is re-stamped.
+
+```mermaid
+sequenceDiagram
+  participant G as gate
+  participant I as BehaviorIngressSystem
+  participant S as store + owned parts
+  participant C as ChannelArbitrationSystem
+  participant R as task runner (BTree / HSM / blueprint)
+  G->>I: reaction admitted, pause = true
+  I->>I: PauseRecord: name, json, origin, Hash, InstanceId T, tier, HeldKeys
+  alt the reaction's keys overlap HeldKeys (same curated node, same offset) or its asset = the task's
+    I->>I: overlap ⇒ Restart = true, HeldKeys = [] (today's restart) · same asset ⇒ refused (lean B)
+  end
+  I->>S: Start(reaction, pausing): token = RunTokens.Next() · prev sweeps skipped · sized by free space
+  Note over C: channel stamp T ≠ reaction token ⇒ the task's command is reset
+  I->>I: reaction ends (finish / self-clear) ⇒ Clear sweeps skip HeldKeys
+  I->>I: ResumePausedTask: hash, InstanceId = T, tier, origin restored · RunSince = now · start record = T · record dropped
+  C->>C: channel stamp (reaction token) ≠ T ⇒ reset, ActiveAction = 0
+  R->>R: BTree / HSM: the running leaf re-activates (ActiveAction ≠ its own) · blueprint: the channel wait sees ActiveAction = 0 ⇒ re-runs its command
+```
+
+```mermaid
+graph TD
+  ING["BehaviorIngressSystem (Brain; CGF / editor)"] -->|"assign / clear / hash handlers"| PR["PauseRecord + Start(pausing)"]
+  BT["BrainTickSystem.Finish / ClearResumingAPausedTask"] -->|"a reaction ends"| RES["ResumePausedTask (restore)"]
+  ING -->|"self-clear of a reaction"| RES
+  ING -->|"an order replaces the task"| DROP["DropPausedTask(release: detach HeldKeys, Release(T))"]
+  HO["BrainHandOverSystem (authority moved)"] --> DROP
+  RES --> RUN["runners tick the task next frame"]
+```
+
+*Caption:* the three entries into the paused record — pause, resume, drop — and every caller of each. A hand-over drops (the
+new Brain restarts from the published intent, `CE-3048`); ⛔ there is no path that leaves the held keys attached without a record.
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| a task keeps its token ⇒ the blueprint cursor resumes | ✅ cursor checks `InstanceVersion != instanceVersion` (`StatementEmitter.cs:844`), fed `ctx.InstanceId` (`BlueprintRunner.cs:54`) | ✅ §4.9 *"restoring four BehaviorState fields"* |
+| restoring T with plain `++` tokens would REUSE the reaction's token for the next run ⇒ `Finish`'s de-dup would swallow that run's end | ✅ `BrainTickSystem.cs:409` (`prev == InstanceId` ⇒ return) | ⛔ not in §4.9 — found while building ⇒ runs started while a task is paused take `RunTokens.Next()` (high bit, as the SOP's) |
+| curated stateful slots are NOT keyed by behaviour ⇒ a reaction can share a key with the task | ✅ `OccurrenceSlotKey.cs` P2: `CompoundKeyName(fqn, offset)` with an EMPTY asset id | ⛔ §4.9 lean A assumed disjoint keys ⇒ overlap falls back to RESTART for that pause |
+| a blueprint channel wait never learns its command was cancelled | ✅ `WaitLowering_Instance.cs:398-404` checks only `Status`; the dispatcher never clears `ActiveAction` on completion (`LocomotionDispatcherSystem.cs:62-90`), arbitration sets it to 0 on reset (`ChannelArbitrationSystem.cs:44-48`) | ✅ §4.9 row 5 ⇒ `ActiveAction == 0` while waiting = cancelled |
+| the blueprint command re-activates on `ActiveAction` change and stamps the current token | ✅ `ChannelCommandLowering.cs:60-130` (mirrors `CgfNodes.cs:257`) | ✅ §4.9 *"blueprint re-issue the latent"* |
+
+| decision | why | rejected |
+|---|---|---|
+| **RunSince = now on resume**, not the task's old value | `SopConditions.SensedFresh` keys "fresh" on `RunSince` (CE-2080): the old value would make the sense that caused the reaction fresh again ⇒ the SOP would react again, forever | restoring it (§4.9's "four fields" listed it) |
+| re-issue = the `ChannelCommand` statement of the SAME block plus the PURE statements its inputs come from | they re-evaluate to the current values, which is what the BTree's re-activation does | re-running the whole block (would repeat earlier side effects) |
+| a cancelled wait with no re-issuable command (command in another block, impure inputs, or none) **fails** the wait | honest: the author's `OnFailure` runs instead of waiting forever | waiting forever (today) |
+| the paused task's own EQS sensors keep running while paused | lean A (keep owned parts); a reaction is short | suspending them (a second state to restore) |
+| a `WaitForEvent` that fires during the reaction is missed | the task was not running; the same as an HSM state that was not active | buffering events for a paused run |
+
+⭐ **As-built `CE-2081` (`2026-10-05`)** — matches the diagrams, with these precisions:
+- **ingress** (`BehaviorIngressSystem`): `PauseRecord(incoming)` captures hash / token / tier / `HeldKeys` (the store's keys
+  minus the SOP's) and marks `Restart` when the incoming run's keys (`KeysOf`: three roots + manifest) overlap. `Start(…, pausing)`
+  skips the paused run's `Release`, manifest detach and root detaches, and provisions through the free-space path
+  (as the SOP slot does). `IsHeldByPausedTask` sits beside `IsHeldBySop` in `DetachHostedOccurrenceSlots`.
+  `ReconcileHeldTask` turns an existing pause into a restart when a reaction replacing a reaction would overlap it.
+  `NextRunToken` replaces every task-slot `InstanceId++` (start, clear, the unhosted hash assign).
+  `DropPausedTask(registry)` detaches the held keys (except those the running behaviour now uses) and releases the paused run's parts.
+- **lean B** is in `Admit`: a reaction whose behaviour is the running task (when it would pause it) or the paused task is refused.
+- **tokens:** `RunTokens` (in `SopState.cs`) is the one high-bit allocator; `SopTokens.Next` delegates to it.
+- **blueprint:** `WaitLowering_Instance` adds the cancelled check only to a channel wait whose own block issues a command on
+  that channel (`IssuesOn`) — ⚠ a wait on a channel commanded elsewhere keeps the old status-only check (rail
+  `S1_AfterAChannelWaitSucceeds_*` waits on an uncommanded channel). Re-entry target = the issuing block when `CanReissue`
+  (a whitelist of re-runnable ops), else the wait's failure block.
+- **rails:** `SopSlotTests.CE2081_*` (5: resume where it was on its own token · the token is never reused · same asset refused ·
+  an order releases the paused storage and parts · an overlapping reaction falls back to restart),
+  `BlueprintBehaviourTests.CE2081_*` (2: re-issue · a non-re-issuable block fails the wait). Red-proofs: resume forced to restart
+  ⇒ the progress rail red; tokens forced to `++` ⇒ the de-dup rail red.
 
 ## ⛔ HISTORY
 

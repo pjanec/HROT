@@ -301,7 +301,13 @@ public abstract class BTreeNodeDto
 public sealed class BTreeRootNodeDto        : BTreeNodeDto { }
 public sealed class BTreeSequenceNodeDto    : BTreeNodeDto { }
 public sealed class BTreeSelectorNodeDto    : BTreeNodeDto { }
-public sealed class BTreeParallelNodeDto    : BTreeNodeDto { }
+public sealed class BTreeParallelNodeDto    : BTreeNodeDto
+{
+    /// <summary>⭐ <c>CE-2073</c> — the kernel's completion policy: 0 = RequireAll (every child must succeed; the default),
+    /// 1 = RequireOne (the first child to succeed ends it). Omitted from JSON when 0, so existing assets are unchanged.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Policy { get; set; }
+}
 public sealed class BTreeInverterNodeDto    : BTreeNodeDto { }
 public sealed class BTreeForceSuccessNodeDto: BTreeNodeDto { }
 public sealed class BTreeForceFailureNodeDto: BTreeNodeDto { }

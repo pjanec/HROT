@@ -316,6 +316,8 @@ namespace Hrot.Network.NED.SimHost
                 restored.ContextSlot0 = sensor.ContextSlot0;
                 restored.ContextSlot1 = sensor.ContextSlot1;
                 restored.ContextSlot2 = sensor.ContextSlot2;
+                restored.ContextPoint1    = sensor.ContextPoint1;      // ⭐ CE-3063
+                restored.ContextPointMask = sensor.ContextPointMask;
                 cmd.SetComponent(tkbChild, restored);
                 if (repo != null && cap != null) SensorChildFactory.SetCapability(repo, tkbChild, cap.Default, cap.Default);
                 return true;
@@ -414,6 +416,8 @@ namespace Hrot.Network.NED.SimHost
             ContextSlot1        = ResolveSlot(data.ContextSlot1NetworkId),
             ContextSlot2        = ResolveSlot(data.ContextSlot2NetworkId),
             Suspended           = data.Suspended,
+            ContextPoint1       = new System.Numerics.Vector3(data.ContextPoint1X, data.ContextPoint1Y, data.ContextPoint1Z),   // ⭐ CE-3063 ③
+            ContextPointMask    = data.ContextPointMask,
         };
     }
 }

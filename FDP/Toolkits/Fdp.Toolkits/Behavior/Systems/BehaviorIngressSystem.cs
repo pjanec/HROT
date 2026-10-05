@@ -109,9 +109,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
                 // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
-                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause)) continue;
-                var paused = pause ? PauseRecord(repo, evt.Entity) : null;
-                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency)) continue;
+                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) continue;
+                var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) continue;
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
@@ -150,13 +150,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
                 if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
                     continue;
-                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out bool pauseByHash)) continue;   // ⭐ CE-3034
+                if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out bool pauseByHash, evt.BehaviorHash)) continue;   // ⭐ CE-3034
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
                     && _registry.TryGetName(evt.BehaviorHash, out var name))
                 {
-                    var pausedByHash = pauseByHash ? PauseRecord(repo, evt.Entity) : null;
+                    var pausedByHash = pauseByHash ? PauseRecord(repo, evt.Entity, evt.BehaviorHash, def) : null;
                     // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
-                    if (Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin))
+                    if (Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin,
+                              ReactionUrgency.NotAReaction, pausedByHash))
                         AfterAdmitted(repo, evt.Entity, evt.Origin, pausedByHash);
                     continue;
                 }
@@ -179,7 +180,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unhosted.RunSince = Now(repo);   // ⭐ CE-2080
-                unchecked { unhosted.InstanceId++; }
+                unhosted.InstanceId = NextRunToken(repo, evt.Entity, unhosted.InstanceId, pausing: false);   // ⭐ CE-2081
                 AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
 
@@ -196,10 +197,24 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⚠ The INTERNAL finish (<c>BrainTickSystem</c> → <see cref="Clear"/>) is not gated — a behaviour ending never needs
         /// permission. A refusal is counted and logged; it never throws.
         /// </summary>
-        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency, out bool pause)
+        private bool Admit(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency, out bool pause,
+                           int behaviorId = 0)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
-            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause)) return true;
+            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause))
+            {
+                // ⭐ CE-2081 lean B — a reaction that IS the task it would pause (or the task already paused) is refused: the two
+                //   runs would share one set of storage keys (they are keyed by behaviour), so the task could not be kept.
+                if (origin != BehaviorOrigin.Reaction || behaviorId == 0) return true;
+                bool isTheTask = (pause && behaviorId == running.ActiveBehaviorHash)
+                              || PausedTaskOf(repo, entity) is { Restart: false } held && held.Hash == behaviorId;
+                if (!isTheTask) return true;
+                pause = false;
+                RefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
+                    "[BehaviorIngress] refused reaction {0} for entity #{1}: it is the task it would pause.", behaviorId, entity.Index);
+                return false;
+            }
             RefusedCount++;
             if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
             Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
@@ -265,13 +280,103 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>⭐ <c>CE-2078</c> — what a reaction is about to pause: the running task's start record and origin, read
         /// BEFORE the start replaces them. <c>null</c> when the task was stamped directly (no start record) — it cannot be
         /// restarted, so it is simply replaced.</summary>
-        private static PausedTask? PauseRecord(EntityRepository repo, Entity entity)
+        private PausedTask? PauseRecord(EntityRepository repo, Entity entity, int incomingId, BehaviorDefinition incoming)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
             if (!repo.HasManagedComponent<BehaviorStartRecord>(entity)) return null;
             var record = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
             if (record == null || record.InstanceId != running.InstanceId) return null;
-            return new PausedTask { BehaviorName = record.BehaviorName, JsonParams = record.JsonParams, Origin = running.Origin };
+            // ⭐⭐ CE-2081 — RESUME: the run as it is (hash, token, tier) and every storage key it holds now. 📄 §4.9a.
+            var paused = new PausedTask
+            {
+                BehaviorName = record.BehaviorName, JsonParams = record.JsonParams, Origin = running.Origin,
+                Hash = running.ActiveBehaviorHash, InstanceId = running.InstanceId, BrainTier = running.BrainTier,
+                HeldKeys = HeldKeysNow(repo, entity, _registry),
+            };
+            // ⚠ A curated stateful node's slot key is NOT salted by behaviour (OccurrenceSlotKey P2) ⇒ the reaction may name
+            //   one of the task's keys. Then the task cannot be kept beside it: this pause is a RESTART (today's behaviour).
+            if (Overlaps(KeysOf(incomingId, incoming), paused.HeldKeys))
+            {
+                paused.HeldKeys = Array.Empty<int>();
+                paused.Restart = true;
+            }
+            return paused;
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — every slot key in <paramref name="entity"/>'s store, except the SOP slot's.</summary>
+        private static unsafe int[] HeldKeysNow(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+            if (store == null) return Array.Empty<int>();
+            var keys = new List<int>();
+            for (int i = 0; i < BlueprintBlackboardPartitions.GetSlotCount(store); i++)
+            {
+                int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                if (!IsHeldBySop(repo, entity, registry, key)) keys.Add(key);
+            }
+            return keys.ToArray();
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — the storage keys a run of <paramref name="def"/> attaches up front: its three roots and its
+        /// manifest (nested slots included). ⚠ Lazily attached hosted occurrences are not known before it runs.</summary>
+        private static List<int> KeysOf(int behaviorId, BehaviorDefinition def)
+        {
+            var keys = new List<int>
+            {
+                RootParamsAccess.KeyForBehaviour(behaviorId), RootStateAccess.KeyForBehaviour(behaviorId),
+                RootHsmAccess.KeyForBehaviour(behaviorId),
+            };
+            if (def.StatefulWorkingSlots is { Count: > 0 })
+                foreach (var slot in HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots)) keys.Add(slot.SlotKey);
+            return keys;
+        }
+
+        private static bool Overlaps(List<int> keys, int[] held)
+        {
+            foreach (int k in keys)
+                if (Array.IndexOf(held, k) >= 0) return true;
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2081</c> — is <paramref name="key"/> held by the task a reaction paused (in the entity's record, or in
+        /// <paramref name="pausing"/> — the record a start is about to write)? No sweep detaches it.</summary>
+        private static bool IsHeldByPausedTask(EntityRepository repo, Entity entity, int key, PausedTask? pausing = null)
+        {
+            if (pausing is { Restart: false } p && Array.IndexOf(p.HeldKeys, key) >= 0) return true;
+            return repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false } held
+                   && Array.IndexOf(held.HeldKeys, key) >= 0;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2081</c> — the token of the next task-slot run. While a task is paused (or once the slot is in the side
+        /// space) it comes from <see cref="RunTokens"/>: the paused task's own token is then never handed to another run, so
+        /// restoring it on resume is safe. Otherwise the plain monotonic bump.
+        /// </summary>
+        private static uint NextRunToken(EntityRepository repo, Entity entity, uint current, bool pausing)
+        {
+            bool held = pausing || (repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false });
+            if (held || RunTokens.IsSide(current)) return RunTokens.Next();
+            unchecked { return current + 1; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2081</c> — a start while a task is ALREADY paused (a more urgent reaction replacing a reaction): if the new
+        /// run would attach onto one of the paused task's keys, the task can no longer be kept beside it ⇒ it is released
+        /// now and will RESTART when the reaction ends (<see cref="PausedTask.Restart"/>).
+        /// </summary>
+        private static void ReconcileHeldTask(EntityRepository repo, Entity entity, int behaviorId, BehaviorDefinition def)
+        {
+            if (!repo.TryGetTable(typeof(PausedTask), out _) || PausedTaskOf(repo, entity) is not { Restart: false } held) return;
+            if (!Overlaps(KeysOf(behaviorId, def), held.HeldKeys)) return;
+            var restart = new PausedTask
+            {
+                BehaviorName = held.BehaviorName, JsonParams = held.JsonParams, Origin = held.Origin, Hash = held.Hash,
+                InstanceId = held.InstanceId, BrainTier = held.BrainTier, HeldKeys = held.HeldKeys,
+            };
+            DropPausedTask(repo, entity);   // detaches the held keys, releases the parts
+            restart.HeldKeys = Array.Empty<int>();
+            restart.Restart = true;
+            repo.SetManagedComponent(entity, restart);
         }
 
         /// <summary>⭐ <c>CE-2078</c> — after an admitted start / clear: a reaction that paused a task records it; an ORDER
@@ -288,7 +393,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 repo.SetManagedComponent(entity, paused);
                 return;
             }
-            if (origin != BehaviorOrigin.Self && origin != BehaviorOrigin.Reaction) DropPausedTask(repo, entity);
+            if (origin != BehaviorOrigin.Self && origin != BehaviorOrigin.Reaction) DropPausedTask(repo, entity, _registry);
         }
 
         private EntityRepository? _pausedRegisteredOn;
@@ -297,21 +402,62 @@ namespace Fdp.Toolkit.Behavior.Systems
         public static PausedTask? PausedTaskOf(EntityRepository repo, Entity entity)
             => repo.HasManagedComponent<PausedTask>(entity) ? ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity) : null;
 
-        internal static void DropPausedTask(EntityRepository repo, Entity entity)
+        /// <summary>
+        /// ⭐⭐ <c>CE-2081</c> (lean D) — the paused task ENDS without resuming (an order replaced it, a hand-over): its held storage
+        /// is detached and its owned parts released, so nothing leaks. ⚠ A key the RUNNING behaviour now uses (an order that
+        /// re-assigned the same asset attached onto it) is left alone — <paramref name="registry"/> names those.
+        /// </summary>
+        internal static unsafe void DropPausedTask(EntityRepository repo, Entity entity, BehaviorRegistry? registry = null)
         {
-            if (repo.HasManagedComponent<PausedTask>(entity)) repo.SetManagedComponent<PausedTask>(entity, null!);
+            if (!repo.HasManagedComponent<PausedTask>(entity)) return;
+            var paused = ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity);
+            repo.SetManagedComponent<PausedTask>(entity, null!);
+            if (paused == null || paused.Restart) return;
+
+            List<int>? inUse = null;
+            if (registry != null && repo.HasComponent<BehaviorState>(entity))
+            {
+                int running = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+                if (running != BehaviorIds.None && registry.TryGetDefinition(running, out var def)) inUse = KeysOf(running, def);
+            }
+            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+            if (store != null)
+                foreach (int key in paused.HeldKeys)
+                    if (inUse == null || !inUse.Contains(key)) BlueprintBlackboardPartitions.TryDetach(store, key);
+            uint runningToken = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).InstanceId : 0;
+            if (paused.InstanceId != runningToken) BehaviorOwnedParts.Release(repo, entity, paused.InstanceId);
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-2078</c> (R-199 ②) — a reaction ENDED (finished, or cleared itself): restart the task it paused, through
-        /// the gate, with the parameters and the origin it had — published, so next frame's ingress starts it like any order.
-        /// ⚠ Restart, not resume (<c>CE-2081</c>): the task begins again from its root. A no-op when nothing was paused.
+        /// ⭐⭐ <c>CE-2081</c> (R-199 ②, R-203) — a reaction ENDED (finished, or cleared itself; <see cref="Clear"/> has just run):
+        /// the task it paused RESUMES where it was. Its storage and owned parts were kept, so restoring its run — hash, token,
+        /// tier, origin — is all it takes: the channels it commanded were reset by the reaction's token and re-issue (BTree /
+        /// HSM leaf re-activation; a blueprint channel wait sees the cancelled command). ⭐ <c>RunSince</c> is NOW, not the
+        /// task's old start: "fresh" senses (<c>SopConditions.SensedFresh</c>) would otherwise re-fire the reaction forever.
+        /// <para>A pause that could not keep the task (<see cref="PausedTask.Restart"/>, or a record without a hash) RESTARTS
+        /// it through the gate as before (<c>CE-2078</c>). A no-op when nothing was paused. 📄 §4.9a.</para>
         /// </summary>
         internal static void ResumePausedTask(EntityRepository repo, Entity entity)
         {
             var paused = PausedTaskOf(repo, entity);
             if (paused == null) return;
-            DropPausedTask(repo, entity);
+            repo.SetManagedComponent<PausedTask>(entity, null!);   // taken, not dropped: the held storage is the task's again
+            if (!paused.Restart && paused.Hash != BehaviorIds.None && repo.HasComponent<BehaviorState>(entity))
+            {
+                ref var state = ref repo.GetComponentRW<BehaviorState>(entity);
+                state.ActiveBehaviorHash = paused.Hash;
+                state.InstanceId = paused.InstanceId;
+                state.BrainTier = paused.BrainTier;
+                state.Origin = paused.Origin;
+                state.Urgency = ReactionUrgency.NotAReaction;
+                state.RunSince = Now(repo);
+                if (repo.TryGetTable(typeof(BehaviorStartRecord), out _))
+                    repo.SetManagedComponent(entity, new BehaviorStartRecord
+                    {
+                        BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, InstanceId = paused.InstanceId,
+                    });
+                return;
+            }
             if (!repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return;
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -356,7 +502,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
         private unsafe bool Start(
             EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json,
-            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction)
+            BehaviorOrigin origin, ReactionUrgency urgency = ReactionUrgency.NotAReaction, PausedTask? pausing = null)
         {
             // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
             // Strategy: parse into stack memory and commit only on success, so a ParseParams
@@ -396,9 +542,15 @@ namespace Fdp.Toolkit.Behavior.Systems
             // 1. Update BehaviorState.
             // Read previous behavior hash before overwriting (needed for S2-2 detach).
             int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            // ⭐⭐ CE-2081 — a start that PAUSES the running task keeps that task's storage and parts (resume, §4.9a);
+            //   ⭐ a start while a task is already paused (a reaction replacing a reaction) must not sweep it either.
+            bool keepsTask = pausing is { Restart: false };
+            ReconcileHeldTask(repo, entity, behaviorId, def);
+            bool holdsTask = keepsTask || (repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false });
+
             // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
             //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
-            BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
+            if (!keepsTask) BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
             behavior.Urgency = UrgencyAfterAssign(origin, urgency, behavior.Urgency);   // ⭐ CE-2078 — before Origin moves
@@ -406,7 +558,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
-            unchecked { behavior.InstanceId++; }
+            // ⭐ CE-2081 — while a task is paused, a side-space token (the paused one is never reused).
+            behavior.InstanceId = NextRunToken(repo, entity, behavior.InstanceId, keepsTask);
             behavior.BrainTier = def.BrainTier;
             // ⛔ P4-① (2026-09-22): the Blackboard1024 add is GONE with the component. It was
             //    gated on `def.HeavyDtoType != null`, which is null at every production site and
@@ -419,8 +572,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             var effectiveSlots = def.StatefulWorkingSlots is { Count: > 0 } ? HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots) : null;
             if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
             {
-                // Detach previous behavior's slots to avoid leaking them.
-                if (previousBehaviorId != BehaviorIds.None &&
+                // Detach previous behavior's slots to avoid leaking them. ⭐ CE-2081: not the paused task's.
+                if (!keepsTask &&
+                    previousBehaviorId != BehaviorIds.None &&
                     previousBehaviorId != behaviorId &&
                     _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
                     prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
@@ -439,9 +593,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ProvisionStatefulSlots(repo, entity, effectiveSlots!, KindOf(def),
                                        hosted, RootParamsCost(def), RootBrainStateCost(def));
             }
-            else if (HasSop(repo, entity))
+            else if (HasSop(repo, entity) || holdsTask)
             {
                 // ⭐ CE-3035: the SOP's slots share the store ⇒ size by FREE space, which counts them (capacity does not).
+                //   ⭐ CE-2081: and so do a paused task's.
                 _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
                 ProvisionStatefulSlots(repo, entity, Array.Empty<StatefulSlotInfo>(), KindOf(def),
                                        hosted, RootParamsCost(def), RootBrainStateCost(def));
@@ -454,13 +609,13 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
             // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
-            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots, _registry);
+            DetachHostedOccurrenceSlots(repo, entity, effectiveSlots, _registry, pausing);
 
             // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
             //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
             //   this, every behaviour change leaks one slot, and an entity reassigned a few times
             //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
-            if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)
+            if (!keepsTask && previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)   // ⭐ CE-2081
             {
                 RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
                 // ⭐⭐ O7c-② / CE-319: the root TREE STATE slot leaks the same way and for the same
@@ -690,9 +845,10 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return false;
             if (!_registry.TryGetId(behaviorName, out int id) || !_registry.TryGetDefinition(id, out var def)) return false;
-            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out bool pause)) return false;
-            var paused = pause ? PauseRecord(repo, entity) : null;
-            if (!Start(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin)) return false;
+            if (!Admit(repo, entity, origin, ReactionUrgency.NotAReaction, out bool pause, id)) return false;
+            var paused = pause ? PauseRecord(repo, entity, id, def) : null;
+            if (!Start(repo, entity, behaviorName, id, def, string.IsNullOrWhiteSpace(json) ? "{}" : json, origin,
+                       ReactionUrgency.NotAReaction, paused)) return false;
             AfterAdmitted(repo, entity, origin, paused);
             return true;
         }
@@ -1051,7 +1207,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// (<c>:188-199</c>), so an ascending walk would skip the entry that slid into the hole.</para>
         /// </summary>
         private static unsafe void DetachHostedOccurrenceSlots(
-            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest, BehaviorRegistry? registry)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest, BehaviorRegistry? registry,
+            PausedTask? pausing = null)
         {
             byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
             if (store == null) return;
@@ -1064,6 +1221,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
                 if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
                 if (IsHeldBySop(repo, entity, registry, key)) continue;   // ⭐ CE-3035 — the SOP slot's storage is not the task's to sweep
+                if (IsHeldByPausedTask(repo, entity, key, pausing)) continue;   // ⭐ CE-2081 — nor the paused task's
 
                 BlueprintBlackboardPartitions.TryDetach(store, key);
             }
@@ -1484,7 +1642,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             behavior.ActiveBehaviorHash = BehaviorIds.None;
-            unchecked { behavior.InstanceId++; }
+            behavior.InstanceId = NextRunToken(repo, entity, behavior.InstanceId, pausing: false);   // ⭐ CE-2081
             behavior.BrainTier = 0;
             behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
             behavior.Urgency = ReactionUrgency.NotAReaction;   // ⭐ CE-2078

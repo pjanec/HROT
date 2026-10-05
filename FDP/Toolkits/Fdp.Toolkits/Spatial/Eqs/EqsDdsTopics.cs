@@ -69,6 +69,15 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         /// back to the default. A TKB sensor is otherwise never on the wire (R-185 K).
         /// </summary>
         public bool Override;
+
+        /// <summary>⭐ <c>CE-3063</c> ③ — <see cref="EqsSensor.ContextPoint1"/> (a heard contact's position standing in for slot 1).</summary>
+        public float ContextPoint1X;
+        /// <summary>See <see cref="ContextPoint1X"/>.</summary>
+        public float ContextPoint1Y;
+        /// <summary>See <see cref="ContextPoint1X"/>.</summary>
+        public float ContextPoint1Z;
+        /// <summary>⭐ <c>CE-3063</c> — <see cref="EqsSensor.ContextPointMask"/>.</summary>
+        public byte ContextPointMask;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────

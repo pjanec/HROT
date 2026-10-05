@@ -1,0 +1,76 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a2073000-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Utility;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class CombatPosture
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Parallel(1, par =>
+            {
+                par.Action("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@0@1507658132",
+                    visualId: new Guid("c2073000-0000-0000-0000-000000000003"));
+                par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@8@1701996138",
+                    visualId: new Guid("c2073000-0000-0000-0000-000000000004"));
+                par.ObserverSelector(obs =>
+                {
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@4@1507658132",
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000007"));
+                        seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@1500664710",
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000008"));
+                    },
+                        visualId: new Guid("c2073000-0000-0000-0000-000000000006"));
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@5@1507658132",
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000010"));
+                        seq.ForceFailure(d6 => d6
+                            .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@48@1920105185",
+                                visualId: new Guid("c2073000-0000-0000-0000-000000000011")),
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000109"));
+                    },
+                        visualId: new Guid("c2073000-0000-0000-0000-000000000009"));
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@6@1507658132",
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000013"));
+                        seq.ForceFailure(d6 => d6
+                            .Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@72@1970438042",
+                                visualId: new Guid("c2073000-0000-0000-0000-000000000014")),
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000112"));
+                    },
+                        visualId: new Guid("c2073000-0000-0000-0000-000000000012"));
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@7@1507658132",
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000016"));
+                        seq.ForceFailure(d6 => d6
+                            .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@80@1953660423",
+                                visualId: new Guid("c2073000-0000-0000-0000-000000000017")),
+                            visualId: new Guid("c2073000-0000-0000-0000-000000000115"));
+                    },
+                        visualId: new Guid("c2073000-0000-0000-0000-000000000015"));
+                    obs.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Hold",
+                        visualId: new Guid("c2073000-0000-0000-0000-000000000018"));
+                },
+                    visualId: new Guid("c2073000-0000-0000-0000-000000000005"));
+            },
+                visualId: new Guid("c2073000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("CombatPosture", AssetId = "a2073000-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("CombatPosture");
+}

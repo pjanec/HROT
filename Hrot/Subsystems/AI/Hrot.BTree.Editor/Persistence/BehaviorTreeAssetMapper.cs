@@ -311,6 +311,7 @@ public static class BehaviorTreeAssetMapper
         {
             waitDto.Wait = new BTreeWaitPayloadDto { Duration = node.Wait.Duration };
         }
+        if (dto is BTreeParallelNodeDto parDto) parDto.Policy = node.ParallelPolicy;   // ⭐ CE-2073
         if (dto is BTreeSubtreeNodeDto subtreeDto && node.Subtree != null)
         {
             subtreeDto.Subtree = new BTreeSubtreePayloadDto
@@ -367,6 +368,7 @@ public static class BehaviorTreeAssetMapper
         {
             node.Wait = new BTreeWaitPayload { Duration = waitDto.Wait.Duration };
         }
+        if (dto is BTreeParallelNodeDto parDto) node.ParallelPolicy = parDto.Policy;   // ⭐ CE-2073
         if (dto is BTreeSubtreeNodeDto subtreeDto && subtreeDto.Subtree != null)
         {
             node.Subtree = new BTreeSubtreePayload

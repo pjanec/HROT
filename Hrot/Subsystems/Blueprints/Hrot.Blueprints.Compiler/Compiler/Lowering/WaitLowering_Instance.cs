@@ -12,6 +12,8 @@ internal static class WaitLowering_Instance
         new IrTypeRef { FullName = "System.Boolean", IsUnmanaged = true, SizeBytes = 1 };
     private static readonly IrTypeRef UInt32Type =
         new IrTypeRef { FullName = "System.UInt32", IsUnmanaged = true, SizeBytes = 4 };
+    private static readonly IrTypeRef UInt16Type =
+        new IrTypeRef { FullName = "System.UInt16", IsUnmanaged = true, SizeBytes = 2 };
     private static readonly IrTypeRef SingleType =
         new IrTypeRef { FullName = "System.Single", IsUnmanaged = true, SizeBytes = 4 };
     private static readonly IrTypeRef NodeStatusType =
@@ -108,6 +110,13 @@ internal static class WaitLowering_Instance
         for (int j = 1; j <= m; j++)
             abortedBlockId[j] = NewBlk();
         IrBlockId Target(int label) => label <= n ? resumeCheckBlockId[label] : abortedBlockId[label - n];
+
+        // ⭐ CE-2081 — a channel wait's "is my command still there?" check (allocated last: every earlier block keeps its id).
+        var statusCheckBlockId = new IrBlockId[n + 1];
+        for (int k = 1; k <= n; k++)
+            if (suspendBlocks[k - 1].Statements.Select(st => st.Operation).FirstOrDefault(SuspendOps.Is) is IrOp_WaitForChannel w
+                && IssuesOn(suspendBlocks[k - 1], w.ChannelComponentTypeFqn))
+                statusCheckBlockId[k] = NewBlk();
 
         // ---------------------------------------------------------------
         // Modify each suspend block to become the "initial" block:
@@ -405,6 +414,40 @@ internal static class WaitLowering_Instance
                                         new[] { statusV1, constRunV }, BoolType)),
                 };
 
+                if (waitOp is IrOp_WaitForChannel && IssuesOn(sb, channelTypeFqn))
+                {
+                    // ⭐⭐ CE-2081 (R-203) — the command this wait waits on can be CANCELLED under it: a reaction's token resets
+                    //   the channel (ChannelArbitrationSystem: ActiveAction = 0), and a resumed task must not wait on it forever
+                    //   — nor take the reaction's finished Status for its own. The dispatcher never clears ActiveAction on
+                    //   completion ⇒ ActiveAction == 0 while waiting means CANCELLED. ⇒ re-enter the issuing block when it is
+                    //   safe to re-run (it re-evaluates the command's inputs, re-issues, re-arms the cursor — a first issue
+                    //   again, as the BTree's leaf re-activation); otherwise the wait FAILS (the author's OnFailure).
+                    //   📄 docs/DESIGN_Decision_Layer.md §4.9a.
+                    var activeV    = Alloc(UInt16Type);
+                    var zeroV      = Alloc(UInt16Type);
+                    var cancelledV = Alloc(BoolType);
+                    checkStmts.Add(Stmt(activeV,    new IrOp_FieldRead(channelV1, "ActiveAction", UInt16Type)));
+                    checkStmts.Add(Stmt(zeroV,      new IrOp_Const("0", UInt16Type)));
+                    checkStmts.Add(Stmt(cancelledV, new IrOp_Compare(activeV, zeroV,
+                                                       Hrot.Blueprints.Core.Assets.ComparisonOperator.Equal)));
+                    var reissueTarget = CanReissue(sb, channelTypeFqn) ? sb.Id : failureBlockId[k];
+
+                    synthesizedBlocks.Add(new IrBlock
+                    {
+                        Id         = resumeCheckBlockId[k],
+                        Label      = $"resume_{k}_channel_check",
+                        Statements = checkStmts,
+                        Terminator = new IrTerm_Branch(cancelledV, reissueTarget, statusCheckBlockId[k]) { Debug = Synth() },
+                    });
+                    synthesizedBlocks.Add(new IrBlock
+                    {
+                        Id         = statusCheckBlockId[k],
+                        Label      = $"resume_{k}_channel_status",
+                        Statements = Array.Empty<IrStatement>(),
+                        Terminator = new IrTerm_Branch(isRunV, retReturnBlockId[k], notRunningBlockId[k]) { Debug = Synth() },
+                    });
+                }
+                else
                 synthesizedBlocks.Add(new IrBlock
                 {
                     Id         = resumeCheckBlockId[k],
@@ -489,6 +532,9 @@ internal static class WaitLowering_Instance
         {
             if (synthesizedBlocks.Any(b => b.Id.Value == resumeCheckBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == resumeCheckBlockId[k].Value));
+            // ⭐ CE-2081 — a channel wait's status check, behind its cancelled check.
+            if (statusCheckBlockId[k].Value != 0 && synthesizedBlocks.Any(b => b.Id.Value == statusCheckBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == statusCheckBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == retReturnBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == retReturnBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == notRunningBlockId[k].Value))
@@ -649,5 +695,44 @@ internal static class WaitLowering_Instance
         => behaviorTick
             ? new IrTerm_ReturnStatus(Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = debug }
             : new IrTerm_Return(null) { Debug = debug };
+
+    /// <summary>
+    /// ⭐ <c>CE-2081</c> — may the suspend block <paramref name="sb"/> be RE-ENTERED to re-issue its channel command? Only when it
+    /// issues a <see cref="IrOp_ChannelCommand"/> on that channel and everything else in it can run again with no effect but
+    /// recomputing the same values (reads, pure calls, comparisons, the entry block's local reset, debug probes).
+    /// </summary>
+    /// <summary>⭐ <c>CE-2081</c> — does <paramref name="sb"/> issue a command on <paramref name="channelTypeFqn"/> itself? Only such a
+    /// wait knows the command it waits on, so only it can tell that the command was cancelled (a wait on a channel commanded
+    /// elsewhere keeps waiting on the status, as before).</summary>
+    private static bool IssuesOn(IrBlock sb, string channelTypeFqn)
+        => sb.Statements.Any(st => st.Operation is IrOp_ChannelCommand cc && cc.ChannelComponentTypeFqn == channelTypeFqn);
+
+    private static bool CanReissue(IrBlock sb, string channelTypeFqn)
+    {
+        bool issues = false;
+        foreach (var st in sb.Statements)
+        {
+            switch (st.Operation)
+            {
+                case IrOp_ChannelCommand cc:
+                    if (cc.ChannelComponentTypeFqn != channelTypeFqn) return false;
+                    issues = true;
+                    break;
+                case var op when SuspendOps.Is(op):
+                case IrOp_Const: case IrOp_ReadParam: case IrOp_ReadVariable: case IrOp_ReadLocal: case IrOp_ReadInputArg:
+                case IrOp_ResetLocals:
+                case IrOp_Self: case IrOp_Time: case IrOp_DeltaTime: case IrOp_ReadInstanceVersion:
+                case IrOp_PureCall: case IrOp_HasComponent: case IrOp_GetComponentRO: case IrOp_FieldRead:
+                case IrOp_Compare: case IrOp_BinaryOp: case IrOp_BooleanOp: case IrOp_Not:
+                case IrOp_MakeStruct: case IrOp_MakeTuple: case IrOp_TupleField: case IrOp_FormatString:
+                case IrOp_ReadEqsResult: case IrOp_ReadRankedResult:
+                case IrOp_DebugProbe_NodeEnter: case IrOp_DebugProbe_PinValue:
+                    break;
+                default:
+                    return false;
+            }
+        }
+        return issues;
+    }
 }
 

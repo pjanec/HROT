@@ -108,6 +108,15 @@ namespace Fdp.Toolkit.Perception.Components
             fixed (byte* a = mem.Anonymous) return (uint)slot < (uint)mem.Count && a[slot] != 0;
         }
 
+        /// <summary>⭐ <c>CE-3063</c> ② — the first slot that names an ENTITY (the most threatening identified contact, slots being
+        /// sorted), or -1 when every remembered contact is heard only.</summary>
+        public static int FirstIdentified(in TargetMemory mem)
+        {
+            for (int i = 0; i < mem.Count; i++)
+                if (!IsAnonymous(in mem, i)) return i;
+            return -1;
+        }
+
         // ── Mutation API ──────────────────────────────────────────────────────────
 
         /// <summary>

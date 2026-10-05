@@ -852,8 +852,9 @@ that leaves the version untouched is **invisible to every version-gated consumer
 snapshot, a preview rewind, an SoD replica, a flight-recorder delta.
 
 📐 **What that cost.** `ClearRaw` — the type-erased removal the **EntityCommandBuffer** plays back —
-nulled the payload without bumping. The entity index has no such escape *(`ApplyComponentFilter`
-bumps its chunk versions on **every** sync, so its versions never compare equal)* ⇒ the preview
+nulled the payload without bumping. ⛔ ~~The entity index has no such escape (`ApplyComponentFilter`
+bumps its chunk versions on every sync, so its versions never compare equal)~~ — **SUPERSEDED `2026-10-05`
+(`CE-3067`), see the next paragraph** ⇒ the preview
 rewind restored a component's **PRESENCE bit without its payload**, and the next tick dereferenced
 the null: `GetManagedComponentRO<T>` returned null with `Has=true`, and the process aborted
 (SIGABRT) out of `GenesisMaterializationSystem`.

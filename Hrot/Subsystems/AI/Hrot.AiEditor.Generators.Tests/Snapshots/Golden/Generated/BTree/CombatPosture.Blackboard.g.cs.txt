@@ -1,0 +1,48 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a2073000-0000-0000-0000-000000000001
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Explicit, Size = 104)]
+public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    [FieldOffset(0)]
+    public global::Fdp.Toolkit.Utility.ChooseOptionParams choose;
+    [FieldOffset(4)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isAdvance;
+    [FieldOffset(5)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isCover;
+    [FieldOffset(6)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isSuppress;
+    [FieldOffset(7)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFallBack;
+    [FieldOffset(8)]
+    public global::Hrot.AI.Behaviors.Brains.PostureSensorsParams sensors;
+    [FieldOffset(24)]
+    public global::Hrot.AI.Behaviors.Brains.AdvanceParams advance;
+    [FieldOffset(48)]
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams cover;
+    [FieldOffset(72)]
+    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
+    [FieldOffset(80)]
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams fallback;
+}
+
+/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="CombatPosture_Block"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct CombatPosture_BlockState
+{
+    public global::Fdp.Toolkit.Utility.UtilityChoice choice;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct CombatPosture_Block
+{
+    [FieldOffset(0)]
+    public CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    [FieldOffset(104)]
+    public CombatPosture_BlockState St;
+}

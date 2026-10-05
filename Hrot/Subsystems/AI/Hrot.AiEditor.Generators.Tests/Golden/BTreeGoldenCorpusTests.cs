@@ -70,7 +70,10 @@ public sealed class BTreeGoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐ It is 28. ⭐ <b>26 → 28 in <c>CE-2092</c> / <c>CE-2093</c>:</b> <c>Tactics/TakeCover.btree.json</c> and
+    /// ⭐ It is 29. ⭐ <b>28 → 29 in <c>CE-2073</c>:</b> <c>Tactics/CombatPosture.btree.json</c> — the utility-driven posture
+    /// (<c>Parallel(RequireOne)[ChooseOption, PostureSensors, ObserverSelector[…]]</c>), the first asset whose Parallel carries an
+    /// authored policy (<c>DESIGN_Decision_Layer.md</c> §3.3b).
+    /// ⭐ <b>26 → 28 in <c>CE-2092</c> / <c>CE-2093</c>:</b> <c>Tactics/TakeCover.btree.json</c> and
     /// <c>Tactics/FallBack.btree.json</c> — Root → one shared stateful action (<c>EqsTacticsNodes</c>), the first assets
     /// that take cover / fall back on the terrain EQS queries (<c>DESIGN_Eqs_Consuming_Behaviours.md</c> §2, R-204).
     /// ⭐ <b>25 → 26 in <c>CE-2080</c>:</b> <c>Sop/BasicInfantrySop.btree.json</c>, the shipped SOP — the first asset that
@@ -89,7 +92,7 @@ public sealed class BTreeGoldenCorpusTests
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(28, AiAssetCorpus.EnumerateFiles(Kind).Count);
+        => Assert.Equal(29, AiAssetCorpus.EnumerateFiles(Kind).Count);
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.

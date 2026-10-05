@@ -54,12 +54,25 @@ namespace Fdp.Toolkit.Spatial.Eqs
             return Placed(view, e) ? e : Entity.Null;
         }
 
-        /// <summary>The position of <see cref="Anchor"/>.</summary>
+        /// <summary>The position of <see cref="Anchor"/> — or, when slot 1 names no placed entity, the sensor's context POINT for it
+        /// (⭐ <c>CE-3063</c> ③: a heard contact). False when neither is there.</summary>
         public static bool AnchorPosition(ISimulationView view, Entity observer, in EqsSensor sensor, byte slot, out Vector3 position)
         {
             var e = Anchor(view, observer, sensor, slot);
-            position = e.IsNull ? default : view.GetComponentRO<SimTransform>(e).Position;
-            return !e.IsNull;
+            if (!e.IsNull)
+            {
+                position = view.GetComponentRO<SimTransform>(e).Position;
+                return true;
+            }
+            return TryPoint(in sensor, slot, out position);
+        }
+
+        /// <summary>⭐ <c>CE-3063</c> — the sensor's context point for <paramref name="slot"/> (only slot 1 carries one).</summary>
+        public static bool TryPoint(in EqsSensor sensor, byte slot, out Vector3 point)
+        {
+            bool has = slot == 1 && (sensor.ContextPointMask & EqsSensor.Point1Bit) != 0;
+            point = has ? sensor.ContextPoint1 : default;
+            return has;
         }
 
         /// <summary>The navmesh layer the self plans on (<c>CE-3025</c>'s rule — a vehicle's points must come from the vehicle

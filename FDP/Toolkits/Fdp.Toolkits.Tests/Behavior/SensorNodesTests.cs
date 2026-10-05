@@ -80,5 +80,18 @@ namespace Fdp.Toolkit.Tests.Behavior
             var twoLive = new ThreatCountParams { Count = 2, LiveOnly = true };
             Assert.False(SensorNodes.ThreatsAtLeast(ref twoLive, unit, _w.Repo));   // the faded one is not live
         }
+
+        /// <summary>⭐ <c>CE-3063</c> ② — a HEARD contact counts by its sound class's danger (K3): a heard tank is a dangerous
+        /// threat, heard footsteps are not.</summary>
+        [Fact]
+        public void CE3063_ThreatsAtLeast_CountsAHeardContactByItsClass()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);
+            _w.SeedHeard(unit, 100f, 0f, 20f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps);
+            var dangerous = new ThreatCountParams { Count = 1, MinDanger = 0.9f };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref dangerous, unit, _w.Repo), "footsteps read 0.6");
+            _w.SeedHeard(unit, -300f, 0f, 20f, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine);
+            Assert.True(SensorNodes.ThreatsAtLeast(ref dangerous, unit, _w.Repo), "a heard tracked engine reads 1");
+        }
     }
 }

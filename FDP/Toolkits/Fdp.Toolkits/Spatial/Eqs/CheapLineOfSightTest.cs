@@ -73,8 +73,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var los = EqsTerrainSight.Sight(view, _los);
             if (los == null) return;
 
+            // ⭐ CE-3063 ③ — the other side is an entity, or a heard contact's POINT (then it has the default mount).
+            if (!EqsContext.AnchorPosition(view, observer, sensor, ContextSlotIndex, out var otherPos)) return;
             var other = EqsContext.Anchor(view, observer, sensor, ContextSlotIndex);
-            if (other.IsNull) return;
             var self = EqsContext.Self(view, observer, sensor);
 
             // ⭐ The gate is OPT-IN (ThreatThreshold > 0): a sensor that names its threat in the slot and sets no threshold is
@@ -86,7 +87,6 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if (mem.Count == 0 || mem.ThreatScores[0] < sensor.ThreatThreshold) return;
             }
 
-            var otherPos   = view.GetComponentRO<SimTransform>(other).Position;
             var otherMount = EqsTerrainSight.Mount(view, other);
             var selfMount  = EqsTerrainSight.Mount(view, self);
             short bit      = (short)(1 << ContextSlotIndex);
