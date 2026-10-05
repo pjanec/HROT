@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour) and §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
 current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10 (danger sensor). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
@@ -264,7 +264,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | **Q6** | lanes | backend: G1, G2, G3, G7 (engine), G8 (wiring), G10, G11 · behaviors: G4, G5, G6, G9's behaviour | if you want one lane to own the whole programme |
 | **Q7** | the E2E form | both: the HTTP check against `--mode all` is the acceptance, the in-process rail is the regression gate | if `--mode all` runs can be automated in CI, the rail may be enough |
 
-## 9. Ammunition vs armour — one simple model for the shot AND the choice *(DESIGN `2026-10-05`, leans awaiting the user)*
+## 9. Ammunition vs armour — one simple model for the shot AND the choice *(✅ A1–A4 APPROVED `2026-10-05` (R-212), A3 revised; `build-state: BUILDING`, `CE-3071`)*
 
 🔒 **User, `2026-10-05`:** *"Plan for implementing ammo vs armour params - some simple model."*
 
@@ -281,40 +281,56 @@ classDiagram
   class ArmorModel {
     <<NEW, static, Fdp.Toolkit.Combat>>
     +FacingOf(targetTransform, fromPoint) Facing
-    +ArmourFor(Armor, Facing) float
+    +ArmourFor(CombatPlatformDefDto, Facing) float
     +PenetrationChance(penetration, armour) float
     +ExpectedDamage(penetration, damagePerHit, armour) float
   }
-  class Armor { <<NEW component, stamped from the TKB>> Front, Side, Rear mm }
-  class WeaponMountInfo { <<existing, registered by G7>> MountIndex, EffectiveRange, NEW Penetration, NEW DamagePerHit }
+  class CombatTkb {
+    <<NEW, static, Fdp.Toolkit.Combat>>
+    +TryGetPlatform(world, entity) CombatPlatformDefDto
+    +TryGetMount(world, owner, mountIndex) WeaponMountDto
+  }
+  class ITkbDatabase { <<existing world singleton>> SimHost :272, CGF :762, editor :1375 }
+  class TkbIdentity { <<existing component>> TkbType }
   class CombatPlatformDefDto { <<existing TKB>> ArmorFront/Side/Rear, MaxHealth }
   class WeaponMountDto { <<existing TKB>> NEW Range, Penetration, DamagePerHit }
-  class CombatTkbTranslator { <<existing>> stamps Armor + WeaponMountInfo on every mount incl. the owner }
+  class BallisticProjectile { <<existing>> Damage, NEW Penetration }
+  class DetonationNotification { <<existing local event>> NEW Penetration, Damage }
+  class FireProcessingSystem { <<existing, SimHost>> stamps the mount's numbers on the bullet }
   class DamageCalculationSystem { <<existing, SimHost>> flat 25 becomes ArmorModel.ExpectedDamage }
-  class WeaponEffectivenessVsTarget { <<existing reader, CGF>> becomes ArmorModel estimate / target MaxHealth }
-  CombatTkbTranslator ..> CombatPlatformDefDto
-  CombatTkbTranslator ..> WeaponMountDto
-  CombatTkbTranslator --> Armor
-  CombatTkbTranslator --> WeaponMountInfo
+  class StandardInputs { <<existing, CGF>> WeaponEffectivenessVsTarget, WeaponRangeBandFit, NEW RoundsLeft }
+  CombatTkb ..> ITkbDatabase
+  CombatTkb ..> TkbIdentity
+  CombatTkb ..> CombatPlatformDefDto
+  CombatTkb ..> WeaponMountDto
+  FireProcessingSystem ..> CombatTkb : mount by WeaponIndex
+  FireProcessingSystem --> BallisticProjectile
+  DamageCalculationSystem ..> CombatTkb : target armour
   DamageCalculationSystem ..> ArmorModel
-  WeaponEffectivenessVsTarget ..> ArmorModel
+  StandardInputs ..> CombatTkb
+  StandardInputs ..> ArmorModel
 ```
 
 *What the picture shows that prose hid: the damage the simulation APPLIES and the effectiveness the AI EXPECTS call the
-same function — the AI cannot believe a 25 mm hurts a T-72 while the simulation says it does (or the reverse).*
+same function — the AI cannot believe a 25 mm hurts a T-72 while the simulation says it does (or the reverse). And no
+component carries a copy of the TKB: armour and weapon numbers are fixed per type and are read where they are used (A3
+revised).*
 
 ```mermaid
 sequenceDiagram
   participant B as CGF AimAndFireExecutor
   participant F as SimHost FireProcessingSystem
+  participant T as CombatTkb
   participant H as HitResolutionSystem
   participant D as DamageCalculationSystem
   participant M as ArmorModel
-  B->>F: WeaponFireRequest(shooter, target, WeaponIndex = chosen mount)
-  F->>F: bullet.BallisticProjectile gets the mount's Penetration + DamagePerHit
-  H->>D: DetonationNotification(shooter, target, hit point, NEW Penetration, NEW Damage)
-  D->>M: FacingOf(target, shooter) then ExpectedDamage(pen, dmg, armour)
-  D-->>B: EntityHitDamage(TotalDamage) as today
+  B->>F: WeaponFireRequest(shooter, target, WeaponIndex)
+  F->>T: TryGetMount(shooter, WeaponIndex)
+  F->>F: BallisticProjectile gets Penetration + DamagePerHit (none found: 0 + 25)
+  H->>D: DetonationNotification(shooter, target, hit point, Penetration, Damage)
+  D->>T: TryGetPlatform(target)
+  D->>M: FacingOf(target, shooter or hit point), then ExpectedDamage
+  D-->>B: DamageAssessedEvent(TotalDamage), egressed as today
 ```
 
 *What the picture shows that prose hid: no network message changes (R-158) — `WeaponFireRequest` already carries the
@@ -326,7 +342,7 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 | penetration chance | `r = penetration / armour`; `P = clamp((r − 0.8) / 0.4, 0, 1)` — nothing below 80 %, certain above 120 %; no armour ⇒ 1 |
 | damage of a hit | `DamagePerHit × P` — the EXPECTED value, no dice: replays and the determinism rails stay deterministic |
 | unknown munition | `Penetration = 0` (an external detonation, `MunitionDetonationIngressTranslator`) ⇒ today's flat 25, unchanged |
-| AI effectiveness | `min(1, ExpectedDamage / target MaxHealth)` at the current facing — "share of a kill per hit" |
+| AI effectiveness | `min(1, ExpectedDamage / target Health.Max)` at the current facing — "share of a kill per hit". The unit's own `Health.Max`, not the TKB's: scenarios override it (hill-attack's M1s carry 50) |
 | WeaponSelection | gains `RoundsLeft` (log scale, `ln(1+ammo)/ln(1+300)`, weight 1): with 7 TOW rounds and 300 of 25 mm, the 25 mm wins on infantry and the TOW on a tank |
 
 **Calibration (catalog code, `BdcTkbCatalog` / `UrbanCombatTkbCatalog`):**
@@ -344,12 +360,18 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 will kill in a handful of rounds instead of running out of ammo, so its baseline rails (`PlatoonBaselineRails`,
 `DeterminismRails`) are re-pinned in the same change. UrbanCombat infantry scenarios do not move (25 per rifle hit, no armour); BDC Rifleman scenarios do (front hits halve).
 
-| ⭐ lean | rejected |
+| ✅ approved (R-212) | rejected |
 |---|---|
 | **A1** the model drives the REAL damage and the AI estimate (one function) | estimate-only, damage stays flat — the AI would pick weapons for a world that does not exist |
 | **A2** expected damage, no random roll | a seeded roll per hit — more "realistic", but needs a sim RNG stream and makes every combat rail statistical |
-| **A3** static weapon data on `WeaponMountInfo` (every mount, including the owner's mount 0); armour as a new `Armor` component stamped from the TKB | on `WeaponState` — scenario files override `WeaponState` whole, and a missing field would silently zero the penetration |
+| **A3** ⚠ **REVISED `2026-10-05`, approved:** no copy on any component — armour (`CombatPlatformDefDto`) and the weapon numbers (`WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`) are read from the TKB by type (`TkbIdentity` → the world's `ITkbDatabase`) where they are used; the bullet carries the fired mount's numbers to the hit | a new `Armor` component — a copy of fixed per-type data, nothing changes it after spawn (measured: armour is written only by the catalog, `BdcTkbCatalog.cs:40,79,139,172`) · on `WeaponState` — scenario files override `WeaponState` whole, so a missing field would silently zero the penetration · on `WeaponMountInfo` — mount 0 has none, and mount children are not made today (F2) |
 | **A4** per-mount range comes from the mount (fixes the TOW's 3750 m being read as the 25 mm's 2500 m) | — |
+
+📐 **Measured for the build (`2026-10-05`, graph CLI + grep):** `AimAndFireExecutor.cs:113-116` always fires `WeaponIndex 0`
+and spends mount 0's rounds, so until **G7** lands the bullet always carries mount 0's numbers — correct, and the model
+needs nothing more from G7. `HitResolutionSystem` and the combat systems are one assembly (`Fdp.Toolkits.csproj`), so the
+hit copies the bullet's numbers into the local `DetonationNotification` (no wire message changes, R-158). An external
+detonation (`MunitionDetonationIngressTranslator`) carries `Penetration 0` ⇒ the flat 25 stays.
 
 ## 10. The danger sensor — what the squad decisions need *(DESIGN `2026-10-05`, leans awaiting the user)*
 
