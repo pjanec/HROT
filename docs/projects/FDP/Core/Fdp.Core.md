@@ -852,8 +852,9 @@ that leaves the version untouched is **invisible to every version-gated consumer
 snapshot, a preview rewind, an SoD replica, a flight-recorder delta.
 
 📐 **What that cost.** `ClearRaw` — the type-erased removal the **EntityCommandBuffer** plays back —
-nulled the payload without bumping. The entity index has no such escape *(`ApplyComponentFilter`
-bumps its chunk versions on **every** sync, so its versions never compare equal)* ⇒ the preview
+nulled the payload without bumping. ⛔ ~~The entity index has no such escape (`ApplyComponentFilter`
+bumps its chunk versions on every sync, so its versions never compare equal)~~ — **SUPERSEDED `2026-10-05`
+(`CE-3067`), see the next paragraph** ⇒ the preview
 rewind restored a component's **PRESENCE bit without its payload**, and the next tick dereferenced
 the null: `GetManagedComponentRO<T>` returned null with `Has=true`, and the process aborted
 (SIGABRT) out of `GenesisMaterializationSystem`.
@@ -862,6 +863,22 @@ the null: `GetManagedComponentRO<T>` returned null with `Has=true`, and the proc
 any new mutation path must too. ⚠ The bump never lands on `0` — a fresh table reads `0`, so a `0`
 would compare equal to *"never written"*. ⭐ Pinned by `Fdp.Tests.PreviewRewindManagedComponentTests`,
 which reproduces the crash exactly (`Has=true`, payload null) when the bump is removed.
+
+#### 🔴 The entity index is copied WHOLE on every sync — **an equal mask-chunk version proves nothing** *(`CE-3067`, `2026-10-05`)*
+
+⛔ **The HN-001 claim above was false, and a preview rewind measured it.** A component add / remove edits the
+presence mask through the version-free indexer (`EntityIndex.GetComponentMask`), so a mask chunk's version moves
+ONLY on entity create / destroy (`++`) and on `ApplyComponentFilter` (`++`). ⇒ the capture leaves the snapshot's
+chunk at live + 1, and a preview that creates exactly ONE entity in that chunk (TakeCover's EQS sensor child) leaves
+live at live + 1 too — **equal** — so the rewind skipped the masks while it copied the component tables. 📌 CGF's
+rifleman came back with its SOP but with the 1024 blackboard a task had promoted to *(the snapshot's bytes: empty)*
+and no 256 one, and the next SOP tick threw *"no ROOT TREE STATE slot"* — in production the module host swallows it,
+so the whole brain tick faults every frame.
+
+⭐ **So:** `EntityIndex.SyncFrom` copies its two tables with `NativeChunkTable.SyncAllChunks` (no version skip). The
+component tables stay dirty-gated — their writes stamp the global version. ⚠ An increment scheme cannot fix this:
+the snapshot's own filter increments from the same base. 🧪 `PreviewRewindManagedComponentTests.CE3067_*` (red
+without the change).
 
 ⚠ **The unmanaged `ComponentTable<T>.ClearRaw` deliberately does nothing** — an unmanaged read is
 guarded by the mask, so stale bytes behind a cleared bit are harmless. ⛔ For a MANAGED component the

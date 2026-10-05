@@ -507,5 +507,17 @@ namespace Fdp.Core
         {
             _chunkVersions[chunkIndex].Value++;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3067</c> — <see cref="SyncDirtyChunks"/> with NO version skip: every chunk is made to differ from its
+        /// source first, so every chunk is copied (or decommitted). For tables whose writes do not stamp a version, where an
+        /// equal version proves nothing about equal content — the entity index's presence masks are the case.
+        /// </summary>
+        public void SyncAllChunks(NativeChunkTable<T> source)
+        {
+            for (int i = 0; i < _totalChunks; i++)
+                _chunkVersions[i].Value = unchecked(source.GetChunkVersion(i) + 1u);
+            SyncDirtyChunks(source);
+        }
     }
 }

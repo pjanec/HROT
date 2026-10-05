@@ -120,7 +120,8 @@ namespace Fdp.Tests
         /// <summary>
         /// ⭐ <c>CE-3067</c> — the shape of a tier PROMOTION inside a preview (<c>BlueprintTierTable.Promote</c>): the larger
         /// component is added, the payload copied, the smaller one removed. The rewind must put the entity back to exactly
-        /// what it was at capture: the small store with its payload, and NO large one. 📌 Measured on the cluster: after
+        /// what it was at capture: the small store with its payload, and NO large one — however many entities the preview
+        /// created in that chunk. 📌 Measured on the cluster: after
         /// Stop, CGF's rifleman had its restored SOP but an EMPTY 1024 store and no 256 one, and the next SOP tick threw.
         /// </summary>
         [Fact]
@@ -141,6 +142,9 @@ namespace Fdp.Tests
             live.AddComponent(e, default(RewindLargeStore));
             live.GetComponentRW<RewindLargeStore>(e).Payload = live.GetComponentRO<RewindSmallStore>(e).Payload;
             live.RemoveComponent<RewindSmallStore>(e);
+            // ⭐ and ONE entity born in the same chunk (TakeCover's EQS sensor child did it on the cluster): the only
+            //   thing that bumps the presence-mask chunk's version, by exactly the +1 the capture's filter gave the snapshot.
+            live.CreateEntity();
             live.Tick();
 
             live.SyncFrom(snap);

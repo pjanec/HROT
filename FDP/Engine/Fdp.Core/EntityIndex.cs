@@ -365,9 +365,15 @@ namespace Fdp.Core
         /// </summary>
         public void SyncFrom(EntityIndex source)
         {
-            // Sync both underlying tables using fast chunk-based memcpy
-            _hotMasks.SyncDirtyChunks(source._hotMasks);
-            _coldMeta.SyncDirtyChunks(source._coldMeta);
+            // ⭐⭐ CE-3067 — copied WHOLE, never by chunk version. A component add / remove edits a presence mask through the
+            //   version-free indexer (GetComponentMask), so a mask chunk's version moves only when an entity is created or
+            //   destroyed (and by ApplyComponentFilter). ⇒ an EQUAL version proves nothing here: a preview rewind found the
+            //   live chunk one create ahead of the capture and the snapshot one filter ahead — equal — and skipped the masks,
+            //   so CGF kept the 1024 blackboard a task had promoted to, with the snapshot's (empty) bytes, and the next SOP
+            //   tick threw. The component TABLES stay dirty-gated: their writes stamp the global version.
+            //   🧪 PreviewRewindManagedComponentTests.CE3067_Rewind_undoes_a_component_swap_made_inside_the_preview.
+            _hotMasks.SyncAllChunks(source._hotMasks);
+            _coldMeta.SyncAllChunks(source._coldMeta);
 
             // Sync global counters
             _activeCount    = source._activeCount;
