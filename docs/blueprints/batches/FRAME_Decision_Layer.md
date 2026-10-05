@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — a FRAME (backend → behaviors), design + discussion task, not a build order
-updated: 2026-10-04
-current-answer: the whole file
+updated: 2026-10-05
+current-answer: the whole file; the CURRENT work division is Addendum 7 (it supersedes Addendum 4's table)
 related-designs:
   - docs/DESIGN_Decision_Layer.md — the answer to this frame (behaviors lane): G1, G2b approved; G2 under discussion.
   - docs/DESIGN_Sensors_And_Doctrine.md — §6–§7 the APPROVED doctrine slot + origin gate (the build half handed over here), §7.3 reacting to sensors, §7.5 the scenario snapshot, §10 O1–O3, §11 the critical review this frame continues.
@@ -10,6 +10,7 @@ related-designs:
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — scoring as a primitive the hosts call (§7), "assignment as one input, not an order" (§10.4).
   - docs/designs/brain-death/BD1-DESIGN.md — brain death: what a unit does with no behaviour.
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the earlier frame (CE-3031); a doctrine is what will assign those behaviours.
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — the behaviors lane's CE-3031 design (take cover / fall back), Addendum 7 lists its rows.
 -->
 
 # FRAME — the DECISION LAYER: doctrine, missions, intent, utility *(backend → behaviors lane)*
@@ -142,3 +143,40 @@ cheap when `CE-3056` lands. 📄 `docs/DESIGN_Sensors_And_Doctrine.md` §9.4a (O
 |---|---|
 | the window | `ReturnFireWindowSeconds = 5` is a constant in the executor (your §4.3 example's value). If ROE should carry its own window, add it to `Roe` and we switch the guard to read it |
 | "shot at" | there is no `SensorChange` kind for a near miss, so ReturnFire answers HITS only. A `ShotAt` kind (fed from the shot-heard path) would be ours to produce if you want it |
+
+
+## Addendum 7 `2026-10-05` — behaviors lane: synced with backend, the work division updated *(written by the behaviors lane — a cross-lane edit of this frame, declared)*
+
+🔒 **User, `2026-10-05`:** *"Lets sync with backend lane first. Merge their branch pls. Update task divisin between us and them. Then they will merge yours branch."*
+
+⭐ **Synced:** `behaviors` merged `backend@07d2823ec` at `1ef45d918` (clean; `AimAndFireExecutor` rails 17/0, `Hrot.SimHost.Tests`
+1099/0/3). ⭐ **Your turn:** merge `behaviors` — it carries everything below.
+
+**What the behaviors lane built since Addendum 4** (all ✅ in the tracker): `CE-3034` `CE-3047` `CE-2074` `CE-2076` `CE-2077`
+`CE-3035` `CE-2078` `CE-2079` `CE-2080` `CE-3042` `CE-2082` `CE-3043` `CE-3048` `CE-3040` `CE-3041` · utility `CE-2067`
+`CE-2068` `CE-2070` `CE-2071` `CE-2072` · `CE-2084` `CE-2085` `CE-2088` `CE-2089`. Designs: `CE-3054` (Sensors §7.8),
+`CE-2081` (Decision Layer §4.9), `CE-3031` ([`DESIGN_Eqs_Consuming_Behaviours.md`](../../DESIGN_Eqs_Consuming_Behaviours.md)).
+
+**Answers to Addendum 6:**
+
+| your note | answer |
+|---|---|
+| the ReturnFire window is a constant (`ReturnFireWindowSeconds = 5`) | ⭐ **ours: `CE-2095`** — `Roe` gets `ReturnFireWindowSeconds` (default 5, so nothing changes until a scenario sets it). ⭐ Then **yours, one line**: the guard reads it from `Roe`. We tell you when it is in |
+| no `SensorChange` kind for "shot at" | ⭐ lean **yes, please produce it: `CE-2096`** (filed by us, for you) — a `ShotAt` kind fed from the shot-heard path. We then count it in `RecentSenses`, and ReturnFire answers hits OR near misses. Not urgent: nothing waits on it |
+
+**Two findings for you** (filed from our block, for the backend lane):
+
+| id | what |
+|---|---|
+| `CE-2097` | the solver does not filter the `TopChanged` PUBLISH policy (`EqsSolverSystem.cs:417-466` special-cases only `ScoreDelta`), so it publishes like `AlwaysPush` while `EqsComponents.cs:119-120` promises otherwise. Lean: filter it, or mark the value reserved. Not blocking us (`CE-3031` uses `ScoreDelta`) |
+| `CE-502` | `CE-3042` is in, so please re-measure. Our measurement: the test is still red because ITS serializer is built with an EMPTY `BehaviorRegistry` (`UrbanCombatFileLifecycleTests.cs:196-197`). Lean: build it with the registry the test registers the UC behaviours into (your test) |
+
+**Work division (updated — supersedes Addendum 4's table):**
+
+| who | items |
+|---|---|
+| **behaviors** — waiting on the USER | `CE-2069` utility nodes for BTree/HSM (stopped, leans A–C) · `CE-3054` threat = danger × freshness (leans A–D) · `CE-2081` resume instead of restart (leans A–E) · `CE-3031` take cover / fall back (leans D1–D6) |
+| **behaviors** — next to build | `CE-2095` ROE window · after approval: `CE-2090`–`CE-2094` (take cover / fall back) → `CE-2073` CombatPosture · `CE-2083` SOP orders as HSM/blueprint nodes · `CE-2086` instance-blueprint params in the AI section |
+| **backend** | `CE-2087` reclaim a Brain group to a live Brain-role node (filed by us) · `CE-502` the serializer's registry (above) · `CE-2096` `ShotAt` kind · `CE-2097` `TopChanged` publish policy · the guard switch after `CE-2095` · `CE-518` (yours, in progress) · `CE-3054` lean A, if approved: the Roslyn rename `ThreatScores` → `Freshness` (yours: the memory stage) |
+| **joint** | `CE-3054` — danger is ours (read time, TKB); freshness is the memory stage (yours) |
+
