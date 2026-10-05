@@ -203,8 +203,9 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Aims the weapon at the top threat (a new command only when the target changed or the last one failed).
-        /// False when the unit has no weapon channel.</summary>
-        private static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown)
+        /// False when the unit has no weapon channel. ⭐ <c>CE-2108</c>: the ONE fire step — <see cref="EqsTacticsNodes"/>
+        /// fires on the move through it too.</summary>
+        internal static unsafe bool Fire(EntityRepository world, Entity self, ref EngageState ws, float cooldown)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return false;
             if (!EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) || !world.IsAlive(threat))
@@ -226,7 +227,7 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
-        private static void StopFiring(EntityRepository world, Entity self, ref EngageState ws)
+        internal static void StopFiring(EntityRepository world, Entity self, ref EngageState ws)
         {
             if (!ws.Threat.IsNull && world.HasComponent<WeaponChannel>(self))
             {

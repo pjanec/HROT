@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — §9 (Flank / FiringPosition) DESIGN, leans F1–F6 for the user; §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
-current-answer: §9 (Flank / FiringPosition — DESIGN, leans F1–F6); §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+build-state: BUILDING — §9 (Flank / FiringPosition) F1–F6 approved, CE-2108 + CE-2109 BUILT (as-built §9.8, live); §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
+current-answer: §9 (Flank / FiringPosition — §9.2–9.7 as amended by the as-built §9.8); §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
@@ -426,7 +426,7 @@ sequenceDiagram
 action keep two sensors · **A2** E3 (`ReleaseParts`, HSM exit, BTree deactivator form) + rail: leaving the node destroys its sensor ·
 **A3** E4 (When(EqsResult) memory in WS) + rail: it fires once per new answer in an action.
 
-## 9. `Flank` and `FiringPosition` — the rest of `CE-3031`'s scope *(behaviors, `2026-10-05`; build-state: DESIGN — leans F1–F6 for the user)*
+## 9. `Flank` and `FiringPosition` — the rest of `CE-3031`'s scope *(behaviors, `2026-10-05`; build-state: F1–F6 APPROVED; CE-2108 BUILT §9.8)*
 
 > 🔒 **User, `2026-10-05`:** *"yes design flank and firing position"* — the two left from CE-3031's scope *"(take cover,
 > fall back, flank, firing position)"* (frame goal, `FRAME_Eqs_Consuming_Behaviours.md:19`).
@@ -563,7 +563,7 @@ separate decisions.*
 |---|---|---|---|---|
 | **F1** | shape *(amended §9.6a)* | ⭐ **move there, then fire** (+ optional fire on the move, §9.6a): each tree is `Sequence[ Flank \| FiringPosition , Engage ]`; the action ends (Success) on arrival and its sensor goes | ✗ move-and-fire in one action — AdvanceAndAttack already is that, for an objective; a flanker firing en route gives itself away · ✗ a "FlankAndEngage" action — a second copy of Engage | ours, 2 trees |
 | **F2** | target | ⭐ an **identified entity** only (`TopThreat`); with none, the action FAILS so the parent picks something else | ✗ a heard point (as TakeCover hides from one) — "visible from P" and `Engage` both need an entity (claim table) | ours |
-| **F3** | while moving | ⭐ **re-position** like TakeCover (a new answer ≥ `MinRepositionMetres` from the goal re-issues the move) **until arrival**, then end like FallBack; a NEW top threat re-points the sensor | ✗ FallBack's "move once" — a flank on a moving target goes stale · ✗ keep re-positioning after arrival — that is TakeCover's job, and Engage owns the unit then | ours |
+| **F3** | while moving *(as built: §9.8 G6 — re-route when the THREAT moves)* | ⭐ **re-position** like TakeCover (a new answer ≥ `MinRepositionMetres` from the goal re-issues the move) **until arrival**, then end like FallBack; a NEW top threat re-points the sensor | ✗ FallBack's "move once" — a flank on a moving target goes stale · ✗ keep re-positioning after arrival — that is TakeCover's job, and Engage owns the unit then | ours |
 | **F4** | the unification | ⭐ ONE private body `Run(template, site, mode)`; all **four** actions are thin entry points into it; TakeCover / FallBack routed through it, their 7 + 2 rails unchanged | ✗ two more copies of the FallBack body (four near-identical bodies) | ours; `EqsTacticsNodes` only |
 | **F5** | who starts them | ⭐ today: a **mission task** or an **SOP row** (as TakeCover). ⛔ NOT now: a CombatPosture option (needs a scoring row in the posture decision, Decision Layer's call) and the squad `Flanker` role (Squad §218-220) — both filed as one row | ✗ add them to CombatPosture now — changes a shipped decision's behaviour without a demand | ours; 1 filed row |
 | **F6** | acceptance | ⭐ the feature's suites: direct-call rails in `EqsCombatNodesTests` (as CE-2092), both trees in `TacticsTreesTests`, and two variants in `TakeCoverScenarioTests` on `tt-take-cover`: ordered after the hostile is remembered, the rifleman ends where `!SegmentBlocked(own standing eye, hostile aim)` and (flank) the bearing is side-on within 30° | ✗ a new scenario — `tt-take-cover` already has the geometry and the hidden-check machinery | ours |
@@ -588,6 +588,41 @@ moving), still in the one body. Wanting flank from a heard contact needs a "visi
 | `CE-2108` | `EqsTacticsNodes.Run` + `Flank` / `FiringPosition` (+ deactivators, sites `0x21080001` / `0x21080002`); TakeCover / FallBack routed through `Run`; trees `Tactics/Flank.btree.json`, `Tactics/FiringPosition.btree.json` | direct calls: no seen threat ⇒ Failure, no sensor · first answer ⇒ MoveTo the top · new answer ≥ 5 m while moving ⇒ re-move, < 5 m ⇒ none · arrival ⇒ Success + sensor gone · a new threat ⇒ re-pointed; the existing CE-2092/2093 rails green unchanged |
 | `CE-2109` | the two `tt-take-cover` variants (F6) | `TakeCoverScenarioTests`: ends with sight of the hostile; flank side-on |
 | `CE-2110` | 💡 filed, unscheduled: Flank / FiringPosition as CombatPosture options and as the squad `Flanker` role's child (F5) | — |
+
+### 9.8 As-built — `CE-2108` *(`2026-10-05`, F1–F6 + §9.6a approved: "yes approved, build it")*
+
+Built as §9.2 draws it: `EqsTacticsNodes.Run(template, site, Mode)` is the one body; `TakeCover` / `FallBack` / `Flank` /
+`FiringPosition` are one-line entry points (+ a deactivator each); trees `Tactics/Flank.btree.json` and
+`Tactics/FiringPosition.btree.json` are `Root → Sequence[ the action , PostureNodes.Engage ]`. What the build added that §9
+did not say:
+
+| # | as built | ⛔ §9 said |
+|---|---|---|
+| G1 | ⭐ `EqsTacticsParams` grew TWO fields, appended last: `FireCooldownSeconds` (0 ⇒ 1 s) and `FireWhileMoving` — the shared fire step takes a cooldown | §9.6a: one byte `FireWhileMoving` |
+| G2 | `EqsTacticsState` grew `EngageState Fire` (what the weapon is aimed at on the way); `Release` stops a weapon the node aimed, for all four actions | — |
+| G3 | fire on the move runs only while the MoveTo reports Running; otherwise the weapon this node aimed stops (so an arrived TakeCover with the flag set would not keep firing from cover) | "while moving" |
+| G4 | `PostureNodes.Fire` / `StopFiring` went `private` → `internal`: the ONE fire step | "made internal and shared" ✅ |
+| G6 | 🔴 ⭐ **Flank / FiringPosition re-route only when the THREAT has moved ≥ `MinRepositionMetres` since the move was issued** (`Mode.RepositionOnThreatMove`, `EqsTacticsState.ThreatAtMove`, the threat's position read from the unit's own `TargetMemory`). 📐 Found while writing the live variant: both templates score relative to the unit's CURRENT position — the flank's bearing reference is slot 0 = self (`DotProductTest`, `StarterTemplates.cs:40`; `DotProductTest.cs` "reference = pivot → ReferenceSlot"), the firing position prefers points near self — so the unit's own walk moves the best point; re-routing on every far answer would chase it round the target. TakeCover keeps its live-proven rule | F3: "re-position like TakeCover (a new answer ≥ MinRepositionMetres from the goal)" — ⭐ the intent (*"a flank on a moving target goes stale"*) is kept, the trigger is now the target's move |
+| G5 | tree defaults: Flank radius 40 m, speed 3, no fire on the move; FiringPosition radius 30 m, speed 2.5, fire on the move; both re-position at 5 m | — |
+
+**Rails:** `EqsCombatNodesTests.CE2108_*` (4, direct calls): no identified threat — nothing, or only a HEARD contact ⇒
+Failure and no sensor (while TakeCover hides from the heard point) · Flank does NOT re-route when only its own walk moved
+the answer, does once the threat has moved 5 m, and ends on arrival with its sensor gone · FiringPosition points its own template at the threat · fire on the move aims the weapon
+while the move runs, not when the flag is off, and stops on arrival. `TacticsTreesTests.CE2108_*` (2): both trees
+registered; the FiringPosition TREE through the real ingress and brain moves firing, then on arrival its sensor goes and
+the tree's Engage keeps the weapon on the threat. The CE-2092 / CE-2093 rails (7 + 2) pass unchanged through the shared
+body.
+
+**Live — `CE-2109`:** `TakeCoverScenarioTests.CE2109_*` (2) on `tt-take-cover` through the in-process cluster
+(simhost + ig + excon + cgf): the rifleman (SOP removed, ROE HoldFire / StayOnTask so no reaction pre-empts the order and
+no shot kills the hostile the check needs) is ORDERED once it remembers the hostile; it moves, arrives (the sensor goes),
+ends with sight of the hostile, and — Flank — side-on to the hostile→start line within 30°; the run continues in Engage.
+⭐ **Live red-proof of G6:** with Flank on the first-written rule (re-route on any far answer) the same rail fails — after
+47 s the rifleman is at (359.6, 302.4), still re-routing (last goal (380, 320), 20 m past the hostile), never arriving.
+All six `TakeCoverScenarioTests` pass (the four CE-2094 / CE-2101 rails unchanged).
+⚠ Measured on the way, not this lane's code: in this session's main checkout the live rails failed at *"test-town must be
+loaded on SimHost"* while the SAME source passed in a clean worktree — a stale build output in the long-lived checkout,
+not the change (measured: in a clean worktree the base commit passes and base + this change passes; only the long-lived checkout fails, with or without the two new trees).
 
 ## ⛔ HISTORY
 

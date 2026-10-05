@@ -328,6 +328,99 @@ public sealed class TakeCoverScenarioTests : IDisposable
             $"stop: the rifleman must be back where it stood in Edit ({inEdit}); it is at {Pos("Rifleman")}");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2109</c> — <c>Flank</c> live (§9.6 F6): ordered once the rifleman remembers the hostile, it moves to a point that
+    /// SEES the hostile, side-on (within 30°) to the hostile→start line, and ends there (the sensor goes; the tree's Engage
+    /// runs). The SOP is removed and the ROE is HoldFire / StayOnTask: no reaction pre-empts the order and no shot kills the
+    /// hostile the check needs. 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §9.
+    /// </summary>
+    [Fact(Timeout = 240_000)]
+    public Task CE2109_Ordered_TheRiflemanFlanksTheHostile_AndEndsSideOnWithSightOfIt()
+        => RunOrderedAsync("Flank", Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FlankSite, FindFlankingPosition.BlueprintId, sideOn: true);
+
+    /// <summary>⭐ <c>CE-2109</c> — <c>FiringPosition</c> live: ordered, it moves to a nearby point that sees the hostile and ends
+    /// there.</summary>
+    [Fact(Timeout = 240_000)]
+    public Task CE2109_Ordered_TheRiflemanTakesAFiringPosition_AndEndsWithSightOfTheHostile()
+        => RunOrderedAsync("FiringPosition", Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPositionSite, FindOpenFiringPosition.BlueprintId, sideOn: false);
+
+    private async Task RunOrderedAsync(string behaviour, int site, uint template, bool sideOn)
+    {
+        var root = RepoRoot();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        var staged = Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
+        var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Recipe(root)))!;
+        var unit = doc["entities"]!["2a940000-0000-4000-8000-000000000001"]!.AsObject();
+        unit.Remove("Sop");
+        unit["Roe"] = System.Text.Json.Nodes.JsonNode.Parse("{\"Fire\":\"HoldFire\",\"Reactions\":\"StayOnTask\",\"SetBy\":\"Superior\"}");
+        File.WriteAllText(staged, doc.ToJsonString());
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+        {
+            harness.PumpFrames(1);
+            Thread.Sleep(10);
+        }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+            $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(sim, "Hostile").IsNull
+                                         && !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000),
+            "both units must spawn on SimHost and the rifleman on CGF");
+        Entity rifleman = ByName(cgf, "Rifleman"), simRifleman = ByName(sim, "Rifleman"), simHostile = ByName(sim, "Hostile");
+        Assert.True(harness.PumpUntil(() => sim.HasSingletonManaged<TerrainWorld>(), timeoutFrames: 2000),
+            "test-town must be loaded on SimHost (the scenario header names it)");
+        var town = sim.GetSingletonManaged<TerrainWorld>();
+
+        Vector3 Pos(Entity e) => sim.GetComponent<SimTransform>(e).Position;
+        bool Sees()
+        {
+            var eye = Pos(simRifleman) + new Vector3(0, 0, EqsTerrainSight.Mount(sim, simRifleman).Standing);
+            var aim = Pos(simHostile) + new Vector3(0, 0, EqsTerrainSight.Mount(sim, simHostile).Crouched);
+            return !town.SegmentBlocked(eye, aim);
+        }
+        Assert.True(harness.PumpUntil(() => cgf.HasComponent<TargetMemory>(rifleman) && cgf.GetComponent<TargetMemory>(rifleman).Count > 0,
+            timeoutFrames: 3000), "the rifleman must remember the hostile before it is ordered");
+
+        // ① the order, as a superior gives it (the ingress reads it next frame).
+        cgf.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = rifleman, BehaviorName = behaviour, JsonParams = string.Empty, Origin = BehaviorOrigin.Superior,
+        });
+        string? Task() => registry.TryGetName(cgf.GetComponent<BehaviorState>(rifleman).ActiveBehaviorHash, out var n) ? n : null;
+        Assert.True(harness.PumpUntil(() => Task() == behaviour, timeoutFrames: 600), $"the order must start {behaviour}; runs {Task()}");
+        var start = Pos(simRifleman);
+
+        // ② it ends where it SEES the hostile: arrived (the sensor goes on arrival) and the run continues in Engage.
+        bool Arrived() => EqsChildSensor.Find(cgf, rifleman, site).IsNull && Vector3.Distance(start, Pos(simRifleman)) > 1f;
+        bool arrived = harness.PumpUntil(Arrived, timeoutFrames: 4000);
+        harness.PumpFrames(60);
+        var end = Pos(simRifleman);
+        _out.WriteLine($"rifleman {start} → {end}, hostile {Pos(simHostile)}, task {Task()}");
+        Assert.True(arrived, $"the rifleman must move and arrive; it is at {end} (started {start}), task {Task()} — {Diagnose(cgf, sim, rifleman, simRifleman, site, template)}");
+        Assert.True(Sees(), $"it must end with sight of the hostile; it is at {end}");
+        Assert.Equal(behaviour, Task());   // Engage keeps the run
+
+        if (sideOn)
+        {
+            var h = Pos(simHostile);
+            Vector2 a = Vector2.Normalize(new Vector2(start.X - h.X, start.Y - h.Y)), b = Vector2.Normalize(new Vector2(end.X - h.X, end.Y - h.Y));
+            float degrees = MathF.Acos(Math.Clamp(Vector2.Dot(a, b), -1f, 1f)) * 180f / MathF.PI;
+            Assert.True(MathF.Abs(degrees - 90f) <= 30f, $"the flank must be side-on to the hostile→start line; it is {degrees:F0}° off it");
+        }
+    }
+
     private async Task RunAsync(bool holdFire, string expectedReaction)
     {
         var root = RepoRoot();
