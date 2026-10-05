@@ -75,12 +75,35 @@
         "ForceId": "Hostile"
       },
       "TargetMemory": {
-        "Entries": []
+        "Entries": [
+          {
+            "Entity": "2a960000-0000-4000-8000-000000000003",
+            "PosX": 345,
+            "PosY": 295,
+            "Score": 1,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
       },
-      "Behavior": {
-        "Name": "FireAtTarget",
-        "Params": "{\"targetNetworkId\":7103,\"maxRounds\":30,\"cooldownSeconds\":1}",
-        "Origin": "Superior"
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "2a9600f1-0000-4000-8000-000000007103",
+              "executingEngine": "",
+              "behaviorName": "FireAtTarget",
+              "behaviorParams": "{\"targetNetworkId\":7103,\"maxRounds\":30,\"cooldownSeconds\":1}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
       }
     },
     "2a960000-0000-4000-8000-000000000003": {
