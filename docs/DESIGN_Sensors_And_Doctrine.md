@@ -1042,6 +1042,32 @@ that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests
 | Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
 | cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
 
+### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(PROPOSAL `2026-10-05` — leans for the user and the backend lane; nothing built)*
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| `TargetMemory.ThreatScores` is already a FRESHNESS measure: +50/s while a sensor tracks the contact, ×(1 − 0.1/s) when not, forgotten below 0.5 unless tracked | ✅ `ThreatEvaluationSystem.cs:73-140`, `PerceptionConstants.cs:43,50` | ✅ R-194: *"memory stores identity + freshness"*. The NAME says threat; the BEHAVIOUR is freshness |
+| nothing reads a DANGER (what the contact is) anywhere | ✅ searched `ThreatLevel\|ThreatClass\|TargetClass\|DangerClass\|ThreatValue`: only `ContactThreatLevel`, which reads `ThreatScores` (`StandardInputs.cs:154`) | ✅ R-194: danger judged at read time, from the TKB |
+| `ThreatRankingDecision` exists (starter pack) and ranks contacts on LoS, distance, `ContactThreatLevel`, health, assigned | ✅ `StarterPack/ThreatRankingDecision.cs:14-21` | ✅ Decision Layer §1 G1 |
+| `HaveLiveTarget` = `Count > 0`, so a contact seen long ago keeps an attack posture alive | ✅ `StandardInputs.cs:198-205` | ✅ Decision Layer §3 table, line 113 (flagged there) |
+| readers of `ThreatScores` outside the AI: EQS LoS gating, scenario save/load, genesis | ✅ `CheapLineOfSightTest.cs:86`, `AccurateLineOfSightTest.cs:64`, `TargetMemoryTranslator.cs:62`, `GenesisMaterializationSystem.cs:228` | ⛔ searched, no design says they mean danger. They gate on "known recently", which is freshness |
+| what in the TKB a danger can be judged from (weapons, armour, class) | ⛔ **not measured**: a TKB inventory is needed first | — |
+
+**Leans** (each answerable "approved" or with a change):
+
+| # | question | lean | blast radius |
+|---|---|---|---|
+| **A** | what is `ThreatScores`? | ⭐ **it IS the freshness field.** Keep the memory stage as it is; the backend renames it `Freshness` later (a Roslyn rename, every reader above keeps working) | backend lane only, mechanical |
+| **B** | where is danger judged? | ⭐ one read-time function `ThreatDanger.Of(view, self, target)` in Toolkits, fed by the TKB. First cut: armed (any weapon mount) = 1, unarmed = 0.3. Refined once the TKB inventory (the ⛔ row) is done | ours; new input `ContactDanger` |
+| **C** | what do the threat inputs become? | ⭐ `ContactThreatLevel` = danger × freshness (normalised); new `ContactFreshness`; `HaveLiveTarget` = any contact with freshness ≥ a threshold (fixes the stale-attack defect) | ours; `ThreatRankingDecision` / `CombatPostureDecision` re-tuned, rails move |
+| **D** | the read-sensor node | ⭐ one shared node family `SensorNodes` keyed by `SensorModality` over `UnitSensors.Of` (top result, count, score), usable by BTree, HSM and blueprint | ours |
+
+⛔ **Rejected:** a second memory field for danger (R-194: never store danger). · Decaying danger (*"hidden does not
+mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and that is freshness already).
+
+⚠ **What would change the lean:** if the backend wants `ThreatScores` to keep a danger meaning, A flips to "add a
+`Freshness` field", which costs a memory-layout change on every node and a scenario-format change.
+
 ## 8. Claim table
 
 | claim | code — how it IS | design — how it was MEANT |
