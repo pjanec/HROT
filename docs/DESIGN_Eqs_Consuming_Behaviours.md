@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: DESIGN — leans D1–D6 await the user; nothing built except the prerequisite fix CE-2089.
-current-answer: the whole file — §2 the three diagrams, §3 claim table, §4 decisions with leans, §5 build plan.
+build-state: DESIGN — D1, D3–D6 approved (user 2026-10-05); D2 (host) re-opened, lean BTree in §4.2; nothing built except the prerequisite fix CE-2089.
+current-answer: §4.2 for the host (BTree lean); §2 diagrams are the blueprint variant until D2 is decided; §3 claim table; §5 build plan.
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -217,6 +217,66 @@ CE-2073, D1 becomes a third tiny parent blueprint, not a merged child.
 
 🔒 **User:** *"3031 is ok but pls check if btree or hsm wouldnt be simplier (depends on complexity of the bluelrint vs the others )."*
 ⇒ D1, D3–D6 stand; **D2 (the host) is re-opened** pending the comparison in §4.2.
+
+### 4.2 BTree, HSM or blueprint — the comparison *(measured `2026-10-05`)*
+
+| | BTree | HSM | blueprint (§2 as drawn) |
+|---|---|---|---|
+| the logic lives in | ⭐ ONE shared stateful C# action per behaviour (`[SharedAiAction]`, `SharedNodeStatefulAction<P, WS>`, `SharedNodeBinder.cs:20`) | the SAME shared action, bound in a state (HSM binds `[SharedAiAction]`s, `HsmEmitCore.cs:916`) | ~15 wired graph nodes: ScoreDecision, Entity From Ref, Spawn, Retarget, When, ReadEqsResult, distance + compare, a goal variable, ChannelCommand, WaitForChannel |
+| the asset | 3–4 nodes: `ObserverSelector[ Sequence(HasTarget, TakeCover) · Idle ]` (`BasicInfantrySop.btree.json` is 281 lines for a whole SOP) | 2 states + transitions — more structure than this loop needs; an HSM pays off for SWITCHING (posture), not for one loop | ~45 lines per node (`ChannelMoveAndWaitDemo.bp.json`: 258 lines, 6 nodes) ⇒ ~700 lines, plus a golden emit snapshot |
+| new C# | 2 actions + their tests | same 2 actions | 1 callable (`CE-2090`) + 1 pin (`CE-2091`) + the graph |
+| testing | ⭐ the action is called directly on a repo: plain unit rails, easy red-proofs | via the HSM runner | compile fixture + slot reads (as `WhenNodeRuntimeTests`) |
+| reuse already there | `MoveToOptimalCover` (the channel MoveTo write, `EqsCombatNodes.cs:60-120`), `Condition_HasTarget`, `EqsChildSensor.Ensure/Refresh`, `UtilityScorer.RankCandidates` | same | the blueprint nodes listed in §1 |
+| what it lacks today | `MoveToOptimalCover` moves ONCE (no re-position, `:97-100`); slot 1 is a static param (`EqsParams.ContextSlot1`) — both solved inside the new action | same | the re-point callable and the ScoreDelta pin |
+| who can start it | mission task · SOP reaction · posture child — the one gate is tier-agnostic (R-199) | same | same |
+
+⭐ **Lean: BTree, with the logic in two shared stateful actions** (`TakeCover`, `FallBack`) that an HSM can bind
+unchanged. The blueprint version is ~15 nodes of wiring around the same steps; in C# they are ~80 lines that a plain
+unit rail can check. The graph stays small enough to read in the editor, and the tunables (radius, 5 m re-position)
+are node params there.
+
+```mermaid
+classDiagram
+  class TakeCoverParams {
+    SearchRadius float
+    MinRepositionMetres float
+    Speed float
+  }
+  class TakeCoverState {
+    Sensor EqsSensorHandle
+    Threat Entity
+    Goal Vector3
+  }
+  class EqsTacticsActions {
+    <<SharedAiAction, NEW>>
+    TakeCover(ref P, ref WS, self, world) Running
+    FallBack(ref P, ref WS, self, world) Success on arrival
+  }
+  class UtilityScorer {
+    RankCandidates(ThreatRanking)
+  }
+  class EqsChildSensor {
+    Ensure()
+    Refresh(view, child, config)
+  }
+  class LocomotionMoveTo {
+    <<helper factored out of MoveToOptimalCover>>
+    Issue(channel, point)
+  }
+  EqsTacticsActions --> TakeCoverParams
+  EqsTacticsActions --> TakeCoverState
+  EqsTacticsActions --> UtilityScorer : top threat
+  EqsTacticsActions --> EqsChildSensor : own sensor, re-point
+  EqsTacticsActions --> LocomotionMoveTo
+```
+
+*What the picture shows that the table hid: with the BTree lean, the re-point and the re-position live in the working
+state of ONE action, so they need no new blueprint callable and no new pin. `CE-2090` / `CE-2091` then become an
+optional blueprint round-out, not a prerequisite.*
+
+⛔ **Rejected:** HSM as the host — two states for a single loop (it is the right host for the posture switch, CE-2073) ·
+composing small BTree actions that pass the threat between nodes — a node binds one variable plus one working state
+(`CE-2069`'s measurement), so the threat would need a shared variable per tree.
 
 ## 5. Build plan *(after approval)*
 
