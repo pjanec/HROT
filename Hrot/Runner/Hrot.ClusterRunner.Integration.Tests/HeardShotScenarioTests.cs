@@ -119,46 +119,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             return s;
         }
         int ShooterAmmo() => cgf.HasComponent<WeaponState>(shooter) ? cgf.GetComponent<WeaponState>(shooter).Ammo : -1;
-        unsafe string Shooter()
-        {
-            var t = cgf.HasComponent<BehaviorState>(shooter) && registry.TryGetName(cgf.GetComponent<BehaviorState>(shooter).ActiveBehaviorHash, out var n) ? n : "none";
-            var s = $"shooter task={t}";
-            if (cgf.HasComponent<TargetMemory>(shooter)) { var m = cgf.GetComponent<TargetMemory>(shooter); s += $" memory={m.Count}"; for (int i = 0; i < m.Count; i++) s += $" id={m.EntityIds[i]}"; }
-            if (cgf.HasComponent<WeaponChannel>(shooter)) { var w = cgf.GetComponent<WeaponChannel>(shooter); s += $" weapon={w.ActiveAction}/{w.Status}"; }
-            var d = ByName(cgf, "Decoy");
-            s += $" decoyOnCgf={(d.IsNull ? "no" : d.PackedValue.ToString())}";
-            return s;
-        }
-        float maxShot = 0f;   // the loudest shot state seen on the SimHost emitter
-        int manual = -1; string manualInfo = "";
-        int simSounds = 0, cgfSounds = 0;   // SoundContactEvents seen on each node's bus
-        var observers = new System.Collections.Generic.HashSet<string>(); var simObservers = new System.Collections.Generic.HashSet<string>();
-        string Ids()
-        {
-            string Of(EntityRepository w, Entity e) => e.IsNull ? "-" : $"{e}#{(w.HasComponent<NetworkIdentity>(e) ? w.GetComponent<NetworkIdentity>(e).Value : -1)}";
-            var e6 = cgf.GetEntityByIndex(6);
-            string six = cgf.IsAlive(e6) ? $"{e6}={(cgf.HasComponent<EntityInfo>(e6) ? cgf.GetComponent<EntityInfo>(e6).Name.ToString() : "?")}#{(cgf.HasComponent<NetworkIdentity>(e6) ? cgf.GetComponent<NetworkIdentity>(e6).Value : -1)}" : "dead";
-            return $" cgf R={Of(cgf, rifleman)} S={Of(cgf, shooter)} D={Of(cgf, ByName(cgf, "Decoy"))} sim R={Of(sim, simRifleman)} S={Of(sim, simShooter)} D={Of(sim, simDecoy)} cgf6={six}";
-        }
-        string Ears()
-        {
-            var s = "";
-            foreach (var (w, e, tag) in new[] { (sim, simRifleman, "sim"), (cgf, rifleman, "cgf") })
-            {
-                var ear = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w, e, SensorModality.Acoustic);
-                s += $" {tag}Ears={(ear.IsNull ? "none" : ear.ToString())}";
-                if (!ear.IsNull && w.HasComponent<EqsCognitiveBuffer>(ear))
-                {
-                    var b = w.GetComponentRO<EqsCognitiveBuffer>(ear);
-                    s += $"(ready={b.IsReady} count={b.Count} tick={b.LastUpdateTick} bp={w.GetComponentRO<EqsSensor>(ear).BlueprintId:X8})";
-                }
-            }
-            s += sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)
-                ? $" emitter(fire={sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).FiringAudibleRange} maxShotLeft={maxShot:F2})"
-                : " emitter=none";
-            return s + $" soundEvents sim={simSounds} cgf={cgfSounds} cgfObservers=[{string.Join(",", observers)}] simObservers=[{string.Join(",", simObservers)}] rifleman cgf={rifleman} sim={simRifleman} ids:{Ids()} manual:" + manualInfo;
-        }
-        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()} |{Ears()}";
+        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start}";
 
         // ① the shooter fires (the decoy is in its sight).
         Assert.True(harness.PumpUntil(() => ShooterAmmo() >= 0 && ShooterAmmo() < 30, timeoutFrames: 3000), $"the hidden shooter must fire; {State()}");
@@ -171,38 +132,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             for (int i = 0; i < m.Count; i++) if (TargetMemory.IsAnonymous(in m, i)) return true;
             return false;
         }
-        bool HeardOrTrack()
-        {
-            if (sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter))
-                maxShot = Math.Max(maxShot, sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).ShotTimeLeft);
-            simSounds += ((ISimulationView)sim).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().Length;
-            foreach (var ev in ((ISimulationView)cgf).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>()) { cgfSounds++; observers.Add(ev.Observer.ToString()); }
-            foreach (var ev in ((ISimulationView)sim).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>()) simObservers.Add(ev.Observer.ToString());
-            if (manual < 0 && maxShot > 0.3f)   // ⚠ CE-2106 diagnosis: the generator on the LIVE SimHost world, mid-shot
-            {
-                var ear = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(sim, simRifleman, SensorModality.Acoustic);
-                var reg = sim.GetSingletonManaged<IEqsTemplateRegistry>()!;
-                var cfgEar = sim.GetComponent<EqsSensor>(ear);
-                if (reg.TryGetTemplate(cfgEar.BlueprintId, out var t))
-                {
-                    var buf = new EqsResult[t.MaxCandidates];
-                    manual = t.Generator.Generate(ear, ref cfgEar, sim, buf);
-                    manualInfo = $"gen={manual} self={EqsContext.Self(sim, ear, cfgEar)} ears={Fdp.Toolkit.Perception.Sensors.AcousticPerception.Ears(sim, ear, out var rr, out _)}/{rr}";
-                    // the SAME on a snapshot, as the background solver reads it (OnDemandProvider: SyncFrom, all snapshotable)
-                    using var snap = new EntityRepository();
-                    snap.SyncFrom(sim);
-                    var cfgSnap = snap.GetComponent<EqsSensor>(ear);
-                    var t2 = reg.TryGetTemplate(cfgSnap.BlueprintId, out var tt) ? tt : t;
-                    int genSnap = t2.Generator.Generate(ear, ref cfgSnap, snap, new EqsResult[t.MaxCandidates]);
-                    var em = snap.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter) ? snap.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter) : default;
-                    manualInfo += $" | SNAP gen={genSnap} self={EqsContext.Self(snap, ear, cfgSnap)} ears={Fdp.Toolkit.Perception.Sensors.AcousticPerception.Ears(snap, ear, out var r2, out _)}/{r2}"
-                                + $" emitter={snap.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)} shotLeft={em.ShotTimeLeft:F2} info={snap.HasComponent<EntityInfo>(simShooter)} tr={snap.HasComponent<SimTransform>(simShooter)}";
-                }
-                else manualInfo = "no template";
-            }
-            return Heard();
-        }
-        Assert.True(harness.PumpUntil(HeardOrTrack, timeoutFrames: 3000), $"the rifleman must hear the shots; {State()}");
+        Assert.True(harness.PumpUntil(Heard, timeoutFrames: 3000), $"the rifleman must hear the shots; {State()}");
         _out.WriteLine("heard: " + State());
 
         // ③ the SOP reacts with TakeCover, its sensor pointed at a POINT (no entity).

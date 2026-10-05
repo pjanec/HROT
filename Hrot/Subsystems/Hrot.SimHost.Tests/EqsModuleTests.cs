@@ -1169,5 +1169,47 @@ namespace Hrot.SimHost.Tests
             new PerceptionTkbTranslator().Inject(_world, blind, t3);
             Assert.True(UnitSensors.Of(_world, blind, SensorModality.Visual).IsNull);
         }
+
+        /// <summary>
+        /// ⭐ CE-2106 — the acoustic twin of the rail above: a TKB that lists NO sensors and can HEAR gets one implicit
+        /// acoustic sensor (part 1001) whose ears reach <c>HearingRange</c>; a unit that only hears still remembers what it
+        /// hears; a TKB with a list, or one that cannot hear, gets none. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
+        /// </summary>
+        [Fact]
+        public void CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList()
+        {
+            var both = _world.CreateEntity();
+            var t1 = new TkbTemplate("SeesAndHears", 611);
+            t1.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, FieldOfViewDegrees = 90f, HearingRange = 150f });
+            new PerceptionTkbTranslator().Inject(_world, both, t1);
+            Assert.False(UnitSensors.Of(_world, both, SensorModality.Visual).IsNull);
+            var ear = UnitSensors.Of(_world, both, SensorModality.Acoustic);
+            Assert.False(ear.IsNull);
+            Assert.Equal(SensorChildFactory.FirstTkbPartId + 1, _world.GetComponentRO<PartMetadata>(ear).InstanceId);
+            Assert.Equal(1, _world.GetComponentRO<SensorTag>(ear).Implicit);
+            Assert.Equal(AcousticPerception.BlueprintId, _world.GetComponentRO<EqsSensor>(ear).BlueprintId);
+            Assert.True(AcousticPerception.Ears(_world, ear, out float range, out _));
+            Assert.Equal(150f, range);
+
+            var deaf = _world.CreateEntity();
+            var t2 = new TkbTemplate("Deaf", 612);
+            t2.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 200f, HearingRange = 0f });
+            new PerceptionTkbTranslator().Inject(_world, deaf, t2);
+            Assert.True(UnitSensors.Of(_world, deaf, SensorModality.Acoustic).IsNull);
+
+            var hearsOnly = _world.CreateEntity();
+            var t3 = new TkbTemplate("HearsOnly", 613);
+            t3.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 0f, HearingRange = 100f });
+            new PerceptionTkbTranslator().Inject(_world, hearsOnly, t3);
+            Assert.True(UnitSensors.Of(_world, hearsOnly, SensorModality.Visual).IsNull);
+            Assert.False(UnitSensors.Of(_world, hearsOnly, SensorModality.Acoustic).IsNull);
+            Assert.True(_world.HasComponent<TargetMemory>(hearsOnly), "a unit that only hears still remembers what it hears");
+
+            var listed = _world.CreateEntity();
+            var t4 = new TkbTemplate("ListedHearing", 614);
+            t4.AddDescriptor(new SensorCapabilitiesDto { HearingRange = 150f, Sensors = new List<SensorEntryDto> { TestRadar(100f) } });
+            new PerceptionTkbTranslator().Inject(_world, listed, t4);
+            Assert.True(UnitSensors.Of(_world, listed, SensorModality.Acoustic).IsNull);
+        }
     }
 }

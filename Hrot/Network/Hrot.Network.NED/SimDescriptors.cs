@@ -395,10 +395,14 @@ namespace Hrot.NED.Descriptors
     /// ⭐ <c>CE-3062</c> — ANONYMOUS by design (R-205, "shot from the north"): an estimated position and an uncertainty radius,
     /// never the source's identity (the old <c>SourceEntityIndex</c> is gone). docs/DESIGN_Thermal_And_Acoustic_Sensing.md §5.1.
     /// </summary>
+    // ⭐ CE-2106 — depth 1 on an UNKEYED topic is ONE instance: an acoustic solve writes one sample per heard sound for every
+    //   listener in the same frame, and each overwrote the one before (measured: the rifleman's shot never reached the Brain,
+    //   only the last listener's sample did). Same collapse as CE-3023's SysOpStatus. ⚠ BOUNDED, not KeepAll: Volatile and
+    //   BestEffort, so the depth only has to cover one solve's burst.
     [DdsTopic("AudioTargetDetected")]
     [DdsIdlFile("hrot-sim-msg")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
-            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
     public partial struct AudioTargetDetected
     {
         public long  ListenerEntityId;

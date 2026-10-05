@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-10-05
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
-current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point).
+current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
-known-rot: §6 D's "position + radius, no identity" — the user (§6.1a K3, R-207) adds a coarse source CLASS to a heard contact; §5.1's SoundContactEvent gains it. §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062).
+known-rot: §6 D's "position + radius, no identity" — the user (§6.1a K3, R-207) adds a coarse source CLASS to a heard contact; §5.1's SoundContactEvent gains it. §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062). §7's "every shipped unit is silent" — the urban types make sound and hear since CE-2106 (§8.1).
 known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
@@ -533,3 +533,20 @@ gets one sensor per sense it authors a range for; a template that lists sensors 
 | an implicit acoustic sensor, the twin of `CE-3038`'s implicit visual one | `HearingRange` already says how far each type hears; the rule needs no new authoring | listing explicit sensors on the shipped soldiers (⛔ a listed visual entry reads the TKB, not the live receptor a Brain retunes — it would change how their vision is tuned) |
 | first-cut sound ranges on `UrbanCombatTkbCatalog` (footsteps 25 m, car 80 m, APC 300 m, rifle shot 400 m, RPG shot 500 m / burst 800 m) and classes per type | the types the test-town recipes use | — (tuning is data; BDC / FDP-example catalogs stay silent until authored) |
 | ⚠ every hearing unit now listens (one more sensor per unit) | it is what `HearingRange` always claimed | — |
+
+**As built (`2026-10-05`, build-state: BUILT).** `AcousticPerception.ImplicitEntry` + `PerceptionTkbTranslator` (part 1001,
+`Implicit = 1`; a unit that only hears gets `TargetMemory` too); `UrbanCombatTkbCatalog.Sounds(…)` on the five urban types;
+recipe `tt-heard-shot` (a rifleman south of the Tower, a hostile north of it firing at a decoy it can see).
+
+🔴 **Finding — the wire dropped what the rifleman heard (cross-lane, NED, named).** `AudioTargetDetected` was
+`KeepLast 1` with no `[DdsKey]`, so it was ONE instance: one acoustic solve writes a sample per heard sound for every
+listener in the same frame, and each overwrote the one before. 📐 Measured live: SimHost raised the rifleman's
+`SoundContactEvent`s, but CGF received only the decoy's (written last). ⇒ `HistoryDepth = 64`, bounded because the topic
+is Volatile / BestEffort and only one solve's burst has to fit. Same failure as `CE-3023`'s `SysOpStatus`. ⚠ The other
+unkeyed event topics with depth 1 were not audited here (`NearMiss` is depth 8).
+
+| rail | proves | red-proof |
+|---|---|---|
+| `AudioTargetDetectedWireTests.SameFrameBurst_ForTwoListeners_AllReachTheReader_CE2106` | three sounds for two listeners, written in one burst, all arrive | depth 1 ⇒ *"only 1 of 3 heard sounds arrived"* |
+| `EqsModuleTests.CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList` | the implicit-ears rule (built, ears = `HearingRange`; none when deaf or the TKB lists sensors) | — |
+| `HeardShotScenarioTests.CE2106_ARiflemanHearsAHiddenShooter_AndTakesCoverFromWhereTheShotsCameFrom` | live on `test-town`: the shooter fires, the rifleman gets a HEARD slot, its SOP takes cover with the sensor pointed at a point within 40 m of the shooter, and it moves while staying hidden | red before the QoS fix (never heard) |
