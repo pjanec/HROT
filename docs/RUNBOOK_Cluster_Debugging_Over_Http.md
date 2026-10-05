@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: nothing known
 known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface through the MCP
   server; this document is the direct-HTTP path to it and does not contradict it.
+related-designs:
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility AI demo scenarios and their per-scenario runbook (§5.3 there), which builds on this one.
 -->
 
 # RUNBOOK — debugging a running HROT cluster over plain HTTP

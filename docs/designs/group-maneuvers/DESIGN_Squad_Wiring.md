@@ -6,6 +6,7 @@ current-answer: §2 (diagrams) and §5 (decisions)
 stale-below: none
 known-rot: Squad_Coordination_Design_v1_1.md and Hrot.SquadCoordination.md describe the layer as "fully implemented" — true of the code, never of its use (§1)
 related-designs:
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the fire-distribution (U6) and squad-maneuver (U7) demo scenarios; its §2.2 F4–F6 are measured wiring defects for D3/W6.
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — owns WHAT the squad layer is (primitives, maneuvers, authority-by-weight); this doc owns only WHERE it runs
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — owns the scorer and its §7 integration nodes; this doc adds the missing runtime bootstrap (input registration) both tiers need
   - docs/projects/Hrot/Subsystems/Hrot.SquadCoordination.md — the as-built API reference of the squad library

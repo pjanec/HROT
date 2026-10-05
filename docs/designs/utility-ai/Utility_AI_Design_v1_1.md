@@ -5,6 +5,7 @@ current-answer: the whole document (the scorer and its §7 integration surfaces)
 stale-below: none
 known-rot: §7.1 UtilitySelectorNode and §7.2 UtilityTransitionArbiter are SUPERSEDED 2026-10-05 (CE-2069, R-202) by the shared UtilityNodes (ChooseOption / IsOption / RankCandidates) that a BTree and an HSM both bind, the winner held in the CALLER's working state; both classes are deleted. · §6.6's reader sketch keyed a template by its NAME hash — SUPERSEDED 2026-10-03 (CE-2046): by its AssetId, see the note in §6.6. The runtime bootstrap (input registration via UtilityAutoDiscovery) had no production caller until CE-454 W1 — see DESIGN_Squad_Wiring.md §1
 related-designs:
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS one demo scenario per utility feature (incl. WeaponSelection, LeaderAssignment, ManeuverSelect) and what is missing to run each live; its §2.2 F1/F2/F3 are defects in this design's inputs and trace.
   - docs/DESIGN_Decision_Layer.md — §3.3 OWNS how BTree / HSM / blueprint call the scorer now (UtilityNodes, ScoreDecision), superseding §7.1–§7.2 here.
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns the runtime bootstrap call site (CgfLogicPack ctor) and why no Utility tick system exists
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — the commander-tier ManeuverSelect recursion (§8.0)
