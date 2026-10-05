@@ -42,10 +42,11 @@ public sealed class EditorScenarioSession : IScenarioSession
     private readonly Func<string>            _scenariosRoot;
 
     private string?      _loadedScenarioName;
-    private string?      _pendingScenarioLoad;
-    private ClusterState _pendingTargetState = ClusterState.OperatingEdit;
-    private bool         _waitingForIdle;
     private ClusterState _currentClusterState = ClusterState.Idle;
+
+    // ⭐ CE-295 — every load goes through the ONE shared sequence (Idle first, then the load); this session's own
+    //   wait-for-Idle was where the sequence came from, and LoadForLive used to skip it.
+    private readonly ScenarioLoadSequence _loads;
 
     /// <summary>
     /// ⭐ <b>The scenarios root is a DELEGATE, not a captured string</b>, and that is deliberate: the
@@ -70,6 +71,16 @@ public sealed class EditorScenarioSession : IScenarioSession
         _world            = world            ?? throw new ArgumentNullException(nameof(world));
         _scenariosRoot    = scenariosRoot    ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _alertManager     = alertManager     ?? new MigrationAlertManager();
+        _loads = new ScenarioLoadSequence(
+            send:         intent => _orchestrationBus.PublishManaged(intent),
+            currentState: () => _currentClusterState,
+            beforeLoad:   load =>
+            {
+                // An authoring load starts the editor's world on a blank slate (WorldResetEvent + SoftClear); a live
+                // load is cleared on every node by the world boundary (CE-2101), as before.
+                if (load.TargetState == ClusterState.OperatingEdit) ClearWorld();
+                _loadedScenarioName = load.ScenarioId;
+            });
     }
 
     /// <summary>The alert manager this session reports migration state through.</summary>
@@ -90,29 +101,8 @@ public sealed class EditorScenarioSession : IScenarioSession
         foreach (var ev in _orchestrationBus.ReadManaged<ClusterStateUpdateEvent>())
             _currentClusterState = ev.CurrentState;
 
-        if (!_waitingForIdle || string.IsNullOrEmpty(_pendingScenarioLoad)) return;
-        if (_currentClusterState != ClusterState.Idle) return;
-
-        _waitingForIdle = false;
-        var scenarioName = _pendingScenarioLoad;
-        var target       = _pendingTargetState;
-        _pendingScenarioLoad = null;
-
-        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
-        //    so the new scenario starts on a blank slate.
-        ClearWorld();
-
-        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
-        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
-        _orchestrationBus.PublishManaged(new TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = target,
-            ScenarioId    = scenarioName,
-            ExerciseId    = Guid.NewGuid(),
-        });
-
-        _loadedScenarioName = scenarioName;
+        // ⭐ CE-295 — a load waiting for the unload goes out once the cluster reports Idle.
+        _loads.Pump();
     }
 
     /// <inheritdoc/>
@@ -137,8 +127,7 @@ public sealed class EditorScenarioSession : IScenarioSession
 
         // ⚠ Any load that was waiting for idle is abandoned — the operator just asked for a fresh
         //   exercise, so honouring a queued load afterwards would silently undo their request.
-        _waitingForIdle      = false;
-        _pendingScenarioLoad = null;
+        _loads.Cancel();
 
         ClearWorld();
     }
@@ -147,14 +136,12 @@ public sealed class EditorScenarioSession : IScenarioSession
     public void OpenForEdit(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        _pendingScenarioLoad = scenarioName;
-        _pendingTargetState  = ClusterState.OperatingEdit;
-        _waitingForIdle      = true;
-
-        _orchestrationBus.PublishManaged(new TransitionStateIntent
+        _loads.Request(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = ClusterState.Idle,
+            TargetState   = ClusterState.OperatingEdit,
+            ScenarioId    = scenarioName,
+            ExerciseId    = Guid.NewGuid(),
         });
     }
 
@@ -165,16 +152,15 @@ public sealed class EditorScenarioSession : IScenarioSession
 
         // ⭐ A fresh ExerciseId per load, mirroring the orchestrator panel's "Load into Live" button and
         //   DebugApiService.LoadScenarioLive: a live load IS a new exercise run, and the id is what
-        //   recording/replay keys off.
-        _orchestrationBus.PublishManaged(new TransitionStateIntent
+        //   recording/replay keys off. ⭐ CE-295 — through the shared sequence: from Live or Edit it unloads first
+        //   (a single request planned an empty path and only copied the files).
+        _loads.Request(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
             TargetState   = ClusterState.OperatingLive,
             ScenarioId    = scenarioName,
             ExerciseId    = Guid.NewGuid(),
         });
-
-        _loadedScenarioName = scenarioName;
     }
 
     /// <inheritdoc/>

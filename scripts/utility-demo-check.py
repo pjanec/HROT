@@ -8,7 +8,8 @@ Brain, perspective "Scenario") with GET /entities/{id}/utility, and exits 0 on P
     python3 scripts/utility-demo-check.py ua-posture
     python3 scripts/utility-demo-check.py --launch ua-threat-ranking   # starts and stops its own fresh cluster
 
-⛔ One scenario per cluster process: a second live load is a silent no-op (CE-295) — the script detects it and fails.
+Several scenarios may run in one cluster process (CE-295 fixed); the script verifies the loaded cast. ⚠ CE-3075: a
+scenario naming no terrain keeps the previous terrain — use --launch for those.
 
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
@@ -61,13 +62,13 @@ def load(name):
     if "http" in resp:
         sys.exit(f"load failed: {resp}")
     call("POST", "/perspective", {"name": "Scenario"})
-    # ⛔ CE-295: a live load works ONCE per process — every later one answers ok:true and changes nothing. A check that
-    #   ran on the previous scenario's world would report on the wrong cast, so prove the world IS this scenario.
+    # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
+    #   check could report on the previous scenario's cast. Kept as a guard.
     want = scenario_names(name)
     got = wait_for(lambda: (n := sorted(x for x in ids_by_name())) == want and n, 30)
     if got is None:
         sys.exit(f"the loaded world is not '{name}' (want {want}, have {sorted(ids_by_name())}) — a second live load in one "
-                 f"process is a silent no-op (CE-295). Restart the cluster, or run with --launch.")
+                 f"process was a silent no-op before CE-295. Restart the cluster, or run with --launch.")
 
 
 def launch(port):
@@ -232,7 +233,7 @@ def main():
     ap.add_argument("--port", type=int, default=8111)
     ap.add_argument("--timeout", type=float, default=60, help="seconds to wait for each expected change")
     ap.add_argument("--launch", action="store_true",
-                    help="start a fresh ClusterRunner --mode all for this run and stop it after (CE-295: one live load per process)")
+                    help="start a fresh ClusterRunner --mode all for this run and stop it after")
     a = ap.parse_args()
     BASE = f"http://localhost:{a.port}"
 

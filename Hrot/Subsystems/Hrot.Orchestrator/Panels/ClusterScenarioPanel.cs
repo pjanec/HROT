@@ -277,6 +277,23 @@ public sealed class ClusterScenarioPanel
     private int _selectedLoadScenarioIdx = -1;
     private int _selectedExerciseIdx        = -1;
     private bool _startPaused = false;
+
+    // ⭐ CE-295 — "Load into Edit / Live" go through the ONE shared sequence: from Live or Edit it asks for Idle first
+    //   (the unload) and sends the load once the cluster is Idle. A single request planned an empty path from the
+    //   target state itself and only copied the files. Pumped every frame (Update and Render).
+    private Fdp.Toolkit.Orchestration.ScenarioLoadSequence? _loads;
+    private Fdp.Toolkit.Orchestration.ScenarioLoadSequence Loads
+        => _loads ??= new Fdp.Toolkit.Orchestration.ScenarioLoadSequence(
+               send: intent => SendRequest(new ClusterOpRequest
+               {
+                   RequestId     = intent.TransactionId,
+                   OperationType = ClusterOpType.TransitionState,
+                   PayloadJson   = JsonSerializer.Serialize(
+                       new TransitionPayloadDto(TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId,
+                                                ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
+                       OrchestrationJsonOptions.Default),
+               }),
+               currentState: () => (FdpClusterState)(int)EffectiveState);
     private int _selectedEpisodeIdx        = -1;
 
     // ── Replay section state ──────────────────────────────────────────────
@@ -318,6 +335,7 @@ public sealed class ClusterScenarioPanel
     /// <summary>Advances the seek debounce timer. Call once per frame from the subsystem Update().</summary>
     public void Update(float dt)
     {
+        _loads?.Pump();   // CE-295 — a load waiting for the unload goes out once the cluster is Idle
         if (!_seekPending) return;
         _seekDebounceTimer -= dt;
         if (_seekDebounceTimer > 0f) return;
@@ -339,6 +357,7 @@ public sealed class ClusterScenarioPanel
     /// <param name="disableAll">When <c>true</c>, all interactive controls are disabled.</param>
     public void Render()
     {
+        _loads?.Pump();   // CE-295 — also pumped here: a host that holds the master may draw without calling Update
         // Compute disable flag from ClusterMaster's true internal state.
         // HasInFlightTransaction is reset to false immediately after the fan-out
         // completes, so buttons re-enable as soon as the transition is dispatched.
@@ -867,26 +886,25 @@ public sealed class ClusterScenarioPanel
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
             {
                 string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                SendRequest(new ClusterOpRequest
+                Loads.Request(new TransitionStateIntent
                 {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingEdit, ScenarioId: scenId, ExerciseId: Guid.Empty, TimeMode: null),
-                        OrchestrationJsonOptions.Default),
+                    TransactionId = Guid.NewGuid(),
+                    TargetState   = FdpClusterState.OperatingEdit,
+                    ScenarioId    = scenId,
+                    ExerciseId    = Guid.Empty,
                 });
             }
             ImGui.SameLine();
             if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
             {
                 string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                SendRequest(new ClusterOpRequest
+                Loads.Request(new TransitionStateIntent
                 {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid(), TimeMode: _startPaused ? "Deterministic" : null),
-                        OrchestrationJsonOptions.Default),
+                    TransactionId = Guid.NewGuid(),
+                    TargetState   = FdpClusterState.OperatingLive,
+                    ScenarioId    = scenId,
+                    ExerciseId    = Guid.NewGuid(),
+                    TimeMode      = _startPaused ? "Deterministic" : null,
                 });
             }
 

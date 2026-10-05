@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05 (§8 CE-2101: the world boundary clears every host)
+updated: 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
 current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT of L1-L7) and
   ⭐ §7 (L8 — the deterministic staging WAIT, BUILT; §7.7 is its AS-BUILT).
   ⭐ §8 (CE-2101 — the world boundary clears every host before the load, BUILT).
+  ⭐ §9 (CE-295 — a load over a loaded cluster asks for Idle first, through ONE caller-side sequence, BUILT).
   §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
@@ -829,3 +830,66 @@ classDiagram
 Rails: `TakeCoverScenarioTests.CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost` (cluster: once per host, at the authored
 position, perceiving again — red before on position, then on perception), `LoadPhaseChainTests.TheWorldBoundary_ClearsTheWorldBeforeAnyStepCommits_CE2101`
 (boundary clears and kills stale handles; non-boundary keeps the world), `TheWorldBoundaryResetsTheIdAuthorityTests.The_world_boundary_is_a_load_entered_from_Idle_CE2101`.
+
+## 9. ⭐⭐⭐ `CE-295` — **A LOAD OVER A LOADED CLUSTER UNLOADS FIRST — the caller asks** *(AS-BUILT `2026-10-05`, backend)*
+
+🔒 **User, `2026-10-05`:** *"the planner is correct, empty path if we already are in the target state is fine"* ·
+*"Isn't the OpenForEdit style cleaner?"* · *"Ok shared helper. No refusal to load when not in idle. If load is possible
+because there is valid way (unload first etc), no reason to refuse the order."* (R-210)
+
+📐 **The defect.** A load is a state-change request — `TransitionStateIntent { TargetState, ScenarioId }`. From `Idle`
+the path is `Idle → LoadingLive → OperatingLive`, and the `PrepareLive` step carries the scenario to every node. From
+`OperatingLive` to `OperatingLive` the planner (rightly) plans an EMPTY path, so only the `PrefetchScenario` copy ran:
+files staged on every node, no node unloaded or loaded — and the HTTP route answered `ok:true` on its grace timer.
+Every later live load in one process was a silent no-op. Only `EditorScenarioSession.OpenForEdit` asked for `Idle`
+first; `LoadForLive`, the panel's two buttons and the two HTTP routes sent one request.
+
+```mermaid
+sequenceDiagram
+  participant C as caller (editor session, HTTP route, orchestrator panel)
+  participant Q as ScenarioLoadSequence
+  participant M as ClusterMaster
+  C->>Q: Request(load: OperatingLive + "b")
+  alt cluster is Idle
+    Q->>M: TransitionStateIntent(OperatingLive, "b")
+  else cluster is Live / Edit / anything else
+    Q->>M: TransitionStateIntent(Idle)
+    M-->>C: state UnloadingLive, then Idle
+    C->>Q: Pump() each frame / poll
+    Q->>M: TransitionStateIntent(OperatingLive, "b")
+  end
+  M-->>C: LoadingLive, then OperatingLive (PrepareLive carries "b" to every node)
+```
+
+*What the picture shows that prose hid: the master and the planner are untouched — the unload is an ordinary request the
+CALLER makes, exactly the two requests an operator would click; the sequence only holds the load until `Idle`.*
+
+```mermaid
+classDiagram
+  class ScenarioLoadSequence {
+    <<NEW, Fdp.Toolkit.Orchestration>>
+    +Request(TransitionStateIntent load)
+    +Pump() bool
+    +Cancel()
+    +IsWaitingForIdle bool
+    ctor(send, currentState, beforeLoad)
+  }
+  class EditorScenarioSession { <<existing>> OpenForEdit · LoadForLive · Update pumps · beforeLoad clears the world for Edit }
+  class DebugApiService { <<existing>> LoadScenarioLive / LoadScenarioEdit · PumpScenarioLoad }
+  class DebugApiHost { <<existing>> HandleScenarioLoad pumps until the load is sent }
+  class ClusterScenarioPanel { <<existing>> Load into Edit / Live · Update and Render pump }
+  class ClusterMaster { <<existing, UNCHANGED>> plans the literal path }
+  EditorScenarioSession --> ScenarioLoadSequence
+  DebugApiService --> ScenarioLoadSequence
+  DebugApiHost ..> DebugApiService : pumps
+  ClusterScenarioPanel --> ScenarioLoadSequence
+  ScenarioLoadSequence ..> ClusterMaster : TransitionStateIntent (bus or ClusterOpRequest)
+```
+
+| decision | rejected |
+|---|---|
+| ⭐ the CALLER asks for `Idle` first, through ONE transport-free helper (`send` + `currentState`), pumped by each caller's own loop | a master-side rule "a named scenario from a non-Idle state goes via Idle" — 🔒 rejected by the user as a hidden shortcut · a planner change — the empty path is correct · a refusal to load when not Idle — 🔒 rejected: a valid way exists, so the order is honoured |
+
+Rails: `ScenarioLoadSequenceTests` (6) · `EditorScenarioSessionLoadTests` (4, red-proved on the old session) — live:
+`scripts/utility-demo-check.py` loads scenarios one after another in ONE `--mode all` process.
+

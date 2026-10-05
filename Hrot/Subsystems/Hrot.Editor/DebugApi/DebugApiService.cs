@@ -1183,7 +1183,7 @@ namespace Hrot.Editor.DebugApi
                 return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver" };
             }
 
-            _requestTransition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
                 TransactionId = Guid.NewGuid(),
                 TargetState   = ClusterState.OperatingEdit,
@@ -1192,7 +1192,8 @@ namespace Hrot.Editor.DebugApi
                 //   not an exercise run, so it gets no ExerciseId.
                 ExerciseId    = Guid.Empty,
             });
-            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent" };
+            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
         }
 
         /// <summary>
@@ -1212,14 +1213,35 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
-            _requestTransition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
                 TransactionId = Guid.NewGuid(),
                 TargetState   = ClusterState.OperatingLive,
                 ScenarioId    = name,
                 ExerciseId    = Guid.NewGuid(),
             });
-            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent" };
+            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
+        }
+
+        // ⭐⭐ CE-295 — loads go through the ONE shared sequence: from any state but Idle it asks for Idle (the unload),
+        //   and the load goes out once the cluster reports Idle. A single request from Live/Edit planned an EMPTY path
+        //   (already in the target state) and only copied the files — every later live load was a silent no-op.
+        //   📄 docs/DESIGN_Cluster_Load_Phase.md §9. Late-bound: the sender and the state follow the active perspective.
+        private Fdp.Toolkit.Orchestration.ScenarioLoadSequence? _scenarioLoads;
+        private Fdp.Toolkit.Orchestration.ScenarioLoadSequence ScenarioLoads
+            => _scenarioLoads ??= new Fdp.Toolkit.Orchestration.ScenarioLoadSequence(
+                   send:         intent => _requestTransition(intent),
+                   currentState: () => CurrentClusterState());
+
+        /// <summary>
+        /// ⭐ <c>CE-295</c> — sends a load that waits for the unload once the cluster is Idle. <b>Main thread.</b> Returns
+        /// true when no load is waiting any more (sent now, or none was waiting).
+        /// </summary>
+        public bool PumpScenarioLoad()
+        {
+            ScenarioLoads.Pump();
+            return !ScenarioLoads.IsWaitingForIdle;
         }
 
         /// <summary>

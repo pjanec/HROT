@@ -1454,10 +1454,32 @@ namespace Hrot.Editor.DebugApi
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
 
+            // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
+            //   the edge the readiness check needs to see.
+            int? countBeforeLoad = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull())
+                                                 .ConfigureAwait(false);
+
             var requested = await _jobQueue.RunOnMainThread(() =>
                 target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
                     ? Service().LoadScenarioLive(name!)
                     : Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
+
+            // ⭐⭐ CE-295 — from Live or Edit the shared sequence asked for Idle first; the load itself goes out once the
+            //   cluster reports Idle. This route pumps it (with or without waitForReady), so a load is never left waiting.
+            bool unloadFirst = requested?["unloadFirst"]?.GetValue<bool>() ?? false;
+            if (unloadFirst)
+            {
+                var unload = System.Diagnostics.Stopwatch.StartNew();
+                bool sent = false;
+                while (!sent && unload.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
+                {
+                    sent = await _jobQueue.RunOnMainThread(() => Service().PumpScenarioLoad()).ConfigureAwait(false);
+                    if (!sent) await Task.Delay(50).ConfigureAwait(false);
+                }
+                if (!sent)
+                    return Fail(504, $"Scenario '{name}': the cluster did not reach Idle (the unload before the load) within "
+                                   + $"{ScenarioReadyTimeoutSeconds}s.");
+            }
 
             if (!waitForReady)
                 return Ok(new JsonObject
@@ -1484,8 +1506,9 @@ namespace Hrot.Editor.DebugApi
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
             int pollCount = 0;
-            int? countAtRequest = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull())
-                                                .ConfigureAwait(false);
+            int? countAtRequest = unloadFirst
+                ? countBeforeLoad
+                : await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull()).ConfigureAwait(false);
             int? previous = countAtRequest;
             bool sawChange = false;
 
