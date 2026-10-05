@@ -465,7 +465,7 @@ at refresh time — the same "danger at read time" rule as R-194 — not stored 
 | **B3** fix with it: F6 (buffer on the commander), F5 (option → `ManeuverKind` map), QA-037 (ids 262/263), and pick `ActiveFeatureId` = the nearest area ahead on the leg | — |
 | ⚠ **known limit** | a straight leg ignores the path the units really take round buildings — fine on open ground (U7, desert); in town a squad may "see" a crossing it will not use. The Muscle-side upgrade removes it |
 
-### 10.1 ⚠ REVISED LEAN `2026-10-05` — **plan the REAL path on SimHost, classify on CGF** *(awaiting the user; supersedes B1's straight leg)*
+### 10.1 ⚠ SUPERSEDED by §10.2 — **plan the REAL path on SimHost, classify on CGF** *(the measurements below still stand; the placement does not)*
 
 🔒 **User, `2026-10-05`:** *"can't it work on a path which is found by pathfinding? path details can be returned by simhost i
 guess..."* 📐 **Measured — the wire for it already exists, complete and dormant:**
@@ -481,6 +481,35 @@ guess..."* 📐 **Measured — the wire for it already exists, complete and dorm
 | switch on the existing Brain half on CGF (a trajectory pool + the pack); the provider requests commander → destination with the commander's mobility, and on the reply samples the returned waypoints every 5 m over CGF's `TerrainWorld` (same classifier as B1). Until the reply lands (one refresh, ~2 s) it uses the straight leg. No new message | `PlanRoute` over `NavigationIntent` — needs a new mode, a new translator, and an answer keyed to the entity's own move · SimHost computes the descriptors (squad design §5) — a new result topic for 68-byte descriptors and the navmesh tactical-feature extraction that is still "in plan"; the provider interface is the same, so it can replace B1′ later |
 
 ⚠ The path is the commander's, planned once per destination — the members' own paths may differ round a building.
+
+### 10.2 ⚠ REVISED AGAIN `2026-10-05` — **the evaluator is placement-free; one missing query: "danger areas along a route"** *(awaiting the user; supersedes §10.1's placement and B1's)*
+
+🔒 **User, `2026-10-05`:** *"why would this sensor evaluator run on the AI node? It needs to be runnable anywhere (most likely
+on the navigation role node where most of the information is - navmesh, areas, ...) … all data required need to be
+retrievable using networkable request-response mechanism anyway, making the implementation place choice more an
+optimization than a necessity. What data query is missing … some kind of query for areas along a path?"*
+
+| input the evaluator needs | where it lives | how another node gets it |
+|---|---|---|
+| the route | the navigation node: a moving unit's planned route is already there (`NavigationCorridorMuscle.RouteHandle` → `TrajectoryPoolManager`) | ✅ `PathRequestBatch` / `PathResponseBatch` (dormant on CGF, §10.1) |
+| terrain world + authored areas | every ECS node (universal since R-182) | not needed — local everywhere |
+| navmesh (chokes, area outlines) | navigation nodes only | ⛔ no query |
+| threat | the squad's memory, on the Brain | ⛔ not needed by the evaluator — rated at READ time on the Brain (G1, R-194) |
+
+⇒ the GEOMETRY is a pure function of (route, terrain, navmesh) and can run on any node holding them; the navigation node
+holds all three, so it is where it runs (an optimization). ⛔ **The missing piece is the query itself:**
+
+| ⭐ lean **B1″** — a new EQS query kind, **DangerAlongRoute** | |
+|---|---|
+| request | the existing sensor transport (`EqsSensorConfigTopic`, keyed by unit + sensor slot, solver picked by `SolverNodeId`) + a ROUTE spec: "the route of unit X" (context slot = the unit; the solver reads its current route) or start/end/mobility for a route not yet driven; corridor half-width; max areas |
+| response | a NEW result topic with the same key, carrying up to 8 `DangerAreaDescriptor` (kind, oriented box + height band, near/far handles, distance along the route) — ⛔ no threat. `EqsResultEntry` (entity, position, score, flags) cannot carry them (squad design §5, architect-confirmed) |
+| on the Brain | the result lands in the commander's buffer (F6); the squad rates each area from its own contacts at read time, then `ManeuverSelect` picks (F5) |
+
+| rejected | the one fact |
+|---|---|
+| B1 / B1′ — evaluate on CGF | no navmesh there, and it re-plans a route the navigation node already holds |
+| squeeze descriptors into `EqsResultEntry` | no room for a box and two handles |
+| `PlanRoute` path details to the Brain (navig-2 §3.2) | ships whole waypoint lists to the Brain only to do geometry there |
 
 This unblocks Squad Wiring **D3** (W6: run `CommanderUtilityTickSystem`). **D2** (a shipped squad-maneuver behaviour
 that reads the near/far handles and moves the elements) is still needed for U7 — none of the six maneuvers reads a
