@@ -86,6 +86,30 @@ public sealed class HsmFacetDispatcherTests
         sf.Name.Should().Be("Idle");
     }
 
+    /// <summary>⭐ CE-2088 — the event picker offers the ENGINE-RAISED events the asset has not declared; picking one on a
+    /// transition declares it (reserved id) and the save carries it.</summary>
+    [Fact]
+    public void CE2088_PickingABuiltInSensorEvent_DeclaresIt_AndTheSaveCarriesTheReservedId()
+    {
+        var asset = MakeSimpleAsset();
+        var picker = new HsmEventPickerDrawer(asset);
+        picker.GetItems().Should().Contain(new[] { "Fire", "Sensor.FirstThreat", "Sensor.Hit" });
+        Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn("Sensor.FirstThreat", out ushort threat).Should().BeTrue();
+
+        var disp = new HsmFacetDispatcher(asset);
+        var transition = asset.AllTransitions.First();
+        var sel = new HsmTransitionSelection(transition.VisualId);
+        var facet = (TransitionFacet)disp.GetFacet(sel)!;
+        facet.EventId = threat;
+        disp.ApplyFacet(sel, facet);
+
+        transition.EventId.Should().Be(threat);
+        asset.FindEventById(threat)!.Name.Should().Be("Sensor.FirstThreat");
+        picker.GetItems().Count(n => n == "Sensor.FirstThreat").Should().Be(1, "declared once, not offered twice");
+        var dto = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(asset);
+        dto.Events.Should().Contain(e => e.Name == "Sensor.FirstThreat" && e.EventId == threat);
+    }
+
     [Fact]
     public void Inspector_HsmTransitionSelection_YieldsTransitionFacet()
     {

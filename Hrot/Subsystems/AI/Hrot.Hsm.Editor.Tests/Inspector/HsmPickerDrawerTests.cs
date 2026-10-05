@@ -60,7 +60,10 @@ public sealed class HsmPickerDrawerTests
 
         items.Should().Contain("Fire");
         items.Should().Contain("Reset");
-        items.Should().HaveCount(2, "exactly the two events defined in the builder");
+        // ⭐ CE-2088 — plus the ENGINE-RAISED events the asset has not declared (picking one declares it).
+        int builtIns = Hrot.AiEditor.Persistence.Emit.HsmEventIds.BuiltIns.Count;
+        items.Should().HaveCount(2 + builtIns, "the two events defined in the builder + every engine-raised one");
+        items.Should().Contain("Sensor.FirstThreat");
     }
 
     [Fact]

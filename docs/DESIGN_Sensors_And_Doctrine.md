@@ -724,7 +724,7 @@ unit's change not enqueued · the transition fires · names = the runtime enum) 
 red-proved (bridge off ⇒ 2/4 red; built-in names ignored ⇒ 2/2 red). Gates: Toolkits 2670/0 · Persistence 159/0 ·
 Generators 380/0 (no golden moved) · HSM editor 622/0 · SimHost 1098/0. The Persistence gate also caught a `CE-2080`
 miss: `BTreeCallShapeTests` pins every corpus binding, and the shipped SOP's four rows had not been added. Fixed here.
-Not built: the HSM editor does not yet OFFER the built-in names in a list; an author types them (`CE-2088`).
+⭐ **`CE-2088` BUILT the same day:** the HSM event picker offers the engine-raised events the asset has not declared, and picking one on a transition declares it (`HsmAsset.EnsureEvent`, the reserved id). The editor had no way to add an event at all before this. The save carries it (`HsmEventIds.BuiltIns` is the list). Rail `HsmFacetDispatcherTests.CE2088_*`, red-proved; `HsmPickerDrawerTests`' count rail grew by the built-ins.
 
 ### 7.4 Replacing a doctrine at runtime
 

@@ -573,6 +573,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         AllGlobalTransitions = allGlobalTransitions.AsReadOnly();
         AllRegions = allRegions.AsReadOnly();
         AllEvents = allEvents.AsReadOnly();
+        _allEventsList            = allEvents;
         _allStatesList            = allStates;
         _allTransitionsList       = allTransitions;
         _allRegionsList           = allRegions;
@@ -616,6 +617,23 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
 
     public TransitionNode? FindTransitionByFlatIndex(ushort flatIndex) =>
         _flatIndexToTransition.GetValueOrDefault(flatIndex);
+
+    private readonly List<EventDefinition> _allEventsList;
+
+    /// <summary>
+    /// ⭐ CE-2088 — the event named <paramref name="name"/> with id <paramref name="eventId"/>, declared if the asset does not
+    /// have it yet. Used when an author picks an ENGINE-RAISED event (<c>Sensor.FirstThreat</c> …) the asset never declared:
+    /// the editor had no other way to add an event at all. 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.3b.
+    /// </summary>
+    public EventDefinition EnsureEvent(string name, ushort eventId)
+    {
+        var existing = FindEventById(eventId);
+        if (existing != null) return existing;
+        var created = new EventDefinition(name, eventId);
+        _allEventsList.Add(created);
+        _eventIdToEvent[eventId] = created;   // the id index FindEventById reads
+        return created;
+    }
 
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);

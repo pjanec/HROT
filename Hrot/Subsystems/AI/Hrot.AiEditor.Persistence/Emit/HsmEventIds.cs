@@ -31,6 +31,17 @@ public static class HsmEventIds
         return ids;
     }
 
+    /// <summary>⭐ CE-2088 — every engine-raised event, by name and reserved id (what the HSM editor offers).</summary>
+    public static IReadOnlyList<(string Name, ushort Id)> BuiltIns { get; } = BuildBuiltIns();
+
+    private static IReadOnlyList<(string Name, ushort Id)> BuildBuiltIns()
+    {
+        var list = new List<(string, ushort)>();
+        foreach (var name in BuiltInHsmEvents.SensorNames)
+            if (BuiltInHsmEvents.TryGetId(name, out var id)) list.Add((name, id));
+        return list;
+    }
+
     /// <summary>The reserved id of an engine-raised event, if <paramref name="name"/> names one.</summary>
     public static bool TryGetBuiltIn(string? name, out ushort id) => BuiltInHsmEvents.TryGetId(name, out id);
 }

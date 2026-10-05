@@ -138,24 +138,34 @@ public sealed class HsmEventPickerDrawer : IImGuiFieldDrawer, IPickerListSource
     public Type TargetType => typeof(string);
 
     public IReadOnlyList<string> GetItems()
-        => _asset.AllEvents
-                 .Select(e => e.Name)
-                 .OrderBy(n => n)
-                 .ToList();
+        => Choices().Select(c => c.Name).OrderBy(n => n).ToList();
+
+    /// <summary>
+    /// The asset's events, then ⭐ <c>CE-2088</c> the ENGINE-RAISED ones it has not declared yet (<c>Sensor.FirstThreat</c> …):
+    /// picking one declares it (<c>HsmFacetDispatcher</c>), so an author never types a name or an id.
+    /// </summary>
+    internal IReadOnlyList<(string Name, ushort Id)> Choices()
+    {
+        var list = _asset.AllEvents.Select(e => (e.Name, e.EventId)).ToList();
+        foreach (var (name, id) in Hrot.AiEditor.Persistence.Emit.HsmEventIds.BuiltIns)
+            if (_asset.FindEventById(id) == null && list.All(c => c.Name != name)) list.Add((name, id));
+        return list;
+    }
 
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        var current = value is ushort uid ? _asset.AllEvents.FirstOrDefault(e => e.EventId == uid)?.Name ?? string.Empty : string.Empty;
+        var choices = Choices();
+        var current = value is ushort uid ? choices.FirstOrDefault(c => c.Id == uid).Name ?? string.Empty : string.Empty;
         bool changed = false;
         if (ImGuiNET.ImGui.BeginCombo("##hsmev", current))
         {
-            foreach (var ev in _asset.AllEvents)
+            foreach (var (name, id) in choices)
             {
-                bool sel = ev.Name == current;
-                if (ImGuiNET.ImGui.Selectable(ev.Name, sel) && !sel)
+                bool sel = name == current;
+                if (ImGuiNET.ImGui.Selectable(name, sel) && !sel)
                 {
-                    value   = ev.EventId;
+                    value   = id;
                     changed = true;
                 }
                 if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();

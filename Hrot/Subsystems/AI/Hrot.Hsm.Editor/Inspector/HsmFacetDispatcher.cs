@@ -184,6 +184,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         var t = _asset.FindTransitionByVisualId(visualId);
         if (t is null) return;
 
+        DeclareBuiltInIfPicked(f.EventId);   // ⭐ CE-2088
         t.EventId               = f.EventId;
         t.IsPolled              = f.IsPolled;             // CE-381
         t.Priority              = f.Priority;
@@ -246,6 +247,17 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         // Priority is stub — EventDefinition doesn't store it yet.
 
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// ⭐ CE-2088 — a picked id that is an ENGINE-RAISED event the asset has not declared (the picker offers them) is declared
+    /// now, under its built-in name, so the transition names a real event and the save carries it.
+    /// </summary>
+    private void DeclareBuiltInIfPicked(ushort eventId)
+    {
+        if (eventId == 0 || _asset.FindEventById(eventId) != null) return;
+        foreach (var (name, id) in Hrot.AiEditor.Persistence.Emit.HsmEventIds.BuiltIns)
+            if (id == eventId) { _asset.EnsureEvent(name, id); return; }
     }
 
     private void ApplyGlobalTransitionFacet(Guid visualId, GlobalTransitionFacet f)
