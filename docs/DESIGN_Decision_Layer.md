@@ -811,6 +811,68 @@ rule (R-199 ②) that decides whether a reaction may pause a task.*
 Rail: `SopDemoScenarioTests` (live cluster `simhost,ig,excon,cgf`, DDS domain 227): C idles via its SOP · A takes cover with
 the move paused · B is hit and never reacts — red-proved (B without its ROE reacts; A without its SOP never covers).
 
+### 4.9 RESUME instead of restart — `CE-2081` *(DESIGN `2026-10-05` — leans for approval; not built)*
+
+⭐ Basis: §4.1 (*"Restart with resume as followup accepted"*, R-199) and its measured table *"what resume would take"*.
+This section turns that table into a buildable shape.
+
+```mermaid
+classDiagram
+  direction LR
+  class PausedTask { <<existing, grows>> +BehaviorName +JsonParams +Origin ; NEW +Hash +InstanceId +BrainTier +RunSince +HeldKeys int[] }
+  class BehaviorIngressSystem { <<existing>> PauseRecord (grows: snapshot + held keys) · Start · Clear · ResumePausedTask (becomes RESUME) · DropPausedTask (detaches HeldKeys) }
+  class OccurrenceStore { <<existing>> slot table: params / state / HSM roots + manifest + lazily attached }
+  class BehaviorOwnedParts { <<existing>> Release(instanceId) — skipped for the paused run }
+  class ChannelArbitrationSystem { <<existing, unchanged>> resets a channel whose BehaviorInstanceId is not the current one }
+  class Runners { <<existing>> BTree action re-activates on ActiveAction != its own · HSM activity ticks · blueprint latent: ⛔ to measure }
+  BehaviorIngressSystem ..> PausedTask : pause / resume / drop
+  BehaviorIngressSystem ..> OccurrenceStore : skips HeldKeys while paused
+  BehaviorIngressSystem ..> BehaviorOwnedParts : not released on pause
+  PausedTask ..> OccurrenceStore : HeldKeys
+```
+
+```mermaid
+sequenceDiagram
+  participant G as gate (reaction admitted)
+  participant I as BehaviorIngressSystem
+  participant S as store + owned parts
+  participant C as ChannelArbitrationSystem
+  participant R as runner (task)
+  G->>I: reaction pauses the task
+  I->>I: PauseRecord: name, params, origin + hash, InstanceId, tier + HeldKeys (every slot key present now)
+  I->>S: start the reaction — sweeps and releases SKIP HeldKeys and the paused run's parts
+  Note over C: the reaction's token ⇒ the task's channel commands are reset (as today)
+  I->>I: reaction ends ⇒ RESUME: restore hash, InstanceId, tier, origin · drop the record (the keys are the task's again)
+  C->>C: the channel holds the reaction's token ≠ the restored one ⇒ reset
+  R->>R: the running leaf re-activates (ActiveAction ≠ its own) — progress kept, only the leaf re-issues
+```
+
+*What the pictures show that the prose hid:* resume needs NO new mechanism for the channels. The existing token rule
+resets them a second time when the old token comes back, and the BTree channel actions already re-activate on that
+(`CgfNodes.cs:257`, `needsActivation`). The new work is three things: keeping storage, keeping owned parts, and
+restoring four `BehaviorState` fields.
+
+| claim | code | design |
+|---|---|---|
+| a BTree channel action re-issues when its channel was reset | ✅ `CgfNodes.cs:257-268` | ✅ §4.1 table, row "in-flight channel commands" |
+| restoring the old `InstanceId` resets the reaction's channel commands | ✅ `ChannelArbitrationSystem.cs:44-48` (`BehaviorInstanceId != InstanceId`) | ✅ same row |
+| owned parts are released by run id on a switch | ✅ `BehaviorIngressSystem.cs:163, :295` (§4.1) | ✅ §4.1 |
+| an HSM resumes in its current state: its instance stays, activities tick each frame | ⛔ **assumed**: needs one measurement (an activity that issues once on entry) | §4.1 *"HSM re-enter the state"* |
+| a blueprint latent wait survives a channel reset | ⛔ **not measured**: `WaitForChannel` may wait forever on an `ActionInstanceId` that was bumped | §4.1 *"blueprint latent re-issue"* |
+
+**Leans:**
+
+| # | question | lean |
+|---|---|---|
+| **A** | what is kept | ⭐ every slot key present at pause (`HeldKeys`) and the paused run's owned parts. Simpler and safer than recomputing ownership: the reaction is short |
+| **B** | same asset as task and reaction | ⭐ refuse the reaction (it would share one block key), as the tracker row says |
+| **C** | a more urgent reaction pre-empts the running one | ⭐ the paused task stays as it is (one deep, R-199). The pre-empted reaction is ended normally |
+| **D** | an order replaces the paused task | ⭐ `DropPausedTask` detaches `HeldKeys` and releases the paused run's parts: no leak |
+| **E** | the two ⛔ rows | ⭐ measure both before building; if either fails, that tier keeps RESTART (today's behaviour) and the others resume |
+
+⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
+· Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
+
 ## ⛔ HISTORY
 
 *Superseded `2026-10-04` the same day:* a §2 "the mission as a doctrine" with leans M1–M6 (a mission graph in the
