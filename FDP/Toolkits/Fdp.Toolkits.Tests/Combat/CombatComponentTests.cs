@@ -135,8 +135,9 @@ namespace Fdp.Toolkit.Combat.Tests
         public void DetonationNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
-            // Current actual layout: 2×Entity(8) + 3×float(4) padded to 32 bytes.
-            Assert.Equal(32, Marshal.SizeOf<DetonationNotification>());
+            // Current actual layout: 2×Entity(8) + 3×float(4) + bool (marshalled as 4) = 32, ⭐ CE-3071 + Penetration and
+            // Damage (2×float) = 40. A LOCAL event — the wire message (MunitionDetonation) is mapped field by field.
+            Assert.Equal(40, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>
