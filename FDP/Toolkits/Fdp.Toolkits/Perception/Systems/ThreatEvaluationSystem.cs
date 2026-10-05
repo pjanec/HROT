@@ -120,7 +120,9 @@ namespace Fdp.Toolkit.Perception.Systems
                                 posY:       posY,
                                 scoreBoost: continuousBoost,
                                 tick:       tick,
-                                modality:   SensorModality.Visual,
+                                // ⭐ CE-3060 — the kinds that actually hold the track (was: always Visual, so a thermal or heard
+                                //   contact read as "in sight" — StandardInputs.HasLineOfSight).
+                                modality:   tracksRO.Modalities[i] == 0 ? SensorModality.Visual : (SensorModality)tracksRO.Modalities[i],
                                 posZ:       posZ);
                         }
                         changed = true;

@@ -106,6 +106,10 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>Last-known Y position of the target (metres, ground plane).</summary>
         public float PositionY;
+
+        /// <summary>⭐ <c>CE-3060</c> — the kinds of the unit's sensors that hold this target (OR). 0 on a Lost; a reader treats
+        /// 0 on an Acquired as Visual (an older writer).</summary>
+        public Components.SensorModality Modality;
     }
 
     // ── SeedTargetCommand ─────────────────────────────────────────────────────────

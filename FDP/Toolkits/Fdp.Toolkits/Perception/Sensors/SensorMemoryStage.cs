@@ -27,8 +27,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         private readonly Dictionary<Entity, List<Entity>> _sensorsOfUnit = new();
         private readonly Stack<List<Entity>> _pool = new();
         private readonly List<Entity> _units = new();
-        private readonly HashSet<long> _before = new();
-        private readonly HashSet<long> _after = new();
+        // ⭐ CE-3060 — per target, the OR of the KINDS of the unit's sensors that hold it (S7 design §6 G).
+        private readonly Dictionary<long, byte> _before = new();
+        private readonly Dictionary<long, byte> _after = new();
         private readonly List<long> _ordered = new();
 
         /// <summary>Transitions published by the last <see cref="Flush"/> (test hook / diagnostics).</summary>
@@ -114,11 +115,12 @@ namespace Fdp.Toolkit.Perception.Sensors
                     foreach (var s in siblings)
                     {
                         ref readonly var old = ref view.GetComponentRO<SensorContactList>(s);
-                        AddAcquired(in old, _before);
-                        if (!_observedIndex.ContainsKey(s)) AddAcquired(in old, _after);
+                        byte kind = KindOf(view, s);
+                        AddAcquired(in old, kind, _before);
+                        if (!_observedIndex.ContainsKey(s)) AddAcquired(in old, kind, _after);
                     }
                 foreach (var o in _observed)
-                    if (o.Unit == unit) { var l = o.List; AddAcquired(in l, _after); }
+                    if (o.Unit == unit) { var l = o.List; AddAcquired(in l, KindOf(view, o.Sensor), _after); }
 
                 Publish(view, cmd, unit, _after, _before, SensorTrackStatus.Acquired);
                 Publish(view, cmd, unit, _before, _after, SensorTrackStatus.Lost);
@@ -132,12 +134,15 @@ namespace Fdp.Toolkit.Perception.Sensors
             }
         }
 
-        // Targets in `from` and not in `except`, ascending, published as `state`.
+        // Targets in `from` and not in `except`, ascending, published as `state`. ⭐ CE-3060 — an Acquired is also published for
+        //   a target held before and after whose KINDS changed (heard, then also seen), so the Brain's track learns the new set.
         private void Publish(ISimulationView view, IEntityCommandBuffer cmd, Entity unit,
-                             HashSet<long> from, HashSet<long> except, SensorTrackStatus state)
+                             Dictionary<long, byte> from, Dictionary<long, byte> except, SensorTrackStatus state)
         {
             _ordered.Clear();
-            foreach (long id in from) if (!except.Contains(id)) _ordered.Add(id);
+            foreach (var kv in from)
+                if (!except.TryGetValue(kv.Key, out byte was)
+                    || (state == SensorTrackStatus.Acquired && was != kv.Value)) _ordered.Add(kv.Key);
             _ordered.Sort();
             foreach (long id in _ordered)
             {
@@ -148,15 +153,24 @@ namespace Fdp.Toolkit.Perception.Sensors
                     var p = view.GetComponentRO<SimTransform>(target).Position;
                     x = p.X; y = p.Y;
                 }
-                cmd.PublishEvent(new SensorTrackStateEvent { Observer = unit, Target = target, State = state, PositionX = x, PositionY = y });
+                cmd.PublishEvent(new SensorTrackStateEvent
+                {
+                    Observer = unit, Target = target, State = state, PositionX = x, PositionY = y,
+                    Modality = (SensorModality)from[id],
+                });
                 LastFlushTransitions++;
             }
         }
 
-        private static unsafe void AddAcquired(in SensorContactList list, HashSet<long> into)
+        private static unsafe void AddAcquired(in SensorContactList list, byte kind, Dictionary<long, byte> into)
         {
             for (int i = 0; i < list.Count; i++)
-                if (list.State[i] == (byte)SensorContactState.Acquired) into.Add(list.EntityIds[i]);
+                if (list.State[i] == (byte)SensorContactState.Acquired)
+                    into[list.EntityIds[i]] = (byte)((into.TryGetValue(list.EntityIds[i], out byte k) ? k : 0) | kind);
         }
+
+        // A sensor's kind; a perception sensor always has a SensorTag (IsPerceptionSensor), Visual as a guard.
+        private static byte KindOf(ISimulationView view, Entity sensor)
+            => view.HasComponent<SensorTag>(sensor) ? (byte)view.GetComponentRO<SensorTag>(sensor).Kind : (byte)SensorModality.Visual;
     }
 }

@@ -304,6 +304,8 @@ namespace Hrot.NED.Descriptors
         public float PositionY;
         /// <summary>Simulation tick when the state change was detected.</summary>
         public uint Tick;
+        /// <summary>⭐ <c>CE-3060</c> — the <c>SensorModality</c> kinds holding the target (OR); 0 = an older writer (Visual).</summary>
+        public byte Modality;
     }
 
     // ── Pathfinding pipeline (MOD1-P6T2) ───────────────────────────────────────────

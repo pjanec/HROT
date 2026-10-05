@@ -770,6 +770,72 @@ namespace Hrot.SimHost.Tests
             var gone = Assert.Single(lost);
             Assert.Equal(enemy, gone.Target);
             Assert.Single(acquired);
+            Assert.Equal(SensorModality.Radar, acquired[0].Modality);   // ⭐ CE-3060 — the kind rides the track
+        }
+
+        private static SensorEntryDto TestThermalKind(float range) => new()
+        {
+            Kind = SensorModality.Thermal, Template = TestRadarTemplate, SearchRadius = 400f,
+            Thermal = new ThermalSensorDto { Range = range },
+        };
+
+        /// <summary>
+        /// ⭐ CE-3060 — the unit's track carries the KINDS of the sensors holding it (OR), and a change of kinds on a target
+        /// still held is re-published as an Acquired (the Brain's track learns it; no Lost). 🔴 Before: no kind on the track,
+        /// and ThreatEvaluationSystem stamped every contact Visual. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
+        /// </summary>
+        [Fact]
+        public void S7_TheTrackCarriesTheKindsHoldingIt_AndAKindChangeIsRepublished_CE3060()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4244 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("RadarAndThermal", 79);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f), TestThermalKind(10f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var radar   = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+            var thermal = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId + 1);
+
+            var solver = new EqsSolverSystem();
+            var acquired = new List<SensorTrackStateEvent>();
+            var lost     = new List<SensorTrackStateEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorTrackStateEvent>())
+                    (e.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? acquired : lost).Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.Equal(SensorModality.Radar, Assert.Single(acquired).Modality);   // only the radar reaches 50 m
+
+            UnitSensors.Configure(_world, thermal, TestThermalKind(100f));           // now both hold it
+            for (int i = 0; i < 5; i++) Step();
+            Assert.Equal(2, acquired.Count);
+            Assert.Equal(SensorModality.Radar | SensorModality.Thermal, acquired[1].Modality);
+
+            UnitSensors.Configure(_world, radar, TestRadar(10f));                    // the radar drops it; thermal keeps it
+            for (int i = 0; i < (int)Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks + 3; i++) Step();
+            Assert.Empty(lost);
+            Assert.Equal(3, acquired.Count);
+            Assert.Equal(SensorModality.Thermal, acquired[2].Modality);
         }
 
         /// <summary>
