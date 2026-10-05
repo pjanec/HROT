@@ -132,6 +132,7 @@ public sealed class HeardShotScenarioTests : IDisposable
         float maxShot = 0f;   // the loudest shot state seen on the SimHost emitter
         int manual = -1; string manualInfo = "";
         int simSounds = 0, cgfSounds = 0;   // SoundContactEvents seen on each node's bus
+        var observers = new System.Collections.Generic.HashSet<string>(); var simObservers = new System.Collections.Generic.HashSet<string>();
         string Ears()
         {
             var s = "";
@@ -148,7 +149,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             s += sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)
                 ? $" emitter(fire={sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).FiringAudibleRange} maxShotLeft={maxShot:F2})"
                 : " emitter=none";
-            return s + $" soundEvents sim={simSounds} cgf={cgfSounds} manual:" + manualInfo;
+            return s + $" soundEvents sim={simSounds} cgf={cgfSounds} cgfObservers=[{string.Join(",", observers)}] simObservers=[{string.Join(",", simObservers)}] rifleman cgf={rifleman} sim={simRifleman} manual:" + manualInfo;
         }
         string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()} |{Ears()}";
 
@@ -168,7 +169,8 @@ public sealed class HeardShotScenarioTests : IDisposable
             if (sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter))
                 maxShot = Math.Max(maxShot, sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).ShotTimeLeft);
             simSounds += ((ISimulationView)sim).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().Length;
-            cgfSounds += ((ISimulationView)cgf).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().Length;
+            foreach (var ev in ((ISimulationView)cgf).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>()) { cgfSounds++; observers.Add(ev.Observer.ToString()); }
+            foreach (var ev in ((ISimulationView)sim).ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>()) simObservers.Add(ev.Observer.ToString());
             if (manual < 0 && maxShot > 0.3f)   // ⚠ CE-2106 diagnosis: the generator on the LIVE SimHost world, mid-shot
             {
                 var ear = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(sim, simRifleman, SensorModality.Acoustic);
