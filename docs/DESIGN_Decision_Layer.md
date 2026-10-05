@@ -750,6 +750,11 @@ wake itself every frame.*
 | rails | `SopSlotTests.CE2079_*` (5, incl. the curated round-trip) · `SopParamsRoundTripTests` (EVERY production behaviour of every kind reads what an order sends — two values, two blocks) · `SharedAiBindingCompilesTests.CE2079_*` (2, compiled) · `BTreeFacetMapperTests.CE2079_*` (2) · `BTreeValidationTests.CE2079_*` · `BTreeCommandSinkTests.CE2079_*` |
 | ⚠ not built | an SOP order in an HSM state or a blueprint node (an HSM / blueprint SOP calls `SopActions` from C# today) — follow-up; the C# SOP path needs nothing more |
 
+⭐ **As-built `CE-2083` (refusal half, `2026-10-05`):** an SOP assignment carrying origin `Reaction` is refused in
+`StartSop` (counted, warned). A reaction is a task-slot concept that pauses the task (R-199); in the SOP slot it would
+rank as an arbitrary order. Rail `SopSlotTests.CE2083_*`. The HSM state action and the blueprint node for SOP orders
+remain open.
+
 ### 4.7 The shipped SOP — `CE-2080` *(build-state: BUILT, `2026-10-04`)*
 
 `BasicInfantrySop` — ONE file, two roles: compiled from `Hrot.AI.Behaviors/Assets/BTrees/Sop/` (so a TKB template can name it

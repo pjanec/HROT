@@ -733,6 +733,15 @@ namespace Fdp.Toolkit.Behavior.Systems
         internal unsafe bool StartSop(EntityRepository repo, Entity entity, string behaviorName, int behaviorId,
                                        BehaviorDefinition def, string json, BehaviorOrigin origin)
         {
+            // ⭐ CE-2083 — a REACTION is a task-slot concept (it pauses the task, R-199); the SOP slot is an order. Ranked as
+            //   an order, Reaction would sit at an arbitrary rank there. Refused, like any other malformed assignment.
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                SopRefusedCount++;
+                Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                    "[BehaviorIngress] refused SOP '{0}' for entity #{1}: a reaction never sets the SOP slot.", behaviorName, entity.Index);
+                return false;
+            }
             if (!repo.HasComponent<SopState>(entity)) repo.AddComponent(entity, new SopState());
             var before = repo.GetComponentRO<SopState>(entity);
 

@@ -148,6 +148,17 @@ namespace Fdp.Toolkit.Behavior.Tests
             public void Dispose() => World.Dispose();
         }
 
+        [Fact]
+        public void CE2083_AReactionOriginNeverSetsTheSopSlot()
+        {
+            var f = new Fixture();
+            f.Sop("SopT_Sop", BehaviorOrigin.Reaction);
+            Assert.Equal(0, f.World.HasComponent<SopState>(f.Unit) ? f.World.GetComponentRO<SopState>(f.Unit).SopHash : 0);
+            Assert.True(f.Ingress.SopRefusedCount > 0);
+            f.Sop("SopT_Sop", BehaviorOrigin.Sop);                                    // the same SOP as an order runs
+            Assert.NotEqual(0, f.World.GetComponentRO<SopState>(f.Unit).SopHash);
+        }
+
         // ── ⭐ CE-2085 — a hosted occurrence the SOP attaches LAZILY is the SOP's, not the task's to sweep ──────────────
 
         private static unsafe bool Attached(EntityRepository world, Entity unit, int key)
