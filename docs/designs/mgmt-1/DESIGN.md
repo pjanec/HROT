@@ -1971,7 +1971,10 @@ handles them in the ≤ 59 frame window.
 
 **Impact on `RunningEdit` recording:**
 
-During `RunningEdit`, the simulation clock is always paused (`TimeScale = 0.0`).  The
+During `RunningEdit`, the simulation clock is always paused (`TimeScale = 0.0`).
+
+> ⛔ **KNOWN-ROT, measured `2026-10-05` (`CE-3068`):** on the CLUSTER path this holds only from a paused boot — a Stop after a running Live leaves the master clock running, and the next Edit runs with dt > 0. The standalone editor honours it (`EditorSubsystem.cs:1187`, `:675`).
+  The
 `AsyncRecorder` is *not* active in edit mode AT ALL - no recording during scenario editing takes place.
 
 > **Key invariant:** A recording interval always starts at `WallClockTicks ≥ 0` and is
