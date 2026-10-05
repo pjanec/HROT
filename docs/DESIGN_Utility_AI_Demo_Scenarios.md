@@ -465,6 +465,23 @@ at refresh time — the same "danger at read time" rule as R-194 — not stored 
 | **B3** fix with it: F6 (buffer on the commander), F5 (option → `ManeuverKind` map), QA-037 (ids 262/263), and pick `ActiveFeatureId` = the nearest area ahead on the leg | — |
 | ⚠ **known limit** | a straight leg ignores the path the units really take round buildings — fine on open ground (U7, desert); in town a squad may "see" a crossing it will not use. The Muscle-side upgrade removes it |
 
+### 10.1 ⚠ REVISED LEAN `2026-10-05` — **plan the REAL path on SimHost, classify on CGF** *(awaiting the user; supersedes B1's straight leg)*
+
+🔒 **User, `2026-10-05`:** *"can't it work on a path which is found by pathfinding? path details can be returned by simhost i
+guess..."* 📐 **Measured — the wire for it already exists, complete and dormant:**
+
+| piece | state |
+|---|---|
+| `PathfindingRequestEvent` → `PathRequestBatch` (Brain → solver) → `PathResponseBatch{CoarseWaypoints}` → the Brain's `TrajectoryPoolManager` + `PathfindingBatchData.Results` | ✅ built (`BrainPathfindingTranslatorPack`, `SimPathfindingTranslatorPack`); the solver half is composed on SimHost (`SimHostNodeBootstrapper.cs:605`, `NodeRole.NavigationSolver`) |
+| the Brain half on CGF | ⛔ never registered: gated on `role.HasFlag(Brain) && trajectoryPool != null` (`NedSimHostPathfindingTranslators.cs:35`) and CGF has no pool — "a designed capability nobody switched on" (`DESIGN_Subsystem_Composition_Unification.md` §4.1v) |
+| navig-2 §3.2 `PlanRoute` / `FetchPathDetails` (the opt-in "Brain sees waypoints") | ⚠ in-process only: `NavigationIntentBridgeSystem` reads the Brain's `LocomotionChannel` (the shape CE-3026 removed for `MoveTo`); `NavigationMode` has no plan-only mode and no translator carries `NavigationPathDetailsResponseEvent` |
+
+| ⭐ lean **B1′** | rejected |
+|---|---|
+| switch on the existing Brain half on CGF (a trajectory pool + the pack); the provider requests commander → destination with the commander's mobility, and on the reply samples the returned waypoints every 5 m over CGF's `TerrainWorld` (same classifier as B1). Until the reply lands (one refresh, ~2 s) it uses the straight leg. No new message | `PlanRoute` over `NavigationIntent` — needs a new mode, a new translator, and an answer keyed to the entity's own move · SimHost computes the descriptors (squad design §5) — a new result topic for 68-byte descriptors and the navmesh tactical-feature extraction that is still "in plan"; the provider interface is the same, so it can replace B1′ later |
+
+⚠ The path is the commander's, planned once per destination — the members' own paths may differ round a building.
+
 This unblocks Squad Wiring **D3** (W6: run `CommanderUtilityTickSystem`). **D2** (a shipped squad-maneuver behaviour
 that reads the near/far handles and moves the elements) is still needed for U7 — none of the six maneuvers reads a
 handle today.
