@@ -280,6 +280,9 @@ classDiagram
 state of ONE action, so they need no new blueprint callable and no new pin. `CE-2090` / `CE-2091` then become an
 optional blueprint round-out, not a prerequisite.*
 
+⚠ **A blueprint as the BTree's ACTION (`AiPrimitive`) is not an option today:** the compiler refuses `SpawnEqsSensor`,
+`ReadEqsResult` and `When(EqsResult)` there (`Stage2_Validate.cs:1253,1553,1590`) — filed as `CE-2103`.
+
 ⛔ **Rejected:** HSM as the host — two states for a single loop (it is the right host for the posture switch, CE-2073) ·
 composing small BTree actions that pass the threat between nodes — a node binds one variable plus one working state
 (`CE-2069`'s measurement), so the threat would need a shared variable per tree.
