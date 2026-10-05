@@ -48,6 +48,13 @@ namespace Fdp.Toolkit.Combat
         public const float BulletColliderRadius  = 0.1f;
 
         /// <summary>
+        /// ⭐ <c>CE-3059</c> — how far along the aim line a bullet starts (metres), capped at half the distance to the
+        /// target. A simplification (user, <c>2026-10-05</c>): squad-mates standing on the shooter's spot are not hit. ⚠ A
+        /// friendly further out on the line is still hit; the hold-fire guard (<c>LineOfFire</c>) covers that.
+        /// </summary>
+        public const float MuzzleOffsetMeters    = 1.0f;
+
+        /// <summary>
         /// Collision layer assigned to bullet entities (bit 1).
         /// Distinct from the generic entity layer (bit 0) so bullets do not collide with each other.
         /// </summary>
