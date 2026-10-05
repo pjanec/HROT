@@ -392,6 +392,87 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <b>CE-2081 (R-203) — a channel wait whose command was CANCELLED under it re-issues the command.</b> A reaction's
+    /// token resets the channel (<c>ActiveAction = 0</c>) and may leave its own finished Status there; the resumed task must
+    /// neither wait forever nor take that Status for its own. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.9a.
+    /// <para>✅ Red-proof: without the cancelled check the third frame reads the leftover Success and the run finishes.</para>
+    /// </summary>
+    [Fact]
+    public void CE2081_ACancelledChannelCommand_IsReissued_NotTakenAsDone()
+    {
+        var (e, brain) = AssignBehaviour(BlueprintAssetBuilder.Behavior("CE2081Reissue")
+            .WithGraph("Tick", g => g.Entry()
+                .ChannelCommand("LocomotionChannel", "MoveTo")
+                .WaitForChannel(LocomotionChannelFqn)
+                .Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success))
+            .Build());
+        var world = _fixture.World;
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
+        int finished = 0;
+        void Frame()
+        {
+            brain.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>()) if (evt.Entity.Index == e.Index) finished++;
+        }
+
+        Frame();                                                                  // issues the command, waits
+        ref var ch = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+        ushort action = ch.ActiveAction;
+        Assert.NotEqual(0, action);
+        ch.Status = Fbt.NodeStatus.Running;                                       // as the executor's OnEnter does
+        uint issued = ch.ActionInstanceId;
+        Frame();
+        Assert.Equal(issued, world.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e).ActionInstanceId);
+
+        ref var reset = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+        reset.ActiveAction = 0;                                                    // ChannelArbitrationSystem's reset…
+        unchecked { reset.ActionInstanceId++; }
+        reset.Status = Fbt.NodeStatus.Success;                                     // …over a reaction's finished command
+        Frame();
+        Assert.Equal(0, finished);                                                 // not taken as its own
+        var after = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+        Assert.Equal(action, after.ActiveAction);                                  // re-issued
+        Assert.Equal(issued + 2, after.ActionInstanceId);                          // a NEW command (reset +1, re-issue +1)
+
+        world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e).Status = Fbt.NodeStatus.Success;
+        Frame();
+        Assert.Equal(1, finished);                                                 // its own success finishes it
+    }
+
+    /// <summary>⭐ CE-2081 — a cancelled command whose block cannot run again (it publishes an event before issuing) FAILS the
+    /// wait: the author's OnFailure, never waiting on a command that no longer exists.</summary>
+    [Fact]
+    public void CE2081_ACancelledCommand_ThatCannotBeReissued_FailsTheWait()
+    {
+        var (e, brain) = AssignBehaviour(BlueprintAssetBuilder.Behavior("CE2081NoReissue")
+            .WithGraph("Tick", g => g.Entry()
+                .PublishCustomEvent(typeof(Runtime.PingDemoEvent).FullName!, targetFieldName: "Target")
+                .ChannelCommand("LocomotionChannel", "MoveTo")
+                .WaitForChannel(LocomotionChannelFqn)
+                .Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success))
+            .Build());
+        var world = _fixture.World;
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
+        var results = new System.Collections.Generic.List<Fbt.NodeStatus>();
+        void Frame()
+        {
+            brain.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>()) if (evt.Entity.Index == e.Index) results.Add(evt.Result);
+        }
+
+        Frame();
+        world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e).Status = Fbt.NodeStatus.Running;
+        Frame();
+        ref var reset = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+        reset.ActiveAction = 0;
+        unchecked { reset.ActionInstanceId++; }
+        Frame();
+        Assert.Equal(new[] { Fbt.NodeStatus.Failure }, results);
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>S1 / I11 — a latent node in an EVENT graph.</b> Until fibers (S6a) give each graph its own cursor, it must be
     /// refused by a blueprint diagnostic naming the node — never a C# compile error in generated code.
     /// <para>🔴 Measured suspicion: the Event method has no <c>instanceVersion</c> parameter while its latent lowering uses one.</para>

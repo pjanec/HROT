@@ -927,7 +927,7 @@ rule (R-199 ②) that decides whether a reaction may pause a task.*
 Rail: `SopDemoScenarioTests` (live cluster `simhost,ig,excon,cgf`, DDS domain 227): C idles via its SOP · A takes cover with
 the move paused · B is hit and never reacts — red-proved (B without its ROE reacts; A without its SOP never covers).
 
-### 4.9 RESUME instead of restart — `CE-2081` *(DESIGN `2026-10-05` — leans for approval; not built)*
+### 4.9 RESUME instead of restart — `CE-2081` *(DESIGN `2026-10-05`; A–D approved, E changed — build design §4.9a)*
 
 ⭐ Basis: §4.1 (*"Restart with resume as followup accepted"*, R-199) and its measured table *"what resume would take"*.
 This section turns that table into a buildable shape.
@@ -993,6 +993,81 @@ part of `CE-2081`, designed before the BTree/HSM half ships, so resume lands for
 
 ⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
 · Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
+
+### 4.9a `CE-2081` — the build design, all three tiers *(behaviors, `2026-10-05`; build-state: BUILDING)*
+
+**INVENTORY** *(measured `2026-10-05`, grep + reading; the graph was not consulted for this list — every site is a call of
+a named helper inside `BehaviorIngressSystem.cs`)*: the places that end a task-slot run's storage — `Start` (prev manifest
+`DetachStatefulSlots`, `DetachHostedOccurrenceSlots`, prev `RootParams/RootState.DetachRoot`, `BehaviorOwnedParts.Release`),
+`Clear` (the same four, plus `RootStateAccess.ResetState`), the unhosted hash assign. The token readers: `ChannelArbitrationSystem`
+(`!=`), `BehaviorOwnedParts` (`==`), `BehaviorFault` (`==`), `BrainTickSystem._publishedTerminalForInstanceId` (`==`, finish
+de-dup), the blueprint cursor `InstanceVersion` (`!=` ⇒ restart from entry, `StatementEmitter.cs:844`). No reader orders
+tokens (`<`/`>`): searched, none found.
+
+```mermaid
+classDiagram
+  class PausedTask { <<existing, grows>> BehaviorName · JsonParams · Origin · NEW Hash · InstanceId · BrainTier · HeldKeys int[] · Restart bool }
+  class BehaviorIngressSystem { <<existing>> PauseRecord: + HeldKeys (store keys at pause, minus the SOP's) · Start(pausing): skips the prev run's sweeps, sizes by FREE space · IsHeldByPausedTask (beside IsHeldBySop) · ResumePausedTask: RESTORES · DropPausedTask(release) }
+  class RunTokens { <<NEW, the SopTokens allocator generalised>> +Next() high-bit, process-unique }
+  class BehaviorOwnedParts { <<existing>> Release(run) · NEW Restamp is NOT needed (the task keeps its token) }
+  class WaitLowering_Instance { <<existing>> channel wait: NEW "cancelled" check (ActiveAction == 0) ⇒ re-run the ChannelCommand + its pure inputs }
+  class ChannelArbitrationSystem { <<existing, unchanged>> resets a channel whose BehaviorInstanceId != InstanceId }
+  BehaviorIngressSystem ..> PausedTask
+  BehaviorIngressSystem ..> RunTokens : a run started while a task is paused
+  WaitLowering_Instance ..> ChannelArbitrationSystem : detects its reset
+```
+
+*What the picture shows that prose hid:* the task KEEPS its token. Everything that would otherwise need re-keying — owned parts,
+the blueprint cursor version, the channel stamp — matches again the moment the token comes back, so nothing is re-stamped.
+
+```mermaid
+sequenceDiagram
+  participant G as gate
+  participant I as BehaviorIngressSystem
+  participant S as store + owned parts
+  participant C as ChannelArbitrationSystem
+  participant R as task runner (BTree / HSM / blueprint)
+  G->>I: reaction admitted, pause = true
+  I->>I: PauseRecord: name, json, origin, Hash, InstanceId T, tier, HeldKeys
+  alt the reaction's keys overlap HeldKeys (same curated node, same offset) or its asset = the task's
+    I->>I: overlap ⇒ Restart = true, HeldKeys = [] (today's restart) · same asset ⇒ refused (lean B)
+  end
+  I->>S: Start(reaction, pausing): token = RunTokens.Next() · prev sweeps skipped · sized by free space
+  Note over C: channel stamp T ≠ reaction token ⇒ the task's command is reset
+  I->>I: reaction ends (finish / self-clear) ⇒ Clear sweeps skip HeldKeys
+  I->>I: ResumePausedTask: hash, InstanceId = T, tier, origin restored · RunSince = now · start record = T · record dropped
+  C->>C: channel stamp (reaction token) ≠ T ⇒ reset, ActiveAction = 0
+  R->>R: BTree / HSM: the running leaf re-activates (ActiveAction ≠ its own) · blueprint: the channel wait sees ActiveAction = 0 ⇒ re-runs its command
+```
+
+```mermaid
+graph TD
+  ING["BehaviorIngressSystem (Brain; CGF / editor)"] -->|"assign / clear / hash handlers"| PR["PauseRecord + Start(pausing)"]
+  BT["BrainTickSystem.Finish / ClearResumingAPausedTask"] -->|"a reaction ends"| RES["ResumePausedTask (restore)"]
+  ING -->|"self-clear of a reaction"| RES
+  ING -->|"an order replaces the task"| DROP["DropPausedTask(release: detach HeldKeys, Release(T))"]
+  HO["BrainHandOverSystem (authority moved)"] --> DROP
+  RES --> RUN["runners tick the task next frame"]
+```
+
+*Caption:* the three entries into the paused record — pause, resume, drop — and every caller of each. A hand-over drops (the
+new Brain restarts from the published intent, `CE-3048`); ⛔ there is no path that leaves the held keys attached without a record.
+
+| claim | code (how it IS) | design (how it was MEANT) |
+|---|---|---|
+| a task keeps its token ⇒ the blueprint cursor resumes | ✅ cursor checks `InstanceVersion != instanceVersion` (`StatementEmitter.cs:844`), fed `ctx.InstanceId` (`BlueprintRunner.cs:54`) | ✅ §4.9 *"restoring four BehaviorState fields"* |
+| restoring T with plain `++` tokens would REUSE the reaction's token for the next run ⇒ `Finish`'s de-dup would swallow that run's end | ✅ `BrainTickSystem.cs:409` (`prev == InstanceId` ⇒ return) | ⛔ not in §4.9 — found while building ⇒ runs started while a task is paused take `RunTokens.Next()` (high bit, as the SOP's) |
+| curated stateful slots are NOT keyed by behaviour ⇒ a reaction can share a key with the task | ✅ `OccurrenceSlotKey.cs` P2: `CompoundKeyName(fqn, offset)` with an EMPTY asset id | ⛔ §4.9 lean A assumed disjoint keys ⇒ overlap falls back to RESTART for that pause |
+| a blueprint channel wait never learns its command was cancelled | ✅ `WaitLowering_Instance.cs:398-404` checks only `Status`; the dispatcher never clears `ActiveAction` on completion (`LocomotionDispatcherSystem.cs:62-90`), arbitration sets it to 0 on reset (`ChannelArbitrationSystem.cs:44-48`) | ✅ §4.9 row 5 ⇒ `ActiveAction == 0` while waiting = cancelled |
+| the blueprint command re-activates on `ActiveAction` change and stamps the current token | ✅ `ChannelCommandLowering.cs:60-130` (mirrors `CgfNodes.cs:257`) | ✅ §4.9 *"blueprint re-issue the latent"* |
+
+| decision | why | rejected |
+|---|---|---|
+| **RunSince = now on resume**, not the task's old value | `SopConditions.SensedFresh` keys "fresh" on `RunSince` (CE-2080): the old value would make the sense that caused the reaction fresh again ⇒ the SOP would react again, forever | restoring it (§4.9's "four fields" listed it) |
+| re-issue = the `ChannelCommand` statement of the SAME block plus the PURE statements its inputs come from | they re-evaluate to the current values, which is what the BTree's re-activation does | re-running the whole block (would repeat earlier side effects) |
+| a cancelled wait with no re-issuable command (command in another block, impure inputs, or none) **fails** the wait | honest: the author's `OnFailure` runs instead of waiting forever | waiting forever (today) |
+| the paused task's own EQS sensors keep running while paused | lean A (keep owned parts); a reaction is short | suspending them (a second state to restore) |
+| a `WaitForEvent` that fires during the reaction is missed | the task was not running; the same as an HSM state that was not active | buffering events for a paused run |
 
 ## ⛔ HISTORY
 

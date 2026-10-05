@@ -37,13 +37,29 @@ namespace Fdp.Toolkit.Behavior.Components
     /// channel command carrying one is never the running task's and is cancelled by construction.</summary>
     public static class SopTokens
     {
+        /// <summary>The next SOP run token (never 0, high bit always set) — from the one <see cref="RunTokens"/> allocator.</summary>
+        public static uint Next() => RunTokens.Next();
+
+        /// <summary>Is <paramref name="instanceId"/> a SIDE-space token (an SOP run's, or a task-slot run started while a task
+        /// was paused — <see cref="RunTokens"/>)?</summary>
+        public static bool IsSop(uint instanceId) => RunTokens.IsSide(instanceId);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2081</c> — THE allocator of SIDE-space run tokens (high bit set, process-unique, never 0): the SOP slot's runs
+    /// (<c>CE-3035</c>) and every task-slot run started while a task is PAUSED. ⇒ the paused task's own token is never reused
+    /// by the reaction that paused it, so restoring it on resume is safe (a reused token would make
+    /// <c>BrainTickSystem</c>'s finish de-dup swallow the next run's end). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.9a.
+    /// </summary>
+    public static class RunTokens
+    {
         private static uint _next;
 
-        /// <summary>The next SOP run token (never 0, high bit always set).</summary>
+        /// <summary>The next side-space token.</summary>
         public static uint Next() => 0x8000_0000u | (System.Threading.Interlocked.Increment(ref _next) & 0x7FFF_FFFFu);
 
-        /// <summary>Is <paramref name="instanceId"/> an SOP run's token?</summary>
-        public static bool IsSop(uint instanceId) => (instanceId & 0x8000_0000u) != 0;
+        /// <summary>Is <paramref name="instanceId"/> a side-space token?</summary>
+        public static bool IsSide(uint instanceId) => (instanceId & 0x8000_0000u) != 0;
     }
 
     /// <summary>⭐ <c>CE-3035</c> — what the SOP slot was started with (the twin of <see cref="BehaviorStartRecord"/>).</summary>
