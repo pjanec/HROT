@@ -333,8 +333,8 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 
 | weapon | penetration mm | damage / hit | ⇒ vs (computed, not run) |
 |---|---|---|---|
-| rifle (M4, 2002's rifle) | 5 | 25 | **unchanged**: 4 hits on infantry — infantry scenarios keep today's numbers |
-| RPG (2003) | 300 | 400 | kills a Bradley (side 60); T-72 front 500 ⇒ 0 |
+| rifle (M4, 2002's rifle) | 5 | 25 | **unchanged for the UrbanCombat soldier** (2002: 100 HP, no armour ⇒ P 1, 4 hits). ⚠ **Corrected `2026-10-05`:** the BDC Rifleman (200: `ArmorFront` 5 mm, side/rear 0, `MaxHealth` 5×5 = 25, `BdcTkbBuilder.cs:169`) goes from 1 hit to 2 from the front (r = 1 ⇒ P 0.5), still 1 from side/rear |
+| RPG (2003) | 300 | 400 | Bradley side 60 ⇒ P 1, 2 hits (500 HP); T-72 front 500 ⇒ 0 |
 | 25 mm M242 | 60 | 60 | 2 hits on infantry; T-72 any face ⇒ 0 |
 | TOW | 800 | 2000 | T-72 front ⇒ P 1, ~2 hits |
 | 120 mm M256 | 650 | 1200 | T-72 front ⇒ 3 hits; M1 front (600) ⇒ P 0.71, ~4 hits |
@@ -342,7 +342,7 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 
 ⚠ **Blast radius — the reason this needs your nod:** tank fights stop taking ~120 hits. **hill-attack** (M1s vs Abrams)
 will kill in a handful of rounds instead of running out of ammo, so its baseline rails (`PlatoonBaselineRails`,
-`DeterminismRails`) are re-pinned in the same change. Infantry scenarios do not move (25 per rifle hit is kept).
+`DeterminismRails`) are re-pinned in the same change. UrbanCombat infantry scenarios do not move (25 per rifle hit, no armour); BDC Rifleman scenarios do (front hits halve).
 
 | ⭐ lean | rejected |
 |---|---|
