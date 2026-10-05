@@ -129,6 +129,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             return s;
         }
         float maxShot = 0f;   // the loudest shot state seen on the SimHost emitter
+        int manual = -1; string manualInfo = "";
         string Ears()
         {
             var s = "";
@@ -145,7 +146,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             s += sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)
                 ? $" emitter(fire={sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).FiringAudibleRange} maxShotLeft={maxShot:F2})"
                 : " emitter=none";
-            return s;
+            return s + " manual:" + manualInfo;
         }
         string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()} |{Ears()}";
 
@@ -164,6 +165,19 @@ public sealed class HeardShotScenarioTests : IDisposable
         {
             if (sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter))
                 maxShot = Math.Max(maxShot, sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).ShotTimeLeft);
+            if (manual < 0 && maxShot > 0.3f)   // ⚠ CE-2106 diagnosis: the generator on the LIVE SimHost world, mid-shot
+            {
+                var ear = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(sim, simRifleman, SensorModality.Acoustic);
+                var reg = sim.GetSingletonManaged<IEqsTemplateRegistry>()!;
+                var cfgEar = sim.GetComponent<EqsSensor>(ear);
+                if (reg.TryGetTemplate(cfgEar.BlueprintId, out var t))
+                {
+                    var buf = new EqsResult[t.MaxCandidates];
+                    manual = t.Generator.Generate(ear, ref cfgEar, sim, buf);
+                    manualInfo = $"gen={manual} self={EqsContext.Self(sim, ear, cfgEar)} ears={Fdp.Toolkit.Perception.Sensors.AcousticPerception.Ears(sim, ear, out var rr, out _)}/{rr}";
+                }
+                else manualInfo = "no template";
+            }
             return Heard();
         }
         Assert.True(harness.PumpUntil(HeardOrTrack, timeoutFrames: 3000), $"the rifleman must hear the shots; {State()}");
