@@ -194,6 +194,11 @@ public sealed class TakeCoverScenarioTests : IDisposable
         await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.Idle);
         _out.WriteLine($"at Idle after the first run: sim={Alive(sim)} cgf={Alive(cgf)}");
         await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive);
+        // ⭐ CE-3068: Stop paused the clock, so the second run needs Play — exactly what an operator does.
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.ResumeTime, PayloadJson = string.Empty,
+        }).ConfigureAwait(false);
         Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000),
             "second load: the rifleman must exist on SimHost and CGF");
         harness.PumpFrames(30);
@@ -293,8 +298,12 @@ public sealed class TakeCoverScenarioTests : IDisposable
             }
         }
 
-        // ▶ Play from Edit = Preview.
+        // ▶ Play from Edit = Preview. ⭐ CE-3068: Edit is paused (as in production), so Play resumes the clock.
         await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingPreview);
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.ResumeTime, PayloadJson = string.Empty,
+        }).ConfigureAwait(false);
         _out.WriteLine("preview: entered");
         Entity Rifleman() => ByName(cgf, "Rifleman");
         Assert.True(harness.PumpUntil(() => !Rifleman().IsNull && cgf.HasComponent<TargetMemory>(Rifleman())

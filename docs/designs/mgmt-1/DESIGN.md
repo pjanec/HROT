@@ -1973,7 +1973,7 @@ handles them in the ≤ 59 frame window.
 
 During `RunningEdit`, the simulation clock is always paused (`TimeScale = 0.0`).
 
-> ⛔ **KNOWN-ROT, measured `2026-10-05` (`CE-3068`):** on the CLUSTER path this holds only from a paused boot — a Stop after a running Live leaves the master clock running, and the next Edit runs with dt > 0. The standalone editor honours it (`EditorSubsystem.cs:1187`, `:675`).
+> ⭐ **AS-BUILT, `2026-10-05` (`CE-3068`):** on the CLUSTER path this held only from a paused boot — a Stop after a running Live left the master clock running into the next Edit *(measured, superseded)*. ⭐ Now `ClusterMaster` pauses cluster time on every transition that targets **Idle or OperatingEdit** (both stops, and every Edit entry), through the same pause the Pause op sends. The standalone editor already did this (`EditorSubsystem.cs:1187`, `:675`).
   The
 `AsyncRecorder` is *not* active in edit mode AT ALL - no recording during scenario editing takes place.
 

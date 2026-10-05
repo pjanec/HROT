@@ -424,15 +424,8 @@ public sealed class ClusterMaster : IDisposable
             switch (req.OperationType)
             {
                 case ClusterOpType.PauseTime:
-                {
-                    var slaveIds = _roster.ActiveNodes
-                        .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-                        .Select(kv => kv.Key)
-                        .ToHashSet();
-                    _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
-                    _eventBus.PublishManaged(new PauseTimeIntent());
+                    PublishClusterPause();
                     break;
-                }
                 case ClusterOpType.ResumeTime:
                     _eventBus.PublishManaged(new ResumeTimeIntent());
                     break;
@@ -1155,6 +1148,19 @@ public sealed class ClusterMaster : IDisposable
             PendingTimeMode = intent.TimeMode;
         if (resolvedTarget == ClusterState.Idle)
             PendingTimeMode = null;
+
+        // ⭐⭐ CE-3068 — STOP PAUSES THE CLOCK. 🔒 User, `2026-10-05`: *"Stop should pause the clock, for sure."*
+        //    📐 Measured before: after Live → Play → Stop the master clock kept running through Idle and into the
+        //    next Edit (dt ≈ 0.01, units moving while the author edits) — the only pause producer was the explicit
+        //    PauseTime op. ⭐ The SAME path the Pause button takes, so the slaves see an ordinary pause; Play stays
+        //    an explicit operator action, exactly as after boot (CE-101). 📄 mgmt-1 DESIGN §8.12.
+        //    ⚠ A pause while already paused only re-arms the barrier (dt stays 0) — harmless, as the replay
+        //    managers' unconditional pauses already rely on.
+        //    ⭐ Both stops: Live → Idle, and Preview → Edit (the editor's own ExitPreviewMode re-pauses the same way,
+        //    EditorSubsystem.cs:675). Entering Edit at all pauses too — §8.12's invariant, not a per-path rule.
+        if ((resolvedTarget == ClusterState.Idle || resolvedTarget == ClusterState.OperatingEdit)
+            && _currentDsmState != resolvedTarget)
+            PublishClusterPause();
 
         // Live-from-Replay FreezeTime is now handled by LiveBranchProcessManager (TASK-T001).
 
@@ -1891,6 +1897,21 @@ public sealed class ClusterMaster : IDisposable
     }
 
     private void PublishStandby() => PublishClusterState(ClusterState.Idle);
+
+    /// <summary>
+    /// Pauses cluster time: the slave roster (simulation nodes only — ExCon never acks a frame) then the
+    /// pause intent the master's time controller drains. ⭐ ONE implementation for the Pause op and for
+    /// Stop (CE-3068).
+    /// </summary>
+    private void PublishClusterPause()
+    {
+        var slaveIds = _roster.ActiveNodes
+            .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
+            .Select(kv => kv.Key)
+            .ToHashSet();
+        _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
+        _eventBus.PublishManaged(new PauseTimeIntent());
+    }
 
     private void AppendToHistory(DistributedTransaction tx)
     {
