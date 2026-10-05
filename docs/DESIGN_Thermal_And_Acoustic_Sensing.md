@@ -4,7 +4,7 @@ updated: 2026-10-05
 build-state: READY-TO-BUILD — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7).
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order.
 stale-below: nothing — new document.
-known-rot: §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062).
+known-rot: §6 D's "position + radius, no identity" — the user (§6.1a K3, R-207) adds a coarse source CLASS to a heard contact; §5.1's SoundContactEvent gains it. §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062).
 known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
@@ -235,7 +235,7 @@ sequenceDiagram
 | **A** | retire `AudioPerceptionSystem`, `AudioStimulusEvent`, `TargetHeardEvent`, the `AudioTargetDetected` translators; the descriptor id 84 is reused for `SoundContact` | nothing in production feeds or reads them (§2); AQ82 ruling I: one pipeline per sense | keeping it beside the sensor form — two hearing pipelines |
 | **B** | hearing is a TEMPLATE whose generator reads a 0.5 s emission buffer, each sensor remembering the last serial it heard | AQ82 ruling E (push stimuli feed the memory stage) inside the one solver; the window covers a sensor the budget defers by a tick or more (§5.3 of the sensors design) | a push system writing memory directly — a second path around the budget and the memory stage |
 | **C** | sources: shots, detonations, and every entity moving faster than 0.5 m/s, range scaled by `speed / ReferenceSpeed`; audible ranges in the TKB (`AcousticSignatureDto`) | 🔒 user: *"Moving entity also makes sound. Hearability params to be added to the tkb."* | engine sound — no engine data exists; movement speed stands in for it |
-| **D** | a heard contact is ANONYMOUS: position estimate + uncertainty radius; error and radius grow with distance; deterministic (hash of emission serial and listener), so replay is exact | 🔒 user: *"I want Shot from north realism."* (G6) | the shooter's id — "omniscient hearing"; random noise — breaks determinism |
+| **D** | ⚠ *amended by §6.1a K3 (R-207): it also carries a coarse source class* — a heard contact is ANONYMOUS: position estimate + uncertainty radius; error and radius grow with distance; deterministic (hash of emission serial and listener), so replay is exact | 🔒 user: *"I want Shot from north realism."* (G6) | the shooter's id — "omniscient hearing"; random noise — breaks determinism |
 | **D′** | the Brain merges spatially: refresh a known contact inside the radius, else fuse with an anonymous one (radius shrinks), else a new slot; a sighting inside the radius absorbs it | the identity never crosses the wire, so only position can merge it | a hidden true id carried for merging — the AI would act on knowledge it does not have |
 | **D″** | anonymous slots live in `TargetMemory` (a reserved id range + a new `Radius[]`); the readers that need an ENTITY (aim, fire, entity reads) skip them, the ones that need a POSITION (face, move, flee, squad share) use them | one memory, one freshness rule (R-194); the 7 readers in §2 split cleanly into those two kinds | a second "anonymous memory" component — two memories for every reader to merge |
 | **E** | heat: `heat += running + shots`, `heat -= heat × cooldown × dt`, `Signature = Base + Heat × (1 − Base)`; parameters in the TKB (`ThermalSignatureDto`) | 🔒 user: *"Hot when running or firing - pls implement some simple heat accumulation and cooldown."* | a temperature simulation — no heat model to feed it |
@@ -245,7 +245,7 @@ sequenceDiagram
 ⚠ **What would change it:** if heard contacts must ALSO carry a direction-only form (bearing, no range), D grows a bearing
 field; the radius already covers "about here", which is what "from the north" needs for movement and facing.
 
-### 6.1 Behaviors-lane review of D″ and the `CE-3063` frame *(`2026-10-05`, behaviors; ⏳ leans await the user)*
+### 6.1 Behaviors-lane review of D″ and the `CE-3063` frame *(`2026-10-05`, behaviors; answered by the user in §6.1a)*
 
 ⭐ **The reader inventory is larger than the frame's seven.** Measured: grep of `EntityIds[` over production, plus every
 production file naming `TargetMemory` (54 files). ⚠ The list comes from grep: the graph's `search_code` returned 0 hits for this pattern on a fresh index, and
@@ -274,8 +274,17 @@ production file naming `TargetMemory` (54 files). ⚠ The list comes from grep: 
    null, the cover / exposure tests read it, and `TopThreat` falls back to the freshest anonymous slot's position. The behaviors
    lane builds this as part of ③, as a named cross-lane edit to EQS.
 
-**Leans on K1–K4:** K1 agree (negative ids, one `IsAnonymous` rule) · K2 agree, but only together with gap 2 · K3 agree, but only
-together with gap 1 · K4 agree: `CE-3054` B–D first, then ① (backend) and ②③ (behaviors).
+⛔ SUPERSEDED (same day, by the user's answers below): *"K1 agree (negative ids) · K2 agree with gap 2 · K3 agree with gap 1
+(a fixed danger per `SoundKind`) · K4 agree."*
+
+#### 6.1a The user's answers *(`2026-10-05`, R-207)*
+
+| # | 🔒 user | ⇒ what it means |
+|---|---|---|
+| **K1** | *"would a new flag hurt? why encoding a property into id?"* | ⏳ **open — the behaviors lean is now a FLAG.** It costs 16 bytes (`MaxTrackedTargets` = 16). `TargetMemory` is not replicated (no reference under `Hrot/Network`), and the only serializer is `TargetMemoryTranslator`. The id field still holds a stable synthetic serial per heard contact, because a behaviour follows ONE contact across ticks (`EqsTacticsState.Threat`) and `TopChanged` compares ids. A negative serial is kept only as a backstop, so a reader that forgets the flag still never matches a real entity. `IsAnonymous` reads the flag |
+| **K2** | *"yes hide from a point is OK. we could also think about switching the entity state to 'alerted'."* | ✅ K2 = yes, with gap 2 (an EQS context point) approved. ⭐ "Alerted" is filed as `CE-2104`; its design home already exists: `DESIGN_Decision_Layer.md` §4 level ② (an HSM SOP with relaxed / alert / engaged modes) and the reaction urgency `Alert` (§4, `CE-2078`) |
+| **K3** | *"no, the vehicle engine or human steps or shot sounds usually carry at least some kind-like identification, it is almost never a completely anonymous - and allows to estimate danger level"* | ⛔ **overturns D's "position + radius only"** (§6 D). A heard contact carries a COARSE SOURCE CLASS (e.g. footsteps · wheeled engine · tracked engine · small arms · heavy weapon · explosion), never an identity. ⇒ ① the TKB authors the class (`AcousticSignatureDto` for movement, the weapon for its shot), the estimate and `SoundContactEvent` carry it, memory keeps one byte per slot. Danger is read per class at read time (R-201). ⭐ The class also guards merging: footsteps never fuse with a tank engine, and a sighting absorbs only a compatible class. Gap 1 grows from "store the kind" into this |
+| **K4** | *"your choice"* | ✅ `CE-3054` B–D first (behaviors), then ① (backend) and ②③ (behaviors) |
 
 ## 7. Build order *(backend unless noted)*
 
