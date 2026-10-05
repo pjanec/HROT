@@ -70,6 +70,8 @@ public static class NedOwnershipGroupBinding
             ComponentType<Fdp.Toolkit.Perception.Components.PerceptionReceptor>.ID);
         map.RegisterMapping((long)EDescriptorType.dtEqsSensorConfig, GlobalComponentIds.EqsSensor);
         map.RegisterMapping((long)EDescriptorType.dtEntityDamage, GlobalComponentIds.CombatHealth);
+        // ⭐ CE-3048 — the AI intent carries the slot state it projects (task slot stays linked on the anchor). 📄 Sensors §7.7
+        map.RegisterMapping((long)EDescriptorType.dtBrainIntent, GlobalComponentIds.SopState, GlobalComponentIds.Roe);
 
         // Perception group descriptor.
         map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);

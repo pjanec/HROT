@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the groups, grants and reclaim; §7.7 here adds dtBrainIntent to the Brain group and starts the published intent on a gain.
   - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine + origin rulings A–G (R-188, R-189) this design builds.
@@ -665,6 +666,49 @@ lower `Parallel`'s bits. No corpus tree has that shape (measured: the three Obse
 Rails: `HybridLifecycleTests.CE3041_*` (6): L-02 abort and sweep, L-06 deep leaf, resume when the branch cannot take
 over, unguarded branch not re-run, inverted guard, a plain Selector still commits.
 
+### 7.3b Sensor changes reach the HSM as events — `CE-3040` *(build-state: BUILDING `2026-10-05`)*
+
+⭐ Basis: the §7.3 table (*"`HsmRunner` turns this frame's `SensorChangedEvent`s for its entity into reserved HSM events
+… exactly as it does MobilityLost"*), S6b. Measured: an HSM asset names its events and stores each id
+(`EventDefinitionDto.EventId`); an id of 0 gets a SEQUENTIAL id from 1, in two places that must agree
+(`HsmEmitCore` and `HsmAssetMapper`). The kernel reserves 0, `0xFFFD` (polled) and `0xFFFE` (timer).
+
+```mermaid
+classDiagram
+  direction LR
+  class SensorChangedEvent { <<BUILT, CE-3039>> Unit · Sensor · Target · Kind · What }
+  class BuiltInHsmEvents { <<NEW, Toolkits Behavior/Shared — LINKED into AiEditor.Persistence>> Sensor.Acquired … Sensor.Hit = 0xFF01 … 0xFF06 ; TryGetId(name) }
+  class HsmRunner { <<existing, grows>> MobilityLost bridge + sensor bridge }
+  class HandledEventIds { <<NEW, per blob, cached>> the ids any transition or global transition uses }
+  class HsmEventQueue { <<existing>> TryEnqueue(16-byte payload) }
+  class HsmEmitCore { <<existing, grows>> an event named after a built-in gets its reserved id }
+  class HsmAssetMapper { <<existing, grows>> the same rule, so the editor and the emitter agree }
+  HsmRunner ..> SensorChangedEvent : this frame's, Unit == self
+  HsmRunner ..> HandledEventIds : skip ids the machine does not handle
+  HsmRunner ..> HsmEventQueue : payload = Target (8) + Sensor (8)
+  HsmRunner ..> BuiltInHsmEvents
+  HsmEmitCore ..> BuiltInHsmEvents
+  HsmAssetMapper ..> BuiltInHsmEvents
+```
+
+*What the picture shows that the prose hid:* the reserved ids must be known in THREE places (the runtime, the emitter,
+the editor's mapper). The emitter has zero project references by design, so the table is one source file LINKED into it
+(the `OccurrenceSlotKey` precedent) and cannot drift.
+
+| rule | why |
+|---|---|
+| reserved ids `0xFF00 + What` (`0xFF01` … `0xFF06`), named `Sensor.Acquired` … `Sensor.Hit` | far from the sequential range (from 1) and below the kernel's reserved `0xFFFD`/`0xFFFE` |
+| an authored event whose NAME is a built-in gets the reserved id, whatever id it stored | an author writes *On Sensor.FirstThreat → Engaged*. The id is never typed |
+| only events the machine HANDLES are enqueued (any transition or global transition with that id) | the shared ring holds ONE normal event on the 128 tier (CE-324). Enqueuing unhandled sensor events would push out the machine's own |
+| payload: `Target` (bytes 0–7) + `Sensor` (bytes 8–15) | ⚠ **deviation from §7.3**, which said *Kind + Sensor*: Acquired and Lost carry only a TARGET, which Kind + Sensor would lose. Kind is the sensor's, readable from it |
+| both slots (task, SOP), because `HsmRunner` runs per slot | §7.3 table, last row |
+| normal priority; a refused enqueue is counted (`HsmRunner.SensorEventsDropped`), not fixed up | the CE-324 rule: report a full queue, never overwrite |
+
+⛔ **Rejected:** one event id per (kind × change), because `Kind` is in the sensor. · Enqueue every sensor event and let
+the kernel drop it: it fills the ring. · Ids typed by the author: a typo silently never fires. · MobilityLost in the same
+name table: its id 1 is inside the sequential range, so adding the name would collide with a fallback id. It stays as
+it is.
+
 ### 7.4 Replacing a doctrine at runtime
 
 > 🔒 *"How could we replace a doctrine at runtime?"*
@@ -882,6 +926,112 @@ refusal (`CE-2084`) reads too.*
 Rails: `EntityAiSectionTests` (`Hrot.Blueprints.Tests/Editor`) — paused edits apply at once at Superior and clear; the gate
 still refuses an edit under an Operator's order; a running edit is an event, not a write; the SOP row offers only
 known-empty behaviours; `CE-2084` refusal; the params form round-trips; the Scenario catalogue offers the section.
+
+### 7.7 A Brain hand-over keeps the unit's AI — `CE-3048` *(build-state: BUILT `2026-10-05` — as-built below the table)*
+
+⭐ Approved basis: §9 **V7** (*"each slot's `{Name, Params, Origin}` is ALSO published as a small TransientLocal
+descriptor; the node that gains authority starts it"*), S2b (*"absorbs `CE-3048`"*). Scoped by a corpus + code sweep
+`2026-10-05`: `OwnershipApplier.cs:110-118` publishes `DescriptorAuthorityChanged` **on gain only**, and no production
+code reads it. Behaviour state is *"linked, never sent"* (`DESIGN_Ownership_Groups_And_Grants.md` §2, R-165).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBrainIntent { <<NEW wire, dtBrainIntent = 98>> +long EntityId key +string IntentJson ; Reliable · TransientLocal · KeepLast 1 }
+  class BrainIntentEgressTranslator { <<NEW, NED, CognitiveTranslatorPack>> owner of (98,0) publishes when the slots' signature moved }
+  class BrainIntentIngressTranslator { <<NEW, NED, CognitiveTranslatorPack>> not the recorded owner: stores the replica }
+  class ReplicatedBrainIntent { <<NEW managed comp 317, Transient>> +InitialBrainIntent Intent }
+  class BrainIntentReader { <<NEW, Toolkits — ONE reader>> +Read(repo, e, registry, scope) InitialBrainIntent }
+  class BrainIntentScope { <<NEW enum>> Ordered (scenario) · Running (hand-over) }
+  class BrainSnapshotTranslator { <<existing, SimHost>> Extract = Read(Ordered) }
+  class BrainHandOverSystem { <<NEW, Toolkits, Input>> on DescriptorAuthorityChanged(98,0): replace each slot that differs }
+  class OwnershipApplier { <<existing>> publishes DescriptorAuthorityChanged on gain }
+  class BehaviorIngressSystem { <<existing>> Clear · EndSop · DropPausedTask · AssignNow · AssignSopNow }
+  class InitialBrainIntent { <<existing shape, CE-3042>> Behavior · Sop · Roe }
+  class NedOwnershipGroupBinding { <<existing, grows>> dtBrainIntent → SopState, Roe (Brain group) }
+  BrainIntentEgressTranslator ..> BrainIntentReader : Running
+  BrainSnapshotTranslator ..> BrainIntentReader : Ordered
+  BrainIntentEgressTranslator ..> EntityBrainIntent : writes
+  BrainIntentIngressTranslator ..> EntityBrainIntent : reads
+  BrainIntentIngressTranslator ..> ReplicatedBrainIntent : sets
+  ReplicatedBrainIntent --> InitialBrainIntent
+  OwnershipApplier ..> BrainHandOverSystem : DescriptorAuthorityChanged
+  BrainHandOverSystem ..> ReplicatedBrainIntent : reads
+  BrainHandOverSystem ..> BehaviorIngressSystem : replace
+```
+
+*What the picture shows that the prose hid:* save and hand-over share **one reader** with two scopes. The scenario
+keeps only what an order set. The hand-over needs everything that is running, because the gaining node's own
+replica is not empty: it ran the template default at spawn, and it may hold a stale order from an earlier ownership.
+
+```mermaid
+sequenceDiagram
+  participant A as old owner (Brain)
+  participant W as DDS EntityBrainIntent
+  participant B as gaining node (Brain)
+  participant O as OwnershipApplier (B)
+  participant H as BrainHandOverSystem (B)
+  participant I as BehaviorIngressSystem (B)
+  A->>A: egress: slots' signature moved → Read(Running)
+  A->>W: {Behavior, Sop, Roe} as JSON
+  W->>B: ingress: B is not the recorded owner → ReplicatedBrainIntent
+  Note over A,B: grant / debug transfer / failover reclaim moves (98,0) with the Brain group (G-1)
+  O->>H: DescriptorAuthorityChanged(e, (98,0), gained)
+  H->>H: ROE: written as published
+  alt SOP slot differs
+    H->>I: EndSop, then AssignSopNow(name, params, origin)
+  end
+  alt task slot differs
+    H->>I: DropPausedTask, Clear, then AssignNow(name, params, origin)
+  end
+  B->>W: B now publishes (its signature dictionary has no entry yet)
+```
+
+```mermaid
+graph TD
+  NED["NedReplicationModule (role has Brain)"] --> PACK["CognitiveTranslatorPack"]
+  PACK --> EG["BrainIntentEgressTranslator → CycloneEgressSystem each frame"]
+  PACK --> IN["BrainIntentIngressTranslator → CycloneNetworkIngressSystem each frame"]
+  NED --> HO["BrainHandOverSystem (Input) — reads DescriptorAuthorityChanged"]
+  OIS["OwnershipIngressSystem · PartialOwnerReclaimSystem · OwnershipTransferInitiationSystem"] --> AP["OwnershipApplier.Apply"]
+  AP -.gain event.-> HO
+  SIM["SimHost (no Brain role)"] -.reclaimed brain: nothing runs it.-> DEAD["CE-2087 (backend)"]
+  style DEAD fill:#fdd,stroke:#c00
+  style SIM fill:#fdd,stroke:#c00
+```
+
+*Module diagram caption:* everything is registered only where the role has Brain. The red edge is a gap this does
+**not** close: a failover reclaim hands the brain back to the entity's primary owner, and when that is SimHost (never
+Brain, `DESIGN_Role_Affinity_Ownership.md` §3.9a) nothing there runs it. Filed as `CE-2087`, for the backend lane
+(reclaim policy).
+
+| rule | why |
+|---|---|
+| the hand-over **replaces**; it does not order. A slot that differs is cleared (`Clear` / `EndSop`, bypassing rank), then started through the ingress at its **published** origin | the published state is the truth the old owner ran. An order through the gate would lose to a stale higher-origin order already on the gainer |
+| a slot that is **the same** (name + params + origin) is left running | the common case: a first-time gainer already runs the template default. Restarting it would cost a BTree its cursor for nothing (`CE-2081` resume) |
+| `Running` scope: everything running, including the template default (origin Sop) and a mission phase's behaviour. A running **reaction** publishes the task it paused | a reaction answers this node's senses. The gainer reacts again if it must (§4.1, R-199) |
+| ROE is always published and written as is | it is three bytes, and a stale ordered ROE would otherwise survive |
+| gated by `dtBrainIntent`'s own recorded owner (egress, ingress skip, gain) | the per-descriptor rule (`EntityMission`, F-5). G-1 grants it together with the anchor `dtNavigationIntent`, so the brain and its intent move together |
+| `dtBrainIntent` carries `SopState` + `Roe` into the **Brain group** | `BindGroups` places a descriptor by its components. Both are brain-written and were in no group (the scoping sweep found them missing) |
+
+⛔ **Rejected:** send `BehaviorState` itself (R-165: never sent; a hash and a cursor mean nothing on another node).
+· The `Ordered` scope for hand-over: a round trip A→B→A would resume A's stale order. · Publish the intent as an
+order event on hand-over: refused by rank against stale state. · A new wire struct per slot: one JSON string *is*
+the scenario's shape (R-192), so the save, the load and the hand-over cannot drift apart.
+
+⚠ **R-165 is not contradicted:** the components stay unsent. The descriptor carries a *declarative projection*
+(name · params · origin), the same thing the scenario file holds.
+
+⭐ **As-built `2026-10-05`:** matches the diagrams. Two additions measured during the build: ① a unit whose sample
+arrives before the unit exists here is HELD by the ingress and applied when it appears (a durable sample is delivered
+once). ② The egress `Dispose(netId)` ends the durable instance, so a late joiner is not handed a dead unit. Pinned rails
+that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStrategyTests`).
+
+| gate | result |
+|---|---|
+| `BrainHandOverTests` · `BrainIntentTranslatorTests` · cluster `ABrainThatComesBack_…` | 6/0 · 3/0 · 1/0, each red-proved |
+| Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
+| cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
 
 ## 8. Claim table
 

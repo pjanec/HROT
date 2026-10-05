@@ -22,7 +22,8 @@ public sealed class RoleGroupOwnershipStrategyTests
 
     private static long D(EDescriptorType d) => (long)d;
     private static readonly long[] Brain = { D(EDescriptorType.dtEntityDamage), D(EDescriptorType.dtEntityMission),
-        D(EDescriptorType.dtNavigationIntent), D(EDescriptorType.dtSensorConfig), D(EDescriptorType.dtEqsSensorConfig) };
+        D(EDescriptorType.dtNavigationIntent), D(EDescriptorType.dtSensorConfig), D(EDescriptorType.dtEqsSensorConfig),
+        D(EDescriptorType.dtBrainIntent) };   // ⭐ CE-3048 — the AI intent is granted with the Brain
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus) };
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 

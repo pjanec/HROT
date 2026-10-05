@@ -75,6 +75,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly ITkbDatabase?         _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
     private readonly IReadOnlyList<ITkbEntityTranslator>? _tkbEntityTranslators;
+    private readonly BehaviorRegistry? _behaviorRegistry;   // ⭐ CE-3048 — the Brain hand-over starts behaviours by name
     // CE-288 (C2): self-heal sink — records a peer that missed the short phase-1 probe as !fdp.reliable-init.
     private readonly System.Action<int>? _onPeerUnsupported;
 
@@ -236,6 +237,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         _tkbDb           = tkbDb;
         _lifecycleModule = lifecycleModule;
         _tkbEntityTranslators = tkbEntityTranslators;
+        _behaviorRegistry = behaviorRegistry;
 
         // Validate role
         _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
@@ -497,6 +499,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         // taking over is taken back by its creator — a direct call on every node, no message.
         // 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.3, §5.6 S7.
         registry.RegisterSystem(new PartialOwnerReclaimSystem(_localNodeId, _descriptorOwnershipMap));
+
+        // ── Brain hand-over — Brain nodes (CE-3048, V7) ──────────────────────
+        // A node that GAINS a unit's dtBrainIntent (grant, debug transfer, failover reclaim — all through OwnershipApplier)
+        // runs what the previous owner published (BrainIntentIngressTranslator keeps it). 📄 Sensors_And_Doctrine §7.7.
+        if (_roleHasBrain && _behaviorRegistry != null)
+            registry.RegisterSystem(new Fdp.Toolkit.Behavior.Systems.BrainHandOverSystem(
+                _behaviorRegistry, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtBrainIntent, 0)));
 
         // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
         // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity

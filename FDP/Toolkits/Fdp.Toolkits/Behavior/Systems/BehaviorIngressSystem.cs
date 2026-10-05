@@ -297,7 +297,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         public static PausedTask? PausedTaskOf(EntityRepository repo, Entity entity)
             => repo.HasManagedComponent<PausedTask>(entity) ? ((ISimulationView)repo).GetManagedComponentRO<PausedTask>(entity) : null;
 
-        private static void DropPausedTask(EntityRepository repo, Entity entity)
+        internal static void DropPausedTask(EntityRepository repo, Entity entity)
         {
             if (repo.HasManagedComponent<PausedTask>(entity)) repo.SetManagedComponent<PausedTask>(entity, null!);
         }

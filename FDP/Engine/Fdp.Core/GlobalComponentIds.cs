@@ -633,5 +633,10 @@
         /// <summary><c>InitialBrainIntent</c> (managed, transient) — a unit's AI as the scenario saved it, started through the
         /// ingress at load (<c>CE-3042</c>, R-192); 316 is free by the same census (<c>2026-10-04</c>).</summary>
         public const int InitialBrainIntent = 316;
+
+        /// <summary><c>ReplicatedBrainIntent</c> (managed, transient) — the last AI intent another node published for a unit,
+        /// started by the node that gains its Brain (<c>CE-3048</c>, V7); 317 is free by the same census (grep of every
+        /// <c>*Ids*.cs</c> and literal <c>[ComponentId(317)]</c>, <c>2026-10-05</c>).</summary>
+        public const int ReplicatedBrainIntent = 317;
     }
 }

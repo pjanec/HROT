@@ -73,68 +73,18 @@ namespace Hrot.SimHost.Serializers
             repo.SetManagedComponent(entity, intent);   // ⚠ registered by GenesisIntentRegistry, like every genesis intent
         }
 
-        // ── what is saved ────────────────────────────────────────────────────────────────────────────────────────
+        // ── what is saved: the ONE reader, in the scenario's scope (CE-3048 shares it with the Brain hand-over) ─────
 
         private SavedBrainSlot? TaskOf(EntityRepository repo, Entity entity)
-        {
-            if (!repo.IsComponentTypeRegistered<BehaviorState>() || !repo.HasComponent<BehaviorState>(entity)) return null;
-            ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
-            if (DrivenByMissionPlan(repo, entity)) return null;
-
-            if (state.Origin == BehaviorOrigin.Reaction)                  // the reaction is transient — keep what it paused
-                return BehaviorIngressSystem.PausedTaskOf(repo, entity) is { } paused
-                    ? new SavedBrainSlot { Name = paused.BehaviorName, Params = Json(paused.JsonParams), Origin = paused.Origin }
-                    : null;
-            if (state.ActiveBehaviorHash == BehaviorIds.None || state.Origin == BehaviorOrigin.Sop) return null;
-
-            string? name = null, json = null;
-            if (repo.HasManagedComponent<BehaviorStartRecord>(entity)
-                && ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity) is { } record
-                && record.InstanceId == state.InstanceId)
-            {
-                name = record.BehaviorName;
-                json = record.JsonParams;
-            }
-            if (name == null && !_registry.TryGetName(state.ActiveBehaviorHash, out name)) return null;
-            return new SavedBrainSlot
-            {
-                Name   = name!,
-                Params = Json(json),
-                Origin = state.Origin == BehaviorOrigin.Unmarked ? BehaviorOrigin.Superior : state.Origin,
-            };
-        }
+            => BrainIntentReader.TaskOf(repo, entity, _registry, BrainIntentScope.Ordered);
 
         private static SavedBrainSlot? SopOf(EntityRepository repo, Entity entity)
-        {
-            if (!repo.IsComponentTypeRegistered<SopState>() || !repo.HasComponent<SopState>(entity)) return null;
-            ref readonly var sop = ref repo.GetComponentRO<SopState>(entity);
-            if (sop.SopHash == BehaviorIds.None || sop.SopOrigin == BehaviorOrigin.Sop || sop.SopOrigin == BehaviorOrigin.Unmarked)
-                return null;
-            if (!repo.HasManagedComponent<SopStartRecord>(entity)) return null;
-            var record = ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity);
-            if (record == null || string.IsNullOrEmpty(record.BehaviorName)) return null;
-            return new SavedBrainSlot { Name = record.BehaviorName, Params = Json(record.JsonParams), Origin = sop.SopOrigin };
-        }
+            => BrainIntentReader.SopOf(repo, entity, BrainIntentScope.Ordered);
 
         private static SavedRoe? RoeOf(EntityRepository repo, Entity entity)
-        {
-            if (!repo.IsComponentTypeRegistered<Roe>() || !repo.HasComponent<Roe>(entity)) return null;
-            ref readonly var roe = ref repo.GetComponentRO<Roe>(entity);
-            if (roe.SetBy == BehaviorOrigin.Unmarked) return null;   // the template's default
-            return new SavedRoe { Fire = roe.Fire, Reactions = roe.Reactions, SetBy = roe.SetBy };
-        }
-
-        /// <summary>A mission plan with phases left drives the task slot — the plan is saved, not the phase's behaviour.</summary>
-        private static bool DrivenByMissionPlan(EntityRepository repo, Entity entity)
-        {
-            if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)) return false;
-            ref readonly var queue = ref repo.GetComponentRO<MissionPlanQueue>(entity);
-            return queue.PhaseCount > 0 && queue.CurrentPhase < queue.PhaseCount;
-        }
+            => BrainIntentReader.RoeOf(repo, entity, BrainIntentScope.Ordered);
 
         // ── JSON ─────────────────────────────────────────────────────────────────────────────────────────────────
-
-        private static string Json(string? json) => string.IsNullOrWhiteSpace(json) ? "{}" : json!;
 
         private static JsonNode Node(object value)
             => JsonSerializer.SerializeToNode(value, value.GetType(), FdpJsonOptionsRegistry.DefaultRelaxed)!;

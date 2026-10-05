@@ -61,6 +61,12 @@ namespace Hrot.Network.Translators
             yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-484 — a behaviour fault leaves the node whose behaviour raised it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
             yield return new BehaviorFaultEgressTranslator(participant, entityMap, behaviorRegistry, localNodeId);
+            // ⭐ CE-3048 — a unit's AI intent: the owner publishes it, every other Brain keeps it for a hand-over. 📄 Sensors §7.7
+            if (behaviorRegistry != null)
+            {
+                yield return new BrainIntentEgressTranslator(participant, behaviorRegistry);
+                yield return new BrainIntentIngressTranslator(participant, entityMap);
+            }
         }
     }
 }

@@ -47,6 +47,9 @@ namespace Hrot.NED.Descriptors
         dtEqsResult              = 96,
         // ⭐ CE-484 — behaviour fault notification (any node → every operator UI). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
         dtBehaviorFault          = 97,
+        // ⭐ CE-3048 — a unit's AI intent (task · SOP · ROE), published by its Brain owner, started by the node that gains
+        //   the Brain. TransientLocal. 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.7
+        dtBrainIntent            = 98,
         // ── Animation control (Brain ↔ Muscle) — DD-2 §6.
         //    Block 100–119 reserved for animation; new entries append within block.
         //    Channels (intent + status pairs)

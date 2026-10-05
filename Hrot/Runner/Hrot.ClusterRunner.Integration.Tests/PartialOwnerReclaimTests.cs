@@ -1,4 +1,8 @@
 using System;
+using System.Text.Json;
+using Fdp.Core.Serialization;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.NED.Messages;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -150,6 +154,61 @@ public class PartialOwnerReclaimTests
         //   owner from the EntityMaster's writer — rail EntityMasterTranslatorTests.PollIngress_Records…). THIS harness
         //   shares ONE untracked participant across its nodes, so no writer resolves to a node here: SimHost records
         //   the reclaimed key as -1 ("not me"), not CGF's id.
+    }
+
+    /// <summary>⭐⭐ <c>CE-3048</c> (V7) — the Brain survives a hand-over: node 77 is handed CGF's tank's Brain, publishes
+    /// what it runs (as a Brain owner does), then leaves. The Brain returns to CGF, and CGF runs what node 77 published, at
+    /// node 77's origin — not what CGF ran before. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.7.</summary>
+    [Fact(Timeout = 120_000)]
+    public void ABrainThatComesBack_RunsWhatItsLastOwnerPublished()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake  = new DdsParticipant((uint)domainId);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
+        using var owner  = new DdsWriter<WireOwnershipUpdate>(fake);
+        using var intent = new DdsWriter<EntityBrainIntent>(fake);
+        Heartbeat(hb);
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
+        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        var cgf = harness.Cgf!.World!;
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        Entity tank = Entity.Null;
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+                                         && cgf.HasComponent<BehaviorState>(tank), timeoutFrames: 3000),
+            "CGF must create the tank with a brain.");
+
+        long anchor = Key(EDescriptorType.dtNavigationIntent), brainIntent = Key(EDescriptorType.dtBrainIntent);
+        Assert.True(((ISimulationView)cgf).HasAuthority(tank, brainIntent), "the creator owns the intent before any hand-over");
+
+        // Node 77 is handed the Brain (anchor + intent, as a grant hands the group) and publishes what it runs.
+        const string order = "Idle";
+        Assert.True(registry.TryGetId(order, out int orderId), "the corpus behaviour the rail orders must exist");
+        string published = JsonSerializer.Serialize(new InitialBrainIntent
+        {
+            Behavior = new SavedBrainSlot { Name = order, Params = "{}", Origin = BehaviorOrigin.Operator },
+        }, FdpJsonOptionsRegistry.DefaultRelaxed);
+        Assert.True(PumpAlive(harness, hb, () => Recorded(cgf, tank, anchor) == FakeNode && Recorded(cgf, tank, brainIntent) == FakeNode
+                                              && cgf.HasManagedComponent<ReplicatedBrainIntent>(tank), timeoutFrames: 3000,
+            alsoEachTick: () =>
+            {
+                foreach (var d in new[] { EDescriptorType.dtNavigationIntent, EDescriptorType.dtBrainIntent })
+                    owner.Write(new WireOwnershipUpdate { EntityId = net, DescrTypeId = (long)d, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode });
+                intent.Write(new EntityBrainIntent { EntityId = net, IntentJson = published });
+            }),
+            $"CGF must record node 77 as the Brain's owner and keep its published intent. {Describe(cgf, tank)}");
+        Assert.False(cgf.HasAuthority<BehaviorState>(tank));                          // CGF no longer runs it
+
+        // Node 77 leaves: the Brain returns to CGF (the primary owner), which must run what 77 published.
+        hb.Dispose();
+        caps.Dispose();
+        Assert.True(harness.PumpUntil(() => cgf.HasAuthority<BehaviorState>(tank)
+                                         && cgf.GetComponentRO<BehaviorState>(tank).ActiveBehaviorHash == orderId,
+                timeoutFrames: 3000),
+            $"CGF must take the Brain back AND run the published order. hash={cgf.GetComponentRO<BehaviorState>(tank).ActiveBehaviorHash:X} {Describe(cgf, tank)}");
+        Assert.Equal(BehaviorOrigin.Operator, cgf.GetComponentRO<BehaviorState>(tank).Origin);
     }
 
     private static string Describe(EntityRepository world, Entity e)

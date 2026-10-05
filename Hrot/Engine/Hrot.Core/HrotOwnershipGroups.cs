@@ -58,6 +58,9 @@ public static class HrotOwnershipGroups
         // ⭐ CE-513 / R-180 — an animation channel crosses nodes, so it is split: the Brain owns the REQUEST.
         brain.SetBit(GlobalComponentIds.AnimationChannel);
         brain.SetBit(GlobalComponentIds.LookAtChannel);
+        // ⭐ CE-3048 — the SOP slot and the ROE: brain-written, carried by dtBrainIntent (they were in no group).
+        brain.SetBit(GlobalComponentIds.SopState);
+        brain.SetBit(GlobalComponentIds.Roe);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);
