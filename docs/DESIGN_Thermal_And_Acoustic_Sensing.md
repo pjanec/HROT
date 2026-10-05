@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: READY-TO-BUILD — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7).
+build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point).
 stale-below: nothing — new document.
 known-rot: §6 D's "position + radius, no identity" — the user (§6.1a K3, R-207) adds a coarse source CLASS to a heard contact; §5.1's SoundContactEvent gains it. §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062).
@@ -397,7 +397,7 @@ Hit OR a NearMiss. ⚠ A round that HITS a unit also near-misses it — both mea
 `BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` pins the new name.
 
 
-## 8. `CE-3063` ② / ③ — the AI readers, and hiding from a heard shot *(behaviors, `2026-10-05`; build-state: BUILDING)*
+## 8. `CE-3063` ② / ③ — the AI readers, and hiding from a heard shot *(behaviors, `2026-10-05`; build-state: BUILT)*
 
 ⭐ **Design basis:** §6.1 (the reader table and gap 2), §6.1a K2 (🔒 *"hide from a point is OK"*), K3 (danger per class), and
 backend ①'s as-built (`IsAnonymous`, `OfSlot`, `HearContact`, §7). ⚠ **Cross-lane, named:** the EQS context point touches
@@ -430,7 +430,7 @@ classDiagram
     +long Id
     +bool IsPoint
   }
-  class EqsTacticsNodes { <<existing, grows>> TopThreat → ThreatAim (entity, else freshest heard point) }
+  class EqsTacticsNodes { <<existing, grows>> TopThreat (entity, unchanged — firing) · TopAim → ThreatAim NEW · Point · Moved · PointsAt }
   class PostureNodes { <<existing, CE-2073>> PostureSensors points at a ThreatAim }
   class EqsSensor {
     <<existing, grows>>
@@ -438,8 +438,8 @@ classDiagram
     +Vector3 ContextPoint1 NEW
     +byte ContextPointMask NEW
   }
-  class EqsContext { <<existing, grows>> AnchorPosition: slot entity, else the slot's point · AnchorEye NEW }
-  class CheapLineOfSightTest { <<existing>> reads AnchorEye, not the slot's SimTransform }
+  class EqsContext { <<existing, grows>> AnchorPosition: slot entity, else the slot's point · TryPoint NEW }
+  class CheapLineOfSightTest { <<existing>> reads AnchorPosition, not the slot's SimTransform }
   class EqsSensorConfig { <<existing DDS, grows>> ContextPoint1X/Y/Z · ContextPointMask }
   class SquadPerceptionMergeSystem { <<existing>> MergeAnonymous by position }
   EqsTacticsNodes --> ThreatAim
@@ -491,3 +491,20 @@ graph TD
 | `HaveLiveTarget` stays identified-only | it gates firing postures; a point cannot be shot (the weapon channel takes an entity) | counting heard contacts (Advance would then aim at nothing) |
 | squad fusion with stack-held radii | the pool is rebuilt each merge; `SquadContact` stays 32 bytes | growing `SquadContact` (a 512-byte layout documented as such) |
 | the BTree / blueprint `SpawnEqsSensor` nodes get no point pin now | no authored behaviour hides from a point yet | — (round-out when one does) |
+
+⭐ **AS-BUILT (`2026-10-05`)** — the diagrams above are the as-built (two boxes corrected in place, below). Where the build differs:
+
+| as built | where | differs because |
+|---|---|---|
+| `TopThreat` keeps its entity-only signature; a new `TopAim` returns the `ThreatAim` | `EqsTacticsNodes.cs` | `PostureNodes.Engage` / `AdvanceAndAttack` FIRE at `TopThreat`'s entity — only the sensor pointers (TakeCover, FallBack, PostureSensors) take a point. ⛔ The design drew one call |
+| no `AnchorEye`: `CheapLineOfSightTest` reads `AnchorPosition`, and `EqsTerrainSight.Mount(view, Entity.Null)` already gives the default mount | `CheapLineOfSightTest.cs`, `EqsContext.TryPoint` | the eye height needed no new seam |
+| `TargetMemory.FirstIdentified(mem)` | `PerceptionComponents.cs` (cross-lane, one helper beside `IsAnonymous`) | the two examples' "first entity" reads |
+| the node states keep `Threat` and gain `HeardId` + `HeardPoint`; the point stored is the one the sensor was POINTED at | `EqsTacticsState`, `PostureSensorsState` | a slowly drifting heard contact re-points once it has moved `RepointMetres` (2 m) in all; ⛔ no field rename (a Roslyn-only operation here) |
+| the generated goldens do not move | `*.Registrar.g.cs.txt` take `Unsafe.SizeOf<…State>()` | — |
+
+⚠ **Not built, recorded:** a member's HEARD contact is not absorbed by another member's SIGHTING in the squad pool (each member's own memory already absorbs, ①) · the live acceptance (a rifleman on `test-town` hiding from a heard shot) waits for shipped TKB data to author acoustic signatures (§7 finding — today every shipped unit is silent) → `CE-2106`.
+
+Rails (each feature's own suite; each red-proved by removing its mechanism): `CoverGeneratorAndLosTests.CE3063_CheapLineOfSight_JudgesFromTheContextPoint_WhenSlotOneIsEmpty` ·
+`StandardInputReaderTests.CE3063_AHeardContact_CountsAsStrength_ButIsNotALiveTarget` · `SensorNodesTests.CE3063_ThreatsAtLeast_CountsAHeardContactByItsClass` ·
+`SquadPerceptionMergeSystemTests.CE3063_TwoMembersHearingOneShot_AreOnePooledContact` · `TacticsTreesTests.CE3063_TakeCover_FromAHeardShot_PointsTheSensorAtThePoint_AndMoves` ·
+the wire: `EqsTranslatorTests.EqsTranslators_T8_ConfigReplicatesBrainToMuscle` now asserts the point crosses CGF → SimHost.
