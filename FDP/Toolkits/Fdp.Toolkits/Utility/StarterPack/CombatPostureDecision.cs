@@ -8,9 +8,13 @@ namespace Fdp.Toolkit.Utility
     /// and EQS query scores. Applies a 0.08 hysteresis bonus to reduce flickering.
     /// </summary>
     /// <remarks>
-    /// ⭐ <c>CE-2046</c>: the EQS considerations name their templates by AssetId. ⚠ <c>Flee</c>'s escape gate names
-    /// <see cref="FindSafeRetreatPoint"/>, whose template is not built yet (<c>CE-2051</c>) — until it is, no sensor
-    /// carries that id and, the option being a weighted product, <c>Flee</c> scores 0.
+    /// ⭐ <c>CE-2046</c>: the EQS considerations name their templates by AssetId (<see cref="FindCoverFromTarget"/>,
+    /// <see cref="FindSafeRetreatPoint"/> — both built, <c>CE-2051</c>).
+    /// <para>⭐ <c>CE-2072</c>: <c>Suppress</c> no longer multiplies by <c>AllyAdvancingNearby</c> — a stub returning 0, so the
+    /// weighted product made Suppress ALWAYS 0. It now reads: ammo × a target × healthy × the enemy at least my match
+    /// (<c>EnemyStrengthRatio</c>, Logistic — as TakeCover and Flee read it). ⇒ a healthy, armed unit ADVANCES on a weaker
+    /// enemy and SUPPRESSES a matched or stronger one; a hurt one still takes cover or flees.
+    /// 📄 docs/DESIGN_Decision_Layer.md §3.3.</para>
     /// </remarks>
     [UtilityDecision(
         assetId:         "3c6f9e42-5d10-6f3a-ac23-posture0000001",
@@ -34,7 +38,8 @@ namespace Fdp.Toolkit.Utility
             .Option((ushort)Posture.Suppress, ScoringMode.WeightedProduct, o => o
                 .Consider(In.AmmoFraction(),        0.9f, Curve.Linear)
                 .Consider(In.HaveLiveTarget(),      1.0f, Curve.Step)
-                .Consider(In.AllyAdvancingNearby(), 0.7f, Curve.Linear))
+                .Consider(In.HealthFraction(),      1.0f, Curve.Linear)
+                .Consider(In.EnemyStrengthRatio(),  0.6f, Curve.Logistic))
             .Option((ushort)Posture.Flee, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),               1.0f, Curve.InverseQuadratic)
                 .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), 0.8f, Curve.Linear)

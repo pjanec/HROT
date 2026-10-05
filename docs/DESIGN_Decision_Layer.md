@@ -339,6 +339,15 @@ reads the unit buffer when one exists. ⚠ The design said the precedent was `__
 closer one (a per-NODE field, in both dispatch kinds). No corpus asset uses the node, so no golden moved. Rails:
 `UtilityNodeRuntimeTests.CE2070_*` (2: no buffer + the memory written · a ranking's top candidate), red-proved.
 
+⭐ **As-built `CE-2072` (`2026-10-05`):** `Suppress` = ammo^0.9 × target (step) × health × EnemyStrengthRatio^0.6
+(Logistic). The stub `AllyAdvancingNearby` (returns 0, so Suppress was ALWAYS 0) is dropped. ⚠ Dropping the stub ALONE
+was measured wrong before building: Suppress = ammo × target scores 1.0 with a full magazine and beats a healthy
+Advance (≈0.91 at an enemy-strength ratio of 0.25), and at health 0.35 with cover it beats TakeCover (0.82 vs 0.67).
+Hence the health and enemy-strength factors. The result: a healthy armed unit ADVANCES on a weaker enemy and
+SUPPRESSES a matched or stronger one (ratio 0.8: Suppress 0.92 vs Advance 0.43); hurt units still take cover or flee.
+Every existing posture rail keeps its winner. The stale `CE-2051` remark is fixed (`FindSafeRetreatPoint` IS built).
+Rail: `StarterPackIntegrationTests.CE2072_*`, red-proved. Toolkits 2676/0.
+
 ⛔ **`CE-2069` STOPPED `2026-10-05` — a premise of the third sequence diagram fails (`R-106`: stop the item, not the
 batch).** The diagram has the guard read *"the bound variable `Winner`"* that `ChooseOption` wrote. Measured:
 

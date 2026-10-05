@@ -49,8 +49,23 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
         }
 
+        // ⭐ CE-2072: a healthy, armed unit facing a MATCHED-or-stronger enemy suppresses instead of advancing.
+        //   🔴 Suppress multiplied by AllyAdvancingNearby (a stub returning 0), so it could never win.
+        [Fact]
+        public void CE2072_Healthy_FullAmmo_StrongEnemy_Suppresses()
+        {
+            var enemy = _world.Repo.CreateEntity();
+            var agent = _world.SpawnAgent(1.0f, 1.0f);
+            _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+            _world.SetEnemyStrengthRatio(agent, 0.8f);
+
+            byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
+
+            Assert.Equal((byte)Posture.Suppress, posture);
+        }
+
         // SC-SP-02: No contacts → HaveLiveTarget=0 → Step gate kills AdvanceAndAttack.
-        // TakeCover/Flee require EQS (not present). Suppress requires AllyAdvancingNearby (Phase-2 stub=0).
+        // TakeCover/Flee require EQS (not present). Suppress needs a live target too (CE-2072).
         // Only Hold (WeightedSum with Constant baseline) produces a non-zero score.
         [Fact]
         public void CombatPosture_NoContacts_SelectsHold()
