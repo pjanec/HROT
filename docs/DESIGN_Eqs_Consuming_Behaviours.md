@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — §8 (CE-2103) DESIGN, leans E1–E5 awaiting the user; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
-current-answer: §8 (CE-2103, EQS in a blueprint ACTION — DESIGN, leans E1–E5 awaiting the user); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+build-state: BUILDING — §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
+current-answer: §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
@@ -353,7 +353,9 @@ view, remembers the hostile, the SOP starts the expected tree, and the rifleman 
 Arrived`) to where `TerrainWorld.SegmentBlocked(hostile's standing eye, rifleman's crouched eye)` holds. On failure it
 prints the chain link by link (sensor → answer → Muscle stages → MoveTo → NavigationIntent → status).
 
-## 8. `CE-2103` — EQS nodes in a blueprint used as a BTree / HSM ACTION *(behaviors, `2026-10-05`; build-state: DESIGN — leans E1–E5 for the user)*
+## 8. `CE-2103` — EQS nodes in a blueprint used as a BTree / HSM ACTION *(behaviors, `2026-10-05`; build-state: DESIGN — E1–E5 APPROVED, ⏸ PARKED on demand)*
+
+⏸ **Parked (user `2026-10-05`).** The current answer for an EQS-using step is a **Behaviour blueprint hosted as a child** (BTree node or HSM state, S5a / E5 of `DESIGN_Unified_Behaviour_Run`): it already allows Spawn / Read / `When(EqsResult)`, and its sensor is released at run end (CE-485). This section is built only if a measured case needs an action instead (per-node release, hosted-run overhead).
 
 > 🔒 User, `2026-10-05`: filed CE-2103 (*"a design of its own"*); *"Yes go ahead"* (this design).
 
