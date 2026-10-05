@@ -103,6 +103,28 @@ wire is the RESULT (`SoundContact`), never the stimulus. The red box has no edge
 editor (CGF == editor, one world) composes the same SimHost-side systems through its perception capability, so the picture
 holds there with the DDS edges collapsed.
 
+## 3a. Perception on ANOTHER node *(🔒 user, `2026-10-05`: "may be distributed in the future (like perception on different node) so pls count with some kind of distribution of the inputs for the sensors from their producers")*
+
+⭐ **Rule: heat and sound are DERIVED where the sensor solves, from inputs that are already published — nothing new is
+published for them.** `ThermalHeatSystem` and `SoundEmissionSystem` are composed by the PERCEPTION capability
+(`EqsSolverStartup.PopulateSystems`), not by the Muscle, so they follow the solver to whichever node it runs on.
+
+| input | on a Perception-only node | code | design |
+|---|---|---|---|
+| positions (→ measured speed for running heat and movement sound) | ✅ every entity replicates, and remote entities are dead-reckoned EVERY tick on every node, so the per-tick distance is smooth | `NedReplicationModule.cs:469` | ✅ `docs/DESIGN_Dead_Reckoning.md` R1 / §5.1 |
+| shots (→ firing heat, shot sound) | ⛔ **GAP**: the Muscle publishes `WeaponFire`, but only the IG ingests it back into `WeaponFireNotification` | `NedIgTranslators.cs:36`; Perception group adds only EQS translators (`SimHostAuxiliaryTranslatorPack.cs`) | ⛔ searched, none found ⇒ `CE-3065` |
+| detonations (→ detonation sound) | ⛔ **GAP**: `MunitionDetonation` ingress is on the IG and on MuscleGround only | `SimHostAuxiliaryTranslatorPack.cs:90`, `NedIgTranslators.cs:38` | ⛔ ⇒ `CE-3065` |
+| TKB signatures (heat / audible ranges) | ✅ stamped by `SignatureTkbTranslator` on every node that registers the components | `TkbTranslatorSet.Base()` | — |
+
+⇒ `CE-3065`: add the `WeaponFire` and `MunitionDetonation` ingress for a node that is Perception WITHOUT MuscleGround (with it, the
+local events already exist — ingesting them too would count each shot twice). ⭐ Both arrive `IsRemote = true`; heat and sound
+accept remote events (only `DamageCalculationSystem` skips them).
+
+⛔ **Rejected: publishing `ThermalState` from the Muscle.** A continuous per-entity topic for a value every node can compute from
+what it already receives. ⚠ **What would change it:** a heat source that is NOT observable from published data — engine load,
+a running generator, a weapon's barrel temperature beyond shots fired. Then that one input gets published (or folded into an
+existing state topic), and the rest stays derived.
+
 ## 4. Classes
 
 ```mermaid
