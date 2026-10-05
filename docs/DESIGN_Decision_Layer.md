@@ -348,6 +348,11 @@ SUPPRESSES a matched or stronger one (ratio 0.8: Suppress 0.92 vs Advance 0.43);
 Every existing posture rail keeps its winner. The stale `CE-2051` remark is fixed (`FindSafeRetreatPoint` IS built).
 Rail: `StarterPackIntegrationTests.CE2072_*`, red-proved. Toolkits 2676/0.
 
+⭐ **As-built `CE-2071` (`2026-10-05`):** `EqsTopScore` / `EqsResultCount` read through
+`UnitSensors.OfTemplate` (built by backend). The private scan took the FIRST matching child in query order, so with two
+sensors on one template it could read another run's stale results. Rail
+`StandardInputReaderTests.CE2071_*`, red-proved against the old scan.
+
 ⛔ **`CE-2069` STOPPED `2026-10-05` — a premise of the third sequence diagram fails (`R-106`: stop the item, not the
 batch).** The diagram has the guard read *"the bound variable `Winner`"* that `ChooseOption` wrote. Measured:
 

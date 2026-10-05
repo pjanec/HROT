@@ -45,6 +45,28 @@ namespace Fdp.Toolkit.Tests.Utility
             return hash;
         }
 
+        // ── ⭐ CE-2071 — the EQS inputs read through UnitSensors.OfTemplate ─────────────────
+
+        [Fact]
+        public void CE2071_TwoSensorsOnOneTemplate_EqsTopScoreReadsTheCurrentRunsOwn()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            const uint template = 0xC0FE2071u;
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = 5 });
+            _world.SpawnEqsSensor(unit, template, topScore: 0.2f, count: 1, instanceId: 0);           // another run's, stale
+            var mine = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 1);
+            repo.AddComponent(mine, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+            Assert.Equal(1f / 16f, StandardInputs.EqsResultCount(in ctx), 3);
+        }
+
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
 
         [Fact]

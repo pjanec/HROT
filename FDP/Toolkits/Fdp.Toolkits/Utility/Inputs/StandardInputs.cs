@@ -383,20 +383,16 @@ namespace Fdp.Toolkit.Utility
         /// Finds the first child entity of <paramref name="owner"/> whose EqsSensor.BlueprintId
         /// matches <paramref name="blueprintId"/>.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2071</c> — the unit's sensor running <paramref name="blueprintId"/>, through the ONE lookup
+        /// (<see cref="Fdp.Toolkit.Perception.Sensors.UnitSensors.OfTemplate"/>: the current run's own sensor, then the TKB's,
+        /// then any other, lowest part id). 🔴 Was a private scan that took the FIRST matching child in query order, so with
+        /// two sensors on one template it could read another run's stale results. Read only; never cached.
+        /// </summary>
         private static bool TryFindEqsChild(EntityRepository repo, Entity owner, uint blueprintId, out Entity child)
         {
-            var query = repo.Query().With<EqsSensor>().With<PartMetadata>().Build();
-            foreach (var e in query)
-            {
-                ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
-                if (!pm.ParentEntity.Equals(owner)) continue;
-                ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(e);
-                if (sensor.BlueprintId != blueprintId) continue;
-                child = e;
-                return true;
-            }
-            child = default;
-            return false;
+            child = Fdp.Toolkit.Perception.Sensors.UnitSensors.OfTemplate(repo, owner, blueprintId);
+            return !child.IsNull && repo.HasComponent<EqsCognitiveBuffer>(child);
         }
 
         /// <summary>
