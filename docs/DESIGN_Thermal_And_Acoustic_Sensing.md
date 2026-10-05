@@ -548,5 +548,5 @@ unkeyed event topics with depth 1 were not audited here (`NearMiss` is depth 8).
 | rail | proves | red-proof |
 |---|---|---|
 | `AudioTargetDetectedWireTests.SameFrameBurst_ForTwoListeners_AllReachTheReader_CE2106` | three sounds for two listeners, written in one burst, all arrive | depth 1 ⇒ *"only 1 of 3 heard sounds arrived"* |
-| `EqsModuleTests.CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList` | the implicit-ears rule (built, ears = `HearingRange`; none when deaf or the TKB lists sensors) | — |
+| `EqsModuleTests.CE2106_TheImplicitAcousticSensor_IsBuiltOnlyForAHearingUnitWithNoSensorList` | the implicit-ears rule (built, ears = `HearingRange`; none when deaf or the TKB lists sensors) | implicit acoustic block disabled ⇒ red |
 | `HeardShotScenarioTests.CE2106_ARiflemanHearsAHiddenShooter_AndTakesCoverFromWhereTheShotsCameFrom` | live on `test-town`: the shooter fires, the rifleman gets a HEARD slot, its SOP takes cover with the sensor pointed at a point within 40 m of the shooter, and it moves while staying hidden | red before the QoS fix (never heard) |
