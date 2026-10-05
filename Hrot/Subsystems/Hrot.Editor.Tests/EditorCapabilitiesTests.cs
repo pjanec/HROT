@@ -159,7 +159,12 @@ public class EditorCapabilitiesTests : IDisposable
         //    where every carrier had always put them and where SimHost has always run them.
         //    ⛔ This is NOT a re-baseline of a red rail: the sequence below is the hand-written
         //       block with that tail appended, so every other position is still pinned exactly.
+        //    ⭐ CE-3061 / CE-3062 — and the PERCEPTION capability now adds heat and sound to the main loop
+        //       (EqsSolverStartup.PopulateSystems, the ONE composition point for every perception host), after the
+        //       muscle tier and before the infrastructure tail. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §7.
         Type[] expectedSim = handSim
+            .Concat(new[] { typeof(Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem),
+                            typeof(Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem) })
             .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
                             typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem) })
             .ToArray();
