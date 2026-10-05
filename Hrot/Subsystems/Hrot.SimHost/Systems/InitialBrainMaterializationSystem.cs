@@ -34,7 +34,8 @@ namespace Hrot.SimHost.Systems
             {
                 var intent = ((ISimulationView)repo).GetManagedComponentRO<InitialBrainIntent>(entity);
                 if (intent.Roe is { } roe && repo.Bus.IsRegistered<SetRoeEvent>())
-                    repo.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy });
+                    repo.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy,
+                                                       ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds });   // CE-2095
                 if (intent.Sop is { } sop && repo.Bus.IsRegisteredManaged<AssignSopEvent>())
                     repo.Bus.PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = sop.Name, JsonParams = sop.Params, Origin = sop.Origin });
                 if (intent.Behavior is { } task && repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>())

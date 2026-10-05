@@ -62,7 +62,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (intent.Roe is { } roe && repo.IsComponentTypeRegistered<Roe>())
             {
-                var value = new Roe { Fire = roe.Fire, Reactions = roe.Reactions, SetBy = roe.SetBy };
+                var value = new Roe { Fire = roe.Fire, Reactions = roe.Reactions, SetBy = roe.SetBy,
+                                      ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds };   // CE-2095
                 if (repo.HasComponent<Roe>(entity)) repo.GetComponentRW<Roe>(entity) = value;
                 else repo.AddComponent(entity, value);
             }

@@ -19,6 +19,9 @@ namespace Fdp.Toolkit.Behavior.Components
         public RoeFire Fire { get; set; }
         public RoeReactions Reactions { get; set; }
         public BehaviorOrigin SetBy { get; set; } = BehaviorOrigin.Superior;
+        /// <summary>⭐ <c>CE-2095</c> — the ReturnFire window; <c>0</c> = unset (the default). JSON-carried, so the saved scenario
+        /// and the replicated intent both take it with no wire change.</summary>
+        public float ReturnFireWindowSeconds { get; set; }
     }
 
     /// <summary>

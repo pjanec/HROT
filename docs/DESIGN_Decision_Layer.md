@@ -868,6 +868,16 @@ deviate from my task" axis (the shape many simulators use — e.g. hold fire / d
 > rails that index the simulation list, so it moved, `2026-10-04`); conditions read `RecentSensesOf.Within(view, unit, kind, seconds)`.
 > Not yet: the fire guard (`CE-2075`, backend's executor), saving (`CE-3042`), the editor row (`CE-3043`).
 
+> ⭐ **AS-BUILT `CE-2095` (`2026-10-05`, behaviors; mirror of the `Fire` / `Reactions` plumbing above, FRAME Addendum 7).**
+> `Roe.ReturnFireWindowSeconds` (float, LAST so the earlier fields keep their offsets; `0` = unset ⇒
+> `RoeOf.DefaultReturnFireWindowSeconds` = 5 s, so nothing changes until something sets it) · `SetRoeEvent.ReturnFireWindowSeconds`
+> (`0` keeps, as `Unset` does) applied by `RoeSystem.Apply` under the same origin gate · TKB
+> `BehaviorProfileDto.DefaultRoeReturnFireWindowSeconds` · `SavedRoe.ReturnFireWindowSeconds`, carried by the scenario save, the
+> replicated brain intent (JSON — no wire change; the egress `Signature` includes it so a change re-publishes), the hand-over
+> and the materialisation. ⚠ Cross-lane, named: `AimAndFireExecutor.RoePermitsFire` reads `RoeOf.ReturnFireWindowSeconds`
+> (the backend's "one line"); its constant stays as the default's alias. Rails: `RoeAndRecentSensesTests.CE2095_*`,
+> `AimAndFireExecutorTests.AimAndFire_ReturnFire_UsesTheUnitsOwnWindow_CE2095`.
+
 
 ### 4.5 Keeping the SOP off the channels — measured *(PROPOSAL)*
 

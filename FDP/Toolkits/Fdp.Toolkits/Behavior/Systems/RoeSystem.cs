@@ -42,6 +42,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             if (evt.Fire != RoeFire.FireUnset) roe.Fire = evt.Fire;
             if (evt.Reactions != RoeReactions.ReactionsUnset) roe.Reactions = evt.Reactions;
+            if (evt.ReturnFireWindowSeconds > 0f) roe.ReturnFireWindowSeconds = evt.ReturnFireWindowSeconds;   // CE-2095
             roe.SetBy = origin == BehaviorOrigin.Unmarked ? BehaviorOrigin.Operator : origin;
             return true;
         }
