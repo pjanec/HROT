@@ -208,6 +208,10 @@ public static class EditorCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
             => EqsSolverStartup.Register(context);
+
+        public void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> input,
+                                    List<IEcsModuleSystem> simulation, List<IEcsModuleSystem> postSimulation)
+            => EqsSolverStartup.PopulateSystems(simulation);   // CE-3061
     }
 
 }

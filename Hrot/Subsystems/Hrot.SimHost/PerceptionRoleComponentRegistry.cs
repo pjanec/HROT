@@ -41,6 +41,8 @@ public static class PerceptionRoleComponentRegistry
         world.RegisterComponent<EqsCognitiveBuffer>();
         // ⭐ a sensor child's kind — TKB sensors are built on every node that registers it (DESIGN_Sensors_And_Doctrine §4).
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+        // ⭐ CE-3061 — what a thermal sensor reads on its targets (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §4).
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
         // ⭐ CE-3039 — the edges of what a unit senses (design §7.3): published by EqsResultUpdateSystem (every host that runs
         //   it) and by the Brain's track / memory systems.

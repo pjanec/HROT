@@ -94,6 +94,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
+            // ⭐ CE-3061 — heat / noise an entity gives off (docs/DESIGN_Thermal_And_Acoustic_Sensing.md).
+            new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator(),
             // Writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and
             // derives EntityInfo.ForceId from the SIDC's affiliation character.
             new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),

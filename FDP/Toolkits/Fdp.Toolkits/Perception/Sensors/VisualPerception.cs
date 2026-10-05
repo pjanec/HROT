@@ -87,18 +87,26 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// </summary>
     public sealed class VisualSensorGenerator : IEqsGenerator
     {
+        /// <summary>The (range, FOV cosine) a sensor looks with — vision's by default; ⭐ CE-3061 thermal passes its own.</summary>
+        public delegate bool OpticsFn(ISimulationView view, Entity sensor, Entity unit, out float range, out float fovCos);
+
         private readonly SpatialHashGrid _grid;
+        private readonly OpticsFn _optics;
         private readonly VisionBroadphase _broadphase = new();
         private ISimulationView? _builtFor;
         private uint _builtTick;
 
-        public VisualSensorGenerator(SpatialHashGrid grid) => _grid = grid;
+        public VisualSensorGenerator(SpatialHashGrid grid, OpticsFn? optics = null)
+        {
+            _grid   = grid;
+            _optics = optics ?? VisualPerception.Optics;
+        }
 
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
             var unit = EqsContext.Self(view, observer, sensor);
             if (unit.IsNull || !view.IsAlive(unit)) return 0;
-            if (!VisualPerception.Optics(view, observer, unit, out float range, out float fovCos)) return 0;
+            if (!_optics(view, observer, unit, out float range, out float fovCos)) return 0;
 
             if (!ReferenceEquals(view, _builtFor) || view.Tick != _builtTick)
             {

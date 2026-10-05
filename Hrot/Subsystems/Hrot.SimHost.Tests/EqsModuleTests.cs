@@ -1010,6 +1010,80 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3061 — the THERMAL sensor sees a target only when its signature reaches the sensor's MinSignature: a cold
+        /// target at rest is not seen; the same target, heated by running (ThermalHeatSystem), is. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.2, §6 E–F.
+        /// </summary>
+        [Fact]
+        public void S7_TheThermalSensor_SeesATargetOnlyOnceItIsHotEnough_CE3061()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            ThermalPerception.Register(registry, grid.Grid, strategy);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4245 });   // a sensor child is solved only under a keyed unit
+            var template = new TkbTemplate("ThermalOnly", 80);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Thermal, Template = ThermalPerception.AssetGuid, SearchRadius = 200f,
+                Thermal = new ThermalSensorDto { Range = 100f, FieldOfViewDegrees = 360f, MinSignature = 0.5f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Thermal);
+            Assert.False(sensor.IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m, in range and in sight
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.ThermalState
+            {
+                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            var heat   = new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem();
+            unsafe bool Sensed()
+            {
+                if (!_world.HasComponent<SensorContactList>(sensor)) return false;
+                var list = _world.GetComponentRO<SensorContactList>(sensor);
+                for (int i = 0; i < list.Count; i++) if (list.EntityIds[i] == (long)enemy.PackedValue) return true;
+                return false;
+            }
+            void Solve()
+            {
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                _world.Tick();
+            }
+
+            // ⚠ No finally/DisposeEqsSingletons here: this rail uses the fixture's _world, which Dispose() frees (a second free
+            //   crashed the test host — "double free or corruption").
+            {
+                Solve();
+                Assert.False(Sensed(), "a cold target (signature 0.3 < 0.5) is not seen");
+
+                heat.Execute(view, 0.1f);                                         // first position sample
+                for (int i = 0; i < 10; i++)                                      // 1 s running at 5 m/s, staying in range
+                {
+                    ref var t = ref _world.GetComponentRW<SimTransform>(enemy);
+                    t.Position += new Vector3(0f, (i % 2 == 0) ? 0.5f : -0.5f, 0f);
+                    heat.Execute(view, 0.1f);
+                }
+                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature >= 0.5f);
+                Solve();
+                Assert.True(Sensed(), $"the running target is hot enough to be seen (signature {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature}, " +
+                    $"buffer {(_world.HasComponent<EqsCognitiveBuffer>(sensor) ? _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count : -1)}, " +
+                    $"contacts {(_world.HasComponent<SensorContactList>(sensor) ? _world.GetComponentRO<SensorContactList>(sensor).Count : -1)}, " +
+                    $"suspended {_world.GetComponentRO<EqsSensor>(sensor).Suspended}, last schedule {solver.LastSchedule.Count})");
+            }
+        }
+
+        /// <summary>
         /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
         /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot
         /// see gets none. The unit no longer carries a SensorContactList.

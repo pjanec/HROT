@@ -192,6 +192,10 @@ public static class StrideCapabilities
             // ⭐ The shared EQS solver startup (template registry + module) — EQS design §17.8.
             Hrot.SimHost.EqsSolverStartup.Register(context);
         }
+
+        public void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> input,
+                                    List<IEcsModuleSystem> simulation, List<IEcsModuleSystem> postSimulation)
+            => Hrot.SimHost.EqsSolverStartup.PopulateSystems(simulation);   // CE-3061
     }
 
     // ⛔ PerceptionSpatial (CognitiveSpatialModule) DELETED by CE-3038 — vision is a sensor solved by the EQS module
