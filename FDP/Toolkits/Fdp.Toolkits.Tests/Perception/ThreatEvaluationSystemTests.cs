@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
@@ -193,6 +194,115 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             Assert.Equal(1, world.GetComponent<TargetMemory>(observer).Count);
+        }
+
+        // ── ⭐ CE-3063 — anonymous (heard) contacts (DESIGN_Thermal_And_Acoustic_Sensing §5.1, §6 D′–D″, §6.1a) ──────────
+
+        private static (EntityRepository world, ISimulationView view, ThreatEvaluationSystem sys, Entity unit) HearingWorld()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.Bus.IsRegistered<SoundContactEvent>()) world.RegisterEvent<SoundContactEvent>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(unit, new TargetMemory());
+            return (world, world, new ThreatEvaluationSystem(), unit);
+        }
+
+        private static void Hear(EntityRepository world, Entity unit, float x, float y, float radius, byte cls)
+        {
+            world.Bus.Publish(new SoundContactEvent { Observer = unit, X = x, Y = y, Radius = radius, Kind = 2, SourceClass = cls });
+            world.Bus.SwapBuffers();
+        }
+
+        private const byte Footsteps = 1, TrackedEngine = 3, SmallArms = 4;
+
+        /// <summary>⭐ Acceptance 1 — a shot heard 200 m north is ONE anonymous contact there; repeated shots keep ONE and shrink it.</summary>
+        [Fact]
+        public unsafe void AHeardShot_IsOneAnonymousContact_AndRepeatsShrinkIt_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+
+            Hear(world, unit, 3f, 200f, radius: 30f, SmallArms);          // 0.15 × 200 m
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.True(TargetMemory.IsAnonymous(in mem, 0));
+            Assert.True(mem.EntityIds[0] < 0, "a synthetic negative id, never an entity");
+            Assert.Equal(30f, mem.Radius[0]);
+            Assert.Equal(SmallArms, mem.SourceClass[0]);
+            Assert.Equal((byte)SensorModality.Acoustic, mem.Modalities[0]);
+            long id = mem.EntityIds[0];
+
+            Hear(world, unit, -4f, 196f, radius: 30f, SmallArms);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(id, mem.EntityIds[0]);                                // the SAME contact, followable across ticks
+            Assert.True(mem.Radius[0] < 30f, $"fusing two estimates narrows the contact (radius {mem.Radius[0]})");
+        }
+
+        /// <summary>⭐ K3 — the class guards fusing: footsteps never fuse with a tank engine.</summary>
+        [Fact]
+        public void IncompatibleClasses_DoNotFuse_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 100f, 20f, Footsteps);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Hear(world, unit, 2f, 101f, 20f, TrackedEngine);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Assert.Equal(2, world.GetComponent<TargetMemory>(unit).Count);
+        }
+
+        /// <summary>⭐ Acceptance 2 — seeing the shooter inside the circle turns the contact INTO the shooter: no duplicate.</summary>
+        [Fact]
+        public unsafe void ASightingInsideTheCircle_AbsorbsTheHeardContact_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 200f, 30f, SmallArms);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+
+            long shooter = Target(world);
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0] = shooter; tracks.PositionsX[0] = 10f; tracks.PositionsY[0] = 190f; tracks.Count = 1;
+            world.AddComponent(unit, tracks);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(shooter, mem.EntityIds[0]);
+            Assert.False(TargetMemory.IsAnonymous(in mem, 0));
+            Assert.Equal(SmallArms, mem.SourceClass[0]);                       // what it sounded like is kept
+        }
+
+        /// <summary>⭐ A heard contact is not an entity: it is never forgotten as "dead", only by fading; and the first one
+        /// is the unit's FirstThreat (K2).</summary>
+        [Fact]
+        public void AHeardContact_FadesButIsNotDead_AndIsAFirstThreat_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 50f, 8f, SmallArms);
+            sys.Execute(view, 0.1f);
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer(); ecb.Playback(world);
+            world.Bus.SwapBuffers();
+            Assert.Contains(view.ReadEvents<SensorChangedEvent>().ToArray(), e => e.Unit == unit && e.What == SensorChange.FirstThreat);
+
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            Assert.Equal(1, world.GetComponent<TargetMemory>(unit).Count);    // survives the dead-entity check
+
+            sys.Execute(view, 60f); FlushEcbAndSwap(view, world);             // fades below the forget threshold
+            Assert.Equal(0, world.GetComponent<TargetMemory>(unit).Count);
+        }
+
+        /// <summary>⭐ K3 — danger of a heard slot is read from its class (there is no entity to read).</summary>
+        [Fact]
+        public void TheDangerOfAHeardSlot_ComesFromItsClass_CE3063()
+        {
+            var (world, view, sys, unit) = HearingWorld();
+            Hear(world, unit, 0f, 50f, 8f, Footsteps);
+            sys.Execute(view, 0.1f); FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(ThreatDanger.OfClass(Footsteps), ThreatDanger.OfSlot(view, unit, in mem, 0));
+            Assert.True(ThreatDanger.OfClass(Footsteps) < ThreatDanger.OfClass(TrackedEngine));
         }
 
         private static long Target(EntityRepository world) => (long)world.CreateEntity().PackedValue;

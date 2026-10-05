@@ -347,6 +347,32 @@ source class of §6.1a K3, end to end up to the Brain:
   asserts the class; `AudioTargetDetectedEgressTranslatorTests` asserts it crosses the wire.
 - ⚠ **Finding:** no shipped TKB data authors `SignaturesDto` yet (searched the repo for `AcousticSignatureDto` / `MovingAudibleRange`:
   code and tests only) ⇒ in every shipped scenario units are silent and cold until their types get signatures.
+⭐ **As-built `CE-3063` MEMORY HALF (`2026-10-05`, backend, after `CE-3054` B–D landed — K4)** — ① of the frame, matching §5.1 /
+§6 D′–D″ / §6.1a:
+- **Storage (`TargetMemory`):** per slot `Anonymous` (the K1 flag), `Radius`, `SourceClass`; `AnonymousSerial` gives each heard
+  contact a stable synthetic NEGATIVE id (a behaviour follows ONE contact across ticks; a reader that forgets the flag still never
+  matches a real entity). ⭐ `TargetMemory.IsAnonymous(in mem, i)` is THE rule every reader calls. `Sort` / `Forget` carry the new
+  fields (sort extracted into one `Sort`).
+- **Merge (`TargetMemory.HearContact`, called by `ThreatEvaluationSystem` for each `SoundContactEvent` of the unit):** an
+  identified contact inside the radius is refreshed (nearest, Acoustic kind added) · else a compatible-class anonymous contact
+  whose circle meets the estimate is FUSED (inverse-variance mean, `1/r² = 1/r₁² + 1/r₂²` — the radius shrinks) · else a new slot.
+  Boost per heard contact `PerceptionConstants.HeardBoostPerContact` = 50 × 0.1 s (continuous hearing = continuous sight; one
+  shot ≈ 40 s of "something there").
+- **Absorb (`TargetMemory.AbsorbBySighting`, before each track's refresh):** a sighting inside a compatible anonymous circle
+  BECOMES that contact (id replaced, flag cleared, class kept; if the entity already had a slot, the anonymous one merges in).
+  Compatibility = the slot's class matches one of the target's `AcousticEmitter` classes, or either is unknown.
+- **Forget:** an anonymous slot is never "dead" — it fades by freshness only. **K2:** a first heard contact raises `FirstThreat`
+  (it is a memory entry like any other).
+- **Danger (K3, R-201):** `ThreatDanger.OfSlot(view, self, mem, i)` — identified → `Of(entity)`; anonymous → `OfClass(class)`
+  (first cut: unknown 1, footsteps / wheeled 0.6, small arms 0.8, tracked / heavy / explosion 1). ⚠ `Of` on an anonymous slot's
+  synthetic id reads "unknown = armed" (1) — safe, but readers iterating memory should move to `OfSlot` (behaviors ②).
+- **Save:** anonymous slots are not saved (`TargetMemoryTranslator`; §6.1 lean — a heard sound is transient).
+Rails (`ThreatEvaluationSystemTests`, the feature suite): `AHeardShot_IsOneAnonymousContact_AndRepeatsShrinkIt_CE3063` (acceptance
+1), `ASightingInsideTheCircle_AbsorbsTheHeardContact_CE3063` (acceptance 2), `IncompatibleClasses_DoNotFuse_CE3063`,
+`AHeardContact_FadesButIsNotDead_AndIsAFirstThreat_CE3063`, `TheDangerOfAHeardSlot_ComesFromItsClass_CE3063`.
+⏳ **Left for the behaviors lane (② / ③, unchanged):** entity readers skip `IsAnonymous` slots and call `OfSlot`; the squad
+share copies anonymous slots merging by position (`HearContact` is the merge to reuse); the EQS context POINT for TakeCover /
+FallBack from a heard contact.
 
 | row | slice | depends on |
 |---|---|---|
