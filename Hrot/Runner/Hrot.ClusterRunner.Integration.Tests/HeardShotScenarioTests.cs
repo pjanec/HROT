@@ -128,7 +128,26 @@ public sealed class HeardShotScenarioTests : IDisposable
             s += $" decoyOnCgf={(d.IsNull ? "no" : d.PackedValue.ToString())}";
             return s;
         }
-        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()}";
+        float maxShot = 0f;   // the loudest shot state seen on the SimHost emitter
+        string Ears()
+        {
+            var s = "";
+            foreach (var (w, e, tag) in new[] { (sim, simRifleman, "sim"), (cgf, rifleman, "cgf") })
+            {
+                var ear = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w, e, SensorModality.Acoustic);
+                s += $" {tag}Ears={(ear.IsNull ? "none" : ear.ToString())}";
+                if (!ear.IsNull && w.HasComponent<EqsCognitiveBuffer>(ear))
+                {
+                    var b = w.GetComponentRO<EqsCognitiveBuffer>(ear);
+                    s += $"(ready={b.IsReady} count={b.Count} tick={b.LastUpdateTick} bp={w.GetComponentRO<EqsSensor>(ear).BlueprintId:X8})";
+                }
+            }
+            s += sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)
+                ? $" emitter(fire={sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).FiringAudibleRange} maxShotLeft={maxShot:F2})"
+                : " emitter=none";
+            return s;
+        }
+        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()} |{Ears()}";
 
         // ① the shooter fires (the decoy is in its sight).
         Assert.True(harness.PumpUntil(() => ShooterAmmo() >= 0 && ShooterAmmo() < 30, timeoutFrames: 3000), $"the hidden shooter must fire; {State()}");
@@ -141,7 +160,13 @@ public sealed class HeardShotScenarioTests : IDisposable
             for (int i = 0; i < m.Count; i++) if (TargetMemory.IsAnonymous(in m, i)) return true;
             return false;
         }
-        Assert.True(harness.PumpUntil(Heard, timeoutFrames: 3000), $"the rifleman must hear the shots; {State()}");
+        bool HeardOrTrack()
+        {
+            if (sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter))
+                maxShot = Math.Max(maxShot, sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).ShotTimeLeft);
+            return Heard();
+        }
+        Assert.True(harness.PumpUntil(HeardOrTrack, timeoutFrames: 3000), $"the rifleman must hear the shots; {State()}");
         _out.WriteLine("heard: " + State());
 
         // ③ the SOP reacts with TakeCover, its sensor pointed at a POINT (no entity).
