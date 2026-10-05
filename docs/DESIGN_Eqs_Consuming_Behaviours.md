@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster (§7) — the editor-host run remains.
+build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
 current-answer: §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
@@ -339,7 +339,9 @@ until that rail was added).
 | B3 | ⭐ **the step-1 measurement (moved from CE-2092): ✅ infantry perception fills the rifleman's `TargetMemory` on CGF** within the live run | ⛔ assumed in §3 |
 | B4 | ⭐ **the start is the SOP, not a task:** a `TakeCover` TASK given at load would end at once (nothing remembered yet, §6 A1). The rifleman's SOP reacts on its first contact (row 3 → `TakeCover`; under HoldFire row 2 → `FallBack`) | D5: "a rifleman … expected — moves to a point the hostile cannot see" (no trigger named) |
 | B5 | ⭐ D6 done in the same item: `BasicInfantrySop`'s React rows name `TakeCover` / `FallBack`; the stand-in assets stay (other rails and demos name them). `BasicInfantrySopTests` moved: the unit is given a remembered threat, cover lasts while it is remembered, and the paused task returns when it is forgotten | "after D5 passes" — done together because D5 needs the SOP trigger (B4) |
-| B6 | the live check is the in-process cluster (`HrotRunnerHarness` simhost + ig + excon + cgf, the `--mode all` set) through the real load, perception, brain, EQS solver and navigation | "on the editor **and** `--mode all`" — ⚠ the editor host run is still to do (see the tracker row) |
+| B6 | the live check is the in-process cluster (`HrotRunnerHarness` simhost + ig + excon + cgf, the `--mode all` set) through the real load, perception, brain, EQS solver and navigation | "on the editor **and** `--mode all`" |
+| B7 | ⭐ **`CE-2100`, the EDITOR host (`--mode editor`, HTTP debug API, `2026-10-05`):** the editor lists the recipe itself (`Recipes/tt-take-cover`); a first live load reacts at t≈1.5 s with `TakeCover` (its `tactics` params in the brain), ONE pathed move (`IntentId 1`), `Arrived` at (298.83, 268.02) at t≈10.7 s — the hostile's line (360, 320) → there crosses the Tower's footprint (y≈269.0 at x=300), so the rifleman is hidden with ~1 m to spare | — |
+| B8 | ⚠ **two findings on the way, both below this lane (filed for the backend):** ① `CE-2101` — after an Edit → Live reload the perception sensor children come back WITHOUT `EqsCognitiveBuffer` (first load: present), so nothing is ever perceived and the SOP only idles; ② `CE-2102` — ~50 s after arriving, with no new order, the unit steps ~1 m west (it moves with a car model, `VehicleParams.Class = PersonalCar`); here it stayed hidden by ~0.2 m | — |
 
 **Rail:** `TakeCoverScenarioTests` (ClusterRunner integration, `HeavyE2ETests`) — both variants: the rifleman starts in
 view, remembers the hostile, the SOP starts the expected tree, and the rifleman MOVES (pathed, `NavigationStatus =
