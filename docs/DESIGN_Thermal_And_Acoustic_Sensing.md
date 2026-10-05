@@ -508,3 +508,28 @@ Rails (each feature's own suite; each red-proved by removing its mechanism): `Co
 `StandardInputReaderTests.CE3063_AHeardContact_CountsAsStrength_ButIsNotALiveTarget` · `SensorNodesTests.CE3063_ThreatsAtLeast_CountsAHeardContactByItsClass` ·
 `SquadPerceptionMergeSystemTests.CE3063_TwoMembersHearingOneShot_AreOnePooledContact` · `TacticsTreesTests.CE3063_TakeCover_FromAHeardShot_PointsTheSensorAtThePoint_AndMoves` ·
 the wire: `EqsTranslatorTests.EqsTranslators_T8_ConfigReplicatesBrainToMuscle` now asserts the point crosses CGF → SimHost.
+
+### 8.1 `CE-2106` — shipped units hear and make sound *(behaviors, `2026-10-05`; 🔒 user: "feel free to extend the sound data")*
+
+📐 **The gap, measured:** no shipped TKB template authored a `SignaturesDto` (every unit silent, §7 finding), and no unit had
+EARS: an acoustic sensor exists only as a `SensorEntryDto` in a template's sensor list, the shipped templates list none, and
+`SensorCapabilitiesDto.HearingRange` — authored on every hearing type (soldier 200 m, civilian 100 m, BDC `SensorRange × 1.5`) —
+was read by nothing since `CE-3062` retired the old audio pipeline.
+
+```mermaid
+graph TD
+  TKB["TKB template (no sensor list)"] -->|VisionRange > 0| VIS["implicit VISUAL sensor (part 1000, CE-3038)"]
+  TKB -->|"HearingRange > 0 — NEW"| EAR["implicit ACOUSTIC sensor (part 1001), ears = HearingRange"]
+  TKB -->|"SignaturesDto.Acoustic — NEW on the urban types"| EM["AcousticEmitter (SignatureTkbTranslator)"]
+  EM -->|SoundEmissionSystem, SimHost| SOUND["moving / shot / burst ranges"]
+  EAR -->|"EQS solver: heard if within BOTH ranges"| SC["SoundContactEvent → CGF memory (heard slot)"]
+```
+
+*What the picture shows that prose hid:* the two implicit sensors are one rule applied twice — a template that lists no sensors
+gets one sensor per sense it authors a range for; a template that lists sensors gets exactly its list.
+
+| decision | why | rejected |
+|---|---|---|
+| an implicit acoustic sensor, the twin of `CE-3038`'s implicit visual one | `HearingRange` already says how far each type hears; the rule needs no new authoring | listing explicit sensors on the shipped soldiers (⛔ a listed visual entry reads the TKB, not the live receptor a Brain retunes — it would change how their vision is tuned) |
+| first-cut sound ranges on `UrbanCombatTkbCatalog` (footsteps 25 m, car 80 m, APC 300 m, rifle shot 400 m, RPG shot 500 m / burst 800 m) and classes per type | the types the test-town recipes use | — (tuning is data; BDC / FDP-example catalogs stay silent until authored) |
+| ⚠ every hearing unit now listens (one more sensor per unit) | it is what `HearingRange` always claimed | — |

@@ -118,7 +118,17 @@ public sealed class HeardShotScenarioTests : IDisposable
             return s;
         }
         int ShooterAmmo() => cgf.HasComponent<WeaponState>(shooter) ? cgf.GetComponent<WeaponState>(shooter).Ammo : -1;
-        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start}";
+        unsafe string Shooter()
+        {
+            var t = cgf.HasComponent<BehaviorState>(shooter) && registry.TryGetName(cgf.GetComponent<BehaviorState>(shooter).ActiveBehaviorHash, out var n) ? n : "none";
+            var s = $"shooter task={t}";
+            if (cgf.HasComponent<TargetMemory>(shooter)) { var m = cgf.GetComponent<TargetMemory>(shooter); s += $" memory={m.Count}"; for (int i = 0; i < m.Count; i++) s += $" id={m.EntityIds[i]}"; }
+            if (cgf.HasComponent<WeaponChannel>(shooter)) { var w = cgf.GetComponent<WeaponChannel>(shooter); s += $" weapon={w.ActiveAction}/{w.Status}"; }
+            var d = ByName(cgf, "Decoy");
+            s += $" decoyOnCgf={(d.IsNull ? "no" : d.PackedValue.ToString())}";
+            return s;
+        }
+        string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()}";
 
         // ① the shooter fires (the decoy is in its sight).
         Assert.True(harness.PumpUntil(() => ShooterAmmo() >= 0 && ShooterAmmo() < 30, timeoutFrames: 3000), $"the hidden shooter must fire; {State()}");
