@@ -57,5 +57,23 @@ namespace Fdp.Toolkit.Behavior.Components
         public required string JsonParams { get; init; }
         /// <summary>The run it belongs to.</summary>
         public required uint InstanceId { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-2085</c> — the hosted occurrences this SOP run attached LAZILY (a subtree its tree started later). They are
+        /// keyed under the SOP's run but named by no manifest, so the task's sweep could not tell them from its own. Noted
+        /// by <see cref="OccurrenceWorkingState"/> when it attaches inside the SOP's <see cref="BrainSlotScope"/>; protected
+        /// from the task's sweep; detached when the SOP run ends. 📄 docs/DESIGN_Sensors_And_Doctrine.md §6.
+        /// </summary>
+        public System.Collections.Generic.List<int> HostedKeys { get; } = new();
+
+        /// <summary>Notes <paramref name="key"/> as attached by the SOP run currently in scope for <paramref name="self"/>.</summary>
+        internal static void NoteHosted(Fdp.Core.EntityRepository world, Fdp.Core.Entity self, int key)
+        {
+            if (!BrainSlotScope.TryGetInstanceId(self, out uint run)) return;
+            if (!world.TryGetTable(typeof(SopStartRecord), out _) || !world.HasManagedComponent<SopStartRecord>(self)) return;
+            var record = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<SopStartRecord>(self);
+            if (record == null || record.InstanceId != run || record.HostedKeys.Contains(key)) return;
+            record.HostedKeys.Add(key);
+        }
     }
 }

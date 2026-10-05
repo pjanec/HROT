@@ -823,7 +823,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         /// <summary>⭐ <c>CE-3035</c> — end the unit's SOP run (the unit keeps <see cref="SopState"/>, empty): its owned parts
         /// and its slots go. Not gated — the gate is the caller's.</summary>
-        internal static void EndSop(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        internal static unsafe void EndSop(EntityRepository repo, Entity entity, BehaviorRegistry registry)
         {
             if (!repo.HasComponent<SopState>(entity)) return;
             var sop = repo.GetComponentRO<SopState>(entity);
@@ -835,6 +835,15 @@ namespace Fdp.Toolkit.Behavior.Systems
             RootHsmAccess.DetachRoot(repo, entity, sop.SopHash);
             RootStateAccess.DetachRoot(repo, entity, sop.SopHash);
             RootParamsAccess.DetachRoot(repo, entity, sop.SopHash);
+
+            // ⭐ CE-2085 — the occurrences the SOP attached lazily go with its run.
+            if (repo.HasManagedComponent<SopStartRecord>(entity)
+                && ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity) is { HostedKeys.Count: > 0 } held)
+            {
+                byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+                if (store != null)
+                    foreach (int key in held.HostedKeys) BlueprintBlackboardPartitions.TryDetach(store, key);
+            }
 
             repo.GetComponentRW<SopState>(entity) = default;
             if (repo.HasManagedComponent<SopStartRecord>(entity))
@@ -864,8 +873,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (key == RootParamsAccess.KeyForBehaviour(h) || key == RootStateAccess.KeyForBehaviour(h)
                 || key == RootHsmAccess.KeyForBehaviour(h))
                 return true;
-            return registry != null && registry.TryGetDefinition(h, out var d) && d.StatefulWorkingSlots is { Count: > 0 }
-                   && IsNamedByManifest(HostedSubtree.EffectiveSlots(d.StatefulWorkingSlots), key);
+            if (registry != null && registry.TryGetDefinition(h, out var d) && d.StatefulWorkingSlots is { Count: > 0 }
+                && IsNamedByManifest(HostedSubtree.EffectiveSlots(d.StatefulWorkingSlots), key))
+                return true;
+            // ⭐ CE-2085 — and what the SOP attached LAZILY (a subtree its tree started), which no manifest names.
+            return repo.TryGetTable(typeof(SopStartRecord), out _) && repo.HasManagedComponent<SopStartRecord>(entity)
+                   && ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity) is { } rec
+                   && rec.HostedKeys.Contains(key);
         }
 
         private EntityRepository? _startRecordRegisteredOn;

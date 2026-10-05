@@ -69,6 +69,7 @@ public static unsafe class OccurrenceWorkingState
                 "the tier for it.");
 
         freshlyAttached = true;
+        Components.SopStartRecord.NoteHosted(world, self, slotKey);   // ⭐ CE-2085 — attached inside the SOP's scope ⇒ the SOP's
         return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
     }
 
@@ -153,6 +154,7 @@ public static unsafe class OccurrenceWorkingState
                 "behaviour's stateful manifest so the ingress sizes the tier for it.");
 
         freshlyAttached = true;
+        Components.SopStartRecord.NoteHosted(world, self, slotKey);   // ⭐ CE-2085
         paramsPtr = (TParams*)(store + newOffset + stateBytes);
         return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
     }

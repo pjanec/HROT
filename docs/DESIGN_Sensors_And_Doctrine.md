@@ -515,6 +515,14 @@ classDiagram
 > `BehaviorTkbDefaultStartTests.CE2077_*`. ⏳ Not yet: the SOP's two actions (`CE-2079`), reactions (`CE-2078`), saving (`CE-3042`),
 > the editor row (`CE-3043`), authority hand-over (`CE-3048`).
 
+⭐ **As-built `CE-2085` (`2026-10-05`) — what the SOP attaches LAZILY is the SOP's.** A hosted occurrence the SOP's
+tree attaches later (a subtree it starts) is named by no manifest, so the task's sweep (`DetachHostedOccurrenceSlots`,
+kind Hsm|Blueprint and not manifest-named) took it on every task change. Fixed: `OccurrenceWorkingState` (the one lazy
+attach choke point) notes each fresh attach made inside the SOP's `BrainSlotScope` in `SopStartRecord.HostedKeys`.
+`IsHeldBySop` protects those keys, and `EndSop` detaches them, so the SOP's lazy storage goes with its run. A slot
+cannot carry its owner: the per-slot kind nibbles already fill the header word (16 × 4 bits), so ownership lives on
+the run's record. Rail `SopSlotTests.CE2085_*`, written first and red on the old sweep.
+
 ## 7. Doctrine — the paths
 
 ### 7.1 Autonomy, an order, and back

@@ -7,6 +7,7 @@ using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Xunit;
 
@@ -145,6 +146,41 @@ namespace Fdp.Toolkit.Behavior.Tests
             public SopState SopState => World.GetComponent<SopState>(Unit);
 
             public void Dispose() => World.Dispose();
+        }
+
+        // ── ⭐ CE-2085 — a hosted occurrence the SOP attaches LAZILY is the SOP's, not the task's to sweep ──────────────
+
+        private static unsafe bool Attached(EntityRepository world, Entity unit, int key)
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, unit, out _);
+            return store != null && BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out _, out _);
+        }
+
+        [Fact]
+        public void CE2085_AnOccurrenceTheSopAttachesLazily_SurvivesATaskChange_AndGoesWithTheSop()
+        {
+            var f = new Fixture();
+            f.World.AddComponent(f.Unit, new BlueprintBlackboard1024());   // room for two lazy occurrences beside the roots
+            unsafe
+            {
+                ref var tier = ref f.World.GetComponentRW<BlueprintBlackboard1024>(f.Unit);
+                fixed (byte* mem = tier.Memory)
+                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, (byte)BlueprintBlackboard1024.MaxSlots);
+            }
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.Sop("SopT_Sop", BehaviorOrigin.Superior);
+            var sop = f.World.GetComponentRO<SopState>(f.Unit);
+            const int sopKey = 0x20850001, taskKey = 0x20850002;
+            using (BrainSlotScope.Enter(f.Unit, sop.SopHash, sop.SopInstanceId))
+                OccurrenceWorkingState.ResolveOrAttach<long>(f.World, f.Unit, sopKey, 0x2085, OccurrenceKind.Hsm, out _);
+            OccurrenceWorkingState.ResolveOrAttach<long>(f.World, f.Unit, taskKey, 0x2086, OccurrenceKind.Hsm, out _);   // the task's
+
+            f.Task("SopT_Task2", BehaviorOrigin.Superior);          // a task change sweeps the task's lazy occurrences
+            Assert.False(Attached(f.World, f.Unit, taskKey), "the sweep ran: the task's own lazy occurrence went");
+            Assert.True(Attached(f.World, f.Unit, sopKey), "the SOP's lazy occurrence is not the task's to sweep");
+
+            Assert.True(f.Ingress.ClearSopNow(f.World, f.Unit, BehaviorOrigin.Superior));
+            Assert.False(Attached(f.World, f.Unit, sopKey), "ending the SOP releases what it attached");
         }
 
         [Fact]
