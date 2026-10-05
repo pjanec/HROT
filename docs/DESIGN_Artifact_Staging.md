@@ -4,7 +4,7 @@ build-state: ✅ BUILT 2026-09-18 — one batch, S1-S4. §9 carries the AS-BUILT
   FLIPPED), three deviations folded in, and what S4 measured that this design assumed. The INVENTORY
   (§1), classDiagram (§3), sequenceDiagram (§4) and module graph TD (§5) stand as drawn except where §9
   marks them.
-updated: 2026-09-18
+updated: 2026-10-05 (§9.7 CE-3075: naming nothing removes the previous header)
 current-answer: §2 is the measured gap, §3-§5 are the model, §6 is the skip rules and WHY they
   compose, §7 is what this deliberately does not build, ⭐ §9 is the AS-BUILT and supersedes §8.
 stale-below: §8-V1 is ANSWERED — read §9.1, not §8. §4's sequence omits the named-but-unpublished
@@ -16,6 +16,7 @@ known-rot: TWO things this design assumed that the build measured false, both in
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Cluster_Load_Phase.md — §10 owns what a scenario naming NO terrain does on every node (unload, CE-3075); §9.7 here is the staging half that makes CGF see "none".
   - docs/DESIGN_Asset_Management.md — ⭐⭐ THE GENERAL CASE this document is the one-artifact-kind slice
     of. It REUSES this document's (length, mtime) skip verbatim and generalises the flat single-file
     push into a recursive per-file manifest + transport partition. ⛔ It adds no second freshness rule.
@@ -300,3 +301,18 @@ guard, `CheckTkbNameConsensus` and the whole parallel copy loop had never been e
 this batch extends. *(The third was a Linux-portability defect: the "invalid" destination was a UNC path,
 which on Linux is a legal relative filename, so the copy succeeded and the count read 3 where 2 was
 expected.)*
+
+### 9.7 🔴 `CE-3075` — **a scenario naming NOTHING must REMOVE the previous header** *(AS-BUILT `2026-10-05`, backend)*
+
+📐 **Measured live:** `hill-attack-close` (names no terrain, no TKB) loaded after `ua-posture` (names `test-town`) in
+one `--mode all` process. SimHost and IG unloaded the terrain; **CGF kept it** — its terrain step got no name in the
+load message, fell back to `{node}/TKB/ScenarioHeader.json`, and that file was still `ua-posture`'s (written 19:39:15,
+never touched at 19:39:30), because `StageNamedArtifacts` returned early when nothing was named.
+
+| decision | rejected |
+|---|---|
+| ⭐ naming nothing still stages nothing (§4, `PrefetchScenario_WithNoNamedArtifacts_StagesNothingAndSucceeds`) — but an EXISTING header from an earlier scenario is deleted, so both header readers (terrain, TKB) read "none" | write an empty header — it would stage a file for a scenario that names nothing, against §4 and its rail · drop the header fallback from the steps — L3's one-release tolerance is a separate decision, not this fix |
+
+⚠ The same staleness applied to the TKB name: a scenario naming no TKB after one naming a TKB loaded the old TKB on CGF.
+Rail: `StorageGatewayTests.PrefetchScenario_NamingNothing_AfterOneNamingATerrain_RemovesThePreviousHeader_CE3075`.
+

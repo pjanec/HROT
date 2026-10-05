@@ -922,3 +922,7 @@ self-loop on the SAME name leaves the world untouched.*
 unloaded (unnamed) world. Rails: `TerrainLoadStepTests.AScenarioNamingNoTerrain_UnloadsTheResidentOne_CE3075`,
 `TheSameTerrainStaysUntouched_ADifferentOneReplacesIt_CE3075` (red-proved on the old residency).
 
+📐 **Live (`2026-10-05`) found a second half:** SimHost and IG unloaded, CGF did not — its step fell back to a STALE staged
+header (the gateway wrote none for a scenario naming nothing, so the previous one stayed). Fixed in the writer:
+[`DESIGN_Artifact_Staging.md`](DESIGN_Artifact_Staging.md) §9.7.
+
