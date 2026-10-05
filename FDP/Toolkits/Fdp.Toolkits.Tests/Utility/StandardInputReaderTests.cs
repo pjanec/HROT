@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -148,7 +147,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = Vector3.Zero });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = Vector3.Zero });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(1f, result, precision: 5);
@@ -159,7 +158,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(500f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(500f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0f, result, precision: 5);
@@ -170,7 +169,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(250f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(250f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0.5f, result, precision: 4);
@@ -181,7 +180,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(1000f, 0f, 0f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(1000f, 0f, 0f) });
             var parms   = new InputParams { MaxRange = 500f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0f, result);
@@ -197,7 +196,7 @@ namespace Fdp.Toolkit.Tests.Utility
             // With 3D distance the altitude gap = 100 m -> correct score = 1 - 100/200 = 0.5.
             var self    = _world.SpawnAgent(1f, 1f);
             var contact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(0f, 0f, 100f) });
+            _world.Repo.AddComponent(contact, new SimTransform { Position = new Vector3(0f, 0f, 100f) });
             var parms   = new InputParams { MaxRange = 200f };
             float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
             Assert.Equal(0.5f, result, precision: 4);
@@ -213,8 +212,8 @@ namespace Fdp.Toolkit.Tests.Utility
             var self          = _world.SpawnAgent(1f, 1f);
             var streetContact = _world.Repo.CreateEntity();
             var bridgeContact = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(streetContact, new Position { Value = new Vector3(100f, 0f,  0f) });
-            _world.Repo.AddComponent(bridgeContact, new Position { Value = new Vector3(100f, 0f, 40f) });
+            _world.Repo.AddComponent(streetContact, new SimTransform { Position = new Vector3(100f, 0f,  0f) });
+            _world.Repo.AddComponent(bridgeContact, new SimTransform { Position = new Vector3(100f, 0f, 40f) });
             var parms         = new InputParams { MaxRange = 500f };
             float streetScore = StandardInputs.DistanceToContext(MakeCtx(self, streetContact, parms));
             float bridgeScore = StandardInputs.DistanceToContext(MakeCtx(self, bridgeContact, parms));

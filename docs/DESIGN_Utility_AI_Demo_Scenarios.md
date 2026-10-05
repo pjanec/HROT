@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: DESIGN — §8 asks the user Q1–Q7 (each with a lean); nothing is built and no task is started.
-current-answer: §4 (the seven scenarios), §6 (what has to be built for them), §8 (the questions). §2 is the measured state they rest on.
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1 started: G1 BUILT (CE-3070). §9 (ammunition vs armour) and §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
+current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10 (danger sensor). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -26,7 +26,7 @@ related-designs:
 > best. Ideally if there is just few terrains, like 2 or 3, shared by the scenarios. Can we start designing such demo
 > scenarios for the features and discovering what features need to be built?"*
 
-Tracker: `CE-3069` (this programme), `CE-3070` (F1). Written by the backend lane; the utility AI is the behaviors lane's topic, so this is a cross-lane design (allowed,
+Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3071` (§9 armour model), `CE-3072` (§10 danger sensor). Written by the backend lane; the utility AI is the behaviors lane's topic, so this is a cross-lane design (allowed,
 `2026-10-02`). §8 Q6 proposes who builds what.
 
 ## 1. INVENTORY *(`2026-10-05`, code graph + grep + four read-only corpus sweeps)*
@@ -217,7 +217,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 
 | id | item | size | for | depends |
 |---|---|---|---|---|
-| **G1** | the two distance readers read `SimTransform` (as EQS does, `EqsContext.cs:64`) — fixes F1 live | S | U2, U4–U6 | — |
+| **G1** ✅ BUILT `2026-10-05` | the two distance readers read `SimTransform` (as EQS does, `EqsContext.cs:64`) — fixes F1 live (`CE-3070`) | S | U2, U4–U6 | — |
 | **G2** | `/entities/{id}/utility` observe + read; fix F3; pass the tick | M | all | — |
 | **G3** | `/entities/{id}/squad`: contacts, assignments, maneuver, danger areas | S | U6, U7 | — |
 | **G4** | `CombatPostureHsm` asset + a runtime switch rail (Decision Layer D3) | M | U3 | — |
@@ -237,7 +237,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | a `RankCandidates`-node consumer | a second "engage the top threat" path beside `TopThreat` would duplicate it (R-174); U2 shows ranking through `TopCandidate` and the route |
 | `AllyAdvancingNearby` (a stub) | CE-2072 removed its only use |
 
-## 8. Questions for the user — each with a lean
+## 8. Questions for the user — each with a lean *(✅ ALL SEVEN LEANS APPROVED `2026-10-05`, R-209)*
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
@@ -248,3 +248,168 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | **Q5** | U7 and CE-507 | keep U7 last; decide D2/D3 when P1–P3 are done, with an interim provider that reads danger areas authored in the terrain file | if squad maneuvers matter most, decide D2/D3 now |
 | **Q6** | lanes | backend: G1, G2, G3, G7 (engine), G8 (wiring), G10, G11 · behaviors: G4, G5, G6, G9's behaviour | if you want one lane to own the whole programme |
 | **Q7** | the E2E form | both: the HTTP check against `--mode all` is the acceptance, the in-process rail is the regression gate | if `--mode all` runs can be automated in CI, the rail may be enough |
+
+## 9. Ammunition vs armour — one simple model for the shot AND the choice *(DESIGN `2026-10-05`, leans awaiting the user)*
+
+🔒 **User, `2026-10-05`:** *"Plan for implementing ammo vs armour params - some simple model."*
+
+📐 **Measured today:** every hit costs a flat **25 HP** whatever fired it (`DamageCalculationSystem.cs:63-68`,
+`CombatConstants.DefaultBulletDamage`); armour front/side/rear exists in the TKB (`CombatPlatformDefDto.cs:12-28`) and
+**nothing reads it**; no weapon carries a penetration or damage value; `WeaponEffectivenessVsTarget` is a copy of the
+range fit (`StandardInputs.cs:361`). The design record already intends it: *"armor penetration curves (POC: flat hp)"*
+(`BS-1-DESIGN.md` §2), *"reads the armor thickness, calculates impact angles, applies penetration curves"*
+(`.dev/_DONE/brain-split/design-talk.md:197`), and *"weapons vs my armour"* for danger (Decision Layer G1). No design
+gives a formula — this section is that formula.
+
+```mermaid
+classDiagram
+  class ArmorModel {
+    <<NEW, static, Fdp.Toolkit.Combat>>
+    +FacingOf(targetTransform, fromPoint) Facing
+    +ArmourFor(Armor, Facing) float
+    +PenetrationChance(penetration, armour) float
+    +ExpectedDamage(penetration, damagePerHit, armour) float
+  }
+  class Armor { <<NEW component, stamped from the TKB>> Front, Side, Rear mm }
+  class WeaponMountInfo { <<existing, registered by G7>> MountIndex, EffectiveRange, NEW Penetration, NEW DamagePerHit }
+  class CombatPlatformDefDto { <<existing TKB>> ArmorFront/Side/Rear, MaxHealth }
+  class WeaponMountDto { <<existing TKB>> NEW Range, Penetration, DamagePerHit }
+  class CombatTkbTranslator { <<existing>> stamps Armor + WeaponMountInfo on every mount incl. the owner }
+  class DamageCalculationSystem { <<existing, SimHost>> flat 25 becomes ArmorModel.ExpectedDamage }
+  class WeaponEffectivenessVsTarget { <<existing reader, CGF>> becomes ArmorModel estimate / target MaxHealth }
+  CombatTkbTranslator ..> CombatPlatformDefDto
+  CombatTkbTranslator ..> WeaponMountDto
+  CombatTkbTranslator --> Armor
+  CombatTkbTranslator --> WeaponMountInfo
+  DamageCalculationSystem ..> ArmorModel
+  WeaponEffectivenessVsTarget ..> ArmorModel
+```
+
+*What the picture shows that prose hid: the damage the simulation APPLIES and the effectiveness the AI EXPECTS call the
+same function — the AI cannot believe a 25 mm hurts a T-72 while the simulation says it does (or the reverse).*
+
+```mermaid
+sequenceDiagram
+  participant B as CGF AimAndFireExecutor
+  participant F as SimHost FireProcessingSystem
+  participant H as HitResolutionSystem
+  participant D as DamageCalculationSystem
+  participant M as ArmorModel
+  B->>F: WeaponFireRequest(shooter, target, WeaponIndex = chosen mount)
+  F->>F: bullet.BallisticProjectile gets the mount's Penetration + DamagePerHit
+  H->>D: DetonationNotification(shooter, target, hit point, NEW Penetration, NEW Damage)
+  D->>M: FacingOf(target, shooter) then ExpectedDamage(pen, dmg, armour)
+  D-->>B: EntityHitDamage(TotalDamage) as today
+```
+
+*What the picture shows that prose hid: no network message changes (R-158) — `WeaponFireRequest` already carries the
+mount index and `EntityHitDamage` already carries the damage; only local events and a component grow.*
+
+| rule | the model |
+|---|---|
+| facing | the angle between the target's forward (`SimTransform.Rotation` yaw) and the direction to the shooter: < 60° front, > 120° rear, else side. Turrets ignored |
+| penetration chance | `r = penetration / armour`; `P = clamp((r − 0.8) / 0.4, 0, 1)` — nothing below 80 %, certain above 120 %; no armour ⇒ 1 |
+| damage of a hit | `DamagePerHit × P` — the EXPECTED value, no dice: replays and the determinism rails stay deterministic |
+| unknown munition | `Penetration = 0` (an external detonation, `MunitionDetonationIngressTranslator`) ⇒ today's flat 25, unchanged |
+| AI effectiveness | `min(1, ExpectedDamage / target MaxHealth)` at the current facing — "share of a kill per hit" |
+| WeaponSelection | gains `RoundsLeft` (log scale, `ln(1+ammo)/ln(1+300)`, weight 1): with 7 TOW rounds and 300 of 25 mm, the 25 mm wins on infantry and the TOW on a tank |
+
+**Calibration (catalog code, `BdcTkbCatalog` / `UrbanCombatTkbCatalog`):**
+
+| weapon | penetration mm | damage / hit | ⇒ vs (computed, not run) |
+|---|---|---|---|
+| rifle (M4, 2002's rifle) | 5 | 25 | **unchanged**: 4 hits on infantry — infantry scenarios keep today's numbers |
+| RPG (2003) | 300 | 400 | kills a Bradley (side 60); T-72 front 500 ⇒ 0 |
+| 25 mm M242 | 60 | 60 | 2 hits on infantry; T-72 any face ⇒ 0 |
+| TOW | 800 | 2000 | T-72 front ⇒ P 1, ~2 hits |
+| 120 mm M256 | 650 | 1200 | T-72 front ⇒ 3 hits; M1 front (600) ⇒ P 0.71, ~4 hits |
+| 125 mm 2A46 | 600 | 1100 | M1 front ⇒ P 0.5, ~6 hits |
+
+⚠ **Blast radius — the reason this needs your nod:** tank fights stop taking ~120 hits. **hill-attack** (M1s vs Abrams)
+will kill in a handful of rounds instead of running out of ammo, so its baseline rails (`PlatoonBaselineRails`,
+`DeterminismRails`) are re-pinned in the same change. Infantry scenarios do not move (25 per rifle hit is kept).
+
+| ⭐ lean | rejected |
+|---|---|
+| **A1** the model drives the REAL damage and the AI estimate (one function) | estimate-only, damage stays flat — the AI would pick weapons for a world that does not exist |
+| **A2** expected damage, no random roll | a seeded roll per hit — more "realistic", but needs a sim RNG stream and makes every combat rail statistical |
+| **A3** static weapon data on `WeaponMountInfo` (every mount, including the owner's mount 0); armour as a new `Armor` component stamped from the TKB | on `WeaponState` — scenario files override `WeaponState` whole, and a missing field would silently zero the penetration |
+| **A4** per-mount range comes from the mount (fixes the TOW's 3750 m being read as the 25 mm's 2500 m) | — |
+
+## 10. The danger sensor — what the squad decisions need *(DESIGN `2026-10-05`, leans awaiting the user)*
+
+🔒 **User, `2026-10-05`:** *"What about the danger sensor required by some of the utility ai based behaviors?"*
+
+📐 **Measured:** the contract is BUILT — `IDangerAreaProvider.Refresh(repo, commander, span, out count)`
+(`IDangerAreaProvider.cs:24`), a 68-byte `DangerAreaDescriptor` {FeatureId, ThreatRating, Kind (OpenGround /
+StreetCrossing / Intersection / ChokePoint / CrestLine), oriented box + height band, near/far handles}, the sensor child
+and an 8-slot buffer. **Nothing produces areas**: the only provider is `FakeDangerAreaProvider`; the refresh system has
+no caller; component ids 262/263 collide (QA-037); the buffer is written on the child and read from the commander (F6);
+nothing chooses the active area (`ActiveFeatureId` is set only by a forced-maneuver order, `ForceManeuverMapper.cs:39`);
+ManeuverSelect's ids are off by one (F5). Only `ManeuverSelect` and the squad maneuvers need it — the single-unit
+decisions (U1–U5) do not.
+
+The squad design meant the geometry to run on the Muscle over the navmesh (Squad Coordination §5, §11 "navmesh
+tactical-feature extraction, in plan"). 📐 **But the Brain already holds the terrain** — `TerrainWorld` is resident on
+CGF since R-182 (`CgfSubsystem.cs:1152`), with surfaces (road / open / forest / water), prisms, ramps, `SurfaceZ` and
+`SegmentBlocked` — while the **path** is not (CGF composes no navmesh; the Brain pathfinding pack is inert there).
+
+```mermaid
+classDiagram
+  class IDangerAreaProvider { <<existing>> +Refresh(repo, commander, span, out count) }
+  class TerrainDangerAreaProvider {
+    <<NEW, CGF>>
+    +Refresh(...)
+    -SampleLeg(from, to)
+    -Classify(run) Kind
+    -RateThreat(box, squadContacts) float
+  }
+  class AuthoredDangerAreas { <<NEW>> features kind:danger in the terrain GeoJSON }
+  class TerrainWorld { <<existing, resident on CGF>> SurfaceTypeAt, SurfaceZ, SegmentBlocked, Prisms }
+  class SquadCognitiveState { <<existing>> merged contacts, ActiveFeatureId }
+  class DangerAreaRefreshSystem { <<existing, NO CALLER>> writes the buffer }
+  class SquadCoordinationSystem { <<existing, runs at 10 Hz>> NEW: refresh, then pick the active area }
+  class FakeDangerAreaProvider { <<existing, tests>> }
+  IDangerAreaProvider <|.. TerrainDangerAreaProvider
+  IDangerAreaProvider <|.. FakeDangerAreaProvider
+  TerrainDangerAreaProvider ..> TerrainWorld
+  TerrainDangerAreaProvider ..> AuthoredDangerAreas : merged in
+  TerrainDangerAreaProvider ..> SquadCognitiveState : threat from contacts
+  SquadCoordinationSystem --> DangerAreaRefreshSystem : NEW call
+  DangerAreaRefreshSystem --> IDangerAreaProvider
+```
+
+*What the picture shows that prose hid: the provider plugs into an interface that already exists and a system that
+already runs — the work is the provider and three wiring fixes, not a new pipeline.*
+
+```mermaid
+sequenceDiagram
+  participant S as SquadCoordinationSystem (CGF, 10 Hz)
+  participant R as DangerAreaRefreshSystem
+  participant P as TerrainDangerAreaProvider
+  participant T as TerrainWorld
+  participant C as commander SquadCognitiveState
+  participant U as CommanderUtilityTickSystem (W6)
+  S->>R: refresh (every 2 s)
+  R->>P: Refresh(commander)
+  P->>T: sample commander to destination every 5 m: surface, SurfaceZ, nearest prism
+  P->>P: runs: road crossed = StreetCrossing, open with no cover = OpenGround, ramp peak = CrestLine, gap under W = ChokePoint
+  P->>C: rate each box: armed contacts that can see its centre (SegmentBlocked), ThreatDanger
+  P-->>R: up to 8 descriptors, nearest first
+  R->>C: buffer on the COMMANDER (F6), ActiveFeatureId = the next area ahead
+  S->>U: ManeuverSelect scores the active area (F5 ids mapped)
+```
+
+*What the picture shows that prose hid: the threat on an area is judged from what the squad KNOWS (its merged contacts)
+at refresh time — the same "danger at read time" rule as R-194 — not stored in the terrain.*
+
+| ⭐ lean | rejected |
+|---|---|
+| **B1** a Brain-side provider over `TerrainWorld`, sampling the straight leg from the commander to its destination; authored `kind:danger` features in the terrain file are merged in (an author can add a choke the classifier misses) | **Muscle-side extraction over the real path** (the squad design's §5) — it needs the path corridor and a new DDS topic for the descriptors; the provider interface is the same, so it can replace B1 later without touching a decision · **authored areas only** — every terrain would need hand work before a squad can move |
+| **B2** threat on an area = the strongest armed known contact with sight of its centre (`ThreatDanger` × visible), plus a waypoint's authored `dangerLevel` | a fixed rating in the terrain — danger would not depend on where the enemy is |
+| **B3** fix with it: F6 (buffer on the commander), F5 (option → `ManeuverKind` map), QA-037 (ids 262/263), and pick `ActiveFeatureId` = the nearest area ahead on the leg | — |
+| ⚠ **known limit** | a straight leg ignores the path the units really take round buildings — fine on open ground (U7, desert); in town a squad may "see" a crossing it will not use. The Muscle-side upgrade removes it |
+
+This unblocks Squad Wiring **D3** (W6: run `CommanderUtilityTickSystem`). **D2** (a shipped squad-maneuver behaviour
+that reads the near/far handles and moves the elements) is still needed for U7 — none of the six maneuvers reads a
+handle today.

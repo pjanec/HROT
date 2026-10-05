@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -50,7 +49,7 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.RegisterComponent<UnitRoster>();
             Repo.RegisterComponent<UnitSubordinate>();
             Repo.RegisterComponent<SquadCognitiveState>();
-            Repo.RegisterComponent<Position>();
+            Repo.RegisterComponent<SimTransform>();
             Repo.RegisterComponent<UtilityDebugFlags>();
             Repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
             Repo.RegisterComponent<UtilityResultBuffer>();
@@ -89,7 +88,7 @@ namespace Fdp.Toolkit.Tests.Utility
                 MuzzleVelocity = 800f
             });
 
-            Repo.AddComponent(entity, new Position { Value = Vector3.Zero });
+            Repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             Repo.AddComponent(entity, new TargetMemory());
             Repo.AddComponent(entity, new UtilityResultBuffer());
             Repo.AddComponent(entity, new UtilityDebugFlags { TraceEnabled = 1 });
@@ -126,8 +125,8 @@ namespace Fdp.Toolkit.Tests.Utility
                 InstanceId        = mountIndex,
             });
 
-            // WeaponRangeBandFit reads Position from the mount entity.
-            Repo.AddComponent(child, new Position { Value = Vector3.Zero });
+            // WeaponRangeBandFit reads the world position (SimTransform) — CE-3070.
+            Repo.AddComponent(child, new SimTransform { Position = Vector3.Zero });
 
             return child;
         }
@@ -204,9 +203,9 @@ namespace Fdp.Toolkit.Tests.Utility
                 }
             }
 
-            if (!Repo.HasComponent<Position>(contact))
+            if (!Repo.HasComponent<SimTransform>(contact))
             {
-                Repo.AddComponent(contact, new Position { Value = new Vector3(distanceM, 0f, 0f) });
+                Repo.AddComponent(contact, new SimTransform { Position = new Vector3(distanceM, 0f, 0f) });
             }
         }
 
@@ -260,7 +259,7 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.AddComponent(entity, new UnitRoster());
             Repo.AddComponent(entity, default(SquadCognitiveState));
             Repo.AddComponent(entity, new TargetMemory());
-            Repo.AddComponent(entity, new Position { Value = Vector3.Zero });
+            Repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
             return entity;
         }
 
@@ -337,7 +336,7 @@ namespace Fdp.Toolkit.Tests.Utility
             for (int k = 0; k < add && tm.Count < PerceptionConstants.MaxTrackedTargets; k++)
             {
                 var dummy = Repo.CreateEntity();
-                Repo.AddComponent(dummy, new Position { Value = new Vector3(100f + k, 0f, 0f) });
+                Repo.AddComponent(dummy, new SimTransform { Position = new Vector3(100f + k, 0f, 0f) });
                 Repo.AddComponent(dummy, new WeaponState { Ammo = 30, MaxAmmo = 30, MuzzleVelocity = 800f });
                 TargetMemory.AddOrUpdateTarget(ref tm, (long)dummy.PackedValue,
                     posX: 100f + k, posY: 0f, scoreBoost: PerceptionConstants.FreshnessSaturation, tick: ++Tick,
@@ -353,7 +352,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var t = Repo.CreateEntity();
             Repo.AddComponent(t, new Health { Current = 100f, Max = 100f });
-            Repo.AddComponent(t, new Position { Value = new Vector3(100f, 0f, 0f) });
+            Repo.AddComponent(t, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
             return t;
         }
 

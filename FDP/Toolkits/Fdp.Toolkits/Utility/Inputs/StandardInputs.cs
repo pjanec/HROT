@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -133,16 +132,15 @@ namespace Fdp.Toolkit.Utility
         /// <summary>
         /// Returns 1 - clamp(distance/MaxRange, 0, 1) where distance is between ctx.Self and ctx.Context.
         /// MaxRange defaults to 1000 m when Params.MaxRange &lt;= 0.
-        /// Returns 0 if either entity lacks a Position component.
+        /// Returns 0 if either entity has no world position (<see cref="TryGetWorldPosition"/>).
         /// </summary>
         [UtilityInput("DistanceToContext")]
         public static float DistanceToContext(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Position>(ctx.Self) || !ctx.Repo.HasComponent<Position>(ctx.Context)) return 0f;
-            ref readonly var selfPos = ref ctx.Repo.GetComponentRO<Position>(ctx.Self);
-            ref readonly var ctxPos  = ref ctx.Repo.GetComponentRO<Position>(ctx.Context);
+            if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
             float maxRange = ctx.Params.MaxRange > 0f ? ctx.Params.MaxRange : 1000f;
-            float distance = Vector3.Distance(selfPos.Value, ctxPos.Value);
+            float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = Math.Clamp(1f - distance / maxRange, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -338,17 +336,16 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("WeaponRangeBandFit")]
         public static float WeaponRangeBandFit(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Position>(ctx.Self) || !ctx.Repo.HasComponent<Position>(ctx.Context)) return 0f;
+            if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
 
             if (!TryFindMountChild(ctx.Repo, ctx.Self, ctx.Params.MountIndex, out var mountChild)) return 0f;
 
             ref readonly var mi      = ref ctx.Repo.GetComponentRO<WeaponMountInfo>(mountChild);
-            ref readonly var selfPos = ref ctx.Repo.GetComponentRO<Position>(ctx.Self);
-            ref readonly var ctxPos  = ref ctx.Repo.GetComponentRO<Position>(ctx.Context);
             float effectiveRange     = mi.EffectiveRange;
             if (effectiveRange <= 0f) return 0f;
 
-            float distance = Vector3.Distance(selfPos.Value, ctxPos.Value);
+            float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = distance / effectiveRange;
             return result;
         }
@@ -413,6 +410,28 @@ namespace Fdp.Toolkit.Utility
         /// matches <paramref name="mountIndex"/>. If <paramref name="owner"/> itself carries
         /// <see cref="WeaponMountInfo"/>, it is returned directly (self-mount case).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-3070</c> — an entity's world position: its <see cref="SimTransform"/>, or, for a part without one
+        /// (a weapon mount), its parent's. ⛔ NOT the geographic <c>Position</c>: no Hrot node registers it, so both
+        /// distance readers returned 0 live and ThreatRanking (a weighted product) zeroed every contact.
+        /// EQS reads the same component (<c>EqsContext</c>).
+        /// </summary>
+        private static bool TryGetWorldPosition(EntityRepository repo, Entity e, out Vector3 position)
+        {
+            position = default;
+            if (e.IsNull || !repo.IsAlive(e)) return false;
+            if (repo.HasComponent<SimTransform>(e))
+            {
+                position = repo.GetComponentRO<SimTransform>(e).Position;
+                return true;
+            }
+            if (!repo.HasComponent<PartMetadata>(e)) return false;
+            var parent = repo.GetComponentRO<PartMetadata>(e).ParentEntity;
+            if (parent.IsNull || !repo.IsAlive(parent) || !repo.HasComponent<SimTransform>(parent)) return false;
+            position = repo.GetComponentRO<SimTransform>(parent).Position;
+            return true;
+        }
+
         private static bool TryFindMountChild(EntityRepository repo, Entity owner, int mountIndex, out Entity child)
         {
             // Self-mount: the owner entity itself is the weapon mount.

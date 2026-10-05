@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Tests
 
             Assert.True(w.Repo.HasComponent<Health>(agent));
             Assert.True(w.Repo.HasComponent<WeaponState>(agent));
-            Assert.True(w.Repo.HasComponent<Fdp.Modules.Geographic.Components.Position>(agent));
+            Assert.True(w.Repo.HasComponent<SimTransform>(agent));
             Assert.True(w.Repo.HasComponent<TargetMemory>(agent));
 
             // WeaponState values

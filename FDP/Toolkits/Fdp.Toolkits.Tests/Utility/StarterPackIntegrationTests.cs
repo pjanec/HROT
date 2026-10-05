@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Utility;
@@ -233,16 +232,19 @@ namespace Fdp.Toolkit.Tests
             var agent   = _world.SpawnAgent(1.0f, 1.0f);
             var enemyA  = _world.Repo.CreateEntity(); // close
             var enemyB  = _world.Repo.CreateEntity(); // far
-            _world.SeedContact(agent, enemyA, 100f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
+            // ⭐ CE-3070 — the FAR contact is seeded FIRST: with every score 0 (distance read from a component no node
+            //   registers) a tie broken by order would still have picked the first-seeded one, so the old order hid it.
             _world.SeedContact(agent, enemyB, 800f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
+            _world.SeedContact(agent, enemyA, 100f, threatBoost: 0.5f, contactHealth01: 0.5f, hasLos: true);
 
             _world.Scorer.Evaluate(_world.Repo, agent, ThreatRankingDecision.Id);
 
             ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(agent);
             Assert.True(buf.Count >= 2);
-            // Winner entity handle should match the closer contact.
-            long winnerHandle = buf.GetSpanRO()[0].CandidateHandle;
-            Assert.Equal((long)enemyA.PackedValue, winnerHandle);
+            // Winner entity handle should match the closer contact, by a real margin (not a 0-0 tie).
+            var ranked = buf.GetSpanRO();
+            Assert.Equal((long)enemyA.PackedValue, ranked[0].CandidateHandle);
+            Assert.True(ranked[0].Score > ranked[1].Score, $"closer {ranked[0].Score} vs farther {ranked[1].Score}");
         }
 
         // SC-P1-06-5: Assigned target bias promotes leader choice
@@ -288,7 +290,7 @@ namespace Fdp.Toolkit.Tests
         {
             var agent  = _world.SpawnAgent(1.0f, 1.0f);
             var target = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(target, new Position { Value = new Vector3(100f, 0f, 0f) });
+            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
 
             var mount100  = _world.SpawnWeaponMount(agent, mountIndex: 1, weaponGuid: 0xAAAA_0001UL,
                 effRange: 100f,  ammo01: 1.0f, initialAmmunition: 30);
@@ -312,7 +314,7 @@ namespace Fdp.Toolkit.Tests
         {
             var agent  = _world.SpawnAgent(1.0f, 1.0f);
             var target = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(target, new Position { Value = new Vector3(50f, 0f, 0f) });
+            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(50f, 0f, 0f) });
 
             var mountFull  = _world.SpawnWeaponMount(agent, mountIndex: 1, weaponGuid: 0xBBBB_0001UL,
                 effRange: 50f, ammo01: 1.0f, initialAmmunition: 30);
