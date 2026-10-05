@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the frame this answers (G1–G11).
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.

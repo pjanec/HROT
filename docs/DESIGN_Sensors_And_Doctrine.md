@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first consumer of §7.9 (a When TopChanged per answer).
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the groups, grants and reclaim; §7.7 here adds dtBrainIntent to the Brain group and starts the published intent on a gain.
   - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.

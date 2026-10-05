@@ -3,6 +3,7 @@ state: LIVE — a FRAME (backend → behaviors), design + discussion task, not a
 updated: 2026-10-04
 current-answer: the whole file
 related-designs:
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — the behaviors lane's DESIGN answering this frame (D1, D3, D5 adjusted with measured reasons).
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — §19 owns the terrain EQS slice this frame consumes (templates, tests, rules); §17.6 owns the child-sensor recipe.
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — owns a behaviour's child-sensor lifetime (CE-485/486).
   - docs/DESIGN_Terrain_World.md — owns the terrain the queries read.
