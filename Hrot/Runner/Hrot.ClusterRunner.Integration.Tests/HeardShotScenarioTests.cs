@@ -175,6 +175,15 @@ public sealed class HeardShotScenarioTests : IDisposable
                     var buf = new EqsResult[t.MaxCandidates];
                     manual = t.Generator.Generate(ear, ref cfgEar, sim, buf);
                     manualInfo = $"gen={manual} self={EqsContext.Self(sim, ear, cfgEar)} ears={Fdp.Toolkit.Perception.Sensors.AcousticPerception.Ears(sim, ear, out var rr, out _)}/{rr}";
+                    // the SAME on a snapshot, as the background solver reads it (OnDemandProvider: SyncFrom, all snapshotable)
+                    using var snap = new EntityRepository();
+                    snap.SyncFrom(sim);
+                    var cfgSnap = snap.GetComponent<EqsSensor>(ear);
+                    var t2 = reg.TryGetTemplate(cfgSnap.BlueprintId, out var tt) ? tt : t;
+                    int genSnap = t2.Generator.Generate(ear, ref cfgSnap, snap, new EqsResult[t.MaxCandidates]);
+                    var em = snap.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter) ? snap.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter) : default;
+                    manualInfo += $" | SNAP gen={genSnap} self={EqsContext.Self(snap, ear, cfgSnap)} ears={Fdp.Toolkit.Perception.Sensors.AcousticPerception.Ears(snap, ear, out var r2, out _)}/{r2}"
+                                + $" emitter={snap.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)} shotLeft={em.ShotTimeLeft:F2} info={snap.HasComponent<EntityInfo>(simShooter)} tr={snap.HasComponent<SimTransform>(simShooter)}";
                 }
                 else manualInfo = "no template";
             }
