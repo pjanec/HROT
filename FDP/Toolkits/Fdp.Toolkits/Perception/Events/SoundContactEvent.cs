@@ -26,5 +26,8 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>What was heard (<c>Signatures.SoundKind</c>).</summary>
         public byte Kind;
+
+        /// <summary>⭐ <c>CE-3063</c> (R-207) — what it sounded LIKE (<c>Tkb.Domain.SoundSourceClass</c>): coarse, never an identity.</summary>
+        public byte SourceClass;
     }
 }

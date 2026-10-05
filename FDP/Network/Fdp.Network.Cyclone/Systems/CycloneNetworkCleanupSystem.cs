@@ -18,6 +18,7 @@ namespace Fdp.Network.Cyclone.Systems
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         private readonly Dictionary<long, Entity> _trackedEntities = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — tracked ids belong to ONE world (WorldEpoch)
         private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
 
         public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
@@ -39,6 +40,10 @@ namespace Fdp.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            // ⭐ CE-2101 — the world boundary wiped these entities without a DestructionOrder; forget them locally
+            //   (⛔ no Dispose: that writes "entity deleted" to the wire, and the next world reuses the ids).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _trackedEntities.Clear();
+
             // 1. Scan for new entities to track (all lifecycle states — entities may be in
             //    Constructing, Active, or TearDown when they first need to be tracked).
             var query = view.Query()

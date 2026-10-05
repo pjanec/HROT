@@ -120,6 +120,16 @@ published for them.** `ThermalHeatSystem` and `SoundEmissionSystem` are composed
 local events already exist — ingesting them too would count each shot twice). ⭐ Both arrive `IsRemote = true`; heat and sound
 accept remote events (only `DamageCalculationSystem` skips them).
 
+⭐ **As-built `CE-3065` (`2026-10-05`)** — `SimHostAuxiliaryTranslatorPack`: Perception && !MuscleGround ⇒ `WeaponFireIngressTranslator`
++ `MunitionDetonationIngressTranslator`; ⚠ **one correction found while building it:** the heard-contact EGRESS
+(`AudioTargetDetectedEgressTranslator`) sat behind the MuscleGround gate, but its producer is the memory stage, which runs with the
+SOLVER — it now sits beside `EqsResultEventEgressTranslator` (Perception || MuscleGround). Detonations need no extra rule: they exist
+only for a hit on an entity (`HitResolutionSystem`), and the ingress keeps exactly those. Rail: `SimHostAuxiliaryTranslatorPackTests`.
+⚠ **Known limit:** a node that is Perception AND MuscleGround reads no `WeaponFire`, so it does not hear shots of units simulated on
+ANOTHER MuscleGround node (two SimHosts). ⛔ Not built: no such topology exists, and reading its own samples back would heat each
+local shooter twice. **What would change it:** a second MuscleGround node — then the ingress skips shooters this node fires for
+(an authority check, as `EqsResultIngressTranslator`'s echo rule does) instead of keying on the role.
+
 ⛔ **Rejected: publishing `ThermalState` from the Muscle.** A continuous per-entity topic for a value every node can compute from
 what it already receives. ⚠ **What would change it:** a heat source that is NOT observable from published data — engine load,
 a running generator, a weapon's barrel temperature beyond shots fired. Then that one input gets published (or folded into an
@@ -322,6 +332,47 @@ occlusion" claims (Engine Guide §12.2, `Fdp.Toolkits.md`) and the NED / network
 ⚠ So §3's `BUF` box and §5.1's `B` participant read "the emitter's own sound state". Rails: `SoundEmissionSystemTests` (3),
 `EqsModuleTests.S7_TheAcousticSensor_HearsAnonymousEstimates_NotIdentities_CE3062`, `AudioTargetDetectedEgressTranslatorTests` (3, new shape).
 
+⭐ **As-built `CE-3063` SENSOR HALF (`2026-10-05`, backend; the memory half waits for `CE-3054` B–D per K4)** — the coarse
+source class of §6.1a K3, end to end up to the Brain:
+- **TKB:** `SoundSourceClass` (`Unknown 0 · Footsteps · WheeledEngine · TrackedEngine · SmallArms · HeavyWeapon · Explosion`, in
+  `SignaturesDto.cs`); `AcousticSignatureDto` gains `MovingClass`, `FiringClass`, `DetonationClass` (unset ⇒ `Explosion`).
+  ⚠ **Deviation from K3's "the weapon for its shot":** the firing class is per ENTITY TYPE, not per weapon mount — a tank's coax
+  reads as its main gun. ⇒ follow-up when a mixed-weapon platform needs it (a per-mount class on `WeaponMountDto`, looked up by
+  `WeaponFireNotification.WeaponIndex`).
+- **Emitter → answer → event → wire:** `AcousticEmitter.{Moving,Firing,Detonation}Class` (stamped by `SignatureTkbTranslator`);
+  the generator writes the class in answer flag bits 10–12 (`AcousticPerception.ClassShift/ClassMask`); the memory stage copies it
+  into `SoundContactEvent.SourceClass`; DDS `AudioTargetDetected.SourceClass`, both translators carry it. `Unknown` is compatible
+  with every class when the memory merges (the memory half's rule).
+- Rails: `SoundEmissionSystemTests.TheTkbAuthorsTheSourceClass_AndADetonationDefaultsToAnExplosion_CE3063`; the S7 acoustic rail
+  asserts the class; `AudioTargetDetectedEgressTranslatorTests` asserts it crosses the wire.
+- ⚠ **Finding:** no shipped TKB data authors `SignaturesDto` yet (searched the repo for `AcousticSignatureDto` / `MovingAudibleRange`:
+  code and tests only) ⇒ in every shipped scenario units are silent and cold until their types get signatures.
+⭐ **As-built `CE-3063` MEMORY HALF (`2026-10-05`, backend, after `CE-3054` B–D landed — K4)** — ① of the frame, matching §5.1 /
+§6 D′–D″ / §6.1a:
+- **Storage (`TargetMemory`):** per slot `Anonymous` (the K1 flag), `Radius`, `SourceClass`; `AnonymousSerial` gives each heard
+  contact a stable synthetic NEGATIVE id (a behaviour follows ONE contact across ticks; a reader that forgets the flag still never
+  matches a real entity). ⭐ `TargetMemory.IsAnonymous(in mem, i)` is THE rule every reader calls. `Sort` / `Forget` carry the new
+  fields (sort extracted into one `Sort`).
+- **Merge (`TargetMemory.HearContact`, called by `ThreatEvaluationSystem` for each `SoundContactEvent` of the unit):** an
+  identified contact inside the radius is refreshed (nearest, Acoustic kind added) · else a compatible-class anonymous contact
+  whose circle meets the estimate is FUSED (inverse-variance mean, `1/r² = 1/r₁² + 1/r₂²` — the radius shrinks) · else a new slot.
+  Boost per heard contact `PerceptionConstants.HeardBoostPerContact` = 50 × 0.1 s (continuous hearing = continuous sight; one
+  shot ≈ 40 s of "something there").
+- **Absorb (`TargetMemory.AbsorbBySighting`, before each track's refresh):** a sighting inside a compatible anonymous circle
+  BECOMES that contact (id replaced, flag cleared, class kept; if the entity already had a slot, the anonymous one merges in).
+  Compatibility = the slot's class matches one of the target's `AcousticEmitter` classes, or either is unknown.
+- **Forget:** an anonymous slot is never "dead" — it fades by freshness only. **K2:** a first heard contact raises `FirstThreat`
+  (it is a memory entry like any other).
+- **Danger (K3, R-201):** `ThreatDanger.OfSlot(view, self, mem, i)` — identified → `Of(entity)`; anonymous → `OfClass(class)`
+  (first cut: unknown 1, footsteps / wheeled 0.6, small arms 0.8, tracked / heavy / explosion 1). ⚠ `Of` on an anonymous slot's
+  synthetic id reads "unknown = armed" (1) — safe, but readers iterating memory should move to `OfSlot` (behaviors ②).
+- **Save:** anonymous slots are not saved (`TargetMemoryTranslator`; §6.1 lean — a heard sound is transient).
+Rails (`ThreatEvaluationSystemTests`, the feature suite): `AHeardShot_IsOneAnonymousContact_AndRepeatsShrinkIt_CE3063` (acceptance
+1), `ASightingInsideTheCircle_AbsorbsTheHeardContact_CE3063` (acceptance 2), `IncompatibleClasses_DoNotFuse_CE3063`,
+`AHeardContact_FadesButIsNotDead_AndIsAFirstThreat_CE3063`, `TheDangerOfAHeardSlot_ComesFromItsClass_CE3063`.
+⏳ **Left for the behaviors lane (② / ③, unchanged):** entity readers skip `IsAnonymous` slots and call `OfSlot`; the squad
+share copies anonymous slots merging by position (`HearContact` is the merge to reuse); the EQS context POINT for TakeCover /
+FallBack from a heard contact.
 
 | row | slice | depends on |
 |---|---|---|

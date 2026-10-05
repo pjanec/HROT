@@ -144,7 +144,12 @@ public record NodeTransitionPayloadDto(
     string?        TkbName = null,
 
     [property: JsonPropertyName("TerrainName")]
-    string?        TerrainName = null
+    string?        TerrainName = null,
+
+    // ⭐ CE-2101 — the load step entered from Idle (the world boundary): every node clears its world first.
+    //   Additive on the wire; an older peer omits it and decodes to false.
+    [property: JsonPropertyName("IsWorldBoundary")]
+    bool           IsWorldBoundary = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

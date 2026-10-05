@@ -418,6 +418,8 @@ namespace Hrot.SimHost
                 recordingController: controller,
                 storageDirectory:    localTempRoot,
                 hostLabel:           subsystemName));
+            // ⭐ CE-2101 — no entityMap here ON PURPOSE: SimHostApp sets the NetworkEntityMap singleton AFTER this
+            //   composition (see EntityMapFromRepository above), so the world boundary resolves it from the world then.
 
             // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware
             //   CanHandle makes order non-load-bearing, but every host's slave is now identical here).

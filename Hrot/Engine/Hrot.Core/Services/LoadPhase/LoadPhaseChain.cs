@@ -40,6 +40,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     private readonly IRecordReplayController? _recordingController;
     private readonly string? _storageDirectory;
     private readonly string _hostLabel;
+    private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
 
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
@@ -49,8 +50,10 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         EntityRepository? world,
         IRecordReplayController? recordingController,
         string? storageDirectory,
-        string hostLabel)
+        string hostLabel,
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap)
     {
+        _entityMap = entityMap;
         _steps = steps;
         _world = world;
         _recordingController = recordingController;
@@ -89,7 +92,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         EntityRepository? world = null,
         IRecordReplayController? recordingController = null,
         string? storageDirectory = null,
-        string hostLabel = "node")
+        string hostLabel = "node",
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
     {
         if (providers == null) throw new ArgumentNullException(nameof(providers));
 
@@ -116,7 +120,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
             hostLabel, roles,
             ordered.Count == 0 ? "no parts required" : string.Join(" -> ", ordered.Select(p => p.Part)));
 
-        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel);
+        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel, entityMap);
     }
 
     /// <inheritdoc/>
@@ -187,6 +191,13 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
 
         // 🔴 repo is null at both of ClusterSlave's dispatch sites; the injected world carries production.
         var world = repo ?? _world;
+
+        // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host, BEFORE any
+        //   step publishes: the load builds from the file, never on the previous run's entities. ⛔ Not on
+        //   live-from-replay, which the master never marks. 📄 docs/DESIGN_Deterministic_Network_Ids.md §11b.
+        if (context.IsWorldBoundary && world != null)
+            WorldBoundaryReset.Clear(world, _entityMap, _hostLabel);
+
         foreach (var step in _steps)
             step.Commit(context, world);
     }

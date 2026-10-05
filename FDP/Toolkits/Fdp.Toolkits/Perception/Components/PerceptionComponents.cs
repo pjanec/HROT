@@ -84,6 +84,30 @@ namespace Fdp.Toolkit.Perception.Components
         /// </summary>
         public uint ChangeEpoch;
 
+        // ── ⭐ CE-3063 — ANONYMOUS contacts (heard, never identified; R-205 / R-207) ─────────────────────────────────────
+        //    📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 D′–D″, §6.1a. One memory, one freshness rule (R-194).
+
+        /// <summary>⭐ K1 — 1 when the slot is a heard, unidentified contact ("something about here"). ⛔ Its id is a synthetic
+        /// NEGATIVE serial, never an entity: read <see cref="IsAnonymous"/> before turning an id into an entity.</summary>
+        public fixed byte Anonymous[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>How uncertain the slot's position is (metres); 0 for an identified contact.</summary>
+        public fixed float Radius[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ K3 — what the contact SOUNDED like (<c>Tkb.Domain.SoundSourceClass</c>); 0 = unknown.</summary>
+        public fixed byte SourceClass[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>The last synthetic serial given to an anonymous contact (its id is <c>-serial</c>), so a behaviour can
+        /// follow ONE heard contact across ticks.</summary>
+        public int AnonymousSerial;
+
+        /// <summary>⭐ The ONE rule every reader calls: true when slot <paramref name="slot"/> is a heard, unidentified
+        /// contact. ⛔ An ENTITY reader (aim, fire, entity reads) skips it; a POSITION reader may use it.</summary>
+        public static bool IsAnonymous(in TargetMemory mem, int slot)
+        {
+            fixed (byte* a = mem.Anonymous) return (uint)slot < (uint)mem.Count && a[slot] != 0;
+        }
+
         // ── Mutation API ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -145,6 +169,9 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.ThreatScores[slot] = scoreBoost;
                 mem.LastSeenTick[slot] = tick;
                 mem.Modalities[slot]   = (byte)modality;
+                mem.Anonymous[slot]    = 0;
+                mem.Radius[slot]       = 0f;
+                mem.SourceClass[slot]  = 0;
                 mem.Count++;
                 mem.ChangeEpoch++;
             }
@@ -171,11 +198,20 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.LastSeenTick[lowestIdx] = tick;
                     // Fresh modality for the new entry (eviction resets the bitmask).
                     mem.Modalities[lowestIdx]   = (byte)modality;
+                    mem.Anonymous[lowestIdx]    = 0;
+                    mem.Radius[lowestIdx]       = 0f;
+                    mem.SourceClass[lowestIdx]  = 0;
                     mem.ChangeEpoch++;
                 }
             }
 
-            // 2. Sort descending by ThreatScore (insertion sort — MaxTrackedTargets is tiny).
+            Sort(ref mem);
+        }
+
+        /// <summary>Sorts the table descending by threat score (insertion sort — <see cref="PerceptionConstants.MaxTrackedTargets"/>
+        /// is tiny), carrying every per-slot field.</summary>
+        public static void Sort(ref TargetMemory mem)
+        {
             for (int i = 1; i < mem.Count; i++)
             {
                 long   idTmp    = mem.EntityIds[i];
@@ -185,6 +221,9 @@ namespace Fdp.Toolkit.Perception.Components
                 float  scoreTmp = mem.ThreatScores[i];
                 uint   tickTmp  = mem.LastSeenTick[i];
                 byte   modTmp   = mem.Modalities[i];
+                byte   anonTmp  = mem.Anonymous[i];
+                float  radTmp   = mem.Radius[i];
+                byte   clsTmp   = mem.SourceClass[i];
 
                 int j = i - 1;
                 while (j >= 0 && mem.ThreatScores[j] < scoreTmp)
@@ -196,6 +235,9 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.ThreatScores[j + 1] = mem.ThreatScores[j];
                     mem.LastSeenTick[j + 1] = mem.LastSeenTick[j];
                     mem.Modalities[j + 1]   = mem.Modalities[j];
+                    mem.Anonymous[j + 1]    = mem.Anonymous[j];
+                    mem.Radius[j + 1]       = mem.Radius[j];
+                    mem.SourceClass[j + 1]  = mem.SourceClass[j];
                     j--;
                 }
 
@@ -206,7 +248,125 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.ThreatScores[j + 1] = scoreTmp;
                 mem.LastSeenTick[j + 1] = tickTmp;
                 mem.Modalities[j + 1]   = modTmp;
+                mem.Anonymous[j + 1]    = anonTmp;
+                mem.Radius[j + 1]       = radTmp;
+                mem.SourceClass[j + 1]  = clsTmp;
             }
+        }
+
+        /// <summary>⭐ CE-3063 (§6.1a K3) — two sound classes may be the same source: equal, or either unknown (0).</summary>
+        public static bool ClassesCompatible(byte a, byte b) => a == 0 || b == 0 || a == b;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3063</c> — a unit HEARD something at (<paramref name="x"/>, <paramref name="y"/>) within
+        /// <paramref name="radius"/>, sounding like <paramref name="sourceClass"/>. 📄 DESIGN_Thermal_And_Acoustic_Sensing §5.1, §6 D′.
+        /// <list type="number">
+        ///   <item>an IDENTIFIED contact inside the radius is refreshed (nearest; the Acoustic kind is added) — hearing what you know;</item>
+        ///   <item>else an ANONYMOUS contact of a compatible class whose circle meets the estimate is FUSED: the position moves
+        ///     to the inverse-variance mean and the radius SHRINKS (<c>1/r² = 1/r₁² + 1/r₂²</c>) — repeated shots narrow it;</item>
+        ///   <item>else a new anonymous slot (a synthetic negative id; full table: the weakest entry is evicted, as for sight).</item>
+        /// </list>
+        /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
+        /// </summary>
+        public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
+                                       float scoreBoost, uint tick)
+        {
+            radius = radius > 0f ? radius : 1f;
+            int best = -1; float bestD2 = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] != 0) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                if (d2 <= radius * radius && d2 < bestD2) { best = i; bestD2 = d2; }
+            }
+            if (best >= 0)
+            {
+                mem.ThreatScores[best] += scoreBoost;
+                mem.LastSeenTick[best]  = tick;
+                mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
+                if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                long known = mem.EntityIds[best];
+                Sort(ref mem);
+                return known;
+            }
+
+            best = -1; bestD2 = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] == 0 || !ClassesCompatible(mem.SourceClass[i], sourceClass)) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                float reach = mem.Radius[i] + radius;
+                if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
+            }
+            if (best >= 0)
+            {
+                float r1 = mem.Radius[best], w1 = 1f / (r1 * r1), w2 = 1f / (radius * radius), w = w1 + w2;
+                mem.PositionsX[best]   = (mem.PositionsX[best] * w1 + x * w2) / w;
+                mem.PositionsY[best]   = (mem.PositionsY[best] * w1 + y * w2) / w;
+                mem.PositionsZ[best]   = (mem.PositionsZ[best] * w1 + z * w2) / w;
+                mem.Radius[best]       = 1f / System.MathF.Sqrt(w);
+                mem.ThreatScores[best] += scoreBoost;
+                mem.LastSeenTick[best]  = tick;
+                if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                long fused = mem.EntityIds[best];
+                Sort(ref mem);
+                return fused;
+            }
+
+            long id = -(long)(++mem.AnonymousSerial);
+            AddOrUpdateTarget(ref mem, id, x, y, scoreBoost, tick, SensorModality.Acoustic, z);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id) continue;
+                mem.Anonymous[i]   = 1;
+                mem.Radius[i]      = radius;
+                mem.SourceClass[i] = sourceClass;
+                break;
+            }
+            return id;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3063</c> — a sense confirmed <paramref name="entityId"/> at (<paramref name="x"/>, <paramref name="y"/>): an
+        /// anonymous contact whose circle holds that position and whose class is compatible with what the entity can sound
+        /// like (<paramref name="entityClasses"/>, any match; empty = unknown) BECOMES it — no duplicate. Its freshness is kept
+        /// (the higher of the two when the entity already has a slot). Returns true when one was absorbed.
+        /// </summary>
+        public static bool AbsorbBySighting(ref TargetMemory mem, long entityId, float x, float y, System.ReadOnlySpan<byte> entityClasses)
+        {
+            int anon = -1; float bestD2 = float.MaxValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.Anonymous[i] == 0) continue;
+                byte c = mem.SourceClass[i];
+                bool compatible = c == 0 || entityClasses.Length == 0;
+                for (int k = 0; !compatible && k < entityClasses.Length; k++) compatible = ClassesCompatible(c, entityClasses[k]);
+                if (!compatible) continue;
+                float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
+                if (d2 <= mem.Radius[i] * mem.Radius[i] && d2 < bestD2) { anon = i; bestD2 = d2; }
+            }
+            if (anon < 0) return false;
+
+            int known = -1;
+            for (int i = 0; i < mem.Count; i++) if (mem.Anonymous[i] == 0 && mem.EntityIds[i] == entityId) { known = i; break; }
+            if (known >= 0)
+            {
+                if (mem.ThreatScores[anon] > mem.ThreatScores[known]) mem.ThreatScores[known] = mem.ThreatScores[anon];
+                mem.Modalities[known] |= mem.Modalities[anon];
+                if (mem.SourceClass[known] == 0) mem.SourceClass[known] = mem.SourceClass[anon];
+                Forget(ref mem, anon);
+            }
+            else
+            {
+                mem.EntityIds[anon] = entityId;
+                mem.Anonymous[anon] = 0;
+                mem.Radius[anon]    = 0f;
+                mem.PositionsX[anon] = x;
+                mem.PositionsY[anon] = y;
+                mem.ChangeEpoch++;
+            }
+            Sort(ref mem);
+            return true;
         }
 
         /// <summary>
@@ -224,6 +384,9 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.ThreatScores[i] = mem.ThreatScores[i + 1];
                 mem.LastSeenTick[i] = mem.LastSeenTick[i + 1];
                 mem.Modalities[i]   = mem.Modalities[i + 1];
+                mem.Anonymous[i]    = mem.Anonymous[i + 1];
+                mem.Radius[i]       = mem.Radius[i + 1];
+                mem.SourceClass[i]  = mem.SourceClass[i + 1];
             }
             mem.Count--;
             mem.ChangeEpoch++;

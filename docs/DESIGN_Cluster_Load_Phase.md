@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-01 (§6 L4a row: the remapper-dropping default, corrected)
+updated: 2026-10-05 (§8 CE-2101: the world boundary clears every host)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
 current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT of L1-L7) and
   ⭐ §7 (L8 — the deterministic staging WAIT, BUILT; §7.7 is its AS-BUILT).
+  ⭐ §8 (CE-2101 — the world boundary clears every host before the load, BUILT).
   §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
@@ -775,3 +776,56 @@ one that matters, because it is the only one where the files actually have to ar
 |---|---|
 | ✅ **a `CancelOperation` now clears a parked entry** *(built `2026-09-18`, after the section below was first written)* | ⭐ **Parking created the first transition state that CAN be cancelled cleanly** — nothing has been sent, so there is nothing to undo, and the branch returns before the `AbortTransaction` fan-out for exactly that reason. 📐 Why it was absent rather than broken: `ProcessCancelOperationIntent` resolves its target through `_activeCancellations`, which **only** the ExportArchive and ImportArchive branches ever write *(`ClusterMaster.cs:1472`, `:1506`; specified that way in `.dev/_DONE/cgf-1/batches/CGF-1-BATCH-28-INSTRUCTIONS.md` §C.4)* — a transition was never a cancel target, and before parking there was no window in which it could have been one. ⚠ **It abandons the TRANSITION, not the copy**: the gateway registers no cancellation source, so the bytes finish landing in the node staging roots. Harmless — nothing loads them — but it is why the log says *"abandoned"*, not *"stopped"*. Pinned by `A_parked_transition_can_be_cancelled_and_fans_out_nothing`, which also asserts the single parked slot is RELEASED, so the next transition is admitted rather than rejected as busy |
 | ⚠ **the bound is wall-clock, and it is the only clock left** | `ParkedTransitionExpirySeconds`, default 300 s. ⛔ It is not a retry and it never proceeds — it fails the request. ⭐ It exists because a distribution that never reports at all *(a node ejected mid-copy, a saga that was never constructed)* must not hang the master forever |
+
+## 8. ⭐⭐⭐ `CE-2101` — **THE WORLD BOUNDARY CLEARS EVERY HOST** *(AS-BUILT `2026-10-05`, backend)*
+
+🔒 User, `2026-10-05`: *"the play is assumed to be a 'dry run', not a real production run, that one is started from scenario
+file always, never from memory."* ⭐ Play from Edit is PREVIEW (snapshot + rewind, `EditorTimeTransportFacade.cs:105`) and is
+untouched; this section is the PRODUCTION load.
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant N as each ECS node (LoadPhaseChain)
+  participant W as WorldBoundaryReset
+  participant T as translators (per-id state)
+  Note over M: trajectory OperatingLive -> UnloadingLive -> Idle -> LoadingLive
+  M->>M: IsWorldBoundaryLoad(Idle, LoadingLive) = true (ONE rule, also resets ids to 1000)
+  M->>N: PrepareLive {..., IsWorldBoundary: true}
+  N->>W: Commit, BEFORE any step
+  W->>W: map.Clear, DestroyEntity every entity, WorldEpoch++, GlobalTime reset, WorldResetEvent
+  N->>N: KB, terrain, scenario steps commit into the empty world
+  T->>T: next scan or poll: WorldEpoch moved, clear per-id bookkeeping (no wire dispose)
+```
+
+*What the picture shows that prose hid:* the clear is a NODE-local step every host runs at the same message, decided ONCE on
+the master by the rule that already resets the ids — so a node never has to know the trajectory, and live-from-replay
+(`OperatingReplay → LoadingLive`, never marked) keeps its world by construction.
+
+```mermaid
+classDiagram
+  direction LR
+  class ClusterMaster { <<existing>> +IsWorldBoundaryLoad(from, to)$ }
+  class EditLoadHandlerPayload { <<existing, grows>> +IsWorldBoundary }
+  class NodeTransitionPayloadDto { <<existing, grows>> +IsWorldBoundary }
+  class LoadPhaseContext { <<existing, grows>> +IsWorldBoundary }
+  class LoadPhaseChain { <<existing, grows>> +entityMap; Commit clears first }
+  class WorldBoundaryReset { <<NEW>> +Clear(world, map, host)$ }
+  class WorldEpoch { <<NEW managed singleton, id 332>> +Advance$ +Moved$ }
+  ClusterMaster ..> EditLoadHandlerPayload
+  EditLoadHandlerPayload ..> NodeTransitionPayloadDto : wire
+  LoadPhaseContext ..> EditLoadHandlerPayload
+  LoadPhaseChain ..> WorldBoundaryReset
+  WorldBoundaryReset ..> WorldEpoch
+```
+
+| ⭐ as built | why |
+|---|---|
+| **DESTROY every entity, not `SoftClear`** | `SoftClear` wipes the entity index, so generations restart at 1 (`EntityIndex.Clear`) and a handle cached before the wipe ALIASES the new entity at the same index; destroying bumps generations (`EntityIndex.cs:164`), so stale handles go DEAD. 📐 Measured safe: SimHost and CGF hold **0** entities at boot, so nothing but scenario content is destroyed |
+| **`WorldEpoch` clears translator per-id bookkeeping** | 🔴 measured: `EntityMasterEgressTranslator._publishedNetIds` ("exactly once per net id") outlived the wipe ⇒ the reused id 1000 never re-published its master ⇒ SimHost's ghost had no `TkbIdentity`, was never promoted, built no TKB sensors ⇒ the unit perceived nothing. Guarded the same way: BDC master egress, brain-intent send-on-change + held, master-ingress owner retries, route-ingress deferrals, `CycloneNetworkCleanupSystem._trackedEntities`. ⛔ NOT `Dispose(id)`: that writes "entity deleted" on the wire, and a late dispose of a REUSED id could destroy the new run's ghost |
+| the map is passed per host | IG, CGF, editor pass theirs; SimHost resolves the world singleton late (it is set after composition) |
+| the editor's own edit-path pre-wipe (`ScenarioFileService.NewScenario`) stays | it now also advances `WorldEpoch`; ⚠ it still uses `SoftClear` (generation reset) — a follow-up could route it through `WorldBoundaryReset` |
+
+Rails: `TakeCoverScenarioTests.CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost` (cluster: once per host, at the authored
+position, perceiving again — red before on position, then on perception), `LoadPhaseChainTests.TheWorldBoundary_ClearsTheWorldBeforeAnyStepCommits_CE2101`
+(boundary clears and kills stale handles; non-boundary keeps the world), `TheWorldBoundaryResetsTheIdAuthorityTests.The_world_boundary_is_a_load_entered_from_Idle_CE2101`.

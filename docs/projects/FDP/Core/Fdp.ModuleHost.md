@@ -120,6 +120,18 @@ rest of the simulation.
 > every editor run for an entire working session while the node kept answering healthy (`CE-188`).
 > Both paths now route through one `ReportModuleFault` handler.
 >
+> ⭐⭐ **Corrected 2026-10-05 (`CE-3066`) — a TIMED-OUT run is no longer overlapped or freed under itself.** A run that
+> exceeds `MaxExpectedRuntimeMs` is abandoned but cannot be stopped, and 🔴 it used to be treated as finished: the harvest
+> **released its snapshot view to the pool while it was still reading it** (measured: `AccessViolationException` in
+> `EntityIndex.IsAlive` from `VisionBroadphase.Rebuild`, the editor process died), and the next dispatch **started a second
+> run of the same module beside it** on the module's shared state (measured: `NullReferenceException` in `ColliderIndex.Build`
+> every frame, swallowed). ⭐ Now: the entry keeps the abandoned run as its `ZombieTask` with its view and provider; the
+> module is **not re-dispatched** while it lives; once it ends, its command buffers are **discarded** (it was declared failed,
+> and its answers are for a snapshot several frames old) and the view goes back to the provider that issued it. ⭐ A run that
+> is due but blocked counts one `StillRunning` failure per scheduling period, so a module that hangs for good still opens
+> its circuit. ⛔ The frame never waits on it. Rail: `ResilienceIntegrationTests.Resilience_ASlowRunThatTimedOut_IsNeverOverlapped_AndTheModuleRunsAgainAfterIt_CE3066`
+> (red-proofed by disabling the guard).
+>
 > ⛔ **Recording a sync failure does NOT skip the module.** The sync path has no `CanRun()` gate (the
 > async path does, at the top of its dispatch), so opening the circuit is *reporting*, not execution
 > control. That asymmetry is deliberate and load-bearing: closing it would change which modules tick.

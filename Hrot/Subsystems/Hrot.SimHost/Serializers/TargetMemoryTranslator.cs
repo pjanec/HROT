@@ -49,6 +49,8 @@ namespace Hrot.SimHost.Serializers
             var entries = new JsonArray();
             for (int i = 0; i < tm.Count; i++)
             {
+                // ⭐ CE-3063 — a heard, anonymous contact is transient and has no entity to save (§6.1 lean: not saved).
+                if (TargetMemory.IsAnonymous(in tm, i)) continue;
                 var handle = new Entity((ulong)ptr->EntityIds[i]);
                 if (handle.IsNull || !repo.IsAlive(handle))
                     continue;  // skip stale/null entities — not in the save map

@@ -1231,10 +1231,13 @@ public sealed class ClusterMaster : IDisposable
         var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
         if (activeNodeIds.Count > 0)
         {
+                var enteredFrom = capturedSourceState;   // CE-2101 — the state each step is entered FROM
                 foreach (var step in trajectory)
                 {
                     if (step is TransitionStep tStep)
                     {
+                        bool worldBoundary = IsWorldBoundaryLoad(enteredFrom, tStep.TargetState);
+                        enteredFrom = tStep.TargetState;
                         NodeOpType prepareOp = tStep.TargetState switch
                         {
                             ClusterState.LoadingLive     => NodeOpType.PrepareLive,
@@ -1273,7 +1276,9 @@ public sealed class ClusterMaster : IDisposable
                             (FdpClusterState)(int)tStep.TargetState,
                             ExerciseId:  intent.ExerciseId,
                             TkbName:     contentNames.TkbName,
-                            TerrainName: contentNames.TerrainName);
+                            TerrainName: contentNames.TerrainName,
+                            // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
+                            IsWorldBoundary: worldBoundary);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
@@ -1397,6 +1402,16 @@ public sealed class ClusterMaster : IDisposable
         }
     }
 
+    /// <summary>
+    /// ⭐ THE world-boundary rule (DESIGN_Deterministic_Network_Ids §11g.4): a <c>Loading{Live,Edit}</c> step entered FROM
+    /// <c>Idle</c> — the only state with no world, so the only place a load CREATES one. ⛔ Not live-from-replay
+    /// (<c>OperatingReplay → LoadingLive</c> continues the replayed world). ⭐ ONE rule for both consumers: the id
+    /// authority reset (HN-037) and the node world clear (CE-2101).
+    /// </summary>
+    internal static bool IsWorldBoundaryLoad(ClusterState enteredFrom, ClusterState target)
+        => enteredFrom == ClusterState.Idle
+        && (target == ClusterState.LoadingLive || target == ClusterState.LoadingEdit);
+
     private void ResetIdAuthorityIfWorldBoundary(
         IEnumerable<ISysOpStep> trajectory, ClusterState sourceState)
     {
@@ -1413,10 +1428,7 @@ public sealed class ClusterMaster : IDisposable
         {
             if (step is not TransitionStep ts) continue;
 
-            bool isLoad = ts.TargetState == ClusterState.LoadingLive
-                       || ts.TargetState == ClusterState.LoadingEdit;
-
-            if (isLoad && previousState == ClusterState.Idle)
+            if (IsWorldBoundaryLoad(previousState, ts.TargetState))
             {
                 crossesWorldBoundary = true;
                 break;

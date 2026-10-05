@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.IO;
 using System.Numerics;
 using System.Text.Json;
@@ -126,6 +127,197 @@ public sealed class TakeCoverScenarioTests : IDisposable
     [Fact(Timeout = 240_000)]
     public Task CE2094_UnderHoldFire_TheRiflemanFallsBack_AndEndsHiddenFromTheHostile()
         => RunAsync(holdFire: true, expectedReaction: "FallBack");
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2101</c> — a SECOND live load starts from the FILE (🔒 user, 2026-10-05: a production run "is started from
+    /// scenario file always, never from memory"). The first run moves the rifleman into cover; after Idle and a second
+    /// live load it must be back at its authored position, exist ONCE on every host, and perceive the hostile again.
+    /// 🔴 Before the fix nothing cleared the world at the load: the ids restart at 1000, the respawn was dropped as
+    /// already mapped (<c>NetworkSpawningSystem</c>), and the run continued on the old entities.
+    /// 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11b (the world is cleared at every load entered from Idle).
+    /// </summary>
+    [Fact(Timeout = 300_000)]
+    public async Task CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost()
+    {
+        var root = RepoRoot();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+        {
+            harness.PumpFrames(1);
+            Thread.Sleep(10);
+        }
+
+        async Task Transition(Hrot.NED.Descriptors.Orchestration.ClusterState target)
+        {
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = target.ToString(), ScenarioId = _scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)target, timeoutFrames: 4000),
+                $"cluster must reach {target}; at {(int)master.CurrentClusterState}");
+        }
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        int Named(EntityRepository w, string name)
+        {
+            int n = 0;
+            for (int i = 0; i <= w.MaxEntityIndex; i++)
+            {
+                var e = w.GetEntityByIndex(i);
+                if (w.IsAlive(e) && w.HasComponent<EntityInfo>(e) && w.GetComponent<EntityInfo>(e).Name.ToString() == name) n++;
+            }
+            return n;
+        }
+        bool Remembers() { var r = ByName(cgf, "Rifleman"); return !r.IsNull && cgf.HasComponent<TargetMemory>(r) && cgf.GetComponent<TargetMemory>(r).Count > 0; }
+
+        static int Alive(EntityRepository w) { int n = 0; for (int i = 0; i <= w.MaxEntityIndex; i++) if (w.IsAlive(w.GetEntityByIndex(i))) n++; return n; }
+        _out.WriteLine($"boot (before any load): sim={Alive(sim)} cgf={Alive(cgf)}");
+
+        // ① the first live run: spawn, perceive, move off the authored spot.
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive);
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000),
+            "first load: the rifleman must spawn on SimHost and CGF");
+        var authored = sim.GetComponent<SimTransform>(ByName(sim, "Rifleman")).Position;
+        Assert.True(harness.PumpUntil(Remembers, timeoutFrames: 3000), "first load: the rifleman must perceive the hostile");
+        Assert.True(harness.PumpUntil(() => Vector3.Distance(authored, sim.GetComponent<SimTransform>(ByName(sim, "Rifleman")).Position) > 2f,
+            timeoutFrames: 3000), "first load: the rifleman must move off its authored spot (TakeCover)");
+
+        // ② back to Idle, then a second live load of the same file.
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.Idle);
+        _out.WriteLine($"at Idle after the first run: sim={Alive(sim)} cgf={Alive(cgf)}");
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive);
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000),
+            "second load: the rifleman must exist on SimHost and CGF");
+        harness.PumpFrames(30);
+
+        // ③ from the FILE: once per host, at the authored position, perceiving again.
+        Assert.Equal(1, Named(sim, "Rifleman"));
+        Assert.Equal(1, Named(cgf, "Rifleman"));
+        Assert.Equal(1, Named(sim, "Hostile"));
+        var again = sim.GetComponent<SimTransform>(ByName(sim, "Rifleman")).Position;
+        Assert.True(Vector3.Distance(authored, again) < 1f,
+            $"second load: the rifleman must start at its authored position {authored}, not where the first run left it ({again})");
+        string Chain()
+        {
+            var sb = new System.Text.StringBuilder();
+            var r = ByName(cgf, "Rifleman"); var sr = ByName(sim, "Rifleman");
+            long rid = cgf.HasComponent<NetworkIdentity>(r) ? cgf.GetComponent<NetworkIdentity>(r).Value : -1;
+            sb.Append($"cgf rifleman {r} net={rid} tracks={(cgf.HasComponent<ActiveSensorTracks>(r) ? cgf.GetComponent<ActiveSensorTracks>(r).Count : -1)}");
+            foreach (var c in cgf.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                var m = cgf.GetComponent<PartMetadata>(c); if (!m.ParentEntity.Equals(r)) continue;
+                var cfg = cgf.GetComponent<EqsSensor>(c);
+                sb.Append($" | cgf child part={m.InstanceId} bp={cfg.BlueprintId:X8} ep={cfg.Epoch:X8} susp={cfg.Suspended} buf={(cgf.HasComponent<EqsCognitiveBuffer>(c) ? cgf.GetComponent<EqsCognitiveBuffer>(c).Count.ToString() : "none")}");
+            }
+            foreach (var c in sim.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                var m = sim.GetComponent<PartMetadata>(c); if (!m.ParentEntity.Equals(sr)) continue;
+                sb.Append($" | sim carrier part={m.InstanceId} ep={sim.GetComponent<EqsSensor>(c).Epoch:X8}");
+            }
+            int simSensors = 0; foreach (var _ in sim.Query().With<PartMetadata>().With<EqsSensor>().Build()) simSensors++;
+            sb.Append($" | sim sensors total={simSensors} alive sim={Alive(sim)} cgf={Alive(cgf)}");
+            if (!sr.IsNull)
+                sb.Append($" | sim rifleman {sr} lifecycle={sim.GetLifecycleState(sr)} tkb={(sim.HasComponent<TkbIdentity>(sr) ? sim.GetComponent<TkbIdentity>(sr).TkbType.ToString() : "none")} transform={sim.HasComponent<SimTransform>(sr)}");
+            return sb.ToString();
+        }
+        bool again2 = harness.PumpUntil(Remembers, timeoutFrames: 3000);
+        _out.WriteLine(Chain());
+        Assert.True(again2, "second load: the rifleman must perceive the hostile again — " + Chain());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2101</c> follow-up — PLAY FROM EDIT is a PREVIEW, a dry run on the in-memory edited world (🔒 user,
+    /// 2026-10-05: "never silently forget about the stuff the user is just editing … the play is assumed to be a 'dry run'").
+    /// Opened for edit, then Preview: the rifleman must perceive the hostile and take cover exactly as on a live load — the
+    /// clock-produced state (RecentSenses, the grown blackboard, the behaviour's sensors) appears once time runs; nothing
+    /// in the engine is edit-specific. Stop returns to Edit and REWINDS it to where it stood.
+    /// 📄 docs/projects/Hrot/Subsystems/Hrot.Editor.md §Preview · DESIGN_Deterministic_Network_Ids §11c (preview is not cleared).
+    /// </summary>
+    [Fact(Timeout = 300_000, Skip = "CE-3067 (behaviors): Preview from Edit — the SOP is assigned only once the clock runs, without its root tree-state slot, and BrainTickSystem throws 'no ROOT TREE STATE slot'. Un-skip when CE-3067 lands; this rail is its acceptance.")]
+    public async Task CE2101_PreviewFromEdit_PerceivesAndTakesCover_AndStopRewindsToTheEdit()
+    {
+        var root = RepoRoot();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+        {
+            harness.PumpFrames(1);
+            Thread.Sleep(10);
+        }
+        async Task Transition(Hrot.NED.Descriptors.Orchestration.ClusterState target)
+        {
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = JsonSerializer.Serialize(new { TargetState = target.ToString(), ScenarioId = _scenarioId }),
+            }).ConfigureAwait(false);
+            Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)target, timeoutFrames: 4000),
+                $"cluster must reach {target}; at {(int)master.CurrentClusterState}");
+        }
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingEdit);
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(sim, "Hostile").IsNull
+                                         && !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000),
+            "edit: both units must exist on SimHost and the rifleman on CGF");
+        Assert.True(harness.PumpUntil(() => sim.HasSingletonManaged<TerrainWorld>(), timeoutFrames: 2000), "edit: test-town resident");
+        var town = sim.GetSingletonManaged<TerrainWorld>();
+        Vector3 Pos(string name) => sim.GetComponent<SimTransform>(ByName(sim, name)).Position;
+        var inEdit = Pos("Rifleman");
+        {
+            var r = ByName(cgf, "Rifleman");
+            for (int i = 0; i <= cgf.MaxEntityIndex; i++)
+            {
+                var e = cgf.GetEntityByIndex(i);
+                if (!cgf.IsAlive(e) || !cgf.HasComponent<Fdp.Toolkit.Behavior.Components.SopState>(e)) continue;
+                var sop = cgf.GetComponent<Fdp.Toolkit.Behavior.Components.SopState>(e);
+                _out.WriteLine($"edit: cgf {e} name={(cgf.HasComponent<EntityInfo>(e) ? cgf.GetComponent<EntityInfo>(e).Name.ToString() : "?")} sopHash={sop.SopHash} sopRun={sop.SopInstanceId} tier={sop.SopBrainTier} " +
+                    $"bb256={cgf.HasComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard256>(e)} bb1024={cgf.HasComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(e)} " +
+                    $"task={(cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : -1)}");
+            }
+        }
+
+        // ▶ Play from Edit = Preview.
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingPreview);
+        _out.WriteLine("preview: entered");
+        Entity Rifleman() => ByName(cgf, "Rifleman");
+        Assert.True(harness.PumpUntil(() => !Rifleman().IsNull && cgf.HasComponent<TargetMemory>(Rifleman())
+                                         && cgf.GetComponent<TargetMemory>(Rifleman()).Count > 0, timeoutFrames: 3000),
+            "preview: the rifleman must perceive the hostile");
+        string? Task() => registry.TryGetName(cgf.GetComponent<BehaviorState>(Rifleman()).ActiveBehaviorHash, out var n) ? n : null;
+        Assert.True(harness.PumpUntil(() => Task() == "TakeCover", timeoutFrames: 3000), $"preview: the SOP must react with TakeCover; runs {Task()}");
+        bool Hidden()
+        {
+            Entity h = ByName(sim, "Hostile"), r = ByName(sim, "Rifleman");
+            var eye = Pos("Hostile") + new Vector3(0, 0, EqsTerrainSight.Mount(sim, h).Standing);
+            var aim = Pos("Rifleman") + new Vector3(0, 0, EqsTerrainSight.Mount(sim, r).Crouched);
+            return town.SegmentBlocked(eye, aim);
+        }
+        Assert.True(harness.PumpUntil(Hidden, timeoutFrames: 3000), $"preview: the rifleman must end hidden; it is at {Pos("Rifleman")}");
+        Assert.True(Vector3.Distance(inEdit, Pos("Rifleman")) > 1f, "preview: it must have moved");
+
+        // ■ Stop = back to Edit, rewound to the edited world.
+        await Transition(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingEdit);
+        harness.PumpFrames(30);
+        Assert.True(Vector3.Distance(inEdit, Pos("Rifleman")) < 0.5f,
+            $"stop: the rifleman must be back where it stood in Edit ({inEdit}); it is at {Pos("Rifleman")}");
+    }
 
     private async Task RunAsync(bool holdFire, string expectedReaction)
     {

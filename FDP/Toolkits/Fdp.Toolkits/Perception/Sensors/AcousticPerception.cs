@@ -31,6 +31,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>The flag bits an answer's <see cref="SoundKind"/> is written in (bits 8–9; the low bits belong to EQS tests).</summary>
         public const short KindShift = 8, KindMask = 0x3 << 8;
 
+        /// <summary>⭐ <c>CE-3063</c> — the flag bits an answer's <c>SoundSourceClass</c> is written in (bits 10–12).</summary>
+        public const short ClassShift = 10, ClassMask = 0x7 << 10;
+
         public static EqsQueryTemplate Template(SpatialHashGrid grid) => new()
         {
             BlueprintId   = BlueprintId,
@@ -104,18 +107,18 @@ namespace Fdp.Toolkit.Perception.Sensors
                 ulong src = source.PackedValue, lis = unit.PackedValue;
                 uint tick = view.Tick;
                 if (a.CurrentMovingRange > 0f)
-                    Hear(candidates, ref n, ear, at, a.CurrentMovingRange, range, perMeter, SoundKind.Movement, src, lis, tick);
+                    Hear(candidates, ref n, ear, at, a.CurrentMovingRange, range, perMeter, SoundKind.Movement, a.MovingClass, src, lis, tick);
                 if (a.ShotTimeLeft > 0f)
-                    Hear(candidates, ref n, ear, new Vector3(a.ShotX, a.ShotY, a.ShotZ), a.FiringAudibleRange, range, perMeter, SoundKind.Shot, src, lis, tick);
+                    Hear(candidates, ref n, ear, new Vector3(a.ShotX, a.ShotY, a.ShotZ), a.FiringAudibleRange, range, perMeter, SoundKind.Shot, a.FiringClass, src, lis, tick);
                 if (a.DetonationTimeLeft > 0f)
-                    Hear(candidates, ref n, ear, new Vector3(a.DetonationX, a.DetonationY, a.DetonationZ), a.DetonationAudibleRange, range, perMeter, SoundKind.Detonation, src, lis, tick);
+                    Hear(candidates, ref n, ear, new Vector3(a.DetonationX, a.DetonationY, a.DetonationZ), a.DetonationAudibleRange, range, perMeter, SoundKind.Detonation, a.DetonationClass, src, lis, tick);
             }
             return n;
         }
 
         // One sound: heard when it carries this far AND the ear reaches this far; answered as an anonymous estimate.
         private static void Hear(Span<EqsResult> candidates, ref int n, Vector3 ear, Vector3 where, float carries, float range,
-                                 float perMeter, SoundKind kind, ulong source, ulong listener, uint tick)
+                                 float perMeter, SoundKind kind, byte sourceClass, ulong source, ulong listener, uint tick)
         {
             if (n == candidates.Length || carries <= 0f) return;
             float d = Vector3.Distance(ear, where);
@@ -129,8 +132,8 @@ namespace Fdp.Toolkit.Perception.Sensors
                 PositionY       = where.Y + err.Y,
                 PositionZ       = where.Z,
                 Score           = radius,   // ⭐ the template has no score test: Score CARRIES the uncertainty radius, exactly
-                Flags           = (short)((byte)kind << AcousticPerception.KindShift),
-                FlagsMeaningful = AcousticPerception.KindMask,
+                Flags           = (short)(((byte)kind << AcousticPerception.KindShift) | ((sourceClass & 0x7) << AcousticPerception.ClassShift)),
+                FlagsMeaningful = (short)(AcousticPerception.KindMask | AcousticPerception.ClassMask),
             };
         }
     }

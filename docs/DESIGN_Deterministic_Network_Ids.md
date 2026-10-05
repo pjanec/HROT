@@ -798,6 +798,14 @@ before the repo is wiped"* — and this map IS cached entity handles. ⛔ No new
 nothing had connected. The failure mode differs only because the spawn path drops silently where the map
 throws.
 
+#### ⭐⭐ 11g.5a `CE-2101` (`2026-10-05`) — **§11b's "the world is cleared at load" was true only on the editor's EDIT path**
+
+🔴 Measured: a LIVE load, and every load on SimHost / CGF / IG, cleared nothing, so with the ids reset to 1000 the respawn was
+dropped and the run continued on the previous run's entities. ⭐ Now built where §11b says: every ECS node clears at the load
+entered from Idle, decided by the SAME rule as the reset here (`ClusterMaster.IsWorldBoundaryLoad`, shared). ⇒ the AS-BUILT
+lives in [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §8 (including why it DESTROYS rather than `SoftClear`s,
+and `WorldEpoch` for translator per-id state).
+
 #### ⭐ 11g.6 What Part B removed *(the obsolete direct load path)*
 
 ⛔ `ScenarioFileService.LoadScenario` · `IEditorLogic.LoadScenario` · `EditorApplication`'s impl. 📐 Zero

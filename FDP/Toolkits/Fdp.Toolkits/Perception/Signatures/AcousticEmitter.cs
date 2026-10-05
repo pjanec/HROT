@@ -20,6 +20,9 @@ namespace Fdp.Toolkit.Perception.Signatures
         public float FiringAudibleRange;
         public float DetonationAudibleRange;
 
+        /// <summary>⭐ <c>CE-3063</c> — the <c>SoundSourceClass</c> of its movement, its shots and its detonations (from the TKB).</summary>
+        public byte MovingClass, FiringClass, DetonationClass;
+
         /// <summary>How far its movement carries this tick (0 = still).</summary>
         public float CurrentMovingRange;
 

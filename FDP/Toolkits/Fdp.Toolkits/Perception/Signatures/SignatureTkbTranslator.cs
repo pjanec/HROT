@@ -42,6 +42,9 @@ namespace Fdp.Toolkit.Perception.Signatures
                     ReferenceSpeed         = ac.ReferenceSpeed,
                     FiringAudibleRange     = ac.FiringAudibleRange,
                     DetonationAudibleRange = ac.DetonationAudibleRange,
+                    MovingClass            = (byte)ac.MovingClass,
+                    FiringClass            = (byte)ac.FiringClass,
+                    DetonationClass        = (byte)(ac.DetonationClass == SoundSourceClass.Unknown ? SoundSourceClass.Explosion : ac.DetonationClass),
                 });
         }
     }

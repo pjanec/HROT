@@ -52,11 +52,24 @@ namespace Fdp.Toolkit.Perception.Systems
         private System.Collections.Generic.Dictionary<Entity, float> _lastHealth = new();
         private System.Collections.Generic.Dictionary<Entity, float> _nextHealth = new();
 
+        // ⭐ CE-3063 — this frame's heard contacts, grouped by the unit that heard them.
+        private readonly System.Collections.Generic.Dictionary<Entity, System.Collections.Generic.List<SoundContactEvent>> _heard = new();
+
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             var ecb  = view.GetCommandBuffer();
             uint tick = view.Tick;
+            System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
+
+            // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.
+            foreach (var list in _heard.Values) list.Clear();
+            if (view is EntityRepository heardRepo && heardRepo.Bus.IsRegistered<SoundContactEvent>())
+                foreach (ref readonly var heard in view.ReadEvents<SoundContactEvent>())
+                {
+                    if (!_heard.TryGetValue(heard.Observer, out var forUnit)) _heard[heard.Observer] = forUnit = new();
+                    forUnit.Add(heard);
+                }
 
             // Iterate all entities that have TargetMemory: apply decay and optional boost.
             _nextHealth.Clear();
@@ -113,6 +126,9 @@ namespace Fdp.Toolkit.Perception.Systems
                                 posZ = targetTf.Position.Z;
                             }
 
+                            // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
+                            TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
+
                             TargetMemory.AddOrUpdateTarget(
                                 ref mem,
                                 entityId:   tracksRO.EntityIds[i],
@@ -129,13 +145,23 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
 
+                // ⭐ CE-3063 — HEARD: refresh what is known there, else fuse with a compatible heard contact, else a new one.
+                if (_heard.TryGetValue(entity, out var heardHere) && heardHere.Count > 0)
+                {
+                    foreach (var h in heardHere)
+                        TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
+                                                 PerceptionConstants.HeardBoostPerContact, tick);
+                    changed = true;
+                }
+
                 // ⭐ CE-3046 — FORGET: a target that no longer exists, or one no sensor tracks whose score has faded.
                 //   🔴 Nothing used to remove an entry, so dead and long-lost targets kept their slots forever.
                 bool hasTracks = view.HasComponent<ActiveSensorTracks>(entity);
                 for (int i = mem.Count - 1; i >= 0; i--)
                 {
                     var target = new Entity((ulong)mem.EntityIds[i]);
-                    bool dead  = !view.IsAlive(target);
+                    // ⭐ CE-3063 — an anonymous slot is not an entity: it fades by freshness only.
+                    bool dead  = !TargetMemory.IsAnonymous(in mem, i) && !view.IsAlive(target);
                     bool faded = mem.ThreatScores[i] < PerceptionConstants.ForgetThreatScore
                               && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
                     if (!dead && !faded) continue;
@@ -164,6 +190,20 @@ namespace Fdp.Toolkit.Perception.Systems
                 }
             }
             (_lastHealth, _nextHealth) = (_nextHealth, _lastHealth);
+        }
+
+        /// <summary>What <paramref name="target"/> can sound like on this node (its <c>AcousticEmitter</c> classes); empty =
+        /// unknown, compatible with any heard class.</summary>
+        private static System.ReadOnlySpan<byte> ClassesOf(ISimulationView view, Entity target, System.Span<byte> buffer)
+        {
+            if (!view.IsAlive(target) || !view.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(target))
+                return System.ReadOnlySpan<byte>.Empty;
+            ref readonly var a = ref view.GetComponentRO<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(target);
+            int n = 0;
+            if (a.MovingClass != 0)     buffer[n++] = a.MovingClass;
+            if (a.FiringClass != 0)     buffer[n++] = a.FiringClass;
+            if (a.DetonationClass != 0) buffer[n++] = a.DetonationClass;
+            return buffer.Slice(0, n);
         }
 
         private static unsafe bool IsTracked(in ActiveSensorTracks tracks, long id)

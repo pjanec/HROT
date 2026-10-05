@@ -131,6 +131,19 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
         Assert.Single(authority.Resets);
     }
 
+    /// <summary>
+    /// ⭐ CE-2101 — the ONE world-boundary rule, shared by the id reset and the node world clear: a load step entered
+    /// FROM Idle. ⛔ Live-from-replay continues the replayed world, so it is not a boundary.
+    /// </summary>
+    [Theory]
+    [InlineData(ClusterState.Idle,            ClusterState.LoadingLive,    true)]
+    [InlineData(ClusterState.Idle,            ClusterState.LoadingEdit,    true)]
+    [InlineData(ClusterState.OperatingReplay, ClusterState.LoadingLive,    false)]
+    [InlineData(ClusterState.OperatingEdit,   ClusterState.LoadingPreview, false)]
+    [InlineData(ClusterState.Idle,            ClusterState.LoadingReplay,  false)]
+    public void The_world_boundary_is_a_load_entered_from_Idle_CE2101(ClusterState from, ClusterState to, bool boundary)
+        => Assert.Equal(boundary, Hrot.Orchestrator.ClusterMaster.IsWorldBoundaryLoad(from, to));
+
     // ── ② 🔴 It fires NOWHERE ELSE — the half that carries the safety argument ────────────────
 
     /// <summary>

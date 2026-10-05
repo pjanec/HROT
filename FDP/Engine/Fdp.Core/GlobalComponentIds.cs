@@ -645,5 +645,8 @@
 
         /// <summary><c>AcousticEmitter</c> — how far an entity's sounds carry (<c>CE-3062</c>, R-205).</summary>
         public const int AcousticEmitter = 331;
+
+        /// <summary><c>WorldEpoch</c> — which world this is; bumped at every world boundary (<c>CE-2101</c>).</summary>
+        public const int WorldEpoch = 332;
     }
 }

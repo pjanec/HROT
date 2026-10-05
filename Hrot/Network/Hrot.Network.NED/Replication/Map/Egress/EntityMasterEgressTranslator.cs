@@ -21,6 +21,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
         private readonly HashSet<long> _publishedNetIds = new();
+        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName => "EntityMaster";
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMaster;
@@ -55,6 +56,8 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ScanAndPublish(ISimulationView view)
         {
             var repo = view as EntityRepository;
+            // ⭐ CE-2101 — "exactly once" is per entity LIFETIME: the next world reuses the ids from 1000.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _publishedNetIds.Clear();
 
             var query = view.Query()
                 .With<NetworkIdentity>()

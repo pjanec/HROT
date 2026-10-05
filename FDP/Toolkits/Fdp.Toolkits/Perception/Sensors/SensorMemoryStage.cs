@@ -90,6 +90,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     Observer = unit, X = r.PositionX, Y = r.PositionY, Z = r.PositionZ,
                     Radius   = r.Score,   // the radius the generator drew the error in (AcousticSensorGenerator)
                     Kind     = (byte)((r.Flags & AcousticPerception.KindMask) >> AcousticPerception.KindShift),
+                    SourceClass = (byte)((r.Flags & AcousticPerception.ClassMask) >> AcousticPerception.ClassShift),
                 });
             }
         }

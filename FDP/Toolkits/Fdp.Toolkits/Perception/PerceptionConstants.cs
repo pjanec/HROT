@@ -61,6 +61,11 @@ namespace Fdp.Toolkit.Perception
         /// </summary>
         public const float LiveFreshness = 0.25f;
 
+        /// <summary>⭐ CE-3063 — the freshness one heard contact adds: a solver period's worth of sight
+        /// (<see cref="TrackBoostPerSecond"/> × 0.1 s, the EQS module's 10 Hz), so continuous hearing keeps a contact as fresh as
+        /// continuous sight, and one shot (≈5 answers while it lingers) is remembered ≈40 s as "something about there".</summary>
+        public const float HeardBoostPerContact = TrackBoostPerSecond * 0.1f;
+
         /// <summary>
         /// ⭐ CE-3046 — an entry no sensor tracks is FORGOTTEN once its score fades below this. With the 10 %/s decay that is
         /// ~44 s after a contact seen for one second, ~66 s after one seen long enough to saturate (score 500): the score

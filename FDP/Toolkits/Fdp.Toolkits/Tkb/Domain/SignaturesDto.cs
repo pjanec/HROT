@@ -62,5 +62,33 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>How far a detonation of its munition carries.</summary>
         [EditUnit("m")]
         public float DetonationAudibleRange { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> (R-207) — what its movement SOUNDS like to a listener (footsteps, an engine…).</summary>
+        public SoundSourceClass MovingClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> — what its shots sound like (small arms, a heavy weapon).
+        /// ⚠ One per entity type, not per weapon mount: a tank's coax reads as its main gun.</summary>
+        public SoundSourceClass FiringClass { get; init; }
+
+        /// <summary>⭐ <c>CE-3063</c> — what a detonation of its munition sounds like; <see cref="SoundSourceClass.Unknown"/> ⇒ an explosion.</summary>
+        public SoundSourceClass DetonationClass { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3063</c> (R-207, 🔒 user 2026-10-05: <i>"the vehicle engine or human steps or shot sounds usually carry at least
+    /// some kind-like identification, it is almost never a completely anonymous - and allows to estimate danger level"</i>) —
+    /// the COARSE class a listener can tell a sound by, never an identity. Carried from the emitter to the Brain's memory; the
+    /// memory merges only compatible classes and the AI judges danger from it at read time. <see cref="Unknown"/> is
+    /// compatible with every class. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6.1a.
+    /// </summary>
+    public enum SoundSourceClass : byte
+    {
+        Unknown       = 0,
+        Footsteps     = 1,
+        WheeledEngine = 2,
+        TrackedEngine = 3,
+        SmallArms     = 4,
+        HeavyWeapon   = 5,
+        Explosion     = 6,
     }
 }

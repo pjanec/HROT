@@ -57,14 +57,15 @@ public readonly record struct LoadPhaseContext(
     string? TkbName,
     string? TerrainName,
     Guid ExerciseId,
-    bool IsNewScenario)
+    bool IsNewScenario,
+    bool IsWorldBoundary = false)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
     public static LoadPhaseContext? From(ExecuteNodeOpIntent intent)
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TkbName, p.TerrainName, p.ExerciseId, p.IsNewScenario)
+                p.TkbName, p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>

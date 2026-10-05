@@ -35,6 +35,31 @@ namespace Fdp.Toolkit.Perception.Tests
             w.Bus.SwapBuffers();
         }
 
+        /// <summary>⭐ <c>CE-3063</c> (R-207) — the TKB authors what each sound sounds LIKE; a detonation with no class is an explosion.</summary>
+        [Fact]
+        public void TheTkbAuthorsTheSourceClass_AndADetonationDefaultsToAnExplosion_CE3063()
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<AcousticEmitter>();
+            var e = w.CreateEntity();
+            var template = new Fdp.Interfaces.TkbTemplate("Tank", 3063);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.SignaturesDto
+            {
+                Acoustic = new Fdp.Toolkit.Tkb.Domain.AcousticSignatureDto
+                {
+                    MovingAudibleRange = 400f,
+                    MovingClass = Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine,
+                    FiringClass = Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon,
+                },
+            });
+            new SignatureTkbTranslator().Inject(w, e, template);
+
+            var a = w.GetComponentRO<AcousticEmitter>(e);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine, a.MovingClass);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon, a.FiringClass);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion, a.DetonationClass);
+        }
+
         [Fact]
         public void Movement_CarriesInProportionToSpeed_AndStillIsSilent()
         {

@@ -24,6 +24,33 @@ namespace Fdp.Toolkit.Perception
             return view.HasComponent<WeaponState>(target) ? 1f : Unarmed;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3063</c> (§6.1a K3, R-207) — the danger of memory slot <paramref name="slot"/>: an identified contact through
+        /// <see cref="Of"/>; a HEARD, anonymous one from the class it sounded like (there is no entity to read). The ONE accessor
+        /// a reader iterating the memory should call — ⚠ <see cref="Of"/> on an anonymous slot's synthetic id resolves no
+        /// entity and reads as "unknown = armed" (1).
+        /// </summary>
+        public static unsafe float OfSlot(ISimulationView view, Entity self, in TargetMemory mem, int slot)
+        {
+            if (!TargetMemory.IsAnonymous(in mem, slot)) return Of(view, self, new Entity((ulong)mem.EntityIds[slot]));
+            fixed (byte* c = mem.SourceClass) return OfClass(c[slot]);
+        }
+
+        /// <summary>
+        /// The danger of a heard source by its class (<c>Tkb.Domain.SoundSourceClass</c>). ⚠ First-cut values, tunable: an
+        /// unknown class counts as armed (hidden is not harmless); footsteps and a wheeled engine are "maybe armed".
+        /// </summary>
+        public static float OfClass(byte sourceClass) => sourceClass switch
+        {
+            1 => 0.6f,   // Footsteps
+            2 => 0.6f,   // WheeledEngine
+            3 => 1f,     // TrackedEngine
+            4 => 0.8f,   // SmallArms
+            5 => 1f,     // HeavyWeapon
+            6 => 1f,     // Explosion
+            _ => 1f,     // Unknown
+        };
+
         /// <summary>The unit's own fighting strength in [0, 1]: its health fraction, scaled down when it is unarmed.</summary>
         public static float OwnStrength(ISimulationView view, Entity self)
         {
