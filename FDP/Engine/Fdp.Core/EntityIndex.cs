@@ -365,15 +365,16 @@ namespace Fdp.Core
         /// </summary>
         public void SyncFrom(EntityIndex source)
         {
-            // ⭐⭐ CE-3067 — copied WHOLE, never by chunk version. A component add / remove edits a presence mask through the
-            //   version-free indexer (GetComponentMask), so a mask chunk's version moves only when an entity is created or
-            //   destroyed (and by ApplyComponentFilter). ⇒ an EQUAL version proves nothing here: a preview rewind found the
-            //   live chunk one create ahead of the capture and the snapshot one filter ahead — equal — and skipped the masks,
-            //   so CGF kept the 1024 blackboard a task had promoted to, with the snapshot's (empty) bytes, and the next SOP
-            //   tick threw. The component TABLES stay dirty-gated: their writes stamp the global version.
-            //   🧪 PreviewRewindManagedComponentTests.CE3067_Rewind_undoes_a_component_swap_made_inside_the_preview.
-            _hotMasks.SyncAllChunks(source._hotMasks);
-            _coldMeta.SyncAllChunks(source._coldMeta);
+            // Sync both underlying tables using fast chunk-based memcpy.
+            // ⭐⭐ CE-3067 — FORCED, never version-gated. Adding or removing a component writes the mask through
+            //    GetComponentMask() without stamping the chunk version, and ApplyComponentFilter bumps the
+            //    DESTINATION's version by +1. ⇒ when the source gained exactly one create/destroy in a chunk since
+            //    the last sync, both sides read V+1 and the chunk was SKIPPED. 📐 Measured on a preview rewind: the
+            //    entity kept the 1024 store bit added during the preview and lost the 256 bit the snapshot held,
+            //    while the 1024 DATA was rewound to zeros ⇒ BrainTickSystem threw "no ROOT TREE STATE slot".
+            //    The index is the structural truth every table read is gated on, so it is copied whole.
+            _hotMasks.SyncDirtyChunks(source._hotMasks, force: true);
+            _coldMeta.SyncDirtyChunks(source._coldMeta, force: true);
 
             // Sync global counters
             _activeCount    = source._activeCount;

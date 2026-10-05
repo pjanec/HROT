@@ -443,7 +443,12 @@ namespace Fdp.Core
         /// Synchronizes dirty chunks from a source table to this table.
         /// Uses version tracking to optimize transfer (only copies modified chunks).
         /// </summary>
-        public void SyncDirtyChunks(NativeChunkTable<T> source)
+        /// <param name="force">
+        /// ⭐ <c>CE-3067</c> — copy every chunk regardless of version. For a table whose writers do NOT stamp the
+        /// chunk version (the entity index's component masks and metadata), version equality is not proof the
+        /// contents match, and a skipped chunk silently keeps the destination's bytes.
+        /// </param>
+        public void SyncDirtyChunks(NativeChunkTable<T> source, bool force = false)
         {
             #if FDP_PARANOID_MODE
             if (source.TotalChunks != _totalChunks)
@@ -458,7 +463,7 @@ namespace Fdp.Core
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i].Value == srcVer)
+                if (!force && _chunkVersions[i].Value == srcVer)
                     continue;
 
                 // Source likely has changes (or we are stale).
@@ -506,18 +511,6 @@ namespace Fdp.Core
         public void IncrementChunkVersion(int chunkIndex)
         {
             _chunkVersions[chunkIndex].Value++;
-        }
-
-        /// <summary>
-        /// ⭐ <c>CE-3067</c> — <see cref="SyncDirtyChunks"/> with NO version skip: every chunk is made to differ from its
-        /// source first, so every chunk is copied (or decommitted). For tables whose writes do not stamp a version, where an
-        /// equal version proves nothing about equal content — the entity index's presence masks are the case.
-        /// </summary>
-        public void SyncAllChunks(NativeChunkTable<T> source)
-        {
-            for (int i = 0; i < _totalChunks; i++)
-                _chunkVersions[i].Value = unchecked(source.GetChunkVersion(i) + 1u);
-            SyncDirtyChunks(source);
         }
     }
 }

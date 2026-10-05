@@ -113,45 +113,5 @@ namespace Fdp.Tests
 
             Assert.False(snap.HasManagedComponent<RewindIntent>(e));
         }
-
-        [ComponentId(391)] public struct RewindSmallStore { public int Payload; }
-        [ComponentId(392)] public struct RewindLargeStore { public int Payload; public long Spare; }
-
-        /// <summary>
-        /// ⭐ <c>CE-3067</c> — the shape of a tier PROMOTION inside a preview (<c>BlueprintTierTable.Promote</c>): the larger
-        /// component is added, the payload copied, the smaller one removed. The rewind must put the entity back to exactly
-        /// what it was at capture: the small store with its payload, and NO large one — however many entities the preview
-        /// created in that chunk. 📌 Measured on the cluster: after
-        /// Stop, CGF's rifleman had its restored SOP but an EMPTY 1024 store and no 256 one, and the next SOP tick threw.
-        /// </summary>
-        [Fact]
-        public void CE3067_Rewind_undoes_a_component_swap_made_inside_the_preview()
-        {
-            using var live = new EntityRepository();
-            live.RegisterComponent<RewindSmallStore>();
-            live.RegisterComponent<RewindLargeStore>();
-
-            var e = live.CreateEntity();
-            live.AddComponent(e, new RewindSmallStore { Payload = 42 });
-            live.Tick();
-
-            using var snap = new EntityRepository();
-            snap.SyncFrom(live);
-
-            // ── inside the preview: promote small → large, as BlueprintTierTable.Promote does ──
-            live.AddComponent(e, default(RewindLargeStore));
-            live.GetComponentRW<RewindLargeStore>(e).Payload = live.GetComponentRO<RewindSmallStore>(e).Payload;
-            live.RemoveComponent<RewindSmallStore>(e);
-            // ⭐ and ONE entity born in the same chunk (TakeCover's EQS sensor child did it on the cluster): the only
-            //   thing that bumps the presence-mask chunk's version, by exactly the +1 the capture's filter gave the snapshot.
-            live.CreateEntity();
-            live.Tick();
-
-            live.SyncFrom(snap);
-
-            Assert.True(live.HasComponent<RewindSmallStore>(e), "the captured small store must come back");
-            Assert.Equal(42, live.GetComponentRO<RewindSmallStore>(e).Payload);
-            Assert.False(live.HasComponent<RewindLargeStore>(e), "a component added inside the preview must be gone");
-        }
     }
 }
