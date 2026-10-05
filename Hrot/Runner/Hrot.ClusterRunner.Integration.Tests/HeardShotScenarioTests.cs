@@ -133,6 +133,13 @@ public sealed class HeardShotScenarioTests : IDisposable
         int manual = -1; string manualInfo = "";
         int simSounds = 0, cgfSounds = 0;   // SoundContactEvents seen on each node's bus
         var observers = new System.Collections.Generic.HashSet<string>(); var simObservers = new System.Collections.Generic.HashSet<string>();
+        string Ids()
+        {
+            string Of(EntityRepository w, Entity e) => e.IsNull ? "-" : $"{e}#{(w.HasComponent<NetworkIdentity>(e) ? w.GetComponent<NetworkIdentity>(e).Value : -1)}";
+            var e6 = cgf.GetEntityByIndex(6);
+            string six = cgf.IsAlive(e6) ? $"{e6}={(cgf.HasComponent<EntityInfo>(e6) ? cgf.GetComponent<EntityInfo>(e6).Name.ToString() : "?")}#{(cgf.HasComponent<NetworkIdentity>(e6) ? cgf.GetComponent<NetworkIdentity>(e6).Value : -1)}" : "dead";
+            return $" cgf R={Of(cgf, rifleman)} S={Of(cgf, shooter)} D={Of(cgf, ByName(cgf, "Decoy"))} sim R={Of(sim, simRifleman)} S={Of(sim, simShooter)} D={Of(sim, simDecoy)} cgf6={six}";
+        }
         string Ears()
         {
             var s = "";
@@ -149,7 +156,7 @@ public sealed class HeardShotScenarioTests : IDisposable
             s += sim.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter)
                 ? $" emitter(fire={sim.GetComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(simShooter).FiringAudibleRange} maxShotLeft={maxShot:F2})"
                 : " emitter=none";
-            return s + $" soundEvents sim={simSounds} cgf={cgfSounds} cgfObservers=[{string.Join(",", observers)}] simObservers=[{string.Join(",", simObservers)}] rifleman cgf={rifleman} sim={simRifleman} manual:" + manualInfo;
+            return s + $" soundEvents sim={simSounds} cgf={cgfSounds} cgfObservers=[{string.Join(",", observers)}] simObservers=[{string.Join(",", simObservers)}] rifleman cgf={rifleman} sim={simRifleman} ids:{Ids()} manual:" + manualInfo;
         }
         string State() => $"task={Task()} {Memory()} shooterAmmo={ShooterAmmo()} pos={Pos(simRifleman)} start={start} | {Shooter()} |{Ears()}";
 
