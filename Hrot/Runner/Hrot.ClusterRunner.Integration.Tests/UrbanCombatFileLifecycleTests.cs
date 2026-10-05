@@ -193,7 +193,11 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // match the production SimHost serializer, ensuring entity cross-references in
         // TargetMemory (insurgent/APC targets) and PassengerBuffer (embarked soldiers)
         // survive the JSON round-trip as GUID-tracked handles.
+        // ⭐ CE-502 — the registry must KNOW the UC behaviours, as the editor's does (EditorSubsystem registers them before
+        //   it builds its serializer). ⛔ An empty registry made the CE-3042 brain snapshot unresolvable, so CGF loaded
+        //   every unit with no brain and the ambush never started.
         var behaviorRegistry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(behaviorRegistry);
         var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
 
         // ⭐ Staged where the cluster loads from, through the ONE scenario writer (NasScenarioStaging). ⛔ It used to

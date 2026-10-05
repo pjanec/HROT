@@ -171,6 +171,15 @@ namespace Hrot.CGF
                 weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                 {
                     (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                },
+                // ⭐ CE-502 — the Brain writes embarkation state (DESIGN_Role_Affinity_Ownership.md §6, "the Brain's
+                //   EmbarkExecutor / EjectPassengersExecutor"). 🔴 None was registered here, so the dispatcher ran with no
+                //   interaction executors: an APC's HSM issued EjectPassengers on MobilityLost and nothing executed it — the
+                //   squad stayed aboard with no capabilities. The same set the example hosts register (HeadlessDemoApp).
+                interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
+                {
+                    (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
+                    (BehaviorConstants.ActionIdOpenDoor,        new OpenDoorExecutor()),
                 });
 
             _healthApplicationSystem   = new HealthApplicationSystem();
