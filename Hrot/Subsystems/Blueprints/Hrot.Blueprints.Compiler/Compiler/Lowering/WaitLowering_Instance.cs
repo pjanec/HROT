@@ -532,6 +532,9 @@ internal static class WaitLowering_Instance
         {
             if (synthesizedBlocks.Any(b => b.Id.Value == resumeCheckBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == resumeCheckBlockId[k].Value));
+            // ⭐ CE-2081 — a channel wait's status check, behind its cancelled check.
+            if (statusCheckBlockId[k].Value != 0 && synthesizedBlocks.Any(b => b.Id.Value == statusCheckBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == statusCheckBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == retReturnBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == retReturnBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == notRunningBlockId[k].Value))

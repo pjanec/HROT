@@ -994,7 +994,7 @@ part of `CE-2081`, designed before the BTree/HSM half ships, so resume lands for
 ⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
 · Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
 
-### 4.9a `CE-2081` — the build design, all three tiers *(behaviors, `2026-10-05`; build-state: BUILDING)*
+### 4.9a `CE-2081` — the build design, all three tiers *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
 
 **INVENTORY** *(measured `2026-10-05`, grep + reading; the graph was not consulted for this list — every site is a call of
 a named helper inside `BehaviorIngressSystem.cs`)*: the places that end a task-slot run's storage — `Start` (prev manifest
@@ -1068,6 +1068,25 @@ new Brain restarts from the published intent, `CE-3048`); ⛔ there is no path t
 | a cancelled wait with no re-issuable command (command in another block, impure inputs, or none) **fails** the wait | honest: the author's `OnFailure` runs instead of waiting forever | waiting forever (today) |
 | the paused task's own EQS sensors keep running while paused | lean A (keep owned parts); a reaction is short | suspending them (a second state to restore) |
 | a `WaitForEvent` that fires during the reaction is missed | the task was not running; the same as an HSM state that was not active | buffering events for a paused run |
+
+⭐ **As-built `CE-2081` (`2026-10-05`)** — matches the diagrams, with these precisions:
+- **ingress** (`BehaviorIngressSystem`): `PauseRecord(incoming)` captures hash / token / tier / `HeldKeys` (the store's keys
+  minus the SOP's) and marks `Restart` when the incoming run's keys (`KeysOf`: three roots + manifest) overlap. `Start(…, pausing)`
+  skips the paused run's `Release`, manifest detach and root detaches, and provisions through the free-space path
+  (as the SOP slot does). `IsHeldByPausedTask` sits beside `IsHeldBySop` in `DetachHostedOccurrenceSlots`.
+  `ReconcileHeldTask` turns an existing pause into a restart when a reaction replacing a reaction would overlap it.
+  `NextRunToken` replaces every task-slot `InstanceId++` (start, clear, the unhosted hash assign).
+  `DropPausedTask(registry)` detaches the held keys (except those the running behaviour now uses) and releases the paused run's parts.
+- **lean B** is in `Admit`: a reaction whose behaviour is the running task (when it would pause it) or the paused task is refused.
+- **tokens:** `RunTokens` (in `SopState.cs`) is the one high-bit allocator; `SopTokens.Next` delegates to it.
+- **blueprint:** `WaitLowering_Instance` adds the cancelled check only to a channel wait whose own block issues a command on
+  that channel (`IssuesOn`) — ⚠ a wait on a channel commanded elsewhere keeps the old status-only check (rail
+  `S1_AfterAChannelWaitSucceeds_*` waits on an uncommanded channel). Re-entry target = the issuing block when `CanReissue`
+  (a whitelist of re-runnable ops), else the wait's failure block.
+- **rails:** `SopSlotTests.CE2081_*` (5: resume where it was on its own token · the token is never reused · same asset refused ·
+  an order releases the paused storage and parts · an overlapping reaction falls back to restart),
+  `BlueprintBehaviourTests.CE2081_*` (2: re-issue · a non-re-issuable block fails the wait). Red-proofs: resume forced to restart
+  ⇒ the progress rail red; tokens forced to `++` ⇒ the de-dup rail red.
 
 ## ⛔ HISTORY
 
