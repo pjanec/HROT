@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (!memOwner.IsNull)
             {
                 ref readonly var mem = ref view.GetComponentRO<TargetMemory>(memOwner);
-                if (mem.Count == 0 || mem.ThreatScores[0] < sensor.ThreatThreshold) return;
+                if (mem.Count == 0 || mem.Freshness[0] < sensor.ThreatThreshold) return;
             }
 
             var otherMount = EqsTerrainSight.Mount(view, other);

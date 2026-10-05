@@ -83,7 +83,7 @@ namespace Hrot.SimHost.Tests
                 ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
                 if (!threat) { mem.Count = 0; return; }
                 mem.EntityIds[0] = (long)Repo.CreateEntity().PackedValue;
-                mem.ThreatScores[0] = 10f;
+                mem.Freshness[0] = 10f;
                 mem.Count = 1;
             }
 

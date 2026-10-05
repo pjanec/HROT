@@ -99,7 +99,7 @@ public sealed class SensorMechanismIntegrationTests
                 var cgf = harness.Cgf!.World;
                 if (cgf == null || !cgf.HasComponent<TargetMemory>(observerCgf)) return false;
                 var mem = cgf.GetComponent<TargetMemory>(observerCgf);
-                return mem.Count > 0 && mem.ThreatScores[0] > 0f;
+                return mem.Count > 0 && mem.Freshness[0] > 0f;
             },
             SensorPipelineTimeoutMs / PumpSleepMs);
         Assert.True(scored, "CgfThreatEvaluationSystem must boost TargetMemory while the track is active.");
@@ -115,12 +115,12 @@ public sealed class SensorMechanismIntegrationTests
             SensorPipelineTimeoutMs / PumpSleepMs);
         Assert.True(lost, "Once the T-72 is out of sight the memory stage must report Lost and CGF must drop the track. " + Diagnose(sim, observerSim, targetSim));
 
-        float scoreWhenLost = harness.Cgf!.World!.GetComponent<TargetMemory>(observerCgf).ThreatScores[0];
+        float scoreWhenLost = harness.Cgf!.World!.GetComponent<TargetMemory>(observerCgf).Freshness[0];
         bool decayed = harness.PumpUntil(
             () =>
             {
                 var mem = harness.Cgf!.World!.GetComponent<TargetMemory>(observerCgf);
-                return mem.Count == 0 || mem.ThreatScores[0] < scoreWhenLost;
+                return mem.Count == 0 || mem.Freshness[0] < scoreWhenLost;
             },
             DecayTimeoutMs / PumpSleepMs);
         Assert.True(decayed, $"With the track lost the score must decay below {scoreWhenLost:F1} within {DecayTimeoutMs} ms " +

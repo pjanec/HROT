@@ -327,7 +327,7 @@ public sealed class EqsRoundTripTests : IDisposable
         {
             mem.Count           = 1;
             mem.EntityIds[0]    = (long)threatEntity.PackedValue;   // CE-3046 — a LIVE target: a dead one is forgotten
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }
@@ -403,7 +403,7 @@ public sealed class EqsRoundTripTests : IDisposable
         {
             mem.Count           = 1;
             mem.EntityIds[0]    = (long)threatEntity.PackedValue;   // CE-3046 — a LIVE target: a dead one is forgotten
-            mem.ThreatScores[0] = 10f;
+            mem.Freshness[0] = 10f;
             mem.PositionsX[0]   = 30f;
             mem.PositionsY[0]   = 0f;
         }

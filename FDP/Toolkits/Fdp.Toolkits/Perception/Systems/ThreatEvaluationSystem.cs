@@ -89,10 +89,10 @@ namespace Fdp.Toolkit.Perception.Systems
                 bool changed = false;
                 for (int i = 0; i < mem.Count; i++)
                 {
-                    float newScore = mem.ThreatScores[i] * decayFactor;
-                    if (newScore != mem.ThreatScores[i])
+                    float newScore = mem.Freshness[i] * decayFactor;
+                    if (newScore != mem.Freshness[i])
                     {
-                        mem.ThreatScores[i] = newScore;
+                        mem.Freshness[i] = newScore;
                         changed = true;
                     }
                 }
@@ -162,7 +162,7 @@ namespace Fdp.Toolkit.Perception.Systems
                     var target = new Entity((ulong)mem.EntityIds[i]);
                     // ⭐ CE-3063 — an anonymous slot is not an entity: it fades by freshness only.
                     bool dead  = !TargetMemory.IsAnonymous(in mem, i) && !view.IsAlive(target);
-                    bool faded = mem.ThreatScores[i] < PerceptionConstants.ForgetThreatScore
+                    bool faded = mem.Freshness[i] < PerceptionConstants.ForgetThreatScore
                               && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
                     if (!dead && !faded) continue;
                     TargetMemory.Forget(ref mem, i);

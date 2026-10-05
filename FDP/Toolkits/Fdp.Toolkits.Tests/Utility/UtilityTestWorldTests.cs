@@ -79,7 +79,7 @@ namespace Fdp.Toolkit.Tests
             ref readonly var mem = ref w.Repo.GetComponentRO<TargetMemory>(self);
             Assert.Equal(1, mem.Count);
             Assert.Equal((long)contact.PackedValue, mem.EntityIds[0]);
-            Assert.Equal(100f, mem.ThreatScores[0]);
+            Assert.Equal(100f, mem.Freshness[0]);
         }
 
         // SC-P0-06-5: SpawnEqsSensor sets BlueprintId and seeds buffer correctly

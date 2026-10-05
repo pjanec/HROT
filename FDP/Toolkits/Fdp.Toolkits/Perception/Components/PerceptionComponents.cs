@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// <summary>
     /// Fixed-size unmanaged threat table attached to entities with perception.
     /// Holds up to <see cref="PerceptionConstants.MaxTrackedTargets"/> perceived targets,
-    /// sorted descending by <see cref="ThreatScores"/>.
+    /// sorted descending by <see cref="Freshness"/>.
     /// <para>
     /// All fixed array sizes use <see cref="PerceptionConstants.MaxTrackedTargets"/> — never raw literals.
     /// </para>
@@ -61,11 +61,13 @@ namespace Fdp.Toolkit.Perception.Components
         public fixed float PositionsZ[PerceptionConstants.MaxTrackedTargets];
 
         /// <summary>
-        /// Accumulated threat score per slot.
-        /// Boosted by perception events, decayed every frame by
-        /// <see cref="PerceptionConstants.ThreatScoreDecayPerSecond"/>.
+        /// How RECENTLY each slot was perceived — boosted while a sensor reports the contact, decayed every frame by
+        /// <see cref="PerceptionConstants.ThreatScoreDecayPerSecond"/>, forgotten below the floor unless tracked.
+        /// ⭐ <c>CE-3054</c> A (R-201) — renamed from <c>ThreatScores</c>: it never held a DANGER. Memory stores identity +
+        /// freshness; danger is judged at read time (<c>ThreatDanger</c>). 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8.
+        /// ⚠ The scenario save key stays the literal <c>"Score"</c> (<c>TargetMemoryTranslator</c>) — saved files are unchanged.
         /// </summary>
-        public fixed float ThreatScores[PerceptionConstants.MaxTrackedTargets];
+        public fixed float Freshness[PerceptionConstants.MaxTrackedTargets];
 
         /// <summary>Simulation tick when this target was last perceived.</summary>
         public fixed uint LastSeenTick[PerceptionConstants.MaxTrackedTargets];
@@ -159,7 +161,7 @@ namespace Fdp.Toolkit.Perception.Components
             if (foundSlot >= 0)
             {
                 // Accumulate score and refresh position / tick.
-                mem.ThreatScores[foundSlot] += scoreBoost;
+                mem.Freshness[foundSlot] += scoreBoost;
                 mem.PositionsX[foundSlot]    = posX;
                 mem.PositionsY[foundSlot]    = posY;
                 mem.PositionsZ[foundSlot]    = posZ;
@@ -175,7 +177,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[slot]   = posX;
                 mem.PositionsY[slot]   = posY;
                 mem.PositionsZ[slot]   = posZ;
-                mem.ThreatScores[slot] = scoreBoost;
+                mem.Freshness[slot] = scoreBoost;
                 mem.LastSeenTick[slot] = tick;
                 mem.Modalities[slot]   = (byte)modality;
                 mem.Anonymous[slot]    = 0;
@@ -193,7 +195,7 @@ namespace Fdp.Toolkit.Perception.Components
                 int lowestIdx = 0;
                 for (int i = 1; i < PerceptionConstants.MaxTrackedTargets; i++)
                 {
-                    float si = mem.ThreatScores[i], sl = mem.ThreatScores[lowestIdx];
+                    float si = mem.Freshness[i], sl = mem.Freshness[lowestIdx];
                     if (si < sl || (si == sl && mem.LastSeenTick[i] <= mem.LastSeenTick[lowestIdx]))
                         lowestIdx = i;
                 }
@@ -203,7 +205,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.PositionsX[lowestIdx]   = posX;
                     mem.PositionsY[lowestIdx]   = posY;
                     mem.PositionsZ[lowestIdx]   = posZ;
-                    mem.ThreatScores[lowestIdx] = scoreBoost;
+                    mem.Freshness[lowestIdx] = scoreBoost;
                     mem.LastSeenTick[lowestIdx] = tick;
                     // Fresh modality for the new entry (eviction resets the bitmask).
                     mem.Modalities[lowestIdx]   = (byte)modality;
@@ -227,7 +229,7 @@ namespace Fdp.Toolkit.Perception.Components
                 float  pxTmp    = mem.PositionsX[i];
                 float  pyTmp    = mem.PositionsY[i];
                 float  pzTmp    = mem.PositionsZ[i];
-                float  scoreTmp = mem.ThreatScores[i];
+                float  scoreTmp = mem.Freshness[i];
                 uint   tickTmp  = mem.LastSeenTick[i];
                 byte   modTmp   = mem.Modalities[i];
                 byte   anonTmp  = mem.Anonymous[i];
@@ -235,13 +237,13 @@ namespace Fdp.Toolkit.Perception.Components
                 byte   clsTmp   = mem.SourceClass[i];
 
                 int j = i - 1;
-                while (j >= 0 && mem.ThreatScores[j] < scoreTmp)
+                while (j >= 0 && mem.Freshness[j] < scoreTmp)
                 {
                     mem.EntityIds[j + 1]    = mem.EntityIds[j];
                     mem.PositionsX[j + 1]   = mem.PositionsX[j];
                     mem.PositionsY[j + 1]   = mem.PositionsY[j];
                     mem.PositionsZ[j + 1]   = mem.PositionsZ[j];
-                    mem.ThreatScores[j + 1] = mem.ThreatScores[j];
+                    mem.Freshness[j + 1] = mem.Freshness[j];
                     mem.LastSeenTick[j + 1] = mem.LastSeenTick[j];
                     mem.Modalities[j + 1]   = mem.Modalities[j];
                     mem.Anonymous[j + 1]    = mem.Anonymous[j];
@@ -254,7 +256,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[j + 1]   = pxTmp;
                 mem.PositionsY[j + 1]   = pyTmp;
                 mem.PositionsZ[j + 1]   = pzTmp;
-                mem.ThreatScores[j + 1] = scoreTmp;
+                mem.Freshness[j + 1] = scoreTmp;
                 mem.LastSeenTick[j + 1] = tickTmp;
                 mem.Modalities[j + 1]   = modTmp;
                 mem.Anonymous[j + 1]    = anonTmp;
@@ -290,7 +292,7 @@ namespace Fdp.Toolkit.Perception.Components
             }
             if (best >= 0)
             {
-                mem.ThreatScores[best] += scoreBoost;
+                mem.Freshness[best] += scoreBoost;
                 mem.LastSeenTick[best]  = tick;
                 mem.Modalities[best]   |= (byte)SensorModality.Acoustic;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
@@ -314,7 +316,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsY[best]   = (mem.PositionsY[best] * w1 + y * w2) / w;
                 mem.PositionsZ[best]   = (mem.PositionsZ[best] * w1 + z * w2) / w;
                 mem.Radius[best]       = 1f / System.MathF.Sqrt(w);
-                mem.ThreatScores[best] += scoreBoost;
+                mem.Freshness[best] += scoreBoost;
                 mem.LastSeenTick[best]  = tick;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
                 long fused = mem.EntityIds[best];
@@ -360,7 +362,7 @@ namespace Fdp.Toolkit.Perception.Components
             for (int i = 0; i < mem.Count; i++) if (mem.Anonymous[i] == 0 && mem.EntityIds[i] == entityId) { known = i; break; }
             if (known >= 0)
             {
-                if (mem.ThreatScores[anon] > mem.ThreatScores[known]) mem.ThreatScores[known] = mem.ThreatScores[anon];
+                if (mem.Freshness[anon] > mem.Freshness[known]) mem.Freshness[known] = mem.Freshness[anon];
                 mem.Modalities[known] |= mem.Modalities[anon];
                 if (mem.SourceClass[known] == 0) mem.SourceClass[known] = mem.SourceClass[anon];
                 Forget(ref mem, anon);
@@ -390,7 +392,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.PositionsX[i]   = mem.PositionsX[i + 1];
                 mem.PositionsY[i]   = mem.PositionsY[i + 1];
                 mem.PositionsZ[i]   = mem.PositionsZ[i + 1];
-                mem.ThreatScores[i] = mem.ThreatScores[i + 1];
+                mem.Freshness[i] = mem.Freshness[i + 1];
                 mem.LastSeenTick[i] = mem.LastSeenTick[i + 1];
                 mem.Modalities[i]   = mem.Modalities[i + 1];
                 mem.Anonymous[i]    = mem.Anonymous[i + 1];

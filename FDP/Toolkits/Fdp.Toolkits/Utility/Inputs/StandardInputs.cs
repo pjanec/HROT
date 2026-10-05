@@ -181,7 +181,7 @@ namespace Fdp.Toolkit.Utility
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             long targetId = (long)ctx.Context.PackedValue;
             for (int i = 0; i < mem.Count; i++)
-                if (mem.EntityIds[i] == targetId) return ThreatFreshness.Of(mem.ThreatScores[i]);
+                if (mem.EntityIds[i] == targetId) return ThreatFreshness.Of(mem.Freshness[i]);
             return 0f;
         }
 

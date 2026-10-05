@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             unsafe
             {
                 mem.Count          = 1;
-                mem.ThreatScores[0] = threatScore;
+                mem.Freshness[0] = threatScore;
                 mem.PositionsX[0]   = threatX;
                 mem.PositionsY[0]   = threatY;
             }
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [Fact]
         public void AccurateLos_BypassWhenThreatBelowThreshold()
         {
-            // ThreatScores[0]=10, ThreatThreshold=50 → bypass.
+            // Freshness[0]=10, ThreatThreshold=50 → bypass.
             var observer = CreateObserverWithThreat(threatScore: 10f, threatThreshold: 50f, threatX: 10f, threatY: 0f);
             var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2048);

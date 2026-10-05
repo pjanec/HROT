@@ -370,7 +370,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 99f; // irrelevant -- position is read from slot entity
             mem.PositionsY[0]   = 0f;
         }
@@ -455,7 +455,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 20f;
             mem.PositionsY[0]   = 0f;
         }
@@ -528,7 +528,7 @@ public sealed class EqsContextSlotTests : IDisposable
         unsafe
         {
             mem.Count          = 1;
-            mem.ThreatScores[0] = 100f;
+            mem.Freshness[0] = 100f;
             mem.PositionsX[0]   = 100f; // decoy -- must not appear in raycast End
             mem.PositionsY[0]   = 0f;
         }

@@ -142,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 for (int i = 0; i < mem.Count; i++)
                 {
-                    if (mem.EntityIds[i] == targetPacked && mem.ThreatScores[i] > 0f)
+                    if (mem.EntityIds[i] == targetPacked && mem.Freshness[i] > 0f)
                     {
                         if (BehaviorLog.IsTraceEnabled)
                             BehaviorLog.Trace(self, world, "Target acquired in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
@@ -231,7 +231,7 @@ namespace Hrot.AI.Behaviors.Brains
                     {
                         for (int i = 0; i < mem.Count; i++)
                         {
-                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.ThreatScores[i] > 0f)
+                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.Freshness[i] > 0f)
                             {
                                 ref var locoChannel = ref world.GetComponentRW<LocomotionChannel>(self);
                                 locoChannel.ActiveAction = 0;

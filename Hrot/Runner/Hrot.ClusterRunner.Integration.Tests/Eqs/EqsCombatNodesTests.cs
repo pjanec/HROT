@@ -153,7 +153,7 @@ public sealed class EqsCombatNodesTests : IDisposable
 
         // Step 3: add a live threat entry
         ref var mem = ref _repo.GetComponentRW<TargetMemory>(_entity);
-        unsafe { mem.ThreatScores[0] = 1.5f; }
+        unsafe { mem.Freshness[0] = 1.5f; }
         mem.Count = 1;
         Assert.Equal(NodeStatus.Success,
             EqsCombatNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World));
@@ -179,7 +179,7 @@ public sealed class EqsCombatNodesTests : IDisposable
 
         // Step 1: add TargetMemory with a live threat
         var mem = new TargetMemory();
-        unsafe { mem.ThreatScores[0] = 2f; mem.EntityIds[0] = 99L; }
+        unsafe { mem.Freshness[0] = 2f; mem.EntityIds[0] = 99L; }
         mem.Count = 1;
         _repo.AddComponent(_entity, mem);
 
@@ -207,7 +207,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         // Remove threat from TargetMemory
         ref var memW = ref _repo.GetComponentRW<TargetMemory>(_entity);
         memW.Count = 0;
-        unsafe { memW.ThreatScores[0] = 0f; }
+        unsafe { memW.Freshness[0] = 0f; }
 
         // The ObserverSelector would abort the branch and call the deactivator
         EqsLifecycleNodes.Deactivate_MaintainEqsSensor(ctx.Self, ctx.World);
@@ -227,7 +227,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         ref var mem = ref _repo.GetComponentRW<TargetMemory>(_entity);
         unsafe
         {
-            for (int i = 0; i < threats.Length; i++) { mem.EntityIds[i] = (long)threats[i].PackedValue; mem.ThreatScores[i] = 10f; }
+            for (int i = 0; i < threats.Length; i++) { mem.EntityIds[i] = (long)threats[i].PackedValue; mem.Freshness[i] = 10f; }
         }
         mem.Count = threats.Length;
         return threats.Length > 0 ? threats[0] : Entity.Null;

@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Perception
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-3054</c> C — how FRESH a remembered contact is. <see cref="TargetMemory.ThreatScores"/> IS the freshness
+    /// ⭐⭐ <c>CE-3054</c> C — how FRESH a remembered contact is. <see cref="TargetMemory.Freshness"/> IS the freshness
     /// score (lean A; the backend renames it later): it climbs while tracked and fades while not.
     /// </summary>
     public static class ThreatFreshness
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Perception
         /// </summary>
         public static unsafe bool IsLive(ISimulationView view, Entity self, in TargetMemory mem, int i)
         {
-            if (Of(mem.ThreatScores[i]) >= PerceptionConstants.LiveFreshness) return true;
+            if (Of(mem.Freshness[i]) >= PerceptionConstants.LiveFreshness) return true;
             if (!view.HasComponent<ActiveSensorTracks>(self)) return false;
             ref readonly var tracks = ref view.GetComponentRO<ActiveSensorTracks>(self);
             long id = mem.EntityIds[i];

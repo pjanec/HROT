@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Perception.Tests
             const float expected = 100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond * 1.0f);
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
-            Assert.Equal(expected, resultMem.ThreatScores[0]);
+            Assert.Equal(expected, resultMem.Freshness[0]);
         }
 
         // ── Test 2: ActiveSensorTracks boost ─────────────────────────────────────────
@@ -109,9 +109,9 @@ namespace Fdp.Toolkit.Perception.Tests
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
             Assert.Equal(targetEntityId, resultMem.EntityIds[0]);
-            Assert.True(resultMem.ThreatScores[0] > 0f,
+            Assert.True(resultMem.Freshness[0] > 0f,
                 "Score must be boosted when ActiveSensorTracks has acquired targets.");
-            Assert.True(resultMem.ThreatScores[0] >= 49f,
+            Assert.True(resultMem.Freshness[0] >= 49f,
                 "Boost rate must be approximately 50 * deltaTime per second.");
         }
 
@@ -351,7 +351,7 @@ namespace Fdp.Toolkit.Perception.Tests
             const float expected = 100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond * 1.0f);
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
-            Assert.Equal(expected, resultMem.ThreatScores[0]);
+            Assert.Equal(expected, resultMem.Freshness[0]);
         }
 
         // ── Test 6: decay and boost in one frame ─────────────────────────────────────
@@ -391,7 +391,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(1, resultMem.Count);
             Assert.Equal(targetId, resultMem.EntityIds[0]);
-            Assert.True(resultMem.ThreatScores[0] > 90f,
+            Assert.True(resultMem.Freshness[0] > 90f,
                 "Score must exceed the decay-only value (90) when ActiveSensorTracks is present.");
         }
 
@@ -466,8 +466,8 @@ namespace Fdp.Toolkit.Perception.Tests
 
             var resultMem = world.GetComponent<TargetMemory>(observer);
             Assert.Equal(2, resultMem.Count);
-            Assert.True(resultMem.ThreatScores[0] > 0f, "First track must have positive threat score.");
-            Assert.True(resultMem.ThreatScores[1] > 0f, "Second track must have positive threat score.");
+            Assert.True(resultMem.Freshness[0] > 0f, "First track must have positive threat score.");
+            Assert.True(resultMem.Freshness[1] > 0f, "Second track must have positive threat score.");
         }
     }
 }

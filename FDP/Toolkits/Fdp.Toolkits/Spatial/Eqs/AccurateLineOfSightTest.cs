@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             {
                 ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(memOwner);
                 if (mem.Count == 0) return;
-                if (mem.ThreatScores[0] < sensor.ThreatThreshold) return;
+                if (mem.Freshness[0] < sensor.ThreatThreshold) return;
             }
             short bit = (short)(1 << ContextSlotIndex);
             var mount = EqsTerrainSight.Mount(repo, slotEntity);
