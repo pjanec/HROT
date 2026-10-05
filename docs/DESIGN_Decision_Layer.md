@@ -14,6 +14,7 @@ related-designs:
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; an SOP calls it (§7), never a host.
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
+  - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
 -->
 
 # The decision layer — missions, SOP, threat, intent

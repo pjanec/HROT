@@ -34,6 +34,7 @@ namespace Hrot.SimHost.Tests
     ///     containing the entity state captured at the seek point of the original recording.</item>
     /// </list>
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class FullBranchPipelineTests : IDisposable
     {
         private readonly EntityRepository _world;

@@ -1932,13 +1932,17 @@ public class IgApplication : IDisposable
         if (_globalGizmoManager == null || _globalGizmoManager.ActiveCount == 0)
             return;
 
-        _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent
+        // ⭐ CE-501 — publish on the bus the manager READS: MapInteractionPack gives IG its own interaction bus
+        //   (GlobalGizmoManager(…, interactionBus)), so a click put on the world bus never reached the placement gizmo
+        //   and no creation request was ever posted — the hook was stale, not the routing.
+        var bus = _interactionBus ?? _world.Bus;
+        bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent
         {
             Button    = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left,
             IsPressed = false,
             WorldPos  = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f),
         });
-        _world.Bus.SwapBuffers();
+        bus.SwapBuffers();
         _globalGizmoManager.Execute(_world, 0f);
     }
 

@@ -25,6 +25,7 @@ namespace Hrot.SimHost.Tests
     /// the recording module is properly installed for the branched exercise.
     /// </para>
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class LiveFromReplayTests : IDisposable
     {
         private readonly EntityRepository _world;

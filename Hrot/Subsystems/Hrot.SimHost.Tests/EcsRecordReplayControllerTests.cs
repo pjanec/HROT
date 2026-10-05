@@ -13,6 +13,7 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// Unit tests for <see cref="EcsRecordReplayController"/> (MOD1-P8T1).
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public class EcsRecordReplayControllerTests : IDisposable
     {
         private readonly EntityRepository _world;

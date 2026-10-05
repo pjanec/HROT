@@ -18,6 +18,7 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// Integration tests for <see cref="ReferenceReplayLoadHandler"/> (CGF1-S0304).
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public class ReplayLoadClusterOpHandlerTests : IDisposable
     {
         private readonly EntityRepository _world;

@@ -24,6 +24,7 @@ namespace Hrot.SimHost.Tests
     /// Also verifies correct <c>PrepareLive</c> (operationId=9) dispatch routing
     /// (CGF1-S0305 / BATCH-18 A.1).
     /// </summary>
+    [Xunit.Collection(RecordReplayKernelLoopCollection.Name)]
     public sealed class NodeBootstrapperReplayTests : System.IDisposable
     {
         // Domain 16 is reserved for NodeBootstrapper replay-registration tests.

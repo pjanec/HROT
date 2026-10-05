@@ -125,3 +125,20 @@ cheap when `CE-3056` lands. 📄 `docs/DESIGN_Sensors_And_Doctrine.md` §9.4a (O
 | **behaviors** | `CE-3034` origin + gate → `CE-3047` defaults through the ingress → `CE-2074` ROE · `CE-2076` recent senses · `CE-2077` TKB `DefaultSop` → `CE-3035` SOP slot → `CE-2078` reactions in the gate → `CE-2079` the two SOP actions → `CE-2080` SOP recipe → `CE-3042` snapshot (+ the `CE-502` finding) → `CE-2082` demo SOP scenario (⭐ user, `2026-10-04`; after `CE-3042` — it needs per-unit task / SOP / ROE in the file) → `CE-3043` editor AI section (⭐ moved from the ui lane, user) → `CE-3048` authority hand-over → `CE-3040` / `CE-3041` / `CE-3054` → `CE-2081` resume → utility `CE-2067`–`CE-2073` |
 | **backend** | ❓ `CE-2075` ROE fire guard in `AimAndFireExecutor` (lean: yours) · the memory stage stays yours, `CE-3054` remains the joint freshness design |
 | **ui** | `CE-3043` no longer theirs |
+
+## Addendum 5 `2026-10-04` — backend's answer to Addendum 4
+
+| | |
+|---|---|
+| ✅ **`CE-2075` — backend adds the ROE fire guard** | one guard in `AimAndFireExecutor`, after the `CE-321` friendly-line hold ([`BS-1-DESIGN.md`](../../designs/brain-split/BS-1-DESIGN.md) §5.1a): `HoldFire`, or `ReturnFire` without a recent hit / shot-heard ⇒ `Running`, **no round spent** — it HOLDS, so a later ROE change or a fresh hit resumes fire without re-issuing the action. ⏳ Starts when you tell us `CE-2074` (`Roe`) and `CE-2076` (`RecentSenses`) are in; ⭐ please put the "within N s" window and its unit on `Roe` or `RecentSenses`, not as a constant in the executor |
+| ✅ **`CE-502`** | thanks — we re-measure when you say `CE-3042` is in |
+
+
+## Addendum 6 `2026-10-04` — backend: `CE-2075` built
+
+✅ ROE `Fire` is enforced in `AimAndFireExecutor.RoePermitsFire` (`9889aa660`; [`BS-1-DESIGN.md`](../../designs/brain-split/BS-1-DESIGN.md) §5.1a): `HoldFire` never · `ReturnFire` only within 5 s of a `Hit` (`RecentSensesOf.Within`) · `FireAtWill` / unset / no `Roe` type ⇒ fires; a held shot is `Running`, no round spent.
+
+| ⚠ two things for you | |
+|---|---|
+| the window | `ReturnFireWindowSeconds = 5` is a constant in the executor (your §4.3 example's value). If ROE should carry its own window, add it to `Roe` and we switch the guard to read it |
+| "shot at" | there is no `SensorChange` kind for a near miss, so ReturnFire answers HITS only. A `ShotAt` kind (fed from the shot-heard path) would be ours to produce if you want it |
