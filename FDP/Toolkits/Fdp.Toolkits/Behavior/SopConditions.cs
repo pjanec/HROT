@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 
 namespace Fdp.Toolkit.Behavior
@@ -22,6 +23,15 @@ namespace Fdp.Toolkit.Behavior
     {
         /// <summary>The threshold — ordered most to least restrictive (HoldFire &lt; ReturnFire &lt; FireAtWill).</summary>
         public RoeFire Fire;
+    }
+
+    /// <summary>⭐ <c>CE-2104</c> — params of <see cref="SopConditions.InContact"/>.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SopContactParams
+    {
+        /// <summary>How long the mode outlasts the contact: still true this many sim seconds after <c>AllClear</c>
+        /// (0 = ends with the contact).</summary>
+        public float LingerSeconds;
     }
 
     /// <summary>
@@ -47,6 +57,17 @@ namespace Fdp.Toolkit.Behavior
             double since = world.HasComponent<BehaviorState>(self) ? world.GetComponentRO<BehaviorState>(self).RunSince : double.NegativeInfinity;
             return RecentSensesOf.WithinSince(world, self, p.Kind, p.Seconds, since);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2104</c> — the unit is IN CONTACT: its threat memory holds a contact (seen or heard), or it emptied less than
+        /// <see cref="SopContactParams.LingerSeconds"/> ago. The "alerted" mode of any SOP, DERIVED from state the perception
+        /// already keeps — on with <c>FirstThreat</c>, off with <c>AllClear</c> (+ linger) — so there is no flag to latch, save
+        /// or replay. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.7 (CE-2104).
+        /// </summary>
+        [SharedAiCondition]
+        public static bool InContact(ref SopContactParams p, Entity self, EntityRepository world)
+            => (world.HasComponent<TargetMemory>(self) && world.GetComponentRO<TargetMemory>(self).Count > 0)
+               || (p.LingerSeconds > 0f && RecentSensesOf.Within(world, self, SensorChange.AllClear, p.LingerSeconds));
 
         /// <summary>The unit's ROE fire rule is at least as permissive as <see cref="SopRoeParams.Fire"/> — "may return fire".</summary>
         [SharedAiCondition]
