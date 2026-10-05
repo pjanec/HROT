@@ -1051,7 +1051,9 @@ that list the Brain group grew by `dtBrainIntent` (`TheDescriptorMapIsWiredTests
 | Toolkits · SimHost · Core · NED · ClusterRunner.Tests | 2666/0 · 1097/1 (the 1 = `EcsRecordReplayControllerTests.PrepareRecordingAsync_…`, green in isolation, the §5.6 load-timing one) · 185/0 · 133/0 · 281/0 |
 | cluster, row 8 (`Reclaim\|SplitAuthority\|SopDemo\|Ownership\|Mission\|WhoOwnsTheBrain\|DistributedBrainMuscle\|NavigationStatusAuthority\|Eqs`) | 122/0 |
 
-### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(PROPOSAL `2026-10-05` — leans for the user and the backend lane; nothing built)*
+### 7.8 The AI reads sensors, threat per R-194 — `CE-3054` *(✅ APPROVED `2026-10-05`, leans A–D as written — R-201; build-state: READY-TO-BUILD)*
+
+> 🔒 **User, `2026-10-05`:** *"3054 approved."* ⭐ A is the backend's (the `ThreatScores` → `Freshness` rename, FRAME_Decision_Layer Addendum 7); B–D are ours.
 
 | claim | code (how it IS) | design (how it was MEANT) |
 |---|---|---|

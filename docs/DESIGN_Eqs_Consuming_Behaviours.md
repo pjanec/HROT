@@ -213,6 +213,11 @@ that exist but are never ticked; they stay out of this plan.*
 still holds but the acceptance waits on the backend. If the user wants the "overrun → fall back" switch before
 CE-2073, D1 becomes a third tiny parent blueprint, not a merged child.
 
+### 4.1 The user's answer *(`2026-10-05`)*
+
+🔒 **User:** *"3031 is ok but pls check if btree or hsm wouldnt be simplier (depends on complexity of the bluelrint vs the others )."*
+⇒ D1, D3–D6 stand; **D2 (the host) is re-opened** pending the comparison in §4.2.
+
 ## 5. Build plan *(after approval)*
 
 | id | what | rails |

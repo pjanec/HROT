@@ -372,6 +372,8 @@ batch).** The diagram has the guard read *"the bound variable `Winner`"* that `C
 | B — a per-node constant on condition nodes (like a decorator's `IntParam`) | editor + DTO + emitter + runtime payload | larger; a new authoring concept |
 | C — one condition per option (`IsOption1` … `IsOption8`) | zero infrastructure | ugly, capped, and every decision re-learns the numbering |
 
+✅ **APPROVED `2026-10-05`: A** (R-202). 🔒 **User:** *"2069 approved, pls file option (B) as potential improvement."* ⇒ B is filed as `CE-2098` (a per-node constant on condition nodes), not scheduled. `CE-2069` is unblocked and builds with A.
+
 Awaiting the user. `CE-2070` (blueprint, a hidden field, no binding issue), `CE-2072` and the scorer core are not blocked.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
@@ -871,6 +873,11 @@ restoring four `BehaviorState` fields.
 | **C** | a more urgent reaction pre-empts the running one | ⭐ the paused task stays as it is (one deep, R-199). The pre-empted reaction is ended normally |
 | **D** | an order replaces the paused task | ⭐ `DropPausedTask` detaches `HeldKeys` and releases the paused run's parts: no leak |
 | **E** | the blueprint tier | ⭐ **BTree and HSM resume; a blueprint task keeps RESTART** (today's behaviour) until a latent wait can re-issue its command (a cursor that re-runs the issuing statement when the channel's `ActionInstanceId` moved under it — a separate item). Both rows are now measured |
+
+✅ **APPROVED `2026-10-05`: A–D as written; E CHANGED** (R-203). 🔒 **User:** *"2081 is ok but either all resumes or none, blueprint must be part of resume."*
+⇒ ⛔ the E lean above (blueprint keeps restart) is **SUPERSEDED**: all three tiers resume, or none does. The blueprint
+half — a latent wait that re-issues its channel command when the channel's `ActionInstanceId` moved under it — becomes
+part of `CE-2081`, designed before the BTree/HSM half ships, so resume lands for all tiers together.
 
 ⛔ **Rejected:** a stack of paused tasks (R-199: one deep). · Re-running the task from its root (that is today's restart).
 · Copying the task's storage aside (the store has no room to spare, and keeping it in place costs nothing).
