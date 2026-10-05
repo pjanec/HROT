@@ -177,7 +177,8 @@ namespace Fdp.Toolkit.Tests.Utility
                 entityId:   entityId,
                 posX:       distanceM,
                 posY:       0f,
-                scoreBoost: threatBoost,
+                // ⭐ CE-3054 — threatBoost is the contact's FRESHNESS in [0, 1]; the memory stores the score that reads as it.
+                scoreBoost: threatBoost * PerceptionConstants.FreshnessSaturation,
                 tick:       ++Tick,
                 modality:   modality);
 
@@ -309,47 +310,29 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         /// <summary>
-        /// Adjusts the entity's TargetMemory ThreatScores so that
-        /// <see cref="StandardInputs.EnemyStrengthRatio"/> returns approximately
-        /// <paramref name="ratio"/> (clamped to [0,1]).
-        /// If no contacts exist, seeds a synthetic entity with the required score.
+        /// ⭐ CE-3054 — makes <see cref="StandardInputs.EnemyStrengthRatio"/> (Σ danger ÷ (Σ danger + own strength)) read
+        /// approximately <paramref name="ratio"/> (capped at 0.95) by adding ARMED dummy contacts to the memory. The danger
+        /// is integral per contact, so the result is the nearest reachable value.
+        /// ⛔ SUPERSEDED: scaling the memory scores — the ratio no longer reads them (hidden is not harmless).
         /// </summary>
         public unsafe void SetEnemyStrengthRatio(Entity entity, float ratio)
         {
-            float healthFraction = 1f;
-            if (Repo.HasComponent<Health>(entity))
-            {
-                ref readonly var h = ref Repo.GetComponentRO<Health>(entity);
-                if (h.Max > 0f)
-                    healthFraction = Math.Clamp(h.Current / h.Max, 0f, 1f);
-            }
-            float targetSum = ratio * healthFraction * PerceptionConstants.MaxTrackedTargets;
-
+            float v = Math.Clamp(ratio, 0f, 0.95f);
+            float own = Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(Repo, entity);
             ref var tm = ref Repo.GetComponentRW<TargetMemory>(entity);
-            if (tm.Count == 0)
+            float enemy = 0f;
+            for (int i = 0; i < tm.Count; i++)
+                enemy += Fdp.Toolkit.Perception.ThreatDanger.Of(Repo, entity, new Entity((ulong)tm.EntityIds[i]));
+            float wanted = v * own / (1f - v);
+            int add = (int)MathF.Round(wanted - enemy);
+            for (int k = 0; k < add && tm.Count < PerceptionConstants.MaxTrackedTargets; k++)
             {
-                // Seed one synthetic contact with the required aggregate threat score.
                 var dummy = Repo.CreateEntity();
-                Repo.AddComponent(dummy, new Position { Value = new Vector3(100f, 0f, 0f) });
+                Repo.AddComponent(dummy, new Position { Value = new Vector3(100f + k, 0f, 0f) });
+                Repo.AddComponent(dummy, new WeaponState { Ammo = 30, MaxAmmo = 30, MuzzleVelocity = 800f });
                 TargetMemory.AddOrUpdateTarget(ref tm, (long)dummy.PackedValue,
-                    posX: 100f, posY: 0f, scoreBoost: targetSum, tick: ++Tick,
+                    posX: 100f + k, posY: 0f, scoreBoost: PerceptionConstants.FreshnessSaturation, tick: ++Tick,
                     modality: SensorModality.Visual);
-            }
-            else
-            {
-                // Scale existing ThreatScores proportionally.
-                float currentSum = 0f;
-                for (int i = 0; i < tm.Count; i++) currentSum += tm.ThreatScores[i];
-                if (currentSum > 0f)
-                {
-                    float scale = targetSum / currentSum;
-                    for (int i = 0; i < tm.Count; i++) tm.ThreatScores[i] *= scale;
-                }
-                else
-                {
-                    float perContact = targetSum / Math.Max(1, tm.Count);
-                    for (int i = 0; i < tm.Count; i++) tm.ThreatScores[i] = perContact;
-                }
             }
         }
 

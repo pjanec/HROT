@@ -90,6 +90,23 @@ public sealed class ReadEqsResultValidatorTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2021);
     }
 
+    // ⭐ CE-3054 D — a unit sensor kind needs no variable; a value that is not a sensor kind is refused.
+    [Fact]
+    [CoversDiagnosticCode("BP2021")]
+    public void CE3054_Validate_UnitSensorKind_NoVariableNeeded_BadKindRefused()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("InstanceTest")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        var node = new ReadEqsResultNode { Id = Guid.NewGuid(), SensorVariableName = "", UnitSensorKind = 1 };
+        asset.Graphs[0].Nodes.Add(node);
+        Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP2021);
+
+        node.UnitSensorKind = 3;   // not one SensorModality bit
+        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP2021);
+    }
+
     // ---- Happy path: valid Instance ReadEqsResultNode ------------------
 
     [Fact]

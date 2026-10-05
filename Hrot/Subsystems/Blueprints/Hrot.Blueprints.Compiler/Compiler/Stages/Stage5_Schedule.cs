@@ -1306,7 +1306,8 @@ internal sealed class GraphScheduler
                         ScoreThresholdLiteral: scoreThreshold,
                         MaxAgeLiteral:        maxAge,
                         OnFiredBlock:         hasFired ? onFiredBlock : null,
-                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null,
+                        UnitSensorKind:       er.UnitSensorKind),
                     Debug = debug,
                 });
 
@@ -3900,7 +3901,7 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = helperResult,
-                    Operation   = new IrOp_ReadEqsResult(rer.SensorVariableName, indexValue, id8, structTypeName),
+                    Operation   = new IrOp_ReadEqsResult(rer.SensorVariableName, indexValue, id8, structTypeName, rer.UnitSensorKind),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id },
                 });
 

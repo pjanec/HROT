@@ -646,7 +646,7 @@ in the Blueprint compiler's code-generation pipeline:
 | Node | Description |
 |---|---|
 | `SpawnEqsSensorNode` | Spawns a child sensor entity. `TemplateAssetId` (Guid) resolves to `BlueprintId` at compile time. |
-| `ReadEqsResultNode` | Reads the top (or rank-i) result from the entity's `EqsCognitiveBuffer`. Uses `GetSpanRO()` to avoid the [InlineArray] defensive-copy trap. |
+| `ReadEqsResultNode` | Reads the top (or rank-i) result from the entity's `EqsCognitiveBuffer`. Uses `GetSpanRO()` to avoid the [InlineArray] defensive-copy trap. ⭐ `CE-3054`: or the unit's own sensor of a kind (`UnitSensorKind`, resolved by `UnitSensors.Of`). |
 | `ScoreDecisionNode` | Evaluates a `UtilityDecisionDef` asset and writes the winning option ID to an output variable. |
 | `ReadRankedResultNode` | Reads rank-i entry from a utility result buffer (0 = top-ranked). |
 | `WhenNode` (EqsResult mode) | Reactive trigger. Fires on `EqsTrigger` conditions: `FirstReady`, `TopChanged`, `ScoreCrossed`, `BecomesStale`. Requires `LastUpdateTimeSeconds` for staleness checks. |

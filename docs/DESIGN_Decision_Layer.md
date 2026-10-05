@@ -111,8 +111,8 @@ is scored from a sensor that its own child behaviour would otherwise only start 
 
 | fact | source | consequence |
 |---|---|---|
-| `EnemyStrengthRatio` sums `TargetMemory.ThreatScores`, which DECAY over time | `StandardInputs.cs` `EnemyStrengthRatio`; `ThreatEvaluationSystem.cs:57` | ⛔ contradicts **G1** (`R-194`: danger does not fade). Three of five options read it ⇒ a hidden enemy makes the unit braver |
-| `HaveLiveTarget` = memory count > 0, no freshness | `StandardInputs.cs` `HaveLiveTarget` | a contact seen once long ago keeps `AdvanceAndAttack`/`Suppress` alive — needs the memory stage's freshness |
+| `EnemyStrengthRatio` sums `TargetMemory.ThreatScores`, which DECAY over time | `StandardInputs.cs` `EnemyStrengthRatio`; `ThreatEvaluationSystem.cs:57` | ⛔ contradicts **G1** (`R-194`: danger does not fade). Three of five options read it ⇒ a hidden enemy makes the unit braver ✅ **FIXED by `CE-3054` (`2026-10-05`)**: Σ danger ÷ (Σ danger + own), no freshness ([Sensors §7.8a](DESIGN_Sensors_And_Doctrine.md)) |
+| `HaveLiveTarget` = memory count > 0, no freshness | `StandardInputs.cs` `HaveLiveTarget` | a contact seen once long ago keeps `AdvanceAndAttack`/`Suppress` alive — needs the memory stage's freshness ✅ **FIXED by `CE-3054`**: a contact tracked now or with freshness ≥ 0.25 |
 | `EqsTopScore` finds ANY EQS child of the unit with the template id | `StandardInputs.cs` `TryFindEqsChild` | a sensor only scores while something has spawned it ⇒ the posture run must own it |
 | behaviour-owned sensors are stamped with the ROOT run and keyed by (site, key, run) | `EqsChildSensor.cs:30–37` | a child switch does not release them (good); a child spawning the same template at its own site makes a SECOND sensor — ⭐ ACCEPTED `2026-10-04`: each behaviour owns its own sensor, the solver solves identical queries once (`CE-3056`, `DESIGN_Sensors_And_Doctrine.md` §5.6) |
 | an SOP cannot replace a mission task | `R-188` (`Operator > Superior > SOP`) | a posture SOP never interrupts a running mission task — see the open questions |

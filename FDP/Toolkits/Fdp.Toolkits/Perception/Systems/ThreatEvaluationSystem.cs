@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.Perception.Systems
                     if (tracksRO.Count > 0)
                     {
                         // Continuous boost: 50 threat-score units per second per active track.
-                        float continuousBoost = 50f * deltaTime;
+                        float continuousBoost = PerceptionConstants.TrackBoostPerSecond * deltaTime;   // CE-3054: the one constant
 
                         for (int i = 0; i < tracksRO.Count; i++)
                         {

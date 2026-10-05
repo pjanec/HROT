@@ -751,6 +751,13 @@ public sealed class ConditionMetPayload
 public sealed class EqsResultPayload
 {
     public string SensorVariableName { get; set; } = "";
+    /// <summary>
+    /// ⭐ <c>CE-3054</c> D — read the UNIT's own sensor of this kind instead of a sensor variable (the <c>SensorModality</c>
+    /// value: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic; 0 = use <see cref="SensorVariableName"/>). Resolved each read by
+    /// <c>UnitSensors.Of</c>, so a TKB sensor the blueprint never spawned is readable.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]   // 0 = the variable: the persisted shape of every existing asset is unchanged
+    public byte UnitSensorKind { get; set; }
     public EqsTrigger Trigger { get; set; }
     public float ScoreThreshold { get; set; }
     public float MaxAgeSeconds { get; set; }
@@ -765,6 +772,9 @@ public enum EqsTrigger { FirstReady, TopChanged, ScoreCrossed, BecomesStale }
 public sealed class ReadEqsResultNode : Node
 {
     public string SensorVariableName { get; set; } = "";
+    /// <summary>⭐ <c>CE-3054</c> D — as <see cref="EqsResultPayload.UnitSensorKind"/>: the unit's sensor of this kind (0 = the variable).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]   // 0 = the variable: the persisted shape of every existing asset is unchanged
+    public byte UnitSensorKind { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

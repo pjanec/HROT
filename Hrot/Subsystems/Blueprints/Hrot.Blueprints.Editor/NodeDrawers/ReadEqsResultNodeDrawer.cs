@@ -28,11 +28,7 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
     /// Returns the names of all EqsSensorHandle-typed variables on the asset.
     /// Internal test hook (InternalsVisibleTo Hrot.Blueprints.Tests).
     /// </summary>
-    internal string[] GetSensorVariableNamesForTest()
-        => _parent.Declarations.Of(DeclarationKind.Variable)
-            .Where(d => d.Type.TypeId == "FDP.Eqs.EqsSensorHandle")
-            .Select(d => d.Name)
-            .ToArray();
+    internal string[] GetSensorVariableNamesForTest() => EqsSensorSourcePicker.SensorVariables(_parent);
 
     public void Draw()
     {
@@ -46,17 +42,15 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
             ImGui.Separator();
         }
 
-        var sensorVars = GetSensorVariableNamesForTest();
-
-        int sensorIdx = Array.IndexOf(sensorVars, _node.SensorVariableName);
-        if (ImGui.Combo("Sensor", ref sensorIdx, sensorVars, sensorVars.Length))
+        // ⭐ CE-3054 D — a sensor variable, or the unit's own sensor of a kind (EqsSensorSourcePicker).
+        string name = _node.SensorVariableName;
+        byte kind = _node.UnitSensorKind;
+        if (EqsSensorSourcePicker.Draw("Sensor", _parent, ref name, ref kind))
         {
-            _node.SensorVariableName = sensorVars[sensorIdx];
+            _node.SensorVariableName = name;
+            _node.UnitSensorKind = kind;
             IsDirty = true;
         }
-
-        if (sensorVars.Length == 0)
-            ImGui.TextColored(EditorColors.Info, "(no EqsSensorHandle variables on this asset)");
 
         ImGui.TextDisabled("Index: drive via input pin (default 0)");
         ImGui.TextDisabled("Outputs: IsReady, ResultCount, Entity, Position, Score");

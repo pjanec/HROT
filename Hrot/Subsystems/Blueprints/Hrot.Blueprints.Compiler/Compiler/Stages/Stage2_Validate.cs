@@ -1490,15 +1490,26 @@ internal sealed class V_WhenNodeRules : IValidator
         BlueprintAsset asset, Graph graph, WhenNode node,
         EqsResultPayload er, ValidationContext ctx)
     {
-        // BP2010 -- sensor variable not declared
-        bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
-            d.Name == er.SensorVariableName
-            && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
-        if (!sensorDeclared)
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
-                $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
-                + "is not declared as EqsSensorHandle.",
-                asset.AssetId, graph.Id, node.Id));
+        // BP2010 -- sensor variable not declared (⭐ CE-3054 D: or, reading the unit's sensor, not a sensor kind)
+        if (er.UnitSensorKind != 0)
+        {
+            if (!V_EqsUnitSensorKind.IsUnitSensorKind(er.UnitSensorKind))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
+                    $"WhenNode EqsResult: unit sensor kind {er.UnitSensorKind} is not a sensor kind "
+                    + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic).",
+                    asset.AssetId, graph.Id, node.Id));
+        }
+        else
+        {
+            bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+                d.Name == er.SensorVariableName
+                && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+            if (!sensorDeclared)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
+                    $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
+                    + "is not declared as EqsSensorHandle.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
 
         // BP2011 -- trigger requires threshold/max-age
         if (er.Trigger == EqsTrigger.ScoreCrossed && er.ScoreThreshold == 0)
@@ -1562,7 +1573,16 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         $"ReadEqsResultNode is not permitted in dispatch context '{asset.Dispatch}'.",
                         asset.AssetId, graph.Id, node.Id));
 
-                // BP2021 -- sensor variable not declared
+                // BP2021 -- sensor variable not declared (⭐ CE-3054 D: or, reading the unit's sensor, not a sensor kind)
+                if (node.UnitSensorKind != 0)
+                {
+                    if (!V_EqsUnitSensorKind.IsUnitSensorKind(node.UnitSensorKind))
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
+                            $"ReadEqsResultNode: unit sensor kind {node.UnitSensorKind} is not a sensor kind "
+                            + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic).",
+                            asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
                 bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
                     d.Name == node.SensorVariableName
                     && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
@@ -2775,4 +2795,14 @@ internal static class BehaviorTaskRules
                     "chain or graph is not built).", asset.AssetId, graph.Id, task.Id));
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ CE-3054 D — the one rule for a unit sensor kind on the two EQS-read nodes
+// ---------------------------------------------------------------------------
+
+internal static class V_EqsUnitSensorKind
+{
+    /// <summary>One <c>SensorModality</c> bit: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic.</summary>
+    public static bool IsUnitSensorKind(byte kind) => kind is 1 or 2 or 4 or 8;
 }

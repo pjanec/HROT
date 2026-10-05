@@ -67,6 +67,7 @@ public static class PreviewSynthesizer
             EqsTrigger.BecomesStale  => "Stale",
             _                        => "EQS"
         };
-        return string.IsNullOrEmpty(p.SensorVariableName) ? trigger : $"{p.SensorVariableName} {trigger}";
+        var sensor = Hrot.Blueprints.Editor.NodeDrawers.EqsSensorSourcePicker.Describe(p.SensorVariableName, p.UnitSensorKind);   // CE-3054 D
+        return string.IsNullOrEmpty(sensor) ? trigger : $"{sensor} {trigger}";
     }
 }

@@ -160,7 +160,7 @@ internal sealed class WhenNodeSession : INodeEditSession
                 : "(unconfigured)",
             WhenMode.ConditionMet => "(predicate)",
             WhenMode.EqsResult => _node.EqsResult is { } er
-                ? $"EQS {er.Trigger}: {er.SensorVariableName}"
+                ? $"EQS {er.Trigger}: {EqsSensorSourcePicker.Describe(er.SensorVariableName, er.UnitSensorKind)}"
                 : "(unconfigured)",
             _ => "(unconfigured)",
         };
@@ -339,7 +339,37 @@ internal sealed class WhenNodeSession : INodeEditSession
     private void DrawEqsResultForm()
     {
         _node.EqsResult ??= new EqsResultPayload();
-        ImGui.TextDisabled("(EQS Result form — trigger and sensor picker)");
+        var er = _node.EqsResult;
+
+        // ⭐ CE-3054 D — the sensor: a variable, or the unit's own sensor of a kind (one picker with ReadEqsResult).
+        string name = er.SensorVariableName;
+        byte kind = er.UnitSensorKind;
+        if (EqsSensorSourcePicker.Draw("Sensor##WhenEqsSensor", _parent, ref name, ref kind))
+        {
+            er.SensorVariableName = name;
+            er.UnitSensorKind = kind;
+            IsDirty = true;
+        }
+
+        var triggers = (EqsTrigger[])System.Enum.GetValues(typeof(EqsTrigger));
+        var labels = System.Array.ConvertAll(triggers, t => t.ToString());
+        int ti = System.Array.IndexOf(triggers, er.Trigger);
+        if (ImGui.Combo("Trigger##WhenEqsTrigger", ref ti, labels, labels.Length))
+        {
+            er.Trigger = triggers[ti];
+            IsDirty = true;
+        }
+
+        if (er.Trigger == EqsTrigger.ScoreCrossed)
+        {
+            float t = er.ScoreThreshold;
+            if (ImGui.InputFloat("Score threshold##WhenEqsScore", ref t)) { er.ScoreThreshold = t; IsDirty = true; }
+        }
+        else if (er.Trigger == EqsTrigger.BecomesStale)
+        {
+            float a = er.MaxAgeSeconds;
+            if (ImGui.InputFloat("Max age (s)##WhenEqsAge", ref a)) { er.MaxAgeSeconds = a; IsDirty = true; }
+        }
     }
 
     public void ResetDirty() => IsDirty = false;

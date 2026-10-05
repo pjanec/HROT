@@ -91,9 +91,9 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// Returns the threat score for ctx.Context from the squad commander's merged contact pool,
-        /// clamped to [0, 1]. Returns 0f if the contact is not in the pool or any prerequisite
-        /// is missing.
+        /// ⭐ CE-3054 — the threat of ctx.Context from the squad commander's merged contact pool: danger × freshness, as
+        /// <c>StandardInputs.ContactThreatLevel</c>. Returns 0f if the contact is not in the pool or any prerequisite
+        /// is missing. ⛔ SUPERSEDED: the pooled score clamped to [0, 1] (it saturates at 500).
         /// </summary>
         [UtilityInput("SquadContactThreatLevel")]
         public static float SquadContactThreatLevel(in UtilityInputCtx ctx)
@@ -114,7 +114,9 @@ namespace Fdp.Toolkit.Utility
             for (int i = 0; i < state.Contacts.Count; i++)
             {
                 if (span[i].EntityId == candidateId)
-                    return Math.Clamp(span[i].ThreatScore, 0f, 1f);
+                    // ⭐ CE-3054 — as ContactThreatLevel: danger (judged now) × freshness (the pooled score is a freshness score).
+                    return Fdp.Toolkit.Perception.ThreatDanger.Of(ctx.Repo, ctx.Self, ctx.Context)
+                         * Fdp.Toolkit.Perception.ThreatFreshness.Of(span[i].ThreatScore);
             }
             return 0f;
         }

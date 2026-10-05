@@ -1193,6 +1193,45 @@ public sealed class WhenNodeRuntimeTests
             "a new answer under the same epoch must be compared — the top changed 7 → 9");
     }
 
+    // ⭐⭐ CE-3054 D — a When on the UNIT's sensor of a kind (no variable): the blueprint reads the TKB sensor the unit
+    //   carries (SensorTag + PartMetadata → UnitSensors.Of) and compares once per answer, as CE-2089.
+    //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8a.
+    [Fact]
+    public void CE3054_TopChanged_OnTheUnitsOwnSensorOfAKind()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+
+        var (asset, _, _) = BuildEqsResultAsset(EqsTrigger.TopChanged);
+        var when = asset.Graphs[0].Nodes.OfType<WhenNode>().Single();
+        when.EqsResult!.SensorVariableName = "";
+        when.EqsResult.UnitSensorKind = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var sensorChild = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Visual });
+        fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = parentEntity, InstanceId = 1000 });
+
+        fixture.TickFrame(0.016f);                       // first answer: recorded, no fire
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"), "the same answer must not fire");
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        fixture.World.SetComponent(sensorChild, buffer2);
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a new answer of the unit's visual sensor must be compared — the top changed 7 → 9");
+    }
+
     [Fact]
     public void CE2089_TopChanged_AfterARefresh_TheFirstNewAnswerIsCompared()
     {

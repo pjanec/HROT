@@ -173,6 +173,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     private static _EqsResultRead_79429b9d ReadEqsResult_79429b9d(
         ref Block __bb, ref Exec __ex,
         global::Fdp.ModuleHost.Abstractions.ISimulationView view,
+        global::Fdp.Core.Entity self,
         int resultIndex)
     {
         var result = default(_EqsResultRead_79429b9d);
@@ -217,6 +218,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     private static _EqsResultRead_46075375 ReadEqsResult_46075375(
         ref Block __bb, ref Exec __ex,
         global::Fdp.ModuleHost.Abstractions.ISimulationView view,
+        global::Fdp.Core.Entity self,
         int resultIndex)
     {
         var result = default(_EqsResultRead_46075375);
@@ -497,7 +499,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         
         __block_branch_23393ef4_true:
         var __t35 = 0;
-        var __t36 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), __t35);
+        var __t36 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), self, __t35);
         var __t37 = __t36.IsReady;
         var __t38 = __t36.ResultCount;
         var __t39 = __t36.Entity;
@@ -534,7 +536,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         
         __block_branch_f80ac0a7_true:
         var __t51 = 0;
-        var __t52 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), __t51);
+        var __t52 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), self, __t51);
         var __t53 = __t52.IsReady;
         var __t54 = __t52.ResultCount;
         var __t55 = __t52.Entity;
@@ -585,7 +587,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         
         __block_branch_c70aa232_false:
         var __t73 = 0;
-        var __t74 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), __t73);
+        var __t74 = ReadEqsResult_79429b9d(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), self, __t73);
         var __t75 = __t74.IsReady;
         var __t76 = __t74.ResultCount;
         var __t77 = __t74.Entity;
@@ -1187,7 +1189,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
                     var __t56 = __bb.St.WaveIndex;
                     var __t57 = __bb.St.TargetCount;
                     var __t58 = global::Fdp.Toolkit.Blueprints.BlueprintMath.ModInt(__t56, __t57);
-                    var __t59 = ReadEqsResult_46075375(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), __t58);
+                    var __t59 = ReadEqsResult_46075375(ref __bb, ref __ex, ((global::Fdp.Core.EntityRepository)view), self, __t58);
                     var __t60 = __t59.IsReady;
                     var __t61 = __t59.ResultCount;
                     var __t62 = __t59.Entity;

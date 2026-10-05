@@ -35,6 +35,10 @@ namespace Fdp.Toolkit.Utility
         public const ushort HasLineOfSight           = 0xF98D;
         public const ushort HaveLiveTarget           = 0xC20C;
         public const ushort EnemyStrengthRatio       = 0x5635;
+        /// <summary>⭐ CE-3054 — how dangerous the context contact is (<see cref="Fdp.Toolkit.Perception.ThreatDanger"/>).</summary>
+        public const ushort ContactDanger            = 0xF4D0;
+        /// <summary>⭐ CE-3054 — how fresh the context contact is in the unit's memory.</summary>
+        public const ushort ContactFreshness         = 0x73FA;
 
         // Group C: EQS
         public const ushort EqsTopScore              = 0x2227;
@@ -50,7 +54,7 @@ namespace Fdp.Toolkit.Utility
 
     /// <summary>
     /// Phase 1 catalog of standard Utility AI input readers.
-    /// Call <see cref="RegisterAll"/> once at startup to register all 17 readers.
+    /// Call <see cref="RegisterAll"/> once at startup to register all 19 readers.
     /// </summary>
     public static unsafe class StandardInputs
     {
@@ -147,24 +151,37 @@ namespace Fdp.Toolkit.Utility
         // ── Group B: perception ──────────────────────────────────────────────────
 
         /// <summary>
-        /// Returns the ThreatScore for ctx.Context from ctx.Self's TargetMemory, clamped to [0,1].
-        /// Returns 0 if ctx.Context is not found in TargetMemory or TargetMemory is absent.
+        /// ⭐ CE-3054 C — the context contact's THREAT: its danger (judged now, <see cref="ThreatDanger"/>) × its freshness in
+        /// ctx.Self's memory (<see cref="ThreatFreshness"/>). 0 when the contact is not remembered.
+        /// ⛔ SUPERSEDED: the raw memory score clamped to [0,1] — the score saturates at 500, so every contact read 1 for ~44 s.
         /// </summary>
         [UtilityInput("ContactThreatLevel")]
         public static float ContactThreatLevel(in UtilityInputCtx ctx)
+        {
+            float freshness = ContactFreshness(ctx);
+            if (freshness <= 0f) return 0f;
+            float result = ThreatDanger.Of(ctx.Repo, ctx.Self, ctx.Context) * freshness;
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
+
+        /// <summary>⭐ CE-3054 B — how dangerous the context contact is, in [0,1] (<see cref="ThreatDanger.Of"/>).</summary>
+        [UtilityInput("ContactDanger")]
+        public static float ContactDanger(in UtilityInputCtx ctx)
+            => ThreatDanger.Of(ctx.Repo, ctx.Self, ctx.Context);
+
+        /// <summary>
+        /// ⭐ CE-3054 C — how fresh the context contact is in ctx.Self's memory, in [0,1] (1 = tracked long enough to
+        /// saturate). 0 when it is not remembered.
+        /// </summary>
+        [UtilityInput("ContactFreshness")]
+        public static float ContactFreshness(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             long targetId = (long)ctx.Context.PackedValue;
             for (int i = 0; i < mem.Count; i++)
-            {
-                if (mem.EntityIds[i] == targetId)
-                {
-                    float result = Math.Clamp(mem.ThreatScores[i], 0f, 1f);
-                    Debug.Assert(result >= 0f && result <= 1f);
-                    return result;
-                }
-            }
+                if (mem.EntityIds[i] == targetId) return ThreatFreshness.Of(mem.ThreatScores[i]);
             return 0f;
         }
 
@@ -191,22 +208,25 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// Returns 1 if ctx.Self's TargetMemory has Count &gt; 0, else 0.
-        /// Returns 0 if TargetMemory is absent.
+        /// ⭐ CE-3054 C — 1 when ctx.Self remembers a LIVE contact (tracked now, or fresh enough —
+        /// <see cref="ThreatFreshness.IsLive"/>), else 0.
+        /// ⛔ SUPERSEDED: <c>Count &gt; 0</c> — a contact seen once long ago kept an attack posture alive.
         /// </summary>
         [UtilityInput("HaveLiveTarget")]
         public static float HaveLiveTarget(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
-            float result = mem.Count > 0 ? 1f : 0f;
-            Debug.Assert(result >= 0f && result <= 1f);
-            return result;
+            for (int i = 0; i < mem.Count; i++)
+                if (ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)) return 1f;
+            return 0f;
         }
 
         /// <summary>
-        /// Returns the ratio of total enemy threat score to (selfHealthFraction * MaxTrackedTargets),
-        /// clamped to [0,1]. Returns 0 if TargetMemory is absent, Count is 0, or denominator is 0.
+        /// ⭐ CE-3054 C — the enemy's share of the strength in play: Σ danger of every REMEMBERED contact ÷ (that sum + the
+        /// unit's own strength, <see cref="ThreatDanger.OwnStrength"/>). Freshness is NOT applied — hidden does not mean
+        /// harmless (R-194, Decision Layer G1). One armed enemy vs a healthy armed unit = 0.5. 0 with nothing remembered.
+        /// ⛔ SUPERSEDED: Σ raw scores ÷ (health × 16) — the scores DECAYED, so a hidden enemy made the unit braver.
         /// </summary>
         [UtilityInput("EnemyStrengthRatio")]
         public static float EnemyStrengthRatio(in UtilityInputCtx ctx)
@@ -215,22 +235,12 @@ namespace Fdp.Toolkit.Utility
             ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
             if (mem.Count == 0) return 0f;
 
-            float threatSum = 0f;
+            float enemy = 0f;
             for (int i = 0; i < mem.Count; i++)
-                threatSum += mem.ThreatScores[i];
+                enemy += ThreatDanger.Of(ctx.Repo, ctx.Self, new Entity((ulong)mem.EntityIds[i]));
 
-            float selfHealthFraction = 0f;
-            if (ctx.Repo.HasComponent<Health>(ctx.Self))
-            {
-                ref readonly var h = ref ctx.Repo.GetComponentRO<Health>(ctx.Self);
-                if (h.Max > 0f)
-                    selfHealthFraction = Math.Clamp(h.Current / h.Max, 0f, 1f);
-            }
-
-            float denominator = selfHealthFraction * PerceptionConstants.MaxTrackedTargets;
-            if (denominator <= 0f) return 0f;
-
-            float result = Math.Clamp(threatSum / denominator, 0f, 1f);
+            float total = enemy + ThreatDanger.OwnStrength(ctx.Repo, ctx.Self);
+            float result = total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }
@@ -353,7 +363,7 @@ namespace Fdp.Toolkit.Utility
         // ── RegisterAll ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Registers all 17 Phase 1 standard input readers into <see cref="UtilityInputRegistrar"/>.
+        /// Registers all 19 standard input readers into <see cref="UtilityInputRegistrar"/>.
         /// Call once at application startup before any scoring pass.
         /// </summary>
         public static void RegisterAll()
@@ -368,6 +378,8 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.HasLineOfSight,           &HasLineOfSight);
             UtilityInputReaderStore.Register(StandardInputIds.HaveLiveTarget,           &HaveLiveTarget);
             UtilityInputReaderStore.Register(StandardInputIds.EnemyStrengthRatio,       &EnemyStrengthRatio);
+            UtilityInputReaderStore.Register(StandardInputIds.ContactDanger,            &ContactDanger);
+            UtilityInputReaderStore.Register(StandardInputIds.ContactFreshness,         &ContactFreshness);
             UtilityInputReaderStore.Register(StandardInputIds.EqsTopScore,              &EqsTopScore);
             UtilityInputReaderStore.Register(StandardInputIds.EqsResultCount,           &EqsResultCount);
             UtilityInputReaderStore.Register(StandardInputIds.IsAssignedTarget,         &IsAssignedTarget);

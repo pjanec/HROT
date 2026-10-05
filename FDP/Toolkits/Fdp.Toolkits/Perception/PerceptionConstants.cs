@@ -44,6 +44,24 @@ namespace Fdp.Toolkit.Perception
         public const float ThreatScoreDecayPerSecond = 0.1f;
 
         /// <summary>
+        /// ⭐ <c>CE-3054</c> — the score a contact gains each second while a sensor tracks it (was a literal in
+        /// <see cref="Systems.ThreatEvaluationSystem"/>).
+        /// </summary>
+        public const float TrackBoostPerSecond = 50f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3054</c> — the score a continuously tracked contact settles at (boost = decay ⇒ 50 / 0.1 = 500). A score
+        /// divided by this is the contact's FRESHNESS in [0, 1] (<see cref="ThreatFreshness"/>). 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8a.
+        /// </summary>
+        public const float FreshnessSaturation = TrackBoostPerSecond / ThreatScoreDecayPerSecond;
+
+        /// <summary>
+        /// ⭐ <c>CE-3054</c> — an untracked contact counts as LIVE while its freshness is at least this (≈ 14 s unseen after
+        /// saturation). A tracked contact is always live (a new one's score is still ramping up).
+        /// </summary>
+        public const float LiveFreshness = 0.25f;
+
+        /// <summary>
         /// ⭐ CE-3046 — an entry no sensor tracks is FORGOTTEN once its score fades below this. With the 10 %/s decay that is
         /// ~44 s after a contact seen for one second, ~66 s after one seen long enough to saturate (score 500): the score
         /// already IS a function of unseen time, so no second clock is kept. 📄 docs/DESIGN_Sensors_And_Doctrine.md §5.4.

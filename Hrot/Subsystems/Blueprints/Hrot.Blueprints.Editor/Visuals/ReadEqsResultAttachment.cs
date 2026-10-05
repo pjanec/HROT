@@ -27,7 +27,12 @@ public sealed class ReadEqsResultAttachment : IAttachmentModel
 
     public void Refresh(ReadEqsResultNode node)
     {
-        if (string.IsNullOrWhiteSpace(node.SensorVariableName))
+        if (node.UnitSensorKind != 0)   // ⭐ CE-3054 D — the unit's own sensor of a kind
+        {
+            Label = Hrot.Blueprints.Editor.NodeDrawers.EqsSensorSourcePicker.Describe(node.SensorVariableName, node.UnitSensorKind);
+            State = AttachmentState.Normal;
+        }
+        else if (string.IsNullOrWhiteSpace(node.SensorVariableName))
         {
             Label = "(no variable)";
             State = AttachmentState.Warning;

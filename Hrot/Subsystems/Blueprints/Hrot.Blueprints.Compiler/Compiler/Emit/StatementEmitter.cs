@@ -1243,7 +1243,11 @@ internal static class StatementEmitter
                 e.Indent();
 
                 e.WriteLine($"ref var prev = ref {ctx.ExecVar}.{op.SynthFieldName};");
-                e.WriteLine($"ref readonly var handle = ref {sv}.{op.SensorVariableName};");
+                if (op.UnitSensorKind != 0)
+                    // ⭐ CE-3054 D — the unit's own sensor of this kind (a TKB sensor the blueprint never spawned).
+                    e.WriteLine($"var handle = new global::FDP.Eqs.EqsSensorHandle(global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of({wv}, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.UnitSensorKind}));");
+                else
+                    e.WriteLine($"ref readonly var handle = ref {sv}.{op.SensorVariableName};");
                 e.WriteLine();
                 e.WriteLine($"if (!{wv}.IsAlive(handle.ChildId))");
                 e.Indent();
@@ -1280,7 +1284,7 @@ internal static class StatementEmitter
                 // Emit the helper method call; result is cached in a local struct variable.
                 // Downstream IrOp_FieldRead ops access individual fields.
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}({ctx.StateArgs}, {wv}, __t{op.ResultIndexValue.Index});");
+                    e.WriteLine($"var __t{idx} = ReadEqsResult_{op.NodeId8}({ctx.StateArgs}, {wv}, self, __t{op.ResultIndexValue.Index});");
                 break;
             }
 
