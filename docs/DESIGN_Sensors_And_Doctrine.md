@@ -666,7 +666,7 @@ lower `Parallel`'s bits. No corpus tree has that shape (measured: the three Obse
 Rails: `HybridLifecycleTests.CE3041_*` (6): L-02 abort and sweep, L-06 deep leaf, resume when the branch cannot take
 over, unguarded branch not re-run, inverted guard, a plain Selector still commits.
 
-### 7.3b Sensor changes reach the HSM as events — `CE-3040` *(build-state: BUILDING `2026-10-05`)*
+### 7.3b Sensor changes reach the HSM as events — `CE-3040` *(build-state: BUILT `2026-10-05` — as-built below the rejected line)*
 
 ⭐ Basis: the §7.3 table (*"`HsmRunner` turns this frame's `SensorChangedEvent`s for its entity into reserved HSM events
 … exactly as it does MobilityLost"*), S6b. Measured: an HSM asset names its events and stores each id
@@ -708,6 +708,15 @@ the editor's mapper). The emitter has zero project references by design, so the 
 the kernel drop it: it fills the ring. · Ids typed by the author: a typo silently never fires. · MobilityLost in the same
 name table: its id 1 is inside the sequential range, so adding the name would collide with a fallback id. It stays as
 it is.
+
+⭐ **As-built `2026-10-05`:** matches the diagram. `HsmEventIds.Assign` (in `AiEditor.Persistence`) is now the ONE id
+assignment, and it replaced the two copies in `HsmEmitCore` and `HsmAssetMapper`. The handled-id set is cached per blob
+(`ConditionalWeakTable`). Rails: `BrainTickSystemHsmArmTests.CE3040_*` (4: enqueue with payload · unhandled or another
+unit's change not enqueued · the transition fires · names = the runtime enum) and `HsmEventIdsTests` (2). Both are
+red-proved (bridge off ⇒ 2/4 red; built-in names ignored ⇒ 2/2 red). Gates: Toolkits 2670/0 · Persistence 159/0 ·
+Generators 380/0 (no golden moved) · HSM editor 622/0 · SimHost 1098/0. The Persistence gate also caught a `CE-2080`
+miss: `BTreeCallShapeTests` pins every corpus binding, and the shipped SOP's four rows had not been added. Fixed here.
+Not built: the HSM editor does not yet OFFER the built-in names in a list; an author types them (`CE-2088`).
 
 ### 7.4 Replacing a doctrine at runtime
 

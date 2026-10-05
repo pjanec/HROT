@@ -384,12 +384,12 @@ public static class HsmAssetMapper
         // Build events; EventId is stored in DTO for emit-core byte-identity.
         // For new assets created from JSON (PU-03+), IDs will be reassigned sequentially.
         var events = new List<EventDefinition>();
+        // ⭐ CE-3040: the emitter's own assignment (HsmEventIds) — an engine-raised event's name wins its reserved id.
         var eventNameToId = new Dictionary<string, ushort>(StringComparer.Ordinal);
-        ushort fallbackId = 1;
+        var assigned = Hrot.AiEditor.Persistence.Emit.HsmEventIds.Assign(dto.Events.Select(e => (e.Name, e.EventId)));
         foreach (var eDto in dto.Events)
         {
-            // Use stored EventId when present (non-zero); fall back to sequential for new JSON assets.
-            ushort id = eDto.EventId != 0 ? eDto.EventId : fallbackId;
+            ushort id = assigned[eDto.Name];
             var ev = new EventDefinition(eDto.Name, id)
             {
                 PayloadSize  = eDto.PayloadSize,
@@ -398,7 +398,6 @@ public static class HsmAssetMapper
             };
             events.Add(ev);
             eventNameToId[eDto.Name] = id;
-            if (eDto.EventId == 0) fallbackId++;
         }
 
         // Restore DeferredEventIds from DeferredEventNames

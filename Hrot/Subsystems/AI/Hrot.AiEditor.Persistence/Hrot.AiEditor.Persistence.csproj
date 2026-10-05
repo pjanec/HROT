@@ -32,6 +32,9 @@
          slot is simply never found, with no error anywhere. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Behavior\Shared\OccurrenceSlotKey.cs"
              Link="Emit\Shared\OccurrenceSlotKey.cs" />
+    <!-- ⭐ CE-3040 — the engine-raised HSM events (name ⇄ reserved id), shared with the runtime's HsmRunner. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Behavior\Shared\BuiltInHsmEvents.cs"
+             Link="Emit\Shared\BuiltInHsmEvents.cs" />
 
     <!-- CE-388 / Q74 D-F: ONE spelling of the HSM action/guard/exit-cleanup id, shared with the
          GENERATOR that registers under it (Fdp.Toolkits.Analyzers). Same mechanism and same reason

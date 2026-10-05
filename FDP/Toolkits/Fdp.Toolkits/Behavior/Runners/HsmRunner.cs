@@ -1,5 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using Fdp.Toolkit.Behavior.Shared;
+using Fdp.Toolkit.Perception.Events;
 using Fbt;
 using Fdp.Core;
 using Fhsm.Kernel;
@@ -31,6 +34,52 @@ namespace Fdp.Toolkit.Behavior.Runners
             EventId  = BehaviorConstants.EventId_MobilityLost,
             Priority = EventPriority.Interrupt,
         };
+
+        // ── ⭐ CE-3040 — the sensor bridge ─────────────────────────────────────────────────────────────────────────
+        //   📄 docs/DESIGN_Sensors_And_Doctrine.md §7.3b.
+
+        private static readonly ConditionalWeakTable<HsmDefinitionBlob, ushort[]> HandledSensorIdsByBlob = new();
+        private static long _sensorEventsDropped;
+
+        /// <summary>Sensor events refused by a full HSM queue since start (the CE-324 rule: reported, never overwritten).</summary>
+        public static long SensorEventsDropped => Interlocked.Read(ref _sensorEventsDropped);
+
+        /// <summary>The sensor event ids <paramref name="blob"/> handles — any transition or global transition on one.</summary>
+        internal static ushort[] HandledSensorIds(HsmDefinitionBlob blob)
+            => HandledSensorIdsByBlob.GetValue(blob, static b =>
+            {
+                var ids = new System.Collections.Generic.List<ushort>();
+                void Add(ushort id)
+                {
+                    if (id > BuiltInHsmEvents.SensorBase && id <= BuiltInHsmEvents.SensorBase + BuiltInHsmEvents.SensorNames.Length
+                        && !ids.Contains(id)) ids.Add(id);
+                }
+                foreach (ref readonly var t in b.Transitions) Add(t.EventId);
+                foreach (ref readonly var g in b.GlobalTransitions) Add(g.EventId);
+                return ids.ToArray();
+            });
+
+        /// <summary>
+        /// Enqueues this frame's <see cref="SensorChangedEvent"/>s for <paramref name="entity"/> whose reserved id the machine
+        /// handles — ⛔ only those: the shared ring holds ONE normal event on the 128 tier (CE-324), so an unhandled sensor
+        /// event would push the machine's own out. Payload: <c>Target</c> (bytes 0–7) + <c>Sensor</c> (bytes 8–15).
+        /// </summary>
+        private static void EnqueueSensorEvents(EntityRepository repo, Entity entity, HsmDefinitionBlob blob, byte* instance, int instanceSize)
+        {
+            var handled = HandledSensorIds(blob);
+            if (handled.Length == 0 || !repo.Bus.IsRegistered<SensorChangedEvent>()) return;
+            foreach (ref readonly var change in ((Fdp.ModuleHost.Abstractions.ISimulationView)repo).ReadEvents<SensorChangedEvent>())
+            {
+                if (change.Unit != entity) continue;
+                ushort id = BuiltInHsmEvents.SensorEventId((byte)change.What);
+                if (Array.IndexOf(handled, id) < 0) continue;
+                var evt = new HsmEvent { EventId = id, Priority = EventPriority.Normal };
+                Unsafe.WriteUnaligned(evt.Payload, change.Target);
+                Unsafe.WriteUnaligned(evt.Payload + 8, change.Sensor);
+                if (!HsmEventQueue.TryEnqueue(instance, instanceSize, evt))
+                    Interlocked.Increment(ref _sensorEventsDropped);
+            }
+        }
 
         public bool TryGetRootBrain(EntityRepository world, Entity self, BehaviorDefinition def,
                                     out byte* brain, out int brainBytes)
@@ -81,6 +130,9 @@ namespace Fdp.Toolkit.Behavior.Runners
 #endif
                 }
             }
+
+            // ⭐ CE-3040 — this frame's sensor changes for this unit, as reserved HSM events (Sensors §7.3b).
+            EnqueueSensorEvents(repo, entity, def.HsmDefinition!, instance, instanceSize);
 
             // Resolve the optional per-entity HSM trace context.
             HsmTraceContext  traceCtx    = default;

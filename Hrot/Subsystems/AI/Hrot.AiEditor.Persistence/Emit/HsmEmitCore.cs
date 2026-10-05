@@ -303,14 +303,8 @@ public static class HsmEmitCore
         // Build event-id map from the DTO.
         // EventId is stored in the DTO for byte-identical emit (from original builder calls).
         // For assets without stored IDs (EventId==0), fall back to sequential assignment.
-        var eventIdMap = new Dictionary<string, ushort>(StringComparer.Ordinal);
-        ushort fallbackId = 1;
-        foreach (var ev in dto.Events)
-        {
-            ushort id = ev.EventId != 0 ? ev.EventId : fallbackId;
-            eventIdMap[ev.Name] = id;
-            if (ev.EventId == 0) fallbackId++;
-        }
+        // ⭐ CE-3040: one assignment shared with the editor's mapper — an engine-raised event's name wins its reserved id.
+        var eventIdMap = HsmEventIds.Assign(dto.Events.Select(e => (e.Name, e.EventId)));
 
         // Events emitted in original order (sorted by EventId to match HsmFluentEmitter's
         // AllEvents.OrderBy(e => e.EventId) behavior)
@@ -321,8 +315,8 @@ public static class HsmEmitCore
             var sortedEvents = new System.Collections.Generic.List<EventDefinitionDto>(dto.Events);
             sortedEvents.Sort((a, b) =>
             {
-                ushort idA = a.EventId != 0 ? a.EventId : (eventIdMap.TryGetValue(a.Name, out var va) ? va : (ushort)0);
-                ushort idB = b.EventId != 0 ? b.EventId : (eventIdMap.TryGetValue(b.Name, out var vb) ? vb : (ushort)0);
+                ushort idA = eventIdMap.TryGetValue(a.Name, out var va) ? va : a.EventId;
+                ushort idB = eventIdMap.TryGetValue(b.Name, out var vb) ? vb : b.EventId;
                 return idA.CompareTo(idB);
             });
             foreach (var ev in sortedEvents)

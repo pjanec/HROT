@@ -400,6 +400,102 @@ namespace Fdp.Toolkit.Behavior.Tests
                          ((HsmEvent*)state.EventBuffer)->EventId);
         }
 
+        // ---- ⭐ CE-3040 — sensor changes reach the HSM as reserved events (Sensors §7.3b) ----
+
+        private static HsmDefinitionBlob BuildSensorBlob(ushort eventId, uint hash)
+        {
+            var states = new StateDef[2];
+            states[0] = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0, TransitionCount = 1 };
+            states[1] = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF };
+            var transitions = new[] { new TransitionDef { SourceStateIndex = 0, TargetStateIndex = 1, EventId = eventId } };
+            var header = new HsmDefinitionHeader { StructureHash = hash, StateCount = 2, TransitionCount = 1 };
+            return new HsmDefinitionBlob(header, states, transitions, Array.Empty<RegionDef>(),
+                Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+        }
+
+        private static (EntityRepository world, BrainTickSystem sys, Entity e) ArrangeSensorMachine(ushort handles, uint hash)
+        {
+            var world = TestWorldFactory.Create();
+            if (!world.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
+                world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            var registry = new BehaviorRegistry();
+            var blob = BuildSensorBlob(handles, hash);
+            registry.Register((int)hash, "SensorDoc" + hash, new BehaviorDefinition
+            {
+                Name = "SensorDoc" + hash, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob,
+            });
+            return (world, new BrainTickSystem(registry), CreateHsmEntity(world, (int)hash, blob));
+        }
+
+        private static void Sense(EntityRepository world, Entity unit, Fdp.Toolkit.Perception.Events.SensorChange what, Entity target = default, Entity sensor = default)
+        {
+            world.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = unit, What = what, Target = target, Sensor = sensor });
+            world.Bus.SwapBuffers();
+        }
+
+        [Fact]
+        public void CE3040_ASensorChangeTheMachineHandles_IsEnqueued_AtItsReservedId_WithTargetAndSensor()
+        {
+            Assert.True(Unsafe.SizeOf<Entity>() <= 8, "the payload packs two entities into 16 bytes");
+            Assert.True(Fdp.Toolkit.Behavior.Shared.BuiltInHsmEvents.TryGetId("Sensor.FirstThreat", out ushort id));
+            Assert.Equal(0xFF04, id);
+            var (world, sys, e) = ArrangeSensorMachine(id, 0x30400001);
+            var target = world.CreateEntity();
+            var sensor = world.CreateEntity();
+
+            Sense(world, e, Fdp.Toolkit.Perception.Events.SensorChange.FirstThreat, target, sensor);
+            sys.Execute(world, 0.016f);
+
+            byte* inst = InstanceOf(world, e, out int size);
+            Assert.True(HsmEventQueue.TryDequeue(inst, size, out var evt), "the handled sensor change must be enqueued");
+            Assert.Equal(id, evt.EventId);
+            Assert.Equal(target, Unsafe.ReadUnaligned<Entity>(evt.Payload));
+            Assert.Equal(sensor, Unsafe.ReadUnaligned<Entity>(evt.Payload + 8));
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3040_AChangeTheMachineDoesNotHandle_OrAnotherUnits_IsNotEnqueued()
+        {
+            Assert.True(Fdp.Toolkit.Behavior.Shared.BuiltInHsmEvents.TryGetId("Sensor.Hit", out ushort hit));
+            var (world, sys, e) = ArrangeSensorMachine(hit, 0x30400002);
+            var other = world.CreateEntity();
+
+            world.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = e, What = Fdp.Toolkit.Perception.Events.SensorChange.Lost });
+            world.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = other, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            byte* inst = InstanceOf(world, e, out int size);
+            Assert.Equal(0, HsmEventQueue.GetCount(inst, size));
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3040_TheHandledChange_DrivesTheTransition()
+        {
+            Assert.True(Fdp.Toolkit.Behavior.Shared.BuiltInHsmEvents.TryGetId("Sensor.Hit", out ushort hit));
+            var (world, sys, e) = ArrangeSensorMachine(hit, 0x30400003);
+            sys.Execute(world, 0.016f);                                            // enter state 0
+            sys.Execute(world, 0.016f);
+            Sense(world, e, Fdp.Toolkit.Perception.Events.SensorChange.Hit);
+            for (int i = 0; i < 4; i++) sys.Execute(world, 0.016f);
+
+            byte* inst = InstanceOf(world, e, out int size);
+            ushort* leaves = HsmKernel.GetActiveLeafIds(inst, size, out _);
+            Assert.Equal(1, leaves[0]);                                             // moved to state 1
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE3040_TheBuiltInNames_MatchTheRuntimeEnum()
+        {
+            var names = Fdp.Toolkit.Behavior.Shared.BuiltInHsmEvents.SensorNames;
+            foreach (Fdp.Toolkit.Perception.Events.SensorChange c in Enum.GetValues(typeof(Fdp.Toolkit.Perception.Events.SensorChange)))
+                Assert.Equal("Sensor." + c, names[(int)c - 1]);
+            Assert.Equal(Enum.GetValues(typeof(Fdp.Toolkit.Perception.Events.SensorChange)).Length, names.Length);
+        }
+
         /// <summary>A two-state MobilityLost blob whose region count drives <c>SelectTier</c>.</summary>
         private static HsmDefinitionBlob BuildTwoStateBlobWithRegions(uint hash, int regionCount)
         {
