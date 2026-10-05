@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Behavior
         /// ⭐ <c>CE-2104</c> — the unit is IN CONTACT: its threat memory holds a contact (seen or heard), or it emptied less than
         /// <see cref="SopContactParams.LingerSeconds"/> ago. The "alerted" mode of any SOP, DERIVED from state the perception
         /// already keeps — on with <c>FirstThreat</c>, off with <c>AllClear</c> (+ linger) — so there is no flag to latch, save
-        /// or replay. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4 (the SOP conditions table, CE-2104).
+        /// or replay. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.7 (CE-2104).
         /// </summary>
         [SharedAiCondition]
         public static bool InContact(ref SopContactParams p, Entity self, EntityRepository world)
