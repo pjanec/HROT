@@ -863,6 +863,19 @@ any new mutation path must too. ⚠ The bump never lands on `0` — a fresh tabl
 would compare equal to *"never written"*. ⭐ Pinned by `Fdp.Tests.PreviewRewindManagedComponentTests`,
 which reproduces the crash exactly (`Has=true`, payload null) when the bump is removed.
 
+#### 🔴 `EntityIndex.SyncFrom` — **copied WHOLE, never version-gated** *(`CE-3067`, `2026-10-05`)*
+
+⛔ **SUPERSEDED premise:** the paragraph above says the entity index *"has no such escape — its versions never
+compare equal"*. 📐 **False.** Add/Remove component writes the mask through `GetComponentMask()` **without
+stamping** the chunk version, and `ApplyComponentFilter` bumps the **destination's** version by `+1` ⇒ when the
+source did exactly ONE entity create/destroy in a chunk since the capture, both sides read `V+1` and the mask chunk
+was **skipped**. Measured on a preview rewind: a unit kept the `BlueprintBlackboard1024` bit added during the
+preview (its data rewound to zeros) and lost the `256` bit ⇒ `BrainTickSystem` threw *"no ROOT TREE STATE slot"* —
+flaky, because it needed the create/destroy count to land on exactly one.
+⭐ **Now:** `EntityIndex.SyncFrom` calls `SyncDirtyChunks(source, force: true)` for both the masks and the
+metadata — the index is the structural truth every table read is gated on, so it is copied whole. Pinned by
+`Fdp.Tests.PreviewRewindComponentMaskTests`.
+
 ⚠ **The unmanaged `ComponentTable<T>.ClearRaw` deliberately does nothing** — an unmanaged read is
 guarded by the mask, so stale bytes behind a cleared bit are harmless. ⛔ For a MANAGED component the
 payload *is* the presence, which is why only this tier needs the rule.

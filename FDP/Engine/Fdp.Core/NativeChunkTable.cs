@@ -443,7 +443,12 @@ namespace Fdp.Core
         /// Synchronizes dirty chunks from a source table to this table.
         /// Uses version tracking to optimize transfer (only copies modified chunks).
         /// </summary>
-        public void SyncDirtyChunks(NativeChunkTable<T> source)
+        /// <param name="force">
+        /// ⭐ <c>CE-3067</c> — copy every chunk regardless of version. For a table whose writers do NOT stamp the
+        /// chunk version (the entity index's component masks and metadata), version equality is not proof the
+        /// contents match, and a skipped chunk silently keeps the destination's bytes.
+        /// </param>
+        public void SyncDirtyChunks(NativeChunkTable<T> source, bool force = false)
         {
             #if FDP_PARANOID_MODE
             if (source.TotalChunks != _totalChunks)
@@ -458,7 +463,7 @@ namespace Fdp.Core
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
-                if (_chunkVersions[i].Value == srcVer)
+                if (!force && _chunkVersions[i].Value == srcVer)
                     continue;
 
                 // Source likely has changes (or we are stale).

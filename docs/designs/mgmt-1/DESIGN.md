@@ -2380,6 +2380,11 @@ OS-imposed inbound SMB connection limits.
 > restored the **presence bit without the payload**, and the next tick aborted the process.
 > ⭐ Fixed in the table, not in the handler — 📄 the invariant is stated in
 > [`docs/projects/FDP/Core/Fdp.Core.md`](../../projects/FDP/Core/Fdp.Core.md) §`ManagedComponentTable<T>`.
+>
+> ⚠ **AS-BUILT, `2026-10-05` (`CE-3067`) — the entity index was NOT copied unconditionally** *(the premise
+> above is superseded)*: its copy was version-gated too, and a single create/destroy during the dry run made the
+> versions coincide, so the rewind kept the dry run's component masks. ⭐ `EntityIndex.SyncFrom` now forces the
+> copy — 📄 [`Fdp.Core.md`](../../projects/FDP/Core/Fdp.Core.md) §`EntityIndex.SyncFrom`.
 
 ---
 

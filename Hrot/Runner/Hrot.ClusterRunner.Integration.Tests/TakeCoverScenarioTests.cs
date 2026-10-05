@@ -241,7 +241,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
     /// in the engine is edit-specific. Stop returns to Edit and REWINDS it to where it stood.
     /// 📄 docs/projects/Hrot/Subsystems/Hrot.Editor.md §Preview · DESIGN_Deterministic_Network_Ids §11c (preview is not cleared).
     /// </summary>
-    [Fact(Timeout = 300_000, Skip = "CE-3067 (behaviors): Preview from Edit — the SOP is assigned only once the clock runs, without its root tree-state slot, and BrainTickSystem throws 'no ROOT TREE STATE slot'. Un-skip when CE-3067 lands; this rail is its acceptance.")]
+    [Fact(Timeout = 300_000)] // ⭐ CE-3067's acceptance: the Stop rewind must restore the entity index whole (EntityIndex.SyncFrom)
     public async Task CE2101_PreviewFromEdit_PerceivesAndTakesCover_AndStopRewindsToTheEdit()
     {
         var root = RepoRoot();

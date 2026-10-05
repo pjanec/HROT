@@ -365,9 +365,16 @@ namespace Fdp.Core
         /// </summary>
         public void SyncFrom(EntityIndex source)
         {
-            // Sync both underlying tables using fast chunk-based memcpy
-            _hotMasks.SyncDirtyChunks(source._hotMasks);
-            _coldMeta.SyncDirtyChunks(source._coldMeta);
+            // Sync both underlying tables using fast chunk-based memcpy.
+            // ⭐⭐ CE-3067 — FORCED, never version-gated. Adding or removing a component writes the mask through
+            //    GetComponentMask() without stamping the chunk version, and ApplyComponentFilter bumps the
+            //    DESTINATION's version by +1. ⇒ when the source gained exactly one create/destroy in a chunk since
+            //    the last sync, both sides read V+1 and the chunk was SKIPPED. 📐 Measured on a preview rewind: the
+            //    entity kept the 1024 store bit added during the preview and lost the 256 bit the snapshot held,
+            //    while the 1024 DATA was rewound to zeros ⇒ BrainTickSystem threw "no ROOT TREE STATE slot".
+            //    The index is the structural truth every table read is gated on, so it is copied whole.
+            _hotMasks.SyncDirtyChunks(source._hotMasks, force: true);
+            _coldMeta.SyncDirtyChunks(source._coldMeta, force: true);
 
             // Sync global counters
             _activeCount    = source._activeCount;
