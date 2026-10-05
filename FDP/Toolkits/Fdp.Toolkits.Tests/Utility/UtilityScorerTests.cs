@@ -339,6 +339,88 @@ namespace Fdp.Toolkit.Tests
             return new UtilityDecisionDef { DebugName = "TestDef", Kind = kind, Options = optList };
         }
 
+        // ── ⭐ CE-2067 — the scorer core without the unit buffer (DESIGN_Decision_Layer.md §3.3) ──
+
+        private static Entity s_favoured;
+        private static unsafe float FavouredReader(in UtilityInputCtx ctx) => ctx.Context.Equals(s_favoured) ? 0.9f : 0.2f;
+
+        private static UtilityScorer PostureScorer(out int id)
+        {
+            var registry = new UtilityRegistry();
+            id = 0x2067;
+            registry.Register(id, new UtilityDecisionDef
+            {
+                DebugName = "CE2067Posture", Kind = DecisionKind.PostureSelect,
+                Options = new[] { BuildSingleLinearOption(optionId: 1, inputId: 60), BuildSingleLinearOption(optionId: 2, inputId: 61) },
+            }, hysteresisBonus: 0.08f);
+            return new UtilityScorer(registry);
+        }
+
+        [Fact]
+        public unsafe void CE2067_ChooseOption_NeedsNoUnitBuffer_AndTheCallersLastWinnerGetsTheHysteresis()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);    // option 1 = 0.70
+            UtilityInputReaderStore.Register(61, &Stub075);   // option 2 = 0.75
+            var scorer = PostureScorer(out int id);
+            using var world = new EntityRepository();
+            var unit = world.CreateEntity();                  // no UtilityResultBuffer
+
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 0));   // no previous winner: the best
+            Assert.Equal(1, scorer.ChooseOption(world, unit, id, lastWinner: 1));   // 0.70 + 0.08 holds over 0.75
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 2));
+            Assert.Equal(0, scorer.ChooseOption(world, unit, decisionId: 0x7777, lastWinner: 0));   // not registered
+        }
+
+        [Fact]
+        public unsafe void CE2067_ChooseOption_StillFillsTheUnitBuffer_WhenTheUnitHasOne()
+        {
+            UtilityInputReaderStore.Register(60, &Stub07);
+            UtilityInputReaderStore.Register(61, &Stub075);
+            var scorer = PostureScorer(out int id);
+            using var world = new EntityRepository();
+            world.RegisterComponent<UtilityResultBuffer>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new UtilityResultBuffer());
+
+            scorer.ChooseOption(world, unit, id, lastWinner: 0);
+            ref readonly var buf = ref world.GetComponentRO<UtilityResultBuffer>(unit);
+            Assert.Equal(2, buf.Count);
+            Assert.Equal(2, buf.GetSpanRO()[0].WinningPostureId);
+        }
+
+        [Fact]
+        public unsafe void CE2067_RankCandidates_ReturnsTheTopContactAsAnEntityRef()
+        {
+            UtilityInputReaderStore.Register(62, &FavouredReader);
+            var registry = new UtilityRegistry();
+            registry.Register(0x2068, new UtilityDecisionDef
+            {
+                DebugName = "CE2067Rank", Kind = DecisionKind.ThreatRanking,
+                Options = new[] { BuildSingleLinearOption(optionId: 0, inputId: 62) },
+            });
+            registry.Register(0x2069, new UtilityDecisionDef { DebugName = "Posture", Kind = DecisionKind.PostureSelect, Options = Array.Empty<UtilityOption>() });
+            var scorer = new UtilityScorer(registry);
+
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var unit = world.CreateEntity();
+            var a = world.CreateEntity();
+            var b = world.CreateEntity();
+            world.AddComponent(a, new Fdp.Toolkit.Replication.Components.NetworkIdentity(501));
+            world.AddComponent(b, new Fdp.Toolkit.Replication.Components.NetworkIdentity(502));
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 2 };
+            mem.EntityIds[0] = (long)a.PackedValue;
+            mem.EntityIds[1] = (long)b.PackedValue;
+            world.AddComponent(unit, mem);
+            s_favoured = b;
+
+            Assert.True(scorer.RankCandidates(world, unit, 0x2068, 0, out var top, out float score));
+            Assert.Equal(502, top.NetworkId);
+            Assert.Equal(0.9f, score, 3);
+            Assert.False(scorer.RankCandidates(world, unit, 0x2069, 0, out _, out _));   // an option decision
+        }
+
         private static UtilityOption BuildSingleLinearOption(ushort optionId, ushort inputId)
         {
             return new UtilityOption

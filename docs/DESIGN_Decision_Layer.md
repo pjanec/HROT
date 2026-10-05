@@ -170,7 +170,7 @@ debugger's Watch shows the current posture.*
 | still needed for the BTree | `CE-3041` (`ObserverSelector` aborts the running lower branch) — today it runs as a plain selector (`Interpreter.cs:267`) |
 | rejected | re-make the two helpers 1:1 — two implementations of one concept, and each guard would score separately (five scorings a tick, five memories) · keep the per-unit `UtilityResultBuffer` as the memory — two decisions on one unit overwrite each other |
 
-### 3.3 The build design — one scoring step, three hosts, combat posture first *(build-state: READY-TO-BUILD — approved by the user `2026-10-04`; tasks `CE-2067`–`CE-2073`; not started)*
+### 3.3 The build design — one scoring step, three hosts, combat posture first *(build-state: BUILDING — approved by the user `2026-10-04`; tasks `CE-2067`–`CE-2073`; `CE-2067` BUILT `2026-10-05`, as-built at the end of the section)*
 
 > 🔒 **User, `2026-10-04`:** *"approved. pls write the design diagrams. record tasks. do not start building yet."*
 
@@ -309,6 +309,14 @@ part of this plan.*
 | `CE-3054` *(existing, ours)* | threat inputs to `R-194`: danger from the TKB judged at read time × freshness | the backend's memory stage (`CE-3037`) | ⚠ **yes — joint freshness design** |
 | `CE-3031` *(existing, ours)* | the children: take cover, fall back, advance-and-fire | `CE-2071` | no |
 | `CE-3041` *(existing, ours)* | `ObserverSelector` aborts the running lower branch | — | no |
+
+⭐ **As-built `CE-2067` (`2026-10-05`):** `UtilityScorer.ChooseOption(repo, self, decisionId, lastWinner, tick)` and
+`RankCandidates(repo, self, decisionId, tick, out EntityRef top, out float topScore)`, as in the class diagram. The unit's
+`UtilityResultBuffer` is still filled when present, but never required. Two details the diagram left open: ① a
+`lastWinner` of 0 gets NO hysteresis (option ids start at 1, and 0 means "no previous winner"); ② a winner with no
+network id comes back as `EntityRef.None` with `true` (an all-in-one world). `Evaluate` / `SelectPosture` stay public
+until `CE-2070` reroutes the bridge. Rails: `UtilityScorerTests.CE2067_*` (3), red-proved (no caller hysteresis ⇒ red).
+Toolkits 2673/0.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

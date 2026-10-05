@@ -151,6 +151,59 @@ namespace Fdp.Toolkit.Utility
             return SelectPosture(repo, self, in def, activePosture, hysteresis, ref output, tracePtr, tick);
         }
 
+        // ── ⭐ CE-2067 — the scorer core WITHOUT the unit buffer (docs/DESIGN_Decision_Layer.md §3.3) ──────────────
+        //   The memory of the last winner lives with the CALLER (a bound variable, a hidden node field), so two decisions
+        //   on one unit cannot collide and no component is needed. The unit's UtilityResultBuffer, when present, still
+        //   receives the ranking (an optional output list + trace), but it is never required.
+
+        /// <summary>
+        /// Scores the option decision <paramref name="decisionId"/> for <paramref name="self"/>, gives
+        /// <paramref name="lastWinner"/> the decision's hysteresis bonus, and returns the winning <c>OptionId</c>
+        /// (0 = none: not registered, not an option decision, or no options). Option ids start at 1, so a
+        /// <paramref name="lastWinner"/> of 0 means "no previous winner".
+        /// </summary>
+        public byte ChooseOption(EntityRepository repo, Entity self, int decisionId, byte lastWinner, ushort tick = 0)
+        {
+            if (!_registry.TryGet(decisionId, out var def, out float hysteresis) || def == null) return 0;
+            if (def.Kind != DecisionKind.PostureSelect) return 0;
+            var local = new UtilityResultBuffer();
+            bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
+            ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            return SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
+        }
+
+        /// <summary>
+        /// Ranks the candidates of the candidate decision <paramref name="decisionId"/> (ThreatRanking: the unit's
+        /// remembered contacts; WeaponSelection: its mounts) and returns the best one as an <see cref="EntityRef"/> with its
+        /// score. <c>false</c> = not registered, an option decision, or no candidate. ⚠ A winner with no network id comes back
+        /// as <see cref="EntityRef.None"/> with <c>true</c> (an all-in-one world).
+        /// </summary>
+        public bool RankCandidates(EntityRepository repo, Entity self, int decisionId, ushort tick,
+                                   out Fdp.Toolkit.Replication.EntityRef top, out float topScore)
+        {
+            top = Fdp.Toolkit.Replication.EntityRef.None;
+            topScore = 0f;
+            if (!_registry.TryGet(decisionId, out var def, out _) || def == null) return false;
+            if (def.Kind == DecisionKind.PostureSelect) return false;
+            var local = new UtilityResultBuffer();
+            bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
+            ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            EvaluateCandidates(repo, self, in def, default, ref output, TraceOf(repo, self), tick);
+            if (output.Count == 0) return false;
+            var best = output.GetSpanRO()[0];
+            top = Fdp.Toolkit.Replication.EntityRef.Of(repo, new Entity((ulong)best.CandidateHandle));
+            topScore = best.Score;
+            return true;
+        }
+
+        private static UtilityTraceWorkingMemory1024* TraceOf(EntityRepository repo, Entity self)
+        {
+            if (!repo.HasComponent<UtilityDebugFlags>(self) || !repo.HasComponent<UtilityTraceWorkingMemory1024>(self)) return null;
+            if (repo.GetComponentRO<UtilityDebugFlags>(self).TraceEnabled == 0) return null;
+            return (UtilityTraceWorkingMemory1024*)System.Runtime.CompilerServices.Unsafe.AsPointer(
+                ref repo.GetComponentRW<UtilityTraceWorkingMemory1024>(self));
+        }
+
         // ── Private: candidate evaluation ─────────────────────────────────────────
 
         private void EvaluateCandidates(EntityRepository repo, Entity self,
