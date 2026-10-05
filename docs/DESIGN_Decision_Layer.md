@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-04
-build-state: BUILDING §4 — BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+updated: 2026-10-05
+build-state: BUILDING §4 — READY-TO-BUILD §4.10 (CE-2083, SOP orders in an HSM state and a blueprint node). BUILT: ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -1213,6 +1213,98 @@ new Brain restarts from the published intent, `CE-3048`); ⛔ there is no path t
   an order releases the paused storage and parts · an overlapping reaction falls back to restart),
   `BlueprintBehaviourTests.CE2081_*` (2: re-issue · a non-re-issuable block fails the wait). Red-proofs: resume forced to restart
   ⇒ the progress rail red; tokens forced to `++` ⇒ the de-dup rail red.
+
+### 4.10 `CE-2083` — SOP orders in an HSM state and as a blueprint node *(behaviors, `2026-10-05`; build-state: READY-TO-BUILD)*
+
+> 🔒 Scope approved with §4.3–§4.6 (*"ok approved. start building"*, `2026-10-04`: "BTree/HSM shared actions, blueprint
+> nodes"); 🔒 *"Yes pls do them, autonomously move to next"* (`2026-10-05`). §4.6 built the C# core and the BTree node; this
+> section is the other two authoring surfaces. ⛔ Nothing at runtime changes: both lower to the ONE `SopActions` call.
+
+**INVENTORY** *(`2026-10-05`: codebase-memory CLI `search_graph` `.*Sop.*` / `.*RunBehavior.*` — the index predated the
+morning's merge and was rebuilt mid-pass — plus grep; ⚠ `check_index_coverage` is not reachable through the CLI)*:
+
+| exists | where | reused how |
+|---|---|---|
+| `SopActions.DoWhenIdle` / `React` (string JSON or typed `in T`) | `Fdp.Toolkits/Behavior/SopActions.cs` | ⭐ the only call either surface makes |
+| `BTreeSopOrderPayloadDto {Kind, BehaviorAssetId, BehaviorName, ParamsVariable, Urgency}` + `ActionKey(offset)` | `AiEditor.Persistence/BTree/BehaviorTreeAssetDto.cs:250` | ⭐ the HSM state carries the SAME payload (renamed host-neutral, Roslyn) |
+| `BTreeBridgeEmitCore.EmitSopOrderThunks` — one thunk per key, params projected at the host offset | `Emit/BTreeBridgeEmitCore.cs:737` | ⭐ its call expression moves into one helper both bridges call |
+| HSM slot thunks: `delegate*<void*, void*, HsmCommandWriter*, void>`, `HsmKernelBridge` → world + self, `RootParamsAccess.RequireRootBytes` | `Emit/SharedAiBindings.cs:243` | ⭐ the HSM SOP thunk is this shape |
+| HSM state slots (`OnEntry` / `OnExit` / `Activity` / `Timer`) addressed by NAME → `HsmActionKey.ForCompoundKey` | `Emit/HsmEmitCore.cs:776`, `HsmBridgeEmitCore.cs:207` | the SOP order is the state's Activity name |
+| `ChildInputTypes.ParamsDtoLookup` — a behaviour's AUTHORED params type | `Editor.AiComposition/ChildInputTypes.cs` | ⭐ types the HSM params variable AND the blueprint `Params` pin |
+| `RunBehaviorNode.ParamsTypeId` + typed `Params` pin (`CE-2022`) | `Blueprints.Compiler/Assets/Nodes.cs` | ⭐ the blueprint node's pin is the same shape |
+| `EmissionContext.WorldVar` (an `EntityRepository` in every dispatch with a self) | `Emit/EmissionContext.cs:255` | the blueprint call's `world` |
+| `SendIntentNode` (`CE-472`) — the nearest blueprint precedent (a DTO → JSON → `PublishManaged`) | `Stage5_Schedule.cs:2075` | ⛔ not reused: it builds per-member pins; the lean here is the Behaviour Task's ONE typed pin |
+
+```mermaid
+classDiagram
+  class SopActions { <<existing — the ONE implementation>> DoWhenIdle(world, self, name, json) · React(…, urgency, json) · DoWhenIdle~T~ · React~T~ }
+  class SopOrderPayloadDto {
+    <<existing, RENAMED from BTreeSopOrderPayloadDto>>
+    Kind · BehaviorAssetId · BehaviorName · ParamsVariable · Urgency
+    ActionKey(offset)
+  }
+  class BTreeActionNodeDto { <<existing>> SopOrder }
+  class StateNodeDto { <<existing — gains one field>> +SopOrder : SopOrderPayloadDto NEW }
+  class SopOrderEmit { <<NEW, AiEditor.Persistence/Emit>> +Call(order, world, self, paramsExpr) string }
+  class BTreeBridgeEmitCore { <<existing>> EmitSopOrderThunks → SopOrderEmit.Call }
+  class HsmEmitCore { <<existing>> a state's SopOrder ⇒ .Activity(order.ActionKey(offset)) }
+  class HsmBridgeEmitCore { <<existing — grows>> EmitSopOrderThunks NEW → SopOrderEmit.Call · RegisterAction(ForCompoundKey(key)) }
+  class SopOrderNode {
+    <<NEW, Blueprints.Compiler/Assets>>
+    Kind · BehaviorName · ParamsTypeId · Urgency
+    pins: In, Out, Params (typed), Accepted (bool)
+  }
+  class IrOp_SopOrder { <<NEW>> Kind · BehaviorName · Urgency · Params IrValue? }
+  class StatementEmitter { <<existing>> IrOp_SopOrder → SopActions call on WorldVar }
+  BTreeActionNodeDto *-- SopOrderPayloadDto
+  StateNodeDto *-- SopOrderPayloadDto
+  BTreeBridgeEmitCore ..> SopOrderEmit
+  HsmBridgeEmitCore ..> SopOrderEmit
+  SopOrderNode ..> IrOp_SopOrder : Stage 5
+  IrOp_SopOrder ..> StatementEmitter
+  SopOrderEmit ..> SopActions : generated call
+  StatementEmitter ..> SopActions : generated call
+```
+
+*What the picture shows that prose hid:* three authoring surfaces, ONE payload shape for the two asset hosts, and every arrow
+ends at `SopActions` — no runtime type, no kernel node, no new event.
+
+```mermaid
+sequenceDiagram
+  participant BT as BrainTickSystem (SOP slot, wake or 0.2 s)
+  participant K as HSM kernel
+  participant Th as generated SOP thunk (HSM bridge)
+  participant G as blueprint Tick (SopOrderNode)
+  participant SA as SopActions
+  BT->>K: tick the SOP HSM
+  K->>Th: the current state's Activity (its SopOrder key)
+  Th->>SA: React~T~(world, self, "TakeCover", Hit, in bb@offset)
+  SA-->>Th: Success or Failure (instant, a refusal is retried next tick)
+  BT->>G: tick the SOP blueprint
+  G->>SA: DoWhenIdle~T~(world, self, "Patrol", in params)
+  SA-->>G: Accepted = (status == Success) ⇒ Out
+```
+
+```mermaid
+graph TD
+  REG["HSM bridge Register() — generated per asset"] -->|"RegisterAction(id of SopOrder key)"| DISP["HsmActionDispatcher"]
+  BTS["BrainTickSystem — task slot AND SOP slot"] -->|ticks| K["HSM kernel"] -->|"Activity id"| DISP
+  BTS -->|ticks| BP["blueprint Tick / Event graphs"] -->|"inline call"| SA["SopActions"]
+  DISP --> SA
+```
+
+| decision *(lean = built unless the user changes it)* | why | rejected |
+|---|---|---|
+| **D1** an HSM state's order runs as its **Activity** (every tick of the state) | `SopActions` dedupes (already running ⇒ Success, nothing published) and a refused order is retried on the next tick — the SOP re-reads itself at every wake (§4.3) | ⛔ OnEntry: issued once, so an order refused on entry is never retried |
+| **D2** the state carries the BTree's payload, **renamed `SopOrderPayloadDto`** (Roslyn, JSON unchanged) | one shape, one `ActionKey` spelling for both asset hosts | ⛔ a second HSM payload type (two producers of one key) |
+| **D3** a state with an `SopOrder` and an `Activity` binding is a validator error | the order IS the activity; one slot, one owner (§9 ③'s method XOR blueprint) | silently preferring one |
+| **D4** the blueprint node has **one typed `Params` pin** (the behaviour's authored params type, `ParamsDtoLookup`) and an **`Accepted` bool** beside one exec `Out` | mirrors the Behaviour Task (`CE-2022`); a Branch on `Accepted` gives the Selector's "try the next row" | ⛔ `Accepted`/`Refused` exec outs (a new two-way shape in the scheduler for what a Branch already does) · ⛔ per-member pins (`SendIntentNode`'s shape — a second way to pass behaviour params) |
+| **D5** the pin's type is the AUTHORED params DTO, not the hosted input | what `SopActions` serialises (§4.6 as-built: a curated behaviour hosts one type and parses another) | `TryGetHostedInputType` |
+| **D6** compile error when the node sits where there is no self (Library) or in a resolver graph | an order is a side effect on the unit | — |
+
+**Slices** (one commit each, green at each): **H1** HSM emit + validator + generated-compile rail · **H2** HSM editor (state
+facet "SOP order", compose the params variable on pick) · **B1** blueprint compiler (node, IR, emit, diagnostics, coverage +
+purity) + a run-through rail · **B2** blueprint editor (palette "SOP: Do when idle" / "SOP: React", picker, typed pin).
 
 ## ⛔ HISTORY
 
