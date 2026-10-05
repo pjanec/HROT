@@ -779,7 +779,11 @@ public sealed record IrOp_ScoreDecision(
     /// <summary>Baked numeric decision ID literal (FNV-1a hash of the AssetId GUID).</summary>
     string DecisionIdLiteral,
     /// <summary>8-char hex prefix of the node ID.</summary>
-    string NodeId8
+    string NodeId8,
+    /// <summary>⭐ CE-2070 — the helper's result struct (<c>WinningOptionId</c> · <c>TopCandidate</c> · <c>TopScore</c>).</summary>
+    string ResultStructTypeName,
+    /// <summary>⭐ CE-2070 — the node's hidden last-winner field (<c>_score_&lt;id8&gt;_last</c>), added by Stage 6.</summary>
+    string SynthFieldName
 ) : IrOperation;
 
 /// <summary>

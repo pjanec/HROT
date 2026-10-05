@@ -2225,21 +2225,30 @@ internal sealed class GraphScheduler
                 int decisionId = ComputeDecisionId(sdn.AssetId);
                 string decisionIdLiteral = decisionId.ToString();
 
-                var byteType = new IrTypeRef { FullName = "System.Byte", IsUnmanaged = true, SizeBytes = 1 };
-                var optionResult = AllocValue(byteType);
+                // ⭐ CE-2070 — one call, a small result struct, one field read per out pin (the ReadRankedResult shape);
+                //   the node's last winner lives in a hidden field Stage 6 adds (the When precedent).
+                string structTypeName = $"_ScoreDecisionResult_{id8}";
+                var resultType = new IrTypeRef { FullName = structTypeName, IsUnmanaged = true, SizeBytes = 16 };
+                var decided = AllocValue(resultType);
                 stmts.Add(new IrStatement
                 {
-                    ResultValue = optionResult,
-                    Operation   = new IrOp_ScoreDecision(decisionIdLiteral, id8),
+                    ResultValue = decided,
+                    Operation   = new IrOp_ScoreDecision(decisionIdLiteral, id8, structTypeName, $"_score_{id8}_last"),
                     Debug       = DebugOf(sdn),
                 });
 
-                var outPin = sdn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
-                                 && string.Equals(p.Name, "WinningOptionId", StringComparison.OrdinalIgnoreCase));
-                if (outPin is not null)
+                foreach (var outPin in sdn.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
                 {
-                    _pinValueCache[outPin.Id]     = optionResult;   // see the SetShared note
-                    _statementPinCache[outPin.Id] = optionResult;
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var ft) ? ft : Stage5_Schedule.UnknownType;
+                    var fieldValue = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldValue,
+                        Operation   = new IrOp_FieldRead(decided, outPin.Name, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = sdn.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id]     = fieldValue;   // see the SetShared note
+                    _statementPinCache[outPin.Id] = fieldValue;
                 }
                 break;
             }

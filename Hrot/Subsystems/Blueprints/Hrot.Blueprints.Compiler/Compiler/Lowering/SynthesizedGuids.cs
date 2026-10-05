@@ -15,6 +15,10 @@ internal static class SynthesizedGuids
     public static Guid WhenPrevField(Guid assetId, Guid nodeId)
         => Derive("when-prev-field", assetId.ToString(), nodeId.ToString());
 
+    /// <summary>⭐ CE-2070 — the synthesized <c>_score_&lt;id8&gt;_last</c> field of one ScoreDecision node.</summary>
+    public static Guid ScoreLastWinnerField(Guid assetId, string nodeId8)
+        => Derive("score-last-winner", assetId.ToString(), nodeId8);
+
     public static Guid DispatchBlock(Guid graphId)
         => Derive("dispatch-block", graphId.ToString());
 

@@ -13,6 +13,9 @@ internal static class WhenLowering_Instance
     private static readonly IrTypeRef FloatType =
         new IrTypeRef { FullName = "System.Single", IsUnmanaged = true, SizeBytes = 4 };
 
+    private static readonly IrTypeRef ByteType =
+        new IrTypeRef { FullName = "System.Byte", IsUnmanaged = true, SizeBytes = 1 };
+
     private static readonly IrTypeRef BoolType =
         new IrTypeRef { FullName = "System.Boolean", IsUnmanaged = true, SizeBytes = 1 };
 
@@ -67,6 +70,18 @@ internal static class WhenLowering_Instance
                         IsUnmanaged = true,
                         SizeBytes   = eqs.SynthStructSizeBytes,
                     },
+                    DefaultValueCSharp = "default",
+                });
+            }
+            else if (stmt.Operation is IrOp_ScoreDecision sd)
+            {
+                // ⭐ CE-2070 — the node's last winner: the hysteresis memory, per node, never on the unit.
+                if (!seen.Add(sd.SynthFieldName)) continue;
+                toAdd.Add(new IrField
+                {
+                    Id                 = SynthesizedGuids.ScoreLastWinnerField(asset.AssetId, sd.NodeId8),
+                    Name               = sd.SynthFieldName,
+                    Type               = ByteType,
                     DefaultValueCSharp = "default",
                 });
             }

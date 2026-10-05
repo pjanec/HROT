@@ -150,6 +150,98 @@ public sealed class UtilityNodeRuntimeTests
         Assert.Equal((byte)Posture.Hold, postureOut);
     }
 
+    // ---- ⭐ CE-2070 — ScoreDecision rerouted onto the scorer core (DESIGN_Decision_Layer.md §3.3) ----
+
+    /// <summary>ScoreDecision(<paramref name="decisionAssetId"/>).<paramref name="outPin"/> → SetVar(Out : <paramref name="outType"/>).</summary>
+    private static (BlueprintAsset Asset, string Id8) ScoreDecisionAsset(string decisionAssetId, string outPin, string outType)
+    {
+        var outVar = new VariableDecl { Id = Guid.NewGuid(), Name = "Out", Type = new BlueprintTypeRef { TypeId = outType } };
+        var scoreNodeId = Guid.NewGuid();
+        var execIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() };
+        var execOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        var dataOut = new Pin { Id = Guid.NewGuid(), Name = outPin, Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = outType } };
+        var score = new ScoreDecisionNode { Id = scoreNodeId, AssetId = decisionAssetId };
+        score.Pins.AddRange(new[] { execIn, execOut, dataOut });
+
+        var setId = Guid.NewGuid();
+        var setIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true,  TypeRef = new() };
+        var setOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true,  TypeRef = new() };
+        var setVal = new Pin { Id = Guid.NewGuid(), Name = "Value",   Direction = "In",  IsExec = false, TypeRef = new() };
+        var set = new SetVariableNode { Id = setId, VariableId = outVar.Id.ToString() };
+        set.Pins.AddRange(new[] { setIn, setOut, setVal });
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        entry.Pins.Add(entryOut);
+        var ret = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, score, set, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id, ToNodeId = scoreNodeId, ToPinId = execIn.Id },
+                new Link { FromNodeId = scoreNodeId, FromPinId = execOut.Id,  ToNodeId = setId,       ToPinId = setIn.Id },
+                new Link { FromNodeId = setId,       FromPinId = setOut.Id,   ToNodeId = ret.Id,      ToPinId = retIn.Id },
+                new Link { FromNodeId = scoreNodeId, FromPinId = dataOut.Id,  ToNodeId = setId,       ToPinId = setVal.Id },
+            },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "CE2070Test", Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
+            Variables = { outVar }, Graphs = { graph },
+        };
+        return (asset, scoreNodeId.ToString("N").Substring(0, 8));
+    }
+
+    [Fact]
+    public void CE2070_AnOptionDecision_NeedsNoUnitBuffer_AndTheNodeKeepsItsLastWinner()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        RegisterUtilityComponents(fixture);
+        UtilityDecisionCatalog.RegisterAll(out _);
+        StandardInputs.RegisterAll();
+        var (asset, id8) = ScoreDecisionAsset("3c6f9e42-5d10-6f3a-ac23-posture0000001", "WinningOptionId", "System.Byte");
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Health      { Current = 100f, Max = 100f });
+        fixture.World.AddComponent(entity, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+        fixture.World.AddComponent(entity, new TargetMemory());       // ⛔ no UtilityResultBuffer
+        fixture.AttachBlueprint(asset, entity);
+        fixture.TickFrame(0.016f);
+
+        Assert.Equal((byte)Posture.Hold, ReadSlotField<byte>(fixture, asset, entity, "Out"));
+        Assert.Equal((byte)Posture.Hold, ReadSlotField<byte>(fixture, asset, entity, $"_score_{id8}_last"));   // the hysteresis memory
+    }
+
+    [Fact]
+    public unsafe void CE2070_ARankingDecision_OutputsItsTopCandidate()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        RegisterUtilityComponents(fixture);
+        if (!fixture.World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+            fixture.World.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        UtilityDecisionCatalog.RegisterAll(out _);
+        StandardInputs.RegisterAll();
+        var (asset, _) = ScoreDecisionAsset("1a4f7c20-3b9e-4d18-8a01-threat0000001", "TopCandidate", "Fdp.Toolkit.Replication.EntityRef");
+
+        fixture.CompileAndLoad(asset);
+        var contact = fixture.CreateEntity();
+        fixture.World.AddComponent(contact, new Fdp.Toolkit.Replication.Components.NetworkIdentity(777));
+        var entity = fixture.CreateEntity();
+        var memory = new TargetMemory { Count = 1 };
+        memory.EntityIds[0] = (long)contact.PackedValue;
+        fixture.World.AddComponent(entity, memory);
+        fixture.AttachBlueprint(asset, entity);
+        fixture.TickFrame(0.016f);
+
+        Assert.Equal(777, ReadSlotField<Fdp.Toolkit.Replication.EntityRef>(fixture, asset, entity, "Out").NetworkId);
+    }
+
     // ---- SC-P1-09-4 ----
 
     [Fact]

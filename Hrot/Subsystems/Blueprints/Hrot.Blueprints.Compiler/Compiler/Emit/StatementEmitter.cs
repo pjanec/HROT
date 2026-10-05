@@ -1286,8 +1286,11 @@ internal static class StatementEmitter
 
             case IrOp_ScoreDecision op:
             {
-                if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = ScoreDecision_{op.NodeId8}({wv}, self, time);");
+                // ⭐ CE-2070 — the node's last winner goes in and the new one is kept (its hidden field).
+                string last = $"{ctx.ExecVar}.{op.SynthFieldName}";
+                string t = idx >= 0 ? $"__t{idx}" : $"__sd_{op.NodeId8}";
+                e.WriteLine($"var {t} = ScoreDecision_{op.NodeId8}({wv}, self, time, {last});");
+                e.WriteLine($"{last} = {t}.WinningOptionId;");
                 break;
             }
 

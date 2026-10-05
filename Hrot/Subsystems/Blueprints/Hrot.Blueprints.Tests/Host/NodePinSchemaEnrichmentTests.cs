@@ -422,9 +422,10 @@ public sealed class NodePinSchemaEnrichmentTests
     {
         var pins = NodePinSchema.GetCanonicalPins(new ScoreDecisionNode());
 
-        var win = Assert.Single(Data(pins, "Out"));
-        Assert.Equal("WinningOptionId", win.Name);
-        Assert.Equal("System.Byte", win.TypeId);
+        // ⭐ CE-2070 — an option decision's winner, and a ranking decision's top candidate + score.
+        var outs = Data(pins, "Out").ToList();
+        Assert.Equal(new[] { "WinningOptionId", "TopCandidate", "TopScore" }, outs.Select(p => p.Name));
+        Assert.Equal(new[] { "System.Byte", "Fdp.Toolkit.Replication.EntityRef", "System.Single" }, outs.Select(p => p.TypeId));
         Assert.True(HasExec(pins, "In", "In"));
         Assert.True(HasExec(pins, "Out", "Out"));
     }

@@ -1470,19 +1470,36 @@ internal static class InstanceEmitter
     {
         foreach (var op in ops)
         {
+            // ⭐ CE-2070 — the result struct: an option decision's winner, a ranking decision's top candidate + score.
+            e.WriteLine($"[global::System.Runtime.InteropServices.StructLayout(" +
+                        $"global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+            e.WriteLine($"private struct {op.ResultStructTypeName}");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine("public byte WinningOptionId;");
+            e.WriteLine("public global::Fdp.Toolkit.Replication.EntityRef TopCandidate;");
+            e.WriteLine("public float TopScore;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+
             e.WriteLine($"[global::System.Runtime.CompilerServices.MethodImpl(" +
                         $"global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            e.WriteLine($"private static byte ScoreDecision_{op.NodeId8}(");
+            e.WriteLine($"private static {op.ResultStructTypeName} ScoreDecision_{op.NodeId8}(");
             e.Indent();
             e.WriteLine($"global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
             e.WriteLine($"global::Fdp.Core.Entity self,");
-            e.WriteLine($"float time)");
+            e.WriteLine($"float time,");
+            e.WriteLine($"byte lastWinner)");
             e.Outdent();
             e.WriteLine("{");
             e.Indent();
             e.WriteLine($"uint tick = (uint)(time * 60f);");
-            e.WriteLine($"return global::Fdp.Toolkit.Utility.Integration.UtilityBlueprintBridge" +
-                        $".ScoreDecision(view, self, {op.DecisionIdLiteral}, tick);");
+            e.WriteLine($"var result = default({op.ResultStructTypeName});");
+            e.WriteLine($"global::Fdp.Toolkit.Utility.Integration.UtilityBlueprintBridge" +
+                        $".Decide(view, self, {op.DecisionIdLiteral}, lastWinner, tick, " +
+                        $"out result.WinningOptionId, out result.TopCandidate, out result.TopScore);");
+            e.WriteLine("return result;");
             e.Outdent();
             e.WriteLine("}");
             e.WriteLine();

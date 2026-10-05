@@ -329,6 +329,16 @@ registers the INPUT readers only (CE-454 W1), so every production `ScoreDecision
 `CgfLogicPack` now also calls `UtilityDecisionCatalog.EnsureRegistered()` (idempotent), and the diagram is corrected.
 ⚠ `ScoreDecision`'s own `AssetId` field moves to the type with `CE-2070`, which reroutes that node.
 
+⭐ **As-built `CE-2070` (`2026-10-05`):** the blueprint `ScoreDecision` node calls ONE bridge entry,
+`UtilityBlueprintBridge.Decide(view, self, decisionId, lastWinner, tick, out winner, out topCandidate, out topScore)`.
+An option decision goes to `ChooseOption`, a ranking decision to `RankCandidates`. The node's memory is a hidden
+per-node byte field `_score_<id8>_last`, added by Stage 6 exactly as the `When` node's `_when_<id8>_prev` is (an
+instance keeps it in its payload, a behaviour in its brain state). Its pins grow `TopCandidate` (`EntityRef`) and
+`TopScore`. The node no longer needs a `UtilityResultBuffer` on the unit. `ReadRankedResult` is kept, and it still
+reads the unit buffer when one exists. ⚠ The design said the precedent was `__waitUntilTime`; the `When` field is the
+closer one (a per-NODE field, in both dispatch kinds). No corpus asset uses the node, so no golden moved. Rails:
+`UtilityNodeRuntimeTests.CE2070_*` (2: no buffer + the memory written · a ranking's top candidate), red-proved.
+
 ⛔ **`CE-2069` STOPPED `2026-10-05` — a premise of the third sequence diagram fails (`R-106`: stop the item, not the
 batch).** The diagram has the guard read *"the bound variable `Winner`"* that `ChooseOption` wrote. Measured:
 

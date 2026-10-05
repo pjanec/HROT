@@ -337,13 +337,16 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Out",     "Out", true, ""),
         };
 
-    /// <summary>ScoreDecision: exec In/Out + data-Out "WinningOptionId"/System.Byte.</summary>
+    /// <summary>ScoreDecision: exec In/Out + data-Out "WinningOptionId"/System.Byte, "TopCandidate"/EntityRef, "TopScore"/System.Single (CE-2070).</summary>
     private static IReadOnlyList<PinSchema> ScoreDecisionPins()
         => new[]
         {
             new PinSchema("In",              "In",  true,  ""),
             new PinSchema("Out",             "Out", true,  ""),
             new PinSchema("WinningOptionId", "Out", false, "System.Byte"),
+            // ⭐ CE-2070 — a RANKING decision's answer (an option decision leaves them none / 0).
+            new PinSchema("TopCandidate",    "Out", false, "Fdp.Toolkit.Replication.EntityRef"),
+            new PinSchema("TopScore",        "Out", false, "System.Single"),
         };
 
     /// <summary>ReadRankedResult: three data-Out pins (IsValid/Entity/Score).</summary>
