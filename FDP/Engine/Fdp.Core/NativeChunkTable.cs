@@ -33,13 +33,6 @@ namespace Fdp.Core
         private readonly object _allocationLock = new object();
         
         private bool _disposed;
-
-        // ⭐ CE-518 — committed native bytes this table has reported to the GC. 📐 Measured 2026-10-04: the cluster
-        //   integration suite's test host climbed to ~9.4 GB RSS and then fell to ~3 GB in ONE step when a GC finally ran
-        //   — undisposed tables are freed only by this class's finalizer, and the GC never knew the native memory existed,
-        //   so it rarely ran; a run whose peak crossed the machine's RAM failed with OutOfMemoryException in whatever test
-        //   allocated next. Reporting committed chunks as memory pressure lets the GC schedule against the real footprint.
-        private long _pressureBytes;
         
         public NativeChunkTable()
         {
@@ -250,8 +243,6 @@ namespace Fdp.Core
                 
                 // Commit physical memory
                 NativeMemoryAllocator.Commit(chunkPtr, FdpConfig.CHUNK_SIZE_BYTES);
-                GC.AddMemoryPressure(FdpConfig.CHUNK_SIZE_BYTES);
-                _pressureBytes += FdpConfig.CHUNK_SIZE_BYTES;
                 
                 // Create chunk wrapper
                 _chunks[chunkIndex] = new NativeChunk<T>(chunkPtr, _chunkCapacity);
@@ -285,7 +276,6 @@ namespace Fdp.Core
                     _chunkVersions[i].Value = 0;
                 }
                 Array.Clear(_committedMask, 0, _committedMask.Length);
-                ReleasePressure(_pressureBytes);
             }
         }
 
@@ -318,7 +308,6 @@ namespace Fdp.Core
                 
                 // Decommit physical memory
                 NativeMemoryAllocator.Decommit(chunkPtr, FdpConfig.CHUNK_SIZE_BYTES);
-                ReleasePressure(FdpConfig.CHUNK_SIZE_BYTES);
                 
                 // Mark as not committed
                 int maskIndex = chunkIndex / 64;
@@ -361,20 +350,11 @@ namespace Fdp.Core
             {
                 NativeMemoryAllocator.Free(_basePtr, _totalReservedBytes);
             }
-            ReleasePressure(_pressureBytes);
             
             _disposed = true;
             GC.SuppressFinalize(this);
         }
         
-        private void ReleasePressure(long bytes)
-        {
-            if (bytes <= 0) return;
-            if (bytes > _pressureBytes) bytes = _pressureBytes;
-            _pressureBytes -= bytes;
-            if (bytes > 0) GC.RemoveMemoryPressure(bytes);
-        }
-
         ~NativeChunkTable()
         {
             Dispose();
