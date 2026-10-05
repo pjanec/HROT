@@ -245,6 +245,38 @@ sequenceDiagram
 ⚠ **What would change it:** if heard contacts must ALSO carry a direction-only form (bearing, no range), D grows a bearing
 field; the radius already covers "about here", which is what "from the north" needs for movement and facing.
 
+### 6.1 Behaviors-lane review of D″ and the `CE-3063` frame *(`2026-10-05`, behaviors; ⏳ leans await the user)*
+
+⭐ **The reader inventory is larger than the frame's seven.** Measured: grep of `EntityIds[` over production, plus every
+production file naming `TargetMemory` (54 files). ⚠ The list comes from grep: the graph's `search_code` returned 0 hits for this pattern on a fresh index, and
+`check_index_coverage` is not reachable through the CLI.
+
+| reader | kind | what D″ asks of it |
+|---|---|---|
+| `UtilityScorer.cs:243` (candidate gather) — feeds `ThreatRankingDecision`, the `RankCandidates` node and `EqsTacticsNodes.TopThreat` | ENTITY | skip anonymous slots |
+| `ThreatMatrixAssignmentSystem.cs:84,108` | ENTITY | skip anonymous slots (`:122` is an id match, safe) |
+| `TargetMemoryTranslator.cs:52` (scenario save: `new Entity((ulong)id)` + remap) | ENTITY | ⚠ **missing from the frame.** Backend ① decides: lean is to **not save** anonymous slots (a heard sound is transient) |
+| `InsurgentNodes.cs:84`, `UrbanCombatNewScenario.cs:769` (examples, `EntityIds[0]`) | ENTITY | skip anonymous slots |
+| `StandardInputs.cs:161,183`, `CgfNodes.cs:437`, `HillAttackTankNodes.cs:145,234`, `EqsTacticsNodes.cs:176` | id match | safe by construction (a negative id never equals a real target) |
+| `SquadPerceptionMergeSystem.cs:76` | POSITION | copy anonymous slots, merging them by position (frame ②) |
+| `Accurate/CheapLineOfSightTest.cs` (`ThreatScores[0]` gate), `MissionDirectorSystem.cs:176`, `TrafficBrainSystem.cs:57`, `LineOfSightGizmo`, `TargetMemoryOverlaySource`, `PerceptionMapLayer` | POSITION / score | may use anonymous slots unchanged (the overlays should draw the radius) |
+
+⛔ **Two gaps the frame does not cover:**
+
+1. **K3 needs the sound KIND in memory.** ① adds `Radius[]` only, and `Modalities[]` says "acoustic", not shot / detonation /
+   movement. ⇒ a danger table per `SoundKind` cannot be read at read time (R-201). Lean: ① also stores one byte per slot
+   (`SoundKinds[]`, 0 on identified slots; a fused slot keeps the loudest kind).
+2. **③ needs EQS to take a POSITION as its threat.** The SOP's contact rows fire on `SensedFresh(FirstThreat)`
+   (`BasicInfantrySop.btree.json`) and run `TakeCover` / `FallBack` (`DESIGN_Eqs_Consuming_Behaviours.md` §2), which point the
+   sensor's `ContextSlot1` at the top threat's ENTITY. The cover tests read that entity's `SimTransform`
+   (`AccurateLineOfSightTest.cs:87`). With K2 = yes, a unit that only HEARD a shot gets `FirstThreat`, the ranking finds no entity,
+   and `TakeCover` returns Success at once, so the unit does nothing. Lean: `EqsSensor` gains a context POINT used when slot 1 is
+   null, the cover / exposure tests read it, and `TopThreat` falls back to the freshest anonymous slot's position. The behaviors
+   lane builds this as part of ③, as a named cross-lane edit to EQS.
+
+**Leans on K1–K4:** K1 agree (negative ids, one `IsAnonymous` rule) · K2 agree, but only together with gap 2 · K3 agree, but only
+together with gap 1 · K4 agree: `CE-3054` B–D first, then ① (backend) and ②③ (behaviors).
+
 ## 7. Build order *(backend unless noted)*
 
 ⭐ **As-built `CE-3060` (`2026-10-05`):** the memory stage keeps, per target, the OR of the KINDS of the unit's sensors holding it
