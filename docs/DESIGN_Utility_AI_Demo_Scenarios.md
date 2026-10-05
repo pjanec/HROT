@@ -341,7 +341,7 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 | facing | the angle between the target's forward (`SimTransform.Rotation` yaw) and the direction to the shooter: < 60° front, > 120° rear, else side. Turrets ignored |
 | penetration chance | `r = penetration / armour`; `P = clamp((r − 0.8) / 0.4, 0, 1)` — nothing below 80 %, certain above 120 %; no armour ⇒ 1 |
 | damage of a hit | `DamagePerHit × P` — the EXPECTED value, no dice: replays and the determinism rails stay deterministic |
-| unknown munition | `Penetration = 0` (an external detonation, `MunitionDetonationIngressTranslator`) ⇒ today's flat 25, unchanged |
+| unknown munition | `Penetration = 0` (an external detonation, `MunitionDetonationIngressTranslator`, or a weapon whose TKB entry carries no numbers) ⇒ armour is NOT applied: the round's `DamagePerHit`, else today's flat 25. ⚠ **As built:** never 0 — a penetration-0 round would otherwise do nothing to any armour (`ArmorModel.HitDamage`) |
 | AI effectiveness | `min(1, ExpectedDamage / target Health.Max)` at the current facing — "share of a kill per hit". The unit's own `Health.Max`, not the TKB's: scenarios override it (hill-attack's M1s carry 50) |
 | WeaponSelection | gains `RoundsLeft` (log scale, `ln(1+ammo)/ln(1+300)`, weight 1): with 7 TOW rounds and 300 of 25 mm, the 25 mm wins on infantry and the TOW on a tank |
 
@@ -372,6 +372,24 @@ and spends mount 0's rounds, so until **G7** lands the bullet always carries mou
 needs nothing more from G7. `HitResolutionSystem` and the combat systems are one assembly (`Fdp.Toolkits.csproj`), so the
 hit copies the bullet's numbers into the local `DetonationNotification` (no wire message changes, R-158). An external
 detonation (`MunitionDetonationIngressTranslator`) carries `Penetration 0` ⇒ the flat 25 stays.
+
+### 9.1 ✅ AS-BUILT `2026-10-05` (`CE-3071`, backend) — matches the diagrams above, with these notes
+
+| what | where |
+|---|---|
+| `ArmorModel` (facing, armour of a face, `P`, expected damage, `HitDamage` with the unknown-munition rule) and `CombatTkb` (TKB entry by `TkbIdentity`, platform, mount, owner of a mount) | `FDP/Toolkits/Fdp.Toolkits/Combat/ArmorModel.cs` |
+| `WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`; both catalogs calibrated per the table (`SimCombatDef.WeaponMount` → `BdcTkbBuilder`, `UrbanCombatTkbCatalog`) | TKB |
+| the bullet takes the fired mount's numbers (`FireProcessingSystem`), the hit copies them into `DetonationNotification` (`HitResolutionSystem`), `DamageCalculationSystem` applies `ArmorModel` (face from the shooter, else the hit point) | SimHost path |
+| `WeaponEffectivenessVsTarget` = share of a kill (own `Health.Max`, else TKB `MaxHealth`); `WeaponRangeBandFit` reads the mount's OWN TKB range first — ⚠ also for mount 0 on the unit itself (was 0 with no mount child); new input `RoundsLeft` (`0xCAE9`) in `WeaponSelection` | CGF inputs |
+| ⛔ unchanged: no network message (R-158); `AimAndFireExecutor` still fires mount 0 — choosing another mount is **G7** | — |
+
+Rails (feature suites, red-proved by putting each old behaviour back): `DamageCalculationSystemTests.CE3071_*` (3) ·
+`FireProcessingSystemTests.CE3071_TheBullet_CarriesTheFiredMountsMunition` ·
+`HitResolutionSystemDetonationTests.CE3071_ABulletHit_CarriesTheBulletsMunition_IntoTheDetonation` ·
+`StandardInputReaderTests.CE3071_*` (4) · `StarterPackIntegrationTests.CE3071_WeaponSelection_25mmOnInfantry_TowOnATank`.
+`CombatComponentTests` pins the event at 40 bytes (was 32).
+
+
 
 ## 10. The danger sensor — what the squad decisions need *(DESIGN `2026-10-05`, leans awaiting the user)*
 
