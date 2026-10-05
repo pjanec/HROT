@@ -143,5 +143,88 @@ namespace Fdp.Toolkit.Combat.Tests
             var events = _world.Bus.Read<DamageAssessedEvent>();
             Assert.Equal(0, events.Length);
         }
+
+        // ── CE-3071: ammunition vs armour (ArmorModel, design §9) ─────────────────────────────
+
+        private const long TankType = 103;   // armour 500 front / 250 side / 150 rear
+
+        /// <summary>A world with a TKB holding a T-72-shaped platform, and a tank facing east (+X) at the origin.</summary>
+        private Entity SpawnArmouredTank()
+        {
+            _world.RegisterComponent<SimTransform>();
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t  = new Fdp.Interfaces.TkbTemplate("Tank", TankType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var tank = SpawnTarget();
+            _world.AddComponent(tank, new SimTransform { Position = System.Numerics.Vector3.Zero, Rotation = System.Numerics.Quaternion.Identity });
+            _world.AddComponent(tank, new TkbIdentity { TkbType = TankType });
+            return tank;
+        }
+
+        private Entity ShooterAt(float x, float y)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, y, 0), Rotation = System.Numerics.Quaternion.Identity });
+            return e;
+        }
+
+        private float DamageOf(Entity shooter, Entity target, float penetration, float damage)
+        {
+            _world.Bus.Publish(new DetonationNotification { Shooter = shooter, Target = target, Penetration = penetration, Damage = damage });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
+            Assert.Equal(1, events.Length);
+            return events[0].TotalDamage;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3071</c> — the damage depends on the round and the FACE it strikes: a 125 mm (600 mm, 1100) defeats a
+        /// T-72's side (250) and rear but at the front (500, r = 1.2) is just certain; a 25 mm (60 mm) does nothing to it from
+        /// any side. ⛔ Was a flat 25 for every hit.
+        /// </summary>
+        [Fact]
+        public void CE3071_TheDamage_DependsOnTheRound_AndTheFaceItStrikes()
+        {
+            var tank = SpawnArmouredTank();
+            var front = ShooterAt(100, 0);    // the tank faces +X
+            var side  = ShooterAt(0, 100);
+            var rear  = ShooterAt(-100, 0);
+
+            Assert.Equal(1100f, DamageOf(front, tank, 600, 1100), precision: 3);   // r = 1.2 ⇒ P 1
+            Assert.Equal(1100f, DamageOf(side,  tank, 600, 1100), precision: 3);
+            Assert.Equal(0f,    DamageOf(front, tank, 60, 60),    precision: 3);   // 25 mm: r = 0.12
+            Assert.Equal(0f,    DamageOf(rear,  tank, 60, 60),    precision: 3);   // 150 mm rear: r = 0.4
+            Assert.Equal(550f,  DamageOf(front, tank, 500, 1100), precision: 3);   // r = 1 ⇒ P 0.5 — expected value, no dice (A2)
+            Assert.Equal(1100f, DamageOf(rear,  tank, 200, 1100), precision: 3);   // the weak rear: r = 1.33
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — an UNKNOWN munition (penetration 0: an external detonation, or a weapon with no TKB numbers) keeps
+        /// today's flat 25 even on armour — never 0, which would make every such shot harmless.
+        /// </summary>
+        [Fact]
+        public void CE3071_AnUnknownMunition_KeepsTheFlatDamage_EvenOnArmour()
+        {
+            var tank = SpawnArmouredTank();
+            Assert.Equal(CombatConstants.DefaultBulletDamage, DamageOf(ShooterAt(100, 0), tank, 0, 0), precision: 3);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — the shooter gone (despawned before its round lands): the face comes from the hit point.</summary>
+        [Fact]
+        public void CE3071_WithTheShooterGone_TheFaceComesFromTheHitPoint()
+        {
+            var tank = SpawnArmouredTank();
+            _world.Bus.Publish(new DetonationNotification { Shooter = default, Target = tank, HitX = -2, HitY = 0, HitZ = 1, Penetration = 200, Damage = 1100 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(1100f, _world.Bus.Read<DamageAssessedEvent>()[0].TotalDamage, precision: 3);   // rear 150: defeated
+        }
     }
 }

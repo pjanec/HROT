@@ -91,13 +91,27 @@ namespace Fdp.Toolkit.Physics.Systems
                     // NetworkEntityMap dependency.
                     var hitPos = hit.Start + hit.T * (hit.End - hit.Start);
 
+                    // ⭐ CE-3071 — carry the bullet's munition to the damage step (same assembly; the bullet is still alive
+                    //   here — its TearDown is queued below).
+                    float penetration = 0f, damage = 0f;
+                    if (repo.IsAlive(bulletEntity)
+                        && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()
+                        && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
+                    {
+                        ref readonly var bp = ref repo.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity);
+                        penetration = bp.Penetration;
+                        damage      = bp.Damage;
+                    }
+
                     repo.Bus.Publish(new DetonationNotification
                     {
-                        Shooter = hit.IgnoreEntity,
-                        Target  = hit.HitEntity,
-                        HitX    = hitPos.X,
-                        HitY    = hitPos.Y,
-                        HitZ    = hitPos.Z,
+                        Shooter     = hit.IgnoreEntity,
+                        Target      = hit.HitEntity,
+                        HitX        = hitPos.X,
+                        HitY        = hitPos.Y,
+                        HitZ        = hitPos.Z,
+                        Penetration = penetration,
+                        Damage      = damage,
                     });
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered

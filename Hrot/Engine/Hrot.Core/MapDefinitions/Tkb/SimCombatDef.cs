@@ -23,6 +23,12 @@ namespace Hrot.Map.Definitions.Tkb
         /// Rate of fire in rounds per minute.
         /// </summary>
         public float RateOfFire { get; set; }
+
+        /// <summary>⭐ <c>CE-3071</c> — armour penetration of the round, mm RHA.</summary>
+        public float Penetration { get; set; }
+
+        /// <summary>⭐ <c>CE-3071</c> — damage of one penetrating hit.</summary>
+        public float DamagePerHit { get; set; }
     }
     
     /// <summary>

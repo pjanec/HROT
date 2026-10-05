@@ -45,7 +45,9 @@ namespace Hrot.Map.Definitions.Tkb
                         WeaponType = "120mm_M256",
                         Ammunition = 42,
                         Range = 3000,
-                        RateOfFire = 6
+                        RateOfFire = 6,
+                        Penetration = 650,     // CE-3071 — mm RHA (design §9 calibration)
+                        DamagePerHit = 1200,
                     });
                     c.SensorRange = 8000;
                 })
@@ -79,8 +81,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 100;
                     c.ArmorSide = 60;
                     c.ArmorRear = 40;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200 });
-                    c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000 });
                     c.SensorRange = 5000;
                 })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
@@ -139,7 +141,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 500;
                     c.ArmorSide = 250;
                     c.ArmorRear = 150;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100 });
                     c.SensorRange = 6000;
                 })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
@@ -170,7 +172,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(TkbEntityTypes.Infantry_Rifleman, c =>
                 {
                     c.ArmorFront = 5; // Body armor
-                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25 });
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)

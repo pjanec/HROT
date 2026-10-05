@@ -40,5 +40,12 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>True when this notification originated from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-3071</c> — the round's armour penetration, mm RHA, copied from the bullet. 0 = unknown munition
+        /// (an external detonation carries none): the flat default damage applies.</summary>
+        public float Penetration;
+
+        /// <summary>⭐ <c>CE-3071</c> — the round's damage per penetrating hit, copied from the bullet. 0 = unknown munition.</summary>
+        public float Damage;
     }
 }

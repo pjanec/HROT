@@ -172,5 +172,35 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(hitEntity,     detonations[0].Target);
             Assert.Equal(shooterEntity, detonations[0].Shooter);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — the detonation carries the BULLET's munition (the fired mount's penetration and damage), so the
+        /// damage step knows what struck. A bullet with no numbers reaches it as an unknown munition (0, 0 here — no bullet).
+        /// </summary>
+        [Fact]
+        public void CE3071_ABulletHit_CarriesTheBulletsMunition_IntoTheDetonation()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var hitEntity = _world.CreateEntity();
+            var shooter   = _world.CreateEntity();
+            var bullet    = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 1100, Penetration = 600 });
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = hitEntity,
+                    IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(600f,  det.Penetration);
+            Assert.Equal(1100f, det.Damage);
+        }
     }
 }

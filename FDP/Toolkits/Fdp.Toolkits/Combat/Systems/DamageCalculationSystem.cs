@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts;
@@ -8,7 +9,7 @@ using Fdp.Toolkit.Replication.Components;
 namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
-    /// Consumes <see cref="DetonationNotification"/> events, computes a flat HP loss
+    /// Consumes <see cref="DetonationNotification"/> events, computes the HP loss through <see cref="ArmorModel"/> (⭐ <c>CE-3071</c>; was flat)
     /// value and publishes a <see cref="DamageAssessedEvent"/> for the authoritative
     /// node to apply to the entity's <c>Health</c> component.
     ///
@@ -60,11 +61,25 @@ namespace Fdp.Toolkit.Combat.Systems
                 // all detonations it observes, regardless of which node owns the entity in
                 // the CQRS ownership map.
 
-                // POC: flat damage value; armor/penetration curves are deferred.
+                // ⭐⭐ CE-3071 (R-212) — ammunition vs armour, through the ONE model the AI also uses (ArmorModel): the
+                //   face the shot came from (the shooter, or the hit point when the shooter is gone), that face's armour
+                //   from the target's TKB type, and the round's penetration and damage the bullet carried. An unknown
+                //   munition (an external detonation: penetration 0) keeps the flat default. Was: a flat 25 for every hit.
+                float armour = 0f;
+                if (evt.Penetration > 0f && repo.HasComponent<SimTransform>(targetEntity))
+                {
+                    var from = repo.IsAlive(evt.Shooter) && repo.HasComponent<SimTransform>(evt.Shooter)
+                        ? repo.GetComponent<SimTransform>(evt.Shooter).Position
+                        : new Vector3(evt.HitX, evt.HitY, evt.HitZ);
+                    var facing = ArmorModel.FacingOf(repo.GetComponent<SimTransform>(targetEntity), from);
+                    armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, targetEntity), facing);
+                }
+                float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour);
+
                 repo.Bus.Publish(new DamageAssessedEvent
                 {
                     HitEntity   = targetEntity,
-                    TotalDamage = CombatConstants.DefaultBulletDamage,
+                    TotalDamage = damage,
                 });
             }
         }

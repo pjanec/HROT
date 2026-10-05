@@ -49,11 +49,13 @@ namespace Fdp.Toolkit.Utility
         public const ushort Constant                 = 0xAB45;
         public const ushort WeaponRangeBandFit       = 0x2C0C;
         public const ushort WeaponEffectivenessVsTarget = 0xEE5F;
+        /// <summary>⭐ CE-3071 — how many rounds the mount has left, on a log scale (<see cref="StandardInputs.RoundsLeft"/>).</summary>
+        public const ushort RoundsLeft               = 0xCAE9;
     }
 
     /// <summary>
     /// Phase 1 catalog of standard Utility AI input readers.
-    /// Call <see cref="RegisterAll"/> once at startup to register all 19 readers.
+    /// Call <see cref="RegisterAll"/> once at startup to register all the standard readers.
     /// </summary>
     public static unsafe class StandardInputs
     {
@@ -339,10 +341,7 @@ namespace Fdp.Toolkit.Utility
             if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
                 !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
 
-            if (!TryFindMountChild(ctx.Repo, ctx.Self, ctx.Params.MountIndex, out var mountChild)) return 0f;
-
-            ref readonly var mi      = ref ctx.Repo.GetComponentRO<WeaponMountInfo>(mountChild);
-            float effectiveRange     = mi.EffectiveRange;
+            float effectiveRange = MountRange(ctx.Repo, ctx.Self, ctx.Params.MountIndex);
             if (effectiveRange <= 0f) return 0f;
 
             float distance = Vector3.Distance(selfPos, ctxPos);
@@ -351,17 +350,59 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// Phase 1: delegates to <see cref="WeaponRangeBandFit"/>.
-        /// Phase 2+ will incorporate armor class and target type modifiers.
+        /// ⭐⭐ <c>CE-3071</c> (R-212, A1) — the share of a kill one hit of this mount does to the context target, through the
+        /// SAME <see cref="Fdp.Toolkit.Combat.ArmorModel"/> the simulation applies: <c>min(1, damage / target Health.Max)</c> at
+        /// the face the target currently shows this unit. The mount's numbers and the target's armour come from the TKB by type
+        /// (<see cref="Fdp.Toolkit.Combat.CombatTkb"/>); the target's maximum is its OWN <c>Health.Max</c> (scenarios override it),
+        /// else its TKB <c>MaxHealth</c>. An unknown munition scores as the flat default damage. 0 with no target.
+        /// <para>⛔ Was a copy of <see cref="WeaponRangeBandFit"/> ("Phase 2+ will incorporate armor"), so the AI judged a 25 mm
+        /// against a tank by range alone.</para>
         /// </summary>
         [UtilityInput("WeaponEffectivenessVsTarget")]
         public static float WeaponEffectivenessVsTarget(in UtilityInputCtx ctx)
-            => WeaponRangeBandFit(ctx);
+        {
+            var repo = ctx.Repo;
+            if (ctx.Context.IsNull || !repo.IsAlive(ctx.Context)) return 0f;
+
+            var mount = MountNumbers(repo, ctx.Self, ctx.Params.MountIndex);
+            float pen = mount?.Penetration ?? 0f, dmg = mount?.DamagePerHit ?? 0f;
+
+            float armour = 0f;
+            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, ctx.Self, out var selfPos))
+                armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(
+                    Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context),
+                    Fdp.Toolkit.Combat.ArmorModel.FacingOf(repo.GetComponent<SimTransform>(ctx.Context), selfPos));
+            float damage = Fdp.Toolkit.Combat.ArmorModel.HitDamage(pen, dmg, armour);
+
+            float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;
+            if (maxHealth <= 0f) maxHealth = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context)?.MaxHealth ?? 0f;
+            float result = maxHealth > 0f ? Math.Clamp(damage / maxHealth, 0f, 1f) : (damage > 0f ? 1f : 0f);
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
+
+        /// <summary>The ammunition count at which <see cref="RoundsLeft"/> reaches 1.</summary>
+        public const float RoundsLeftFullScale = 300f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (design §9) — how many rounds this mount has left, on a log scale:
+        /// <c>ln(1 + ammo) / ln(1 + 300)</c>, clamped to [0,1]. With 7 TOW rounds (0.36) and 300 of 25 mm (1) the scarce round
+        /// is saved for the target only it can hurt. 0 with no <see cref="WeaponState"/>.
+        /// </summary>
+        [UtilityInput("RoundsLeft")]
+        public static float RoundsLeft(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
+            int ammo = ctx.Repo.GetComponentRO<WeaponState>(ctx.Self).Ammo;
+            float result = ammo <= 0 ? 0f : Math.Clamp(MathF.Log(1f + ammo) / MathF.Log(1f + RoundsLeftFullScale), 0f, 1f);
+            Debug.Assert(result >= 0f && result <= 1f);
+            return result;
+        }
 
         // ── RegisterAll ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Registers all 19 standard input readers into <see cref="UtilityInputRegistrar"/>.
+        /// Registers every standard input reader into <see cref="UtilityInputRegistrar"/>.
         /// Call once at application startup before any scoring pass.
         /// </summary>
         public static void RegisterAll()
@@ -385,6 +426,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.Constant,                 &Constant);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponRangeBandFit,       &WeaponRangeBandFit);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
+            UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────
@@ -403,6 +445,32 @@ namespace Fdp.Toolkit.Utility
         {
             child = Fdp.Toolkit.Perception.Sensors.UnitSensors.OfTemplate(repo, owner, blueprintId);
             return !child.IsNull && repo.HasComponent<EqsCognitiveBuffer>(child);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A3 revised, A4) — the TKB numbers of the mount <paramref name="self"/> stands for: a mount child
+        /// (its <see cref="WeaponMountInfo.MountIndex"/>, its parent's type), or the unit itself (<paramref name="mountIndex"/>,
+        /// its own type — mount 0 lives on the unit). Null when the world or the type carries none.
+        /// </summary>
+        private static Fdp.Toolkit.Tkb.Domain.WeaponMountDto? MountNumbers(EntityRepository repo, Entity self, int mountIndex)
+        {
+            if (repo.HasComponent<WeaponMountInfo>(self))
+                mountIndex = repo.GetComponentRO<WeaponMountInfo>(self).MountIndex;
+            return Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, self), mountIndex);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A4) — the effective range of the mount <paramref name="self"/> stands for: the mount's OWN TKB
+        /// range (the TOW is not the 25 mm), else the legacy <see cref="WeaponMountInfo.EffectiveRange"/> stamped on a mount child
+        /// (the platform's primary range). 0 when neither is known.
+        /// </summary>
+        private static float MountRange(EntityRepository repo, Entity self, int mountIndex)
+        {
+            var dto = MountNumbers(repo, self, mountIndex);
+            if (dto != null && dto.Range > 0f) return dto.Range;
+            return TryFindMountChild(repo, self, mountIndex, out var child)
+                ? repo.GetComponentRO<WeaponMountInfo>(child).EffectiveRange
+                : 0f;
         }
 
         /// <summary>

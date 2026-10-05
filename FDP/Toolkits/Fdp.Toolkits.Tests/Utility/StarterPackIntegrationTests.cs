@@ -366,6 +366,30 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((long)mountFull.PackedValue, span[0].CandidateHandle);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3071</c> (design §9, the U5 demo's claim) — a Bradley picks the 25 mm against infantry and the TOW against a
+        /// tank: effectiveness through the ArmorModel and the scarce TOW's RoundsLeft decide it, not range alone.
+        /// </summary>
+        [Fact]
+        public void CE3071_WeaponSelection_25mmOnInfantry_TowOnATank()
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.SpawnAgent(1.0f, 1.0f);   // at the origin
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f, ammo01: 1f, initialAmmunition: 7);
+
+            // Both at a distance either weapon reaches comfortably — range alone cannot decide.
+            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 2000f, maxHealth: 100f);
+            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     2000f, maxHealth: 2500f);
+
+            _world.Scorer.Evaluate(_world.Repo, bradley, WeaponSelectionDecision.Id, infantry);
+            Assert.Equal((long)gun.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(bradley).GetSpanRO()[0].CandidateHandle);
+
+            _world.Scorer.Evaluate(_world.Repo, bradley, WeaponSelectionDecision.Id, tank);
+            Assert.Equal((long)tow.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(bradley).GetSpanRO()[0].CandidateHandle);
+        }
+
         // ── ThreatMatrixAssignmentSystem / LeaderAssignmentDecision ─────────────
 
         // SC-SP-10: Single member with visual LOS to target → gets assigned after Run().

@@ -72,6 +72,10 @@ namespace Hrot.Core.Tkb
         private const int   RpgAmmo             = 1;
         private const float RpgMuzzleVelocity   = 300f;
 
+        // ⭐ CE-3071 — the munitions (docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 calibration). The rifle keeps today's 25 per hit.
+        private const float RifleRange = 300f, RiflePenetration = 5f,   RifleDamage = 25f;
+        private const float RpgRange   = 300f, RpgPenetration   = 300f, RpgDamage   = 400f;
+
         /// <summary>
         /// Registers all five UrbanCombat entity blueprints into <paramref name="tkb"/>.
         ///
@@ -138,7 +142,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
@@ -153,7 +157,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011

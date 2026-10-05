@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// </summary>
         public Vector3 PreviousPosition;
 
-        /// <summary>Damage dealt on hit.</summary>
+        /// <summary>Damage of one penetrating hit (⭐ <c>CE-3071</c>: the fired mount's <c>DamagePerHit</c>; 0 = unknown munition).</summary>
         public float Damage;
 
         /// <summary>Tick at which the bullet was spawned (for lifetime check).</summary>
@@ -76,5 +76,8 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>⭐ <c>CE-3064</c> — the last unit this bullet near-missed, so one pass is reported once.</summary>
         public Entity LastNearMiss;
+
+        /// <summary>⭐ <c>CE-3071</c> — armour penetration of the fired mount's round, mm RHA (0 = unknown munition).</summary>
+        public float Penetration;
     }
 }

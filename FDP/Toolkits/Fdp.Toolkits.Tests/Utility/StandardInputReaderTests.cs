@@ -581,5 +581,72 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal((ushort)(Fnv1a32("WeaponRangeBandFit")    & 0xFFFF), StandardInputIds.WeaponRangeBandFit);
             Assert.Equal((ushort)(Fnv1a32("WeaponEffectivenessVsTarget") & 0xFFFF), StandardInputIds.WeaponEffectivenessVsTarget);
         }
+
+        // ── ⭐ CE-3071 — the weapon inputs read the TKB through ArmorModel (design §9) ────────────
+
+        private (Entity Gun, Entity Tow) BradleyWithMounts()
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bradley, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            // ⚠ the mount children carry the LEGACY range (the platform's primary, 2500) — A4 says each mount has its own.
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f, ammo01: 1f, initialAmmunition: 7);
+            return (gun, tow);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3071</c> (A1) — effectiveness is the share of a kill one hit does, through the SAME ArmorModel the
+        /// simulation applies: the 25 mm does nothing to a T-72's front, the TOW 2000/2500; on infantry the 25 mm 60/100 and the
+        /// TOW a certain kill. ⛔ Was a copy of the range fit — every mount scored the same against any target at one distance.
+        /// </summary>
+        [Fact]
+        public void CE3071_Effectiveness_IsTheShareOfAKill_ThroughTheArmorModel()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            var tank  = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 1500f, maxHealth: 2500f);
+            var rifle = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 300f, maxHealth: 100f);
+
+            Assert.Equal(0f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, tank)),  precision: 4);
+            Assert.Equal(0.8f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, tank)),  precision: 4);
+            Assert.Equal(0.6f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, rifle)), precision: 4);
+            Assert.Equal(1f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, rifle)), precision: 4);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — the target's OWN maximum counts (scenarios override it): a 50-HP tank dies to one TOW.</summary>
+        [Fact]
+        public void CE3071_Effectiveness_UsesTheTargetsOwnMaximum()
+        {
+            var (_, tow) = BradleyWithMounts();
+            var tank = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 1500f, maxHealth: 50f);
+            Assert.Equal(1f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, tank)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> (A4) — each mount uses its OWN range: the TOW's 3750 m, not the 2500 m the mount child was stamped with
+        /// (the platform's primary). A target at 3750 m is exactly at the TOW's range (1.0) and beyond the 25 mm's (1.5).
+        /// </summary>
+        [Fact]
+        public void CE3071_RangeBandFit_UsesEachMountsOwnRange()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            var far = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 3750f, maxHealth: 2500f);
+            Assert.Equal(1.0f, StandardInputs.WeaponRangeBandFit(MakeCtx(tow, far)), precision: 4);
+            Assert.Equal(1.5f, StandardInputs.WeaponRangeBandFit(MakeCtx(gun, far)), precision: 4);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — rounds left on a log scale: 7 TOW ⇒ ln 8 / ln 301 ≈ 0.364, 300 of 25 mm ⇒ 1, none ⇒ 0.</summary>
+        [Fact]
+        public void CE3071_RoundsLeft_IsALogScale()
+        {
+            var (gun, tow) = BradleyWithMounts();
+            Assert.Equal(MathF.Log(8f) / MathF.Log(301f), StandardInputs.RoundsLeft(MakeCtx(tow)), precision: 4);
+            Assert.Equal(1f, StandardInputs.RoundsLeft(MakeCtx(gun)), precision: 4);
+            _world.Repo.GetComponentRW<WeaponState>(tow).Ammo = 0;
+            Assert.Equal(0f, StandardInputs.RoundsLeft(MakeCtx(tow)));
+            Assert.Equal(0xCAE9, (int)(Fnv1a32("RoundsLeft") & 0xFFFF));
+            Assert.Equal(StandardInputIds.RoundsLeft, (ushort)(Fnv1a32("RoundsLeft") & 0xFFFF));
+        }
     }
 }

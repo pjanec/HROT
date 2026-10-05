@@ -137,11 +137,16 @@ namespace Fdp.Toolkit.Combat.Systems
                 });
 
                 // 4. Ballistic tag — used by BallisticsSystem and DamageSystem.
+                //    ⭐ CE-3071 — the bullet carries the FIRED mount's munition from the TKB (by the shooter's type and the
+                //    request's WeaponIndex), so the hit knows what struck. No TKB numbers ⇒ an unknown munition: damage stays
+                //    the flat default and penetration 0 (ArmorModel.HitDamage).
+                var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
-                    Damage           = CombatConstants.DefaultBulletDamage,
+                    Damage           = mount != null && mount.DamagePerHit > 0f ? mount.DamagePerHit : CombatConstants.DefaultBulletDamage,
+                    Penetration      = mount != null && mount.DamagePerHit > 0f ? mount.Penetration : 0f,
                     SpawnTick        = currentTick,
                 });
 

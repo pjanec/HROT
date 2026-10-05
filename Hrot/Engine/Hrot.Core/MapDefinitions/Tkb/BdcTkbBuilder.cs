@@ -191,6 +191,10 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         InitialAmmunition = wm.Ammunition,
                         MuzzleVelocity    = wm.Range > 0f ? wm.Range * 0.5f : 800f,
+                        // ⭐ CE-3071 (A4) — each mount keeps its OWN range and munition (the TOW is not the 25 mm).
+                        Range             = wm.Range,
+                        Penetration       = wm.Penetration,
+                        DamagePerHit      = wm.DamagePerHit,
                     });
                 }
                 template.AddDescriptor(suite);

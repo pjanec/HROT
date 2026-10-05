@@ -98,6 +98,63 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3071</c> — publishes a TKB holding <paramref name="templates"/> as the world's <c>ITkbDatabase</c> (as SimHost,
+        /// CGF and the editor do) so the combat numbers can be read by type; stamp a unit's type with <see cref="SetType"/>.
+        /// </summary>
+        public void UseTkb(params Fdp.Interfaces.TkbTemplate[] templates)
+        {
+            if (!Repo.IsComponentTypeRegistered<TkbIdentity>()) Repo.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var t in templates) db.Register(t);
+            Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — TKB types of the ammunition-vs-armour fixtures (design §9 calibration).</summary>
+        public const long BradleyType = 101, TankType = 103, InfantryType = 2002;
+
+        /// <summary>A Bradley: mount 0 the 25 mm (2500 m, 60 mm, 60), mount 1 the TOW (3750 m, 800 mm, 2000).</summary>
+        public static Fdp.Interfaces.TkbTemplate BradleyTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("Bradley", BradleyType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 500, ArmorFront = 100, ArmorSide = 60, ArmorRear = 40 });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 300, Range = 2500, Penetration = 60,  DamagePerHit = 60 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 7,   Range = 3750, Penetration = 800, DamagePerHit = 2000 },
+            } });
+            return t;
+        }
+
+        /// <summary>A T-72: armour 500 / 250 / 150, 2500 HP.</summary>
+        public static Fdp.Interfaces.TkbTemplate TankTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("T-72", TankType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            return t;
+        }
+
+        /// <summary>An infantry soldier: no armour, 100 HP.</summary>
+        public static Fdp.Interfaces.TkbTemplate InfantryTemplate()
+        {
+            var t = new Fdp.Interfaces.TkbTemplate("Infantry", InfantryType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            return t;
+        }
+
+        /// <summary>A unit of <paramref name="tkbType"/> at (<paramref name="x"/>, 0) facing −X (towards the origin).</summary>
+        public Entity SpawnTypedTarget(long tkbType, float x, float maxHealth)
+        {
+            var e = Repo.CreateEntity();
+            Repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) });
+            Repo.AddComponent(e, new Health { Current = maxHealth, Max = maxHealth });
+            SetType(e, tkbType);
+            return e;
+        }
+
+        /// <summary>⭐ <c>CE-3071</c> — gives <paramref name="e"/> the TKB type <paramref name="tkbType"/>.</summary>
+        public void SetType(Entity e, long tkbType) => Repo.AddComponent(e, new TkbIdentity { TkbType = tkbType });
+
+        /// <summary>
         /// Creates a child weapon-mount entity linked to <paramref name="owner"/>.
         /// Adds WeaponState, WeaponMountInfo, and PartMetadata.
         /// </summary>

@@ -383,5 +383,46 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var _ in q) bulletCount++;
             Assert.Equal(1, bulletCount);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3071</c> — the bullet carries the FIRED mount's munition, read from the TKB by the shooter's type and the
+        /// request's WeaponIndex (mount 1 = the TOW here). A shooter with no TKB numbers fires an unknown munition: the flat
+        /// default damage and penetration 0.
+        /// </summary>
+        [Fact]
+        public void CE3071_TheBullet_CarriesTheFiredMountsMunition()
+        {
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t  = new Fdp.Interfaces.TkbTemplate("Bradley", 101);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Penetration = 60,  DamagePerHit = 60 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Penetration = 800, DamagePerHit = 2000 },
+            } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var bradley = SpawnShooter(Vector3.Zero);
+            _world.AddComponent(bradley, new TkbIdentity { TkbType = 101 });
+            var plain   = SpawnShooter(new Vector3(0, 50, 0));
+            var target  = SpawnTarget(new Vector3(100, 0, 0));
+
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = bradley, Target = target, WeaponIndex = 1 });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = plain,   Target = target, WeaponIndex = 0 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            var bullets = new System.Collections.Generic.Dictionary<Entity, BallisticProjectile>();
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var bp = _world.GetComponent<BallisticProjectile>(e);
+                bullets[bp.Shooter] = bp;
+            }
+            Assert.Equal(800f,  bullets[bradley].Penetration);
+            Assert.Equal(2000f, bullets[bradley].Damage);
+            Assert.Equal(0f,    bullets[plain].Penetration);
+            Assert.Equal(CombatConstants.DefaultBulletDamage, bullets[plain].Damage);
+        }
     }
 }
