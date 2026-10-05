@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Perception.Translators
                 });
             }
 
-            if (dto.VisionRange > 0f)
+            if (dto.VisionRange > 0f || dto.HearingRange > 0f)   // ⭐ CE-2106 — a unit that only hears remembers too
             {
                 if (repo.IsComponentTypeRegistered<TargetMemory>() && !repo.HasComponent<TargetMemory>(entity))
                     repo.AddComponent(entity, new TargetMemory());
@@ -86,6 +86,21 @@ namespace Fdp.Toolkit.Perception.Translators
                     var tag = repo.GetComponentRO<SensorTag>(visual);
                     tag.Implicit = 1;
                     repo.SetComponent(visual, tag);
+                }
+            }
+
+            // ⭐⭐ CE-2106 — and ONE implicit ACOUSTIC sensor (part 1001) when it can HEAR. 🔴 HearingRange was authored on every
+            //    shipped hearing unit and read by nothing since the old audio pipeline was retired (CE-3062), so no unit heard.
+            //    📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
+            if (dto.Sensors.Count == 0 && dto.HearingRange > 0f)
+            {
+                var ears = Fdp.Toolkit.Perception.Sensors.SensorChildFactory.EnsureTkbChild(
+                    repo, entity, 1, Fdp.Toolkit.Perception.Sensors.AcousticPerception.ImplicitEntry(dto));
+                if (!ears.IsNull)
+                {
+                    var tag = repo.GetComponentRO<SensorTag>(ears);
+                    tag.Implicit = 1;
+                    repo.SetComponent(ears, tag);
                 }
             }
         }

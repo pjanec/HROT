@@ -145,9 +145,9 @@ public sealed class UtilityNodeRuntimeTests
         fixture.TickFrame(0.016f);
 
         byte postureOut = ReadSlotField<byte>(fixture, asset, entity, "PostureOut");
-        // No live targets, no EQS data -> Hold (Constant(0.2f) floor) is the only
-        // positive-scoring option; all others multiply out to zero.
-        Assert.Equal((byte)Posture.Hold, postureOut);
+        // ⭐ CE-2105 (R-208): healthy, armed, nothing remembered -> AdvanceAndAttack (it no longer needs a live target).
+        // ⛔ SUPERSEDED: "no live targets -> Hold is the only positive-scoring option".
+        Assert.Equal((byte)Posture.AdvanceAndAttack, postureOut);
     }
 
     // ---- ⭐ CE-2070 — ScoreDecision rerouted onto the scorer core (DESIGN_Decision_Layer.md §3.3) ----
@@ -214,8 +214,9 @@ public sealed class UtilityNodeRuntimeTests
         fixture.AttachBlueprint(asset, entity);
         fixture.TickFrame(0.016f);
 
-        Assert.Equal((byte)Posture.Hold, ReadSlotField<byte>(fixture, asset, entity, "Out"));
-        Assert.Equal((byte)Posture.Hold, ReadSlotField<byte>(fixture, asset, entity, $"_score_{id8}_last"));   // the hysteresis memory
+        // ⭐ CE-2105 (R-208): healthy, armed, nothing remembered ⇒ AdvanceAndAttack (was Hold).
+        Assert.Equal((byte)Posture.AdvanceAndAttack, ReadSlotField<byte>(fixture, asset, entity, "Out"));
+        Assert.Equal((byte)Posture.AdvanceAndAttack, ReadSlotField<byte>(fixture, asset, entity, $"_score_{id8}_last"));   // the hysteresis memory
     }
 
     [Fact]

@@ -15,6 +15,10 @@ namespace Fdp.Toolkit.Utility
     /// (<c>EnemyStrengthRatio</c>, Logistic — as TakeCover and Flee read it). ⇒ a healthy, armed unit ADVANCES on a weaker
     /// enemy and SUPPRESSES a matched or stronger one; a hurt one still takes cover or flees.
     /// 📄 docs/DESIGN_Decision_Layer.md §3.3.</para>
+    /// <para>⭐ <c>CE-2105</c> (R-208, 🔒 user <c>2026-10-05</c>: "advance without enemy"): <c>AdvanceAndAttack</c> no longer
+    /// needs a live target. With nothing left to fight (an enemy killed or lost on the way) a healthy, armed unit keeps
+    /// ADVANCING — <c>AdvanceAndAttack</c> moves on to the objective and fires only when there is something to fire at —
+    /// instead of holding short of it for ever. Suppress still needs a live target (a point cannot be shot).</para>
     /// </remarks>
     [UtilityDecision(
         assetId:         "3c6f9e42-5d10-6f3a-ac23-posture0000001",
@@ -29,8 +33,7 @@ namespace Fdp.Toolkit.Utility
             .Option((ushort)Posture.AdvanceAndAttack, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),     0.7f, Curve.Linear)
                 .Consider(In.AmmoFraction(),       0.9f, Curve.Threshold)
-                .Consider(In.EnemyStrengthRatio(), 0.8f, Curve.InverseLinear)
-                .Consider(In.HaveLiveTarget(),     1.0f, Curve.Step))
+                .Consider(In.EnemyStrengthRatio(), 0.8f, Curve.InverseLinear))
             .Option((ushort)Posture.TakeCover, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),              0.8f, Curve.InverseLinear)
                 .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.Linear)

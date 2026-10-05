@@ -27,7 +27,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class PostureScenarioTests : IDisposable
 {
-    private const int DomainBase = 188;   // CycloneDDS accepts 0–232; 188 is used by no other rail (grep of domain ids, 2026-10-05)
+    private const int DomainBase = 52;    // CycloneDDS accepts 0–232; 52–53 used by no other rail (grep of domain ids, 2026-10-05 — ⛔ not 188: TheClusterAiDebugSurfaceAnswersTests owns 181–189)
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 

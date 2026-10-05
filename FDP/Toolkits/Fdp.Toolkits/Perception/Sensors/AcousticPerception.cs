@@ -6,6 +6,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Signatures;
 using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Spatial.Eqs;
 
 namespace Fdp.Toolkit.Perception.Sensors
@@ -39,6 +40,16 @@ namespace Fdp.Toolkit.Perception.Sensors
             BlueprintId   = BlueprintId,
             Generator     = new AcousticSensorGenerator(grid),
             MaxCandidates = VisionBroadphase.MaxCandidatesPerObserver * 3,
+        };
+
+        /// <summary>⭐ <c>CE-2106</c> — the sensor a TKB that lists no sensors gets when it can HEAR (the twin of
+        /// <c>VisualPerception.ImplicitEntry</c>): its ears reach <see cref="SensorCapabilitiesDto.HearingRange"/>.</summary>
+        public static SensorEntryDto ImplicitEntry(SensorCapabilitiesDto dto) => new()
+        {
+            Kind         = SensorModality.Acoustic,
+            Template     = AssetGuid,
+            SearchRadius = dto.HearingRange,
+            Acoustic     = new AcousticSensorDto { Range = dto.HearingRange },
         };
 
         public static void Register(EqsTemplateRegistry registry, SpatialHashGrid grid)

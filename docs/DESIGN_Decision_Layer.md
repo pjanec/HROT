@@ -604,10 +604,15 @@ mapper both ways, the compiled-tree projection; red before the projector case) �
 (`CombatPosture.g.cs.txt` emits `.Parallel(1, …)`) · live: `PostureScenarioTests.CE2073_*` on `tt-posture` (posture starts,
 rounds spent, ends within the arrival radius of the objective).
 
-⚠ **Gap found, not built — `CE-2105`:** with nothing left to fight (the enemy killed or lost), `CombatPostureDecision` scores
-Advance 0 (`HaveLiveTarget` is a Step) and Hold wins; Hold stays put. ⇒ an advance whose enemy falls short of the objective
-**never reaches it and never ends**. Lean: the tree's Hold leaf becomes "move on to the objective without firing" when the
-posture was given one (the decision stays unchanged, so "hold" keeps meaning "nothing worth doing here").
+⭐ **`CE-2105` — RULED and BUILT (R-208):** with nothing left to fight (the enemy killed or lost) `CombatPostureDecision` used to
+score Advance 0 (`HaveLiveTarget` was a Step) and Hold won and stayed put ⇒ an advance whose enemy fell short of the objective
+never reached it. 🔒 **User, `2026-10-05`:**
+*"'hold' branch walking to objective seems weird, unintuitive. I would like the alternative - advance without enemy."* ⇒ AdvanceAndAttack drops its `HaveLiveTarget` consideration: a healthy, armed unit with
+nothing to fight advances (`AdvanceAndAttack` moves on and fires only when there is something to fire at); Suppress still needs a
+live target. ⚠ The aggregator's compensation factor (`1 − 1/n`) moved the AdvanceAndAttack / Suppress boundary from health ~0.19
+to ~0.235 with an enemy present (re-pinned in `StarterPackIntegrationTests`, measured). ⛔ Rejected (my lean): the Hold leaf
+walking to the objective. Rails: `TacticsTreesTests.CE2105_WithNothingToFight_ThePostureAdvancesToTheObjective_WithoutFiring`,
+`StarterPackIntegrationTests.CombatPosture_NoContacts_SelectsAdvanceAndAttack`.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

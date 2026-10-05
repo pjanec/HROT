@@ -58,6 +58,15 @@ namespace Hrot.Core.Tkb
         private const float ApcMaxHealth     = 500f;
         private const float SoldierMaxHealth = 100f;
 
+        // ⭐ CE-2106 — what each type gives off to EARS (AcousticSignatureDto, R-205 / R-207). First-cut ranges (m), heard when
+        //   within both the sound's range and the listener's HearingRange. 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
+        private const float FootstepsRange   = 25f;
+        private const float CarEngineRange   = 80f;
+        private const float ApcEngineRange   = 300f;
+        private const float RifleShotRange   = 400f;
+        private const float RpgShotRange     = 500f;
+        private const float RpgBurstRange    = 800f;
+
         private const int   RifleAmmo           = 30;
         private const float RifleMuzzleVelocity = 800f;
         private const int   RpgAmmo             = 1;
@@ -94,6 +103,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
                 tkb.Register(t);
             }
 
@@ -104,6 +114,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+                t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 tkb.Register(t);
             }
 
@@ -115,6 +126,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
+                t.AddDescriptor(Sounds(ApcEngineRange, SoundSourceClass.WheeledEngine));
                 tkb.Register(t);
             }
 
@@ -128,6 +140,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
                 tkb.Register(t);
             }
@@ -142,10 +155,27 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
                 tkb.Register(t);
             }
         }
+
+        /// <summary>⭐ <c>CE-2106</c> — a type's sounds (movement always; shots and bursts when it has a weapon).</summary>
+        private static SignaturesDto Sounds(float moving, SoundSourceClass movingClass,
+                                            float firing = 0f, SoundSourceClass firingClass = SoundSourceClass.Unknown, float detonation = 0f)
+            => new SignaturesDto
+            {
+                Acoustic = new AcousticSignatureDto
+                {
+                    MovingAudibleRange     = moving,
+                    MovingClass            = movingClass,
+                    FiringAudibleRange     = firing,
+                    FiringClass            = firingClass,
+                    DetonationAudibleRange = detonation,
+                    DetonationClass        = detonation > 0f ? SoundSourceClass.Explosion : SoundSourceClass.Unknown,
+                },
+            };
 
         /// <summary>
         /// Builds the mannequin character-class animation descriptor (STR-P4-T2, DD-4 §2).

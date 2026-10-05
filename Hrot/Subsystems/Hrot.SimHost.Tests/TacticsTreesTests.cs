@@ -165,14 +165,19 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void CE2073_WithNothingToFight_ThePostureHolds_AndDoesNotEnd()
+        /// <summary>⭐ <c>CE-2105</c> (R-208, 🔒 user: "advance without enemy") — with nothing to fight a healthy, armed unit ADVANCES
+        /// on to its objective, firing at nothing. ⛔ SUPERSEDED (CE-2073): it held, and an advance whose enemy fell short of the
+        /// objective never reached it.</summary>
+        public void CE2105_WithNothingToFight_ThePostureAdvancesToTheObjective_WithoutFiring()
         {
             var w = new World();
             w.Arm();
             w.Order("CombatPosture", Objective);
             for (int i = 0; i < 6; i++) w.Tick();
-            Assert.Equal("CombatPosture", w.TaskName);                 // Hold never ends the task
-            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal("CombatPosture", w.TaskName);                 // still on its way
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
         [Fact]

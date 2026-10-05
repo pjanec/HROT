@@ -64,17 +64,17 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.Suppress, posture);
         }
 
-        // SC-SP-02: No contacts → HaveLiveTarget=0 → Step gate kills AdvanceAndAttack.
-        // TakeCover/Flee require EQS (not present). Suppress needs a live target too (CE-2072).
-        // Only Hold (WeightedSum with Constant baseline) produces a non-zero score.
+        // SC-SP-02 ⭐ CE-2105 (R-208, user "advance without enemy"): no contacts → a healthy, armed unit ADVANCES (on to its
+        // objective). ⛔ SUPERSEDED: "HaveLiveTarget=0 → Step gate kills AdvanceAndAttack → Hold" — an advance whose enemy fell
+        // short of the objective then held there for ever. Suppress still needs a live target; TakeCover/Flee need EQS.
         [Fact]
-        public void CombatPosture_NoContacts_SelectsHold()
+        public void CombatPosture_NoContacts_SelectsAdvanceAndAttack()
         {
             var agent = _world.SpawnAgent(0.8f, 1.0f);
 
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
-            Assert.Equal((byte)Posture.Hold, posture);
+            Assert.Equal((byte)Posture.AdvanceAndAttack, posture);
         }
 
         // SC-SP-03: AmmoFraction=0 → Threshold curve output=0 → WeightedProduct kills AdvanceAndAttack.
@@ -93,30 +93,30 @@ namespace Fdp.Toolkit.Tests
         }
 
         // SC-SP-04: Hysteresis prevents a small health drop from flipping posture.
-        // ⭐ CE-3054 — re-pinned: EnemyStrengthRatio now weighs the enemy against the unit's OWN strength, so a badly hurt
-        //   unit no longer advances (at health 0.08 it holds). The AdvanceAndAttack / Suppress boundary sits near 0.19:
-        //   health 0.20 → AA 0.254 vs Suppress 0.251; health 0.18 → Suppress 0.229 vs AA 0.226 (measured).
-        //   ⛔ SUPERSEDED: tipping point 0.08 → 0.07 between AA and Hold (the old ratio read decaying scores).
+        // ⭐ CE-2105 — re-pinned: AdvanceAndAttack lost its HaveLiveTarget consideration (R-208), so the compensation factor
+        //   (1 − 1/n) changed and the AdvanceAndAttack / Suppress boundary moved to ~0.235: health 0.25 → AA 0.309 vs Suppress
+        //   0.305; health 0.22 → Suppress 0.273 vs AA 0.270 (measured 2026-10-05).
+        //   ⛔ SUPERSEDED (CE-3054): boundary ~0.19 (0.20 → AA 0.254 / S 0.251; 0.18 → S 0.229 / AA 0.226).
         [Fact]
         public void CombatPosture_Hysteresis_SmallHealthDrop_DoesNotFlipPosture()
         {
             var enemy = _world.Repo.CreateEntity();
-            var agent = _world.SpawnAgent(0.20f, 1.0f);
+            var agent = _world.SpawnAgent(0.25f, 1.0f);
             _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
 
-            // Prime buffer: at health=0.20, AdvanceAndAttack wins.
+            // Prime buffer: at health=0.25, AdvanceAndAttack wins.
             _world.Scorer.Evaluate(_world.Repo, agent, CombatPostureDecision.Id);
             byte primePosture = _world.Repo.GetComponentRO<UtilityResultBuffer>(agent).GetSpanRO()[0].WinningPostureId;
             Assert.Equal((byte)Posture.AdvanceAndAttack, primePosture);
 
-            // The counterfactual: a unit with NO previous winner at health 0.18 suppresses.
-            var fresh = _world.SpawnAgent(0.18f, 1.0f);
+            // The counterfactual: a unit with NO previous winner at health 0.22 suppresses.
+            var fresh = _world.SpawnAgent(0.22f, 1.0f);
             _world.SeedContact(fresh, _world.Repo.CreateEntity(), 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
             Assert.Equal((byte)Posture.Suppress, _world.Scorer.SelectPosture(_world.Repo, fresh, CombatPostureDecision.Id));
 
-            // Drop health by 2 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
+            // Drop health by 3 % — the hysteresis bonus (+0.08) on the previous winner keeps AdvanceAndAttack.
             ref var h = ref _world.Repo.GetComponentRW<Health>(agent);
-            h.Current = 18f;
+            h.Current = 22f;
             byte posture = _world.Scorer.SelectPosture(_world.Repo, agent, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.AdvanceAndAttack, posture);

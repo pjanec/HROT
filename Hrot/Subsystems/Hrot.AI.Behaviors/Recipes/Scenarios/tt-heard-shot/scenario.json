@@ -1,0 +1,119 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "2a960000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          315,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7101
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "2a960000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          315,
+          290,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7102
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hidden Shooter",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtTarget",
+        "Params": "{\"targetNetworkId\":7103,\"maxRounds\":30,\"cooldownSeconds\":1}",
+        "Origin": "Superior"
+      }
+    },
+    "2a960000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          345,
+          295,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7103
+      },
+      "TkbIdentity": {
+        "TkbType": 1001
+      },
+      "EntityInfo": {
+        "Name": "Decoy",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}
