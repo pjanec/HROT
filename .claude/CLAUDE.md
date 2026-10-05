@@ -576,6 +576,20 @@ ever considered, which is what obligation ① exists to prevent.
   | ⚠ **the ONE exception** | ⭐ when the very next action depends on the result **and** there is genuinely nothing else to do — ⛔ and even then, say so, so the user knows they are waiting and why |
   | ⭐ **a user message arriving mid-task is NOT an interruption to apologise for** | ⭐ it is the whole point of running it in the background — read it and fold it in |
 
+  #### ⛔⛔⛔ NEVER POLL A BACKGROUND JOB — **the harness NOTIFIES you when it ends** *(user, `2026-10-05`)*
+
+  📌 **Measured cost: ~15 of 22 minutes, on a fix whose real build+test time was ~4 minutes.** I waited on two
+  background jobs with a foreground `until grep … && tail -1 $f | grep -q "Passed!"; do sleep 5; done`. ⛔ **The
+  harness appends a blank line and `[exited with code N]` to every background output file**, so `tail -1` never
+  matched — each wait ran to its 10-min timeout (jobs actually ended 19:20:43 and 19:30:47; waits returned 19:29:59
+  and only when the user interrupted). ⚠ **And a foreground wait blocks the user exactly like a foreground build.**
+
+  | ⭐ the rule | |
+  |---|---|
+  | ⭐⭐⭐ **start the job with `run_in_background: true` and DO NOT WAIT ON IT** — keep working; the `<task-notification>` arrives when it ends | ⛔ no `until …; do sleep; done` loop, foreground or background, for a job the harness already tracks |
+  | ⭐⭐ **if a poll is truly needed** *(external state the harness cannot see)*: match the WHOLE file (`grep -q "Passed!\|Failed!" $f`), never `tail -1` | ⛔ the file's last line is the harness's `[exited …]` trailer, not your command's output |
+  | ⭐ **when a wait returns on its TIMEOUT, that is a finding** | 📌 check the output file's mtime (`ls -l --time-style=+%T`) — it says when the job really ended, and whether the wait was the bottleneck |
+
 - **Model delegation (token thrift):** keep Opus for orchestration and hard reviews; delegate heavier work that does not need Opus-level intelligence (mirror-an-existing-pattern slices, mechanical edits, broad searches) to a **Sonnet** subagent. Opus reviews the real diff and re-runs the gates. Do novel scheduler/IR/compiler work hands-on.
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
