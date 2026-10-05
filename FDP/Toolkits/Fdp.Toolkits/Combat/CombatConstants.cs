@@ -39,6 +39,12 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Event ID for <see cref="Events.DamageAssessedEvent"/>.</summary>
         public const int DamageAssessedEventId = 5006;
 
+        /// <summary>⭐ <c>CE-3064</c> — event id of <see cref="Events.NearMissEvent"/>.</summary>
+        public const int NearMissEventId = 5007;
+
+        /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
+        public const float NearMissRadius = 3f;
+
         // ── Bullet / projectile constants ─────────────────────────────────────
 
         /// <summary>Damage applied per bullet hit (sourced from BallisticProjectile.Damage on spawn).</summary>

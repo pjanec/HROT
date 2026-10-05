@@ -19,5 +19,6 @@ public static class MuscleRoleComponentRegistry
         world.RegisterComponent<NavigationIntent>();
         world.RegisterEvent<WeaponFireNotification>();
         world.RegisterEvent<DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064 — BallisticsSystem publishes it
     }
 }

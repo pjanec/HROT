@@ -54,6 +54,26 @@ namespace Hrot.NED.Messages
         public int WeaponIndex;
     }
 
+    // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3064</c> — a round passed close to a unit without being fired by its side (Muscle → Brain): the unit is being
+    /// shot at. ⛔ No shooter on purpose. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
+    /// </summary>
+    [DdsTopic("NearMiss")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct NearMiss
+    {
+        /// <summary>Network entity ID of the unit the round passed.</summary>
+        public long UnitEntityId;
+
+        /// <summary>The closest point of the round's path to the unit.</summary>
+        public float X;
+        public float Y;
+        public float Z;
+    }
+
     // ── Detonation / Damage Pipeline (POC simplified) ─────────────────────────
 
     /// <summary>

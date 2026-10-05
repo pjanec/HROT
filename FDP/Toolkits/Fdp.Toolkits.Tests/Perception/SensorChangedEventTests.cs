@@ -85,6 +85,20 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal((byte)SensorModality.Thermal, mem.Modalities[0]);   // ⇒ HasLineOfSight reads 0 for it
         }
 
+        /// <summary>⭐ CE-3064 — a near miss (local or from the wire) becomes the unit's SensorChange.NearMiss, once per event.</summary>
+        [Fact]
+        public void ANearMiss_IsTheUnitsNearMissEdge_CE3064()
+        {
+            var w = World();
+            if (!w.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.NearMissEvent>()) w.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+            var unit = w.CreateEntity();
+            w.Bus.Publish(new Fdp.Toolkit.Combat.Events.NearMissEvent { Unit = unit, X = 1f, Y = 2f, IsRemote = true });
+            w.Bus.SwapBuffers();
+            var e = Assert.Single(Run(w, new NearMissSensingSystem()));
+            Assert.Equal(SensorChange.NearMiss, e.What);
+            Assert.Equal(unit, e.Unit);
+        }
+
         [Fact]
         public unsafe void TheMemory_PublishesFirstThreat_ThenAllClear_WhenItForgets()
         {

@@ -177,5 +177,58 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, events.Length);
             Assert.Equal(shooter, events[0].IgnoreEntity);
         }
+
+        // ── CE-3064 (R-206) — near misses ─────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-3064</c> — a round passing within <see cref="CombatConstants.NearMissRadius"/> of a unit of ANOTHER side reports
+        /// one <see cref="Fdp.Toolkit.Combat.Events.NearMissEvent"/> per pass; the shooter's own side, the shooter and units
+        /// farther than the radius report none.
+        /// </summary>
+        [Fact]
+        public void ARoundPassingClose_ReportsOneNearMiss_ForAnotherSideOnly_CE3064()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+            var grid = global::CarKinem.Spatial.SpatialHashGrid.Create(100, 100, 5f, 100, Fdp.Core.Collections.Allocator.Persistent);
+            try
+            {
+                grid.Clear();
+                _world.SetSingleton(new global::CarKinem.Spatial.SpatialGridData { Grid = grid });
+                Entity Unit(Vector2 at, ForceId force)
+                {
+                    var e = _world.CreateEntity();
+                    _world.AddComponent(e, new SimTransform { Position = new Vector3(at, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(e, new EntityInfo { ForceId = force });
+                    grid.Add(e, at);
+                    return e;
+                }
+                var shooter = Unit(new Vector2(0f, 0f), ForceId.Friend);
+                var enemyNear = Unit(new Vector2(30f, 2f), ForceId.Hostile);    // 2 m off the line
+                var enemyFar  = Unit(new Vector2(30f, 8f), ForceId.Hostile);    // 8 m off
+                var friendNear = Unit(new Vector2(25f, 1f), ForceId.Friend);    // own side
+
+                var bullet = SpawnBullet(new Vector3(40f, 0f, 0f), 0, shooter, previousPosition: new Vector3(10f, 0f, 0f));
+                _sys.Execute(_world, 0.016f);
+                ((EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                var events = _world.Bus.Read<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+                Assert.Equal(1, events.Length);
+                Assert.Equal(enemyNear, events[0].Unit);
+                Assert.Equal(30f, events[0].X, 2);
+
+                // The same round still near the same unit next tick ⇒ not reported again.
+                ref var tf = ref _world.GetComponentRW<SimTransform>(bullet);
+                tf.Position = new Vector3(42f, 0f, 0f);
+                ref var p = ref _world.GetComponentRW<BallisticProjectile>(bullet);
+                p.PreviousPosition = new Vector3(29f, 0f, 0f);
+                _sys.Execute(_world, 0.016f);
+                ((EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                Assert.Equal(0, _world.Bus.Read<Fdp.Toolkit.Combat.Events.NearMissEvent>().Length);
+                _ = enemyFar; _ = friendNear;
+            }
+            finally { grid.Dispose(); }
+        }
     }
 }

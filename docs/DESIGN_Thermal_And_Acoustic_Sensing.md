@@ -240,7 +240,7 @@ sequenceDiagram
 | **D″** | anonymous slots live in `TargetMemory` (a reserved id range + a new `Radius[]`); the readers that need an ENTITY (aim, fire, entity reads) skip them, the ones that need a POSITION (face, move, flee, squad share) use them | one memory, one freshness rule (R-194); the 7 readers in §2 split cleanly into those two kinds | a second "anonymous memory" component — two memories for every reader to merge |
 | **E** | heat: `heat += running + shots`, `heat -= heat × cooldown × dt`, `Signature = Base + Heat × (1 − Base)`; parameters in the TKB (`ThermalSignatureDto`) | 🔒 user: *"Hot when running or firing - pls implement some simple heat accumulation and cooldown."* | a temperature simulation — no heat model to feed it |
 | **F** | thermal = vision's broadphase + sight + the signature filter, its own template reading the thermal sensor's range and FOV | reuse; the only difference from sight is what makes a target detectable | weather / night attenuation — not asked |
-| **G** | the track carries its MODALITY (event + IDL); memory ORs the real one in; ROE `ReturnFire` answers a Hit or a **NearMiss** (a bullet passing within 3 m of a unit it was not aimed at, from the ballistics step) — this is `CE-2096` | without modality a thermal or heard contact reads as "in sight" (§2); a near miss is the "shot at" a unit can actually tell | ReturnFire on any heard shot — a unit would return fire at a distant firefight |
+| **G** | the track carries its MODALITY (event + IDL); memory ORs the real one in; ROE `ReturnFire` answers a Hit or a **NearMiss** (a bullet passing within 3 m of a unit of ANOTHER SIDE than the shooter, from the ballistics step — ⚠ corrected `2026-10-05`: the first wording said "a unit it was not aimed at", which wrongly excluded the missed target itself) — this is `CE-2096`, approved as R-206 | without modality a thermal or heard contact reads as "in sight" (§2); a near miss is the "shot at" a unit can actually tell | ReturnFire on any heard shot — a unit would return fire at a distant firefight |
 
 ⚠ **What would change it:** if heard contacts must ALSO carry a direction-only form (bearing, no range), D grows a bearing
 field; the radius already covers "about here", which is what "from the north" needs for movement and facing.
@@ -289,3 +289,16 @@ occlusion" claims (Engine Guide §12.2, `Fdp.Toolkits.md`) and the NED / network
 | `CE-3062` | sound: `AcousticSignatureDto`, `AcousticEmitter`, `SoundEmissionSystem` + buffer, `AcousticPerception`, `SoundContactEvent` + DDS `SoundContact`; retire the old pipeline | `CE-3060` |
 | `CE-3063` | anonymous contacts in `TargetMemory` (`Radius[]`, reserved ids, spatial merge, sighting absorbs) + the readers split (⚠ **cross-lane**: the AI readers are the behaviors lane's and `CE-3054` B–D is rewriting them — agree the `IsAnonymous` rule with them first) | `CE-3062` |
 | `CE-3064` | NearMiss from the ballistics step + `SensorChange.NearMiss`; the ROE guard answers Hit or NearMiss (closes `CE-2096`) | `CE-3060` |
+
+⭐ **As-built `CE-3064` (`2026-10-05`, R-206):** `BallisticsSystem` checks each round's swept segment against the unit grid the
+raycast solver already uses (`SpatialGridData`): every unit within `CombatConstants.NearMissRadius` (3 m) of the segment, other than
+the shooter and the shooter's own force, gets ONE `NearMissEvent { Unit, closest point }` per pass (`BallisticProjectile.LastNearMiss`);
+no shooter is carried. Egress `NearMissEgressTranslator` (MuscleGround) → DDS `NearMiss` (descriptor 85, BestEffort) →
+`NearMissIngressTranslator` (Brain) → the same event, remote. On the Brain `NearMissSensingSystem` (registered in `CgfLogicPack`
+beside the threat system) turns it into `SensorChange.NearMiss` (= 7); `RecentSenses` records it, the HSM built-in event
+`Sensor.NearMiss` (id 0xFF07) exists, and `AimAndFireExecutor.RoePermitsFire` lets `ReturnFire` fire within the 5 s window after a
+Hit OR a NearMiss. ⚠ A round that HITS a unit also near-misses it — both mean "fired upon". ⚠ Cross-lane (behaviors) files touched:
+`RecentSenses.cs`, `BuiltInHsmEvents.cs`, `AimAndFireExecutor.cs`. Rails: `BallisticsSystemTests.ARoundPassingClose_ReportsOneNearMiss_ForAnotherSideOnly_CE3064`,
+`SensorChangedEventTests.ANearMiss_IsTheUnitsNearMissEdge_CE3064`, `AimAndFireExecutorTests.AimAndFire_ReturnFire_AnswersANearMiss_CE3064`;
+`BrainTickSystemHsmArmTests.CE3040_TheBuiltInNames_MatchTheRuntimeEnum` pins the new name.
+
