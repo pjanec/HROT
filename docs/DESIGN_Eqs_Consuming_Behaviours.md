@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
-current-answer: §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
+build-state: BUILDING — §8 (CE-2103) DESIGN, leans E1–E5 awaiting the user; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
+current-answer: §8 (CE-2103, EQS in a blueprint ACTION — DESIGN, leans E1–E5 awaiting the user); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
 known-conflict:
@@ -351,6 +351,78 @@ until that rail was added).
 view, remembers the hostile, the SOP starts the expected tree, and the rifleman MOVES (pathed, `NavigationStatus =
 Arrived`) to where `TerrainWorld.SegmentBlocked(hostile's standing eye, rifleman's crouched eye)` holds. On failure it
 prints the chain link by link (sensor → answer → Muscle stages → MoveTo → NavigationIntent → status).
+
+## 8. `CE-2103` — EQS nodes in a blueprint used as a BTree / HSM ACTION *(behaviors, `2026-10-05`; build-state: DESIGN — leans E1–E5 for the user)*
+
+> 🔒 User, `2026-10-05`: filed CE-2103 (*"a design of its own"*); *"Yes go ahead"* (this design).
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-05`; ⚠ `check_index_coverage` is not reachable through the CLI)*:
+
+| exists | where | for the action |
+|---|---|---|
+| the three refusals: Spawn `BP2030`, ReadEqsResult `BP2020`, When `BP2001` (ALL When kinds) — each keyed on `Dispatch ∉ {Instance, Behavior}` | `Stage2_Validate.cs:1253`, `:1571`, `:1617` | ⭐ the only thing standing in the way of Read and Spawn |
+| Spawn lowers to FIND-OR-CREATE `EqsChildSensor.Ensure(world, self, site, config, key)` every tick; the handle is a frame-local | `StatementEmitter.cs` `IrOp_SpawnEqsSensor` | ⭐ no persistent handle is needed |
+| the sensor is matched on `(owner = the RUN of the slot, site, key)` and dies with the run | `EqsChildSensor.cs:28-67` (CE-485) | ⚠ an action inside a host run is stamped with the HOST's run ⇒ two uses of one action in one host share `(owner, site)` |
+| an action is `TickCore(ref Params, ref WorkingState, self, world, time)` — no site argument — but each hosting site has its OWN WorkingState occurrence | `AiPrimitiveEmitter.cs:219`, `:429-434`, `:550` | ⭐ per-site memory exists: the WorkingState |
+| the C# precedent `EqsTacticsNodes.TakeCover`: handle in WS, fixed site, `[BTreeDeactivator]` destroys the sensor on node exit | `EqsTacticsNodes.cs:74`, `:156`, `:303` | ⭐ the behaviour to match |
+| exit hooks for a BLUEPRINT action: HSM `HsmExitCleanup` (channels only); ⛔ BTree — none (BTree deactivators bind C# `[BTreeDeactivator]` methods only) | `AiPrimitiveEmitter.cs:481`; `BTreeBridgeEmitCore.cs:41-64` | the gap for E3 |
+| When memory: the `Exec` (Instance / Behavior) — an action's state variable is its WorkingState (`EmissionContext.StateVar` = `ws`) | `EmissionContext.cs:259` | E4's home |
+
+```mermaid
+classDiagram
+  class SpawnEqsSensorNode { <<existing>> allowed in an action NEW }
+  class ReadEqsResultNode { <<existing>> allowed in an action NEW }
+  class WhenNode { <<existing>> EqsResult kind allowed in an action NEW }
+  class WorkingState {
+    <<generated per action, grows>>
+    +long __EqsKey_node  NEW (per hosting site, 0 = not yet)
+    +When memory fields NEW (as the Exec carries them)
+  }
+  class EqsChildSensor {
+    <<existing, grows>>
+    Ensure(view, self, site, config, key)
+    Find(view, self, site, key)
+    +NextKey(view, self, site) long NEW
+    Destroy(view, child)
+  }
+  class ActionReleaseParts { <<NEW, generated per action>> ReleaseParts(ref WorkingState, self, world) }
+  class HsmExitCleanup { <<existing, grows>> also calls ReleaseParts }
+  class BTreeBridgeEmitCore { <<existing, grows>> an AiPrimitive node gets ReleaseParts as its deactivator }
+  SpawnEqsSensorNode ..> EqsChildSensor : Ensure(site, ws key)
+  SpawnEqsSensorNode ..> WorkingState : allocates its key once
+  ActionReleaseParts ..> EqsChildSensor : Find + Destroy by ws keys
+  HsmExitCleanup ..> ActionReleaseParts
+  BTreeBridgeEmitCore ..> ActionReleaseParts
+```
+
+*What the picture shows that prose hid:* the sensor never needs a stored handle — the WorkingState holds only a KEY that makes
+this hosting site's sensor its own, and every exit path ends at one generated `ReleaseParts`.
+
+```mermaid
+sequenceDiagram
+  participant H as host (BTree node / HSM state)
+  participant A as action TickCore (ref ws)
+  participant C as EqsChildSensor
+  H->>A: tick (this site's WorkingState)
+  A->>A: ws.__EqsKey == 0 ⇒ ws.__EqsKey = NextKey(self, site)
+  A->>C: Ensure(self, site, config, ws.__EqsKey) — find-or-create, owner = the host's run
+  A->>A: ReadEqsResult / When(EqsResult) on the handle, memory in ws
+  H->>A: node left / state exited
+  H->>C: ReleaseParts(ws) ⇒ Destroy, ws.__EqsKey = 0
+  Note over C: the host run ending releases anything left (CE-485) — the backstop, not the rule
+```
+
+| decision *(lean ⭐; the user approves or changes)* | why | rejected |
+|---|---|---|
+| **E1** ⭐ lift `BP2020` (ReadEqsResult) for actions | a component read from a handle — nothing to own | — |
+| **E2** ⭐ lift `BP2030` (Spawn) for actions, with a per-site KEY in the WorkingState (allocated on first tick by a new `EqsChildSensor.NextKey`), combined with an authored `Key` pin when wired | two uses of one action in one host stay two sensors; no signature change | ⛔ thread the occurrence key into `TickCore` (every action thunk on both hosts and every action golden moves) · ⛔ the baked site alone (two sites share one sensor) |
+| **E3** ⭐ release on EXIT through one generated `ReleaseParts(ref ws, self, world)`: the HSM's `HsmExitCleanup` calls it; the BTree bridge registers it as the AiPrimitive node's deactivator (a new deactivator form) | matches the C# `TakeCover`: a left node stops paying for solves and never re-enters onto a stale answer | release only at host-run end (a sensor solves for the rest of the run after its node is left) |
+| **E4** ⭐ lift `BP2001` for the `EqsResult` When kind only, its memory in the WorkingState; the other When kinds stay refused (filed, demand-driven) | the demand is EQS; each other kind is its own question | lifting all When kinds now (four lowerings to re-check under a different state struct) |
+| **E5** ⭐ blueprint round-outs `CE-2090` (re-point callable) / `CE-2091` (ScoreDelta pin) stay unscheduled | R-204 (behaviors) put TakeCover / FallBack on C# actions; nothing waits on them | — |
+
+**Slices** (one commit each): **A1** E1 + E2 (validator, WS key field, `NextKey`, lowering) + rail: two BTree nodes using one EQS
+action keep two sensors · **A2** E3 (`ReleaseParts`, HSM exit, BTree deactivator form) + rail: leaving the node destroys its sensor ·
+**A3** E4 (When(EqsResult) memory in WS) + rail: it fires once per new answer in an action.
 
 ## ⛔ HISTORY
 
