@@ -501,9 +501,21 @@ holds all three, so it is where it runs (an optimization). ⛔ **The missing pie
 
 | ⭐ lean **B1″** — a new EQS query kind, **DangerAlongRoute** | |
 |---|---|
-| request | the existing sensor transport (`EqsSensorConfigTopic`, keyed by unit + sensor slot, solver picked by `SolverNodeId`) + a ROUTE spec: "the route of unit X" (context slot = the unit; the solver reads its current route) or start/end/mobility for a route not yet driven; corridor half-width; max areas |
+| request | the existing sensor transport (`EqsSensorConfigTopic`, keyed by unit + sensor slot, solver picked by `SolverNodeId`) + a ROUTE spec — ⭐ **a concrete `RouteHandle`** (user, `2026-10-05`: *"the EQS query should allow also taking concrete (already found) path handle"*), solved on the node that planned that route; or start/end/mobility for a route not yet planned; corridor half-width; max areas |
 | response | a NEW result topic with the same key, carrying up to 8 `DangerAreaDescriptor` (kind, oriented box + height band, near/far handles, distance along the route) — ⛔ no threat. `EqsResultEntry` (entity, position, score, flags) cannot carry them (squad design §5, architect-confirmed) |
 | on the Brain | the result lands in the commander's buffer (F6); the squad rates each area from its own contacts at read time, then `ManeuverSelect` picks (F5) |
+
+📐 **Measured — how the Brain knows a route handle today: it does NOT, for a move.** The solver echoes a requested handle
+or allocates its own ≥ `0x40000000` (`PathfindingSolverSystem.cs:163`, `NavigationHandleAllocator.cs:13`); `MoveToExecutor`
+passes the behaviour's `MoveToParams.RouteHandle`, in practice 0; a move's plan stores the handle on the vehicle
+(`NavigationCorridorMuscle`) but never on `NavigationStatus` (`PathfindingResultMaterializationSystem.cs:66-77`; only the
+plan-only branch writes it, `:117`); no production code allocates a Brain handle (only the fake `BrainPathRegistry`).
+navig-2 principle 3 intends the BRAIN to allocate (*"it allocates a nonzero int handle, sends it via NavigationIntent"*),
+lower range for Brains, upper for the solver.
+
+| ⭐ lean **B4** — the Brain allocates the handle (navig-2 principle 3, designed, not built) | rejected |
+|---|---|
+| `MoveToExecutor` allocates a Brain handle when the behaviour gave none, sends it on `NavigationIntent` (the solver already echoes it), and keeps it on the Brain — the danger query (and any later path query) then names it in the SAME frame as the move. The Brain range carries the Brain's node id (no two Brain nodes collide in one solver's pool). The query is solved on the node that planned the route | the solver reports its own handle back on `NavigationStatus` — one line, but the Brain learns it only after the path is planned and uses the solver's private range, which §6.3 keeps Muscle-private |
 
 | rejected | the one fact |
 |---|---|
