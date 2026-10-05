@@ -31,8 +31,8 @@ public sealed class NedIgTranslators : IIgTranslators
                 participant, entityMap, ghostCreationSystem, localNodeId));
             translators.Add(new GroundClampingOverrideTranslator(
                 participant, entityMap));
-            translators.Add(new AudioTargetDetectedIngressTranslator(
-                participant, entityMap));
+            // ⛔ CE-3062 — the IG's AudioTargetDetected ingress is retired: nothing on the IG read what it published. The topic
+            //   is the Brain's now (SimHostAuxiliaryTranslatorPack, AudioTargetDetectedIngressTranslator).
             translators.Add(new WeaponFireIngressTranslator(
                 participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(

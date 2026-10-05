@@ -391,8 +391,9 @@ namespace Hrot.NED.Descriptors
     // ── Perception CQRS messages ────────────────────────────────────────────────
 
     /// <summary>
-    /// DDS wire message carrying a single audio-detection event from the Perception node
-    /// to the Brain node.
+    /// DDS wire message carrying one thing a unit HEARD, from the node that solves its acoustic sensor to the Brain.
+    /// ⭐ <c>CE-3062</c> — ANONYMOUS by design (R-205, "shot from the north"): an estimated position and an uncertainty radius,
+    /// never the source's identity (the old <c>SourceEntityIndex</c> is gone). docs/DESIGN_Thermal_And_Acoustic_Sensing.md §5.1.
     /// </summary>
     [DdsTopic("AudioTargetDetected")]
     [DdsIdlFile("hrot-sim-msg")]
@@ -401,10 +402,13 @@ namespace Hrot.NED.Descriptors
     public partial struct AudioTargetDetected
     {
         public long  ListenerEntityId;
-        public int   SourceEntityIndex;
         public float OriginX;
         public float OriginY;
         public float OriginZ;
+        /// <summary>Uncertainty radius of the estimate (metres).</summary>
+        public float Radius;
+        /// <summary>What was heard (<c>SoundKind</c>: 1 movement, 2 shot, 3 detonation).</summary>
+        public byte  Kind;
     }
 
 }

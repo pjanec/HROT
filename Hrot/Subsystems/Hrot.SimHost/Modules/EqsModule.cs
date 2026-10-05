@@ -74,6 +74,8 @@ namespace Hrot.SimHost.Modules
             // ⭐ CE-3061 — thermal: vision's chain + the signature filter (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 F).
             Fdp.Toolkit.Perception.Sensors.ThermalPerception.Register(registry, module.PerceptionGrid,
                 Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world));
+            // ⭐ CE-3062 — hearing: anonymous estimates of the sounds in range (§5.1).
+            Fdp.Toolkit.Perception.Sensors.AcousticPerception.Register(registry, module.PerceptionGrid);
             return module;
         }
 

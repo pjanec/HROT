@@ -1084,6 +1084,56 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3062 — the ACOUSTIC sensor hears an enemy's sounds as ANONYMOUS estimates ("shot from the north", R-205): a
+        /// SoundContactEvent for the unit, inside the uncertainty radius of the truth, of the right kind — and NO track (the
+        /// source's identity never leaves the solver). A sound that does not carry that far is not heard. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.1, §6 B–D.
+        /// </summary>
+        [Fact]
+        public void S7_TheAcousticSensor_HearsAnonymousEstimates_NotIdentities_CE3062()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, grid.Grid);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4246 });
+            var template = new TkbTemplate("Ears", 81);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 400f,
+                Acoustic = new AcousticSensorDto { Range = 300f, UncertaintyPerMeter = 0.1f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            Assert.False(UnitSensors.Of(_world, unit, SensorModality.Acoustic).IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(10f, 90f));   // 80 m north
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+            {
+                MovingAudibleRange = 150f, FiringAudibleRange = 60f,   // movement carries 150 m, its shots only 60 m
+                CurrentMovingRange = 150f, ShotTimeLeft = 0.3f, ShotX = 10f, ShotY = 90f,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+
+            var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+            var one = Assert.Single(heard);                                   // the movement — the shot does not carry 80 m
+            Assert.Equal(unit, one.Observer);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Movement, one.Kind);
+            Assert.InRange(one.Radius, 7.9f, 8.1f);                            // 0.1 × ~80 m
+            Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(10f, 90f)) <= one.Radius + 0.01f,
+                "the estimate lies inside the uncertainty radius of the truth");
+            Assert.Empty(view.ReadEvents<Fdp.Toolkit.Perception.Events.SensorTrackStateEvent>().ToArray());   // ⛔ no identity
+        }
+
+        /// <summary>
         /// ⭐ CE-3038 — a TKB that lists NO sensors but can see gets one implicit visual sensor (part 1000) that reads the
         /// unit's live receptor (a Brain retunes it over the wire); a TKB with a list gets only its list; one that cannot
         /// see gets none. The unit no longer carries a SensorContactList.

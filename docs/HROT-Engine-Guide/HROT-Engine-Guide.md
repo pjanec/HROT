@@ -836,8 +836,11 @@ stateDiagram-v2
 ![Perception loop — sensors to threat memory](diagrams/eq-perception-loop.png)
 
   - The pipeline runs sensor config → broadphase (spatial hash) → LOS check (batched raycasts) → track update (debounced).
-  - It is multi-modal: **Visual, Acoustic, Radar, Thermal**.
-  - Acoustic detection estimates range with terrain occlusion — an agent can "hear" a contact it can't see.
+  - It is multi-modal: **Visual, Thermal, Acoustic** (and a Radar sensor kind) — each a sensor TEMPLATE on one sensor form
+    (`docs/DESIGN_Thermal_And_Acoustic_Sensing.md`).
+  - Thermal sees what is hot enough: a per-type signature plus heat built by running and firing.
+  - Hearing gives ANONYMOUS contacts — "something about here", with an uncertainty radius that grows with distance; there is
+    no terrain occlusion. An agent can hear what it cannot see, but not WHO it is.
 - Tracks are debounced so contacts don't flicker on the edge of detection.
 
 ### 12.3 TargetMemory & threat decay

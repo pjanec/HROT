@@ -4,54 +4,9 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Perception.Events
 {
-    // ── AudioStimulusEvent ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published when an entity emits a sound that other entities can potentially hear.
-    /// Consumed by <see cref="Systems.AudioPerceptionSystem"/> on the main thread.
-    /// </summary>
-    [EventId(PerceptionConstants.AudioStimulusEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct AudioStimulusEvent
-    {
-        /// <summary>World-space origin of the sound (XYZ; Z is elevation).</summary>
-        public Vector3 Origin;
-
-        /// <summary>
-        /// Effective radius (meters) of the event.
-        /// Used as the spatial-hash query radius to find candidate listeners.
-        /// Listeners outside this radius cannot hear the event regardless of their own
-        /// <see cref="Components.PerceptionReceptor.HearingRange"/>.
-        /// </summary>
-        public float Intensity;
-
-        /// <summary>Entity index of the entity that produced the sound.</summary>
-        public int SourceEntityIndex;
-    }
-
-    // ── TargetHeardEvent ──────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published by <see cref="Systems.AudioPerceptionSystem"/> when an entity successfully
-    /// detects an audio stimulus.
-    /// Consumed by <see cref="Systems.ThreatEvaluationSystem"/> to update
-    /// <see cref="Components.TargetMemory"/> on the Brain tier.
-    /// </summary>
-    [EventId(PerceptionConstants.TargetHeardEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct TargetHeardEvent
-    {
-        /// <summary>The entity that heard the sound.</summary>
-        public Entity Listener;
-
-        /// <summary>Entity index of the entity that produced the sound (same as <see cref="AudioStimulusEvent.SourceEntityIndex"/>).</summary>
-        public int SourceEntityIndex;
-
-        // 4-byte pad implicit from Entity (8 bytes) + int (4 bytes) = 12 bytes → aligns Origin to 16.
-
-        /// <summary>World-space origin of the detected sound.</summary>
-        public Vector3 Origin;
-    }
+    // ⛔ CE-3062 — AudioStimulusEvent and TargetHeardEvent are RETIRED with AudioPerceptionSystem: nothing in production published
+    //   a stimulus or read a heard event. Hearing is the acoustic sensor now (Sensors/AcousticPerception.cs → SoundContactEvent).
+    //   📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 A.
 
     // ── SensorTrackStatus ─────────────────────────────────────────────────────────
 

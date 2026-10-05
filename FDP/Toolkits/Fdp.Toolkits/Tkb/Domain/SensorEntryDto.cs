@@ -83,6 +83,10 @@ namespace Fdp.Toolkit.Tkb.Domain
     public record AcousticSensorDto
     {
         [EditUnit("m")] public float Range { get; init; }
+
+        /// <summary>⭐ <c>CE-3062</c> — how uncertain a heard position is, per metre of distance (0.15 ⇒ ±15 m at 100 m); at least
+        /// <c>AcousticPerception.MinRadius</c>. 0 ⇒ the default.</summary>
+        [EditRange(0, 1)] public float UncertaintyPerMeter { get; init; } = 0.15f;
     }
 
     /// <summary>A radar.</summary>

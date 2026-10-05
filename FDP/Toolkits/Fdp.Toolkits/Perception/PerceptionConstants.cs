@@ -13,16 +13,14 @@ namespace Fdp.Toolkit.Perception
         // ── Event IDs ────────────────────────────────────────────────────────────
         // Range 4001–4099 is reserved for FDP.Toolkit.Perception events (see DESIGN.md §4.1).
 
-        /// <summary>Event ID for <see cref="Events.AudioStimulusEvent"/>.</summary>
-        public const int AudioStimulusEventId = 4001;
+        // ⛔ 4001 (AudioStimulusEvent) is RETIRED with the old hearing pipeline (CE-3062) — do not reuse.
 
         // 4002 was LosCheckRequestEvent — retired with the toolkit's vision chain (CE-3052). Not reused.
 
         // 4003 was TargetVisibleEvent — retired (CE-3052): a raw per-tick sighting with no producer left but blocked EQS
         //   cover rays, i.e. the opposite meaning. Not reused. Sightings are the visual sensor's contact list now.
 
-        /// <summary>Event ID for <see cref="Events.TargetHeardEvent"/>.</summary>
-        public const int TargetHeardEventId = 4004;
+        // ⛔ 4004 (TargetHeardEvent) is RETIRED with the old hearing pipeline (CE-3062) — do not reuse.
 
         /// <summary>Event ID for <see cref="Events.SeedTargetCommand"/>.</summary>
         public const int SeedTargetCommandId = 4101;
@@ -32,6 +30,9 @@ namespace Fdp.Toolkit.Perception
 
         /// <summary>Event ID for <see cref="Events.SensorChangedEvent"/> (CE-3039).</summary>
         public const int SensorChangedEventId = 4006;
+
+        /// <summary>Event ID for <see cref="Events.SoundContactEvent"/> (<c>CE-3062</c>).</summary>
+        public const int SoundContactEventId = 4007;
 
         // ── Threat score dynamics ─────────────────────────────────────────────────
 

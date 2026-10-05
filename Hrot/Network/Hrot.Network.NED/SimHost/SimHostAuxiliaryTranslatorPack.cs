@@ -75,6 +75,8 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new WeaponFireIntentEgressTranslator(participant, entityMap));
             // Brain (authority node): receives EntityHitDamage → applies health changes.
             translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
+            // ⭐ CE-3062 — what the unit HEARD (anonymous), into the Brain's memory (CE-3063).
+            translators.Add(new AudioTargetDetectedIngressTranslator(participant, entityMap));
         }
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──

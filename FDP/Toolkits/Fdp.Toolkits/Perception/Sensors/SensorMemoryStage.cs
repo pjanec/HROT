@@ -31,9 +31,14 @@ namespace Fdp.Toolkit.Perception.Sensors
         private readonly Dictionary<long, byte> _before = new();
         private readonly Dictionary<long, byte> _after = new();
         private readonly List<long> _ordered = new();
+        // ⭐ CE-3062 — this tick's anonymous sound contacts (an acoustic sensor's answers), published at Flush.
+        private readonly List<SoundContactEvent> _heard = new();
 
         /// <summary>Transitions published by the last <see cref="Flush"/> (test hook / diagnostics).</summary>
         public int LastFlushTransitions { get; private set; }
+
+        /// <summary>⭐ CE-3062 — sound contacts published by the last <see cref="Flush"/>.</summary>
+        public int LastFlushHeard { get; private set; }
 
         private bool _enabled;
 
@@ -42,6 +47,7 @@ namespace Fdp.Toolkit.Perception.Sensors
         {
             _observed.Clear();
             _observedIndex.Clear();
+            _heard.Clear();
             _enabled = repo.IsComponentTypeRegistered<SensorContactList>() && repo.IsComponentTypeRegistered<SensorTag>();
         }
 
@@ -56,6 +62,13 @@ namespace Fdp.Toolkit.Perception.Sensors
         public unsafe void Observe(ISimulationView view, Entity sensor, uint tick, ReadOnlySpan<EqsResult> results)
         {
             if (!_enabled || !IsPerceptionSensor(view, sensor)) return;
+            // ⭐ CE-3062 — an ACOUSTIC sensor's answers are anonymous estimates, not sightings: each becomes a SoundContactEvent
+            //   for the unit (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §5.1). The Brain's memory merges them (CE-3063).
+            if (view.GetComponentRO<SensorTag>(sensor).Kind == SensorModality.Acoustic)
+            {
+                HearAll(view, sensor, results);
+                return;
+            }
             bool existed = view.HasComponent<SensorContactList>(sensor);
             var list = existed ? view.GetComponentRO<SensorContactList>(sensor) : default;
             foreach (ref readonly var r in results)
@@ -63,6 +76,22 @@ namespace Fdp.Toolkit.Perception.Sensors
             Span<(long, SensorTrackStatus)> ignored = stackalloc (long, SensorTrackStatus)[PerceptionConstants.MaxTrackedTargets];
             ContactHysteresis.Apply(ref list, tick, ignored, out _);
             Record(view, sensor, list, existed);
+        }
+
+        private void HearAll(ISimulationView view, Entity sensor, ReadOnlySpan<EqsResult> results)
+        {
+            var unit = view.GetComponentRO<PartMetadata>(sensor).ParentEntity;
+            if (results.IsEmpty || !view.IsAlive(unit)) return;
+            foreach (ref readonly var r in results)
+            {
+                if (r.EntityId != 0) continue;
+                _heard.Add(new SoundContactEvent
+                {
+                    Observer = unit, X = r.PositionX, Y = r.PositionY, Z = r.PositionZ,
+                    Radius   = r.Score,   // the radius the generator drew the error in (AcousticSensorGenerator)
+                    Kind     = (byte)((r.Flags & AcousticPerception.KindMask) >> AcousticPerception.KindShift),
+                });
+            }
         }
 
         /// <summary>A sensor that stopped (suspended): it holds nothing any more.</summary>
@@ -88,6 +117,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         public unsafe void Flush(ISimulationView view, IEntityCommandBuffer cmd)
         {
             LastFlushTransitions = 0;
+            foreach (var h in _heard) cmd.PublishEvent(h);
+            LastFlushHeard = _heard.Count;
+            _heard.Clear();
             if (_observed.Count == 0) return;
 
             // Every perception sensor child, grouped by unit — once per flush.

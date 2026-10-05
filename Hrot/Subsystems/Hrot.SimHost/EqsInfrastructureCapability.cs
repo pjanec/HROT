@@ -70,6 +70,7 @@ public static class EqsSolverStartup
     {
         if (simulation is null) throw new ArgumentNullException(nameof(simulation));
         simulation.Add(new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem());
+        simulation.Add(new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem());   // CE-3062
     }
 
     /// <summary>Installs the template registry on the node's world, then registers the solver module (returned, so a
@@ -84,6 +85,10 @@ public static class EqsSolverStartup
         //   only a muscle subset, so it would otherwise be missing there). Idempotent.
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+        if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
+            context.World.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         // ⭐ CE-3038 — the module carries vision too (its grid, the visual template, 3-D sight): design §5.5.
         var module = Modules.EqsModule.ForTerrainHost(context.World);
         context.Kernel.RegisterModule(module);

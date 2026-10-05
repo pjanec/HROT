@@ -376,7 +376,7 @@ NED descriptors are split across six IDL files (each maps to one C# file):
 | `WeaponFire`            | (inferred Reliable)                     | Muscle -> IG           | 81 |
 | `MunitionDetonation`    | (inferred Reliable)                     | Muscle -> IG / DAM     | 82 |
 | `EntityHitDamage`       | (inferred Reliable)                     | DAM -> Muscle          | 83 |
-| `AudioTargetDetected`   | (inferred Reliable)                     | Muscle -> IG           | 84 |
+| `AudioTargetDetected`   | BestEffort / Volatile                   | Perception -> Brain (anonymous heard contact, `CE-3062`) | 84 |
 
 #### Mission Control Topics
 

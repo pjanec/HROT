@@ -11,7 +11,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// Perception egress translator: consumes <see cref="TargetHeardEvent"/> ECS events
+    /// Perception egress translator: consumes <see cref="SoundContactEvent"/> ECS events
     /// and publishes an <see cref="AudioTargetDetected"/> DDS message for each one.
     /// </summary>
     public sealed class AudioTargetDetectedEgressTranslator : IDescriptorTranslator
@@ -44,22 +44,24 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         /// <summary>
-        /// Drains <see cref="TargetHeardEvent"/> events from the view and publishes an
+        /// Drains <see cref="SoundContactEvent"/> events from the view and publishes an
         /// <see cref="AudioTargetDetected"/> DDS message for each one.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var events = view.ReadEvents<TargetHeardEvent>();
+            // ⭐ CE-3062 — what the memory stage heard (anonymous), to the Brain.
+            var events = view.ReadEvents<SoundContactEvent>();
             foreach (ref readonly var evt in events)
             {
-                if (!_entityMap.TryGetNetworkId(evt.Listener, out long listenerId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out long listenerId)) continue;
                 _writer.Write(new AudioTargetDetected
                 {
-                    ListenerEntityId  = listenerId,
-                    SourceEntityIndex = evt.SourceEntityIndex,
-                    OriginX           = evt.Origin.X,
-                    OriginY           = evt.Origin.Y,
-                    OriginZ           = evt.Origin.Z,
+                    ListenerEntityId = listenerId,
+                    OriginX          = evt.X,
+                    OriginY          = evt.Y,
+                    OriginZ          = evt.Z,
+                    Radius           = evt.Radius,
+                    Kind             = evt.Kind,
                 });
                 SentSampleCount++;
             }

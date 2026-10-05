@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         public IEnumerable<Type> GetProducedComponents()
         {
             yield return typeof(ThermalState);
+            yield return typeof(AcousticEmitter);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -33,6 +34,14 @@ namespace Fdp.Toolkit.Perception.Signatures
                     FiringHeatPerShot    = th.FiringHeatPerShot,
                     CooldownPerSecond    = th.CooldownPerSecond,
                     ReferenceSpeed       = th.ReferenceSpeed,
+                });
+            if (dto?.Acoustic is { } ac && repo.IsComponentTypeRegistered<AcousticEmitter>() && !repo.HasComponent<AcousticEmitter>(entity))
+                repo.AddComponent(entity, new AcousticEmitter
+                {
+                    MovingAudibleRange     = ac.MovingAudibleRange,
+                    ReferenceSpeed         = ac.ReferenceSpeed,
+                    FiringAudibleRange     = ac.FiringAudibleRange,
+                    DetonationAudibleRange = ac.DetonationAudibleRange,
                 });
         }
     }

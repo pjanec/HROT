@@ -127,7 +127,7 @@ namespace Fdp.Examples.Scenarios.Integrated
     /// [FlushEcbAndSwap]<br/>
     /// Stage B: HitResolution<br/>
     /// [FlushEcbAndSwap]<br/>
-    /// Stage C: Damage → AudioPerception → MissionDirector → CognitiveInterrupt →
+    /// Stage C: Damage → MissionDirector → CognitiveInterrupt →
     /// ChannelArbitration → BTreeTick → HsmTick →
     /// WeaponDispatcher → InteractionDispatcher → LocomotionDispatcher →
     /// SpatialHash → CarKinematics → LinearKinematics → Ballistics</para>
@@ -586,7 +586,6 @@ namespace Fdp.Examples.Scenarios.Integrated
             var stageC = new IEcsModuleSystem[]
             {
                 new DamageSystem(),          // reads HitEvent; bullet still TearDown (IsAlive=true)
-                new AudioPerceptionSystem(),
                 new MissionDirectorSystem(),
                 new CognitiveInterruptSystem(), // detects CanMove→cleared from DamageSystem above
                 new ChannelArbitrationSystem(),

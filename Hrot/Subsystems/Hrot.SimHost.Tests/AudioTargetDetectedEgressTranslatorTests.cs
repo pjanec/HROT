@@ -12,7 +12,8 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="AudioTargetDetectedEgressTranslator"/> (PACK-A001).
+    /// Unit tests for <see cref="AudioTargetDetectedEgressTranslator"/> (PACK-A001; ⭐ CE-3062 — it now carries the anonymous
+    /// <see cref="SoundContactEvent"/>: an estimate + radius + kind, never the source).
     /// </summary>
     public class AudioTargetDetectedEgressTranslatorTests : IDisposable
     {
@@ -29,7 +30,7 @@ namespace Hrot.SimHost.Tests
         public AudioTargetDetectedEgressTranslatorTests()
         {
             _world = new EntityRepository();
-            _world.RegisterEvent<TargetHeardEvent>();
+            _world.RegisterEvent<SoundContactEvent>();
             _entityMap = new NetworkEntityMap();
         }
 
@@ -50,13 +51,11 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        private void PublishEvent(Entity listener, int sourceIndex, Vector3 origin)
+        private void PublishEvent(Entity listener, float radius, Vector3 origin, byte kind = 2)
         {
-            _world.Bus.Publish(new TargetHeardEvent
+            _world.Bus.Publish(new SoundContactEvent
             {
-                Listener          = listener,
-                SourceEntityIndex = sourceIndex,
-                Origin            = origin,
+                Observer = listener, X = origin.X, Y = origin.Y, Z = origin.Z, Radius = radius, Kind = kind,
             });
             _world.Bus.SwapBuffers();
         }
@@ -64,7 +63,7 @@ namespace Hrot.SimHost.Tests
         // ── SC-1: Event → DDS message ─────────────────────────────────────────
 
         /// <summary>
-        /// PACK-A001 SC-1: A <see cref="TargetHeardEvent"/> must be forwarded as an
+        /// PACK-A001 SC-1: A <see cref="SoundContactEvent"/> must be forwarded as an
         /// <see cref="AudioTargetDetected"/> DDS message with matching fields.
         /// </summary>
         [Fact]
@@ -73,13 +72,14 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
             var listener = RegisterEntity(netId: 5L);
 
-            PublishEvent(listener, sourceIndex: 42, origin: new Vector3(10f, 20f, 30f));
+            PublishEvent(listener, radius: 7.5f, origin: new Vector3(10f, 20f, 30f));
 
             translator.ScanAndPublish(_world);
 
             Assert.Equal(1, writer.Written.Count);
             Assert.Equal(5L,  writer.Written[0].ListenerEntityId);
-            Assert.Equal(42,  writer.Written[0].SourceEntityIndex);
+            Assert.Equal(7.5f, writer.Written[0].Radius);
+            Assert.Equal((byte)2, writer.Written[0].Kind);
             Assert.Equal(10f, writer.Written[0].OriginX);
             Assert.Equal(20f, writer.Written[0].OriginY);
             Assert.Equal(30f, writer.Written[0].OriginZ);
@@ -88,7 +88,7 @@ namespace Hrot.SimHost.Tests
         // ── SC-2: Zero events → no write ─────────────────────────────────────
 
         /// <summary>
-        /// PACK-A001 SC-2: When no <see cref="TargetHeardEvent"/> events are on the bus,
+        /// PACK-A001 SC-2: When no <see cref="SoundContactEvent"/> events are on the bus,
         /// the DDS writer must not be called.
         /// </summary>
         [Fact]
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
         // ── SC-3: Unmapped listener → skip ────────────────────────────────────
 
         /// <summary>
-        /// PACK-A001 SC-3: A <see cref="TargetHeardEvent"/> whose listener entity is not
+        /// PACK-A001 SC-3: A <see cref="SoundContactEvent"/> whose listener entity is not
         /// present in the <see cref="NetworkEntityMap"/> must be silently skipped.
         /// </summary>
         [Fact]
@@ -115,7 +115,7 @@ namespace Hrot.SimHost.Tests
 
             // Create an entity but do NOT register it in the entity map.
             var unmappedListener = _world.CreateEntity();
-            PublishEvent(unmappedListener, sourceIndex: 1, origin: Vector3.Zero);
+            PublishEvent(unmappedListener, radius: 2f, origin: Vector3.Zero);
 
             translator.ScanAndPublish(_world);
 
