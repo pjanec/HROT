@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 if (evt.State == SensorTrackStatus.Acquired)
                 {
+                    byte kinds = evt.Modality == 0 ? (byte)SensorModality.Visual : (byte)evt.Modality;   // CE-3060
                     // Update position if already tracked, or add a new slot.
                     bool found = false;
                     for (int i = 0; i < tracks.Count; i++)
@@ -61,6 +62,7 @@ namespace Fdp.Toolkit.Perception.Systems
                         {
                             tracks.PositionsX[i] = evt.PositionX;
                             tracks.PositionsY[i] = evt.PositionY;
+                            tracks.Modalities[i] = kinds;
                             found = true;
                             break;
                         }
@@ -70,6 +72,7 @@ namespace Fdp.Toolkit.Perception.Systems
                         tracks.EntityIds[tracks.Count]  = localTargetId;
                         tracks.PositionsX[tracks.Count] = evt.PositionX;
                         tracks.PositionsY[tracks.Count] = evt.PositionY;
+                        tracks.Modalities[tracks.Count] = kinds;
                         tracks.Count++;
                         // ⭐ CE-3039 — the edge, from the system that holds the track set (design §7.3).
                         ecb.PublishEvent(new SensorChangedEvent { Unit = evt.Observer, Target = evt.Target, What = SensorChange.Acquired });
@@ -87,6 +90,7 @@ namespace Fdp.Toolkit.Perception.Systems
                             tracks.EntityIds[i]  = tracks.EntityIds[last];
                             tracks.PositionsX[i] = tracks.PositionsX[last];
                             tracks.PositionsY[i] = tracks.PositionsY[last];
+                            tracks.Modalities[i] = tracks.Modalities[last];
                         }
                         tracks.Count--;
                         ecb.PublishEvent(new SensorChangedEvent { Unit = evt.Observer, Target = evt.Target, What = SensorChange.Lost });   // CE-3039

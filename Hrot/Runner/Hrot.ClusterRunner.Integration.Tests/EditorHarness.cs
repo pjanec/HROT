@@ -52,7 +52,6 @@ public sealed class EditorHarness : IDisposable
     private MasterSyncController? _timeController;
     private readonly SequentialIdAllocator _idAllocator;
     private ScenarioFileService _fileService = null!;
-    private IReadOnlyList<IEcsModule> _logicPacks = null!;
     private PhysicsToolkitModule? _physicsModule;
     private PreviewClusterOpHandler? _previewHandler;
 
@@ -387,22 +386,8 @@ public sealed class EditorHarness : IDisposable
         Kernel.Initialize();
 
         // ── Editor application facade ─────────────────────────────────────────
-        var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };
-        _logicPacks = logicPacks;
-        Editor = new EditorApplication(fileService, Bus, OrchBus, Repo, Kernel, logicPacks);
+        Editor = new EditorApplication(fileService, Bus, OrchBus, Repo);
         Preview = new EditorPreviewController(_timeController!, _previewHandler!);
-    }
-
-    // ── Feature-switch helper ─────────────────────────────────────────────────
-
-    /// <summary>
-    /// Provides translator packs to install when <see cref="IEditorLogic.SwitchToExternalAsync"/>
-    /// is called. Must be called BEFORE the first SwitchToExternalAsync call.
-    /// Re-creates the <see cref="EditorApplication"/> to capture the new translator pack list.
-    /// </summary>
-    public void SetTranslatorPacks(IReadOnlyList<IEcsModule> packs)
-    {
-        Editor = new EditorApplication(_fileService, Bus, OrchBus, Repo, Kernel, _logicPacks, translatorPacks: packs);
     }
 
     // ── Pump API ──────────────────────────────────────────────────────────────

@@ -246,6 +246,7 @@ namespace Hrot.Network.NED.SimHost
                         : Fdp.Toolkit.Perception.Events.SensorTrackStatus.Lost,
                     PositionX = data.PositionX,
                     PositionY = data.PositionY,
+                    Modality  = (Fdp.Toolkit.Perception.Components.SensorModality)data.Modality,   // CE-3060
                 });
             }
         }
@@ -572,6 +573,7 @@ namespace Hrot.Network.NED.SimHost
                     State            = evt.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? (byte)1 : (byte)0,
                     PositionX        = evt.PositionX,
                     PositionY        = evt.PositionY,
+                    Modality         = (byte)evt.Modality,   // CE-3060
                     Tick             = view.Tick,
                 });
                 SentSampleCount++;

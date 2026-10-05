@@ -638,5 +638,12 @@
         /// started by the node that gains its Brain (<c>CE-3048</c>, V7); 317 is free by the same census (grep of every
         /// <c>*Ids*.cs</c> and literal <c>[ComponentId(317)]</c>, <c>2026-10-05</c>).</summary>
         public const int ReplicatedBrainIntent = 317;
+
+        /// <summary><c>ThermalState</c> — an entity's heat and thermal signature parameters (<c>CE-3061</c>, R-205). ⚠ 330/331 leave a gap
+        /// after 317 on purpose: this table has no lane blocks, and the behaviors lane allocates from 318 up.</summary>
+        public const int ThermalState = 330;
+
+        /// <summary><c>AcousticEmitter</c> — how far an entity's sounds carry (<c>CE-3062</c>, R-205).</summary>
+        public const int AcousticEmitter = 331;
     }
 }

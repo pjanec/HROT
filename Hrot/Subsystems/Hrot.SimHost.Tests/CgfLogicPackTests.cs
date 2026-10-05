@@ -204,8 +204,10 @@ namespace Hrot.SimHost.Tests
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
+            Assert.Equal(18, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
             //    re-baselines without reading why it moved.
@@ -409,8 +411,10 @@ namespace Hrot.SimHost.Tests
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
             // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
             //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
+            Assert.Equal(18, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
         }
 
         /// <summary>
@@ -442,7 +446,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(21, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2
+            Assert.Equal(22, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

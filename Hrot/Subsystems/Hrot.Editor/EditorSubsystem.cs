@@ -323,13 +323,6 @@ namespace Hrot.Editor
         private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
             System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
-        /// <summary>
-        /// The modules the resolved capabilities contributed through <c>ProvideModules()</c>.
-        ///
-        /// <para>Held because <c>EditorApplication.SwitchToExternalAsync</c> uninstalls the logic packs
-        /// BY REFERENCE — knowing a module was registered is not enough, the instance is needed.</para>
-        /// </summary>
-        private readonly List<IEcsModule> _capabilityModules = new();
 
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
@@ -1681,16 +1674,11 @@ namespace Hrot.Editor
             //    queries; injected = the host's muscle modules then the area queries (there is no
             //    perception module on that arm, and there never was).
             //   ⭐ ONE ordered pass per capability: the modules it PROVIDES, then its Register hook.
-            //     Asking for the modules (rather than letting the capability register them and
-            //     forgetting) is what lets SwitchToExternalAsync still uninstall them by reference.
             var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
             foreach (INodeCapability capability in _capabilities)
             {
                 foreach (var mod in capability.ProvideModules())
-                {
                     _kernel.RegisterModule(mod);
-                    _capabilityModules.Add(mod);
-                }
                 capability.Register(_node!, bootValues);
             }
             _kernel.RegisterModule(orchPack);
@@ -1777,19 +1765,6 @@ namespace Hrot.Editor
             // cannot drift apart. See MX-008.
             _world!.RegisterManagedEvent<Fdp.Toolkit.Blueprints.Events.AttachInstanceBlueprintEvent>();
             _world!.RegisterEvent<Fdp.Toolkit.Blueprints.Events.RemoveInstanceBlueprintEvent>();
-
-            // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
-            var logicPacks = new List<IEcsModule> { cgfLogicPackInst };
-            if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
-            // ⭐ CE-3038 — the EQS module carries vision (it replaced the perception module this slot held), so it is
-            //    uninstalled with the local logic tier as the perception module was.
-            foreach (var eqs in _capabilities.OfType<EditorCapabilities.PerceptionEqsSolver>())
-                if (eqs.RegisteredModule != null) logicPacks.Insert(Math.Min(1, logicPacks.Count), eqs.RegisteredModule);
-            foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
-            // ⭐ CE-3017 — the solver's modules are registered by its Register hook (SimHost's capability, unchanged), so
-            //    they are not in _capabilityModules; add them so SwitchToExternalAsync uninstalls them with the rest.
-            if (_navSolverCapability != null)
-                foreach (var mod in _navSolverCapability.RegisteredModules) logicPacks.Add(mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -2199,7 +2174,7 @@ namespace Hrot.Editor
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
-                fileService, _world.Bus, _orchestrationBus!, _world, _kernel, logicPacks,
+                fileService, _world.Bus, _orchestrationBus!, _world,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath);
             _editorLogic = app;

@@ -37,7 +37,7 @@ namespace Fdp.Examples.UrbanCombat
     /// One civilian pedestrian also has its <see cref="TargetMemory"/> pre-seeded with the
     /// insurgent entity so that <c>TrafficBrainSystem</c> triggers the <c>FLEE</c> locomotion
     /// action from the first frame (satisfying the T9 milestone without requiring
-    /// <c>AudioPerceptionSystem</c> to propagate a gunshot stimulus).
+    /// the (since retired, CE-3062) <c>AudioPerceptionSystem</c> to propagate a gunshot stimulus).
     /// </para>
     /// </summary>
     public class ScenarioDirector

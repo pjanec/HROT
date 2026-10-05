@@ -39,6 +39,12 @@ namespace Fdp.Toolkit.Combat
         /// <summary>Event ID for <see cref="Events.DamageAssessedEvent"/>.</summary>
         public const int DamageAssessedEventId = 5006;
 
+        /// <summary>⭐ <c>CE-3064</c> — event id of <see cref="Events.NearMissEvent"/>.</summary>
+        public const int NearMissEventId = 5007;
+
+        /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
+        public const float NearMissRadius = 3f;
+
         // ── Bullet / projectile constants ─────────────────────────────────────
 
         /// <summary>Damage applied per bullet hit (sourced from BallisticProjectile.Damage on spawn).</summary>
@@ -46,6 +52,13 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>Radius of the bounding-circle collider added to each bullet entity (metres).</summary>
         public const float BulletColliderRadius  = 0.1f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3059</c> — how far along the aim line a bullet starts (metres), capped at half the distance to the
+        /// target. A simplification (user, <c>2026-10-05</c>): squad-mates standing on the shooter's spot are not hit. ⚠ A
+        /// friendly further out on the line is still hit; the hold-fire guard (<c>LineOfFire</c>) covers that.
+        /// </summary>
+        public const float MuzzleOffsetMeters    = 1.0f;
 
         /// <summary>
         /// Collision layer assigned to bullet entities (bit 1).

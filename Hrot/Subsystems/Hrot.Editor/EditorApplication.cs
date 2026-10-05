@@ -37,12 +37,8 @@ public sealed class EditorApplication : IEditorLogic
     private readonly FdpEventBus         _simBus;
     private readonly DerRepo             _view = new(localNodeId: 0);
 
-    private readonly ModuleHostKernel?          _kernel;
-    private readonly IReadOnlyList<IEcsModule>? _logicPacks;
-    private readonly IReadOnlyList<IEcsModule>? _translatorPacks;
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;
-    private SimHostMode _currentMode = SimHostMode.Internal;
 
     /// <summary>The current cluster lifecycle state. Exposed for the AI-debug API (MCP) host.</summary>
     public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _session.CurrentClusterState;
@@ -64,7 +60,6 @@ public sealed class EditorApplication : IEditorLogic
     private Func<IReadOnlyList<string>>? _availableScenariosSource;
 
     public IDerRepo View => _view;
-    public SimHostMode CurrentMode => _currentMode;
 
     /// <inheritdoc/>
     public string? LoadedScenarioName => _session.LoadedScenarioName;
@@ -86,9 +81,6 @@ public sealed class EditorApplication : IEditorLogic
         FdpEventBus simBus,
         FdpEventBus orchestrationBus,
         EntityRepository world,
-        ModuleHostKernel?          kernel          = null,
-        IReadOnlyList<IEcsModule>? logicPacks      = null,
-        IReadOnlyList<IEcsModule>? translatorPacks = null,
         HotReloadMessageLogSource? hotReloadSource = null,
         string[]? aiProjectPathSegments            = null)
     {
@@ -105,9 +97,6 @@ public sealed class EditorApplication : IEditorLogic
             world            ?? throw new ArgumentNullException(nameof(world)),
             () => EditorBootstrap.ScenariosRoot);
 
-        _kernel               = kernel;
-        _logicPacks           = logicPacks;
-        _translatorPacks      = translatorPacks;
         _hotReloadSource      = hotReloadSource;
         _aiProjectPathSegments = aiProjectPathSegments
             ?? new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
@@ -160,34 +149,6 @@ public sealed class EditorApplication : IEditorLogic
             NetworkId          = networkId,
             ComponentsToUpdate = new List<object>(updatedComponents),
         });
-    }
-
-    /// <inheritdoc/>
-    public async Task SwitchToExternalAsync()
-    {
-        if (_kernel == null || _logicPacks == null) return;
-        if (_currentMode == SimHostMode.External) return;
-
-        await _kernel.UninstallModulesAsync(_logicPacks);
-
-        if (_translatorPacks != null)
-            await _kernel.InstallModulesAsync(_translatorPacks);
-
-        _currentMode = SimHostMode.External;
-    }
-
-    /// <inheritdoc/>
-    public async Task SwitchToInternalAsync()
-    {
-        if (_kernel == null || _logicPacks == null) return;
-        if (_currentMode == SimHostMode.Internal) return;
-
-        if (_translatorPacks != null)
-            await _kernel.UninstallModulesAsync(_translatorPacks);
-
-        await _kernel.InstallModulesAsync(_logicPacks);
-
-        _currentMode = SimHostMode.Internal;
     }
 
     /// <inheritdoc/>

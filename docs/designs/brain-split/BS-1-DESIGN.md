@@ -227,6 +227,23 @@ offset (−4 m in Y) — 0.5 m outside the APC's 3.5 m collider with the hull be
 soldiers killed their own APC (`475 → 0` by tick 36). ⚠ The bullet's swept raycast still ignores only its shooter; the hold-fire
 rule is the guard, not the ballistics.
 
+⛔⛔ **Measured `2026-10-05` on the SPLIT topology (CGF Brain + SimHost Muscle, `UrbanCombatFileLifecycleTests`, `CE-502`):**
+
+| hop | state |
+|---|---|
+| the Brain dispatches interaction commands | 🔴 → ✅ CGF's `ActionDispatchModule` had **no** interaction executors (`CgfLogicPack.cs`), so the APC's `OnEnter_Disabled` EjectPassengers did nothing. Now registers `EjectPassengers` + `OpenDoor`, the example hosts' set |
+| the eject's column placement reaches the authority | ⛔ **NO.** The executor writes `SimTransform` on the BRAIN; position belongs to the MUSCLE, and both nodes end with all four soldiers on ONE point (±1e-4 m). Each soldier's bullet then spawns inside a squad-mate's collider: 90 rounds, 0 on the insurgent, one soldier killed by the squad. Open as `CE-3059` |
+
+⚠ So the column rule above holds where the executor's world IS the position authority (one-world hosts: `--mode editor`, the
+examples) and **not** on a split cluster.
+
+⭐ **Simplification in force (`CE-3059`, 🔒 user `2026-10-05`):** *"brain deciding where to place the dismounting soldiers to
+avoid friendly fire is a non trivial task. Could we for now simplify that the bullets are starting their trajectoey around 1
+meter from the soldier"*. `FireProcessingSystem` spawns the bullet `CombatConstants.MuzzleOffsetMeters` (1 m) along the aim
+line, capped at half the distance to the target, and the swept ray starts there. ⇒ squad-mates on the shooter's own spot are
+not hit; ⚠ a friendly further out on the line still is (the hold-fire guard above covers that). Correct dismount placement on a
+split cluster stays deferred.
+
 ### 5.2 Brain Egress — WeaponFireIntentEgressTranslator
 
 A new translator on the Brain node watches the local event bus for `WeaponFireIntent` and

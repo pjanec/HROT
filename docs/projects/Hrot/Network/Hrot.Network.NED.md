@@ -429,7 +429,7 @@ The SST (Shared-State Topics) model governs how entities exist and are updated:
 | `IgMissionIngressTranslator.cs` | `IgMissionIngressTranslator` | Receives `EntityMission` DDS samples for IG ghost entities |
 | `WeaponFireIngressTranslator.cs` | `WeaponFireIngressTranslator` | Receives `WeaponFire` DDS samples; triggers IG muzzle-flash effect |
 | `GroundClampingOverrideTranslator.cs` | `GroundClampingOverrideTranslator` | Receives `GroundClampingOverride` DDS samples |
-| `AudioTargetDetectedIngressTranslator.cs` | `AudioTargetDetectedIngressTranslator` | Receives `AudioTargetDetected` DDS samples (IG sound events) |
+| ⛔ *(retired `CE-3062`)* | ~~IG `AudioTargetDetectedIngressTranslator`~~ | the topic is the Brain's now: `SimHost/AudioTargetDetectedIngressTranslator` → `SoundContactEvent` (anonymous estimate + radius + kind) |
 | `ContextActionsUpdateTranslator.cs` | `ContextActionsUpdateTranslator` | Receives `ContextActionsUpdate` DDS samples; populates IG context menu |
 
 ### Infrastructure/ -- Node Builder Integration

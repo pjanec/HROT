@@ -114,13 +114,18 @@ namespace Fdp.Toolkit.Combat.Systems
                     : Vector3.UnitX;    // fallback: fire east if entities are co-located
                 var velocity  = direction * weapon.MuzzleVelocity;
 
+                // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
+                //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
+                //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
+                var muzzlePos = shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
+
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();
 
                 // 2. Spatial transform — position at the shot origin.
                 repo.AddComponent(bullet, new SimTransform
                 {
-                    Position = shooterPos,
+                    Position = muzzlePos,
                     Rotation = Quaternion.Identity,
                 });
 
@@ -135,7 +140,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
-                    PreviousPosition = shooterPos,
+                    PreviousPosition = muzzlePos,
                     Damage           = CombatConstants.DefaultBulletDamage,
                     SpawnTick        = currentTick,
                 });

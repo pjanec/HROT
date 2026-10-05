@@ -319,5 +319,9 @@ namespace Fdp.Toolkit.Perception.Components
 
         /// <summary>Last-known Y position (ground plane) for each acquired target.</summary>
         public fixed float PositionsY[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>⭐ <c>CE-3060</c> — the <see cref="SensorModality"/> kinds that hold each target (OR); feeds
+        /// <c>TargetMemory.Modalities</c> instead of an assumed Visual.</summary>
+        public fixed byte Modalities[PerceptionConstants.MaxTrackedTargets];
     }
 }

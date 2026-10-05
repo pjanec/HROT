@@ -171,6 +171,15 @@ namespace Hrot.CGF
                 weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                 {
                     (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                },
+                // ⭐ CE-502 — the Brain writes embarkation state (DESIGN_Role_Affinity_Ownership.md §6, "the Brain's
+                //   EmbarkExecutor / EjectPassengersExecutor"). 🔴 None was registered here, so the dispatcher ran with no
+                //   interaction executors: an APC's HSM issued EjectPassengers on MobilityLost and nothing executed it — the
+                //   squad stayed aboard with no capabilities. The same set the example hosts register (HeadlessDemoApp).
+                interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
+                {
+                    (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
+                    (BehaviorConstants.ActionIdOpenDoor,        new OpenDoorExecutor()),
                 });
 
             _healthApplicationSystem   = new HealthApplicationSystem();
@@ -202,6 +211,8 @@ namespace Hrot.CGF
             simList.Add(_healthApplicationSystem);
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
+            // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
+            simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);

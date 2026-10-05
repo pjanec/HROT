@@ -60,6 +60,19 @@ public sealed class EqsResultUpdateCapability : INodeCapability
 /// </remarks>
 public static class EqsSolverStartup
 {
+    /// <summary>
+    /// ⭐ <c>CE-3061</c> — the main-loop systems that FEED the perception sensors (heat now, sound with <c>CE-3062</c>). They
+    /// run where the entities move and fire; the solver reads them on its background snapshot. ⭐ ONE helper, called by every
+    /// host's perception capability (SimHost, editor, Stride), so no host composes the solver without its stimuli.
+    /// docs/DESIGN_Thermal_And_Acoustic_Sensing.md §3.
+    /// </summary>
+    public static void PopulateSystems(List<IEcsModuleSystem> simulation)
+    {
+        if (simulation is null) throw new ArgumentNullException(nameof(simulation));
+        simulation.Add(new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem());
+        simulation.Add(new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem());   // CE-3062
+    }
+
     /// <summary>Installs the template registry on the node's world, then registers the solver module (returned, so a
     /// host that hot-swaps its logic tier can uninstall it).</summary>
     public static Modules.EqsModule Register(HrotNodeContext context)
@@ -68,6 +81,14 @@ public static class EqsSolverStartup
         // CE-465: without a registry every sensor gets the empty stub. Installed BEFORE the module so
         // its first tick sees it.
         Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
+        // ⭐ CE-3061 — the schema the thermal template reads, owed by whoever composes the solver (Stride's mode 2 registers
+        //   only a muscle subset, so it would otherwise be missing there). Idempotent.
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+        if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
+            context.World.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         // ⭐ CE-3038 — the module carries vision too (its grid, the visual template, 3-D sight): design §5.5.
         var module = Modules.EqsModule.ForTerrainHost(context.World);
         context.Kernel.RegisterModule(module);

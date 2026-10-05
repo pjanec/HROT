@@ -79,6 +79,10 @@ public static class SimHostCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
             => EqsSolverStartup.Register(context);
+
+        public void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> input,
+                                    List<IEcsModuleSystem> simulation, List<IEcsModuleSystem> postSimulation)
+            => EqsSolverStartup.PopulateSystems(simulation);   // CE-3061
     }
 
     /// <summary>On-demand pathfinding, backed by the engine's navmesh and road graph.</summary>
@@ -110,8 +114,7 @@ public static class SimHostCapabilities
         /// </remarks>
         public IReadOnlyList<string> Needs { get; } = new[] { ResourceKeys.TrajectoryPool };
 
-        /// <summary>The modules <see cref="Register"/> registered, in order — what a host that hot-swaps its logic tier
-        /// (the editor's <c>SwitchToExternalAsync</c>) must uninstall with it. Empty before <see cref="Register"/>.</summary>
+        /// <summary>The modules <see cref="Register"/> registered, in order. Empty before <see cref="Register"/>.</summary>
         public IReadOnlyList<IEcsModule> RegisteredModules => _registered;
 
         public void Register(HrotNodeContext context, NodeBootValues values)

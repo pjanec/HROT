@@ -390,6 +390,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        /// <summary>⭐ <c>CE-3064</c> (R-206) — ReturnFire also answers a NEAR MISS within the window, not only a hit.</summary>
+        [Theory]
+        [InlineData(1.0, true)]    // near-missed 1 s ago
+        [InlineData(6.0, false)]   // outside the 5 s window
+        public void AimAndFire_ReturnFire_AnswersANearMiss_CE3064(double secondsAgo, bool fires)
+        {
+            _world.RegisterComponent<Roe>();
+            _world.RegisterComponent<RecentSenses>();
+            const double now = 100.0;
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = 0.016f, TimeScale = 1f });
+
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new Roe { Fire = RoeFire.ReturnFire });
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, now - secondsAgo);
+            _world.AddComponent(shooter, senses);
+
+            _executor.OnEnter(shooter, ref channel, _world);
+            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
+        }
+
         /// <summary>⭐ <c>CE-2075</c> — a world without the ROE component types fires as before (fire at will).</summary>
         [Fact]
         public void AimAndFire_FiresAtWill_WhenTheWorldHasNoRoe_CE2075()

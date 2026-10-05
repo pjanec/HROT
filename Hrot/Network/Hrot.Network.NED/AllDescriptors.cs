@@ -33,6 +33,7 @@ namespace Hrot.NED.Descriptors
         dtMunitionDetonation    = 82,
         dtEntityHitDamage       = 83,
         dtAudioTargetDetected   = 84,
+        dtNearMiss              = 85,        // ⭐ CE-3064 — a round passed close to a unit (Muscle → Brain)
         // Mission control
         dtMissionControlRequest = 90,
         dtMissionControlAck     = 91,

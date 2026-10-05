@@ -27,9 +27,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.RegisterComponent<ActiveSensorTracks>();
 
             // Events exchanged within the Perception pipeline.
-            world.RegisterEvent<AudioStimulusEvent>();
             world.RegisterEvent<SensorChangedEvent>();   // CE-3039
-            world.RegisterEvent<TargetHeardEvent>();
             world.RegisterEvent<SensorTrackStateEvent>();
 
             return world;

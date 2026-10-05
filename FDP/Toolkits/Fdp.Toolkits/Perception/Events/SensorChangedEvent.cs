@@ -23,6 +23,8 @@ namespace Fdp.Toolkit.Perception.Events
         AllClear    = 5,
         /// <summary>The unit's health dropped — it was hit (by whatever, seen or not).</summary>
         Hit         = 6,
+        /// <summary>⭐ <c>CE-3064</c> — a bullet passed close to the unit without hitting it: it is being SHOT AT (R-206).</summary>
+        NearMiss    = 7,
     }
 
     /// <summary>

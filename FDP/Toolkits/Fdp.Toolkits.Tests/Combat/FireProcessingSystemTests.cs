@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Systems;
@@ -85,7 +86,7 @@ namespace Fdp.Toolkit.Combat.Tests
         /// <summary>
         /// BS1-T007 SC-1: A <see cref="WeaponFireIntent"/> with both entities alive must
         /// produce exactly one bullet entity with <see cref="BallisticProjectile"/> and
-        /// position at the shooter's origin, with the shooter field set correctly.
+        /// position <see cref="CombatConstants.MuzzleOffsetMeters"/> along the aim line (CE-3059), with the shooter field set correctly.
         /// </summary>
         [Fact]
         public void FireProcessing_SpawnsBulletEntity_WhenWeaponFireIntentReceived()
@@ -109,10 +110,26 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1, bulletCount);
 
             var tf = _world.GetComponent<SimTransform>(bulletEntity);
-            Assert.Equal(shooterPos, tf.Position);
+            Assert.Equal(shooterPos + new Vector3(CombatConstants.MuzzleOffsetMeters, 0f, 0f), tf.Position);
 
             var proj = _world.GetComponent<BallisticProjectile>(bulletEntity);
             Assert.Equal(shooter, proj.Shooter);
+            Assert.Equal(tf.Position, proj.PreviousPosition);   // the swept ray starts at the muzzle, not inside the shooter's spot
+        }
+
+        /// <summary>⭐ CE-3059 — a target closer than twice the muzzle offset: the bullet starts half way, so it is never
+        /// spawned past the target (the swept ray would skip it).</summary>
+        [Fact]
+        public void FireProcessing_PointBlank_BulletStartsHalfWay_CE3059()
+        {
+            var shooter = SpawnShooter(new Vector3(0f, 0f, 0f));
+            var target  = SpawnTarget(new Vector3(1f, 0f, 0f));
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+                Assert.Equal(new Vector3(0.5f, 0f, 0f), _world.GetComponent<SimTransform>(e).Position);
         }
 
         /// <summary>

@@ -729,7 +729,8 @@ There are **four** tier components; the ladder lives in `Blueprints/Shared/Bluep
 - `ThreatEvaluationSystem` -- ranks contacts by threat level; tags top-N as threats; passes
   real `SimTransform.Position.Z` into `AddOrUpdateTarget` (P3D-206) so `TargetMemory`
   contacts carry 3D world positions
-- `AudioPerceptionSystem` -- sound-based contact detection (range + terrain occlusion estimate)
+- ⛔ `AudioPerceptionSystem` -- RETIRED (`CE-3062`); hearing is the acoustic sensor template (`AcousticPerception`, anonymous estimates, no occlusion)
+- `ThermalHeatSystem` / `SoundEmissionSystem` -- an entity's heat and current sounds, read by the thermal / acoustic sensors (`CE-3061` / `CE-3062`)
 - `LocalGridBuilderSystem` -- populates per-perception-module spatial grid from entity positions
 
 **File**: `Perception/Modules/AutonomousPerceptionModule.cs`

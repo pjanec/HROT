@@ -17,8 +17,10 @@ namespace Fdp.Toolkit.Behavior.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct RecentSenses
     {
-        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–6).</summary>
+        /// <summary>Sim time (s) of the last change of each kind, indexed by <see cref="SensorChange"/> (1–7).</summary>
         public double Acquired, Lost, TopChanged, FirstThreat, AllClear, Hit;
+        /// <summary>⭐ <c>CE-3064</c> — the last near miss (kind 7).</summary>
+        public double NearMiss;
         /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once.</summary>
         public byte SeenMask;
 
@@ -33,6 +35,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.FirstThreat: FirstThreat = now; break;
                 case SensorChange.AllClear:    AllClear    = now; break;
                 case SensorChange.Hit:         Hit         = now; break;
+                case SensorChange.NearMiss:    NearMiss    = now; break;
                 default: return;
             }
             SeenMask |= (byte)(1 << (int)kind);
@@ -55,6 +58,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.FirstThreat => FirstThreat,
                 SensorChange.AllClear    => AllClear,
                 SensorChange.Hit         => Hit,
+                SensorChange.NearMiss    => NearMiss,
                 _                        => double.NegativeInfinity,
             };
             return true;

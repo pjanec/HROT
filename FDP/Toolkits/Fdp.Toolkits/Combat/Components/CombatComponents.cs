@@ -73,5 +73,8 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Tick at which the bullet was spawned (for lifetime check).</summary>
         public uint SpawnTick;
+
+        /// <summary>⭐ <c>CE-3064</c> — the last unit this bullet near-missed, so one pass is reported once.</summary>
+        public Entity LastNearMiss;
     }
 }

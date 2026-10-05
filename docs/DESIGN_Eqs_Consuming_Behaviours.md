@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-05
-build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
+build-state: BUILDING — D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
 current-answer: §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
 known-rot: none.
@@ -50,7 +50,7 @@ available through the CLI, so the absence claims in §1 are grep-corroborated.)*
 | `MoveToOptimalCoverParams` | `Hrot.AI.Behaviors/Brains/EqsCombatNodes.cs` | the BTree move action — the blueprint uses the channel MoveTo instead (same executor) |
 | `CoverAwarePatrolEndToEndTest` | tests | an existing cover rail, not a behaviour |
 
-## 2. Diagrams *(the BTree variant — D2 approved `2026-10-05`, R-204)*
+## 2. Diagrams *(the BTree variant — D2 approved `2026-10-05`, R-204 (behaviors))*
 
 ### 2.1 Classes — what exists (plain) and what is new (⭐ NEW)
 
@@ -287,7 +287,7 @@ optional blueprint round-out, not a prerequisite.*
 composing small BTree actions that pass the threat between nodes — a node binds one variable plus one working state
 (`CE-2069`'s measurement), so the threat would need a shared variable per tree.
 
-### 4.3 Approved — the BTree host *(`2026-10-05`, R-204)*
+### 4.3 Approved — the BTree host *(`2026-10-05`, R-204 (behaviors))*
 
 🔒 **User:** *"BTree with C# actions approved."* ⇒ what moves in §4's table:
 
@@ -353,7 +353,7 @@ prints the chain link by link (sensor → answer → Muscle stages → MoveTo �
 
 ## ⛔ HISTORY
 
-### The blueprint variant's diagrams *(SUPERSEDED `2026-10-05` by §2 — D2 = BTree, R-204; kept for the comparison in §4.2)*
+### The blueprint variant's diagrams *(SUPERSEDED `2026-10-05` by §2 — D2 = BTree, R-204 (behaviors); kept for the comparison in §4.2)*
 
 #### (was §2) Diagrams — blueprint variant
 

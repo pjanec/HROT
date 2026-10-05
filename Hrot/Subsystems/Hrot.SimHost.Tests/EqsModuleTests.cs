@@ -770,6 +770,72 @@ namespace Hrot.SimHost.Tests
             var gone = Assert.Single(lost);
             Assert.Equal(enemy, gone.Target);
             Assert.Single(acquired);
+            Assert.Equal(SensorModality.Radar, acquired[0].Modality);   // ⭐ CE-3060 — the kind rides the track
+        }
+
+        private static SensorEntryDto TestThermalKind(float range) => new()
+        {
+            Kind = SensorModality.Thermal, Template = TestRadarTemplate, SearchRadius = 400f,
+            Thermal = new ThermalSensorDto { Range = range },
+        };
+
+        /// <summary>
+        /// ⭐ CE-3060 — the unit's track carries the KINDS of the sensors holding it (OR), and a change of kinds on a target
+        /// still held is re-published as an Acquired (the Brain's track learns it; no Lost). 🔴 Before: no kind on the track,
+        /// and ThreatEvaluationSystem stamped every contact Visual. 📄 DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
+        /// </summary>
+        [Fact]
+        public void S7_TheTrackCarriesTheKindsHoldingIt_AndAKindChangeIsRepublished_CE3060()
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            registry.Register(TestRadarTemplate, new EqsQueryTemplate
+            {
+                BlueprintId   = EqsTemplateRegistry.BlueprintIdOf(TestRadarTemplate),
+                Generator     = new EntitiesInRadiusGenerator(),
+                FilterCheap   = new IEqsTest[] { new CapabilityRangeTest() },
+                MaxCandidates = 64,
+            }, "TestRadar");
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4244 });
+            _grid.Add(unit, new Vector2(10f, 10f));
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m
+
+            var template = new TkbTemplate("RadarAndThermal", 79);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { TestRadar(100f), TestThermalKind(10f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var radar   = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId);
+            var thermal = SensorChildFactory.Find(_world, unit, SensorChildFactory.FirstTkbPartId + 1);
+
+            var solver = new EqsSolverSystem();
+            var acquired = new List<SensorTrackStateEvent>();
+            var lost     = new List<SensorTrackStateEvent>();
+            void Step()
+            {
+                var view = (ISimulationView)_world;
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                foreach (var e in view.ReadEvents<SensorTrackStateEvent>())
+                    (e.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? acquired : lost).Add(e);
+                _world.Tick();
+            }
+
+            Step();
+            Assert.Equal(SensorModality.Radar, Assert.Single(acquired).Modality);   // only the radar reaches 50 m
+
+            UnitSensors.Configure(_world, thermal, TestThermalKind(100f));           // now both hold it
+            for (int i = 0; i < 5; i++) Step();
+            Assert.Equal(2, acquired.Count);
+            Assert.Equal(SensorModality.Radar | SensorModality.Thermal, acquired[1].Modality);
+
+            UnitSensors.Configure(_world, radar, TestRadar(10f));                    // the radar drops it; thermal keeps it
+            for (int i = 0; i < (int)Fdp.Toolkit.Perception.Systems.ContactHysteresis.TrackLostThresholdTicks + 3; i++) Step();
+            Assert.Empty(lost);
+            Assert.Equal(3, acquired.Count);
+            Assert.Equal(SensorModality.Thermal, acquired[2].Modality);
         }
 
         /// <summary>
@@ -941,6 +1007,130 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(chain.OrderBy(p => p).ToList(), sensed.OrderBy(p => p).ToList());
             }
             finally { DisposeEqsSingletons(w); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3061 — the THERMAL sensor sees a target only when its signature reaches the sensor's MinSignature: a cold
+        /// target at rest is not seen; the same target, heated by running (ThermalHeatSystem), is. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.2, §6 E–F.
+        /// </summary>
+        [Fact]
+        public void S7_TheThermalSensor_SeesATargetOnlyOnceItIsHotEnough_CE3061()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var strategy = new Fdp.Toolkit.Perception.LineOfSight.PlanarCircleLosStrategy(ColliderRadius);
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            ThermalPerception.Register(registry, grid.Grid, strategy);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4245 });   // a sensor child is solved only under a keyed unit
+            var template = new TkbTemplate("ThermalOnly", 80);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Thermal, Template = ThermalPerception.AssetGuid, SearchRadius = 200f,
+                Thermal = new ThermalSensorDto { Range = 100f, FieldOfViewDegrees = 360f, MinSignature = 0.5f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Thermal);
+            Assert.False(sensor.IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m, in range and in sight
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.ThermalState
+            {
+                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            var heat   = new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem();
+            unsafe bool Sensed()
+            {
+                if (!_world.HasComponent<SensorContactList>(sensor)) return false;
+                var list = _world.GetComponentRO<SensorContactList>(sensor);
+                for (int i = 0; i < list.Count; i++) if (list.EntityIds[i] == (long)enemy.PackedValue) return true;
+                return false;
+            }
+            void Solve()
+            {
+                new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                _world.Tick();
+            }
+
+            // ⚠ No finally/DisposeEqsSingletons here: this rail uses the fixture's _world, which Dispose() frees (a second free
+            //   crashed the test host — "double free or corruption").
+            {
+                Solve();
+                Assert.False(Sensed(), "a cold target (signature 0.3 < 0.5) is not seen");
+
+                heat.Execute(view, 0.1f);                                         // first position sample
+                for (int i = 0; i < 10; i++)                                      // 1 s running at 5 m/s, staying in range
+                {
+                    ref var t = ref _world.GetComponentRW<SimTransform>(enemy);
+                    t.Position += new Vector3(0f, (i % 2 == 0) ? 0.5f : -0.5f, 0f);
+                    heat.Execute(view, 0.1f);
+                }
+                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature >= 0.5f);
+                Solve();
+                Assert.True(Sensed(), $"the running target is hot enough to be seen (signature {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature}, " +
+                    $"buffer {(_world.HasComponent<EqsCognitiveBuffer>(sensor) ? _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count : -1)}, " +
+                    $"contacts {(_world.HasComponent<SensorContactList>(sensor) ? _world.GetComponentRO<SensorContactList>(sensor).Count : -1)}, " +
+                    $"suspended {_world.GetComponentRO<EqsSensor>(sensor).Suspended}, last schedule {solver.LastSchedule.Count})");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3062 — the ACOUSTIC sensor hears an enemy's sounds as ANONYMOUS estimates ("shot from the north", R-205): a
+        /// SoundContactEvent for the unit, inside the uncertainty radius of the truth, of the right kind — and NO track (the
+        /// source's identity never leaves the solver). A sound that does not carry that far is not heard. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.1, §6 B–D.
+        /// </summary>
+        [Fact]
+        public void S7_TheAcousticSensor_HearsAnonymousEstimates_NotIdentities_CE3062()
+        {
+            using var grid = new Fdp.Toolkit.Perception.Modules.PerceptionGridProvider();
+            var view = (ISimulationView)_world;
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            AcousticPerception.Register(registry, grid.Grid);
+
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = 4246 });
+            var template = new TkbTemplate("Ears", 81);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
+            {
+                Kind = SensorModality.Acoustic, Template = AcousticPerception.AssetGuid, SearchRadius = 400f,
+                Acoustic = new AcousticSensorDto { Range = 300f, UncertaintyPerMeter = 0.1f },
+            } } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            Assert.False(UnitSensors.Of(_world, unit, SensorModality.Acoustic).IsNull);
+
+            var enemy = CreateEnemyAt(new Vector2(10f, 90f));   // 80 m north
+            _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
+            {
+                MovingAudibleRange = 150f, FiringAudibleRange = 60f,   // movement carries 150 m, its shots only 60 m
+                CurrentMovingRange = 150f, ShotTimeLeft = 0.3f, ShotX = 10f, ShotY = 90f,
+            });
+
+            var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
+            new Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem(grid.Grid).Execute(view, 0.1f);
+            solver.Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+
+            var heard = view.ReadEvents<Fdp.Toolkit.Perception.Events.SoundContactEvent>().ToArray();
+            var one = Assert.Single(heard);                                   // the movement — the shot does not carry 80 m
+            Assert.Equal(unit, one.Observer);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Signatures.SoundKind.Movement, one.Kind);
+            Assert.InRange(one.Radius, 7.9f, 8.1f);                            // 0.1 × ~80 m
+            Assert.True(Vector2.Distance(new Vector2(one.X, one.Y), new Vector2(10f, 90f)) <= one.Radius + 0.01f,
+                "the estimate lies inside the uncertainty radius of the truth");
+            Assert.Empty(view.ReadEvents<Fdp.Toolkit.Perception.Events.SensorTrackStateEvent>().ToArray());   // ⛔ no identity
         }
 
         /// <summary>

@@ -25,8 +25,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>
         /// ⭐ <c>CE-2075</c> — how long after being hit a <see cref="RoeFire.ReturnFire"/> unit may fire. 5 s is the window the
         /// design's own SOP example uses (<c>DESIGN_Decision_Layer.md</c> §4.3, "was hit within 5 s"). ⚠ A constant until the
-        /// ROE carries its own window. ⚠ "Shot at" without a hit is not sensed today (no <see cref="Fdp.Toolkit.Perception.Events.SensorChange"/>
-        /// kind for a near miss), so ReturnFire answers hits only.
+        /// ROE carries its own window. ⭐ <c>CE-3064</c> (R-206): a near miss counts as being fired upon too.
         /// </summary>
         public const double ReturnFireWindowSeconds = 5.0;
 
@@ -37,8 +36,10 @@ namespace Fdp.Toolkit.Combat.Executors
             return RoeOf.Fire(world, shooter) switch
             {
                 RoeFire.HoldFire   => false,
+                // ⭐ CE-3064 (R-206) — fired upon = hit OR near-missed within the window; a heard shot alone is not.
                 RoeFire.ReturnFire => world.IsComponentTypeRegistered<RecentSenses>()
-                                      && RecentSensesOf.Within(world, shooter, Fdp.Toolkit.Perception.Events.SensorChange.Hit, ReturnFireWindowSeconds),
+                                      && (RecentSensesOf.Within(world, shooter, Fdp.Toolkit.Perception.Events.SensorChange.Hit, ReturnFireWindowSeconds)
+                                          || RecentSensesOf.Within(world, shooter, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, ReturnFireWindowSeconds)),
                 _                  => true,
             };
         }

@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Behavior.Shared
         public static readonly string[] SensorNames =
         {
             "Sensor.Acquired", "Sensor.Lost", "Sensor.TopChanged", "Sensor.FirstThreat", "Sensor.AllClear", "Sensor.Hit",
+            "Sensor.NearMiss",   // ⭐ CE-3064 — id 0xFF07
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>

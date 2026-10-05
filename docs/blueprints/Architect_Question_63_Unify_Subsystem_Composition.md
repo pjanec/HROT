@@ -1,5 +1,8 @@
 <!--STATUS
 state: LIVE
+known-rot: ⛔ 2026-10-05 — the editor's in-process kernel mode (SimHostMode, SwitchToExternal/InternalAsync) is RETIRED by R-204 (backend)
+  ("cgf==editor is what replaces it") and deleted by CE-3058. §2's "genuinely editor-only" row, §8's kernel-mode measurement
+  and §8.2 describe code that no longer exists.
 build-state: DESIGN — architect question, largest blast radius in the programme (EVERY host). Resolve WITH
   the user before any build (WHO-DESIGNS amendment: I analyse and suggest, the user approves).
 updated: 2026-08-27
@@ -250,7 +253,7 @@ _currentMode = SimHostMode.External;          // and the mirror image for Intern
 
 ⇒ ✅ **`Q63-C`'s unknown is discharged.** ⛔ The *"non-negotiable phase order"* is a bootstrap-time constraint and `SimHostMode` is a run-time concern; they do not intersect.
 
-### 8.2 🔴 A DEFECT fell out of the measurement — **`translatorPacks` is never supplied in production**
+### 8.2 🔴 A DEFECT fell out of the measurement — **`translatorPacks` is never supplied in production** ⛔ *MOOT — the switch and the parameter were deleted (R-204 (backend), CE-3058)*
 
 📐 `grep -rn translatorPacks` — **one supplier repo-wide, and it is a TEST harness** *(`EditorHarness.cs:270`)*.
 The production site *(`EditorSubsystem:1761`)* passes `logicPacks` and **omits it**; and the editor builds

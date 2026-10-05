@@ -351,7 +351,7 @@ namespace Fdp.Examples.UrbanCombat
             foreach (var sys in cognitiveModule.SimulationSystems)
                 _simModuleSystems.Add(sys);
             _simModuleSystems.Add(new DamageSystem());
-            _simModuleSystems.Add(new AudioPerceptionSystem());
+            // ⛔ CE-3062 — AudioPerceptionSystem retired (it had no stimulus producer).
 
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());

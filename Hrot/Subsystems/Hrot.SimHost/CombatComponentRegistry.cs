@@ -43,8 +43,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<PhysicsCollider>();
 
             // ── Perception pipeline events ────────────────────────────────────
-            world.RegisterEvent<AudioStimulusEvent>();
-            world.RegisterEvent<TargetHeardEvent>();
+            // ⛔ CE-3062 — AudioStimulusEvent / TargetHeardEvent retired (the acoustic sensor replaces them).
             world.RegisterEvent<SensorTrackStateEvent>(); 
 
             // Target seeding command (edit-1/EDIT1-E002)
@@ -56,6 +55,7 @@ namespace Hrot.SimHost
             // EventToEffectSystem (visual effects) and network egress translators.
             world.RegisterEvent<WeaponFireNotification>();
             world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<DamageAssessedEvent>();
             world.RegisterEvent<FireRequestEvent>();

@@ -64,6 +64,41 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Empty(Run(w, sys));
         }
 
+        /// <summary>⭐ CE-3060 — the track keeps the kinds the event carries, and the memory takes them (not an assumed Visual).</summary>
+        [Fact]
+        public unsafe void TheTrackKeepsItsKinds_AndTheMemoryTakesThem_CE3060()
+        {
+            var w = World();
+            var unit = w.CreateEntity();
+            var target = w.CreateEntity();
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+
+            w.Bus.Publish(new SensorTrackStateEvent { Observer = unit, Target = target, State = SensorTrackStatus.Acquired, Modality = SensorModality.Thermal });
+            w.Bus.SwapBuffers();
+            Run(w, new ActiveSensorTracksUpdateSystem());
+            Assert.Equal((byte)SensorModality.Thermal, w.GetComponentRO<ActiveSensorTracks>(unit).Modalities[0]);
+
+            Run(w, new ThreatEvaluationSystem());
+            var mem = w.GetComponentRO<TargetMemory>(unit);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((byte)SensorModality.Thermal, mem.Modalities[0]);   // ⇒ HasLineOfSight reads 0 for it
+        }
+
+        /// <summary>⭐ CE-3064 — a near miss (local or from the wire) becomes the unit's SensorChange.NearMiss, once per event.</summary>
+        [Fact]
+        public void ANearMiss_IsTheUnitsNearMissEdge_CE3064()
+        {
+            var w = World();
+            if (!w.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.NearMissEvent>()) w.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+            var unit = w.CreateEntity();
+            w.Bus.Publish(new Fdp.Toolkit.Combat.Events.NearMissEvent { Unit = unit, X = 1f, Y = 2f, IsRemote = true });
+            w.Bus.SwapBuffers();
+            var e = Assert.Single(Run(w, new NearMissSensingSystem()));
+            Assert.Equal(SensorChange.NearMiss, e.What);
+            Assert.Equal(unit, e.Unit);
+        }
+
         [Fact]
         public unsafe void TheMemory_PublishesFirstThreat_ThenAllClear_WhenItForgets()
         {

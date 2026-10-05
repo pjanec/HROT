@@ -1,5 +1,4 @@
 using System;
-using System.Numerics;
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -8,11 +7,12 @@ using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
-namespace Hrot.Network.NED.IG
+namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
-    /// Perception ingress translator: reads <see cref="AudioTargetDetected"/> DDS messages
-    /// and publishes <see cref="TargetHeardEvent"/> onto the local ECS event bus.
+    /// ⭐ <c>CE-3062</c> — the Brain's half of hearing: an <c>AudioTargetDetected</c> sample (an anonymous estimate) becomes a
+    /// <see cref="SoundContactEvent"/> on the unit that heard it, which the memory merges (<c>CE-3063</c>).
+    /// docs/DESIGN_Thermal_And_Acoustic_Sensing.md §3, §5.1. Replaces the IG ingress nothing read.
     /// </summary>
     public sealed class AudioTargetDetectedIngressTranslator : IDescriptorTranslator
     {
@@ -30,9 +30,7 @@ namespace Hrot.Network.NED.IG
         public AudioTargetDetectedIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant is not null
-                ? new DdsReader<AudioTargetDetected>(participant, DdsTopicName)
-                : null;
+            _reader    = participant is not null ? new DdsReader<AudioTargetDetected>(participant, DdsTopicName) : null;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -44,24 +42,18 @@ namespace Hrot.Network.NED.IG
                 if (!sample.IsValid) continue;
                 ReceivedSampleCount++;
                 var data = sample.Data;
-                if (!_entityMap.TryGetEntity(data.ListenerEntityId, out var listenerEntity)) continue;
-                cmd.PublishEvent(new TargetHeardEvent
+                if (!_entityMap.TryGetEntity(data.ListenerEntityId, out var listener) || !view.IsAlive(listener)) continue;
+                cmd.PublishEvent(new SoundContactEvent
                 {
-                    Listener          = listenerEntity,
-                    SourceEntityIndex = data.SourceEntityIndex,
-                    Origin            = new Vector3(data.OriginX, data.OriginY, data.OriginZ),
+                    Observer = listener, X = data.OriginX, Y = data.OriginY, Z = data.OriginZ, Radius = data.Radius, Kind = data.Kind,
                 });
             }
         }
 
-        /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }
 
-        /// <inheritdoc/>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        /// <inheritdoc/>
         public void Dispose(long networkEntityId) { }
     }
 }
-

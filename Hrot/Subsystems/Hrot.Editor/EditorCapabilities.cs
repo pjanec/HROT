@@ -206,12 +206,12 @@ public static class EditorCapabilities
         public string Key => CapabilityKeys.Perception + ":eqs";
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
-        /// <summary>⭐ CE-3038 — the module <see cref="Register"/> registered (it carries vision): the editor's
-        /// <c>SwitchToExternalAsync</c> uninstalls it with the rest of the local logic tier.</summary>
-        public Hrot.SimHost.Modules.EqsModule? RegisteredModule { get; private set; }
-
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => RegisteredModule = EqsSolverStartup.Register(context);
+            => EqsSolverStartup.Register(context);
+
+        public void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> input,
+                                    List<IEcsModuleSystem> simulation, List<IEcsModuleSystem> postSimulation)
+            => EqsSolverStartup.PopulateSystems(simulation);   // CE-3061
     }
 
 }

@@ -69,8 +69,13 @@ namespace Hrot.SimHost.Modules
             if (world == null) throw new ArgumentNullException(nameof(world));
             var module = new EqsModule(null, Fdp.Toolkit.Terrain.TerrainWorldSource.Live(world));
             var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(world);
-            Fdp.Toolkit.Perception.Sensors.VisualPerception.Register(registry, module.PerceptionGrid,
+            var sight = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world);
+            Fdp.Toolkit.Perception.Sensors.VisualPerception.Register(registry, module.PerceptionGrid, sight);
+            // ⭐ CE-3061 — thermal: vision's chain + the signature filter (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 F).
+            Fdp.Toolkit.Perception.Sensors.ThermalPerception.Register(registry, module.PerceptionGrid,
                 Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world));
+            // ⭐ CE-3062 — hearing: anonymous estimates of the sounds in range (§5.1).
+            Fdp.Toolkit.Perception.Sensors.AcousticPerception.Register(registry, module.PerceptionGrid);
             return module;
         }
 
