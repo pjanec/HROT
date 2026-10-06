@@ -295,6 +295,7 @@ U4 `ua-attack-approach` (Direct / Flank / FiringPosition behind a wall), `ua-dan
 
 | you might expect | today | tracked |
 |---|---|---|
+| a hurt soldier takes cover or falls back | ⛔ **today ONE non-lethal hit removes `CanMove` for good** (`HealthApplicationSystem.cs:112-119`), so TakeCover / FallBack are chosen but cannot move — measured on `ua-universal-soldier` (CE-3094): TakeCover won at 25 HP, position unchanged | [CE-3092](blueprints/Blueprint_Issues_Tracker.md) — awaiting a user decision |
 | **avoid** a threat by re-routing around it | ⛔ no re-routing. "Avoid" = take cover / fall back, then continue the same leg | — (not designed) |
 | a route as one order | ⛔ one objective per leg — use the mission plan (§4) | — |
 | a hurt soldier in the **open** finds safety | ⚠ the cover / retreat queries find nothing on open ground ⇒ no defensive posture there. Urban areas (walls) are fine | [CE-3090](blueprints/Blueprint_Issues_Tracker.md) |
