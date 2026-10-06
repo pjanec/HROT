@@ -516,7 +516,7 @@ it runs for every unit holding `TargetMemory` (`ThreatEvaluationSystem.cs:76`) �
 | switched on by | ① the TKB — a commander template lists the entry, default ON, `Disabled` to opt out, created at spawn on every node by `SensorChildFactory`; ② a behaviour — creates it (behaviour-owned, released when the run ends); ③ on/off at runtime = the `Suspended` override (`UnitSensors.SetEnabled`) |
 | solved on | the node holding the route (its `SolverNodeId`), the solver half of the kind (B1″) |
 | Brain half | the producer above, iterating sensor children of this kind on Brain-owned commanders; its processed buffer stays ON THE CHILD |
-| read by | ⭐ **exactly like any other kind** *(user, `2026-10-06`: "commander's behavior does not care about how the stuff is postprocessed and where it comes from. It just creates the sensor of certain kind and reads the stuff from that sensor's result storage")*: created with `EqsChildSensor.Ensure(world, self, site, config)` (as `HillAttackCommanderNodes.cs:271`, `EqsTacticsNodes.cs:267`), read with `UnitSensors.Of` / `TryGetResults` and the read nodes `SensorNodes.Sees` / `Read`. ⇒ the producer writes its processed answer into the child's STANDARD `EqsCognitiveBuffer`: one entry per area, next ahead FIRST, `Position` = the near-side handle, `Score` = the threat, `Flags` = the area kind — so `Sees(DangerArea, MinTopScore 0.5)` reads "the next area is threatened" and `Read` gives where to halt. The full descriptor (box, far handle, distance along the route) stays in the child's `DangerAreaCognitiveBuffer` for a maneuver that needs it. ⇒ **F6 is fixed by reading through the accessor**, not by moving the buffer |
+| read by | ⭐ **the same FORM as any kind, its OWN result type** *(user, `2026-10-06`: "different kind of sensors need different kind of result storage … we can do the union of course but we should not do a 'cast' to narrower result type … Is there any standard sensor at all?")*. 📐 There is a standard sensor FORM (child entity, kind, settings, TKB/behaviour/`Suspended` lifecycle, solver routing, `UnitSensors.Of`, `SensorChangedEvent`) and, today, ONE result family — the ranked scored list `EqsCognitiveBuffer` — only because every built kind (perception, EQS query sensors) IS a ranked list (`SensorChildFactory.cs:56` adds it to every child; `UnitSensors.TryGetResults` returns it). ⇒ the danger sensor is the first kind of a SECOND result family: the factory gives each child the result component of its kind's family (`DangerAreaCognitiveBuffer` here), a kind-neutral answer header (ready, count, stamp/age) is what generic nodes may read (has an answer, changed), and the CONTENT is read through a typed accessor/node per family (`UnitSensors.TryGetResults<T>(unit, kind, out T)`; a `ReadDangerArea` node beside `SensorNodes.Read`). ⛔ WITHDRAWN `2026-10-06`: writing the areas into the ranked buffer (near handle as position, threat as score) — a narrowing cast. ⇒ **F6 is fixed by reading through the accessor**, not by moving the buffer |
 
 📐 **Measured — how the Brain knows a route handle today: it does NOT, for a move.** The solver echoes a requested handle
 or allocates its own ≥ `0x40000000` (`PathfindingSolverSystem.cs:163`, `NavigationHandleAllocator.cs:13`); `MoveToExecutor`
@@ -544,7 +544,7 @@ lower range for Brains, upper for the solver.
 | | |
 |---|---|
 | cast | one commander (a rifleman, 2002) ordered south-west → north-east; one armed hostile east of the vertical road with sight of THAT crossing only, standing still |
-| the behaviour | a plain BTree using only generic sensor calls: `Ensure` a DangerArea sensor (route = own move) · `MoveTo` the destination · an `ObserverSelector` whose higher branch is `Sees(DangerArea, MinTopScore 0.5)` → `MoveTo(Read.TopPosition)` (the near handle) and hold while it holds |
+| the behaviour | a plain BTree: `Ensure` a DangerArea sensor (route = own move) · `MoveTo` the destination · an `ObserverSelector` whose higher branch is `ReadDangerArea(next, threat ≥ 0.5)` → `MoveTo(next.NearHandle)` and hold while it holds |
 | what must happen | the sensor lists the two crossings in route order · the watched one rates high, the other low · the commander HALTS at the watched crossing's near handle · the hostile removed (its Health set to 0 over HTTP) ⇒ the rating falls, the commander crosses and arrives · the unwatched crossing never stops it |
 | checked by | `scripts/utility-demo-check.py ua-danger-crossing` over HTTP + an in-process rail; a sensor read route (`GET /entities/{id}/sensors`: every sensor child, kind, answer) — 📐 none exists today |
 
@@ -553,9 +553,9 @@ lower range for Brains, upper for the solver.
 | the `DangerAlongRoute` query kind: route walk on the node holding the route (road crossings, open ground, crest, authored areas), its result topic (B1″) | backend |
 | the move's route handle on `NavigationStatus` (B4′) | backend |
 | the producer: rating from the unit's own memory (no squad) or the squad's pool, the standard-buffer summary + the typed buffer, `SensorChangedEvent` edges (B2, B3, F6) | backend |
-| `SensorModality.DangerArea` + `DangerAreaSensorDto`; ids 262/263 de-collided (QA-037) | backend |
+| `SensorModality.DangerArea` + `DangerAreaSensorDto`; the factory adds the result component of the kind's family; the typed accessor `UnitSensors.TryGetResults<T>`; ids 262/263 de-collided (QA-037) | backend |
 | the sensor read route + its MCP/skill entry | backend |
-| the demo BTree (generic nodes only; a create-sensor-of-kind node if none fits) | behaviors |
+| the demo BTree; the `ReadDangerArea` node (BTree / HSM / blueprint) | behaviors |
 | the scenario, the check, the runbook section | backend |
 
 This unblocks Squad Wiring **D3** (W6: run `CommanderUtilityTickSystem`). **D2** (a shipped squad-maneuver behaviour
