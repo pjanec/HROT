@@ -342,9 +342,12 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("WeaponRangeBandFit")]
         public static float WeaponRangeBandFit(in UtilityInputCtx ctx)
         {
-            if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
+            if (!TryGetWorldPosition(ctx.Repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos) ||
                 !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return RangeUnknown;
 
+            // ⭐ CE-3089 — a mount CHILD stands where its owner stands: it carries no SimTransform in production (CombatTkbTranslator
+            //   makes WeaponState + WeaponMountInfo + PartMetadata only), so the shooter's position is the owner's. Measured live: every
+            //   TOW child scored 0 here (RangeUnknown) — the test helper's children carried a SimTransform and hid it.
             float effectiveRange = MountRange(ctx.Repo, ctx.Self, ctx.Params.MountIndex);
             if (effectiveRange <= 0f) return RangeUnknown;
 
@@ -372,7 +375,7 @@ namespace Fdp.Toolkit.Utility
             float pen = mount?.Penetration ?? 0f, dmg = mount?.DamagePerHit ?? 0f;
 
             float armour = 0f;
-            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, ctx.Self, out var selfPos))
+            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos))
                 armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(
                     Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context),
                     Fdp.Toolkit.Combat.ArmorModel.FacingOf(repo.GetComponent<SimTransform>(ctx.Context), selfPos));

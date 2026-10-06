@@ -507,6 +507,9 @@ namespace Fdp.Toolkit.Tests
             _world.SetType(bradley, UtilityTestWorld.BradleyType);
             var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f,
                 ammo01: towAmmo / 7f, initialAmmunition: 7);
+            // ⭐ the PRODUCTION child: CombatTkbTranslator gives it no position (the helper's SimTransform hid the defect —
+            //   ✅ red-proof: without OwnerOf in the weapon inputs, every TOW scores 0 and the gun fires at the tank).
+            _world.Repo.RemoveComponent<SimTransform>(tow);
             var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, infantryAt, maxHealth: 100f);
             var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     tankAt,     maxHealth: 2500f);
             return (bradley, tow, infantry, tank);
