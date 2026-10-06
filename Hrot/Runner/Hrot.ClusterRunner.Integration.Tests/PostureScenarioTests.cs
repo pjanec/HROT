@@ -464,9 +464,33 @@ public sealed class PostureScenarioTests : IDisposable
         var postures = new System.Collections.Generic.List<Posture?>();
         var approaches = new System.Collections.Generic.List<Approach?>();
         var final = new Vector3(380, 200, 0);
+        // 📐 the exchange, measured where the bullets live: per shooter, every bullet's spawn and last-seen position.
+        var shotWorlds = new (string Name, EntityRepository World)[] { ("simhost", harness.SimHost.World!), ("cgf", cgf) };
+        var bullets = new System.Collections.Generic.Dictionary<(string, int, ushort), (string Shooter, Vector3 Spawn, Vector3 Last, int Frame)>();
+        string ShooterName(EntityRepository w, Entity e)
+        {
+            if (e.IsNull || !w.IsAlive(e)) return "?";
+            if (w.HasComponent<EntityInfo>(e)) return w.GetComponent<EntityInfo>(e).Name.ToString();
+            return w.HasComponent<NetworkIdentity>(e) ? $"net{w.GetComponent<NetworkIdentity>(e).Value}" : $"e{e.Index}";
+        }
+        void TrackBullets(int frame)
+        {
+            foreach (var (wn, w) in shotWorlds)
+            {
+                if (!w.IsComponentTypeRegistered<BallisticProjectile>()) continue;
+                foreach (var b in w.Query().With<BallisticProjectile>().With<SimTransform>().Build())
+                {
+                    var pos = w.GetComponent<SimTransform>(b).Position;
+                    var key = (wn, b.Index, b.Generation);
+                    if (bullets.TryGetValue(key, out var seen)) bullets[key] = seen with { Last = pos };
+                    else bullets[key] = (ShooterName(w, w.GetComponent<BallisticProjectile>(b).Shooter), pos, pos, frame);
+                }
+            }
+        }
         for (int f = 0; f < 24000; f++)
         {
             harness.PumpFrames(1);
+            TrackBullets(f);
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
             if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
             if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
@@ -476,5 +500,8 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine($"postures: {string.Join(" → ", postures)}");
         _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
         _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
+        foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
+            _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
+                string.Join(" ", g.Select(kv => $"f{kv.Value.Frame}:{kv.Value.Spawn.X:F0},{kv.Value.Spawn.Y:F0},{kv.Value.Spawn.Z:F1}→{kv.Value.Last.X:F0},{kv.Value.Last.Y:F0},{kv.Value.Last.Z:F1}")));
     }
 }
