@@ -1707,6 +1707,25 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read which posture a unit chose and the scores behind it"),
 
+        [("GET", "/entities/{networkId}/sensors")] = new RouteDoc(
+            Tool:    "get_entity_sensors",
+            Group:   "K — AI behavior traces",
+            Summary: "Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072).",
+            Returns: "{ count, sensors:[{partId, kind, family:Ranked|Area, templateId, epoch, suspended, origin:tkb|behaviour|other, answer:{ready, count, lastUpdateTick, top:[{entityId, score, position}]} | {ready, count, lastUpdateTick, areas:[{featureId, kind, threat, distanceAlongRoute, center, nearHandle, farHandle}]}, settings? }] }",
+            Hint:    "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — the answers land there. Example: get_entity_sensors({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "A Ranked sensor lists its top 5 results; an Area sensor (the danger-area sensor) lists its areas, the next one ahead first.",
+                "answer.ready is false until the first answer — an Area answer with count 0 and ready true means a clear route.",
+                "settings appear for an Area sensor: which route it watches (OwnMove | Handle | ToPoint) and its corridor.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "read which danger areas a unit sees ahead on its route, and how threatened each is"),
+
         [("GET", "/attributes/schema")] = new RouteDoc(
             Tool:    "get_attributes_schema",
             Group:   "L — Mutation / fault injection",

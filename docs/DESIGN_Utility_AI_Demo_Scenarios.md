@@ -821,3 +821,17 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 | behaviors merges `backend` | behaviors | ⭐ when `origin/backend` carries a commit titled `feat(CE-3072 B0)` — before H3/H4/H6; ⭐ again before its final commit |
 | backend merges `behaviors` | backend | at the start of every slice (rule 7), and ⭐ before B6 (needs H2, H5) and B7 (needs H7) |
 | the dispatch | backend → behaviors | [`HANDOFF_Danger_Crossing_Behaviors.md`](blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md) |
+
+#### 10.6a ✅ AS-BUILT — B0 (`CE-3072`) and B1 (`CE-3080`), `2026-10-06`
+
+| §10.6 said | as built | why |
+|---|---|---|
+| a NEW `DangerAreaSettings` component | ⭐ `DangerAreaSettings` is a plain struct carried by the EXISTING `DangerAreaSensor` component (`Settings` field) | reuse — the existing component already was "the standing query config on a sensor child"; no new id |
+| `UnitSensors.ReadRanked(kind) status` | `UnitSensors.ReadRanked(view, unit, kind, out EqsCognitiveBuffer) → SensorReadStatus` | as drawn |
+| `DangerAreaChildSensor.Ensure` "same owner stamp and site rules" | ⭐ the creation body is SHARED: `EqsChildSensor.Ensure<TResult>` adds the family's result component; the ranked `Ensure` is now `Ensure<EqsCognitiveBuffer>`; `Refresh` clears an area answer and never adds a ranked one | one implementation for every family (part ids, owner stamp, epoch rules) |
+| `DangerAreaCognitiveBuffer.LastUpdateTick` | took the old 4-byte pad slot; ⭐ `IsReady` is now `LastUpdateTick != 0` — an answer with NO areas is an answer (it used to be `Count > 0`, reading "no danger" as "not ready") | |
+| `SensorChange` +3 | ⭐ also `BuiltInHsmEvents.SensorNames` +3 (`Sensor.AreaAhead`, `Sensor.AreaThreatened`, `Sensor.AreaCleared`, ids `0xFF08`–`0xFF0A`) — caught by the rail `CE3040_TheBuiltInNames_MatchTheRuntimeEnum` | an HSM reacts to the danger sensor by these names |
+| (not in §10.6) | `SensorEntryDto.IsWellFormed` accepts `DangerArea` (no per-kind block; `DangerAreaSettings.Default`); `SensorChildFactory.EnsureTkbChild` gives a DangerArea TKB child the AREA result component; `PerceptionRoleComponentRegistry` registers `DangerAreaSensor` + `DangerAreaCognitiveBuffer` (CGF + SimHost) | the TKB activation route of §10.2 |
+| QA-037 | ⭐ `DangerAreaSensor` 262→271, `DangerAreaCognitiveBuffer` 263→272, `MovementModeIntent` 264→273 (a census of every `const int` 250–349 found them free); rail `QA037_TheSquadIds_CollideWithNoNavigationId` | they could not be registered in production while colliding with the navigation fakes |
+| B1 `CE-3080` | `ThreatDanger.Of` returns 0 when `ThreatDanger.IsDead` (Health ≤ 0); rail `CE3080_KilledArmedContact_IsNoDanger_NoThreat_NoStrength` (ContactDanger, ContactThreatLevel, EnemyStrengthRatio) | one place for every threat reader |
+| B4′ | `PathfindingResultMaterializationSystem`'s move branch writes `NavigationStatus.RouteHandle`; ⚠ `NavigationExecutionSystem` resets the status only on a NEW intent, so the handle survives (the plan lands a solver round-trip after the intent) — the live run (B6) confirms it on the wire | |

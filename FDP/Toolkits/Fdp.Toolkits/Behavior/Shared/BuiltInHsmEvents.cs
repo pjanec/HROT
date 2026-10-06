@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Behavior.Shared
         {
             "Sensor.Acquired", "Sensor.Lost", "Sensor.TopChanged", "Sensor.FirstThreat", "Sensor.AllClear", "Sensor.Hit",
             "Sensor.NearMiss",   // ⭐ CE-3064 — id 0xFF07
+            "Sensor.AreaAhead", "Sensor.AreaThreatened", "Sensor.AreaCleared",   // ⭐ CE-3072 B0 — ids 0xFF08–0xFF0A, the danger-area sensor
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>

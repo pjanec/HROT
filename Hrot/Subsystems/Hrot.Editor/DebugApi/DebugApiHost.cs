@@ -947,6 +947,15 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-3072 B5 — every sensor child of a unit, its kind / result family and its last answer in its own shape.
+            _routes.Add(new("GET", "/entities/{networkId}/sensors", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySensors(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));

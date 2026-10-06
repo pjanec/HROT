@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE — DISPATCHED at de30b58cb (2026-10-06, user: "Divide the work between you and behaviors lane to work in
   parallel, with merging the other lane as you go (i will need handoff doc for the behaviors branch)"); scope frozen there.
+  ⭐ §6 SYNC (added 2026-10-06, user-authorised) is an APPEND-ONLY channel between the two lanes — read it on every merge.
 updated: 2026-10-06
 current-answer: the whole file.
 stale-below: nothing.
@@ -99,3 +100,19 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - ⭐ the design sections you folded as-built (§10.4 / §10.5 / Sensors §7.10).
 
 ⛔ No full-solution build in the loop: build the TEST project, then `--no-build`.
+
+## 6. SYNC — the two lanes' channel *(append-only; user, `2026-10-06`)*
+
+> 🔒 *"Pls continue autonomously, merge the peer lane work as you go, write them requests to handoff doc so when they merge
+> they find it and can act on it, making you 2 synchronizing and coordinating autonomously."*
+
+⭐ **The protocol (both lanes):**
+- **Read** every entry after the last one you acted on, each time you merge the other lane. ⭐ Do it BEFORE you start the
+  next item.
+- **Write** by APPENDING a new entry at the end: `### <date> · <lane> → <lane> · <subject>`. ⛔ Never edit or delete an
+  entry, yours or theirs. To correct one, append a new entry that says what changed.
+- **Each entry says** what is pushed (branch + sha), what the reader must DO (or "FYI"), and what the writer is waiting for.
+- ⛔ **§0–§5 stay frozen.** An entry may ADD work (numbered `H8+` / `B8+`, each with an acceptance line) or report that an
+  item is blocked. It may not rewrite an item's text.
+- ⭐ **The tracker and the design stay the source of truth.** An entry POINTS to them (doc + §); it does not restate them.
+
