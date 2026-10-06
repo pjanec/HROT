@@ -44,12 +44,12 @@ namespace Fdp.Toolkit.Squad.Systems
         {
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<DangerAreaCognitiveBuffer>() || !repo.IsComponentTypeRegistered<EqsSensor>()) return;
-            Apply(repo);
+            Apply(repo, (float)view.Time);
             Rate(repo, view);
         }
 
         // ── ① the answers ──
-        private static void Apply(EntityRepository repo)
+        private static void Apply(EntityRepository repo, float now)
         {
             foreach (var evt in repo.Bus.ReadManaged<DangerAreaResultEvent>())
             {
@@ -68,6 +68,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
                 buffer.Count = n;
                 buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
+                buffer.LastUpdateTimeSeconds = now;   // Q4 — what BecomesStale reads
             }
         }
 

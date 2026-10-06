@@ -55,6 +55,7 @@ namespace Fdp.Toolkit.Squad.Systems
 
             sensor.Epoch++;
             buffer.LastUpdateTick = sensor.Epoch == 0 ? 1u : sensor.Epoch;   // CE-3072 B0: the answer stamp (0 = none)
+            buffer.LastUpdateTimeSeconds = (float)currentSimTime;            // CE-3072 Q4: what BecomesStale reads
             sensor.LastRefreshSimTime = currentSimTime;
         }
     }

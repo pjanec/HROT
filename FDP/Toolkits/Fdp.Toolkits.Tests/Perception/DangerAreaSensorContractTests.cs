@@ -62,11 +62,12 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.True(SensorKindRegistry.TryGet(SensorModality.Visual, out var visual));
             Assert.Equal(typeof(EqsCognitiveBuffer), visual.ResultComponent);
             Assert.Null(visual.EnsureMethod);
-            // Q1 — every result component carries the four members the generated read uses
+            // Q1 — every result component carries the five members the generated read and the header triggers use
             foreach (var t in new[] { typeof(DangerAreaCognitiveBuffer), typeof(EqsCognitiveBuffer) })
             {
                 Assert.NotNull(t.GetField("Count"));
                 Assert.NotNull(t.GetField("LastUpdateTick"));
+                Assert.NotNull(t.GetField("LastUpdateTimeSeconds"));   // Q4 — BecomesStale reads it, on every family
                 Assert.NotNull(t.GetProperty("IsReady"));
                 Assert.NotNull(t.GetMethod("GetSpanRO"));
             }
@@ -185,7 +186,7 @@ namespace Fdp.Toolkit.Tests.Perception
         public void CE3072_B0_Sizes()
         {
             Assert.Equal(DangerAreaDescriptor.PinnedSize, Unsafe.SizeOf<DangerAreaDescriptor>());
-            Assert.Equal(8 + 8 * DangerAreaDescriptor.PinnedSize, Unsafe.SizeOf<DangerAreaCognitiveBuffer>());
+            Assert.Equal(12 + 8 * DangerAreaDescriptor.PinnedSize, Unsafe.SizeOf<DangerAreaCognitiveBuffer>());   // Count + LastUpdateTick + LastUpdateTimeSeconds (Q4)
             Assert.True(Unsafe.SizeOf<DangerAreaCognitiveBuffer>() <= 1024);   // EntityCommandBuffer.MaxComponentSize
         }
 

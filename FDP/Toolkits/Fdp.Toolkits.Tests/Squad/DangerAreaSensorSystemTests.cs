@@ -129,10 +129,12 @@ namespace Fdp.Toolkit.Tests.Squad
         {
             var unit = Unit(new Vector3(100, 100, 0));
             var child = DangerAreaChildSensor.Ensure(_repo, unit, 1, DangerAreaSettings.ToPoint(new Vector3(100, 300, 0)));
+            _repo.SetSimulationTime(12.5f);
 
             var b = SolveAndTick(child, new DangerAreaSensorSystem());
 
             Assert.True(b.IsReady);
+            Assert.Equal(12.5f, b.LastUpdateTimeSeconds);               // Q4 — the stamp BecomesStale reads
             Assert.Equal(1, b.Count);                                   // (100,100) → (100,300) crosses Main Street once
             Assert.Equal(DangerAreaKind.StreetCrossing, b.GetSpanRO()[0].Kind);
             Assert.Equal(0f, b.GetSpanRO()[0].ThreatRating);           // nobody known ⇒ no threat
