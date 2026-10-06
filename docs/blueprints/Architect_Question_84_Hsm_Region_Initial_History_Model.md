@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-current-answer: §3 — leans A1, B1, C1, D1, E1; OPEN, awaiting the user. ⚠ §0 retracts a lean the user approved the same day.
+current-answer: §5 ANSWERS — B1, C1, D1 APPROVED 2026-10-06; A1 and E1 explained with §2a pictures, awaiting the user. ⚠ §0 retracts a lean the user approved earlier the same day.
 stale-below: nothing
 known-rot: none
 known-conflict: HSM_Editor_NodeEditor_Host_Design.md §6.2 (regions as editor objects holding several states) and §8.2
@@ -62,6 +62,62 @@ graph TD
 *What the picture shows:* there is no separate "region" object — a lane on the canvas **is** a child state of the parallel
 state, and "initial" and "history" are properties of a composite. One model, the kernel's.
 
+## 2a. One example, three pictures — `HsmCuratedBindingDemo`
+
+**① What the editor DRAWS today** — a parallel state split into two bands; band 0 holds two states in sequence.
+```mermaid
+flowchart LR
+    subgraph P["Parallel: Concurrent"]
+        direction LR
+        subgraph R0["band 0 (RegionNode 'RegionZero')"]
+            i0((" ")) --> W0[Worker] -->|done| D0[Done]
+        end
+        subgraph R1["band 1 (RegionNode 'RegionOne')"]
+            i1((" ")) --> W1[Worker]
+        end
+    end
+    classDef start fill:#e74c3c,stroke:#333
+    class i0,i1 start
+```
+
+**② What the runtime RUNS today** — the band objects never reach it; it sees three children of a parallel state,
+so it makes **three** regions and runs all three at once. `Done` is active from the start.
+```mermaid
+flowchart LR
+    subgraph P["Parallel: Concurrent"]
+        direction LR
+        subgraph K0["region 1"]
+            W0[Worker]
+        end
+        subgraph K1["region 2"]
+            D0[Done]
+        end
+        subgraph K2["region 3"]
+            W1[Worker]
+        end
+    end
+```
+
+**③ The lean (A1)** — each band IS a child state of the parallel state (`RegionZero`, `RegionOne`). The sequence lives
+INSIDE that child, with its own start circle. The editor draws exactly what the runtime runs.
+```mermaid
+flowchart LR
+    subgraph P["Parallel: Concurrent"]
+        direction LR
+        subgraph A["state 'RegionZero' (band 1)"]
+            i0((" ")) --> W0[Worker] -->|done| D0[Done]
+        end
+        subgraph B["state 'RegionOne' (band 2)"]
+            i1((" ")) --> W1[Worker]
+        end
+    end
+    classDef start fill:#e74c3c,stroke:#333
+    class i0,i1 start
+```
+*What the three pictures show:* ① and ③ look the same on the canvas — the difference is what a band IS. In ① it is an
+editor-only object the runtime never sees (hence ②); in ③ it is an ordinary state, so the runtime builds the same
+machine the author drew.
+
 ## 3. Sub-questions, each with a recommended answer
 
 ### A — What is a parallel region in the editor?
@@ -111,3 +167,13 @@ state, and "initial" and "history" are properties of a composite. One model, the
 | A1 + D1 | HSM-001, HSM-002, HSM-005 close; `HsmCuratedBindingDemo` shows what it runs |
 | B1 | HSM-003 closes; canvas slice S4 (drag the initial marker) can be built |
 | C1 + D1 | HSM-010 closes; two palette entries go |
+
+## 5. ANSWERS *(user, `2026-10-06`)*
+
+| sub-question | answer |
+|---|---|
+| **A** region model | ⏳ user asked for a picture — §2a added; awaiting the nod on A1 |
+| **B** who owns "initial" | ✅ **B1 approved** — 🔒 *"as long as it is in the end graphically represented as a circle with arrow pointing to the first state, approved."* 📐 Measured: `HsmInitialArrowRenderer.CollectInitialMarkers` (`:129`) draws the circle + arrow for composites and parallel bands but **skips the top-level start state** (the synthetic root has no body) ⇒ the build adds the root marker. Under A1 a parallel state has no start circle of its own (all children start); each band state has its own |
+| **C** history | ✅ **C1 approved** — *"OK"* |
+| **D** migration | ✅ **D1 approved** — *"OK"* |
+| **E** generic region commands | ⏳ user asked what "regions vs lanes" means — they are the SAME thing (one word too many in my summary): the shared canvas library draws a container split into **bands** and has add / remove / reorder-band commands that know nothing about HSM. E1 only says: keep those commands, and have the HSM editor turn "add band" into "add a child state to the parallel state" |
