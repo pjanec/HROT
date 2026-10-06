@@ -12,8 +12,8 @@
     "a3094000-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          200,
-          120,
+          300,
+          215,
           0
         ],
         "Rotation": [
@@ -48,7 +48,7 @@
               "taskId": "b3094000-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[215,178,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": "{\"advance\":{\"Objective\":[242,226,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -60,7 +60,7 @@
               "taskId": "b3094000-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[380,200,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": "{\"advance\":{\"Objective\":[200,330,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -85,8 +85,8 @@
     "a3094000-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          360,
-          205,
+          200,
+          290,
           0
         ],
         "Rotation": [
@@ -115,15 +115,15 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[230,200,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
         "Origin": "Superior"
       }
     },
     "a3094000-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          368,
-          195,
+          198,
+          305,
           0
         ],
         "Rotation": [
@@ -152,15 +152,15 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[230,200,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
         "Origin": "Superior"
       }
     },
     "a3094000-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          375,
           202,
+          320,
           0
         ],
         "Rotation": [
@@ -189,7 +189,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[230,200,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
         "Origin": "Superior"
       }
     }

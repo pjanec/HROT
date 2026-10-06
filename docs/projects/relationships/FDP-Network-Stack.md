@@ -372,10 +372,10 @@ NED descriptors are split across six IDL files (each maps to one C# file):
 
 | Topic Name              | QoS                                     | Direction              | Descriptor ID |
 |-------------------------|-----------------------------------------|------------------------|---------------|
-| `WeaponFireRequest`     | (inferred Reliable)                     | Brain -> Muscle        | 80 |
-| `WeaponFire`            | (inferred Reliable)                     | Muscle -> IG           | 81 |
-| `MunitionDetonation`    | (inferred Reliable)                     | Muscle -> IG / DAM     | 82 |
-| `EntityHitDamage`       | (inferred Reliable)                     | DAM -> Muscle          | 83 |
+| `WeaponFireRequest` | Reliable / Volatile / KeepAll (`CE-3095`) | Brain -> Muscle        | 80 |
+| `WeaponFire` | Reliable / Volatile / KeepAll (`CE-3095`) | Muscle -> IG           | 81 |
+| `MunitionDetonation` | Reliable / Volatile / KeepAll (`CE-3095`) | Muscle -> IG / DAM     | 82 |
+| `EntityHitDamage` | Reliable / Volatile / KeepAll (`CE-3095`) | DAM -> Muscle          | 83 |
 | `AudioTargetDetected`   | BestEffort / Volatile                   | Perception -> Brain (anonymous heard contact, `CE-3062`) | 84 |
 
 #### Mission Control Topics

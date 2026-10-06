@@ -470,7 +470,7 @@ public sealed class PostureScenarioTests : IDisposable
 
         var postures = new System.Collections.Generic.List<Posture?>();
         var approaches = new System.Collections.Generic.List<Approach?>();
-        var final = new Vector3(380, 200, 0);
+        var final = new Vector3(200, 330, 0);
         // 📐 the exchange, measured where the bullets live: per shooter, every bullet's spawn and last-seen position.
         var shotWorlds = new (string Name, EntityRepository World)[] { ("simhost", harness.SimHost.World!), ("cgf", cgf) };
         var bullets = new System.Collections.Generic.Dictionary<(string, int, ushort), (string Shooter, Vector3 Spawn, Vector3 Last, int Frame)>();
@@ -528,6 +528,18 @@ public sealed class PostureScenarioTests : IDisposable
             string auth = !e.IsNull && cgf.HasComponent<NetworkAuthority>(e) ? $"{cgf.GetComponent<NetworkAuthority>(e).PrimaryOwnerId}/{cgf.GetComponent<NetworkAuthority>(e).LocalNodeId}" : "none";
             string mapped = cgfMap != null && cgfMap.TryGetNetworkId(e, out long nid) ? $"net{nid}" : "UNMAPPED";
             _out.WriteLine($"cgf {n}: e{e.Index} authority(owner/local)={auth} hasAuthority={Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, e)} map={mapped}");
+        }
+        {
+            var shw = harness.SimHost.World!; var shm = harness.SimHost.App.TestHook_EntityMap;
+            foreach (var n in hostileNames.Prepend("Rifleman"))
+            {
+                var ce = ByName(cgf, n);
+                if (cgfMap == null || !cgfMap.TryGetNetworkId(ce, out long nid) || !shm.TryGetEntity(nid, out var se)) { _out.WriteLine($"simhost {n}: unmapped"); continue; }
+                string col = shw.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>() && shw.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se)
+                    ? $"radius={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).Radius} layer={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).CollisionLayer}" : "NO COLLIDER";
+                var sp = shw.HasComponent<SimTransform>(se) ? shw.GetComponent<SimTransform>(se).Position : default;
+                _out.WriteLine($"simhost {n}: e{se.Index} pos={sp.X:F1},{sp.Y:F1},{sp.Z:F1} collider {col}");
+            }
         }
         foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
             _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
