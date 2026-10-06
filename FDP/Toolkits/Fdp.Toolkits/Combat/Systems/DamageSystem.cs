@@ -79,23 +79,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 //    ⚠ Previously this called `repo.DestroyEntity(evt.HitEntity)`; that made downstream
                 //    `!IsAlive(target)` death-checks true by DELETING the target, conflating ECS
                 //    existence with combat-death. Removed.
-                if (health.Current <= 0f)
-                {
-                    // Strip CanMove + CanShoot so downstream systems (e.g. HsmDamageBridgeSystem)
-                    // detect the mobility/fire kill.
-                    if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
-                    {
-                        ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
-                        caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
-                    }
-                }
-                else if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
-                {
-                    // Non-lethal hit: strip CanMove so HsmDamageBridgeSystem can detect
-                    // the mobility-kill transition (set->cleared) and inject MobilityLost.
-                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
-                }
+                // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (shared with HealthApplicationSystem).
+                Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, evt.HitEntity, in health);
             }
         }
     }

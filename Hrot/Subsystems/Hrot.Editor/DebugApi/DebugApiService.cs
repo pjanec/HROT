@@ -1094,6 +1094,16 @@ namespace Hrot.Editor.DebugApi
             catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3077</c> — whether the host is in preview, for the step route, or <see langword="null"/> on a host with no
+        /// preview controller to ask. ⛔ Mirrors <see cref="IsPausedOrNull"/>: a host that cannot answer degrades.
+        /// </summary>
+        public bool? InPreviewOrNull()
+        {
+            try { return _preview.IsInPreviewMode; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
+
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)
         {

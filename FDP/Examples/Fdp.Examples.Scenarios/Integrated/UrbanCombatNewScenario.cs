@@ -398,6 +398,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // FDP.Toolkit.Combat
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<BallisticProjectile>();
 

@@ -54,6 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </para>
         /// </summary>
         private readonly Dictionary<long, (float Current, float Max)> _lastPublished = new();
+        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => OrdinalValue;
@@ -78,6 +79,10 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            // ⭐ CE-3076 (CE-2101's rule) — send-on-change keyed by net id: a reused id whose health equals the last world's
+            //   final value (e.g. 100/100) would never be published, and receivers would keep their TKB-seeded Max.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _lastPublished.Clear();
+
             var query = view.Query()
                 .With<Health>()
                 .With<NetworkIdentity>()

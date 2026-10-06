@@ -40,6 +40,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
         private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
+        private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         // What was last written per sensor entity. ⭐ A reliable topic that publishes ONCE never
         // carries a later parameter change (epoch bump, new area) to the Muscle — the old
@@ -81,6 +82,18 @@ namespace Hrot.Network.NED.SimHost
         public void ScanAndPublish(ISimulationView view)
         {
             if (_writer is null) return;
+
+            // ⭐ CE-3076 (CE-2101's rule, DESIGN_Cluster_Load_Phase §8) — the per-world bookkeeping goes at the world boundary:
+            //   ids restart at 1000, so the next world's (parent, part) keys are the last world's. 🔴 Measured: a stale
+            //   _recordedSolver skipped RecordSolver for the new commander ⇒ its area query was never answered. ⭐ Kept: _onWire
+            //   (what DDS still holds IS the wire, across worlds — the orphan sweep ends the last world's instances) and the
+            //   entity-keyed _published/_parentOf (the gone pass below ends them).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                _recordedSolver.Clear();
+                _solverOf.Clear();
+                _suspendedByUs.Clear();
+            }
 
             // Query all entities with EqsSensor regardless of NetworkIdentity:
             // child-entity sensors identify themselves via PartMetadata.

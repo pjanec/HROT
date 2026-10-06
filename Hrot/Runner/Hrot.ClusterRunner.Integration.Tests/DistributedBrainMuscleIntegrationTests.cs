@@ -120,7 +120,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
     ///     <c>DamageAssessedEgressTranslator</c> broadcasts <c>EntityHitDamage</c> over DDS.</item>
     ///   <item><c>EntityHitDamageIngressTranslator</c> (Brain) delivers the event to CGF;
     ///     <c>HealthApplicationSystem</c> applies the damage on the authoritative
-    ///     <see cref="Health"/> component and strips <see cref="ActorCapabilities.CanMove"/>.</item>
+    ///     <see cref="Health"/> component (CanMove is kept: the M1 does not opt into a mobility kill — CE-3092).</item>
     /// </list>
     /// </para>
     /// <para>⭐ <c>CE-523</c> (ownership build S8): run for BOTH creators. When SimHost creates the tank it stays the
@@ -187,12 +187,13 @@ public sealed class DistributedBrainMuscleIntegrationTests
         Assert.True(brainTookDamage,
             "CGF Brain Health must decrease after DetonationNotification injected on SimHost.");
 
-        // Verify ActorCapabilityState.CanMove was stripped by HealthApplicationSystem.
+        // CE-3092: a non-lethal hit strips CanMove only on a platform whose TKB opts into a mobility kill
+        //   (CombatPlatformDefDto.MobilityKillBelowFraction). The M1 Abrams does not, so it keeps moving.
         if (harness.Cgf.World!.HasComponent<ActorCapabilityState>(cgfEntityHandle))
         {
             var caps = harness.Cgf.World.GetComponent<ActorCapabilityState>(cgfEntityHandle);
-            Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanMove),
-                "CanMove must be stripped by HealthApplicationSystem on a non-lethal hit.");
+            Assert.True(caps.Capabilities.HasFlag(ActorCapabilities.CanMove),
+                "CE-3092: a non-lethal hit on a platform with no mobility-kill opt-in must keep CanMove.");
         }
 
         // ⭐ S8 — the damage is applied ONCE (only the Health claimant applies it), and SimHost's replica follows CGF's

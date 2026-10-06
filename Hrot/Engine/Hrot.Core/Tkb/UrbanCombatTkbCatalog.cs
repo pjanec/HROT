@@ -129,7 +129,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f });   // CE-3092 — the APC's mobility kill (PACK-M002)
                 t.AddDescriptor(Sounds(ApcEngineRange, SoundSourceClass.WheeledEngine));
                 tkb.Register(t);
             }

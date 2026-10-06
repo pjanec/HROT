@@ -20,6 +20,8 @@ known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HE
   answerable there. Step 16 of the end-to-end lifecycle below is the capability that a capability-only
   rule would cost.
 related-designs:
+  - ../packs-1/DESIGN.md — §2.B owns WHEN CanMove is stripped (0 HP and any non-lethal hit); §1.1a here owns what losing
+    it does to a running move (CE-3091).
   - ../navig-2/Navigation_Design_v2_0.md — owns the Brain→Muscle NavigationIntent path; its §3.1 as-built (CE-3026) is
     where §1.1's OnExit STOP is carried across the wire on a cluster.
   - ../../blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — ADDS an outcome (Succeeded/Failed/Faulted) to §1.0a's
@@ -252,7 +254,21 @@ if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.Instance
 }
 ```
 
-### 1.2 MissionDirectorSystem — End-of-Mission Behavior Clear
+### 1.1a ✅ AS-BUILT `2026-10-06` — `CE-3091`: LOSING `CanMove` ALSO RUNS `OnExit`
+
+⛔ **A second hole in the same guarantee.** `LocomotionDispatcherSystem`'s `CanMove` guard did `continue` **before** the
+executor lifecycle block, so when a unit lost `CanMove` mid-move (`HealthApplicationSystem` strips it at 0 HP, and on any
+non-lethal hit — `packs-1/DESIGN.md` §2.B) `MoveToExecutor.OnExit` never ran ⇒ `NavigationIntent` kept its path and the
+muscle drove it. 📌 Measured live on `ua-attack-approach` (U4): the hostile was at Health 0 within 5 s and walked ~80 m
+to its destination over the next 60 s.
+
+⭐ **Fix:** on a `CanMove`-less entity the dispatcher runs the **running** executor's `OnExit` once (the STOP intent),
+clears `_previousAction`, sets `DispatchedInstanceId = ActionInstanceId`, and fails the channel. Rail:
+`LocomotionDispatcherTests.CE3091_LosingCanMove_EndsTheRunningMove_OnceAndOnlyOnce`.
+
+⚠ **Consequence, not decided here:** because §2.B of `packs-1` strips `CanMove` on **every** non-lethal hit (it was
+written for the UrbanCombat APC mobility kill), any unit hit once now really stops — before this fix the strip was
+silently inert for a move already running. That policy question is `CE-3092` in the tracker (a user decision); measured: it turns the U4 twin `CE3084_U4` red — the hostile is hit at spawn and now stops in sight.
 
 **Problem:** When `MissionDirectorSystem` detects that the trigger has fired and `CurrentPhase >= PhaseCount`, it simply `continue`s without touching `BehaviorState`. The `ActiveBehaviorHash` permanently retains the last executed behavior (e.g. `MoveToLocation_BT`), keeping the muscle layer permanently stimulated.
 

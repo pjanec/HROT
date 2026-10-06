@@ -1,0 +1,197 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a3094000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7801
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3094000-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[242,226,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b3094000-0000-4000-8000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[200,330,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          200,
+          290,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7802
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          198,
+          305,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7803
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Origin": "Superior"
+      }
+    },
+    "a3094000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          202,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7804
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

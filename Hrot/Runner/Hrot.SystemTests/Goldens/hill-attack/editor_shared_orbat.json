@@ -21,7 +21,7 @@
     {
       "canAcceptSubordinates": false,
       "depth": 1,
-      "entityId": 2,
+      "entityId": 4,
       "hasChildren": false,
       "isPendingDelete": false,
       "name": "Tank Platoon (Auto Spawn)-2"
@@ -29,7 +29,7 @@
     {
       "canAcceptSubordinates": false,
       "depth": 1,
-      "entityId": 3,
+      "entityId": 7,
       "hasChildren": false,
       "isPendingDelete": false,
       "name": "Tank Platoon (Auto Spawn)-3"
@@ -37,7 +37,7 @@
     {
       "canAcceptSubordinates": false,
       "depth": 1,
-      "entityId": 4,
+      "entityId": 10,
       "hasChildren": false,
       "isPendingDelete": false,
       "name": "Tank Platoon (Auto Spawn)-4"
@@ -45,7 +45,7 @@
     {
       "canAcceptSubordinates": false,
       "depth": 0,
-      "entityId": 6,
+      "entityId": 14,
       "hasChildren": false,
       "isPendingDelete": false,
       "name": "M1 Abrams"
@@ -53,7 +53,7 @@
     {
       "canAcceptSubordinates": false,
       "depth": 0,
-      "entityId": 7,
+      "entityId": 17,
       "hasChildren": false,
       "isPendingDelete": false,
       "name": "M1 Abrams"

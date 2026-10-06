@@ -119,7 +119,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
             });
             t.AddDescriptor(new CombatPlatformDefDto
             {
-                MaxHealth = UrbanCombatConstants.ApcMaxHealth
+                MaxHealth                 = UrbanCombatConstants.ApcMaxHealth,
+                MobilityKillBelowFraction = 1f,   // CE-3092 — the APC's mobility kill (PACK-M002): any hit stops it
             });
             tkb.Register(t);
         }

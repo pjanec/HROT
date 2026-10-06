@@ -349,8 +349,11 @@ public sealed class DeterminismRails
         return await MappingOf(ed);
     }
 
+    // ⭐ CE-3077 — the AUTHORED ids only: a derived part (a TKB sensor child — vision and hearing per sensing unit, CE-3036 /
+    //   CE-3062) has no network id and maps as "0". ⛔ Counting it put "0" first and broke "the block starts at 1000"; the
+    //   parts were hidden behind the editor step 504 until CE-3077.
     private static string[] IdsOf(string mapping)
-        => mapping.Split('\n').Select(r => r.Split('\t')[0]).ToArray();
+        => mapping.Split('\n').Select(r => r.Split('\t')[0]).Where(id => id.Length > 0 && id != "0").ToArray();
 
     private static IEnumerable<string> ComponentsOf(string mapping, string id)
     {

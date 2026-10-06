@@ -345,6 +345,48 @@ namespace Fdp.ModuleHost.Tests
             Assert.True(Volatile.Read(ref finished) >= 3, $"the module must run again after each abandoned run ends (finished {finished})");
         }
 
+        /// <summary>
+        /// ⭐ CE-3077 — the kernel's TEARDOWN must not free the snapshot a still-running zombie reads. 🔴 Before: the park
+        /// (CE-3066) nulls <c>CurrentTask</c>, so <c>Dispose</c> waited on nothing and disposed every provider — and an
+        /// <c>OnDemandProvider</c> disposes its LEASED snapshots too (measured: the editor died with AccessViolation in
+        /// <c>EntityIndex.IsAlive</c> from <c>VisionBroadphase.Rebuild</c> at teardown).
+        /// </summary>
+        [Fact(Timeout = 15000)]
+        public async Task Resilience_TeardownUnderARunningZombie_DoesNotFreeItsSnapshot_CE3077()
+        {
+            using var gate = new ManualResetEventSlim(false);
+            Fdp.Core.EntityRepository? seen = null;
+            var slow = new TestModule
+            {
+                Name = "ZombieAtTeardown",
+                TickAction = (view, dt) =>
+                {
+                    seen = view as Fdp.Core.EntityRepository;
+                    gate.Wait(10_000);
+                },
+                MaxExpectedRuntimeMs = 50,
+                FailureThreshold = 1000,
+            };
+
+            var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
+            kernel.RegisterModule(slow);
+            kernel.InitializeForTest();
+
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 500)          // dispatch, then time out ⇒ the run becomes a zombie
+            {
+                kernel.Update(0.016f);
+                await Task.Delay(10);
+            }
+            Assert.NotNull(seen);
+
+            kernel.Dispose();                              // the zombie is still blocked on the gate
+
+            bool freedUnderIt = seen!.IsDisposed;
+            gate.Set();                                    // let it end
+            Assert.False(freedUnderIt, "the kernel's Dispose freed the snapshot a still-running zombie was reading");
+        }
+
         [Fact(Timeout = 5000)]
         public async Task Resilience_ModuleCrashesAndTimesOut_OnlyCountsOnce()
         {

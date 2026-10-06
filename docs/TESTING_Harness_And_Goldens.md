@@ -134,7 +134,7 @@ that divergence is the bug conformance exists to catch.
 | your change | you do, in the same batch |
 |---|---|
 | new/changed **behaviour** | add or update the **assertion** *(or the scenario case)* |
-| new/changed **panel content** | regenerate the affected **golden** *(`UPDATE_GOLDENS=1`)* and **read the diff** in your report |
+| new/changed **panel content** | regenerate the affected **golden** and **read the diff** in your report — ⚠ the switch is **`PANEL_GOLDEN_CAPTURE=1`** for the system-suite panel goldens (`PanelGoldenRails.cs:42`); ⛔ `UPDATE_GOLDENS=1` is read by nothing there and silently re-runs the red (measured `2026-10-06`, `CE-3077`) |
 | new **panel** | it publishes in some perspective ⇒ add it to that perspective's golden |
 | new **capability** *(endpoint/feature)* | add one **smoke case** to the ladder |
 

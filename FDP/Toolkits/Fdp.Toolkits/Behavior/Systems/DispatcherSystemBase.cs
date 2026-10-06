@@ -35,6 +35,20 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
         }
 
+        private int _worldEpoch;
+
+        /// <summary>
+        /// ⭐ <c>CE-3076</c> (<c>CE-2101</c>'s rule, <c>DESIGN_Cluster_Load_Phase.md</c> §8) — <see cref="_previousAction"/> is indexed
+        /// by <c>entity.Index</c>, which the world boundary REUSES (every entity is destroyed; the next world's land on the freed
+        /// indices). ⛔ Without this the first dispatch of a new entity ran the LAST world's action's <c>OnExit</c> on it. Call
+        /// first in <see cref="Execute"/>.
+        /// </summary>
+        protected void ForgetLastWorld(ISimulationView view)
+        {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+                Array.Clear(_previousAction);
+        }
+
         /// <inheritdoc/>
         public abstract void Execute(ISimulationView view, float deltaTime);
     }

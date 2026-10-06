@@ -1291,9 +1291,13 @@ namespace Fdp.ModuleHost
                 ? _activeTopology.Modules.Concat(_drainingModules)
                 : _modules.AsEnumerable();
 
+            // ⭐ CE-3077 — a timed-out run parked as a ZOMBIE (CE-3066) is in flight too: the park nulls CurrentTask, so
+            //   this wait used to skip it and the providers below freed the snapshot it was still reading
+            //   (AccessViolation in EntityIndex.IsAlive from VisionBroadphase.Rebuild, at editor teardown).
             var pendingTasks = allModules
-                .Where(m => m.CurrentTask != null && !m.CurrentTask.IsCompleted)
-                .Select(m => m.CurrentTask!)
+                .SelectMany(m => new[] { m.CurrentTask, m.ZombieTask })
+                .Where(t => t != null && !t.IsCompleted)
+                .Select(t => t!)
                 .ToArray();
             
             if (pendingTasks.Length > 0)
@@ -1308,6 +1312,19 @@ namespace Fdp.ModuleHost
 
             // Dispose providers — deduplicate to avoid double-dispose on shared providers
             var disposedProviders = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            // ⭐ CE-3077 — a zombie STILL running after the wait keeps its provider (and the snapshot it reads) alive: leaking
+            //   one provider at teardown is safe, freeing native memory under a running reader is a process crash.
+            foreach (var entry in allModules)
+            {
+                if (entry.ZombieTask is { IsCompleted: false })
+                {
+                    if (entry.Provider != null)       disposedProviders.Add(entry.Provider);
+                    if (entry.ZombieProvider != null) disposedProviders.Add(entry.ZombieProvider);
+                    Console.Error.WriteLine(
+                        $"[ModuleHost][TIMEOUT] Module '{entry.Module.Name}': the abandoned run is still executing at shutdown; " +
+                        "its snapshot provider is left undisposed rather than freed under it.");
+                }
+            }
             foreach (var entry in allModules)
             {
                 if (entry.Provider is IDisposable disposable && disposedProviders.Add(entry.Provider))

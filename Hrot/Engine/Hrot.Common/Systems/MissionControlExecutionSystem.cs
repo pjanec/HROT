@@ -70,6 +70,7 @@ namespace Hrot.Common.Systems
         private readonly Dictionary<long, long> _missionVersions = new();
         private readonly Dictionary<long, List<Guid>> _taskOrder = new();
         private readonly Queue<(MissionControlIntent Intent, int FramesLeft)> _retryQueue = new();
+        private int _worldEpoch;   // ⭐ CE-3076 — per-id state belongs to ONE world (WorldEpoch, CE-2101)
 
         /// <summary>Production constructor — creates from ambient services.</summary>
         public MissionControlExecutionSystem(
@@ -88,6 +89,17 @@ namespace Hrot.Common.Systems
                 throw new InvalidOperationException(
                     $"{nameof(MissionControlExecutionSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // ⭐ CE-3076 (CE-2101's rule, DESIGN_Cluster_Load_Phase §8) — versions, task order and retries are keyed by net id,
+            //   which the world boundary REUSES: a stale version would let a draft built on the last world's mission pass the
+            //   version check, a stale task order would resolve CMD_JUMP_TO_TASK against the last world's list, and a queued
+            //   retry would land on the new entity carrying that id. Only this system writes them, so clearing here is safe.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                _missionVersions.Clear();
+                _taskOrder.Clear();
+                _retryQueue.Clear();
+            }
 
             // -- 1. Retry intents whose entity wasn't mapped yet --────────────
             int retryCount = _retryQueue.Count;

@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Combat.Translators
         public IEnumerable<Type> GetProducedComponents()
         {
             yield return typeof(Health);
+            yield return typeof(MobilityKill);   // CE-3092 — only on types that opt in
             yield return typeof(PhysicsCollider);
             yield return typeof(WeaponState);
             yield return typeof(WeaponMountInfo);
@@ -56,6 +57,11 @@ namespace Fdp.Toolkit.Combat.Translators
                         Current = platformDef.MaxHealth,
                         Max     = platformDef.MaxHealth
                     });
+
+                // ⭐ CE-3092 — a type that a non-lethal hit immobilises says so; absent = only death stops it.
+                if (platformDef.MobilityKillBelowFraction > 0f && repo.IsComponentTypeRegistered<MobilityKill>()
+                    && !repo.HasComponent<MobilityKill>(entity))
+                    repo.AddComponent(entity, new MobilityKill { BelowFraction = MathF.Min(1f, platformDef.MobilityKillBelowFraction) });
 
                 // Additive collider: OR combat layer onto vehicle collider if present,
                 // or stamp a fresh collider if the kinematics translator did not run.

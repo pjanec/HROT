@@ -1,3 +1,15 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06 (CE-3092 as-built: the non-lethal strip is a TKB opt-in)
+current-answer: the pack layout and §2.B are BUILT; §2.B's "CE-3092 as-built" block is the CURRENT rule for when
+  CanMove is stripped (death always; a non-lethal hit only on a platform that opts into a mobility kill).
+known-rot: none known. ⛔ SUPERSEDED: §2.B step 1's "if Health.Current < Health.Max strip CanMove" for EVERY unit —
+  it froze infantry at the first graze once CE-3091 made the strip stop a running move (CE-3092,
+  docs/blueprints/Blueprint_Issues_Tracker.md).
+related-designs:
+  - ../brain-death/BD1-DESIGN.md — owns what stopping a running action means (§1.1 OnExit guarantee, §1.1a CE-3091:
+    losing CanMove runs the running executor's OnExit). This document owns WHEN CanMove is stripped.
+-->
 # DESIGN.md — Logic Packs & Translator Packs Refactoring
 
 ## Background and Vision
@@ -154,6 +166,50 @@ Steps:
    `HeadlessDemoApp.cs`.
 4. Verify the `UrbanCombatNewScenario` integration test (`LatchApcHalted`) still passes via the
    new pure-Brain chain.
+
+#### ⭐ CE-3092 as-built (`2026-10-06`) — the non-lethal strip is the PLATFORM's opt-in
+
+⛔ **SUPERSEDED: step 1 above as written** ("HP < Max ⇒ strip `CanMove`" for every entity). It was written for the
+UrbanCombat APC and ran for every unit; once `CE-3091` made losing `CanMove` end the running move, one rifle round
+froze an infantryman for good — he could no longer Flee or TakeCover (both are moves). 🔒 User ruling: *"Yes,
+approved"* to the lean below.
+
+| hit | `CanMove` | `CanShoot` |
+|---|---|---|
+| lethal (`Current <= 0`) | stripped — **every** unit | stripped |
+| non-lethal, platform has **no** `MobilityKill` | ✅ kept | kept |
+| non-lethal, `MobilityKill.BelowFraction = f`, `Current < Max·f` | stripped *(mobility kill)* | kept |
+
+```mermaid
+classDiagram
+    class CombatPlatformDefDto {
+        +float MobilityKillBelowFraction  "0 = death only (default), 1 = any hit"
+    }
+    class CombatTkbTranslator {
+        stamps MobilityKill when the fraction is > 0
+    }
+    class MobilityKill {
+        <<component 334>>
+        +float BelowFraction
+    }
+    class CombatLife {
+        +ApplyHitCapabilities(repo, entity, health)$
+    }
+    class HealthApplicationSystem
+    class DamageSystem
+    CombatPlatformDefDto ..> CombatTkbTranslator : read by
+    CombatTkbTranslator ..> MobilityKill : adds
+    HealthApplicationSystem --> CombatLife : after the HP write
+    DamageSystem --> CombatLife : after the HP write
+    CombatLife ..> MobilityKill : reads (optional)
+```
+
+*What the picture shows that prose hid:* the two damage paths share ONE capability rule (`CombatLife.ApplyHitCapabilities`,
+`FDP/Toolkits/Fdp.Toolkits/Combat/CombatLife.cs`) instead of two copies, and the opt-in arrives the same way `Health`
+does — from the TKB through the combat translator. Opted in: the APC in `UrbanCombatTkbCatalog` and `DemoTkbSetup`
+(fraction 1 = any hit, the original PACK-M002 intent), and the hand-built APC of `ComponentDamageScenario`.
+`MobilityKill` is registered in `HrotSharedComponentRegistry` beside `Health`. Rails: `HealthApplicationSystemTests`
+(`*_CE3092`), `DistributedBrainMuscleIntegrationTests` (the M1 keeps `CanMove` after a non-lethal hit).
 
 ---
 

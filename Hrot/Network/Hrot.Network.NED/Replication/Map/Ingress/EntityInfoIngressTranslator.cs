@@ -50,6 +50,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // Fired by NetworkEntityMap when a new entity is registered. Used to drain both pending queues.
         private readonly List<long> _recentlyRegistered = new();
+        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -82,6 +83,10 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            // ⭐ CE-3076 (CE-2101's rule, as MapRouteIngressTranslator does) — deferred subordinate assignments belong to the last
+            //   world: drained against a reused id they would assign a dead handle, or a new unit under the wrong commander.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _pendingSubordinates.Clear(); _pendingUnspawnedSubordinates.Clear(); _recentlyRegistered.Clear(); }
+
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

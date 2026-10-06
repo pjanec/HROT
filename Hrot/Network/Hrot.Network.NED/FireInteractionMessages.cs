@@ -24,7 +24,11 @@ namespace Hrot.NED.Messages
     /// re-emits a local <see cref="global::Fdp.Toolkit.Combat.Events.WeaponFireIntent"/>
     /// on the Muscle's ECS event bus.
     /// </summary>
+    // ⭐ CE-3095 — events, so Reliable + KeepAll: with no [DdsQos] the reader kept ONE sample, and two shots landing in the same
+    //   take overwrote each other. 📐 Measured on WeaponFireRequest (ua-universal-soldier): the rifleman's shot and a hostile's,
+    //   both at f5008 — his never reached SimHost. The other fire-pipeline events share the same failure mode.
     [DdsTopic("WeaponFireRequest")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct WeaponFireRequest
     {
         /// <summary>Network entity ID of the firing entity.</summary>
@@ -42,6 +46,7 @@ namespace Hrot.NED.Messages
     /// Consumed by the IG to trigger a muzzle-flash visual effect.
     /// </summary>
     [DdsTopic("WeaponFire")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct WeaponFire
     {
         /// <summary>Network entity ID of the firing entity.</summary>
@@ -81,6 +86,7 @@ namespace Hrot.NED.Messages
     /// Consumed by the IG (explosion particle) and the Damage Assessment Module.
     /// </summary>
     [DdsTopic("MunitionDetonation")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct MunitionDetonation
     {
         /// <summary>Network entity ID of the shooter.</summary>
@@ -105,6 +111,7 @@ namespace Hrot.NED.Messages
     /// entity's <c>Health</c> component upon receiving this message.
     /// </summary>
     [DdsTopic("EntityHitDamage")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct EntityHitDamage
     {
         /// <summary>Network entity ID of the struck entity.</summary>

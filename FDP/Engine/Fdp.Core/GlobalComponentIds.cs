@@ -659,5 +659,10 @@
         /// <c>GET /entities/{id}/utility</c> (<c>CE-3069</c> G2). 333 is free by a census of every <c>*Ids*.cs</c> and literal
         /// <c>[ComponentId(333)]</c>, <c>2026-10-05</c> — <c>R-44</c>.</summary>
         public const int UtilityDecisionLog = 333;
+
+        /// <summary><c>MobilityKill</c> — a unit TYPE that a non-lethal hit immobilises, and below what fraction of its HP
+        /// (<c>CE-3092</c>). Stamped from the TKB only on types that opt in; absent = only death stops the unit. 334 is free by a
+        /// census of every <c>*Ids*.cs</c> and literal <c>[ComponentId(334)]</c> on backend, behaviors and ui, <c>2026-10-06</c>.</summary>
+        public const int MobilityKill = 334;
     }
 }

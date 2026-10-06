@@ -6,6 +6,7 @@ stale-below: nothing marked; the "Currently …" phrasing in §5 describes the p
 known-rot: none recorded.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes the aim deflection on the Muscle's FireProcessingSystem, per §2.1.
   - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
   - ../../DESIGN_Decision_Layer.md — owns the ROE (R-200, §4.4) and RecentSenses (§4.3) that §5.1a's ROE guard enforces.
 -->

@@ -50,6 +50,13 @@ public sealed class PostureScenarioTests : IDisposable
         throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
     }
 
+    private static unsafe Entity FireTarget(EntityRepository world, Entity unit)
+    {
+        if (!world.HasComponent<WeaponChannel>(unit)) return Entity.Null;
+        var ch = world.GetComponent<WeaponChannel>(unit);
+        return ((Fdp.Toolkit.Combat.Executors.AimAndFireParams*)ch.Params)->Target;
+    }
+
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -415,11 +422,127 @@ public sealed class PostureScenarioTests : IDisposable
         Observe(cgf, rifleman);
         Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
         int Ammo() => cgf.GetComponent<WeaponState>(rifleman).Ammo;
+        string Hostile()
+        {
+            var h = ByName(cgf, "Hidden Hostile");
+            if (h.IsNull) return "hostile not on CGF";
+            string hp = cgf.HasComponent<Health>(h) ? $"{cgf.GetComponent<Health>(h).Current}" : "?";
+            string pos = cgf.HasComponent<SimTransform>(h) ? $"{cgf.GetComponent<SimTransform>(h).Position}" : "?";
+            string caps = cgf.HasComponent<ActorCapabilityState>(h) ? $"{cgf.GetComponent<ActorCapabilityState>(h).Capabilities}" : "?";
+            return $"hostile hp={hp} pos={pos} caps={caps}; rifleman ammo={Ammo()}";
+        }
 
         Assert.True(harness.PumpUntil(() => ApproachWinner() is Approach.Flank or Approach.FiringPosition, timeoutFrames: 12000),
-            $"out of sight ⇒ Flank or FiringPosition; approach {ApproachWinner()}");
+            $"out of sight ⇒ Flank or FiringPosition; approach {ApproachWinner()}; {Hostile()}");
         int ammo = Ammo();
         _out.WriteLine($"approach {ApproachWinner()}, ammo {ammo}");
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3094</c> — the "universal soldier" (<c>ua-universal-soldier</c>): a rifleman on a two-leg MISSION of
+    /// <c>CombatPosture</c> along Main Street (ROE FireAtWill + StayOnTask, SOP <c>BasicInfantrySop</c>) meets a GROUP of three
+    /// armed hostiles advancing on him. 📄 <c>docs/TUTORIAL_Universal_Soldier.md</c> · <c>docs/TUTORIAL_Behaviour_Composition.md</c> §8.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE3094_UniversalSoldier_MissionOfPostureLegs_AgainstAGroup()
+    {
+        using var harness = await StartShippedScenario("ua-universal-soldier");
+        var cgf = harness.Cgf!.World!;
+        string[] hostileNames = { "Hostile 1", "Hostile 2", "Hostile 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && hostileNames.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the rifleman and the three hostiles must spawn on CGF");
+        var rifleman = ByName(cgf, "Rifleman");
+        Observe(cgf, rifleman);
+
+        Posture? Winner() => TryDecision(cgf, rifleman, "Combat posture", out var s) && s.Winner != 0 ? (Posture)s.Winner : null;
+        Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
+        float Hp(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : 0f;
+        Vector3 Pos(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
+        int Leg() => cgf.HasComponent<MissionPlanQueue>(rifleman) ? cgf.GetComponent<MissionPlanQueue>(rifleman).CurrentPhase : -1;
+        int HostilesUp() => hostileNames.Count(n => Hp(ByName(cgf, n)) > 0f);
+        string State()
+        {
+            string ammo = cgf.HasComponent<WeaponState>(rifleman) ? $"{cgf.GetComponent<WeaponState>(rifleman).Ammo}" : "?";
+            string hostiles = string.Join(" ", hostileNames.Select(n => { var h = ByName(cgf, n); return $"{n[^1]}:{Hp(h):F0}@{Pos(h).X:F0},{Pos(h).Y:F0}"; }));
+            return $"leg={Leg()} posture={Winner()} approach={ApproachWinner()} pos={Pos(rifleman).X:F0},{Pos(rifleman).Y:F0} hp={Hp(rifleman):F0} ammo={ammo} | {hostiles}";
+        }
+
+        var postures = new System.Collections.Generic.List<Posture?>();
+        var approaches = new System.Collections.Generic.List<Approach?>();
+        var final = new Vector3(200, 330, 0);
+        // 📐 the exchange, measured where the bullets live: per shooter, every bullet's spawn and last-seen position.
+        var shotWorlds = new (string Name, EntityRepository World)[] { ("simhost", harness.SimHost.World!), ("cgf", cgf) };
+        var bullets = new System.Collections.Generic.Dictionary<(string, int, ushort), (string Shooter, Vector3 Spawn, Vector3 Last, int Frame)>();
+        string ShooterName(EntityRepository w, Entity e)
+        {
+            if (e.IsNull || !w.IsAlive(e)) return "?";
+            if (w.HasComponent<EntityInfo>(e)) return w.GetComponent<EntityInfo>(e).Name.ToString();
+            return w.HasComponent<NetworkIdentity>(e) ? $"net{w.GetComponent<NetworkIdentity>(e).Value}" : $"e{e.Index}";
+        }
+        void TrackBullets(int frame)
+        {
+            foreach (var (wn, w) in shotWorlds)
+            {
+                if (!w.IsComponentTypeRegistered<BallisticProjectile>()) continue;
+                foreach (var b in w.Query().With<BallisticProjectile>().With<SimTransform>().Build())
+                {
+                    var pos = w.GetComponent<SimTransform>(b).Position;
+                    var key = (wn, b.Index, b.Generation);
+                    if (bullets.TryGetValue(key, out var seen)) bullets[key] = seen with { Last = pos };
+                    else bullets[key] = (ShooterName(w, w.GetComponent<BallisticProjectile>(b).Shooter), pos, pos, frame);
+                }
+            }
+        }
+        int lastAmmo = 30;
+        for (int f = 0; f < 24000; f++)
+        {
+            harness.PumpFrames(1);
+            TrackBullets(f);
+            int ammoNow = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;
+            if (ammoNow != lastAmmo)
+            {
+                var t = FireTarget(cgf, rifleman);
+                string tn = ShooterName(cgf, t);
+                string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
+                _out.WriteLine($"f{f}: rifleman ammo {lastAmmo}→{ammoNow}, fire target e{t.Index}:{t.Generation} '{tn}' {tm} alive={cgf.IsAlive(t)}");
+                var sh = harness.SimHost.World!; var shMap = harness.SimHost.App.TestHook_EntityMap;
+                string Sh(long net) => shMap.TryGetEntity(net, out var se) ? $"e{se.Index} alive={sh.IsAlive(se)} weapon={(sh.IsAlive(se) && sh.HasComponent<WeaponState>(se))} xf={(sh.IsAlive(se) && sh.HasComponent<SimTransform>(se))}" : "UNMAPPED";
+                long shooterNet = harness.Cgf!.GhostEntityMap!.TryGetNetworkId(rifleman, out long rn) ? rn : -1;
+                _out.WriteLine($"   simhost: shooter net{shooterNet} {Sh(shooterNet)} · target {tm} {(tm.StartsWith("net") ? Sh(long.Parse(tm[3..])) : "-")}");
+                lastAmmo = ammoNow;
+            }
+            if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
+            if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
+            if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
+            if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
+            if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
+        }
+        _out.WriteLine($"postures: {string.Join(" → ", postures)}");
+        _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
+        _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
+        var cgfMap = harness.Cgf!.GhostEntityMap;
+        foreach (var n in hostileNames.Prepend("Rifleman"))
+        {
+            var e = ByName(cgf, n);
+            string auth = !e.IsNull && cgf.HasComponent<NetworkAuthority>(e) ? $"{cgf.GetComponent<NetworkAuthority>(e).PrimaryOwnerId}/{cgf.GetComponent<NetworkAuthority>(e).LocalNodeId}" : "none";
+            string mapped = cgfMap != null && cgfMap.TryGetNetworkId(e, out long nid) ? $"net{nid}" : "UNMAPPED";
+            _out.WriteLine($"cgf {n}: e{e.Index} authority(owner/local)={auth} hasAuthority={Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, e)} map={mapped}");
+        }
+        {
+            var shw = harness.SimHost.World!; var shm = harness.SimHost.App.TestHook_EntityMap;
+            foreach (var n in hostileNames.Prepend("Rifleman"))
+            {
+                var ce = ByName(cgf, n);
+                if (cgfMap == null || !cgfMap.TryGetNetworkId(ce, out long nid) || !shm.TryGetEntity(nid, out var se)) { _out.WriteLine($"simhost {n}: unmapped"); continue; }
+                string col = shw.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>() && shw.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se)
+                    ? $"radius={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).Radius} layer={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).CollisionLayer}" : "NO COLLIDER";
+                var sp = shw.HasComponent<SimTransform>(se) ? shw.GetComponent<SimTransform>(se).Position : default;
+                _out.WriteLine($"simhost {n}: e{se.Index} pos={sp.X:F1},{sp.Y:F1},{sp.Z:F1} collider {col}");
+            }
+        }
+        foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
+            _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
+                string.Join(" ", g.Select(kv => $"f{kv.Value.Frame}:{kv.Value.Spawn.X:F0},{kv.Value.Spawn.Y:F0},{kv.Value.Spawn.Z:F1}→{kv.Value.Last.X:F0},{kv.Value.Last.Y:F0},{kv.Value.Last.Z:F1}")));
     }
 }
