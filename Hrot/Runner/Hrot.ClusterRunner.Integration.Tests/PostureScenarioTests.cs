@@ -287,7 +287,8 @@ public sealed class PostureScenarioTests : IDisposable
         {
             if (!TryDecision(cgf, rifleman, "Combat posture", out var s)) return "no posture log";
             var r = s.RankedRO();
-            var ranked = string.Join(", ", System.Linq.Enumerable.Range(0, s.Count).Select(i => $"{(Posture)r[i].WinningPostureId}={r[i].Score:F2}"));
+            var ranked = "";
+            for (int i = 0; i < s.Count; i++) ranked += $"{(Posture)r[i].WinningPostureId}={r[i].Score:F2} ";
             return $"winner={Winner()} switches={s.SwitchCount} evals={s.EvalCount} hp={cgf.GetComponent<Health>(rifleman).Current} ranked=[{ranked}]";
         }
 
