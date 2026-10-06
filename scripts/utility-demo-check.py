@@ -406,12 +406,48 @@ def run_three_hosts(c, timeout):
             print(f"    ⚠ exact winners differ at {what}: {winners}")
 
 
+# ── U4 (CE-3084) — attack approach: out of sight of an identified target, the advance flanks or takes a firing position ──
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U4; Decision Layer §3.3e (behaviors' G6). The hostile shows itself north of the High
+#   Wall, then its own mission walks it behind the wall; the rifleman (advancing on an unarmed hostile ⇒ AdvanceAndAttack) loses
+#   sight of an IDENTIFIED target ⇒ AttackApproach picks Flank or FiringPosition.
+
+APPROACH = "Attack approach"
+
+
+def run_attack_approach(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hidden Hostile")
+    if not c.ok(rifle is not None and hostile is not None, "the Rifleman and the Hidden Hostile are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": rifle, "on": True})
+    call("POST", "/sim/play", {})
+
+    both = wait_for(lambda: (u := utility(rifle)) and decision(u, POSTURE) and decision(u, APPROACH) and u, timeout)
+    c.ok(both is not None, "/entities/{id}/utility lists BOTH decisions (the posture and the approach nested in it)")
+    adv = wait_for(lambda: winner_of(rifle)[0] == "AdvanceAndAttack" and True, timeout)
+    c.ok(adv is not None, f"against an unarmed hostile the posture advances (winner {winner_of(rifle)[0]})")
+    seen = set()
+
+    def flanking():
+        d = decision(utility(rifle), APPROACH)
+        w = d and d.get("winner")
+        if w: seen.add(w)
+        return w in ("Flank", "FiringPosition") and w
+    w = wait_for(flanking, timeout * 2)
+    print(f"    approach winners seen: {sorted(seen)}")
+    c.ok(w is not None, f"out of sight of the identified hostile ⇒ the approach flanks or takes a firing position ({w})")
+    a0, _ = ammo(rifle)
+    fired = wait_for(lambda: (x := ammo(rifle)[0]) is not None and a0 is not None and x < a0 and x, timeout * 2)
+    c.ok(fired is not None, f"…and from there it regains sight and fires ({a0} → {fired})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
              "ua-weapon-choice": run_weapon_choice,
-             "ua-three-hosts": run_three_hosts}
+             "ua-three-hosts": run_three_hosts,
+             "ua-attack-approach": run_attack_approach}
 
 
 def main():

@@ -1,0 +1,101 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a3084000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7401
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[380,80,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a3084000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          345,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7402
+      },
+      "TkbIdentity": {
+        "TkbType": 1001
+      },
+      "EntityInfo": {
+        "Name": "Hidden Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3084000-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": "{\"x\":360,\"y\":80,\"speed\":1,\"arrivalRadius\":2}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -114,6 +114,43 @@
       "TargetMemory": {
         "Entries": []
       }
+    },
+    "a3082000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          295,
+          281,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7203
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman Blueprint",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPostureBp",
+        "Params": "{\"advance\":{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}}",
+        "Origin": "Superior"
+      }
     }
   }
 }
