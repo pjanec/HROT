@@ -126,4 +126,87 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(flat.Length() <= 6f, $"it must end AT the objective {Objective} (radius 3 + slack); {State()}");
         Assert.True(Vector3.Distance(start, Pos()) > 10f, $"it must have advanced; {State()}");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3079</c> — the shipped <c>ua-danger-crossing</c> scenario in-process (the live check's twin, design §5.3): the
+    /// rifleman's danger-area sensor lists the two crossings, only the watched one rates threatened, the rifleman HOLDS short
+    /// of it, the watcher's own two-task mission (Sentry → MoveToLocation) withdraws it out of sight, the rating clears and
+    /// the rifleman crosses and arrives. ⛔ Nothing is written into the run. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.5b.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE3079_DangerCrossing_HoldsShortOfTheWatchedCrossing_UntilTheWatchersMissionWithdrawsIt_ThenArrives()
+    {
+        var root = RepoRoot();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(root, "scenarios", "ua-danger-crossing", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
+        {
+            harness.PumpFrames(1);
+            Thread.Sleep(10);
+        }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
+            $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull && !ByName(sim, "Watcher").IsNull
+                                         && !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Watcher").IsNull, timeoutFrames: 2000),
+            "both units must spawn on SimHost and on CGF");
+        Entity rifleman = ByName(cgf, "Rifleman"), simRifleman = ByName(sim, "Rifleman"), simWatcher = ByName(sim, "Watcher");
+        Entity cgfWatcher = ByName(cgf, "Watcher");
+        Vector3 Pos(Entity e) => sim.GetComponent<SimTransform>(e).Position;
+        var watcherStart = Pos(simWatcher);
+
+        Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer Areas()
+        {
+            Fdp.Toolkit.Perception.Sensors.UnitSensors.TryGetResults<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(
+                cgf, rifleman, SensorModality.DangerArea, out var b);
+            return b;
+        }
+        string State()
+        {
+            var b = Areas();
+            var s = $"rifleman={Pos(simRifleman)} watcher={Pos(simWatcher)} areas={b.Count} ready={b.IsReady}";
+            for (int i = 0; i < b.Count; i++) s += $" [{b.GetSpanRO()[i].Kind} d={b.GetSpanRO()[i].DistanceAlongRoute:F0} t={b.GetSpanRO()[i].ThreatRating:F2}]";
+            if (cgf.HasComponent<MissionPlanQueue>(cgfWatcher)) s += $" watcherPhase={cgf.GetComponent<MissionPlanQueue>(cgfWatcher).CurrentPhase}";
+            return s;
+        }
+
+        // ① the sensor lists two crossings; ② only one rates threatened
+        Assert.True(harness.PumpUntil(() => Areas().Count >= 2, timeoutFrames: 20000), $"two crossings ahead; {State()}");
+        Assert.True(harness.PumpUntil(() => Areas().Count > 0 && Areas().GetSpanRO()[0].ThreatRating >= 0.5f, timeoutFrames: 40000),
+            $"the next crossing (the watched one) rates threatened; {State()}");
+        var hot = Areas().GetSpanRO()[0];
+        _out.WriteLine("threatened: " + State());
+
+        // ③ the rifleman holds within 4 m of that crossing's near handle, for ≥ 10 s of sim time
+        bool Near() => Vector2.Distance(new Vector2(Pos(simRifleman).X, Pos(simRifleman).Y), new Vector2(hot.NearSideHandle.X, hot.NearSideHandle.Y)) <= 4f;
+        Assert.True(harness.PumpUntil(Near, timeoutFrames: 20000), $"the rifleman reaches the near side {hot.NearSideHandle}; {State()}");
+        float holdFrom = sim.SimulationTime;
+        Assert.True(harness.PumpUntil(() => !Near() || sim.SimulationTime - holdFrom >= 10f, timeoutFrames: 20000) && Near(),
+            $"and holds there ≥ 10 s; {State()}");
+
+        // ④ the watcher's mission moves on by itself and it walks away; the rating clears
+        Assert.True(harness.PumpUntil(() => Vector3.Distance(watcherStart, Pos(simWatcher)) > 20f, timeoutFrames: 40000),
+            $"the watcher's own mission withdraws it; {State()}");
+        Assert.True(harness.PumpUntil(() => Areas().Count == 0 || Areas().GetSpanRO()[0].ThreatRating < 0.4f, timeoutFrames: 40000),
+            $"the rating clears once the rifleman watched it go; {State()}");
+
+        // ⑤ the rifleman crosses and arrives
+        var objective = new Vector2(285f, 220f);
+        Assert.True(harness.PumpUntil(() => Vector2.Distance(new Vector2(Pos(simRifleman).X, Pos(simRifleman).Y), objective) <= 6f,
+            timeoutFrames: 40000), $"the rifleman crosses and arrives; {State()}");
+        _out.WriteLine("arrived: " + State());
+    }
 }
