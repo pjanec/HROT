@@ -1164,6 +1164,8 @@ mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and t
 
 ### 7.8a `CE-3054` B–D — the build design *(behaviors, `2026-10-05`; build-state: BUILT — as-built at the end)*
 
+⚠ **Known gap, found `2026-10-06` (`CE-3080`):** `ThreatDanger.Of` reads only `WeaponState` and entity existence — a KILLED unit (Health 0, entity kept) still reads as armed, danger 1, for every threat reader. Not yet decided where the fix belongs (here, or each reader) — see the tracker row.
+
 **INVENTORY** *(measured `2026-10-05`)*: the readers of `TargetMemory` scores are in §6.1 of `DESIGN_Thermal_And_Acoustic_Sensing.md`
 (grep of `EntityIds[` and of every file naming `TargetMemory`; the graph's `search_code` returned 0 for the pattern). The
 inputs that read them: `StandardInputs.ContactThreatLevel` / `HaveLiveTarget` / `EnemyStrengthRatio`,

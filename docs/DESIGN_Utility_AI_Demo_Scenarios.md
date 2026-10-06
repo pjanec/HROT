@@ -549,7 +549,7 @@ lower range for Brains, upper for the solver.
 |---|---|
 | cast | one commander (a rifleman, 2002) ordered south-west → north-east; one armed hostile east of the vertical road with sight of THAT crossing only, standing still |
 | the behaviour | a plain BTree: `Ensure` a DangerArea sensor (route = own move) · `MoveTo` the destination · an `ObserverSelector` whose higher branch is `ReadSensorResult(DangerArea, 0)` with `Threat ≥ 0.5` → `MoveTo(NearHandle)` and hold while it holds |
-| what must happen | the sensor lists the two crossings in route order · the watched one rates high, the other low · the commander HALTS at the watched crossing's near handle · the hostile removed (its Health set to 0 over HTTP) ⇒ the rating falls, the commander crosses and arrives · the unwatched crossing never stops it |
+| what must happen | the sensor lists the two crossings in route order · the watched one rates high, the other low · the commander HALTS at the watched crossing's near handle · the hostile's own mission withdraws it out of sight of the crossing (§10.5 — ⛔ SUPERSEDED `2026-10-06`: "its Health set to 0 over HTTP") ⇒ the rating falls, the commander crosses and arrives · the unwatched crossing never stops it · ⭐ no HTTP intervention: the run plays out on its own |
 | checked by | `scripts/utility-demo-check.py ua-danger-crossing` over HTTP + an in-process rail; a sensor read route (`GET /entities/{id}/sensors`: every sensor child, kind, answer) — 📐 none exists today |
 
 | what has to be built | lane |
@@ -641,7 +641,7 @@ sequenceDiagram
   B->>M: Cross: near to far handle, rush speed
   Note over B: watched crossing within 60 m, threat 0.8
   B->>M: HoldShort: to its NearHandle, then hold
-  Note over P: hostile Health set to 0 over HTTP
+  Note over P: the hostile's mission withdraws it out of sight of the crossing (§10.5)
   P->>P: re-rate: 0.0, SensorChangedEvent (threat crossed)
   B->>M: guard false: Cross, then walk on to the objective
 ```
@@ -660,8 +660,8 @@ holds for.*
 |---|---|---|
 | `DangerAreaNodes` — `EnsureSensor`, `DangerAhead`, `HoldShort` (Success when the area's threat falls below `MinThreat − 0.1`, or none is ahead), `Cross` (Success at the far handle) — + their deactivators (release the sensor, stop the move) | backend | CE-3079 |
 | the `DangerCrossing` BTree asset (the tree above), registered like `CombatPosture`'s | backend | CE-3079 |
-| the scenario `ua-danger-crossing` on test-town: one rifleman SW → NE across both roads; one hostile with NO behaviour (it does not fire) east of the vertical road, placed so the rifleman sees it before the crossing (measured with `SegmentBlocked` when authored) | backend | CE-3079 |
-| `utility-demo-check.py ua-danger-crossing` — asserts: the sensor lists both crossings in route order · the unwatched one is crossed at rush speed without stopping · the unit stops within `ArrivalRadius` of the watched one's NearHandle and stays ≥ 10 s · Health 0 on the hostile ⇒ threat 0, it crosses and arrives · + the in-process rail and the runbook section (§5.3) | backend | CE-3079 |
+| the scenario `ua-danger-crossing` on test-town: one rifleman SW → NE across both roads; one hostile with a two-task MISSION and no weapon node (it never fires) east of the vertical road, placed so the rifleman sees it before the crossing — and its withdrawal point placed per §10.5's sight rules (both measured with `SegmentBlocked` when authored) | backend | CE-3079 |
+| `utility-demo-check.py ua-danger-crossing` — asserts: the sensor lists both crossings in route order · the unwatched one is crossed at rush speed without stopping · the unit stops within `ArrivalRadius` of the watched one's NearHandle and stays ≥ 10 s · the hostile's mission advances (task 1 → task 2) only after that hold, and once it reaches its withdrawal point the threat falls to 0 within one refresh and the rifleman crosses and arrives · no HTTP write anywhere in the run · + the in-process rail and the runbook section (§5.3) | backend | CE-3079 |
 | the blueprint form of the same behaviour — `SpawnSensor(DangerArea)`, `When SensorResult(DangerArea, ThreatCrossed)`, `ReadSensorResult(DangerArea, 0)` → `NearHandle`/`FarHandle` pins → `MoveTo` — as N1–N4's acceptance, checked by the same script | behaviors | CE-3078 |
 | ⭐ **the BTree graph itself: NO change** *(measured `2026-10-06`, user: "Btree graph also has some eqs support, does it need some changes?")* — its EQS support is entirely shared C# nodes (`EqsLifecycleNodes` ×4, `EqsTacticsNodes` ×4, `EqsCombatNodes`, `SensorNodes.Sees`/`Read`); the editor, validator, JSON generator and kernel carry no EQS code (grep `-i eqs` over `Hrot.BTree.Editor`, `FastBTree`, `Hrot.AiEditor.Persistence`: one doc-comment hit); toolkit-assembly nodes already bind in assets (`CombatPosture.btree.json` → `Fdp.Toolkit.Utility.UtilityNodes`); `[BTreeDeactivator]` is generic. ⇒ `DangerAreaNodes` plug in as they are. The ranked EQS nodes stay the ranked family's, unchanged | — | — |
 | ⛔⛔ **the ONE change it does need — a family guard**: `SensorNodes.Sees`/`Read` take `Kind` as a PARAM, so adding `SensorModality.DangerArea` makes it pickable there; `UnitSensors.TryGetResults` (`UnitSensors.cs:71`) then finds no `EqsCognitiveBuffer` and returns false ⇒ `Sees` is always false and `Read` is Running for ever — a capability that silently no-ops (R-133). Fix: `TryGetResults` tells "no answer yet" from "this kind is not a ranked sensor" and the ranked nodes FAIL with a `BehaviorLog.Error` on the second; the same guard in the blueprint `ReadEqsResult`/`When EqsResult` helpers (they also pick by kind, CE-3054 D). The editor-time warning ("kind of another family") comes with the kind registry, N1 | backend (runtime guard, with B3) · behaviors (validator, with N1) | CE-3072 · CE-3078 |
@@ -673,3 +673,82 @@ holds for.*
 | `HoldShort` built from `DangerAhead` + `Read` + `Action_WriteMoveToChannel` in the tree | the tree would need the area's handle in a blackboard slot — the shared tactics nodes (R-204) are self-contained precisely so a tree never carries sensor geometry |
 | the sensor watching the unit's own move (route source ①) | the reaction's own move hides the area it reacts to — a loop (§10.2 settings row) |
 | make the demo a squad drill in town now | it needs all of U7's unbuilt machinery; the single unit proves the sensor end to end on its own |
+
+### 10.5 The hostile runs on its own — a two-task MISSION *(`2026-10-06`, `CE-3079`; `build-state: READY-TO-BUILD`)*
+
+🔒 **User, `2026-10-06`:** *"The scenario should not need http intervention, it needs to run on its own. If we need the
+hostile to stop being a threat, let's give him some little behavior that makes him stop being a threat at the time when it is
+needed (like when our rifleman comes close or something). That would also demonstrate the sequencing of scenario actions."*
+
+📐 **Measured — what "sequencing of scenario actions" is here.** One form, per unit: the MISSION, *"a sequence of behaviors
+(called tasks), executed one by one with optional skipping defined by triggers. We are not going to change this"*
+(`DESIGN_Decision_Layer.md` §2, user ruling). Built: `MissionPlanQueue` ≤ 8 phases, `MissionDirectorSystem` advances on the
+current task's trigger — `TimerElapsed`, `UnderAttack`, `HealthCritical`, `BehaviorFinished` (`MissionComponents.cs:11-35`);
+⚠ only a task's FIRST trigger counts and a task with none holds for ever (`MissionTriggerHelper.cs:20-38`). There are no
+world-level triggers or trigger zones (none designed live). ⭐ **No scenario uses more than ONE task today** — every
+`MissionPlan` is one task + `BehaviorFinished`; the hostiles in `ua-posture` / `hill-attack-close` have no behaviour.
+⇒ this demo is the first multi-task mission.
+
+📐 **Measured — what makes a contact stop being a threat to an area (B2).** The rating reads the rifleman's MEMORY:
+`ThreatDanger.Of` = armed (`WeaponState` present) 1, else 0.3, and an entity that exists is "alive"
+(`ThreatDanger.cs:16-20`); the memory keeps the LAST-KNOWN position (`TargetMemory.PositionsX/Y/Z`) and barely forgets
+(saturation 500, decay 0.1 / s ⇒ ≈ 0.99 fresh a minute after sight is lost, `PerceptionConstants.cs:44-56`). ⇒ a
+hostile stops threatening the crossing when its LAST-KNOWN position has no sight of the area — not when it is merely out of
+view. ⛔ **And killing it would NOT work**: a dead unit's entity still exists and still carries `WeaponState`, so it reads
+as armed, danger 1 (finding `CE-3080`).
+
+```mermaid
+graph TD
+  subgraph HM["hostile's MissionPlan (scenario JSON)"]
+    T1["task 1: Sentry (BTree)<br/>trigger BehaviorFinished"] --> T2["task 2: MoveToLocation W<br/>trigger BehaviorFinished"]
+    T2 --> END["plan ends: idle at W"]
+  end
+  subgraph SB["Sentry BTree"]
+    S0["Sequence"] --> S1["UntilSuccess:<br/>ThreatsAtLeast 1, danger ≥ 0.5,<br/>WithinMetres 90"]
+    S0 --> S2["Wait 15 s"]
+  end
+  T1 -.- SB
+  subgraph RM["rifleman's MissionPlan"]
+    R1["task 1: DangerCrossing to the objective<br/>trigger BehaviorFinished"]
+  end
+```
+
+*What the picture shows that prose hid: the sequencing is the MISSION'S, not a script's — the hostile's first behaviour
+ENDS ITSELF when its condition holds, and `BehaviorFinished` hands over to the next task. Nothing outside the two units
+drives the run.*
+
+```mermaid
+sequenceDiagram
+  participant R as rifleman (DangerCrossing)
+  participant H as hostile (mission task 1: Sentry)
+  participant D as MissionDirectorSystem
+  participant P as danger producer
+  R->>R: walks the route, crosses the unwatched road at a run
+  R->>R: watched crossing ahead, threat 1.0: HoldShort at the near side
+  H->>H: sees the rifleman within 90 m, waits 15 s
+  H-->>D: Sentry Success (BehaviorFinished)
+  D->>H: task 2: MoveToLocation W (behind a building)
+  R->>R: tracks the hostile walking away (last-known position follows it)
+  Note over P: last-known position has no sight of the crossing
+  P->>R: threat 0, SensorChangedEvent
+  R->>R: guard false: Cross, then walk to the objective
+```
+
+*What the picture shows that prose hid: the hold lasts as long as the hostile is SEEN to watch the crossing; it ends because
+the rifleman watched it leave — the rating follows what the rifleman knows, never the hostile's true state.*
+
+| what to build | lane | id |
+|---|---|---|
+| `SensorNodes.ThreatsAtLeast` gains `WithinMetres` (0 = any distance) — the "contact within X m" condition that does not exist today (only `SensedWithin`, which is "within N SECONDS"). One user: its own test (`SensorNodesTests.cs:65`), no asset moves | backend | CE-3079 |
+| the `Sentry` BTree: `Sequence[ UntilSuccess(ThreatsAtLeast{1, 0.5, WithinMetres}), Wait(seconds) ]` — existing kernel `UntilSuccess` and `Wait`; no fire node, no SOP, so it never shoots | backend | CE-3079 |
+| the scenario: the hostile's `MissionPlan` = [Sentry, `BehaviorFinished`] → [`MoveToLocation` W, `BehaviorFinished`]; the rifleman's = [DangerCrossing to the objective, `BehaviorFinished`] | backend | CE-3079 |
+| authoring rule, measured with `SegmentBlocked`: the hostile's post sees the crossing centre; along its walk to W the rifleman's hold point keeps sight of it until the walker's own position has none of the crossing centre (the hold point is a few metres from the area, so "the rifleman loses him" ≈ "he loses the crossing" — but it is checked, not assumed) | backend | CE-3079 |
+| check: `MissionPlanQueue` shows task 1 → task 2 only AFTER the rifleman's hold began · the threat falls within one refresh of the hostile passing the sight line · no HTTP write anywhere | backend | CE-3079 |
+
+| rejected | the one fact |
+|---|---|
+| set the hostile's Health to 0 over HTTP | the user: the run must play out on its own · and it would not work: a dead unit still reads as armed (`CE-3080`) |
+| an ally kills the hostile | the same `CE-3080` defect, and a third unit with its own combat behaviour |
+| a new mission trigger "contact within X m" | the mission model is frozen by user ruling (Decision Layer §2); a behaviour that ENDS ITSELF plus `BehaviorFinished` is how the existing model expresses any condition |
+| task 1 = hold with `TimerElapsed` | not tied to the rifleman — on a slow cluster the hostile could leave before the rifleman arrives, and the hold would never be seen |
+| the hostile simply walks out of view | the rifleman remembers where he lost it; if that spot still sees the crossing the threat stays (≈ 0.99 for minutes) — the withdrawal point must be chosen by the sight rule above |
