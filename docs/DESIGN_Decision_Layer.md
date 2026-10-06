@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILT §3.3e (CE-3084, G6: AttackApproach nested in the advance; CE-2117 kernel sweep). BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -17,6 +17,7 @@ related-designs:
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
   - docs/blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md — the P2 frame (G4–G6) §3.3c answers for G4.
   - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the HSM binding sites and the CE-388 OnExit auto-bind that §3.3c D2 extends with deactivators.
+  - docs/designs/ai-btree-deactivator-1/DESIGN.md — OWNS the BTree exit sweep (deactivators); CE-2117 (§3.3e) extended it to switches beneath a running Parallel.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
 -->
 
@@ -807,6 +808,98 @@ holds PostureAdvance's inputs, whose own variable is `advance`). Two infrastruct
 Rails: `TacticsTreesTests.CE3083_*` (3: registered · weak enemy ⇒ advance + finish · ⭐ switch both ways + fire stops · all three hosts
 same decisions) · `ScoreDecisionNodeDrawerTests.BP27_*` (6) · `BlueprintBehaviourTests.CE2115_*` · `HostedSubtreeCursorTests.CE2116_*`
 (red-proved: the lone-leaf case fails without the root sweep).
+
+### 3.3e `CE-3084` (G6) — AttackApproach, a decision nested in the advance, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G6 — a NEW decision `AttackApproach`
+{Direct, Flank, FiringPosition} scored INSIDE CombatPosture's AdvanceAndAttack branch (the U1 shape one level down); Flank /
+FiringPosition are the CE-2108 actions (BUILT). Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G6, U4. Answers
+CE-2110 for the posture case.
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-06`)*: `UtilityNodes.ChooseOption` / `IsOption` (a second decision = a
+second `ChooseOptionParams` + `UtilityChoice` pair; nothing else) · `PostureNodes.PostureSensors` (keeps two EQS sensors on the top
+threat for the decision's `EqsTopScore` inputs) · `EqsTacticsNodes.Flank` / `FiringPosition` (`Run`: Success on ARRIVAL, Failure
+with no identified threat, own sensor at `FlankSite` / `FiringPositionSite`, `FireWhileMoving`) · the starter templates
+`FindFlankingPosition`, `FindOpenFiringPosition`, `FindThreatsInView` · inputs `HasLineOfSight` (needs a CONTEXT entity),
+`HaveLiveTarget`, `EqsTopScore`, `EqsResultCount` · `ActiveSensorTracks` (the contacts a sensor holds NOW, with their modality).
+
+⚠ **Two measured facts that change the frame's suggested inputs:**
+
+| the frame suggested | measured | ⇒ |
+|---|---|---|
+| sight from `FindThreatsInView` | its `FactionFilterTest` keeps a candidate only when `FactionFilter` has the candidate's ABSOLUTE `ForceId` bit — `0` rejects every entity (`FactionFilterTest.ExecuteBatch`); the posture runs with `FactionFilter: 0` | **F1** a self-scoped input `ThreatInSight` instead: 1 when an identified, remembered contact is held by a sensor NOW with the Visual modality (`ActiveSensorTracks`, CE-3060) |
+| `HasLineOfSight` | reads `ctx.Context` — a self decision has none ⇒ always 0; and `TargetMemory.Modalities` is OR-accumulated (ever seen, not seen now) | (same F1) |
+| the approach parallel NESTED in the advance (the frame's shape) | ⛔ the FastBTree compiler refuses it: *"Nested Parallel detected! Both Parallel nodes will conflict on LocalRegisters[3]"* (`TreeCompiler.FlattenToBlob`, measured on the first build) | **F3** the approach's `ChooseOption` and `ApproachSensors` join the OUTER parallel, beside the posture's own; only the option leaves sit in the advance |
+| Flank / FiringPosition as the option leaves | both return **Success on arrival** — under CombatPosture's RequireOne parallels that would END the whole run at a flank point | **F2** each carries a `ForceFailure` PILL (the tree's own idiom — TakeCover / Suppress / FallBack already do; a decorator NODE is not emitted): arrival hands over to the next child (Direct), so the unit advances / fires from there |
+
+```mermaid
+classDiagram
+  class AttackApproachDecision { <<NEW, Toolkits StarterPack>> UtilityDecision, OptionNames = Approach }
+  class Approach { <<NEW enum>> Direct=1, Flank=2, FiringPosition=3 }
+  class StandardInputs { <<existing, grows>> +ThreatInSight(ctx) float  NEW }
+  class PostureNodes { <<existing, grows>> +ApproachSensors(ref PostureSensorsParams, ref ApproachSensorsState)  NEW; PostureSensors body shared }
+  class ApproachSensorsState { <<NEW>> Flank, Firing handles; Threat; HeardId; HeardPoint }
+  class EqsTacticsNodes { <<existing>> Flank, FiringPosition (CE-2108) }
+  class UtilityNodes { <<existing>> ChooseOption, IsOption }
+  class CombatPosture_btree { <<existing asset, grows>> the advance branch holds the approach parallel }
+  AttackApproachDecision ..> Approach
+  AttackApproachDecision ..> StandardInputs : ThreatInSight, HaveLiveTarget, EqsTopScore
+  CombatPosture_btree ..> UtilityNodes : a 2nd ChooseOption (approach)
+  CombatPosture_btree ..> PostureNodes : ApproachSensors, AdvanceAndAttack (Direct)
+  CombatPosture_btree ..> EqsTacticsNodes : Flank, FiringPosition
+  PostureNodes ..> ApproachSensorsState
+```
+
+*What the picture shows that prose hid:* the nested decision is ALL existing machinery except one input and one sensor-keeping node —
+no scorer, ChooseOption or tree-kernel change.
+
+```mermaid
+graph TD
+  P["Parallel RequireOne — Decide, sense, act"] --> C1["ChooseOption(choose) ⇒ choice"]
+  P --> S1["PostureSensors(sensors)"]
+  P --> C2["ChooseOption(approach) ⇒ approachChoice — NEW"]
+  P --> S2["ApproachSensors(approachSensors) — NEW"]
+  P --> OS["ObserverSelector — Run the winner"]
+  OS --> ADV["Sequence — Advance and attack"]
+  ADV --> G1["IsOption(isAdvance)"]
+  ADV --> OS2["ObserverSelector — Run the approach — NEW"]
+  OS2 --> FL["Sequence: IsOption(isFlank), Flank(flank) + ForceFailure pill"]
+  OS2 --> FP["Sequence: IsOption(isFiringPos), FiringPosition(firing) + ForceFailure pill"]
+  OS2 --> D["AdvanceAndAttack(advance) — Direct"]
+  OS --> REST["TakeCover · Suppress · Fall back · Hold (unchanged)"]
+```
+
+*What the picture shows that prose hid:* Direct is the selector's FALLBACK child, so with no approach option scored (no target, no
+answers yet) the branch is exactly today's advance, and the run still ends only when Direct's AdvanceAndAttack arrives. The approach
+is SCORED in the outer parallel (F3) but only ACTED ON inside the advance.
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **A1** Direct = WeightedSum[`ThreatInSight` ×1, `Constant(0.4)` ×1] ⇒ 0.7 in sight, 0.2 out of sight; Flank / FiringPosition = WeightedProduct[`HaveLiveTarget` Step, NOT-in-sight (`ThreatInSight` InverseLinear), `EqsTopScore(template)` Linear] | out of sight + an identified target + a scored position ⇒ the manoeuvre (≥ 0.2 whenever its score > 0); in sight ⇒ both are 0 ⇒ Direct; no target ⇒ Direct (advance without enemy, CE-2105) | `FindThreatsInView` count (F1: rejects everything at filter 0) |
+| **A2** a NEW node `ApproachSensors` keeps the flank + firing-position sensors on the top threat; `PostureSensors` and it share ONE body | the decision's `EqsTopScore` inputs need sensors BEFORE an option runs (the manoeuvres own their sensors only while running). ⚠ With F3 they run for the whole posture run — two more queries per CombatPosture unit (ScoreDelta-published) | widening `PostureSensors` itself (every OTHER user of it would pay too); a kernel change to allow a nested Parallel (a cross-ExtDep register rework for one asset) |
+| **A3** Flank / FiringPosition with a `ForceFailure` pill (F2), `FireWhileMoving = 1` | arrival must not end the run; the unit keeps firing on the way as Direct does | ending the posture at a flank point |
+| **A4** BTree host only (the HSM / blueprint postures keep a plain advance) | the frame nests it in the BTree; U4 runs the BTree | three hosts now — each is a second nesting to keep equal (do it when a scenario asks) |
+
+**Acceptance (rails, red-proved):** ① the decision is registered with its option names · ② `ThreatInSight` (unit): visual track of a
+remembered contact ⇒ 1; heard-only track, unremembered track, no track ⇒ 0 · ③ the decision's winner: out of sight + a flank answer
+⇒ Flank; in sight ⇒ Direct; no target ⇒ Direct · ④ the tree: out of sight + a flank answer ⇒ the unit moves to the flank point
+firing; on arrival it advances to the objective (the run does not end) · ⑤ in sight ⇒ Direct (the old advance) · ⑥ the outer posture
+still switches to TakeCover while a flank runs, and the flank manoeuvre (with its own sensor) goes with the branch.
+
+⭐ **AS-BUILT (`2026-10-06`)** — the tree is `Assets/BTrees/Tactics/CombatPosture.btree.json` (same order params as before — the
+approach adds no order input); the decision is `AttackApproachDecision` (asset `3c6f9e42-5d10-6f3a-ac23-approach00001`,
+`OptionNames = Approach`), so `/entities/{id}/utility` lists both decisions. Differences from the frame, all measured:
+
+| as built | why |
+|---|---|
+| F1 `ThreatInSight` instead of `FindThreatsInView` / `HasLineOfSight` | the table above |
+| F3 the approach scored in the OUTER parallel | Fbt refuses a nested Parallel |
+| ⭐ **CE-2117 (kernel)** — a switch beneath a running Parallel never ran the abandoned leaf's deactivator | found by rail ⑥, then measured on the SHIPPED tree: the advance kept firing after TakeCover took over (§3.3b's claimed parity with the HSM was only true for the HSM). Fixed in `Fbt.Interpreter`: `NodeIndexStack` is now the tick's running set ([deactivator design](designs/ai-btree-deactivator-1/DESIGN.md) addendum) |
+| ⚠ after a flank / firing-position ARRIVAL with the target still out of sight, the approach re-picks the manoeuvre and it moves again | the position queries filter on sight of the target, so arrival normally brings it into view and Direct wins; perception lag can cost a re-flank — accepted, watch U4 |
+
+Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3084_*` (4: registered with option names · ⭐ out of sight
+⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
+TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

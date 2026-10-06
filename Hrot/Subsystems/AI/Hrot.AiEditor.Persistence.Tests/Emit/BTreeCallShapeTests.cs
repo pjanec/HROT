@@ -121,6 +121,12 @@ public sealed class BTreeCallShapeTests
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000017", BTreeDelegateShapeDto.Stateful),
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000018", BTreeDelegateShapeDto.NoParams),
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Plain),    // CE-3084 G6: ChooseOption(approach)
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),  // ApproachSensors
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000006", BTreeDelegateShapeDto.Plain),     // IsOption(isFlank)
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),     // IsOption(isFiringPos)
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Stateful),
+        ("CombatPosture.btree.json", "c3084000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Stateful),
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),            // CE-2108
         ("Flank.btree.json", "c2108000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
         ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000103", BTreeDelegateShapeDto.Stateful),

@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort WeaponEffectivenessVsTarget = 0xEE5F;
         /// <summary>⭐ CE-3071 — how many rounds the mount has left, on a log scale (<see cref="StandardInputs.RoundsLeft"/>).</summary>
         public const ushort RoundsLeft               = 0xCAE9;
+        /// <summary>⭐ CE-3084 — an identified remembered contact is held by a sensor NOW, by sight (<see cref="StandardInputs.ThreatInSight"/>).</summary>
+        public const ushort ThreatInSight            = 0x2D27;
     }
 
     /// <summary>
@@ -220,6 +222,27 @@ namespace Fdp.Toolkit.Utility
             for (int i = 0; i < mem.Count; i++)
                 // ⭐ CE-3063 ② — identified contacts only: this gates the FIRING postures, and a heard point cannot be shot.
                 if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)) return 1f;
+            return 0f;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3084</c> (<c>docs/DESIGN_Decision_Layer.md</c> §3.3e F1) — 1 when a sensor holds, RIGHT NOW and by SIGHT, a contact
+        /// ctx.Self remembers as identified (<see cref="ActiveSensorTracks"/> with the Visual modality, CE-3060), else 0. A self
+        /// input: it needs no context entity. ⛔ Not <see cref="HasLineOfSight"/> (needs a context; and the memory's modality is
+        /// OR-accumulated — ever seen, not seen now) and not <c>FindThreatsInView</c> (its faction filter is absolute — 0 keeps nothing).
+        /// </summary>
+        [UtilityInput("ThreatInSight")]
+        public static float ThreatInSight(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<ActiveSensorTracks>(ctx.Self) || !ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
+            ref readonly var tracks = ref ctx.Repo.GetComponentRO<ActiveSensorTracks>(ctx.Self);
+            ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
+            for (int t = 0; t < tracks.Count; t++)
+            {
+                if ((tracks.Modalities[t] & (byte)SensorModality.Visual) == 0) continue;
+                for (int i = 0; i < mem.Count; i++)
+                    if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)) return 1f;
+            }
             return 0f;
         }
 
@@ -434,6 +457,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.WeaponRangeBandFit,       &WeaponRangeBandFit);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
+            UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

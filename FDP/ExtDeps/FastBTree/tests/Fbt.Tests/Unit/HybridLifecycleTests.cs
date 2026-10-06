@@ -595,6 +595,45 @@ namespace Fbt.Tests.Unit
             Assert.Equal(1, moveExits);                                                 // swept once
         }
 
+        /// <summary>
+        /// ⭐ CE-2117 -- the same abort, BENEATH A PARALLEL: a running Parallel writes its own index into the cursor, so the
+        /// abandoned leaf was never on the swept path and its deactivator never ran (the shipped CombatPosture kept moving and
+        /// firing after TakeCover won). The running set (NodeIndexStack) now records every running resource-owning leaf.
+        /// ✅ Red-proof: without NoteRunning, moveExits stays 0.
+        /// </summary>
+        [Fact]
+        public void CE2117_ABranchSwitchBeneathAParallel_SweepsTheAbandonedLeafOnce()
+        {
+            int moveExits = 0, pingExits = 0;
+            NodeStatus Ping(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus Cover(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+            NodeStatus Move(ref TestBlackboard bb, ref BehaviorTreeState s, ref MockContext c, int p) => NodeStatus.Running;
+
+            var builder = new BTreeBuilder<TestBlackboard, MockContext>();
+            // Parallel(0) -> Ping(1); ObserverSelector(2) -> Sequence(3) -> Threat(4), Cover(5); Move(6)
+            builder.Parallel(1, p => p.Action(Ping).ObserverSelector(o => o.Sequence(q => q.Condition(Threat).Action(Cover)).Action(Move)));
+            var blob = builder.Compile("CE2117");
+            OnExit(builder, blob, 6, () => moveExits++);
+            OnExit(builder, blob, 1, () => pingExits++);
+            var interpreter = new Interpreter<TestBlackboard, MockContext>(builder.Compile("CE2117"), builder.GetRegistry());
+            var bb = new TestBlackboard(); var state = new BehaviorTreeState(); var ctx = new MockContext();
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(0, moveExits);                                                 // moving, nothing swept
+
+            bb.Priority = true;                                                         // the higher branch takes over
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(1, moveExits);                                                 // ⭐ the move was swept
+            Assert.Equal(0, pingExits);                                                 // the sibling still runs
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(1, moveExits);                                                 // once
+
+            interpreter.Abort(ref bb, ref state, ref ctx);                              // CE-2116's abort sees the running set too
+            Assert.Equal(1, pingExits);
+        }
+
         [Fact]
         public void CE3041_L06_TheAbortedLeafDeepInASequence_IsSweptOnce()
         {

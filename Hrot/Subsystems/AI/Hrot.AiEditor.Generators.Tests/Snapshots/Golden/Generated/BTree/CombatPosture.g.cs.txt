@@ -23,14 +23,42 @@ public static class CombatPosture
                     visualId: new Guid("c2073000-0000-0000-0000-000000000003"));
                 par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@8@1701996138",
                     visualId: new Guid("c2073000-0000-0000-0000-000000000004"));
+                par.Action("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@120@333075940",
+                    visualId: new Guid("c3084000-0000-0000-0000-000000000002"));
+                par.Action("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@128@727345567",
+                    visualId: new Guid("c3084000-0000-0000-0000-000000000003"));
                 par.ObserverSelector(obs =>
                 {
                     obs.Sequence(seq =>
                     {
                         seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@4@1507658132",
                             visualId: new Guid("c2073000-0000-0000-0000-000000000007"));
-                        seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@1500664710",
-                            visualId: new Guid("c2073000-0000-0000-0000-000000000008"));
+                        seq.ObserverSelector(obs =>
+                        {
+                            obs.Sequence(seq =>
+                            {
+                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@124@333075940",
+                                    visualId: new Guid("c3084000-0000-0000-0000-000000000006"));
+                                seq.ForceFailure(d8 => d8
+                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@144@1029342709",
+                                        visualId: new Guid("c3084000-0000-0000-0000-000000000011")),
+                                    visualId: new Guid("c3084000-0000-0000-0000-000000000107"));
+                            },
+                                visualId: new Guid("c3084000-0000-0000-0000-000000000005"));
+                            obs.Sequence(seq =>
+                            {
+                                seq.Condition("Fdp.Toolkit.Utility.UtilityNodes.IsOption@125@333075940",
+                                    visualId: new Guid("c3084000-0000-0000-0000-000000000009"));
+                                seq.ForceFailure(d8 => d8
+                                    .Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@176@979009852",
+                                        visualId: new Guid("c3084000-0000-0000-0000-000000000012")),
+                                    visualId: new Guid("c3084000-0000-0000-0000-000000000110"));
+                            },
+                                visualId: new Guid("c3084000-0000-0000-0000-000000000008"));
+                            obs.Action("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@1500664710",
+                                visualId: new Guid("c2073000-0000-0000-0000-000000000008"));
+                        },
+                            visualId: new Guid("c3084000-0000-0000-0000-000000000004"));
                     },
                         visualId: new Guid("c2073000-0000-0000-0000-000000000006"));
                     obs.Sequence(seq =>

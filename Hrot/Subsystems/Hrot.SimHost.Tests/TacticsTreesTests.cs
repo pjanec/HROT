@@ -161,6 +161,25 @@ namespace Hrot.SimHost.Tests
                 return h->St.choice.Winner;
             }
 
+            /// <summary>⭐ CE-3084 — a sensor holds <paramref name="contact"/> NOW, by sight (what <c>ThreatInSight</c> reads).</summary>
+            public unsafe void See(Entity contact)
+            {
+                if (!Repo.IsComponentTypeRegistered<ActiveSensorTracks>()) Repo.RegisterComponent<ActiveSensorTracks>();
+                if (!Repo.HasComponent<ActiveSensorTracks>(Unit)) Repo.AddComponent(Unit, new ActiveSensorTracks());
+                ref var t = ref Repo.GetComponentRW<ActiveSensorTracks>(Unit);
+                t.EntityIds[t.Count] = (long)contact.PackedValue;
+                t.Modalities[t.Count] = (byte)SensorModality.Visual;
+                t.Count++;
+            }
+
+            /// <summary>⭐ CE-3084 — the nested approach decision's current winner (<c>St.approachChoice</c> in CombatPosture's block).</summary>
+            public unsafe byte ApproachWinner()
+            {
+                Assert.True(Registry.TryGetId("CombatPosture", out int hash));
+                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(Repo, Unit, hash, out var b));
+                return b->St.approachChoice.Winner;
+            }
+
             public unsafe Vector3 Destination()
             {
                 ref readonly var ch = ref Repo.GetComponentRO<LocomotionChannel>(Unit);
@@ -234,6 +253,125 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("CombatPosture", w.TaskName);
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull,
                 "the TakeCover child runs, with its own sensor");
+        }
+
+        // ── ⭐ CE-3084 (G6) — the approach decision nested in the advance (docs/DESIGN_Decision_Layer.md §3.3e) ─────────────
+
+        [Fact]
+        public void CE3084_AttackApproach_IsRegistered_WithItsOptionNames()
+        {
+            Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
+            var id = Fdp.Toolkit.Utility.UtilityDecisionCatalog.ComputeId("3c6f9e42-5d10-6f3a-ac23-approach00001");
+            Assert.True(Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared.TryGet(id, out var def, out _));
+            Assert.Equal(typeof(Fdp.Toolkit.Utility.Approach), def!.OptionNames);
+            Assert.Equal("Flank", def.OptionName((int)Fdp.Toolkit.Utility.Approach.Flank));
+        }
+
+        /// <summary>⭐ ④ — out of sight, with a scored flank, the advancing unit FLANKS (moving there, firing); on arrival it does not
+        /// end the run — it sees the target from the flank and goes straight on to the objective (Direct).</summary>
+        [Fact]
+        public void CE3084_OutOfSight_TheAdvanceFlanksFirst_ThenGoesStraightOnFromTheFlank()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: false);                       // a weak enemy ⇒ AdvanceAndAttack; NOT in sight
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());   // nothing scored yet ⇒ straight on
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            var flankScore = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite);
+            Assert.False(flankScore.IsNull, "the approach keeps its own flank sensor");
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FiringScoreSite).IsNull, "…and its firing-position sensor");
+            Assert.Equal(enemy, w.Repo.GetComponentRO<EqsSensor>(flankScore).ContextSlot1);
+
+            w.Answer(flankScore, 5, 60f, 80f);                         // a good flank exists
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
+            var flank = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite);
+            Assert.False(flank.IsNull, "the Flank manoeuvre runs, with its own sensor");
+            w.Answer(flank, 6, 30f, 40f);
+            w.Tick();
+            Assert.Equal(new Vector3(30f, 40f, 0f), w.Destination());   // to the flank …
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);   // … firing
+
+            w.See(enemy);                                              // from the flank the target is in sight
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived at the flank
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);                 // ⭐ F2: arrival did NOT end the run
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());  // straight on to the objective
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>⭐ ⑤ — with the target IN SIGHT a scored flank does not matter: Direct, the old advance.</summary>
+        [Fact]
+        public void CE3084_InSight_TheAdvanceGoesStraightOn()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: false);
+            w.See(enemy);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FiringScoreSite), 5, 20f, 10f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "no manoeuvre runs");
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>⭐ ⑥ — the OUTER posture still decides: hurt and outnumbered while flanking ⇒ TakeCover, and the flank manoeuvre
+        /// goes with the branch (its deactivator drops its sensor). The approach's SCORING sensors stay — they live in the outer
+        /// parallel (§3.3e F3).</summary>
+        [Fact]
+        public void CE3084_WhileFlanking_TheOuterPostureStillSwitchesToTakeCover()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "flanking");
+
+            w.SetHealth(0.3f);
+            w.Remember(Entity.Null);
+            w.Contact(armed: true);
+            w.Contact(armed: true);                                    // hurt and outnumbered
+            w.Tick();
+            w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "TakeCover runs");
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "the flank manoeuvre (and its sensor) went with the branch");
+            Assert.NotEqual(new Vector3(60f, 80f, 0f), w.Destination());
+        }
+
+        /// <summary>⭐ CE-2117 — the shipped CombatPosture BTree: when TakeCover takes over from the advance, the advance's
+        /// deactivator runs and its fire stops. ✅ Red before the kernel fix (measured: fire still on, the move still at the
+        /// objective, while TakeCover had already won).</summary>
+        [Fact]
+        public void CE2117_ThePostureBTree_SwitchingToTakeCover_StopsTheAdvancesFire()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            w.SetHealth(0.3f);
+            w.Remember(Entity.Null);
+            w.Contact(armed: true);
+            w.Contact(armed: true);                                    // hurt and outnumbered
+            w.Tick();
+            w.Tick();
+            w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.TakeCover, w.Winner("CombatPosture"));
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
         // ── ⭐ CE-3082 (G4) — the SAME posture decision hosted as an HSM (docs/DESIGN_Decision_Layer.md §3.3c) ───────────────
