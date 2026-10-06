@@ -331,18 +331,19 @@ def run_fire_distribution(c, timeout):
     c.ok(len(set(a)) >= 2, f"the fire is spread over {len(set(a))} targets")
     c.ok(all(a.count(t) <= 2 for t in set(a)), "no target has more than two members (the focus-fire cap)")
 
-    # ③ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
+    # ③ a member near death breaks off — WHILE the hostiles live (600 HP each: with 100 the squad killed them in seconds and
+    #   a hurt member rightly kept advancing — nobody left to flee from, measured live 2026-10-06): its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
+    hurt = riflemen[3]
+    set_health(hurt, 10)
+    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, timeout)
+    c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
+
+    # ④ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
     def all_fired():
         r = [ammo(m) for m in riflemen]
         return all(x[0] is not None and x[1] and x[0] < x[1] for x in r) and r
     fired = wait_for(all_fired, timeout)
     c.ok(fired is not None, f"every member spends rounds ({fired})")
-
-    # ④ a member near death breaks off: its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
-    hurt = riflemen[3]
-    set_health(hurt, 10)
-    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, timeout)
-    c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
 
 
 # ── U5 (CE-3089) — weapon choice: the Bradley's 25 mm at the insurgent, the TOW at the T-72 ──────────────────────────────
