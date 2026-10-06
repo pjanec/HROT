@@ -49,6 +49,30 @@ internal static class InstanceEmitter
             EmitEqsConstFields(e, eqsOps);
         }
 
+        var whenSensorOps = AllStatements(asset).Select(s => s.Operation).OfType<IrOp_WhenSensorResultCheck>()
+            .GroupBy(o => o.SynthFieldName).Select(g => g.First()).ToList();   // ⭐ CE-3078 N4
+        if (whenSensorOps.Count > 0)
+        {
+            e.WriteLine();
+            foreach (var op in whenSensorOps)
+            {
+                e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+                e.WriteLine($"public struct {op.SynthStructTypeName}");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine("public uint  LastTick;");
+                e.WriteLine("public byte  Seen;");
+                e.WriteLine("public byte  Above;");
+                e.WriteLine("public float PrevAge;");
+                e.WriteLine($"public {op.FieldCSharpType ?? "float"} Value;");
+                e.Outdent();
+                e.WriteLine("}");
+                var id8 = ExtractId8FromSynthFieldName(op.SynthFieldName);
+                if (op.ThresholdLiteral is not null) e.WriteLine($"private const float _whenSensorThreshold_{id8} = {op.ThresholdLiteral};");
+                if (op.MaxAgeLiteral is not null)    e.WriteLine($"private const float _whenSensorMaxAge_{id8} = {op.MaxAgeLiteral};");
+            }
+        }
+
         var readEqsOps = CollectReadEqsResultOps(asset);
         if (readEqsOps.Count > 0)
         {

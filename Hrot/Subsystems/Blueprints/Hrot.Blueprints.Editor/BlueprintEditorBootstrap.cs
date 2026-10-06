@@ -136,6 +136,8 @@ public static class BlueprintEditorBootstrap
             registry.Register(descriptor);
         foreach (var descriptor in SensorPaletteEntries.SpawnEntries())   // ⭐ CE-3078 N3
             registry.Register(descriptor);
+        foreach (var descriptor in SensorPaletteEntries.WhenEntries())    // ⭐ CE-3078 N4
+            registry.Register(descriptor);
 
         // BCP-BATCH-02-FIX2 Task 2: register the full set of built-in blueprint node kinds
         // so the TAB / wire-drop picker offers the complete vocabulary, grouped by category.

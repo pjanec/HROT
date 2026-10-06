@@ -77,6 +77,7 @@ internal sealed class WhenNodeSession : INodeEditSession
             case WhenMode.EventFired:   DrawEventFiredForm();   break;
             case WhenMode.ConditionMet: DrawConditionMetForm(); break;
             case WhenMode.EqsResult:    DrawEqsResultForm();    break;
+            case WhenMode.SensorResult: DrawSensorResultForm(); break;   // ⭐ CE-3078 N4
         }
 
         ImGui.Separator();
@@ -112,7 +113,7 @@ internal sealed class WhenNodeSession : INodeEditSession
     private void DrawModeSelector()
     {
         int modeIdx = (int)_node.Mode;
-        string[] labels = { "Value Changed", "Event Fired", "Condition Met", "EQS Result" };
+        string[] labels = { "Value Changed", "Event Fired", "Condition Met", "EQS Result", "Sensor Result" };
         if (ImGui.Combo("Mode", ref modeIdx, labels, labels.Length))
         {
             _node.Mode = (WhenMode)modeIdx;
@@ -159,6 +160,9 @@ internal sealed class WhenNodeSession : INodeEditSession
                 ? $"Event: {ef.EventTypeId}"
                 : "(unconfigured)",
             WhenMode.ConditionMet => "(predicate)",
+            WhenMode.SensorResult => _node.SensorResult is { Decl: { } sd } sr
+                ? $"{sd.KindName} {sr.Trigger}"
+                : "(unconfigured)",
             WhenMode.EqsResult => _node.EqsResult is { } er
                 ? $"EQS {er.Trigger}: {EqsSensorSourcePicker.Describe(er.SensorVariableName, er.UnitSensorKind)}"
                 : "(unconfigured)",
@@ -369,6 +373,42 @@ internal sealed class WhenNodeSession : INodeEditSession
         {
             float a = er.MaxAgeSeconds;
             if (ImGui.InputFloat("Max age (s)##WhenEqsAge", ref a)) { er.MaxAgeSeconds = a; IsDirty = true; }
+        }
+    }
+
+    /// <summary>⭐ CE-3078 N4 — the kind (re-baked on pick), its trigger (from the baked decl), and the trigger's parameter.</summary>
+    private void DrawSensorResultForm()
+    {
+        _node.SensorResult ??= new SensorResultPayload();
+        var sr = _node.SensorResult;
+
+        var kinds = Fdp.Toolkit.Perception.Sensors.SensorKindRegistry.All
+            .Where(i => i.Kind != Fdp.Toolkit.Perception.Sensors.SensorKindRegistry.EqsQuery).Select(i => i.Kind).ToArray();
+        var kindLabels = kinds.Select(SensorKindBaker.KindName).ToArray();
+        int ki = sr.Decl is null ? -1 : System.Array.FindIndex(kinds, k => (byte)k == sr.Decl.Kind);
+        if (ImGui.Combo("Sensor kind##WhenSensorKind", ref ki, kindLabels, kindLabels.Length) && ki >= 0)
+        {
+            sr.Decl = SensorKindBaker.Bake(kinds[ki]);
+            sr.Trigger = sr.Decl is null ? "" : SensorPaletteEntries.UsableTriggers(sr.Decl).FirstOrDefault()?.Name ?? "";
+            IsDirty = true;
+        }
+        if (sr.Decl is null) { ImGui.TextColored(EditorColors.Warning, "Pick a sensor kind."); return; }
+
+        var triggers = SensorPaletteEntries.UsableTriggers(sr.Decl).ToArray();
+        var labels = triggers.Select(t => t.Name).ToArray();
+        int ti = System.Array.FindIndex(triggers, t => t.Name == sr.Trigger);
+        if (ImGui.Combo("Trigger##WhenSensorTrigger", ref ti, labels, labels.Length) && ti >= 0) { sr.Trigger = triggers[ti].Name; IsDirty = true; }
+
+        var current = triggers.FirstOrDefault(t => t.Name == sr.Trigger);
+        if (current?.Shape == "FieldCrossed")
+        {
+            float t = sr.Threshold;
+            if (ImGui.InputFloat($"{current.ElementField} threshold##WhenSensorThreshold", ref t)) { sr.Threshold = t; IsDirty = true; }
+        }
+        else if (current?.Name == "BecomesStale")
+        {
+            float a = sr.MaxAgeSeconds;
+            if (ImGui.InputFloat("Max age (s)##WhenSensorAge", ref a)) { sr.MaxAgeSeconds = a; IsDirty = true; }
         }
     }
 

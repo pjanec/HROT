@@ -713,9 +713,34 @@ public sealed class WhenNode : Node
     public EventFiredPayload? EventFired { get; set; }
     public ConditionMetPayload? ConditionMet { get; set; }
     public EqsResultPayload? EqsResult { get; set; }
+    /// <summary>⭐ <c>CE-3078</c> N4 — <see cref="WhenMode.SensorResult"/>'s payload (omitted from JSON otherwise, so every existing
+    /// When node persists byte-identically).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SensorResultPayload? SensorResult { get; set; }
 }
 
-public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult }
+/// <summary>⚠ Persisted by value — append only.</summary>
+public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult, SensorResult }
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N4 — <c>When SensorResult(kind, trigger)</c> on the unit's sensor of a kind. Decided by the baked trigger's
+/// SHAPE (D4), never by its name: Header (<c>FirstReady</c> / <c>Changed</c> = the answer's stamp moved / <c>BecomesStale</c>),
+/// <c>FieldChanged</c> (entry 0's field differs from last seen — from the field's default, so the first area seen fires),
+/// <c>FieldCrossed</c> (entry 0's field crossed <see cref="Threshold"/> — up fires OnFired, down OnEnded; it starts "below",
+/// so an area already over the threshold when first seen fires). No area ⇒ the field reads as its default (0). ⚠ Field triggers compare EVERY tick, not once per answer: the area
+/// family is re-rated between answers (§7.10b).
+/// </summary>
+public sealed class SensorResultPayload
+{
+    /// <summary>The kind's baked types and triggers.</summary>
+    public SensorKindDecl? Decl { get; set; }
+    /// <summary>The trigger's name — one of <see cref="SensorKindDecl.Triggers"/>.</summary>
+    public string Trigger { get; set; } = "";
+    /// <summary>The FieldCrossed threshold.</summary>
+    public float Threshold { get; set; }
+    /// <summary>The BecomesStale age (s).</summary>
+    public float MaxAgeSeconds { get; set; }
+}
 
 [Flags]
 public enum WhenEdge { None = 0, RisingEdge = 1, FallingEdge = 2 }
@@ -863,6 +888,26 @@ public sealed class SensorKindDecl
     /// null = the kind is not spawned by a behaviour (not offered by <see cref="SpawnSensorNode"/>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EnsureMethodFqn { get; set; }
+
+    /// <summary>⭐ N4 (Q3) — the kind's <c>When SensorResult</c> triggers, as DATA (name, element field, shape).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SensorTriggerDecl>? Triggers { get; set; }
+    /// <summary>⭐ N4 — the result component carries <c>float LastUpdateTimeSeconds</c> (the answer's TIME — not one of Q1's four
+    /// members); a <c>BecomesStale</c> trigger needs it (BP2076 otherwise).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasAnswerTime { get; set; }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 (Q3) — one trigger of a kind: how it is decided, never a name the compiler knows.</summary>
+public sealed class SensorTriggerDecl
+{
+    /// <summary>What the node offers (e.g. "ThreatCrossed").</summary>
+    public string Name { get; set; } = "";
+    /// <summary>The element field it watches (entry 0's); null for a header trigger.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementField { get; set; }
+    /// <summary>"Header" (from the answer's header: FirstReady / Changed / BecomesStale), "FieldChanged" or "FieldCrossed".</summary>
+    public string Shape { get; set; } = "Header";
 }
 
 /// <summary>

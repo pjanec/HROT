@@ -1274,6 +1274,7 @@ internal sealed class V_WhenNodeRules : IValidator
                     WhenMode.EventFired   => node.EventFired == null,
                     WhenMode.ConditionMet => node.ConditionMet == null,
                     WhenMode.EqsResult    => node.EqsResult == null,
+                    WhenMode.SensorResult => node.SensorResult == null,   // ⭐ CE-3078 N4
                     _                     => false,
                 };
                 if (missingPayload)
@@ -1628,6 +1629,22 @@ internal sealed class V_SensorNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
             }
 
+            foreach (var node in graph.Nodes.OfType<WhenNode>())
+            {
+                if (node.Mode != WhenMode.SensorResult || node.SensorResult is not { } sr) continue;   // a missing payload is BP2002
+                var d = sr.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "When SensorResult has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
+                if (WhenSensorResultShape.Resolve(sr, out _, out _, out var why) is false)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2076,
+                        $"When SensorResult({d.KindName}, {sr.Trigger}): {why}", asset.AssetId, graph.Id, node.Id));
+            }
+
             foreach (var node in graph.Nodes.OfType<SpawnSensorNode>())
             {
                 if (isUnsupported)
@@ -1646,6 +1663,39 @@ internal sealed class V_SensorNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
             }
         }
+    }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 — the ONE resolution of a <c>When SensorResult</c> trigger from its baked decl (Stage2 and Stage5).</summary>
+internal static class WhenSensorResultShape
+{
+    private static readonly HashSet<string> Numbers = new(StringComparer.Ordinal)
+    {
+        "System.Single", "System.Double", "System.Int32", "System.UInt32", "System.Int16", "System.UInt16",
+        "System.Byte", "System.SByte", "System.Int64", "System.UInt64", "float", "double", "int", "uint", "short", "ushort", "byte", "sbyte", "long", "ulong",
+    };
+
+    /// <summary>The trigger's shape ("Header" / "FieldChanged" / "FieldCrossed") and, for a field trigger, the field's pin TypeId.
+    /// False (with the reason) when the trigger is not the kind's or cannot be decided.</summary>
+    public static bool Resolve(SensorResultPayload sr, out string shape, out string? fieldTypeId, out string why)
+    {
+        shape = ""; fieldTypeId = null; why = "";
+        var d = sr.Decl!;
+        var t = d.Triggers?.FirstOrDefault(x => x.Name == sr.Trigger);
+        if (t is null) { why = $"'{sr.Trigger}' is not a trigger of this kind ({string.Join(", ", d.Triggers?.Select(x => x.Name) ?? Array.Empty<string>())})."; return false; }
+        shape = t.Shape;
+        if (shape == "Header")
+        {
+            if (t.Name is not ("FirstReady" or "Changed" or "BecomesStale")) { why = $"unknown header trigger '{t.Name}'."; return false; }
+            if (t.Name == "BecomesStale" && !d.HasAnswerTime) { why = "BecomesStale needs the answer's time, and this kind's result component has no LastUpdateTimeSeconds."; return false; }
+            return true;
+        }
+        if (shape is not ("FieldChanged" or "FieldCrossed")) { why = $"unknown trigger shape '{shape}'."; return false; }
+        var f = d.ElementFields.FirstOrDefault(x => x.Name == t.ElementField);
+        if (f is null) { why = $"the element has no field '{t.ElementField}'."; return false; }
+        fieldTypeId = f.TypeId;
+        if (shape == "FieldCrossed" && !Numbers.Contains(f.TypeId)) { why = $"FieldCrossed needs a number; '{f.Name}' is {f.TypeId}."; return false; }
+        return true;
     }
 }
 

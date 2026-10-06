@@ -73,6 +73,18 @@ internal static class WhenLowering_Instance
                     DefaultValueCSharp = "default",
                 });
             }
+            else if (stmt.Operation is IrOp_WhenSensorResultCheck sns)
+            {
+                // ⭐ CE-3078 N4 — as the EQS When: one prev-state struct per node.
+                if (!seen.Add(sns.SynthFieldName)) continue;
+                toAdd.Add(new IrField
+                {
+                    Id                 = SynthesizedGuids.WhenPrevField(asset.AssetId, DeriveNodeIdFromFieldName(sns.SynthFieldName)),
+                    Name               = sns.SynthFieldName,
+                    Type               = new IrTypeRef { FullName = sns.SynthStructTypeName, IsUnmanaged = true, SizeBytes = sns.SynthStructSizeBytes },
+                    DefaultValueCSharp = "default",
+                });
+            }
             else if (stmt.Operation is IrOp_ScoreDecision sd)
             {
                 // ⭐ CE-2070 — the node's last winner: the hysteresis memory, per node, never on the unit.

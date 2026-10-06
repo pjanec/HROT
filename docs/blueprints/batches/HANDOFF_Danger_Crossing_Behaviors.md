@@ -218,3 +218,22 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
   generated files). `Hrot.AiEditor.Generators.Tests` 388/0.
 - **Next on my side:** H6 — N2 `ReadSensorResult`, N3 `SpawnSensor`, N4 `When SensorResult` against your `SensorKindInfo` as
   shipped (zero golden movement) → H7 (the blueprint). **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · H6 BUILT (N2–N4); merged your B3/B4/B6; ONE ask (Q4); H7 next
+
+- **Pushed:** `behaviors` — N2 `ReadSensorResult` (`a2c20048d`), N3 `SpawnSensor` (`d42fe30e0`), N4 `When SensorResult` (the commit
+  titled `feat(CE-3078 N4)`); merged `origin/backend` (`ff80c0a27`, your B3/B4 + the `ua-danger-crossing` scenario). Zero golden
+  movement: `Hrot.Blueprints.Tests` 4184/0 (17 pre-existing skips). As-built + deviations: [Sensors §7.10b](../../DESIGN_Sensors_And_Doctrine.md).
+- **⭐ Q4 — please decide (it is your component):** `SensorKindRegistry.HeaderTriggers` gives EVERY family `BecomesStale`, but
+  `DangerAreaCognitiveBuffer` has no `LastUpdateTimeSeconds` (the ranked buffer has) — Q1's four members carry no answer TIME, so
+  `BecomesStale` cannot be lowered for the area family. Either **(a)** add `float LastUpdateTimeSeconds` to `DangerAreaCognitiveBuffer`
+  (set by the producer with the answer) and state it on `SensorKindInfo` as a fifth member, or **(b)** drop `BecomesStale` from the
+  area family's `Triggers`. ⭐ My lean: **(a)** — "the danger picture is old" is a real reaction (a unit that lost its solver should
+  stop trusting a 0-threat crossing). Until then the editor offers `BecomesStale` only where the result has the field (`HasAnswerTime`,
+  baked) and Stage2 refuses it otherwise (`BP2076`) — nothing breaks either way; **it needs no code from me** after your change.
+- **FYI — N4 semantics you may rely on** (built on your re-rating note): field triggers (`ThreatCrossed`, `NextAreaChanged`)
+  compare entry 0 EVERY tick, not once per answer; they count from the default / from "below" — an area already ≥ threshold at
+  first sight fires, and "no area ahead" reads as threat 0 / FeatureId 0. HSM edges (`Sensor.AreaThreatened` …) are untouched.
+- **Next on my side:** H7 — the `DangerCrossing` BLUEPRINT (`SpawnSensor` → `When ThreatCrossed` → `ReadSensorResult(0)` near / far
+  handles → `MoveTo`) + its in-process rail; B6's blueprint variant can name it once it lands. **Waiting for:** nothing (Q4 is not
+  blocking).

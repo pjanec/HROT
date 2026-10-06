@@ -1246,6 +1246,68 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_WhenSensorResultCheck op:
+            {
+                // ⭐ CE-3078 N4 — the unit's sensor of the kind; decided by the trigger's SHAPE. Field triggers compare EVERY tick.
+                string id8 = ExtractId8FromFieldName(op.SynthFieldName);
+                string rc = $"global::{op.ResultComponentFqn.Replace('+', '.')}";
+                string fired = op.OnFiredBlock.HasValue ? $"goto __block_{e.Ctx.LabelForBlock(op.OnFiredBlock.Value)};" : "";
+                string ended = op.OnEndedBlock.HasValue ? $"goto __block_{e.Ctx.LabelForBlock(op.OnEndedBlock.Value)};" : "";
+                e.WriteLine($"// BEGIN WhenNode {id8}: SensorResult / {op.Trigger} ({op.Shape})");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var prev = ref {ctx.ExecVar}.{op.SynthFieldName};");
+                e.WriteLine($"var child = global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of({wv}, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.Kind});");
+                e.WriteLine($"if (!{wv}.IsAlive(child) || !{wv}.HasComponent<{rc}>(child)) goto whenNode_{id8}_end;");
+                e.WriteLine($"ref readonly var buffer = ref {wv}.GetComponentRO<{rc}>(child);");
+                e.WriteLine("if (!buffer.IsReady) goto whenNode_{0}_end;".Replace("{0}", id8));
+                switch (op.Shape, op.Trigger)
+                {
+                    case ("Header", "FirstReady"):
+                        e.WriteLine("if (prev.Seen == 0) { prev.Seen = 1; " + fired + " }");
+                        break;
+                    case ("Header", "Changed"):
+                        e.WriteLine("if (buffer.LastUpdateTick != prev.LastTick)");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine("bool first = prev.LastTick == 0;");
+                        e.WriteLine("prev.LastTick = buffer.LastUpdateTick;");
+                        e.WriteLine("if (!first) { " + fired + " }");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        break;
+                    case ("Header", "BecomesStale"):
+                        e.WriteLine("float age = time - buffer.LastUpdateTimeSeconds;");
+                        e.WriteLine($"bool wasStale = prev.PrevAge > _whenSensorMaxAge_{id8};");
+                        e.WriteLine($"bool isStale  = age          > _whenSensorMaxAge_{id8};");
+                        e.WriteLine("prev.PrevAge = age;");
+                        e.WriteLine("if (!wasStale && isStale) { " + fired + " }");
+                        if (ended.Length > 0) e.WriteLine("else if (wasStale && !isStale) { " + ended + " }");
+                        break;
+                    case ("FieldChanged", _):
+                        e.WriteLine($"var cur = buffer.Count > 0 ? buffer.GetSpanRO()[0].{op.ElementField} : default({op.FieldCSharpType});");
+                        // From the field's default: the first area seen IS a change (ConditionMet's "rising from false").
+                        e.WriteLine("bool changed = cur != prev.Value;");
+                        e.WriteLine("prev.Value = cur;");
+                        e.WriteLine("if (changed) { " + fired + " }");
+                        break;
+                    case ("FieldCrossed", _):
+                        e.WriteLine($"float cur = buffer.Count > 0 ? (float)buffer.GetSpanRO()[0].{op.ElementField} : 0f;");
+                        e.WriteLine($"bool isAbove = cur >= _whenSensorThreshold_{id8};");
+                        // From "below": an area already over the threshold when first seen fires OnFired (a threat is never missed).
+                        e.WriteLine("bool wasAbove = prev.Above != 0;");
+                        e.WriteLine("prev.Above = isAbove ? (byte)1 : (byte)0;");
+                        e.WriteLine("if (!wasAbove && isAbove) { " + fired + " }");
+                        if (ended.Length > 0) e.WriteLine("else if (wasAbove && !isAbove) { " + ended + " }");
+                        break;
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine($"whenNode_{id8}_end: ;");
+                e.WriteLine($"// END WhenNode {id8}");
+                break;
+            }
+
             case IrOp_WhenEqsResultCheck op:
             {
                 string id8 = ExtractId8FromFieldName(op.SynthFieldName);

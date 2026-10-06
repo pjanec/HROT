@@ -1269,6 +1269,38 @@ internal sealed class GraphScheduler
                 goto scheduleSuccessors;
             }
 
+            case WhenMode.SensorResult:
+            {
+                // ⭐ CE-3078 N4 — by the baked trigger's SHAPE (D4); Stage2 BP2074 / BP2076 refused anything undecidable.
+                var sr = wn.SensorResult;
+                if (sr?.Decl is null || !WhenSensorResultShape.Resolve(sr, out var shape, out var fieldTypeId, out _)) break;
+                var trig = sr.Decl.Triggers!.First(x => x.Name == sr.Trigger);
+                string? fieldCs = fieldTypeId is null ? null
+                    : fieldTypeId.StartsWith("global::", StringComparison.Ordinal) ? fieldTypeId : "global::" + fieldTypeId.Replace('+', '.');
+                string F(float v) => $"{v.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}f";
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = null,
+                    Operation   = new IrOp_WhenSensorResultCheck(
+                        Kind:                 sr.Decl.Kind,
+                        ResultComponentFqn:   sr.Decl.ResultComponentFqn,
+                        Shape:                shape,
+                        Trigger:              sr.Trigger,
+                        ElementField:         trig.ElementField,
+                        FieldCSharpType:      fieldCs,
+                        ThresholdLiteral:     shape == "FieldCrossed" ? F(sr.Threshold) : null,
+                        MaxAgeLiteral:        sr.Trigger == "BecomesStale" ? F(sr.MaxAgeSeconds) : null,
+                        SynthFieldName:       synthFieldName,
+                        SynthStructTypeName:  $"_WhenSensor_{idShort}_PrevState",
+                        SynthStructSizeBytes: 32,
+                        OnFiredBlock:         hasFired ? onFiredBlock : null,
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                    Debug = debug,
+                });
+                bb.Terminator = new IrTerm_Goto(outBlock) { Debug = debug };
+                goto scheduleSuccessors;
+            }
+
             case WhenMode.EqsResult:
             {
                 var er = wn.EqsResult;

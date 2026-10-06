@@ -813,6 +813,36 @@ public sealed record IrOp_ReadSensorResult(
 /// ⭐ <c>CE-3078</c> N3 — emitted by Stage 5 for a <c>SpawnSensorNode</c>: settings from the type's <c>Default</c> (or
 /// <c>default</c>), each WIRED settings pin assigned over it, then the kind's Ensure method; the result is the child entity.
 /// </summary>
+public sealed record IrOp_WhenSensorResultCheck(
+    /// <summary>The sensor kind (<c>SensorModality</c> value).</summary>
+    byte Kind,
+    /// <summary>FQN of the result component on the sensor child.</summary>
+    string ResultComponentFqn,
+    /// <summary>"Header" / "FieldChanged" / "FieldCrossed".</summary>
+    string Shape,
+    /// <summary>The trigger name (a header trigger is decided by it: FirstReady / Changed / BecomesStale).</summary>
+    string Trigger,
+    /// <summary>The element field a field trigger watches; null for a header trigger.</summary>
+    string? ElementField,
+    /// <summary>C# type of the watched field (the prev-state slot), e.g. <c>global::System.UInt32</c>; null for a header trigger.</summary>
+    string? FieldCSharpType,
+    /// <summary>FieldCrossed threshold as a float literal; null otherwise.</summary>
+    string? ThresholdLiteral,
+    /// <summary>BecomesStale age as a float literal; null otherwise.</summary>
+    string? MaxAgeLiteral,
+    /// <summary>The synthesized prev-state field (<c>_when_&lt;id8&gt;_prev</c>).</summary>
+    string SynthFieldName,
+    /// <summary>The prev-state struct type, local to the generated class.</summary>
+    string SynthStructTypeName,
+    /// <summary>Its size (StructureHash contribution).</summary>
+    int SynthStructSizeBytes,
+    /// <summary>Block for OnFired (RisingEdge), or null.</summary>
+    IrBlockId? OnFiredBlock,
+    /// <summary>Block for OnEnded (FallingEdge), or null.</summary>
+    IrBlockId? OnEndedBlock
+) : IrOperation;
+
+/// <summary>⭐ <c>CE-3078</c> N3 — see SpawnSensorNode.</summary>
 public sealed record IrOp_SpawnSensor(
     /// <summary>The sensor's SITE id, baked from the node id (as <see cref="IrOp_SpawnEqsSensor.BakedInstanceId"/>).</summary>
     int BakedSiteId,
