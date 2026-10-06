@@ -955,7 +955,7 @@ Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 
 | §10.3 / §10.5 said | as built |
 |---|---|
 | the watcher "east of the vertical road with sight of THAT crossing only" | ⚠ measured on the REAL footprints: L-Block is an L (`[230,110]…[255,170]`), so the first post (310,222) saw BOTH crossings and the rifleman held at the wrong one (run 1). ⭐ The watcher stands at (370,212): ≥ 25 m of building between it and Cross Street, a clear line to Main Street, 118 m from the hold point |
-| `Sentry` 90 m (H2's default) | 125 m (the order's `sentry.WithinMetres`), so the 15 s wait starts just before the rifleman reaches the hold (both units see 150 m, 360°) |
+| `Sentry` 90 m (H2's default) | ⭐ 145 m (the order's `sentry.WithinMetres`) — ⚠ 125 m DEADLOCKED one live run: the hold point varies a few metres between runs (247.6,187.7 vs 241.2,188.0) and 241 is 131 m from the watcher, so the Sentry never ended. 145 m sits inside both units' 150 m vision and ≥ 180 m from the first crossing |
 | withdraw "up the gap between Block C and the Tower" | to (395,290), north-east behind the Tower — along that walk, the last point the rifleman sees has ≥ 10 m of building between it and the crossing (searched over the real footprints) |
 | the rifleman's order | `{"sensor":{"RouteTo":[285,220,0]},"walk":{"X":285,"Y":220,"Speed":1.5,"ArrivalRadius":3}}` (H5's shape — the objective is given twice) |
 | check | `utility-demo-check.py --launch --timeout 240 ua-danger-crossing` — **PASS** (sim 0 → 284 s): two `StreetCrossing` areas at 133 m / 198 m · only Main Street ≥ 0.5 · hold at (247.6, 187.7) ≥ 10 s · the watcher's mission advanced by itself to (395.4, 291.1) · the rating cleared · crossed and arrived |

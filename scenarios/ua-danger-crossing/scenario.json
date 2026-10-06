@@ -99,7 +99,7 @@
               "taskId": "b3079000-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "Sentry",
-              "behaviorParams": "{\"sentry\":{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":125}}",
+              "behaviorParams": "{\"sentry\":{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
