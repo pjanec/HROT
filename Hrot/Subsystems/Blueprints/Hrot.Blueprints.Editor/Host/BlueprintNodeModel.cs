@@ -374,6 +374,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ReadEqsResultNode        => "Read EQS Result",
         Hrot.Blueprints.Core.Assets.ReadSensorResultNode rsr => $"Read Sensor Result: {(rsr.Decl is { } d && d.KindName.Length > 0 ? d.KindName : "?")}",   // ⭐ CE-3078 N2
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
+        Hrot.Blueprints.Core.Assets.SpawnSensorNode ssn      => $"Spawn Sensor: {(ssn.Decl is { } d && d.KindName.Length > 0 ? d.KindName : "?")}",   // ⭐ CE-3078 N3
         // Q#14 Option B struct-value nodes: show the short struct name (namespace/global:: stripped)
         // so the header reads "Make StructDemoData" instead of the raw class name "MakeStructNode".
         Hrot.Blueprints.Core.Assets.MakeStructNode mk        => string.IsNullOrEmpty(mk.StructTypeId) ? "Make Struct"        : $"Make [{ShortTypeName(mk.StructTypeId)}]",

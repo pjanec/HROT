@@ -134,6 +134,8 @@ public static class BlueprintEditorBootstrap
         // ⭐ CE-3078 N2: one "Read Sensor Result: {kind}" entry per kind in the toolkit's SensorKindRegistry.
         foreach (var descriptor in SensorPaletteEntries.ReadEntries())
             registry.Register(descriptor);
+        foreach (var descriptor in SensorPaletteEntries.SpawnEntries())   // ⭐ CE-3078 N3
+            registry.Register(descriptor);
 
         // BCP-BATCH-02-FIX2 Task 2: register the full set of built-in blueprint node kinds
         // so the TAB / wire-drop picker offers the complete vocabulary, grouped by category.

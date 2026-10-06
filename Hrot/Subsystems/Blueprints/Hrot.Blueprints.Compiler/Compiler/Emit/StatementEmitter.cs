@@ -1325,6 +1325,28 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_SpawnSensor op:
+            {
+                // ⭐ CE-3078 N3 — settings = the type's Default (or default) with every WIRED pin assigned over it, then the
+                //    kind's own Ensure (find-or-create, run-stamped, CE-485). docs/DESIGN_Sensors_And_Doctrine.md §7.10a D3.
+                string t = $"global::{op.SettingsTypeFqn.Replace('+', '.')}";
+                if (idx >= 0)
+                    e.WriteLine($"global::Fdp.Core.Entity __t{idx} = default;");
+                e.WriteLine("// BEGIN SpawnSensorNode");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine(op.SettingsDefaultFqn is { } d ? $"var _settings = global::{d.Replace('+', '.')};" : $"var _settings = default({t});");
+                foreach (var (field, value) in op.Settings)
+                    e.WriteLine($"_settings.{field} = __t{value.Index};");
+                string key = op.KeyValue is not null ? $"(long)__t{op.KeyValue.Value.Index}.PackedValue" : "0L";
+                string ensure = $"global::{op.EnsureMethodFqn.Replace('+', '.')}({wv}, self, {op.BakedSiteId}, in _settings, {key})";
+                e.WriteLine(idx >= 0 ? $"__t{idx} = {ensure};" : $"_ = {ensure};");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine("// END SpawnSensorNode");
+                break;
+            }
+
             case IrOp_SpawnEqsSensor op:
             {
                 // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3) through the one shared lifecycle,

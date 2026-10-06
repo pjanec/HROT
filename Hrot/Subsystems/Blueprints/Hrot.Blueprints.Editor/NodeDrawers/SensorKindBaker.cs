@@ -27,6 +27,22 @@ public static class SensorKindBaker
         };
         foreach (var f in info.ElementType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
             decl.ElementFields.Add(new ComponentFieldDecl { Name = f.Name, TypeId = PinTypeId(f.FieldType) });
+
+        // ⭐ N3 (Q2) — a kind a behaviour spawns: its settings fields (the in-pins), their Default, the Ensure method.
+        if (!string.IsNullOrEmpty(info.EnsureMethod))
+        {
+            var settings = info.SettingsType;
+            decl.EnsureMethodFqn = info.EnsureMethod;
+            decl.SettingsTypeFqn = settings.FullName!;
+            decl.SettingsFields  = new List<ComponentFieldDecl>();
+            foreach (var f in settings.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                decl.SettingsFields.Add(new ComponentFieldDecl { Name = f.Name, TypeId = PinTypeId(f.FieldType) });
+            var d = (System.Reflection.MemberInfo?)settings.GetProperty("Default", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                 ?? settings.GetField("Default", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (d is System.Reflection.PropertyInfo { PropertyType: var pt } && pt == settings
+                || d is System.Reflection.FieldInfo { FieldType: var ft } && ft == settings)
+                decl.SettingsDefaultFqn = settings.FullName + ".Default";
+        }
         return decl;
     }
 
@@ -62,6 +78,26 @@ public static class SensorPaletteEntries
                 Icon        = "icons/eqs_read.svg",
                 // Re-bake per placed node so each node owns its decl (never one list shared across nodes).
                 CreateInstance = () => new ReadSensorResultNode { Id = Guid.NewGuid(), Decl = SensorKindBaker.Bake(kind) },
+            };
+        }
+    }
+
+    /// <summary>N3 — "Spawn Sensor: {kind}" for every kind a behaviour spawns (an Ensure method, Q2) — D3.</summary>
+    public static IEnumerable<NodeKindDescriptor> SpawnEntries()
+    {
+        foreach (var info in SensorKindRegistry.All)
+        {
+            if (string.IsNullOrEmpty(info.EnsureMethod)) continue;
+            var kind = info.Kind;
+            var name = SensorKindBaker.KindName(kind);
+            yield return new NodeKindDescriptor
+            {
+                Kind        = $"Sensor.Spawn.{name}",
+                DisplayName = $"Spawn Sensor: {name}",
+                Category    = Category,
+                Tooltip     = $"Create this run's {name} sensor (find-or-create, one per Key; it goes when the run ends), configured by one pin per field of {info.SettingsType.Name} — an unwired pin keeps its default.",
+                Icon        = "icons/eqs_spawn.svg",
+                CreateInstance = () => new SpawnSensorNode { Id = Guid.NewGuid(), Decl = SensorKindBaker.Bake(kind) },
             };
         }
     }

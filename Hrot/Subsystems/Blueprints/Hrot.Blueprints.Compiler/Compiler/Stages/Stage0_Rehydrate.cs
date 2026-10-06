@@ -151,6 +151,12 @@ internal static class Stage0_Rehydrate
                 EnrichGetComponentPins(pins, gcn, staticShapes);
                 break;
 
+            case SpawnSensorNode ssn3:
+                // ⭐ CE-3078 N3 — after the static exec In / Out, the ONE projection the editor uses too.
+                foreach (var (name, dir, typeId) in SpawnSensorNode.DataPins(ssn3.Decl))
+                    pins.Add(MakePin(name, dir, isExec: false, typeId: typeId));
+                break;
+
             case ReadSensorResultNode rsr:
                 // ⭐ CE-3078 N2 — the ONE projection the editor uses too (ReadSensorResultNode.DataPins).
                 pins.Clear();

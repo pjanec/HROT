@@ -227,6 +227,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         },
         // ⭐ CE-3078 N2 — pins are projected from the baked decl by Stage0 (ReadSensorResultNode.DataPins).
         ReadSensorResultNode      => Array.Empty<PinSchema>(),
+        SpawnSensorNode           => new[] { ExecIn(), ExecOut() },   // ⭐ CE-3078 N3 — data pins from the decl (Stage0)
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),
         PartitionElementsNode     => new[] { ExecIn(), ExecOut() },

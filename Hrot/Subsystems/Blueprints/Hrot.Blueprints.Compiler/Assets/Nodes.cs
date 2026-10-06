@@ -31,6 +31,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ReadEqsResultNode),  "ReadEqsResult")]  // NEW
 [JsonDerivedType(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")] // NEW
 [JsonDerivedType(typeof(ReadSensorResultNode), "ReadSensorResult")]   // ⭐ CE-3078 N2
+[JsonDerivedType(typeof(SpawnSensorNode), "SpawnSensor")]             // ⭐ CE-3078 N3
 [JsonDerivedType(typeof(ScoreDecisionNode),    "ScoreDecision")]
 [JsonDerivedType(typeof(ReadRankedResultNode), "ReadRankedResult")]
 [JsonDerivedType(typeof(PartitionElementsNode), "PartitionElements")]
@@ -848,6 +849,20 @@ public sealed class SensorKindDecl
     public string ElementTypeFqn { get; set; } = "";
     /// <summary>The element's public fields — one out-pin each on <see cref="ReadSensorResultNode"/> (D2).</summary>
     public List<ComponentFieldDecl> ElementFields { get; set; } = new();
+
+    /// <summary>⭐ N3 — FQN of what configures the kind; null when a behaviour does not spawn it (<see cref="EnsureMethodFqn"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsTypeFqn { get; set; }
+    /// <summary>⭐ N3 — the settings' public fields — one in-pin each on <see cref="SpawnSensorNode"/> (D3).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? SettingsFields { get; set; }
+    /// <summary>⭐ N3 — FQN of the settings' public static <c>Default</c>, the base an unwired pin keeps; null = <c>default(T)</c>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsDefaultFqn { get; set; }
+    /// <summary>⭐ N3 (Q2) — FQN of the static <c>Entity Ensure(EntityRepository, Entity owner, int site, in TSettings, long key)</c>;
+    /// null = the kind is not spawned by a behaviour (not offered by <see cref="SpawnSensorNode"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EnsureMethodFqn { get; set; }
 }
 
 /// <summary>
@@ -882,6 +897,30 @@ public sealed class ReadSensorResultNode : Node
             foreach (var (h, _) in HeaderPins) if (h == f.Name) { reserved = true; break; }
             pins.Add((reserved ? "Element" + f.Name : f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId, "Element." + f.Name));
         }
+        return pins;
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N3 — create (find-or-create) this behaviour run's sensor of a kind, configured from one in-pin per
+/// settings field, through the kind's own Ensure method (Q2, D3); out <c>Sensor</c> (the child entity). One sensor per
+/// <c>Key</c> from a single node (CE-485). Unwired settings keep the settings type's <c>Default</c>.
+/// </summary>
+public sealed class SpawnSensorNode : Node
+{
+    /// <summary>The kind's baked types; null = not baked (BP2074).</summary>
+    public SensorKindDecl? Decl { get; set; }
+
+    /// <summary>The ONE data-pin projection (after the exec In / Out) — Stage0 and the editor both use it.</summary>
+    public static IReadOnlyList<(string Name, string Direction, string TypeId)> DataPins(SensorKindDecl? decl)
+    {
+        var pins = new List<(string, string, string)>();
+        if (decl?.SettingsFields is { } fields)
+            foreach (var f in fields)
+                if (!string.IsNullOrEmpty(f.Name) && !f.IsCollection && f.Name != "Key" && f.Name != "Sensor")
+                    pins.Add((f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(("Key", "In", "Fdp.Core.Entity"));
+        pins.Add(("Sensor", "Out", "Fdp.Core.Entity"));
         return pins;
     }
 }

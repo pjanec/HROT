@@ -810,6 +810,25 @@ public sealed record IrOp_ReadSensorResult(
 ) : IrOperation;
 
 /// <summary>
+/// ⭐ <c>CE-3078</c> N3 — emitted by Stage 5 for a <c>SpawnSensorNode</c>: settings from the type's <c>Default</c> (or
+/// <c>default</c>), each WIRED settings pin assigned over it, then the kind's Ensure method; the result is the child entity.
+/// </summary>
+public sealed record IrOp_SpawnSensor(
+    /// <summary>The sensor's SITE id, baked from the node id (as <see cref="IrOp_SpawnEqsSensor.BakedInstanceId"/>).</summary>
+    int BakedSiteId,
+    /// <summary>FQN of the settings type.</summary>
+    string SettingsTypeFqn,
+    /// <summary>FQN of the settings' static Default, or null for <c>default(T)</c>.</summary>
+    string? SettingsDefaultFqn,
+    /// <summary>FQN of the kind's static Ensure method.</summary>
+    string EnsureMethodFqn,
+    /// <summary>The wired settings fields: (field name, value).</summary>
+    IReadOnlyList<(string Field, IrValue Value)> Settings,
+    /// <summary>IrValue for the Key entity input (or null -> key 0).</summary>
+    IrValue? KeyValue
+) : IrOperation;
+
+/// <summary>
 /// Emitted by Stage 5 when a ReadRankedResultNode output pin is first resolved.
 /// Stage 7 emits an [AggressiveInlining] helper + result struct per node.
 /// </summary>

@@ -2248,6 +2248,38 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case SpawnSensorNode spn:
+            {
+                // ⭐ CE-3078 N3 — the kind's own Ensure (Q2), the CE-485 site / key shape of SpawnEqsSensor.
+                var decl = spn.Decl!;   // Stage2 BP2074 / BP2075 refuse a node without one
+                IrValue? Wired(string pinName)
+                {
+                    var pin = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In" && string.Equals(p.Name, pinName, StringComparison.Ordinal));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == spn.Id && l.ToPinId == pin.Id);
+                    return link is null ? null : ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+                var settings = new List<(string, IrValue)>();
+                foreach (var (name, dir, _) in SpawnSensorNode.DataPins(decl))
+                    if (dir == "In" && name != "Key" && Wired(name) is { } v) settings.Add((name, v));
+                var entityType = new IrTypeRef { FullName = "Fdp.Core.Entity", IsUnmanaged = true, SizeBytes = 8 };
+                var sensorResult = AllocValue(entityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = sensorResult,
+                    Operation   = new IrOp_SpawnSensor((int)BlueprintIdHash.Compute(spn.Id), decl.SettingsTypeFqn!, decl.SettingsDefaultFqn,
+                                                       decl.EnsureMethodFqn!, settings, Wired("Key")),
+                    Debug = DebugOf(spn),
+                });
+                var sensorOut = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Name == "Sensor");
+                if (sensorOut is not null)
+                {
+                    _pinValueCache[sensorOut.Id]     = sensorResult;
+                    _statementPinCache[sensorOut.Id] = sensorResult;
+                }
+                break;
+            }
+
             case ScoreDecisionNode sdn:
             {
                 string id8 = sdn.Id.ToString("N").Substring(0, 8);

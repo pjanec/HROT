@@ -1627,6 +1627,24 @@ internal sealed class V_SensorNodeRules : IValidator
                         + "the kind's result component and element type, CE-3078).",
                         asset.AssetId, graph.Id, node.Id));
             }
+
+            foreach (var node in graph.Nodes.OfType<SpawnSensorNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"SpawnSensor is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "SpawnSensor has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                else if (string.IsNullOrWhiteSpace(d.EnsureMethodFqn) || string.IsNullOrWhiteSpace(d.SettingsTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2075,
+                        $"SpawnSensor: sensor kind {d.KindName} ({d.Kind}) is not spawned by a behaviour — it has no Ensure method "
+                        + "(a TKB perception sensor is read, not spawned; an EQS query is spawned with SpawnEqsSensor).",
+                        asset.AssetId, graph.Id, node.Id));
+            }
         }
     }
 }
