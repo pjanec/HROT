@@ -50,6 +50,13 @@ public sealed class PostureScenarioTests : IDisposable
         throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
     }
 
+    private static unsafe Entity FireTarget(EntityRepository world, Entity unit)
+    {
+        if (!world.HasComponent<WeaponChannel>(unit)) return Entity.Null;
+        var ch = world.GetComponent<WeaponChannel>(unit);
+        return ((Fdp.Toolkit.Combat.Executors.AimAndFireParams*)ch.Params)->Target;
+    }
+
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -487,10 +494,20 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             }
         }
+        int lastAmmo = 30;
         for (int f = 0; f < 24000; f++)
         {
             harness.PumpFrames(1);
             TrackBullets(f);
+            int ammoNow = cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponent<WeaponState>(rifleman).Ammo : -1;
+            if (ammoNow != lastAmmo)
+            {
+                var t = FireTarget(cgf, rifleman);
+                string tn = ShooterName(cgf, t);
+                string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
+                _out.WriteLine($"f{f}: rifleman ammo {lastAmmo}→{ammoNow}, fire target e{t.Index}:{t.Generation} '{tn}' {tm} alive={cgf.IsAlive(t)}");
+                lastAmmo = ammoNow;
+            }
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
             if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
             if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
