@@ -28,6 +28,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public override void Execute(ISimulationView view, float deltaTime)
         {
+            ForgetLastWorld(view);   // ⭐ CE-3076 — _previousAction is per entity INDEX, reused across worlds
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(LookAtDispatcherSystem)} requires direct EntityRepository access.");

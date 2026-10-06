@@ -73,6 +73,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// brain, selected by <c>BehaviorState.BrainTier</c>.
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
+        private int _worldEpoch;   // ⭐ CE-3076 — the dedup records belong to ONE world (WorldEpoch, CE-2101)
 
         // Reusable buffers for the stale-entry sweep; avoids per-frame heap allocation.
         private readonly HashSet<int> _seenThisFrame = new();
@@ -121,6 +122,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ CE-3076 (CE-2101's rule, DESIGN_Cluster_Load_Phase §8) — both dedup records are keyed by entity INDEX, which the
+            //   world boundary REUSES, and InstanceId restarts at 1 per entity: a new unit landing on the index of a last-world
+            //   unit that finished its first run would never tick (Run returns at the "already finished" guard). ⚠ The stale
+            //   sweep does not cover it — it keeps every index it sees, and the new entity is seen.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                _publishedTerminalForInstanceId.Clear();
+                _blueprintLayout.Clear();
+            }
+
             if (deltaTime <= 0f) return;
 
             if (view is not EntityRepository repo)

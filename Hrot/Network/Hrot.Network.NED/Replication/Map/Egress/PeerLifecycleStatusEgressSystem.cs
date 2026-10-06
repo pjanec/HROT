@@ -31,6 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly int _localNodeId;
         private readonly HashSet<long> _reported = new();               // phase-2 Active published
         private readonly HashSet<long> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
+        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName => "EntityLifecycleStatus";
         public long DescriptorOrdinal => -3; // not a per-entity descriptor; distinct from EntityMaster (-2)
@@ -52,6 +53,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            // ⭐ CE-3076 (CE-2101's rule) — "reported once per net id": a reused id's new ghost would never report
+            //   Constructing / Active, and the creator's reliable-init barrier would wait out its timeout.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _reported.Clear(); _reportedConstructing.Clear(); }
+
             var repo = view as EntityRepository;
             long ts = repo != null ? repo.GlobalVersion : 0;
 
