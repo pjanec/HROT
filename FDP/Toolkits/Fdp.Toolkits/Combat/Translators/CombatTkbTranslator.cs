@@ -98,8 +98,16 @@ namespace Fdp.Toolkit.Combat.Translators
                 if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
                 {
                     var caps = template.GetDescriptor<WeaponCapabilitiesDto>(); // may be null
+                    // ⭐ CE-3089 (G7) — idempotent like the owner's WeaponState above: a second Inject (re-materialisation) must not
+                    //   make a second child per mount — measured live: three WeaponSelection candidates for a two-mount Bradley.
+                    System.Span<Entity> existing = stackalloc Entity[16];
+                    int existingCount = WeaponMountQuery.EnumerateMounts(repo, entity, existing);
                     for (int i = 1; i < suite.Mounts.Count; i++)
                     {
+                        bool have = false;
+                        for (int k = 0; k < existingCount && !have; k++)
+                            have = repo.HasComponent<WeaponMountInfo>(existing[k]) && repo.GetComponentRO<WeaponMountInfo>(existing[k]).MountIndex == i;
+                        if (have) continue;
                         var mount = suite.Mounts[i];
                         var child = repo.CreateEntity();
                         repo.AddComponent(child, new WeaponState

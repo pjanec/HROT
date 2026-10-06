@@ -365,7 +365,7 @@ def run_weapon_choice(c, timeout):
 
     hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and h < tank0 and h, timeout * 2)
     c.ok(hit is not None, f"the T-72 loses health — only a TOW penetrates its front armour ({tank0} → {hit})")
-    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0 and h, timeout * 2)
+    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0, timeout * 2)   # ⚠ not "and h": 0 is falsy
     c.ok(dead is not None, "the insurgent is killed")
     gun1, _ = ammo(brad)
     c.ok(gun0 is not None and gun1 is not None and gun1 < gun0, f"the 25 mm (the owner's mount 0) spent rounds ({gun0} → {gun1})")
