@@ -28,15 +28,16 @@ decision first.
 |---|---:|---:|
 | `WIRING` | 0 | 1 |
 | `RW-L` | 1 | 7 |
-| `RW-M` | 1 | 8 |
+| `RW-M` | 1 | 9 |
 | `RW-H` | 1 | 3 |
-| **Total** | **3** | **19** |
+| **Total** | **3** | **20** |
 
 > ⚠⚠ **The previous table (`12 open / 7 done`) was ALREADY STALE before the `2026-10-06` batch touched it** —
 > `HSM-001/002/003/005/006/010` had been ticked by the `Q84` / canvas work (`CE-1000`…`CE-1004`) without the
 > count being recomputed. 📌 Recomputed here with the file's own reconciliation recipe (below), three ways:
-> checkbox tally **3 / 19** · column sums `0+1+1+1 = 3` open, `1+7+8+3 = 19` done · 22 rows total.
-> ⭐ **Every original row is now closed**; the three open ones were all split out of this batch by measurement.
+> checkbox tally **3 / 20** · column sums `0+1+1+1 = 3` open, `1+7+9+3 = 20` done · 23 rows total.
+> ⭐ **Every original row is now closed**; the three open ones were all split out of this batch by measurement
+> (`HSM-021` timer arming, `HSM-022` the BTree rename twin, `HSM-023` annotate the actions with their lanes).
 
 ⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
 the canvas to a ticking entity, with every stage cited. These rows assume it.
@@ -673,21 +674,28 @@ the two trackers do not drift.
 
 ## Area I ⚙️🔧 — Split out of HSM-007/012/017 by measurement *(new `2026-10-06`, ui lane)*
 
-- [ ] **HSM-020** 🔴📐 · `RW-M` — **The output-lane mask never reaches the blob, so the KERNEL's lane arbitration
-  is inert for every editor-authored machine.** 📐 Measured `2026-10-06` while building `HSM-007`:
-  `HsmKernelCore.ArbitrateOutputLanes` (`:955-1000`) reads `StateDef.OutputLaneMask` of each region's active leaf
-  and suppresses the second writer — ⛔ but **nothing ever fills that field.** `HsmFlattener.cs:165` copies
-  `node.OutputLaneMask` from the compiler's `StateNode`, and the only writers of that field in the repo are
-  `Fhsm.Tests` fixtures; `HsmBuilder`/`StateBuilder` expose **no lane API**; `Hrot.AiEditor.Generators` mentions
-  lanes **zero times**. ⇒ a parallel machine authored in the editor runs with both regions writing the same lane and
-  the kernel silent about it. ⚠⚠ **The design says this is fine and the design is wrong**:
-  `HSM_Editor_NodeEditor_Host_Design.md` §10.3 step 5 justifies not emitting the mask because *"the kernel computes
-  it at compile time"* — refuted above; §19 Q2's *"lean toward keep it inferred"* rests on the same premise, and both
-  are marked in §10.3a / §19. **Work:** carry the inferred mask into the emitted machine — a `StateBuilder` lane
-  parameter, `HsmEmitCore` emitting it, `HsmFlattener` keeping the copy it already does. ⚠ It touches **FastHSM**
-  (`FDP/ExtDeps`, vendored-as-source, `R-48` no stable ABI) ⇒ 🔒 **needs a user decision, with the alternative being
-  to accept that lane arbitration only works for hand-written machines and to say so in the editor.**
-  *— split out of `HSM-007`, which built only the editor half*
+- [x] **HSM-020** 🔴📐 · `RW-M` — ✅ **THE CHAIN IS BUILT `2026-10-06`** *(🔒 user: "Touching extdeps possible as
+  long as it stays generic")* — ⚠⚠ **and it carries ZERO today; see the last paragraph before believing this is
+  finished.** FastHSM gains `StateBuilder.OutputLanes(params CommandLane[])` (hand authors) and
+  `OutputLaneMask(byte)` (generated code); `HsmEmitCore` emits the byte form; the **generator** supplies the lane
+  from the Roslyn compilation (`HsmActionLaneResolver`) and the **editor** from reflection
+  (`HsmOutputLaneMaskInferrer`'s dictionary). The mask then flows the path that already worked —
+  `HsmFlattener:165` → `HsmEmitter:198` → `StateDef` → `ArbitrateOutputLanes` (`HsmKernelCore.cs:807`).
+  ⭐ **Generic because `CommandLane`, `OutputLaneMask`, the arbitration and its trace record are already
+  FastHSM's own** — the library was missing the setter for its own feature; the new methods take a kernel enum
+  and a byte, and nothing HROT-specific crosses the boundary.
+  ⛔ **NOT persisted in the `.hsm.json`**: a stored mask goes stale the moment a `Lane` changes without the asset
+  being reopened, and a stale mask makes the kernel suppress the WRONG region.
+  ⛔ **The generated form is the BYTE, deliberately**: `Hrot.AiEditor.Persistence` is netstandard2.0 with **zero
+  project references by design** (its `.csproj` LINKS shared source rather than referencing it), so it cannot name
+  `CommandLane`; emitting the readable form would mean a copy of the lane names there, which would mis-map
+  silently on an enum reorder. ⭐ Callers that pass no resolver emit exactly what they emitted before, so **no
+  golden moves**. 16 new rails. Design: §10.3b *(which SUPERSEDES §10.3 step 5 and §19 Q2)*.
+  🔴🔴 **WHAT THIS DOES NOT YET DO, and it is the whole point of the feature:** 📐 of **86** `[HsmAction]` sites in
+  the repo, **4** declare a `Lane` and **all four are test fixtures**. ⇒ every resolver answers `null`, every mask
+  emits as absent, and **arbitration still protects nothing in production.** The pipe is complete and proven; what
+  is missing is content — *which* action drives *which* lane, per action, which is a design call and not plumbing.
+  ⇒ **`HSM-023`**.
 
 - [ ] **HSM-021** 🔴📐 · `RW-H` — **An HSM timer cannot be armed, and there is nowhere to say "how long".**
   📐 Measured `2026-10-06`: every PRODUCTION write of `HsmInstance*.TimerDeadlines[i]` is `= 0` — cancel-on-exit
@@ -700,6 +708,17 @@ the two trackers do not drift.
   (`HsmFacets.StateFacet`, removed by `HSM-012`) and retire `TimerActionNotImplemented`. ⚠ FastHSM change, same
   `R-48` caution as `HSM-020`; 🔒 architect/user call on layering. ⭐ Until then the editor correctly offers nothing.
   *— split out of `HSM-012`, which closed the authoring trap*
+
+- [ ] **HSM-023** 📐 · `RW-M` — **Nothing declares a lane, so the arbitration built by `HSM-020` has nothing to
+  arbitrate.** 📐 Measured `2026-10-06`: of **86** `[HsmAction]` sites, **4** set `Lane` and all four are test
+  fixtures (`OutputLaneMaskInferenceTests`, `HsmActionAttributeTests`). ⇒ every state's `OutputLaneMask` emits as
+  absent and `HsmKernelCore.ArbitrateOutputLanes` still reads zeros — ⚠ the end-to-end chain is now proven, and it
+  carries nothing. **Work:** decide, per action, which `CommandLane` it writes — `Animation`, `Navigation`,
+  `Gameplay`, `Blackboard`, `Audio`, `VFX`, `Message` — and annotate. ⛔ **Deliberately NOT done with `HSM-020`:
+  this is a CONTENT decision about what each action drives, 86 of them, not plumbing**, and a wrong annotation is
+  worse than none — it makes the kernel suppress a region that was not actually conflicting. ⭐ Cheap to start
+  narrow: annotate only the actions used by states inside a PARALLEL composite, since arbitration only ever reads
+  those. 🔒 Needs a user/architect pass on the vocabulary before a sweep. *— measured while building `HSM-020`*
 
 - [ ] **HSM-022** 🔴 · `RW-L` — **The BTree twin of `HSM-017`: `BehaviorTreeAsset.RenameVariable` almost certainly
   leaves `ExpressionTargetField` dangling too, and the shared rename ROUTE cannot save it.** 📐 Measured on the HSM
@@ -739,6 +758,8 @@ Stated so no one mistakes silence for a clean bill:
 | 2026-10-02 | Re-evaluated after `origin/behaviors` (+44). **HSM-004 and HSM-018 closed** — both were already fixed upstream (`BP-299` 2026-08-17, ruling 14 2026-08-16) before earlier passes called them live. HSM-013's `DEBT-BF-04` residue narrowed by `CE-417` (per-slot ETF). Reconciliation recipe fixed. `Hrot.Hsm.Editor.Tests` 622/622. |
 | 2026-10-06 | **Re-verified on `ui` (graph + grep, no code changed) — see the section below.** Still open: HSM-001/002/003/005/006/007/008/010/011/012/017. HSM-009 partial (`CE-2088`). Q84 opened for the region / initial / history model; canvas design `DESIGN_Hsm_Canvas_Authoring.md` (CE-1000..1002). |
 | 2026-10-06 (later) | **HSM-007 / 008 / 009 / 011 / 012 / 017 BUILT** on `ui` — the editor half of the lane masks, the leaf-state lane union, event create/delete/rename, the forward-plan doc marked HISTORICAL, the Timer facet withdrawn, and the variable-rename fix-up + HSM variable references. 32 new test cases (28 methods); `Hrot.Hsm.Editor.Tests` 634 → **666/666**, `Hrot.BTree.Editor.Tests` **646/646**, `Hrot.Editor.AiShared.Tests` **2126/2127** (1 pre-existing skip), `Hrot.Blueprints.Tests` **4206/4223** (17 pre-existing skips). ⚠ One EXISTING rail reddened and was right to — `SE1_StructEditFacetRenderTests` asserts the HSM facet's binding slots by name and caught the Timer removal; updated with the reason, not quietly. ⭐ **Three rows split out by measurement, not deferred by preference: `HSM-020`** (the mask never reaches the blob ⇒ the KERNEL's arbitration is inert too, which refutes design §10.3 step 5), **`HSM-021`** (no timer arming and no duration field anywhere), **`HSM-022`** (the BTree twin of the rename defect). Counts recomputed — the table had been stale since the `Q84` work. As-built folded into `HSM_Editor_NodeEditor_Host_Design.md` §9.1a / §10.3a / §11.1b / §12.2a. |
+
+| 2026-10-06 (c) | **HSM-020 BUILT** on `ui`, on the user's clearance *("touching extdeps possible as long as it stays generic")*. FastHSM gains `StateBuilder.OutputLanes(params CommandLane[])` + `OutputLaneMask(byte)` — the setter its own arbitration feature was missing; the lane is resolved per host (generator: Roslyn; editor: reflection) and **never persisted**. 16 new rails. ⭐ Callers passing no resolver emit byte-identical output, measured: `Hrot.AiEditor.Generators.Tests` **395/395** with the goldens unmoved. 🔴 **It carries ZERO today** — 4 of 86 `[HsmAction]` sites declare a `Lane` and all four are tests ⇒ **`HSM-023`** (annotate the production actions; a content decision, not plumbing). Design: §10.3b, which SUPERSEDES §10.3 step 5 and §19 Q2. |
 
 ## Re-verification `2026-10-06` (ui lane)
 

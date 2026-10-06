@@ -1,5 +1,6 @@
 using System;
 using Fhsm.Compiler.Graph;
+using Fhsm.Kernel.Data;
 
 namespace Fhsm.Compiler
 {
@@ -117,7 +118,52 @@ namespace Fhsm.Compiler
             _state.ActivityAction = actionName;
             return this;
         }
-        
+
+        /// <summary>
+        /// Declares the output lanes this state's actions write to, for orthogonal-region arbitration.
+        ///
+        /// <para>When two regions of the same parallel composite are simultaneously active and their active
+        /// leaves share a lane bit, <c>HsmKernelCore.ArbitrateOutputLanes</c> lets the first region win and
+        /// traces the conflict. A state that declares no lane contributes no bits and is never arbitrated.</para>
+        ///
+        /// <para>This is the only way to fill <see cref="StateNode.OutputLaneMask"/>, and therefore
+        /// <c>StateDef.OutputLaneMask</c>: the compiler takes actions as NAMES and does no reflection, so it
+        /// cannot read a lane off an action's attribute. The caller — a code generator that can see the
+        /// attributes, or a hand author who knows what the state drives — supplies it.</para>
+        ///
+        /// <para>Calls accumulate, so a state may declare its lanes in one call or several.
+        /// <see cref="CommandLane.None"/> and <see cref="CommandLane.Count"/> are not lanes and are ignored.</para>
+        /// </summary>
+        public StateBuilder OutputLanes(params CommandLane[] lanes)
+        {
+            if (lanes == null) return this;
+            foreach (var lane in lanes)
+            {
+                if ((byte)lane >= (byte)CommandLane.Count) continue;   // None (0xFF) or out of range
+                _state.OutputLaneMask |= (byte)(1 << (byte)lane);
+            }
+            return this;
+        }
+
+        /// <summary>
+        /// The raw bitmask form of <see cref="OutputLanes"/>: bit N set means the state writes
+        /// <c>(CommandLane)N</c>. Accumulates with any lanes already declared.
+        ///
+        /// <para>This overload exists for GENERATED code. A generator that emitted the enum form would have to
+        /// carry its own copy of the lane names — and a code generator often lives in an assembly that cannot
+        /// reference this one at all, so that copy could mis-map silently if the enum were ever reordered.
+        /// A mask needs no name table. Hand-written machines should prefer <see cref="OutputLanes"/>, which reads.</para>
+        ///
+        /// <para>Bits at or above <see cref="CommandLane.Count"/> are ignored: they address no lane, and the
+        /// kernel's arbitration would otherwise see a conflict on a lane that does not exist.</para>
+        /// </summary>
+        public StateBuilder OutputLaneMask(byte mask)
+        {
+            byte valid = (byte)((1 << (byte)CommandLane.Count) - 1);
+            _state.OutputLaneMask |= (byte)(mask & valid);
+            return this;
+        }
+
         public StateBuilder Initial()
         {
             _state.IsInitial = true;

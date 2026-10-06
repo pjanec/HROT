@@ -899,6 +899,38 @@ If two parallel-region states have overlapping `OutputLaneMask` bits (both write
 | ⚠ **reflection is guarded at THREE levels** | assembly · type · **per-method attribute read** — mirroring `ActionSchemaExporter.ScanAssembly`. 📌 The per-method one is not theoretical: without it 15 rails went red with a `TypeLoadException` out of `GetCustomAttribute` on an unrelated host assembly that merely happened to be loaded |
 | 🔴🔴 **step 5's reason is FALSE, and that is the open half** | *"the kernel computes it at compile time"* — 📐 measured `2026-10-06`: **nothing in `Fhsm.Compiler` computes it.** `HsmFlattener.cs:165` copies `node.OutputLaneMask` from the compiler's `StateNode`, and the only writers of **that** field in the repo are `Fhsm.Tests` fixtures. `HsmBuilder`/`StateBuilder` expose **no lane API at all**, and the whole Hrot emit chain (`Hrot.AiEditor.Generators`) mentions lanes **zero times**. ⇒ every editor-authored machine reaches `HsmKernelCore.ArbitrateOutputLanes` (`:955`) with an all-zero mask, so **runtime lane arbitration is inert too** — not just the editor's validator. ⭐ This is now the `HSM-020` row; §19 Q2 is no longer a free choice |
 
+#### 10.3b ✅ AS-BUILT `2026-10-06` (`HSM-020`) — **the mask now reaches the blob; step 5 is SUPERSEDED**
+
+🔒 **User, `2026-10-06`:** *"Touching extdeps possible as long as it stays generic."*
+
+⭐ **The chain, end to end.** The only missing link was a setter, and it was missing in FastHSM:
+
+```
+[HsmAction(Lane=…)]  →  resolver (per host)  →  HsmEmitCore emits .OutputLaneMask(0x..)
+                     →  StateBuilder.OutputLaneMask  →  StateNode.OutputLaneMask
+                     →  HsmFlattener:165  →  HsmEmitter:198  →  StateDef.OutputLaneMask
+                     →  HsmKernelCore.ArbitrateOutputLanes (:807)
+```
+
+| ⭐ decision | why |
+|---|---|
+| **FastHSM gains `StateBuilder.OutputLanes(params CommandLane[])` and `OutputLaneMask(byte)`** | ⭐ **This stays GENERIC because `CommandLane`, `OutputLaneMask`, the arbitration and its trace record are already FastHSM's own** — the library was missing the setter for its own feature. Nothing HROT-specific crosses the boundary: the new methods take a kernel enum and a byte |
+| **the lane is resolved per HOST, never persisted** | the generator reads `[HsmAction].Lane` from the **Roslyn compilation** (`HsmActionLaneResolver`); the editor reads it by **reflection** (the dictionary `HsmOutputLaneMaskInferrer` already builds). ⛔ Storing the mask in the `.hsm.json` was rejected: it goes stale the moment a `Lane` changes without the asset being reopened, and **a stale mask is worse than none — the kernel then suppresses the WRONG region** |
+| ⛔ **`Fhsm.Compiler` could NOT infer it itself** | it does **zero reflection** (references only `Fhsm.Kernel`) and takes actions as **names**. That is the measured reason §10.3 step 5's *"the kernel computes it at compile time"* was false |
+| **generated code emits the BYTE form, hand authors use the ENUM form** | `Hrot.AiEditor.Persistence` is netstandard2.0 with **zero project references by design** (its `.csproj` links shared source rather than referencing it), so it cannot name `CommandLane`. Emitting the readable form would mean a **copy of the lane names** there — which would mis-map silently on an enum reorder. ⭐ The byte needs no name table; `R-50` makes the generated file machine-owned anyway |
+| **transitions contribute no lanes** | the kernel arbitrates a region's **active leaf**, and the editor's inferrer ORs the same four state slots. Two rules would drift |
+
+🔴🔴 **AND THE THING THAT DECIDES WHETHER ANY OF THIS DOES ANYTHING: no production action declares a lane.**
+📐 Measured `2026-10-06`: of **86** `[HsmAction]` sites in the repo, **4** set `Lane`, and **all four are test
+fixtures** (`OutputLaneMaskInferenceTests`, `HsmActionAttributeTests`). ⇒ **every resolver answers `null` today,
+every mask emits as absent, and arbitration still protects nothing.** ⭐ The pipe is now complete and proven — the
+day an action says `Lane = CommandLane.Animation`, the mask flows to the kernel — ⛔ but **declaring which action
+drives which lane is a content decision per action, not plumbing**, and it is deliberately not made here. That is
+`HSM-023`.
+
+⇒ **§10.3 step 5 and §19 Q2 are SUPERSEDED by this section.** The question was never *"emit or keep inferred"*;
+keeping it inferred meant keeping it zero.
+
 ### 10.4 Required kernel-side addition ✅ **BUILT**
 
 ~~The `Lane = CommandLane.X` property on `[HsmAction]` is needed but doesn't currently exist.~~

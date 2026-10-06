@@ -1,7 +1,19 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-current-answer: ⭐⭐⭐ SESSION 2026-10-06 (b) — THE HSM TRACKER TAIL IS CLOSED. HSM-007/008/009/011/012/017 all
+current-answer: ⭐⭐⭐ SESSION 2026-10-06 (c) — HSM-020 BUILT (user cleared touching ExtDeps "as long as it stays
+  generic"). FastHSM's output-lane arbitration had every part except a SETTER: StateBuilder now has
+  OutputLanes(params CommandLane[]) for hand authors and OutputLaneMask(byte) for generated code. HsmEmitCore emits
+  the byte form; the lane is resolved per host — generator from the Roslyn compilation (HsmActionLaneResolver),
+  editor by reflection (HsmOutputLaneMaskInferrer's dictionary) — and is NEVER persisted (a stored mask goes stale
+  and then suppresses the WRONG region). Generic because CommandLane/OutputLaneMask/the arbitration are already
+  FastHSM's own. Callers passing no resolver emit byte-identical output: Generators.Tests 395/395, goldens unmoved.
+  🔴 IT CARRIES ZERO TODAY: 4 of 86 [HsmAction] sites declare a Lane and all four are test fixtures ⇒ nothing is
+  arbitrated in production until the actions are annotated. That is HSM-023 — a content decision per action, and a
+  WRONG annotation is worse than none (it suppresses a region that was not conflicting). Design: §10.3b, which
+  SUPERSEDES §10.3 step 5 and §19 Q2.
+  ⛔ HISTORY below: session (b).
+  ⭐⭐⭐ SESSION 2026-10-06 (b) — THE HSM TRACKER TAIL IS CLOSED. HSM-007/008/009/011/012/017 all
   BUILT on `ui` in one batch (user: "do them all autonomously"):
     HSM-009  event CREATE / DELETE / RENAME (HsmAsset.CreateEvent/RemoveEvent/RenameEvent + the window's
              "+ Add Event" modal, a Delete that states how many transitions will dangle, a Rename that APPLIES —
