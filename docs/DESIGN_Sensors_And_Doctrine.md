@@ -1305,7 +1305,7 @@ after a refresh is compared). `WhenNodeEqsLoweringTests.Lower_EqsResult_TopChang
 `EqsChildSensor.Ensure` rely on) · a new per-node field (it moves `StructureHash` for every saved blueprint, for no
 gain over re-using the existing `uint`).
 
-### 7.10 Sensor nodes and per-kind RESULT TYPES *(proposal `2026-10-06`, backend; awaiting the user)*
+### 7.10 Sensor nodes and per-kind RESULT TYPES *(✅ N1–N4 APPROVED `2026-10-06`, R-213 — `CE-3078`)*
 
 🔒 **User, `2026-10-06`:** *"different kind of sensors need different kind of result storage … we should not do a 'cast'
 to narrower result type"* · *"Is the node for getting sensor result generic enough to support the result type for a
@@ -1342,6 +1342,14 @@ result type, so a new kind adds a registry entry and its types — no new node.
 | **N2** `ReadSensorResult(kind, index)`: header pins + one pin per element field; `ReadEqsResult` stays as its ranked instance (no golden moves) | one wide pin set with every kind's fields (the cast, inverted) |
 | **N3** `SpawnSensor(kind)`: in-pins from the kind's settings type, lowered to `EqsChildSensor.Ensure` + `ConfigJson` (R-186) | keep the EQS-config pins for every kind |
 | **N4** `When SensorResult(kind)`: header triggers for every kind + the family's own | score-based triggers for kinds that have no score |
+
+🔒 **User, `2026-10-06`:** *"N1-N4 and B1″-B4′ approved."*
+
+⭐ **The C# shared nodes a BTree and an HSM bind (R-201, `SensorNodes`) follow the same rule one level down:** their
+params/working-state STRUCT is the pin set, and a struct cannot be projected from a registry, so they are **typed per
+FAMILY, never per kind** — `SensorNodes.Sees`/`Read` stay the ranked family's (they read `EqsCognitiveBuffer`, `SensorNodes.cs:65`),
+and the area family gets its own `DangerAreaNodes` (`EnsureSensor`, `DangerAhead`, `HoldShort`, `Cross`). A new KIND in an
+existing family needs no new node. 📄 The first consumer and its node list: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.4.
 
 Lane: behaviors owns the blueprint nodes (BTree/HSM read nodes the same way); backend owns the registry and the result types.
 First consumer: the danger sensor (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–10.3).

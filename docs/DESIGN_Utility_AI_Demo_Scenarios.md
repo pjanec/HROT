@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
-build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor) are DESIGN — each asks the user to approve its leans.
-current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10 (danger sensor). §2 is the measured state they rest on.
+updated: 2026-10-06
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor): N1–N4 and B1″–B4′ APPROVED 2026-10-06 (R-213) — READY-TO-BUILD as CE-3072 (the sensor), CE-3078 (per-kind sensor nodes, Sensors §7.10), CE-3079 (the ua-danger-crossing demo, §10.4).
+current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10.2–§10.4 (danger sensor: the query, the sensor form, the demo and its nodes). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
 known-conflict:
@@ -11,7 +11,9 @@ related-designs:
   - docs/DESIGN_Decision_Layer.md — OWNS the utility step (ChooseOption / IsOption / RankCandidates, §3.3) and CombatPosture (§3.3b); this document only DEMONSTRATES them and lists what is missing to do so.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS the scoring engine, inputs, the starter decisions (§11.4), the trace (§9) and group fire coordination (§10).
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — OWNS the squad layer's wiring and the open decisions D2/D3/D5 (CE-507) that scenario U7 depends on.
-  - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover / FallBack (CE-3031); U4's Flank and firing-position behaviours follow its pattern.
+  - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover / FallBack (CE-3031); U4's Flank and firing-position behaviours follow its pattern, and so do §10.4's DangerAreaNodes.
+  - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — OWNS the squad danger-area crossing drill (§8.1: set security → cross element → far-side cover → collapse → reform) and what the near/far handles MEAN (§5.2); §10.4 here is the single-unit demo, the drill is U7's.
+  - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the sensor form and the per-kind result types / sensor nodes (§7.10, N1–N4) the danger sensor is the first second-family kind of.
   - docs/DESIGN_Terrain_World.md — OWNS the terrain format and the two terrains this document reuses (§3 here).
   - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — OWNS how to launch and read a --mode all cluster; the per-scenario runbook (§5.3) extends it.
   - docs/designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md — OWNS the overlays and live tuning; out of this document's scope (§7).
@@ -391,7 +393,7 @@ Rails (feature suites, red-proved by putting each old behaviour back): `DamageCa
 
 
 
-## 10. The danger sensor — what the squad decisions need *(DESIGN `2026-10-05`, leans awaiting the user)*
+## 10. The danger sensor — what the squad decisions need *(DESIGN `2026-10-05`; §10.2–§10.4 ✅ APPROVED `2026-10-06`, R-213)*
 
 🔒 **User, `2026-10-05`:** *"What about the danger sensor required by some of the utility ai based behaviors?"*
 
@@ -482,7 +484,9 @@ guess..."* 📐 **Measured — the wire for it already exists, complete and dorm
 
 ⚠ The path is the commander's, planned once per destination — the members' own paths may differ round a building.
 
-### 10.2 ⚠ REVISED AGAIN `2026-10-05` — **the evaluator is placement-free; one missing query: "danger areas along a route"** *(awaiting the user; supersedes §10.1's placement and B1's)*
+### 10.2 ⚠ REVISED AGAIN `2026-10-05` — **the evaluator is placement-free; one missing query: "danger areas along a route"** *(✅ B1″ – B4′ APPROVED `2026-10-06`, R-213; supersedes §10.1's placement and B1's)*
+
+🔒 **User, `2026-10-06`:** *"N1-N4 and B1″-B4′ approved."* ⇒ **N1–N4 and B1″–B4′ APPROVED** (R-213).
 
 🔒 **User, `2026-10-05`:** *"why would this sensor evaluator run on the AI node? It needs to be runnable anywhere (most likely
 on the navigation role node where most of the information is - navmesh, areas, ...) … all data required need to be
@@ -512,7 +516,7 @@ it runs for every unit holding `TargetMemory` (`ThreatEvaluationSystem.cs:76`) �
 | | as for every sensor kind |
 |---|---|
 | kind | a new `SensorModality.DangerArea` (the enum is the kind, flags `1,2,4,8` ⇒ next `16`) |
-| per-kind settings | `DangerAreaSensorDto` {corridor half-width, max areas, refresh seconds, route source = the unit's own move or a given handle} — in a TKB `SensorEntryDto` or a behaviour's `ConfigJson` |
+| per-kind settings | `DangerAreaSensorDto` {corridor half-width, max areas, refresh seconds, route source = ① the unit's own move · ② a given handle · ③ **to a point** (start = the unit's position each refresh, end = the point — B1″'s start/end form)} — in a TKB `SensorEntryDto` or a behaviour's `ConfigJson`. ⚠ **A behaviour that MOVES the unit in reaction to the sensor must use ③** (added `2026-10-06`, §10.4): with ① the reaction's own move (to the near handle) becomes the watched route, the area drops out, the unit resumes, the area returns — a loop |
 | switched on by | ① the TKB — a commander template lists the entry, default ON, `Disabled` to opt out, created at spawn on every node by `SensorChildFactory`; ② a behaviour — creates it (behaviour-owned, released when the run ends); ③ on/off at runtime = the `Suspended` override (`UnitSensors.SetEnabled`) |
 | solved on | the node holding the route (its `SolverNodeId`), the solver half of the kind (B1″) |
 | Brain half | the producer above, iterating sensor children of this kind on Brain-owned commanders; its processed buffer stays ON THE CHILD |
@@ -536,7 +540,7 @@ lower range for Brains, upper for the solver.
 | squeeze descriptors into `EqsResultEntry` | no room for a box and two handles |
 | `PlanRoute` path details to the Brain (navig-2 §3.2) | ships whole waypoint lists to the Brain only to do geometry there |
 
-### 10.3 The demo — `ua-danger-crossing` on test-town *(proposal `2026-10-06`, awaiting the user)*
+### 10.3 The demo — `ua-danger-crossing` on test-town *(✅ APPROVED `2026-10-06`, R-213 — its nodes and tree: §10.4)*
 
 📐 test-town has two roads crossing at the centre (`x 190–210`, `y 190–210`), six buildings, forest and water
 (`Recipes/Terrain/test-town`) — a route from the south-west to the north-east crosses BOTH roads.
@@ -552,12 +556,117 @@ lower range for Brains, upper for the solver.
 |---|---|
 | the `DangerAlongRoute` query kind: route walk on the node holding the route (road crossings, open ground, crest, authored areas), its result topic (B1″) | backend |
 | the move's route handle on `NavigationStatus` (B4′) | backend |
-| the producer: rating from the unit's own memory (no squad) or the squad's pool, the standard-buffer summary + the typed buffer, `SensorChangedEvent` edges (B2, B3, F6) | backend |
+| the producer: rating from the unit's own memory (no squad) or the squad's pool, the typed buffer `DangerAreaCognitiveBuffer` on the child, `SensorChangedEvent` edges (B2, B3, F6) — ⛔ the standard-buffer summary was WITHDRAWN `2026-10-06` (§10.2) | backend |
 | `SensorModality.DangerArea` + `DangerAreaSensorDto`; the factory adds the result component of the kind's family; the typed accessor `UnitSensors.TryGetResults<T>`; ids 262/263 de-collided (QA-037) | backend |
 | the sensor read route + its MCP/skill entry | backend |
-| the demo BTree; the per-kind read/spawn/when nodes (Sensors §7.10 N1–N4) | behaviors (nodes) + backend (registry) |
+| the demo's shared nodes, BTree and blueprint form — §10.4 | backend (shared nodes, BTree, scenario) + behaviors (blueprint nodes N1–N4) |
 | the scenario, the check, the runbook section | backend |
 
 This unblocks Squad Wiring **D3** (W6: run `CommanderUtilityTickSystem`). **D2** (a shipped squad-maneuver behaviour
 that reads the near/far handles and moves the elements) is still needed for U7 — none of the six maneuvers reads a
 handle today.
+
+### 10.4 What the demo needs — behaviours, actions, conditions *(`2026-10-06`, `CE-3079`; `build-state: READY-TO-BUILD`)*
+
+🔒 **User, `2026-10-06`:** *"What behaviors and actions and conditions etc. will we need to develop for the demo to
+demonstrate the new danger area sensor in urban environment?"*
+
+📐 **Measured vocabulary** (graph `search_graph` `.*Executor$` 22, `.*Decision$` 6; grep `[SharedAiAction|Condition]` 57):
+the shared tactics nodes are SELF-CONTAINED — `TakeCover` ensures its own sensor, reads it and issues the pathed move
+(`EqsTacticsNodes.cs:89`, R-204); the ranked-family reads are `SensorNodes.Sees`/`Read` (`SensorNodes.cs:63/73`, read
+`EqsCognitiveBuffer` only); a plain move to a point is `CgfNodes.Action_WriteMoveToChannel` (`:243`); `PostureNodes.Hold`
+stops a move (`:143`); the BTree runtime has `ObserverSelector` (`Interpreter.cs:713`). ⛔ Nothing reads a danger area: the
+only readers are the two squad inputs `ActiveFeatureThreatRating`/`ActiveFeatureKindIs` (`SquadInputs.cs:188`), which need
+`SquadCognitiveState` and read the buffer on the commander (F6).
+
+```mermaid
+classDiagram
+  class DangerAreaNodes {
+    <<NEW, Fdp.Toolkit.Behavior — shared: BTree + HSM bind it>>
+    +EnsureSensor(DangerSensorParams, DangerSensorState) action
+    +DangerAhead(DangerAheadParams) condition
+    +HoldShort(HoldShortParams, HoldShortState) action
+    +Cross(CrossParams, CrossState) action
+  }
+  class DangerSensorParams { <<NEW>> Site · CorridorHalfWidth · MaxAreas · RefreshSeconds · RouteTo point }
+  class DangerAheadParams { <<NEW>> MinThreat · WithinMetres · KindMask }
+  class SensorNodes { <<existing>> Sees · Read — ranked family only }
+  class EqsTacticsNodes { <<existing>> TakeCover · FallBack — the pattern copied }
+  class CgfNodes { <<existing>> Action_WriteMoveToChannel }
+  class LocomotionMoveTo { <<existing>> Issue · Status · Stop }
+  class UnitSensors { <<existing; NEW TryGetResults~T~>> Of(kind) }
+  class EqsChildSensor { <<existing>> Ensure — behaviour-owned, run-stamped }
+  class DangerAreaCognitiveBuffer { <<existing>> 8 x DangerAreaDescriptor, on the sensor child }
+  DangerAreaNodes ..> UnitSensors : TryGetResults DangerArea
+  DangerAreaNodes ..> EqsChildSensor : EnsureSensor
+  DangerAreaNodes ..> LocomotionMoveTo : HoldShort / Cross
+  DangerAreaNodes ..> DangerAreaCognitiveBuffer : reads entry 0 = next area ahead
+  DangerAreaNodes ..> DangerSensorParams
+  DangerAreaNodes ..> DangerAheadParams
+  EqsTacticsNodes ..> LocomotionMoveTo
+```
+
+*What the picture shows that prose hid: four nodes, all on machinery that exists — the only new engine member they need
+is the typed accessor `UnitSensors.TryGetResults<T>` that §10.2 already requires. The nodes are typed per FAMILY (a C#
+params struct cannot be projected from a registry — Sensors §7.10), so a later area-family kind reuses them.*
+
+```mermaid
+graph TD
+  ROOT["Sequence"] --> ENS["DangerAreaNodes.EnsureSensor<br/>RouteTo = the objective"]
+  ROOT --> OS["ObserverSelector"]
+  OS --> G1{"DangerAhead<br/>MinThreat 0.5, within 60 m"}
+  G1 --> HS["HoldShort<br/>to NearHandle, hold"]
+  OS --> G2{"DangerAhead<br/>MinThreat 0, within 15 m,<br/>crossing / intersection / open"}
+  G2 --> CR["Cross<br/>NearHandle to FarHandle at rush speed"]
+  OS --> MV["CgfNodes.Action_WriteMoveToChannel<br/>to the objective, walking"]
+```
+
+*What the picture shows that prose hid: the behaviour never rates or sorts — the higher branch fires on the PROCESSED
+answer (threat already rated, area ahead already first), and the ObserverSelector re-checks its guards every tick, so a
+falling threat releases the hold with no extra node.*
+
+```mermaid
+sequenceDiagram
+  participant B as DangerCrossing BTree (CGF)
+  participant P as danger producer (CGF, B2)
+  participant N as navigation node (DangerAlongRoute solver, B1″)
+  participant M as unit move (Muscle)
+  B->>P: EnsureSensor (kind DangerArea, RouteTo objective)
+  P->>N: query: from the unit to the objective, every 2 s
+  N-->>P: two crossings, in route order, no threat
+  P->>P: rate from the unit's memory: watched crossing 0.8, other 0.0
+  B->>M: walk to the objective (lowest branch)
+  Note over B: unwatched crossing within 15 m
+  B->>M: Cross: near to far handle, rush speed
+  Note over B: watched crossing within 60 m, threat 0.8
+  B->>M: HoldShort: to its NearHandle, then hold
+  Note over P: hostile Health set to 0 over HTTP
+  P->>P: re-rate: 0.0, SensorChangedEvent (threat crossed)
+  B->>M: guard false: Cross, then walk on to the objective
+```
+
+*What the picture shows that prose hid: the route the sensor watches is ALWAYS unit → objective (route source ③,
+§10.2), never the unit's current move — otherwise HoldShort's own move to the near handle would hide the crossing it
+holds for.*
+
+| who registers / ticks it | |
+|---|---|
+| `CgfLogicPack` → `BrainTickSystem` | ticks the `DangerCrossing` tree (existing) |
+| `CgfLogicPack` → **the danger producer** (NEW, CE-3072) | one per DangerArea sensor child on a Brain-owned unit; ⚠ it is the system nobody calls today (`DangerAreaRefreshSystem`, §5.4 red) reshaped — this demo is the first caller |
+| SimHost `NodeRole.NavigationSolver` → **`DangerAlongRoute` solver** (NEW, CE-3072) | the node the sensor's `SolverNodeId` names |
+
+| what to build | lane | id |
+|---|---|---|
+| `DangerAreaNodes` — `EnsureSensor`, `DangerAhead`, `HoldShort` (Success when the area's threat falls below `MinThreat − 0.1`, or none is ahead), `Cross` (Success at the far handle) — + their deactivators (release the sensor, stop the move) | backend | CE-3079 |
+| the `DangerCrossing` BTree asset (the tree above), registered like `CombatPosture`'s | backend | CE-3079 |
+| the scenario `ua-danger-crossing` on test-town: one rifleman SW → NE across both roads; one hostile with NO behaviour (it does not fire) east of the vertical road, placed so the rifleman sees it before the crossing (measured with `SegmentBlocked` when authored) | backend | CE-3079 |
+| `utility-demo-check.py ua-danger-crossing` — asserts: the sensor lists both crossings in route order · the unwatched one is crossed at rush speed without stopping · the unit stops within `ArrivalRadius` of the watched one's NearHandle and stays ≥ 10 s · Health 0 on the hostile ⇒ threat 0, it crosses and arrives · + the in-process rail and the runbook section (§5.3) | backend | CE-3079 |
+| the blueprint form of the same behaviour — `SpawnSensor(DangerArea)`, `When SensorResult(DangerArea, ThreatCrossed)`, `ReadSensorResult(DangerArea, 0)` → `NearHandle`/`FarHandle` pins → `MoveTo` — as N1–N4's acceptance, checked by the same script | behaviors | CE-3078 |
+| ⛔ **not needed here**: a utility decision (this demo exercises the sensor; the decision that USES it is `ManeuverSelect`, U7 — it then needs the two squad inputs re-pointed through the accessor, F5 and W6/D3) · the squad crossing drill (Squad Coordination §8.1 — U7's machinery: the squad HSM's five phases, member role consumption D2, EQS overwatch points) · `MovementMode` (D5) | — | — |
+
+| rejected | the one fact |
+|---|---|
+| a generic `ReadSensorResult`-style shared node for BTree/HSM | a shared node's params struct IS its pin set — it cannot be projected from the kind registry the way blueprint pins are (Sensors §7.10) |
+| `HoldShort` built from `DangerAhead` + `Read` + `Action_WriteMoveToChannel` in the tree | the tree would need the area's handle in a blackboard slot — the shared tactics nodes (R-204) are self-contained precisely so a tree never carries sensor geometry |
+| the sensor watching the unit's own move (route source ①) | the reaction's own move hides the area it reacts to — a loop (§10.2 settings row) |
+| make the demo a squad drill in town now | it needs all of U7's unbuilt machinery; the single unit proves the sensor end to end on its own |
