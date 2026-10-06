@@ -1,0 +1,2326 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "a3079000-0000-0000-0000-0000000000b7",
+  "Name": "DangerCrossingBp",
+  "Dispatch": "Behavior",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "58c45b90-6f44-5df2-a014-330302d3c4e8",
+      "Name": "Objective",
+      "Type": {
+        "TypeId": "System.Numerics.Vector3",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": "Where it walks \u2014 and the route its danger sensor watches (unit \u2192 objective, route source ToPoint).",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "260fa0a3-7a47-55c7-888d-06b59e80c503",
+      "Name": "WalkSpeed",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "1.5",
+      "Tooltip": "Walking speed (m/s) \u2014 to the objective and to a near handle.",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "f06cbdf7-ad05-5e9f-8073-e5b47b10c2ad",
+      "Name": "RushSpeed",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "4.5",
+      "Tooltip": "Rush speed across an area (m/s).",
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "6dfaa06c-5c98-5a99-bf87-0fd209008e0f",
+      "Name": "CrossWithin",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "15",
+      "Tooltip": "An area this close along the route (m) is rushed across.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "6893fbac-b44b-53ad-98d4-ae355ed36ed6",
+      "Name": "Holding",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "false",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "A crossing ahead is threatened (\u2265 0.5): hold at its near side until it clears.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "fad9c5ad-a889-5d70-abab-95e6a2146cd1",
+      "Name": "Walking",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "false",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "The last move issued was the walk to the objective (so its arrival ends the run).",
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "42c7d49b-ca4b-51f3-9446-146bce8cffda",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "f03ef57f-59fa-5e4c-af99-9ffbd793abd4",
+          "Pins": [
+            {
+              "Id": "76a1d0e4-e183-5ca5-9ad2-78ad07249ba1",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "58c45b90-6f44-5df2-a014-330302d3c4e8",
+          "Id": "25adc157-3faf-524b-981a-722e8c74d201",
+          "Pins": [
+            {
+              "Id": "1ff854b0-085b-5f09-9245-2e37eb810e32",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "260fa0a3-7a47-55c7-888d-06b59e80c503",
+          "Id": "b04cc7a3-208c-56cf-a735-0cc0c963b262",
+          "Pins": [
+            {
+              "Id": "c5d2ad3d-9b39-5e14-a8e1-664756ad25a7",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "f06cbdf7-ad05-5e9f-8073-e5b47b10c2ad",
+          "Id": "f8dc2fa7-c485-54cb-a33c-0c4b0a6389d3",
+          "Pins": [
+            {
+              "Id": "82e7400a-8936-5499-81f8-4fd03507948b",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 780,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "6dfaa06c-5c98-5a99-bf87-0fd209008e0f",
+          "Id": "115cf2e9-346a-59f2-86d5-8f681b2880cd",
+          "Pins": [
+            {
+              "Id": "013a68f4-be42-5757-8903-bb393916c727",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SpawnSensor",
+          "Decl": {
+            "Kind": 16,
+            "KindName": "DangerArea",
+            "Family": "Area",
+            "ResultComponentFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer",
+            "ElementTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor",
+            "ElementFields": [
+              {
+                "Name": "FeatureId",
+                "TypeId": "System.UInt32"
+              },
+              {
+                "Name": "ThreatRating",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "Kind",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
+              },
+              {
+                "Name": "Center",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "ExtentsXY",
+                "TypeId": "System.Numerics.Vector2"
+              },
+              {
+                "Name": "AngleRad",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "ZFloor",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "ZCeiling",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "NearSideHandle",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "FarSideHandle",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "DistanceAlongRoute",
+                "TypeId": "System.Single"
+              }
+            ],
+            "SettingsTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings",
+            "SettingsFields": [
+              {
+                "Name": "CorridorHalfWidth",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "MaxAreas",
+                "TypeId": "System.Byte"
+              },
+              {
+                "Name": "RouteSource",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerRouteSource"
+              },
+              {
+                "Name": "RefreshSeconds",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "RoutePoint",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "RouteHandle",
+                "TypeId": "System.UInt32"
+              }
+            ],
+            "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",
+            "EnsureMethodFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure",
+            "Triggers": [
+              {
+                "Name": "FirstReady",
+                "Shape": "Header"
+              },
+              {
+                "Name": "Changed",
+                "Shape": "Header"
+              },
+              {
+                "Name": "BecomesStale",
+                "Shape": "Header"
+              },
+              {
+                "Name": "NextAreaChanged",
+                "ElementField": "FeatureId",
+                "Shape": "FieldChanged"
+              },
+              {
+                "Name": "ThreatCrossed",
+                "ElementField": "ThreatRating",
+                "Shape": "FieldCrossed"
+              }
+            ]
+          },
+          "Id": "4f3be348-7511-5279-957d-546cf6a74eef",
+          "Pins": [
+            {
+              "Id": "e3797ede-def7-559d-9b5f-3e7c40b98b51",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "0697d818-e935-5226-8a24-1035f87a8140",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "e8779666-5fbd-5661-b22c-0bdf4397dde9",
+              "Name": "CorridorHalfWidth",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "7e51cefe-2cfb-5732-bc10-a3d4e953c514",
+              "Name": "MaxAreas",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Byte",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "1e77e101-092d-5edb-82cd-3b215f57c64e",
+              "Name": "RouteSource",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerRouteSource",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": [],
+              "DefaultValue": "2"
+            },
+            {
+              "Id": "287185cb-5c30-56af-8728-e09aeba901c1",
+              "Name": "RefreshSeconds",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "6bb7695f-316a-540c-be37-078297cddc11",
+              "Name": "RoutePoint",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "564c04dc-e2d8-5aa3-a470-cf7119218ed4",
+              "Name": "RouteHandle",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.UInt32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "736e6e58-b9f3-5f7a-92d0-ece7af3881f8",
+              "Name": "Key",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bb213fa0-f090-50ec-a170-fe8ac8cff25d",
+              "Name": "Sensor",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1300,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "When",
+          "Mode": "SensorResult",
+          "Edges": "RisingEdge, FallingEdge",
+          "ValueChanged": null,
+          "EventFired": null,
+          "ConditionMet": null,
+          "EqsResult": null,
+          "SensorResult": {
+            "Decl": {
+              "Kind": 16,
+              "KindName": "DangerArea",
+              "Family": "Area",
+              "ResultComponentFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer",
+              "ElementTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor",
+              "ElementFields": [
+                {
+                  "Name": "FeatureId",
+                  "TypeId": "System.UInt32"
+                },
+                {
+                  "Name": "ThreatRating",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "Kind",
+                  "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
+                },
+                {
+                  "Name": "Center",
+                  "TypeId": "System.Numerics.Vector3"
+                },
+                {
+                  "Name": "ExtentsXY",
+                  "TypeId": "System.Numerics.Vector2"
+                },
+                {
+                  "Name": "AngleRad",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "ZFloor",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "ZCeiling",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "NearSideHandle",
+                  "TypeId": "System.Numerics.Vector3"
+                },
+                {
+                  "Name": "FarSideHandle",
+                  "TypeId": "System.Numerics.Vector3"
+                },
+                {
+                  "Name": "DistanceAlongRoute",
+                  "TypeId": "System.Single"
+                }
+              ],
+              "SettingsTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings",
+              "SettingsFields": [
+                {
+                  "Name": "CorridorHalfWidth",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "MaxAreas",
+                  "TypeId": "System.Byte"
+                },
+                {
+                  "Name": "RouteSource",
+                  "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerRouteSource"
+                },
+                {
+                  "Name": "RefreshSeconds",
+                  "TypeId": "System.Single"
+                },
+                {
+                  "Name": "RoutePoint",
+                  "TypeId": "System.Numerics.Vector3"
+                },
+                {
+                  "Name": "RouteHandle",
+                  "TypeId": "System.UInt32"
+                }
+              ],
+              "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",
+              "EnsureMethodFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure",
+              "Triggers": [
+                {
+                  "Name": "FirstReady",
+                  "Shape": "Header"
+                },
+                {
+                  "Name": "Changed",
+                  "Shape": "Header"
+                },
+                {
+                  "Name": "BecomesStale",
+                  "Shape": "Header"
+                },
+                {
+                  "Name": "NextAreaChanged",
+                  "ElementField": "FeatureId",
+                  "Shape": "FieldChanged"
+                },
+                {
+                  "Name": "ThreatCrossed",
+                  "ElementField": "ThreatRating",
+                  "Shape": "FieldCrossed"
+                }
+              ]
+            },
+            "Trigger": "ThreatCrossed",
+            "Threshold": 0.5,
+            "MaxAgeSeconds": 0
+          },
+          "Id": "9631df53-848f-594f-8752-5f8d6afc0384",
+          "Pins": [
+            {
+              "Id": "ad268bef-c163-5fa1-92f7-a4f451be90b4",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ebbc9b7d-d4c0-570d-a65a-1eb8860a0c53",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ab8c8048-ed6a-5f71-8263-5e197a1380ec",
+              "Name": "OnFired",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "a2aa5345-1371-575e-85b9-c9b0f5b321fb",
+              "Name": "OnEnded",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ReadSensorResult",
+          "Decl": {
+            "Kind": 16,
+            "KindName": "DangerArea",
+            "Family": "Area",
+            "ResultComponentFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer",
+            "ElementTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor",
+            "ElementFields": [
+              {
+                "Name": "FeatureId",
+                "TypeId": "System.UInt32"
+              },
+              {
+                "Name": "ThreatRating",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "Kind",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind"
+              },
+              {
+                "Name": "Center",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "ExtentsXY",
+                "TypeId": "System.Numerics.Vector2"
+              },
+              {
+                "Name": "AngleRad",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "ZFloor",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "ZCeiling",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "NearSideHandle",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "FarSideHandle",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "DistanceAlongRoute",
+                "TypeId": "System.Single"
+              }
+            ],
+            "SettingsTypeFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings",
+            "SettingsFields": [
+              {
+                "Name": "CorridorHalfWidth",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "MaxAreas",
+                "TypeId": "System.Byte"
+              },
+              {
+                "Name": "RouteSource",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerRouteSource"
+              },
+              {
+                "Name": "RefreshSeconds",
+                "TypeId": "System.Single"
+              },
+              {
+                "Name": "RoutePoint",
+                "TypeId": "System.Numerics.Vector3"
+              },
+              {
+                "Name": "RouteHandle",
+                "TypeId": "System.UInt32"
+              }
+            ],
+            "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",
+            "EnsureMethodFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure",
+            "Triggers": [
+              {
+                "Name": "FirstReady",
+                "Shape": "Header"
+              },
+              {
+                "Name": "Changed",
+                "Shape": "Header"
+              },
+              {
+                "Name": "BecomesStale",
+                "Shape": "Header"
+              },
+              {
+                "Name": "NextAreaChanged",
+                "ElementField": "FeatureId",
+                "Shape": "FieldChanged"
+              },
+              {
+                "Name": "ThreatCrossed",
+                "ElementField": "ThreatRating",
+                "Shape": "FieldCrossed"
+              }
+            ]
+          },
+          "Id": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
+          "Pins": [
+            {
+              "Id": "47a21c47-32bc-5ac5-b253-a3c5173c7317",
+              "Name": "Index",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "a3ad0c04-7d3a-5277-837a-bd4e9d302a36",
+              "Name": "IsReady",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "520e06ce-8125-58b7-a7ef-2c04001dce25",
+              "Name": "Count",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "82fa54d5-50c4-5f04-bf99-2e88f309eab4",
+              "Name": "AnswerTick",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.UInt32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "56d428f5-738b-55b5-a121-4a476a8e88a5",
+              "Name": "FeatureId",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.UInt32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "607eeeb4-4859-58fb-87ed-127a50f072ee",
+              "Name": "ThreatRating",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "5bce12d6-ad7c-55a3-ae52-2357a9645182",
+              "Name": "Kind",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKind",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "f4dc39c7-c8a3-5298-b685-5a2c3b7743a2",
+              "Name": "Center",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "e94c34b0-d287-526e-8f38-a577f0adc0bf",
+              "Name": "ExtentsXY",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector2",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c94b7824-9d26-5993-9dc3-11de29ad0cbc",
+              "Name": "AngleRad",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "cd9e7fef-aef2-549d-8013-2aff8c1591eb",
+              "Name": "ZFloor",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "1a674689-bec2-54e1-a1b7-239899565942",
+              "Name": "ZCeiling",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "2c0bcbaa-194d-5328-9ec1-cbb9786b88f9",
+              "Name": "NearSideHandle",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fa30a69c-8d1a-5d5d-84c6-78f52217d3cc",
+              "Name": "FarSideHandle",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "48bf2dbf-e0f0-58d9-848f-0f85170fa1ec",
+              "Name": "DistanceAlongRoute",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Boolean",
+          "ValueJson": "true",
+          "Id": "e595242e-a680-5809-a246-312866a173f9",
+          "Pins": [
+            {
+              "Id": "ae8eca2a-b3ab-586b-a252-6d4caf4e25ac",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Boolean",
+          "ValueJson": "false",
+          "Id": "5c38ddce-3b97-542a-b25f-9b4359c192ed",
+          "Pins": [
+            {
+              "Id": "dcb0e3fc-ad4e-5e0b-98d7-8a67c25d3a11",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 780,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Boolean",
+          "ValueJson": "false",
+          "Id": "988842fa-53bd-54fc-a492-305c2e9044e2",
+          "Pins": [
+            {
+              "Id": "90942342-e58a-5051-91ce-25aed999c169",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Boolean",
+          "ValueJson": "true",
+          "Id": "98962105-c8a2-5adb-9ce2-b0afa80db71a",
+          "Pins": [
+            {
+              "Id": "8fe5241f-a4af-54bd-9522-dd30d6160b88",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1300,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Boolean",
+          "ValueJson": "false",
+          "Id": "b1067960-fbbc-5fbb-8e8a-fec814f6dafa",
+          "Pins": [
+            {
+              "Id": "613c23a4-99e3-5a17-9348-ce86874a9544",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Id": "6a941e8a-9178-5e5e-a13a-7163461735b3",
+          "Pins": [
+            {
+              "Id": "e649e683-a5a4-5488-a153-b31c353d6fb6",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "6893fbac-b44b-53ad-98d4-ae355ed36ed6",
+          "Id": "d10d5a70-884b-502a-8209-117f1fb33dab",
+          "Pins": [
+            {
+              "Id": "7936ada7-9bd2-5bb7-a6e1-bf97c698064b",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "8f77aed9-cf5d-5612-8e4c-30e02088504d",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "92750bbc-57dd-532b-9efd-4da525ed2bf8",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "9bb32b66-4f74-5ea4-9c56-ddc6d765a944",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "6893fbac-b44b-53ad-98d4-ae355ed36ed6",
+          "Id": "fca06fd4-715a-524a-a531-1ae0b6c499a2",
+          "Pins": [
+            {
+              "Id": "0b8b00bc-3f33-5d6c-b0d2-189900c65636",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "0671d268-e942-51d1-98e8-be8fba7883cb",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "5294f293-2df6-585e-ac20-19d7de67e988",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "7241d5be-2a59-57f4-8ab8-a1ac74ec5390",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 780,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "fad9c5ad-a889-5d70-abab-95e6a2146cd1",
+          "Id": "08ab8c82-aa79-5cca-8f23-f827fb6f4c13",
+          "Pins": [
+            {
+              "Id": "fd47f033-3d7c-581c-a4cd-f987ca121ecb",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "8040ef31-93a1-55ac-b729-52d48d71b627",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "2506a1ae-8024-5eee-a7ab-140b8a294ddf",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "33e6c44f-43a1-5b58-b825-1ac4eee55eca",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "fad9c5ad-a889-5d70-abab-95e6a2146cd1",
+          "Id": "64d65cd4-4a7b-51c3-9f84-3e2d114cc92d",
+          "Pins": [
+            {
+              "Id": "91cb2c1c-7034-5da6-9c17-43461108903d",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b67af28a-0f70-59d6-a28e-4057af458845",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b64234d1-00d4-54d2-bcf5-eeaef1f8506d",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "0e806277-3e4d-53f1-95eb-c3c404bd3eb1",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1300,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "fad9c5ad-a889-5d70-abab-95e6a2146cd1",
+          "Id": "2d69595e-b96f-5f5c-ac29-09147fbeac9b",
+          "Pins": [
+            {
+              "Id": "06610245-9d5b-5138-9e19-62aca8cbe4af",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ef64b248-5465-5b23-bac7-f7601c0fbe74",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "6dc3ddb5-4ac7-52bd-a7fc-d9b9397b9aa2",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "237c5d89-4472-51fb-b6c6-690dfd41bc47",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "6893fbac-b44b-53ad-98d4-ae355ed36ed6",
+          "Id": "0f341d14-4c51-5c59-844c-238ff7fb8754",
+          "Pins": [
+            {
+              "Id": "410c2f5f-ac94-5e0e-a4f3-ffaeddcc268c",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "fad9c5ad-a889-5d70-abab-95e6a2146cd1",
+          "Id": "db5540a0-fa59-5427-8ddd-a8fecba34a8d",
+          "Pins": [
+            {
+              "Id": "ed2f1b30-80cb-550b-8072-206606631a69",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "3e9daf88-296c-5c3b-b409-554f0791c11a",
+          "Pins": [
+            {
+              "Id": "b7e4503a-441b-557d-b1c1-4af9561ff6e3",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "70f93569-6ff1-50c0-aaae-2f11038b23a7",
+              "Name": "True",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "4b9a722c-6c0a-5988-bc23-8eb6a039827f",
+              "Name": "False",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "8634f484-8a34-53c8-aa3b-ec967391744d",
+              "Name": "Condition",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 780,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "a085c512-98ce-5d1a-8bac-b3e1c4f395b6",
+          "Pins": [
+            {
+              "Id": "688043fa-3643-577b-93bf-db7e394bd7f1",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fd6dc731-5acb-52cb-83e7-55d0e7e42ae6",
+              "Name": "True",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fd338897-b615-5690-bb2b-523a9359086a",
+              "Name": "False",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "16942c5f-c2f4-5332-b2d9-6ca7e5b0138e",
+              "Name": "Condition",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "f69ed5e5-a008-5d57-95d4-05c0b907c210",
+          "Pins": [
+            {
+              "Id": "09812932-c2d5-5de4-9846-e7dbeaa28a65",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "496cfb2a-4b66-5b2d-94be-c88cd994c715",
+              "Name": "True",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "e6004939-aa6e-58ef-b762-6bfc6c8f9884",
+              "Name": "False",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "26b12af7-9181-5f86-b4ee-1844c06d2cab",
+              "Name": "Condition",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1300,
+            "Y": 480,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Compare",
+          "Operator": "GreaterThan",
+          "Id": "152b0f5d-c892-5d8e-8e03-2fefa287f72f",
+          "Pins": [
+            {
+              "Id": "cb263e1c-cb63-504a-9990-4510de71ad8a",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "aad386ed-4160-5389-8e47-ff7ae29b61b0",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "0f60e1d2-2edf-5085-9790-c53c0cbcf9dc",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Compare",
+          "Operator": "LessThanOrEqual",
+          "Id": "07db9ce3-ec0c-5c36-9c47-5d3b5f0059a9",
+          "Pins": [
+            {
+              "Id": "9a341fcb-fa64-5780-9856-9ae765e198a7",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "88392452-4efe-5c7b-9d10-05538e744e89",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "7dd568c3-bc4a-5efe-a3fa-22116ac55eb1",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BooleanOp",
+          "Operator": "And",
+          "Id": "3320ef86-931d-563e-9e0a-812e32751305",
+          "Pins": [
+            {
+              "Id": "32810aba-1b83-5b18-894a-b2e3cfe91a2c",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "9fc2c2bf-09b2-562c-ac3a-6598bb420134",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "a745f753-0d17-5f96-a381-895f8afd0315",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BooleanOp",
+          "Operator": "And",
+          "Id": "76afe509-2033-5201-acdf-eeeb69d66e0a",
+          "Pins": [
+            {
+              "Id": "94c84c3b-7660-524d-a115-2198f23b9d9e",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "836cb526-dd82-5cc9-84d6-e346b4a7fda0",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "90a0c5dd-35c8-5c4c-9a94-23eb774f0705",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 780,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.StandardLibrary.BlueprintLocomotionLibrary",
+          "MethodName": "MoveArrived",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "SelfAndView",
+          "Id": "dc2fe06a-6c8d-555e-bf76-da8004eacb1f",
+          "Pins": [
+            {
+              "Id": "7b22ace4-890b-5b43-8cb5-6206e14a2b7b",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "8b93677f-8c33-5b11-bba6-f9ea7e538795",
+          "Pins": [
+            {
+              "Id": "4b38ac54-6b5b-5a33-b329-cdb13bc29334",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "e06ecf7f-9ed8-58b1-86c1-3dd80514e49f",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "4695b671-9ee5-52e8-9455-36afb2dbcb4b",
+              "Name": "Destination",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "0a683f8d-2517-56b8-928f-e2d7f0b5fe62",
+              "Name": "Speed",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "e120a349-fabb-51f9-8c2a-212349576504",
+              "Name": "ArrivalRadius",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": [],
+              "DefaultValue": "1.5"
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1300,
+            "Y": 640,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "4a12c4f6-7353-528c-b2a6-fccf3473db5e",
+          "Pins": [
+            {
+              "Id": "8b842924-44f8-584b-b7aa-75cfe06dfcf3",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "70f8475b-61dd-55ae-8fd9-7736092b0251",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bf92da4b-fa16-5903-9e86-1082a24e4ee6",
+              "Name": "Destination",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "8d517488-922f-5df2-8879-34a52947fd92",
+              "Name": "Speed",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "48ce18e8-ce0a-5ce3-9e77-6fe14c1cfa0a",
+              "Name": "ArrivalRadius",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": [],
+              "DefaultValue": "1.5"
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 800,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "ff349696-a9dd-5e48-9d3d-5f5b9132a542",
+          "Pins": [
+            {
+              "Id": "3fce10ec-2d28-50e8-aa46-0971c2ef5437",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "726a22b0-a9c6-56d3-9390-c869d87cbf98",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "096aa114-5eb3-510c-9367-87a23064e9c7",
+              "Name": "Destination",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector3",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "df3e7318-affc-58f2-8a71-6371a0ced044",
+              "Name": "Speed",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "93c157be-175a-5ffd-a596-b1cdb015b95a",
+              "Name": "ArrivalRadius",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": [],
+              "DefaultValue": "1.5"
+            }
+          ],
+          "EditorMetadata": {
+            "X": 260,
+            "Y": 800,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "2ab23b11-7436-5add-b303-c1595cd29f1f",
+          "Pins": [
+            {
+              "Id": "7992dbb5-0c36-50d8-b3b5-85e69b4c0f1f",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 800,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f03ef57f-59fa-5e4c-af99-9ffbd793abd4",
+          "FromPinId": "76a1d0e4-e183-5ca5-9ad2-78ad07249ba1",
+          "ToNodeId": "4f3be348-7511-5279-957d-546cf6a74eef",
+          "ToPinId": "e3797ede-def7-559d-9b5f-3e7c40b98b51"
+        },
+        {
+          "FromNodeId": "4f3be348-7511-5279-957d-546cf6a74eef",
+          "FromPinId": "0697d818-e935-5226-8a24-1035f87a8140",
+          "ToNodeId": "9631df53-848f-594f-8752-5f8d6afc0384",
+          "ToPinId": "ad268bef-c163-5fa1-92f7-a4f451be90b4"
+        },
+        {
+          "FromNodeId": "9631df53-848f-594f-8752-5f8d6afc0384",
+          "FromPinId": "ab8c8048-ed6a-5f71-8263-5e197a1380ec",
+          "ToNodeId": "d10d5a70-884b-502a-8209-117f1fb33dab",
+          "ToPinId": "7936ada7-9bd2-5bb7-a6e1-bf97c698064b"
+        },
+        {
+          "FromNodeId": "9631df53-848f-594f-8752-5f8d6afc0384",
+          "FromPinId": "a2aa5345-1371-575e-85b9-c9b0f5b321fb",
+          "ToNodeId": "fca06fd4-715a-524a-a531-1ae0b6c499a2",
+          "ToPinId": "0b8b00bc-3f33-5d6c-b0d2-189900c65636"
+        },
+        {
+          "FromNodeId": "9631df53-848f-594f-8752-5f8d6afc0384",
+          "FromPinId": "ebbc9b7d-d4c0-570d-a65a-1eb8860a0c53",
+          "ToNodeId": "3e9daf88-296c-5c3b-b409-554f0791c11a",
+          "ToPinId": "b7e4503a-441b-557d-b1c1-4af9561ff6e3"
+        },
+        {
+          "FromNodeId": "3e9daf88-296c-5c3b-b409-554f0791c11a",
+          "FromPinId": "70f93569-6ff1-50c0-aaae-2f11038b23a7",
+          "ToNodeId": "8b93677f-8c33-5b11-bba6-f9ea7e538795",
+          "ToPinId": "4b38ac54-6b5b-5a33-b329-cdb13bc29334"
+        },
+        {
+          "FromNodeId": "8b93677f-8c33-5b11-bba6-f9ea7e538795",
+          "FromPinId": "e06ecf7f-9ed8-58b1-86c1-3dd80514e49f",
+          "ToNodeId": "08ab8c82-aa79-5cca-8f23-f827fb6f4c13",
+          "ToPinId": "fd47f033-3d7c-581c-a4cd-f987ca121ecb"
+        },
+        {
+          "FromNodeId": "3e9daf88-296c-5c3b-b409-554f0791c11a",
+          "FromPinId": "4b9a722c-6c0a-5988-bc23-8eb6a039827f",
+          "ToNodeId": "a085c512-98ce-5d1a-8bac-b3e1c4f395b6",
+          "ToPinId": "688043fa-3643-577b-93bf-db7e394bd7f1"
+        },
+        {
+          "FromNodeId": "a085c512-98ce-5d1a-8bac-b3e1c4f395b6",
+          "FromPinId": "fd6dc731-5acb-52cb-83e7-55d0e7e42ae6",
+          "ToNodeId": "4a12c4f6-7353-528c-b2a6-fccf3473db5e",
+          "ToPinId": "8b842924-44f8-584b-b7aa-75cfe06dfcf3"
+        },
+        {
+          "FromNodeId": "4a12c4f6-7353-528c-b2a6-fccf3473db5e",
+          "FromPinId": "70f8475b-61dd-55ae-8fd9-7736092b0251",
+          "ToNodeId": "64d65cd4-4a7b-51c3-9f84-3e2d114cc92d",
+          "ToPinId": "91cb2c1c-7034-5da6-9c17-43461108903d"
+        },
+        {
+          "FromNodeId": "a085c512-98ce-5d1a-8bac-b3e1c4f395b6",
+          "FromPinId": "fd338897-b615-5690-bb2b-523a9359086a",
+          "ToNodeId": "f69ed5e5-a008-5d57-95d4-05c0b907c210",
+          "ToPinId": "09812932-c2d5-5de4-9846-e7dbeaa28a65"
+        },
+        {
+          "FromNodeId": "f69ed5e5-a008-5d57-95d4-05c0b907c210",
+          "FromPinId": "496cfb2a-4b66-5b2d-94be-c88cd994c715",
+          "ToNodeId": "2ab23b11-7436-5add-b303-c1595cd29f1f",
+          "ToPinId": "7992dbb5-0c36-50d8-b3b5-85e69b4c0f1f"
+        },
+        {
+          "FromNodeId": "f69ed5e5-a008-5d57-95d4-05c0b907c210",
+          "FromPinId": "e6004939-aa6e-58ef-b762-6bfc6c8f9884",
+          "ToNodeId": "ff349696-a9dd-5e48-9d3d-5f5b9132a542",
+          "ToPinId": "3fce10ec-2d28-50e8-aa46-0971c2ef5437"
+        },
+        {
+          "FromNodeId": "ff349696-a9dd-5e48-9d3d-5f5b9132a542",
+          "FromPinId": "726a22b0-a9c6-56d3-9390-c869d87cbf98",
+          "ToNodeId": "2d69595e-b96f-5f5c-ac29-09147fbeac9b",
+          "ToPinId": "06610245-9d5b-5138-9e19-62aca8cbe4af"
+        },
+        {
+          "FromNodeId": "25adc157-3faf-524b-981a-722e8c74d201",
+          "FromPinId": "1ff854b0-085b-5f09-9245-2e37eb810e32",
+          "ToNodeId": "4f3be348-7511-5279-957d-546cf6a74eef",
+          "ToPinId": "6bb7695f-316a-540c-be37-078297cddc11"
+        },
+        {
+          "FromNodeId": "e595242e-a680-5809-a246-312866a173f9",
+          "FromPinId": "ae8eca2a-b3ab-586b-a252-6d4caf4e25ac",
+          "ToNodeId": "d10d5a70-884b-502a-8209-117f1fb33dab",
+          "ToPinId": "92750bbc-57dd-532b-9efd-4da525ed2bf8"
+        },
+        {
+          "FromNodeId": "5c38ddce-3b97-542a-b25f-9b4359c192ed",
+          "FromPinId": "dcb0e3fc-ad4e-5e0b-98d7-8a67c25d3a11",
+          "ToNodeId": "fca06fd4-715a-524a-a531-1ae0b6c499a2",
+          "ToPinId": "5294f293-2df6-585e-ac20-19d7de67e988"
+        },
+        {
+          "FromNodeId": "988842fa-53bd-54fc-a492-305c2e9044e2",
+          "FromPinId": "90942342-e58a-5051-91ce-25aed999c169",
+          "ToNodeId": "08ab8c82-aa79-5cca-8f23-f827fb6f4c13",
+          "ToPinId": "2506a1ae-8024-5eee-a7ab-140b8a294ddf"
+        },
+        {
+          "FromNodeId": "b1067960-fbbc-5fbb-8e8a-fec814f6dafa",
+          "FromPinId": "613c23a4-99e3-5a17-9348-ce86874a9544",
+          "ToNodeId": "64d65cd4-4a7b-51c3-9f84-3e2d114cc92d",
+          "ToPinId": "b64234d1-00d4-54d2-bcf5-eeaef1f8506d"
+        },
+        {
+          "FromNodeId": "98962105-c8a2-5adb-9ce2-b0afa80db71a",
+          "FromPinId": "8fe5241f-a4af-54bd-9522-dd30d6160b88",
+          "ToNodeId": "2d69595e-b96f-5f5c-ac29-09147fbeac9b",
+          "ToPinId": "6dc3ddb5-4ac7-52bd-a7fc-d9b9397b9aa2"
+        },
+        {
+          "FromNodeId": "0f341d14-4c51-5c59-844c-238ff7fb8754",
+          "FromPinId": "410c2f5f-ac94-5e0e-a4f3-ffaeddcc268c",
+          "ToNodeId": "3e9daf88-296c-5c3b-b409-554f0791c11a",
+          "ToPinId": "8634f484-8a34-53c8-aa3b-ec967391744d"
+        },
+        {
+          "FromNodeId": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
+          "FromPinId": "2c0bcbaa-194d-5328-9ec1-cbb9786b88f9",
+          "ToNodeId": "8b93677f-8c33-5b11-bba6-f9ea7e538795",
+          "ToPinId": "4695b671-9ee5-52e8-9455-36afb2dbcb4b"
+        },
+        {
+          "FromNodeId": "b04cc7a3-208c-56cf-a735-0cc0c963b262",
+          "FromPinId": "c5d2ad3d-9b39-5e14-a8e1-664756ad25a7",
+          "ToNodeId": "8b93677f-8c33-5b11-bba6-f9ea7e538795",
+          "ToPinId": "0a683f8d-2517-56b8-928f-e2d7f0b5fe62"
+        },
+        {
+          "FromNodeId": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
+          "FromPinId": "520e06ce-8125-58b7-a7ef-2c04001dce25",
+          "ToNodeId": "152b0f5d-c892-5d8e-8e03-2fefa287f72f",
+          "ToPinId": "cb263e1c-cb63-504a-9990-4510de71ad8a"
+        },
+        {
+          "FromNodeId": "6a941e8a-9178-5e5e-a13a-7163461735b3",
+          "FromPinId": "e649e683-a5a4-5488-a153-b31c353d6fb6",
+          "ToNodeId": "152b0f5d-c892-5d8e-8e03-2fefa287f72f",
+          "ToPinId": "aad386ed-4160-5389-8e47-ff7ae29b61b0"
+        },
+        {
+          "FromNodeId": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
+          "FromPinId": "48bf2dbf-e0f0-58d9-848f-0f85170fa1ec",
+          "ToNodeId": "07db9ce3-ec0c-5c36-9c47-5d3b5f0059a9",
+          "ToPinId": "9a341fcb-fa64-5780-9856-9ae765e198a7"
+        },
+        {
+          "FromNodeId": "115cf2e9-346a-59f2-86d5-8f681b2880cd",
+          "FromPinId": "013a68f4-be42-5757-8903-bb393916c727",
+          "ToNodeId": "07db9ce3-ec0c-5c36-9c47-5d3b5f0059a9",
+          "ToPinId": "88392452-4efe-5c7b-9d10-05538e744e89"
+        },
+        {
+          "FromNodeId": "152b0f5d-c892-5d8e-8e03-2fefa287f72f",
+          "FromPinId": "0f60e1d2-2edf-5085-9790-c53c0cbcf9dc",
+          "ToNodeId": "3320ef86-931d-563e-9e0a-812e32751305",
+          "ToPinId": "32810aba-1b83-5b18-894a-b2e3cfe91a2c"
+        },
+        {
+          "FromNodeId": "07db9ce3-ec0c-5c36-9c47-5d3b5f0059a9",
+          "FromPinId": "7dd568c3-bc4a-5efe-a3fa-22116ac55eb1",
+          "ToNodeId": "3320ef86-931d-563e-9e0a-812e32751305",
+          "ToPinId": "9fc2c2bf-09b2-562c-ac3a-6598bb420134"
+        },
+        {
+          "FromNodeId": "3320ef86-931d-563e-9e0a-812e32751305",
+          "FromPinId": "a745f753-0d17-5f96-a381-895f8afd0315",
+          "ToNodeId": "a085c512-98ce-5d1a-8bac-b3e1c4f395b6",
+          "ToPinId": "16942c5f-c2f4-5332-b2d9-6ca7e5b0138e"
+        },
+        {
+          "FromNodeId": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
+          "FromPinId": "fa30a69c-8d1a-5d5d-84c6-78f52217d3cc",
+          "ToNodeId": "4a12c4f6-7353-528c-b2a6-fccf3473db5e",
+          "ToPinId": "bf92da4b-fa16-5903-9e86-1082a24e4ee6"
+        },
+        {
+          "FromNodeId": "f8dc2fa7-c485-54cb-a33c-0c4b0a6389d3",
+          "FromPinId": "82e7400a-8936-5499-81f8-4fd03507948b",
+          "ToNodeId": "4a12c4f6-7353-528c-b2a6-fccf3473db5e",
+          "ToPinId": "8d517488-922f-5df2-8879-34a52947fd92"
+        },
+        {
+          "FromNodeId": "db5540a0-fa59-5427-8ddd-a8fecba34a8d",
+          "FromPinId": "ed2f1b30-80cb-550b-8072-206606631a69",
+          "ToNodeId": "76afe509-2033-5201-acdf-eeeb69d66e0a",
+          "ToPinId": "94c84c3b-7660-524d-a115-2198f23b9d9e"
+        },
+        {
+          "FromNodeId": "dc2fe06a-6c8d-555e-bf76-da8004eacb1f",
+          "FromPinId": "7b22ace4-890b-5b43-8cb5-6206e14a2b7b",
+          "ToNodeId": "76afe509-2033-5201-acdf-eeeb69d66e0a",
+          "ToPinId": "836cb526-dd82-5cc9-84d6-e346b4a7fda0"
+        },
+        {
+          "FromNodeId": "76afe509-2033-5201-acdf-eeeb69d66e0a",
+          "FromPinId": "90a0c5dd-35c8-5c4c-9a94-23eb774f0705",
+          "ToNodeId": "f69ed5e5-a008-5d57-95d4-05c0b907c210",
+          "ToPinId": "26b12af7-9181-5f86-b4ee-1844c06d2cab"
+        },
+        {
+          "FromNodeId": "25adc157-3faf-524b-981a-722e8c74d201",
+          "FromPinId": "1ff854b0-085b-5f09-9245-2e37eb810e32",
+          "ToNodeId": "ff349696-a9dd-5e48-9d3d-5f5b9132a542",
+          "ToPinId": "096aa114-5eb3-510c-9367-87a23064e9c7"
+        },
+        {
+          "FromNodeId": "b04cc7a3-208c-56cf-a735-0cc0c963b262",
+          "FromPinId": "c5d2ad3d-9b39-5e14-a8e1-664756ad25a7",
+          "ToNodeId": "ff349696-a9dd-5e48-9d3d-5f5b9132a542",
+          "ToPinId": "df3e7318-affc-58f2-8a71-6371a0ced044"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CE-3079 H7 / CE-3078 \u2014 the DangerCrossing BTree as a blueprint, from the per-kind sensor nodes: SpawnSensor(DangerArea) \u2192 When SensorResult(ThreatCrossed \u2265 0.5) \u2192 ReadSensorResult(0) near / far handles \u2192 MoveTo. docs/DESIGN_Utility_AI_Demo_Scenarios.md \u00A710.4, docs/DESIGN_Sensors_And_Doctrine.md \u00A77.10b.",
+    "Category": "Tactics",
+    "Recipe": null
+  }
+}

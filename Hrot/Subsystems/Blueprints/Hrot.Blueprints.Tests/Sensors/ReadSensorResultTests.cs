@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -216,5 +217,51 @@ public sealed class ReadSensorResultTests
         Assert.Equal(2, Slot<int>(fixture, asset, unit, "Areas"));
         Assert.Equal(index == 0 ? new Vector3(101f, 100f, 0f) : new Vector3(150f, 120f, 0f), Slot<Vector3>(fixture, asset, unit, "Near"));
         Assert.Equal(index == 0 ? 0.8f : 0.2f, Slot<float>(fixture, asset, unit, "Threat"));
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> — the BAKE-DRIFT tripwire: every sensor decl baked into a SHIPPED blueprint must still equal what the
+/// editor bakes from the toolkit's <see cref="SensorKindRegistry"/> today. The compiler lowers from the baked copy and never
+/// sees the registry (D1), so a kind whose types / triggers / Ensure changed would otherwise compile the OLD shape silently.
+/// The fix when it fails: re-pick the kind in the editor (or re-bake the asset).
+/// </summary>
+public sealed class ShippedSensorDeclsTests
+{
+    private static string Shape(SensorKindDecl d) => string.Join("|",
+        d.Kind, d.ResultComponentFqn, d.ElementTypeFqn,
+        string.Join(",", d.ElementFields.Select(f => f.Name + ":" + f.TypeId)),
+        d.SettingsTypeFqn, string.Join(",", (d.SettingsFields ?? new()).Select(f => f.Name + ":" + f.TypeId)),
+        d.SettingsDefaultFqn, d.EnsureMethodFqn,
+        string.Join(",", (d.Triggers ?? new()).Select(t => t.Name + ":" + t.ElementField + ":" + t.Shape)),
+        d.HasAnswerTime);
+
+    private static IEnumerable<SensorKindDecl> DeclsIn(string json)
+    {
+        var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var root = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        foreach (var g in root["Graphs"]!.AsArray())
+            foreach (var n in g!["Nodes"]!.AsArray())
+            {
+                if (n!["Decl"] is { } d) yield return d.Deserialize<SensorKindDecl>(opts)!;
+                if (n["SensorResult"]?["Decl"] is { } w) yield return w.Deserialize<SensorKindDecl>(opts)!;
+            }
+    }
+
+    [Fact]
+    public void CE3078_EveryShippedSensorDecl_MatchesTheRegistryToday()
+    {
+        int seen = 0;
+        foreach (var file in Golden.GoldenCorpus.EnumerateFiles())
+            foreach (var d in DeclsIn(File.ReadAllText(file)))
+            {
+                seen++;
+                var fresh = SensorKindBaker.Bake((SensorModality)d.Kind);
+                Assert.True(fresh is not null, $"{Path.GetFileName(file)}: sensor kind {d.Kind} is no longer registered");
+                Assert.True(Shape(fresh!) == Shape(d),
+                    $"{Path.GetFileName(file)}: the baked {d.KindName} decl drifted from the registry — re-pick the kind in the editor.\n"
+                    + $"  baked: {Shape(d)}\n  now:   {Shape(fresh!)}");
+            }
+        Assert.True(seen >= 3, "DangerCrossingBp carries three sensor decls (SpawnSensor, When, ReadSensorResult)");
     }
 }
