@@ -1506,6 +1506,38 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_entity_sensors",
+    "group": "K — AI behavior traces",
+    "summary": "Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/sensors"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ count, sensors:[{partId, kind, family:Ranked|Area, templateId, epoch, suspended, origin:tkb|behaviour|other, answer:{ready, count, lastUpdateTick, top:[{entityId, score, position}]} | {ready, count, lastUpdateTick, areas:[{featureId, kind, threat, distanceAlongRoute, center, nearHandle, farHandle}]}, settings? }] }",
+    "notes": [
+      "A Ranked sensor lists its top 5 results; an Area sensor (the danger-area sensor) lists its areas, the next one ahead first.",
+      "answer.ready is false until the first answer — an Area answer with count 0 and ready true means a clear route.",
+      "settings appear for an Area sensor: which route it watches (OwnMove | Handle | ToPoint) and its corridor."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read which danger areas a unit sees ahead on its route, and how threatened each is"
+    },
+    "hint": "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — the answers land there. Example: get_entity_sensors({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_trace",
     "group": "K — AI behavior traces",
     "summary": "Extract AI behavior trace for an entity.",
