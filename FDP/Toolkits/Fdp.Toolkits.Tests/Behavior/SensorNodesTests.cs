@@ -81,6 +81,27 @@ namespace Fdp.Toolkit.Tests.Behavior
             Assert.False(SensorNodes.ThreatsAtLeast(ref twoLive, unit, _w.Repo));   // the faded one is not live
         }
 
+        /// <summary>🔴 <c>CE-3079</c> H1 (§10.5) — <c>WithinMetres</c> counts only contacts whose REMEMBERED position is within the
+        /// distance of the unit; 0 keeps every distance (the rail above, unchanged).</summary>
+        [Fact]
+        public void CE3079_ThreatsAtLeast_WithinMetres_CountsOnlyContactsInsideTheRadius()
+        {
+            var unit = _w.SpawnAgent(1f, 1f);                       // at the origin
+            var armed = _w.Repo.CreateEntity();
+            _w.Repo.AddComponent(armed, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            _w.SeedContact(unit, armed, 120f, 1f, -1f, true);      // remembered 120 m away
+
+            var any = new ThreatCountParams { Count = 1, MinDanger = 0.5f };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref any, unit, _w.Repo), "0 = any distance");
+            var near = new ThreatCountParams { Count = 1, MinDanger = 0.5f, WithinMetres = 90f };
+            Assert.False(SensorNodes.ThreatsAtLeast(ref near, unit, _w.Repo), "120 m is outside 90 m");
+            var far = new ThreatCountParams { Count = 1, MinDanger = 0.5f, WithinMetres = 130f };
+            Assert.True(SensorNodes.ThreatsAtLeast(ref far, unit, _w.Repo));
+
+            _w.Repo.GetComponentRW<SimTransform>(unit).Position = new System.Numerics.Vector3(60f, 0f, 0f);   // the unit closes in
+            Assert.True(SensorNodes.ThreatsAtLeast(ref near, unit, _w.Repo), "measured from where the unit is NOW: 60 m");
+        }
+
         /// <summary>⭐ <c>CE-3063</c> ② — a HEARD contact counts by its sound class's danger (K3): a heard tank is a dangerous
         /// threat, heard footsteps are not.</summary>
         [Fact]
