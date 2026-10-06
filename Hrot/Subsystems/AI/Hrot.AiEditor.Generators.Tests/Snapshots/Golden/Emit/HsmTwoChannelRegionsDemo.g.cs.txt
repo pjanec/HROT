@@ -26,11 +26,11 @@ public static class HsmTwoChannelRegionsDemo
             .Parallel();
         concurrent.Child("Driving", sb2 =>
         {
-            sb2.Initial().OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel");
+            sb2.Initial().InRegion(0).OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel");
         }, stableId: new Guid("60000002-1000-0000-0000-000000000003"));
         concurrent.Child("Shooting", sb2 =>
         {
-            sb2.OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel");
+            sb2.Initial().InRegion(1).OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel");
         }, stableId: new Guid("60000002-1000-0000-0000-000000000004"));
 
         return builder;

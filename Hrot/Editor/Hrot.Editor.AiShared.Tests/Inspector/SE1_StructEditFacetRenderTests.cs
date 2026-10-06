@@ -140,7 +140,10 @@ public sealed class SE1_StructEditFacetRenderTests
         var slots = AllNodes(state.Document.Root)
             .Where(n => n.ClrType == typeof(BehaviorActionBindingFacet))
             .ToDictionary(n => n.Name, n => n.Metadata.CustomAttributes.OfType<ActionBindingAttribute>().Single());
-        slots.Keys.Should().BeEquivalentTo(new[] { "OnEntry", "OnExit", "Activity", "Timer" });
+        // ⛔ HSM-012 (2026-10-06): "Timer" left this set deliberately — the HSM kernel never arms a timer, so the
+        //    slot offered a binding that is emitted and can never fire. See HsmFacets.StateFacet for the
+        //    measurement and HSM_Editor_NodeEditor_Host_Design.md §11.1b.
+        slots.Keys.Should().BeEquivalentTo(new[] { "OnEntry", "OnExit", "Activity" });
         slots.Where(kv => kv.Value.AllowsBlueprint).Select(kv => kv.Key).Should().Equal("Activity");
         slots.Values.Should().OnlyContain(a => a.Kind == BindingSlotKind.Action);
 

@@ -52,6 +52,17 @@ public sealed class InteractionState
     /// <summary>Per-reroute graph-space position overrides while a drag is in progress.</summary>
     public Dictionary<RerouteRef, Vector2> RerouteDragOverridePositions { get; } = new();
 
+    /// <summary>CE-1004: the region-divider / container-edge resize in progress (Mode == ResizingContainer).</summary>
+    public ContainerResize? ContainerResize { get; set; }
+
+    /// <summary>CE-1004: the live band size of <paramref name="container"/>'s band <paramref name="regionIndex"/> during a divider drag, else null.</summary>
+    public float? RegionSizePreview(NodeId container, int regionIndex)
+        => ContainerResize is { } r && r.Container == container && r.RegionIndex == regionIndex ? r.PreviewRegionSize : null;
+
+    /// <summary>CE-1004: the live outer size of <paramref name="container"/> during an edge drag, else null.</summary>
+    public Vector2? ContainerSizePreview(NodeId container)
+        => ContainerResize is { } r && r.Container == container && r.RegionIndex < 0 ? r.PreviewOuterSize : null;
+
     /// <summary>The comment currently being inline-renamed; null when not renaming.</summary>
     public CommentId? RenamingComment { get; set; }
 
@@ -120,6 +131,7 @@ public sealed class InteractionState
         ActiveCommentResizeHandle = -1;
         RerouteDragOverridePositions.Clear();
         RenamingComment = null;
+        ContainerResize = null;
         MarqueeGraph = default;
         MarqueeTouchMode = false;
         PendingWire = null;
@@ -159,4 +171,24 @@ public sealed class ViewportTween
         var t = (float)Math.Min(ElapsedMs / DurationMs, 1.0);
         return 1f - (1f - t) * (1f - t); // ease-out quadratic
     }
+}
+
+/// <summary>
+/// ⭐ CE-1004 — one region-divider or container-edge resize in progress. <see cref="RegionIndex"/> ≥ 0 resizes that
+/// band (the one above / left of the divider); −1 resizes the container's outer size along <see cref="Edge"/>.
+/// </summary>
+public sealed class ContainerResize
+{
+    public required NodeId Container { get; init; }
+    public required int RegionIndex { get; init; }
+    public ContainerResizeEdge Edge { get; init; }
+    public Vector2 StartGraph { get; init; }
+    /// <summary>The band's size (or the container's outer size) when the drag started.</summary>
+    public float StartRegionSize { get; init; }
+    public Vector2 StartOuterSize { get; init; }
+    /// <summary>The value before the drag (for the undo command).</summary>
+    public float? OldPreferredSize { get; init; }
+    public Vector2? OldSizeOverride { get; init; }
+    public float? PreviewRegionSize { get; set; }
+    public Vector2? PreviewOuterSize { get; set; }
 }

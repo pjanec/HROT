@@ -440,6 +440,11 @@ namespace Hrot.Editor
         // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
         //       reachable here (the prefs window lives in a different composition scope).
         private bool _blueprintAutoReloadOnEdit = false;
+
+        // ⭐ BP-93 (policy decided by the user 2026-10-06): BTree/HSM edits are written to disk ONLY by Save /
+        //    Save All, like blueprints. The debounced scheduler kept writing the asset's JSON 0.5 s after every
+        //    change, so exploratory edits became committed-asset changes with no Save in the path. Opt-in only.
+        private bool _aiJsonAutoSaveOnEdit = false;
         // ⭐⭐ Batch 95 (95b) — all three join _sharedEntitySelection, assigned in the constructor.
         //    ⛔ Not a field initializer: C# forbids one instance field initializer reading another,
         //    and the whole point is that these four stores read ONE cell.
@@ -4862,6 +4867,10 @@ namespace Hrot.Editor
                     //   - Blueprint path: UNCHANGED (handled above).
                     // NOTE: end-to-end edit→MSBuild-regen→hot-reload latency is Phase 9 / manual smoke.
                     // This change ensures the flush PERSISTS correctly (valid JSON, not C#).
+                    // ⭐ BP-93: no write without an explicit Save (the document stays dirty; Save / Save All persist it).
+                    if (!_aiJsonAutoSaveOnEdit)
+                        return;
+
                     try
                     {
                         var path = asset.SourceFilePath;
@@ -5192,7 +5201,8 @@ namespace Hrot.Editor
             // pin-stripped file over the source — persisting exploratory/invalid edits the user never
             // chose to keep. Removed.
             // FlushNow() is kept: it only drains the debounced BTree/HSM regen (blueprints are
-            // in-memory-only there and never written), consistent with their auto-save-on-edit design.
+            // in-memory-only there and never written). ⭐ BP-93: since 2026-10-06 that flush writes nothing either
+            // (auto-save is opt-in), so app-exit discards unsaved BTree/HSM edits exactly like blueprint ones.
             // FOLLOW-UP (user-requested): a real app-exit "you have unsaved changes" prompt — until
             // then, app-exit silently discards.
             _regenerationScheduler?.FlushNow();

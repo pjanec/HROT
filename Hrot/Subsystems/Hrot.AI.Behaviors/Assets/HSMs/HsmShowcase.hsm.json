@@ -37,13 +37,12 @@
       "Name": "GuardComposite",
       "ChildStableIds": [
         "03000000-0000-0000-0000-000000000001",
-        "04000000-0000-0000-0000-000000000001",
         "05000000-0000-0000-0000-000000000001",
         "06000000-0000-0000-0000-000000000001"
       ],
       "ParentStableId": "01000000-0000-0000-0000-000000000001",
       "IsInitial": true,
-      "IsHistory": false,
+      "IsHistory": true,
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
@@ -80,26 +79,6 @@
       "SizeOverrideX": null,
       "SizeOverrideY": null,
       "Comment": "Idle state — OnEntry + Activity bound to StubIdle",
-      "IsCollapsed": false,
-      "ColorOverride": null
-    },
-    {
-      "StableId": "04000000-0000-0000-0000-000000000001",
-      "Name": "HistoryPseudo",
-      "ChildStableIds": [],
-      "ParentStableId": "02000000-0000-0000-0000-000000000001",
-      "IsInitial": false,
-      "IsHistory": true,
-      "IsDeepHistory": false,
-      "IsParallel": false,
-      "IsFinal": false,
-      "RegionIndex": 0,
-      "DeferredEventNames": [],
-      "X": 150,
-      "Y": 340,
-      "SizeOverrideX": null,
-      "SizeOverrideY": null,
-      "Comment": "History pseudo-state inside GuardComposite",
       "IsCollapsed": false,
       "ColorOverride": null
     },
@@ -315,13 +294,13 @@
     {
       "VisualId": "22000000-0000-0000-0000-000000000001",
       "SourceStableId": "06000000-0000-0000-0000-000000000001",
-      "TargetStableId": "04000000-0000-0000-0000-000000000001",
+      "TargetStableId": "02000000-0000-0000-0000-000000000001",
       "EventName": "Resolved",
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
       "Waypoints": [],
-      "Comment": "AlertState → HistoryPseudo on Resolved"
+      "Comment": "AlertState → GuardComposite on Resolved (GuardComposite has history, so it resumes; Q84 C1 replaced the HistoryPseudo node)"
     }
   ],
   "GlobalTransitions": [

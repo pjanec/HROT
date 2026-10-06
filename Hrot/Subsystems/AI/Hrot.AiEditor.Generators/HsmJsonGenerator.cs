@@ -263,8 +263,11 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         string source;
         try
         {
+            // ⭐ HSM-020 — the lane resolver is supplied HERE because only the compilation knows a method's
+            //   [HsmAction(Lane = …)]; Fhsm.Compiler takes actions as names and does no reflection.
             source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver,
-                                                 blueprintClassNameResolver, csharpWritesChannel, sharedAi);
+                                                 blueprintClassNameResolver, csharpWritesChannel, sharedAi,
+                                                 HsmActionLaneResolver.Make(compilation));
         }
         catch (Exception ex)
         {

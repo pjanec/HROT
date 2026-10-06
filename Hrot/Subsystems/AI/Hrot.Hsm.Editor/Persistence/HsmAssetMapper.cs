@@ -106,8 +106,7 @@ public static class HsmAssetMapper
                 // BP-299: ownership is written explicitly now. The owner is the state whose
                 // RegionNodes contains this region -- the model already knows it; only the JSON did not.
                 OwnerStableId        = OwnerOf(asset, r)?.StableId,
-                // BP-299: ownership is written explicitly now. The owner is the state whose
-                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
+                PreferredSize       = r.PreferredSize,
                 Comment             = r.Comment,
                 ColorOverride       = r.ColorOverride,
             });
@@ -229,6 +228,10 @@ public static class HsmAssetMapper
         string sourceFilePath,
         bool isEditorOwned)
     {
+        // ⭐ Q84 C1/D1 — fold any old History pseudo-state into its parent's flag (history is a property of the
+        //    composite being re-entered). The next Save writes the migrated shape.
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+
         // Build empty blob / metadata placeholders (runtime-only fields)
         var emptyBlob     = new HsmDefinitionBlob();
         var emptyMetadata = new MachineMetadata();
@@ -301,6 +304,7 @@ public static class HsmAssetMapper
                 StableId      = rDto.StableId,
                 RegionIndex   = rDto.RegionIndex,
                 Priority      = rDto.Priority,
+                PreferredSize = rDto.PreferredSize,
                 Comment       = rDto.Comment,
                 ColorOverride = rDto.ColorOverride,
             };

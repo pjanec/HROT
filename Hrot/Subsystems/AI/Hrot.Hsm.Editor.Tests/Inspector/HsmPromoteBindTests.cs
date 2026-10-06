@@ -179,7 +179,9 @@ public sealed class HsmPromoteBindTests
         var sf   = (StateFacet)dispatcher.GetFacet(new HsmStateSelection(idle.StableId))!;
         sf.Activity.SiteId.Should().Be(idle.StableId.ToString());
         sf.Activity.SiteSlot.Should().BeNull("the activity is the state's primary binding");
-        new[] { sf.OnEntry.SiteSlot, sf.OnExit.SiteSlot, sf.Timer.SiteSlot }
-            .Should().Equal("entry", "exit", "timer");
+        // ⛔ HSM-012 — the Timer slot left the facet (the kernel never arms a timer), so only the two
+        //    secondary slots that an author can still reach are asserted here.
+        new[] { sf.OnEntry.SiteSlot, sf.OnExit.SiteSlot }
+            .Should().Equal("entry", "exit");
     }
 }

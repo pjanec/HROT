@@ -1,3 +1,4 @@
+using System;
 using Hrot.AiEditor.Persistence.Emit;
 using Hrot.Editor.AiShared.Emit;
 using Hrot.Hsm.Editor.Model;
@@ -21,6 +22,24 @@ public sealed class HsmFluentEmitter : IFluentCSharpEmitter<HsmAsset>
     public string Emit(HsmAsset asset)
     {
         var dto = HsmAssetMapper.ToDto(asset);
-        return HsmEmitCore.Emit(dto);
+        return HsmEmitCore.Emit(dto, LaneResolver());
+    }
+
+    /// <summary>
+    /// ⭐ <c>HSM-020</c> — "what <c>CommandLane</c> does this action write to?", for the EDITOR's save path.
+    ///
+    /// <para>The generator answers the same question from the Roslyn compilation
+    /// (<c>HsmActionLaneResolver</c>); here the behaviour assemblies are already loaded, so the answer comes from
+    /// the dictionary <c>HsmOutputLaneMaskInferrer</c> already builds for the inspector and the conflict rule.
+    /// ⭐ One rule, two hosts — the editor's emitted file and the build's generated file must declare the same
+    /// lanes or the two would disagree about the same asset.</para>
+    ///
+    /// <para>⚠ Built per emit, not cached: a hot reload replaces the assemblies, and a stale lane map would bake
+    /// a mask the running code no longer agrees with. Saving is not a hot path.</para>
+    /// </summary>
+    private static Func<string, byte?> LaneResolver()
+    {
+        var laneMap = Hrot.Hsm.Editor.Validation.HsmOutputLaneMaskInferrer.BuildLaneDictionaryFromLoadedAssemblies();
+        return fqn => laneMap.TryGetValue(fqn, out var lane) ? (byte)lane : null;
     }
 }

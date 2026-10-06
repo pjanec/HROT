@@ -19,6 +19,15 @@ namespace Fhsm.Compiler.Graph
         
         // State configuration
         public bool IsInitial { get; set; }
+
+        /// <summary>
+        /// ⭐ CE-1003 (Q84 A0) — for a child of a PARALLEL state: the declared orthogonal region it belongs to.
+        /// <c>null</c> = not declared, and that child is a region of its own (the pre-CE-1003 rule, kept for
+        /// hand-written machines). Children sharing an index form ONE region — a sub-state machine whose initial
+        /// state is the member marked <see cref="IsInitial"/> (else the first member). 📄 FastHSM design §2.2–§2.4
+        /// (<c>"regions": [{name, initial}]</c>); docs/blueprints/Architect_Question_84 §6.
+        /// </summary>
+        public int? RegionIndex { get; set; }
         public bool IsHistory { get; set; }
         public bool IsDeepHistory { get; set; }
         public bool IsParallel { get; set; }

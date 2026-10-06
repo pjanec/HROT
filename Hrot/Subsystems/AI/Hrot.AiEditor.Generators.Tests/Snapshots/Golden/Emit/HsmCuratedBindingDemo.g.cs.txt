@@ -28,13 +28,16 @@ public static class HsmCuratedBindingDemo
         concurrent.Child("RegionZeroWorker", sb2 =>
         {
             regionZeroWorker = sb2;
-            sb2.Initial().Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+            sb2.Initial().InRegion(0).Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
         }, stableId: new Guid("e0710417-1000-0000-0000-000000000003"));
         concurrent.Child("RegionOneWorker", sb2 =>
         {
-            sb2.Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+            sb2.Initial().InRegion(1).Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
         }, stableId: new Guid("e0710417-1000-0000-0000-000000000004"));
-        concurrent.Child("RegionZeroDone", sb2 => { }, stableId: new Guid("e0710417-1000-0000-0000-000000000005"));
+        concurrent.Child("RegionZeroDone", sb2 =>
+        {
+            sb2.InRegion(0);
+        }, stableId: new Guid("e0710417-1000-0000-0000-000000000005"));
         regionZeroWorker.On("Go").GoTo("RegionZeroDone", visualId: new Guid("e0710417-3000-0000-0000-000000000001")).Action("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
 
         return builder;

@@ -39,9 +39,23 @@ public struct StateFacet
     [EditDisplayName("Activity blueprint asset id")]
     public string ActivityBlueprintAssetId;
 
-    [EditDisplayName("Timer")]
-    [ActionBinding(BindingSlotKind.Action)]
-    public BehaviorActionBindingFacet Timer;
+    // ⛔⛔ HSM-012 — THE "Timer" BINDING FACET IS GONE, AND IT IS NOT AN OVERSIGHT.
+    //
+    // 📐 Measured 2026-10-06 across the whole repo: the editor authored a timer action, HsmEmitCore emitted
+    //    .TimerAction(...), HsmFlattener.cs:182 packed it into StateDef.TimerActionId and HsmEmitter wrote it into
+    //    the blob — and then NOTHING ARMED IT. HsmKernelCore never reads TimerActionId, and every PRODUCTION write
+    //    of TimerDeadlines[i] is `= 0` (HsmKernelCore.cs:1319/1325/1331 cancel-on-exit, HotReloadManager.cs:139-167
+    //    reset). The only non-zero writes in the tree are Fhsm.Tests fixtures arming deadlines by hand. There is no
+    //    SetTimer/StartTimer/Arm API anywhere in Fhsm.Kernel, and NO DURATION FIELD EXISTS AT ALL — not in StateDef,
+    //    not in the facet, not in HSM_Editor_NodeEditor_Host_Design.md §11.1 — so even an arming kernel would have
+    //    nothing to say "how long".
+    // ⇒ an author could wire a timer, save it, build it, and it would SILENTLY NEVER FIRE. The field was a trap.
+    //
+    // ⭐ What is KEPT, deliberately (no rush removals): StateNode.Timer, the mapper round-trip, the emit path and
+    //    HsmBlackboardAggregator's requirement for a timer action. A hand-authored asset still round-trips byte for
+    //    byte; it simply can no longer be AUTHORED here. HsmValidator.CheckTimerActionNotImplemented reports any
+    //    state that still carries one, so the binding is diagnosable instead of invisible.
+    // ⛔ Do NOT re-add this field without an arming kernel AND a duration — that is the open half of HSM-012.
 
     // ⭐⭐⭐ HSM SUBTREE AUTHORING — 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     // 🔒 User, 2026-09-26: "the tree asset must be pickable."
@@ -82,6 +96,11 @@ public struct StateFacet
     [EditDisplayName("SOP urgency (React)")]
     public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto SopUrgency;
 
+    // ⭐ Q84 C1 (HSM-010) — what a COMPOSITE does when it is re-entered. Shallow/deep history are flags on the
+    //    composite itself (the kernel saves on exit and restores on entry of the state carrying them).
+    [EditDisplayName("On re-entry")]
+    public HsmHistoryMode History;
+
     public StateFlags Flags;
 
     [EditDisplayName("Deferred events")]
@@ -109,6 +128,17 @@ public struct StateFacet
 }
 
 /// <summary>⭐ <c>CE-2083</c> — whether a state issues an SOP order, and which.</summary>
+/// <summary>Q84 C1 — what a composite does when it is entered again.</summary>
+public enum HsmHistoryMode
+{
+    /// <summary>Start at its initial state (no history).</summary>
+    StartAtInitial = 0,
+    /// <summary>Resume the child that was active when it was left (shallow history).</summary>
+    ResumeLastChild = 1,
+    /// <summary>Resume the innermost state that was active (deep history).</summary>
+    ResumeLastLeaf = 2,
+}
+
 public enum HsmSopOrderKind
 {
     None = 0,

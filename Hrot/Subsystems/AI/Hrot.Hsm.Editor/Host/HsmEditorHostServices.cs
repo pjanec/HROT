@@ -66,6 +66,15 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
     // Allows attaching/detaching the debug session at runtime.
     public void SetDebugSession(IDebugSession? session) => _debug = session;
 
+    // ⭐ CE-1003 — the HSM node context menu ("Set as Initial State"), undoable through the view's recorder.
+    private HsmNodeContextMenuProvider? _nodeContextMenu;
+
+    /// <summary>Installs the node context menu for <paramref name="asset"/>, recording through <paramref name="view"/>.</summary>
+    public void SetNodeContextMenu(Model.HsmAsset asset, NodeEditor.Core.View.GraphView view)
+        => _nodeContextMenu = new HsmNodeContextMenuProvider(asset) { Recorder = (f, i, l) => view.Execute(f, i, l) };
+
+    INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenu;
+
     // ---- Breakpoint manager wiring (UBP-P10T8) ----
 
     private HsmBreakpointContextMenuProvider? _bpContextMenuProvider;

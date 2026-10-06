@@ -46,11 +46,20 @@ public interface IContainerNodeModel : INodeModel
 }
 
 /// <summary>Describes one region within a parallel-region container.</summary>
+/// <param name="Index">The region's index within its container.</param>
+/// <param name="Name">Display name drawn in the band header.</param>
+/// <param name="Priority">Region priority.</param>
+/// <param name="CustomColor">Optional band tint.</param>
+/// <param name="PreferredSize">
+/// ⭐ CE-1004 — the author-set size of the band along the stack axis (graph units), or null. A band is
+/// max(PreferredSize, its content's extent, the 60-unit floor) — never smaller than what it holds.
+/// </param>
 public sealed record RegionDescriptor(
     int Index,
     string Name,
     int Priority,
-    Vector4? CustomColor);
+    Vector4? CustomColor,
+    float? PreferredSize = null);
 
 /// <summary>Interior padding (all values in graph units at zoom 1.0).</summary>
 public sealed record ContainerPadding(

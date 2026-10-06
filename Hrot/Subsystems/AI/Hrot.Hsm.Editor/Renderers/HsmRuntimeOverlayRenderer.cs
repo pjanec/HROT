@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using ImGuiNET;
 using Hrot.Hsm.Editor.Debug;
@@ -75,6 +76,19 @@ public sealed class HsmRuntimeOverlayRenderer : ICustomCanvasRenderer
         var history = _session!.GetRecentTraceHistory(20);
         var lastFired = history.OfType<HsmTransitionFired>().LastOrDefault();
         if (lastFired is null) return;
+
+        // ⭐ CE-1002: the pulse runs ALONG the fired transition's arrow (the canvas's own path, CE-1000) and the
+        //    arrow itself is highlighted — it used to be a diamond on the source state's centre, which did not say
+        //    WHICH of that state's transitions fired. Fallback (path not laid out): the old marker.
+        if (ctx.TryGetLinkScreenPath(new LinkId(lastFired.TransitionVisualId), out var firedPath))
+        {
+            uint gold = ImGui.GetColorU32(TransitionPulse);
+            foreach (var seg in firedPath.Segments)
+                ctx.DrawList.AddBezierCubic(seg.P0, seg.C1, seg.C2, seg.P3, gold, 3f * ctx.Zoom);
+            float phase = (Environment.TickCount64 % 1000L) / 1000f;
+            ctx.DrawList.AddNgonFilled(firedPath.Point(phase), 6f * ctx.Zoom, gold, 4);
+            return;
+        }
 
         var srcState = _asset.FindStateByStableId(lastFired.SourceStateStableId);
         if (srcState is not null)

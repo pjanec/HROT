@@ -1,7 +1,57 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
-current-answer: ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
+updated: 2026-10-06
+current-answer: ⭐ 2026-10-06 (d) — USER'S WINDOWS CHECK RECORDED (no code): 15 reports → CE-1006…CE-1016
+  (Blueprint_Issues_Tracker, ui area after CE-1005) + HSM-024…027 (Hsm_Issues_Tracker Area J). Confirmed WORKING:
+  HSM border-to-border arrows, "Add Transition", picker on empty drop. Then 8 more: CE-1017…CE-1023 (add-entity picker, planned-route debug gizmo, SOP marker, ORBAT select, dark walls, label gizmo twins, the two param editors) + BP-515 extended (Details tabs/stacked headers). Then CE-1024…CE-1029 (geopoint entity, preview-Stop rewind after load, menu order, menu icon gap, File menu redesign, navmesh disk cache) + CE-122 and UXI-27 re-reported. Next ui id: CE-1030; next HSM id: HSM-028.
+  Session (c) below is still the latest BUILD state.
+  ⭐⭐⭐ SESSION 2026-10-06 (c) — HSM-020 BUILT (user cleared touching ExtDeps "as long as it stays
+  generic"). FastHSM's output-lane arbitration had every part except a SETTER: StateBuilder now has
+  OutputLanes(params CommandLane[]) for hand authors and OutputLaneMask(byte) for generated code. HsmEmitCore emits
+  the byte form; the lane is resolved per host — generator from the Roslyn compilation (HsmActionLaneResolver),
+  editor by reflection (HsmOutputLaneMaskInferrer's dictionary) — and is NEVER persisted (a stored mask goes stale
+  and then suppresses the WRONG region). Generic because CommandLane/OutputLaneMask/the arbitration are already
+  FastHSM's own. Callers passing no resolver emit byte-identical output: Generators.Tests 395/395, goldens unmoved.
+  🔴 IT CARRIES ZERO TODAY: 4 of 86 [HsmAction] sites declare a Lane and all four are test fixtures ⇒ nothing is
+  arbitrated in production until the actions are annotated. That is HSM-023 — a content decision per action, and a
+  WRONG annotation is worse than none (it suppresses a region that was not conflicting). Design: §10.3b, which
+  SUPERSEDES §10.3 step 5 and §19 Q2.
+  ⛔ HISTORY below: session (b).
+  ⭐⭐⭐ SESSION 2026-10-06 (b) — THE HSM TRACKER TAIL IS CLOSED. HSM-007/008/009/011/012/017 all
+  BUILT on `ui` in one batch (user: "do them all autonomously"):
+    HSM-009  event CREATE / DELETE / RENAME (HsmAsset.CreateEvent/RemoveEvent/RenameEvent + the window's
+             "+ Add Event" modal, a Delete that states how many transitions will dangle, a Rename that APPLIES —
+             it previously only PREVIEWED — and Find References fixed to use the machine-scoped key).
+    HSM-017  renaming a bound variable no longer dangles it: HsmReferenceContributor now enumerates variables and
+             every ExpressionTargetField, AND HsmAsset.RenameVariable retargets the bindings.
+             🔴 THE ROW'S DIAGNOSIS WAS HALF RIGHT — the refactor ROUTE could never have worked either:
+             GetRefactorKey returns null for BTree/HSM, so the service text-matches "{assetId:D}::{name}" against
+             the asset FILE, which stores the bare name ⇒ zero edits. A contributor alone would have left it broken.
+    HSM-007  the lane masks are finally INFERRED at document open (editor half). ⛔ Its row understated the defect:
+             nothing carries the mask into the blob either, so the KERNEL's arbitration is inert too — design
+             §10.3 step 5's "the kernel computes it at compile time" is REFUTED. Split out as HSM-020.
+    HSM-008  the lane conflict unions LEAF states, per design §12.2 (it ORed direct children only).
+    HSM-012  the Timer facet is withdrawn (the kernel never arms one; no duration field exists ANYWHERE), plus a
+             new TimerActionNotImplemented warning so an existing binding is diagnosable. Arming = HSM-021.
+    HSM-011  the forward-plan doc is marked HISTORICAL, §1 kept live, every rotted status claim named.
+  ⭐ 32 new test cases (28 methods). Hrot.Hsm.Editor.Tests 634 → 666/666 · Hrot.BTree.Editor.Tests 646/646 ·
+    Hrot.Editor.AiShared.Tests 2126/2127 · Hrot.Blueprints.Tests 4206/4223 (skips pre-existing). Gates: rulings 104/104,
+    design-digest --check clean, tracker-counts OK.
+  ⚠ NEW ROWS, all split out by MEASUREMENT: HSM-020 (carry the mask into the blob — touches FastHSM, needs a user
+    decision), HSM-021 (timer arming — new ROM field + builder param + kernel phase), HSM-022 (the BTree twin of
+    the rename defect; NOT fixed here because Hrot.BTree.Editor is the behaviors lane's model).
+  ⚠ The HSM tracker's count table had been stale since the Q84 work; recomputed (3 open / 19 done).
+  ⚠ Windows visual check still owed for the canvas AND now for the Events table's new buttons.
+  ⛔ HISTORY below: the earlier 2026-10-06 block.
+  ⭐⭐⭐ SESSION 2026-10-06 — HSM GRAPH UX, BUILT on `ui` (commits 976c1305e, d47a018a9, 2662df6ae):
+  S1-S3 canvas (CE-1000/1001/1002: border-to-border arcs, border/Shift drag, "Add Transition", state picker on
+  empty drop, unique names, canvas rename, ScopedPickerRegistry per document) · Q84 A0+B regions/initial (CE-1003)
+  · Q84 C1/D1 history on the composite · BP-93 save-only · CE-1004 band/container sizing (DESIGN_Hsm_Canvas_Authoring §11a: one band-size function, drop never moves the container unless growing up/left, divider + corner-grip author sizes). OPEN:
+  CE-1005 (kernel: entering a parallel state starts one region), dragging the start marker (S4 drag; menu item
+  built), HSM-007/008/009(create/delete events)/011/012/017. ⚠ Windows visual check of the canvas owed.
+  Next ui id: CE-1006.
+  ⛔ HISTORY below: the 2026-09-30 E4 answer.
+  ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
   batches/HANDOFF_E4_Product_First_Authoring.md dispatched at dba2233c4; detail design
   DESIGN_Product_First_Authoring.md. CE-460 (File / New Behavior… · Action… · Condition…, the blueprint
   Behavior template) and CE-462 (technology labels: behaviour picker + HSM action/guard combos) built;

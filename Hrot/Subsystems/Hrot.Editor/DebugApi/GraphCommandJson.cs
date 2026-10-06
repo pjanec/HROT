@@ -88,6 +88,8 @@ namespace Hrot.Editor.DebugApi
                 ["ReorderRegions"]         = new[] { "container", "newOrder[]" },
                 ["SetRegionProperty"]      = new[] { "container", "regionIndex", "key", "value?" },
                 ["SetContainerCollapsed"]  = new[] { "container", "collapsed" },
+                ["SetRegionPreferredSize"] = new[] { "container", "regionIndex", "size?" },
+                ["SetContainerSize"]       = new[] { "container", "size?" },
                 ["ChangeParent"]           = new[] { "node", "newParent?", "newRegionIndex?", "position?" },
                 ["ChangeParentMultiple"]   = new[] { "moves[]{node,newParent?,newRegionIndex?,position?}" },
                 ["PromoteToVariable"]      = new[] { "pin", "variableName", "isLocal?", "categoryPath?" },
@@ -473,6 +475,27 @@ namespace Hrot.Editor.DebugApi
                     return new Parsed(new GraphCommand.SetContainerCollapsed(c, v),
                                       new GraphCommand.SetContainerCollapsed(c, !v),
                                       "Set Container Collapsed (MCP)", newIds);
+                }
+
+                // CE-1004 (R1): author-sized bands / containers. A missing size clears it (content-sized again).
+                case "setregionpreferredsize":
+                {
+                    var c   = NodeId(o, "container");
+                    int idx = Int(o, "regionIndex");
+                    float? size = o["size"] is null ? null : F(o, "size");
+                    var regions = (model.FindNode(c) as IContainerNodeModel)?.Regions;
+                    float? prior = regions is not null && idx >= 0 && idx < regions.Count ? regions[idx].PreferredSize : null;
+                    return new Parsed(new GraphCommand.SetRegionPreferredSize(c, idx, size),
+                                      new GraphCommand.SetRegionPreferredSize(c, idx, prior),
+                                      "Resize Region (MCP)", newIds);
+                }
+
+                case "setcontainersize":
+                {
+                    var c = NodeId(o, "container");
+                    return new Parsed(new GraphCommand.SetContainerSize(c, OptVec(o, "size")),
+                                      new GraphCommand.SetContainerSize(c, model.FindNode(c)?.SizeOverride),
+                                      "Resize Container (MCP)", newIds);
                 }
 
                 case "changeparent":

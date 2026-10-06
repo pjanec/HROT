@@ -26,9 +26,17 @@ public static class HsmEmitCore
     /// Byte-identical to <c>HsmFluentEmitter.Emit(model)</c> when given
     /// <c>mapper.ToDto(model)</c>.  Used by the editor adapter + BATCH-02 gate.
     /// </remarks>
-    public static string Emit(HsmAssetDto dto)
+    public static string Emit(HsmAssetDto dto) => Emit(dto, laneOf: null);
+
+    /// <summary>
+    /// ⭐ <c>HSM-020</c> overload: the editor's save path supplies the output-lane resolver by REFLECTION over the
+    /// loaded behaviour assemblies, where the generator supplies it from the Roslyn compilation. Same answer, two
+    /// hosts — so the editor's emitted file and the build's generated file declare the same lanes.
+    /// ⚠ Absent ⇒ no <c>.OutputLaneMask(...)</c> is emitted and the state's mask stays 0, exactly as before.
+    /// </summary>
+    public static string Emit(HsmAssetDto dto, System.Func<string, byte?>? laneOf)
     {
-        return EmitInternal(dto, includeLayout: true);
+        return EmitInternal(dto, includeLayout: true, laneOf: laneOf);
     }
 
     /// <summary>
@@ -118,10 +126,14 @@ public static class HsmEmitCore
         System.Func<System.Guid, ushort?>? blueprintIdResolver,
         System.Func<System.Guid, string?>? blueprintClassNameResolver,
         System.Func<string, bool>? csharpWritesChannel,
-        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        // ⭐ HSM-020 — "what CommandLane does this action FQN write to?", answered by the caller from the Roslyn
+        //   compilation (the attribute lives on the method symbol and Fhsm.Compiler does no reflection).
+        //   Optional: absent ⇒ no .OutputLanes(...) is emitted and the mask stays 0, exactly as before.
+        System.Func<string, byte?>? laneOf = null)
     {
         return EmitInternal(dto, includeLayout: false, sizeResolver, blueprintIdResolver,
-                            blueprintClassNameResolver, csharpWritesChannel, sharedAi);
+                            blueprintClassNameResolver, csharpWritesChannel, sharedAi, laneOf);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
@@ -135,8 +147,13 @@ public static class HsmEmitCore
         // ⭐ D-D1 — "does this C# activity declare [WritesChannel]?", answered from the
         //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
         System.Func<string, bool>? csharpWritesChannel = null,
-        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
+        // ⭐ Q84 C1/D1 — an old file's childless History pseudo-state becomes its parent's flag BEFORE emit, so the
+        //    generator and the editor build the same machine (idempotent; a migrated asset is untouched).
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
@@ -164,7 +181,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi);
+        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi, laneOf);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -285,13 +302,15 @@ public static class HsmEmitCore
         //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
         System.Func<string, bool>? csharpWritesChannel = null,
         // ⭐ CE-417 B-2 — "is this FQN a [SharedAi*] method, and what does it take?", from the Roslyn compilation.
-        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
         //    the whole asset. An unbound transition never touches this map, so an asset with no
         //    ExpressionTargetField emits byte-identically.
         var paramOffsets = HsmParamOffsets(dto, sizeResolver);
         var namer = new BindingNamer(paramOffsets, sharedAi, dto.AssetId);   // ⭐ CE-417: ONE naming rule for every binding (S8: stateful keys are per asset)
+        var regions = RegionPlan.For(dto);   // ⭐ CE-1003: the editor's declared regions reach the builder as STRUCTURE
 
         sb.AppendLine($"{Indent}public static HsmBuilder CreateBuilder()");
         sb.AppendLine($"{Indent}{{");
@@ -419,7 +438,7 @@ public static class HsmEmitCore
             // Pass 1: declarations only (no transitions).
             var pendingTransitions = new System.Collections.Generic.List<(string VarName, TransitionNodeDto T)>();
             foreach (var topState in userTopLevel)
-                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
+                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
             // Pass 2: emit transitions after all states are declared (avoids GoTo forward-ref error).
             // Each state's own transitions are appended consecutively in document order, so the
@@ -479,7 +498,8 @@ public static class HsmEmitCore
         Dictionary<Guid, string> stateVarNames,
         System.Func<System.Guid, ushort?>? bpId,
         System.Func<System.Guid, string?>? bpClassName,
-        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer, RegionPlan regions,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         var outgoing = dto.Transitions
             .Where(t => t.SourceStableId == state.StableId)
@@ -495,7 +515,7 @@ public static class HsmEmitCore
         bool needsVar = varName != null;
 
         string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
-        var config   = BuildStateConfig(state, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer);
+        var config   = BuildStateConfig(state, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         if (needsVar)
             sb.Append($"{pad}var {varName} = {decl}");
@@ -506,7 +526,7 @@ public static class HsmEmitCore
         sb.AppendLine(";");
 
         foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
+            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         // Collect transitions for Pass 2 (not emitted here to avoid forward-ref errors).
         foreach (var t in outgoing)
@@ -523,12 +543,13 @@ public static class HsmEmitCore
         Dictionary<Guid, string> stateVarNames,
         System.Func<System.Guid, ushort?>? bpId,
         System.Func<System.Guid, string?>? bpClassName,
-        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer, RegionPlan regions,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         string stableGuid  = QuoteStr(child.StableId.ToString("D"));
         string lambdaParam = $"sb{depth}";
         string innerPad    = pad + "    ";
-        var config = BuildStateConfig(child, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer);
+        var config = BuildStateConfig(child, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
         var children = child.ChildStableIds
             .Where(id => stableIdToState.ContainsKey(id))
@@ -568,7 +589,7 @@ public static class HsmEmitCore
             }
 
             foreach (var grandchild in children)
-                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
+                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer, regions, laneOf);
 
             // Transitions are deferred to Pass 2 (referenced via captureVar) — no inline GoTo here.
 
@@ -720,6 +741,44 @@ public static class HsmEmitCore
 
     // ---- Helpers ----
 
+    /// <summary>
+    /// ⭐ CE-1003 (docs/blueprints/Architect_Question_84 §6, A0 + B) — the editor's DECLARED regions, as the builder
+    /// needs them: which children of a parallel state belong to which region, and which child is each region's
+    /// initial state. Before this the regions were emitted only into the layout method, so the compiler made every
+    /// child of a parallel state a region of its own (HsmCuratedBindingDemo: drawn as 2 regions, ran 3).
+    /// A parallel state that owns no <see cref="RegionNodeDto"/> is left alone (each child stays its own region).
+    /// </summary>
+    internal sealed class RegionPlan
+    {
+        public Dictionary<Guid, int> RegionOf { get; } = new();
+        public HashSet<Guid> RegionInitials { get; } = new();
+
+        public static RegionPlan For(HsmAssetDto dto)
+        {
+            var plan = new RegionPlan();
+            var byId = dto.States.ToDictionary(s => s.StableId);
+            foreach (var parallel in dto.States.Where(s => s.IsParallel))
+            {
+                var owned = dto.Regions.Where(r => OwnerOf(r, byId) == parallel.StableId).ToList();
+                if (owned.Count == 0) continue;
+                foreach (var childId in parallel.ChildStableIds)
+                {
+                    if (!byId.TryGetValue(childId, out var child)) continue;
+                    plan.RegionOf[childId] = child.RegionIndex;
+                }
+                foreach (var r in owned)
+                    if (r.InitialChildStableId is { } init) plan.RegionInitials.Add(init);
+            }
+            return plan;
+        }
+
+        // The owner field is authoritative; files saved before it existed fall back to the initial child's parent
+        // (the HsmAssetMapper rule).
+        private static Guid? OwnerOf(RegionNodeDto r, Dictionary<Guid, StateNodeDto> byId)
+            => r.OwnerStableId
+               ?? (r.InitialChildStableId is { } c && byId.TryGetValue(c, out var child) ? child.ParentStableId : null);
+    }
+
     private static string QuoteStr(string s) => $"\"{s}\"";
     private static string BoolStr(bool b) => b ? "true" : "false";
 
@@ -774,10 +833,16 @@ public static class HsmEmitCore
         => global::Fdp.Toolkit.Behavior.Shared.IdentifierSanitizer.StripInvalid(name, "HsmAsset", bare: true);
 
     private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap,
-        System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
+        System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel, BindingNamer namer,
+        RegionPlan? regions = null,
+        System.Func<string, byte?>? laneOf = null)          // ⭐ HSM-020
     {
         var parts = new List<string>();
-        if (s.IsInitial)     parts.Add(".Initial()");
+        // ⭐ CE-1003 (Q84 B): a child of a parallel state with declared regions is initial iff its REGION names it
+        //    (RegionNodeDto.InitialChildStableId — the one owner); everywhere else the child's own IsInitial.
+        bool inRegion = regions != null && regions.RegionOf.TryGetValue(s.StableId, out _);
+        if (inRegion ? regions!.RegionInitials.Contains(s.StableId) : s.IsInitial) parts.Add(".Initial()");
+        if (inRegion) parts.Add($".InRegion({regions!.RegionOf[s.StableId]})");
         if (s.IsHistory)     parts.Add(".History()");
         if (s.IsDeepHistory) parts.Add(".DeepHistory()");
         if (s.IsParallel)    parts.Add(".Parallel()");
@@ -863,6 +928,49 @@ public static class HsmEmitCore
             parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(shortName)})");
         }
         if (timer    != null) parts.Add($".TimerAction({QuoteStr(namer.Name(s.Timer)!)})");
+
+        // ⭐⭐⭐ HSM-020 — THE STATE'S OUTPUT LANES, so the kernel's orthogonal-region arbitration has something to
+        //    arbitrate. 📄 HSM_Editor_NodeEditor_Host_Design.md §10.3a.
+        //
+        // 🔴 Why this emission has to exist: HsmKernelCore.ArbitrateOutputLanes runs on EVERY transition and reads
+        //    StateDef.OutputLaneMask of each region's active leaf — but the only writer of that field was a test.
+        //    §10.3 step 5 said the editor need not emit it because "the kernel computes it at compile time";
+        //    measured 2026-10-06, nothing in Fhsm.Compiler computes it, so two parallel regions driving the same
+        //    lane were never detected at runtime.
+        //
+        // ⭐ Derived here, at BUILD time, from the attributes of the actions this state actually binds — the same
+        //    rule HsmOutputLaneMaskInferrer applies in the editor (§10.3 steps 1-3), and the same four slots.
+        //    ⛔ NOT persisted in the .hsm.json: a stored mask goes stale the moment a [HsmAction(Lane=…)] changes
+        //    without the asset being reopened, and a stale mask makes the kernel suppress the WRONG region.
+        // ⚠ Transitions are deliberately excluded: the kernel arbitrates a state's STEADY-STATE output (its active
+        //    leaf), and the editor's inferrer ORs the same four state slots. Two rules would drift.
+        //
+        // ⛔⛔ EMITTED AS A MASK, NOT AS `CommandLane.Animation` — AND THAT IS THE ASSEMBLY BOUNDARY TALKING.
+        //    This project is netstandard2.0 with ZERO project references by design (see the .csproj: everything
+        //    shared is LINKED source, never referenced), so `CommandLane` is not a type it can name. Emitting the
+        //    readable form would mean keeping a COPY of the lane names here — which would mis-map silently if the
+        //    enum were ever reordered, the very duplicate-table failure the linked-source comments in that .csproj
+        //    exist to prevent. ⭐ `StateBuilder.OutputLaneMask(byte)` is FastHSM's overload for exactly this; its
+        //    `OutputLanes(params CommandLane[])` twin is the readable form for HAND-written machines.
+        //    ⚠ The emitted file is machine-owned and regenerated whole (R-50), so its readability is worth less
+        //    than the guarantee that the bit means what the enum says.
+        if (laneOf != null)
+        {
+            byte mask = 0;
+            foreach (var fqn in new[] { onEntry, onExit, activity, timer })
+            {
+                if (fqn == null) continue;
+                var lane = laneOf(fqn);
+                // ⚠ The guard here is about the MASK'S WIDTH, not the enum's Count — deliberately, so this
+                //   assembly needs no constant from FastHSM. `CommandLane.None` is 0xFF and C# would shift it by
+                //   255 & 31, setting a bit that means nothing. The BUILDER drops anything >= CommandLane.Count,
+                //   which is the question only it can answer. Two guards, two different questions.
+                if (lane is null || lane.Value > 7) continue;
+                mask |= (byte)(1 << lane.Value);
+            }
+            if (mask != 0)
+                parts.Add($".OutputLaneMask(0x{mask:X2})");
+        }
         // Deferred events in ascending ID order (matching HsmFluentEmitter: OrderBy(id => id))
         var deferredIds = s.DeferredEventNames
             .Where(name => eventIdMap.ContainsKey(name))

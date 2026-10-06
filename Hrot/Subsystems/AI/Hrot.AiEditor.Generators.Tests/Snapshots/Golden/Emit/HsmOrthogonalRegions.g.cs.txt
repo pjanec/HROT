@@ -23,11 +23,11 @@ public static class HsmOrthogonalRegions
             .Parallel();
         concurrent.Child("RegionZeroWorker", sb2 =>
         {
-            sb2.Initial().OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+            sb2.Initial().InRegion(0).OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
         }, stableId: new Guid("e0710002-1000-0000-0000-000000000003"));
         concurrent.Child("RegionOneWorker", sb2 =>
         {
-            sb2.OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+            sb2.Initial().InRegion(1).OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
         }, stableId: new Guid("e0710002-1000-0000-0000-000000000004"));
 
         return builder;

@@ -340,8 +340,21 @@ namespace Fhsm.Compiler
             {
                 if (state.Children.Count > 0)
                 {
-                    // Parallel states implicitly enter all children, so no single initial child required
-                    if (state.IsParallel) continue;
+                    // Parallel states implicitly enter every REGION, so no single initial child is required —
+                    // ⭐ CE-1003 (Q84 A0): but a DECLARED region (children sharing a RegionIndex) is a sub-state
+                    // machine and may have at most one initial state.
+                    if (state.IsParallel)
+                    {
+                        foreach (var region in state.Children.Where(c => c.RegionIndex.HasValue)
+                                                             .GroupBy(c => c.RegionIndex!.Value))
+                        {
+                            int initials = region.Count(c => c.IsInitial);
+                            if (initials > 1)
+                                errors.Add(new ValidationError(
+                                    $"Region {region.Key} has {initials} initial states; a region has exactly one", state.Name));
+                        }
+                        continue;
+                    }
 
                     // Composite: must have exactly one initial
                     var initialCount = state.Children.Count(c => c.IsInitial);

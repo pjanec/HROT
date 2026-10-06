@@ -35,7 +35,8 @@ public sealed class HsmFacetMapper
             OnEntry                 = BehaviorActionBindingEditor.ToFacet(s.OnEntry,  s.StableId.ToString(), EntrySlot),
             OnExit                  = BehaviorActionBindingEditor.ToFacet(s.OnExit,   s.StableId.ToString(), ExitSlot),
             Activity                = BehaviorActionBindingEditor.ToFacet(s.Activity, s.StableId.ToString()),
-            Timer                   = BehaviorActionBindingEditor.ToFacet(s.Timer,    s.StableId.ToString(), TimerSlot),
+            // ⛔ HSM-012 — no Timer facet: the kernel never arms one. See HsmFacets.StateFacet for the measurement.
+            //   TimerSlot stays declared because existing assets persist promote names of the form _auto_{id}_timer.
             // ⭐ §11.1a — the authored name, plus its two derived companions.
             SubtreeName             = s.SubtreeName,
             SubtreeAssetId          = s.SubtreeAssetId == Guid.Empty ? string.Empty
@@ -52,9 +53,12 @@ public sealed class HsmFacetMapper
             SopBehavior             = s.SopOrder?.BehaviorName,
             SopParamsVariable       = s.SopOrder?.ParamsVariable ?? string.Empty,
             SopUrgency              = s.SopOrder?.Urgency ?? Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Alert,
+            History                 = s.IsDeepHistory ? HsmHistoryMode.ResumeLastLeaf
+                                    : s.IsHistory     ? HsmHistoryMode.ResumeLastChild
+                                    : HsmHistoryMode.StartAtInitial,
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
-            OutputLanesSummary      = "",  // populated by HS-S1-19
+            OutputLanesSummary      = DescribeLanes(s.OutputLaneMask),   // ⭐ HSM-007
             Comment                 = s.Comment,
             IsBreakpoint            = s.IsBreakpoint,
             StableId                = s.StableId.ToString(),
@@ -182,6 +186,29 @@ public sealed class HsmFacetMapper
         var cur = s;
         while (cur.Parent != null) { depth++; cur = cur.Parent; }
         return depth;
+    }
+
+    /// <summary>
+    /// ⭐ <c>HSM-007</c> — the read-only "Output lanes (inferred)" text, from the state's inferred mask.
+    ///
+    /// <para>⛔ This was hard-coded to <c>""</c> ("populated by HS-S1-19"), which was harmless only because the
+    /// mask itself was always 0 — nothing fed <c>HsmOutputLaneMaskInferrer</c>. Now that
+    /// <c>HsmDocumentFactory.Build</c> does, the field would have been the ONE consumer still lying.</para>
+    ///
+    /// <para>⚠ <b>Lane NAMES, not §10.3 step 4's per-action attribution</b> (<i>"Animation (StashWeapon)"</i>):
+    /// the mask is a bitfield and no longer remembers which action contributed which bit, and the mapper has no
+    /// lane dictionary to re-derive it from. ⭐ Saying less, truthfully, beats re-reflecting here.</para>
+    /// </summary>
+    internal static string DescribeLanes(byte mask)
+    {
+        if (mask == 0) return "none";
+
+        var names = new List<string>(8);
+        for (int bit = 0; bit < (int)CommandLane.Count; bit++)
+            if ((mask & (1 << bit)) != 0)
+                names.Add(((CommandLane)bit).ToString());
+
+        return names.Count == 0 ? "none" : string.Join(", ", names);
     }
 
     private static StateFlags BuildStateFlags(StateNode s)

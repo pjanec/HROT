@@ -34,6 +34,58 @@ public static class RegionLayoutComputer
         float paddingScale = 1f)
         => Compute(container, null!, static _ => null, outerBounds, headerHeight, outlineWidth, paddingScale);
 
+    /// <summary>The floor of a band along the stack axis (graph units).</summary>
+    public const float MinRegionSize = 60f;
+
+    /// <summary>
+    /// ⭐⭐ CE-1004 (A) — THE band sizes of <paramref name="container"/>, along its stack axis, in graph units: each band is
+    /// max(<see cref="MinRegionSize"/>, its author-set <see cref="RegionDescriptor.PreferredSize"/>, the far edge of the
+    /// furthest child in it). The band drawing, the child offset, the drop and the container bounds all read this — they
+    /// were four copies that disagreed (spare-space sharing; default vs measured child sizes).
+    /// </summary>
+    /// <param name="container">The container whose bands are sized.</param>
+    /// <param name="model">Graph model used to look up children; null skips content sizing.</param>
+    /// <param name="getChildGraphSize">A child's measured graph size, or null when unknown.</param>
+    /// <param name="skipChild">Children to leave out (e.g. the ones being dragged), or null.</param>
+    /// <param name="preferredOverride">A live preferred size per band (a divider drag in progress), or null.</param>
+    public static float[] ComputeRegionSizes(
+        IContainerNodeModel container,
+        IGraphModel model,
+        Func<NodeId, Vector2?> getChildGraphSize,
+        Func<NodeId, bool>? skipChild = null,
+        Func<int, float?>? preferredOverride = null)
+    {
+        int count = container.Regions.Count;
+        var sizes = new float[count];
+        bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+        for (int i = 0; i < count; i++)
+            sizes[i] = Math.Max(MinRegionSize, preferredOverride?.Invoke(i) ?? container.Regions[i].PreferredSize ?? 0f);
+
+        if (model is null) return sizes;
+        foreach (var childId in container.ChildNodeIds)
+        {
+            if (skipChild?.Invoke(childId) == true) continue;
+            var childNode = model.FindNode(childId);
+            var childSize = getChildGraphSize(childId);
+            if (childNode == null || !childSize.HasValue) continue;
+            int rIdx = container.GetRegionIndexForChild(childId);
+            if (rIdx < 0 || rIdx >= count) continue;
+            float extent = isHorizontal
+                ? childNode.Position.X + childSize.Value.X
+                : childNode.Position.Y + childSize.Value.Y;
+            sizes[rIdx] = Math.Max(sizes[rIdx], extent);
+        }
+        return sizes;
+    }
+
+    /// <summary>CE-1004: the offset of band <paramref name="regionIndex"/>'s start from the interior origin (sum of the bands before it).</summary>
+    public static float RegionOffset(float[] sizes, int regionIndex)
+    {
+        float o = 0f;
+        for (int i = 0; i < regionIndex && i < sizes.Length; i++) o += sizes[i];
+        return o;
+    }
+
     /// <summary>
     /// Compute the layout strips for a container with one or more regions.
     /// Returns an empty list if the container has no regions.
@@ -48,6 +100,7 @@ public static class RegionLayoutComputer
     /// Scale factor applied to the container's <see cref="ContainerPadding"/> values.
     /// Use 1.0 for graph units, or the canvas zoom for screen pixels.
     /// </param>
+    /// <param name="preferredOverride">CE-1004: a live preferred size per band (divider drag preview), or null.</param>
     public static IReadOnlyList<RegionStrip> Compute(
         IContainerNodeModel container,
         IGraphModel model,
@@ -55,7 +108,8 @@ public static class RegionLayoutComputer
         RectF outerBounds,
         float headerHeight,
         float outlineWidth,
-        float paddingScale = 1f)
+        float paddingScale = 1f,
+        Func<int, float?>? preferredOverride = null)
     {
         if (container.Regions.Count < 1)
             return System.Array.Empty<RegionStrip>();
@@ -72,25 +126,8 @@ public static class RegionLayoutComputer
 
         bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
         int count = container.Regions.Count;
-        float[] regionSizes = new float[count];
-        float minSize = 60f * paddingScale;
-        for (int i = 0; i < count; i++) regionSizes[i] = minSize;
-
-        foreach (var childId in container.ChildNodeIds)
-        {
-            var childNode = model.FindNode(childId);
-            var childSize = getChildGraphSize(childId);
-            if (childNode == null || !childSize.HasValue) continue;
-
-            int rIdx = container.GetRegionIndexForChild(childId);
-            if (rIdx >= 0 && rIdx < count)
-            {
-                float extent = isHorizontal
-                    ? (childNode.Position.X + childSize.Value.X) * paddingScale
-                    : (childNode.Position.Y + childSize.Value.Y) * paddingScale;
-                regionSizes[rIdx] = Math.Max(regionSizes[rIdx], extent);
-            }
-        }
+        float[] regionSizes = ComputeRegionSizes(container, model, getChildGraphSize, preferredOverride: preferredOverride);
+        for (int i = 0; i < count; i++) regionSizes[i] *= paddingScale;
 
         float sumSize = 0f;
         foreach (var s in regionSizes) sumSize += s;
@@ -98,8 +135,10 @@ public static class RegionLayoutComputer
 
         if (availableSize > sumSize + 0.1f)
         {
-            float extra = (availableSize - sumSize) / count;
-            for (int i = 0; i < count; i++) regionSizes[i] += extra;
+            // ⭐ CE-1004: spare space goes to the LAST band, so every band starts where the child offset and the drop
+            //    put it (they sum the bands before it). It used to be shared equally — the dividers then moved away
+            //    from the children they bound.
+            regionSizes[count - 1] += availableSize - sumSize;
         }
         else if (sumSize > availableSize + 0.1f && sumSize > 0f)
         {

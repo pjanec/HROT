@@ -52,6 +52,12 @@ public enum HsmDiagnosticCode
     // OutputLaneMask was updated automatically.
     ActionSignatureMismatch,
 
+    // (HSM-012) A state carries a Timer action binding, but the kernel never arms a timer:
+    // HsmKernelCore does not read StateDef.TimerActionId and every production write of
+    // TimerDeadlines[] is zero. The binding is emitted and will never fire. The editor no
+    // longer offers the field; this reports the ones already in a hand-authored asset.
+    TimerActionNotImplemented,
+
     // After a hot reload, a reference in the asset points to a symbol
     // that no longer exists in the new assembly.
     DanglingReferenceAfterReload,
@@ -104,4 +110,12 @@ public enum HsmDiagnosticCode
     // ⭐ CE-2083 — a state's SOP order RUNS AS its activity (DESIGN_Decision_Layer §4.10 D3): an order AND an Activity binding
     // is one slot with two owners (the generator refuses it, HSM0001); and an order must name a behaviour. Hard-error.
     SopOrderInvalid,
+
+    // ⭐ CE-1001 / HSM-006 — two states share a name. Emit binds a transition to its target BY NAME, so this is a
+    // silently wrong machine (the builder binds whichever it resolves first). Hard-error.
+    DuplicateStateName,
+
+    // ⭐ CE-1003 (Q84 B) / HSM-002 — a declared region of a parallel state, holding states, names no initial state
+    // (RegionNode.InitialChild is unset or not one of its members). Hard-error.
+    RegionWithoutInitialState,
 }

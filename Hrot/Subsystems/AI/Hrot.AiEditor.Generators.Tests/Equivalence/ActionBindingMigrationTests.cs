@@ -35,7 +35,12 @@ public sealed class ActionBindingMigrationTests
         string v2 = AiAssetCorpus.ReadAsset(AiAssetKind.Hsm, name);
         v1.Should().Contain("\"schemaVersion\": 1", "the fixture must really be a v1 file");
 
-        HsmJsonServices.Serialize(HsmJsonServices.Deserialize(v1)!)
+        // ⭐ Q84 C1/D1 (2026-10-06): the corpus file has since ALSO had its History pseudo-state folded into the
+        //    parent composite (a later, separate migration the loaders apply). Apply it to the v1 side so this
+        //    rail keeps testing what it was written for — the binding migration.
+        var fromV1 = HsmJsonServices.Deserialize(v1)!;
+        HsmHistoryMigration.Apply(fromV1);
+        HsmJsonServices.Serialize(fromV1)
             .Should().Be(HsmJsonServices.Serialize(HsmJsonServices.Deserialize(v2)!));
     }
 

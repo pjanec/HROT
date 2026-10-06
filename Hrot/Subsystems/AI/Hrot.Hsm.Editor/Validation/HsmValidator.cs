@@ -86,6 +86,7 @@ public sealed class HsmValidator
         var diagnostics = new List<HsmDiagnostic>();
 
         CheckInitialChildren(asset, diagnostics);
+        CheckDuplicateStateNames(asset, diagnostics);   // CE-1001 / HSM-006
         CheckHistoryOutsideComposite(asset, diagnostics);
         CheckFinalStateWithChildren(asset, diagnostics);
         CheckFinalStateWithOutgoingTransitions(asset, diagnostics);
@@ -98,6 +99,7 @@ public sealed class HsmValidator
         CheckSubtreeReferenceDangling(asset, diagnostics);
         CheckMethodAndBlueprintBothBound(asset, diagnostics);
         CheckSopOrders(asset, diagnostics);   // CE-2083
+        CheckTimerActionNotImplemented(asset, diagnostics);   // HSM-012
         CheckResolverShape(asset, diagnostics);
 
         if (blackboard != null)
@@ -117,6 +119,26 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (s.Children.Count == 0) continue;
+
+            // ⭐ CE-1003 (Q84 B) — HSM-001 / HSM-002: a parallel state's start states belong to its REGIONS. Counting
+            //    the per-child flag across the whole parallel state flagged every correct two-region machine and let
+            //    a region with no start state through. Each declared region with members needs its own initial state.
+            if (s.IsParallel)
+            {
+                foreach (var r in s.RegionNodes)
+                {
+                    var members = s.Children.Where(c => c.RegionIndex == r.RegionIndex).ToList();
+                    if (members.Count == 0) continue;
+                    if (r.InitialChild is null || !members.Contains(r.InitialChild))
+                        out_.Add(new HsmDiagnostic(
+                            HsmDiagnosticCode.RegionWithoutInitialState,
+                            HsmDiagnosticSeverity.Error,
+                            $"Region '{r.Name}' of parallel state '{s.Name}' has no initial state.",
+                            new[] { s.StableId }));
+                }
+                continue;
+            }
+
             int initialCount = s.Children.Count(c => c.IsInitial);
             if (initialCount == 0)
             {
@@ -137,6 +159,23 @@ public sealed class HsmValidator
         }
     }
 
+    // CE-1001 / HSM-006: DuplicateStateName. Names are load-bearing in emit (`.GoTo("Name")`). The synthetic root
+    // is not a state an author names, so it is skipped.
+    private static void CheckDuplicateStateNames(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var group in asset.AllStates
+                     .Where(s => !ReferenceEquals(s, asset.RootState))
+                     .GroupBy(s => s.Name, StringComparer.Ordinal)
+                     .Where(g => g.Count() > 1))
+        {
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.DuplicateStateName,
+                HsmDiagnosticSeverity.Error,
+                $"{group.Count()} states are named '{group.Key}'; transitions bind their target by name, so every state needs a unique name.",
+                group.Select(s => s.StableId).ToArray()));
+        }
+    }
+
     // Rule 2: HistoryOutsideComposite.
     // A history pseudo-state is only meaningful inside a composite with at least one other child.
     // Flag if: parent is null, parent is RootState, or parent has <= 1 child total.
@@ -145,12 +184,14 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (!s.IsHistory && !s.IsDeepHistory) continue;
-            if (s.Parent == null || s.Parent == asset.RootState || s.Parent.Children.Count <= 1)
+            // ⭐ Q84 C1: history is a property of the composite being re-entered. A state with NO children has
+            //    nothing to resume — the leftover shape of the old history pseudo-state.
+            if (s.Children.Count == 0)
             {
                 out_.Add(new HsmDiagnostic(
                     HsmDiagnosticCode.HistoryOutsideComposite,
                     HsmDiagnosticSeverity.Warning,
-                    $"History state '{s.Name}' is not inside a composite with multiple children.",
+                    $"State '{s.Name}' has history but no child states to resume; history belongs on a composite.",
                     new[] { s.StableId }));
             }
         }
@@ -342,6 +383,28 @@ public sealed class HsmValidator
         }
     }
 
+    // ⛔ HSM-012: a Timer binding is EMITTED and NEVER FIRES.
+    // 📐 Measured 2026-10-06: HsmFlattener.cs:182 packs StateDef.TimerActionId and HsmEmitter writes it, but
+    //    HsmKernelCore never reads it and every production write of TimerDeadlines[] is zero (cancel-on-exit at
+    //    HsmKernelCore.cs:1319/1325/1331, hot-reload reset at HotReloadManager.cs:139-167). There is no arming API
+    //    in Fhsm.Kernel and no duration field anywhere, so the binding cannot do anything.
+    // ⭐ The editor no longer OFFERS the field (HsmFacets.StateFacet). This rule exists so an asset that already
+    //    carries one says so out loud instead of looking wired.
+    private static void CheckTimerActionNotImplemented(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.Timer is not { IsEmpty: false }) continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.TimerActionNotImplemented,
+                HsmDiagnosticSeverity.Warning,
+                $"State '{s.Name}' binds a Timer action, but the HSM kernel never arms a timer — it will never fire. "
+              + "Move the work to Activity (tick), or remove the binding.",
+                new[] { s.StableId }));
+        }
+    }
+
     private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
     {
         foreach (var s in asset.AllStates)
@@ -382,14 +445,22 @@ public sealed class HsmValidator
         {
             if (!s.IsParallel || s.RegionNodes.Count < 2) continue;
 
-            // Compute OR-mask per region index from direct children.
+            // ⭐⭐⭐ HSM-008 — OR THE LEAVES OF EACH REGION, NOT THE DIRECT CHILDREN.
+            // 📄 HSM_Editor_NodeEditor_Host_Design.md §12.2: "Compute the union of OutputLaneMask across all
+            //    LEAF states in R1." ⛔ This used to OR `s.Children` only, so a conflict one level down was
+            //    invisible — a region whose direct child is a composite contributed the composite's own mask
+            //    and nothing from the states that actually run.
+            // ⭐ Leaves, specifically, because that is what the kernel arbitrates: ArbitrateOutputLanes reads
+            //    `definition.GetState(activeLeafIds[i])` (HsmKernelCore.cs:971) — the ACTIVE LEAF of each region.
+            // ⚠ A region's index comes from its TOP-LEVEL child under the parallel; nested descendants do not
+            //    re-declare it, so the walk carries the index down rather than reading it off each node.
             var regionMasks = new Dictionary<int, byte>();
             foreach (var child in s.Children)
             {
-                if (!regionMasks.TryGetValue(child.RegionIndex, out byte existing))
-                    regionMasks[child.RegionIndex] = child.OutputLaneMask;
-                else
-                    regionMasks[child.RegionIndex] = (byte)(existing | child.OutputLaneMask);
+                byte mask = UnionOfLeafLaneMasks(child);
+                regionMasks[child.RegionIndex] = regionMasks.TryGetValue(child.RegionIndex, out byte existing)
+                    ? (byte)(existing | mask)
+                    : mask;
             }
 
             var indices = regionMasks.Keys.ToList();
@@ -408,6 +479,24 @@ public sealed class HsmValidator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>HSM-008</c> — the union of <c>OutputLaneMask</c> over every LEAF state at or under <paramref name="root"/>.
+    ///
+    /// <para>A state with no children IS the leaf and contributes its own mask; a composite contributes only
+    /// through its leaves, because the kernel arbitrates on each region's ACTIVE LEAF
+    /// (<c>HsmKernelCore.ArbitrateOutputLanes</c>). ⛔ Shaped like <c>SubtreeHostsUnder</c> on purpose — the walk
+    /// is over the STATE TREE, so it cannot cycle and wants no depth cap.</para>
+    /// </summary>
+    private static byte UnionOfLeafLaneMasks(StateNode root)
+    {
+        if (root.Children.Count == 0) return root.OutputLaneMask;
+
+        byte mask = 0;
+        foreach (var child in root.Children)
+            mask |= UnionOfLeafLaneMasks(child);
+        return mask;
     }
 
     // Rule 8 (S2-4): ConcurrentStatefulSubtree.

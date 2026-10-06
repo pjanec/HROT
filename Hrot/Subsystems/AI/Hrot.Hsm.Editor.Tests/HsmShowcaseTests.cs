@@ -162,22 +162,22 @@ public sealed class HsmShowcaseTests
             "Showcase must define ≥2 regions in AllRegions");
     }
 
+    /// <summary>
+    /// Q84 C1 — history is a property of the COMPOSITE being re-entered (the kernel's model). The showcase's old
+    /// childless "HistoryPseudo" node was folded into GuardComposite, and the transition that targeted it now
+    /// targets GuardComposite itself.
+    /// </summary>
     [Fact]
-    public void Showcase_Has_HistoryPseudoState_Inside_Composite()
+    public void Showcase_HistoryIsAPropertyOfAComposite_NotAPseudoState()
     {
         var asset = LoadShowcaseModel();
 
         var historyStates = asset.AllStates.Where(s => s.IsHistory || s.IsDeepHistory).ToList();
-        historyStates.Should().NotBeEmpty("Showcase must contain at least one history pseudo-state");
-
-        foreach (var h in historyStates)
-        {
-            h.Parent.Should().NotBeNull("History pseudo-state must have a parent");
-            h.Parent!.Children.Should().HaveCountGreaterThan(1,
-                "History pseudo-state must be inside a composite with multiple children");
-            // Must not be a direct child of the synthetic root (HistoryOutsideComposite guard).
-            h.Parent!.Parent.Should().NotBeNull("History pseudo-state must not be at root level");
-        }
+        historyStates.Should().NotBeEmpty("Showcase must demonstrate history");
+        historyStates.Should().OnlyContain(s => s.Children.Count > 1,
+            "history belongs on a composite with children to resume");
+        asset.AllStates.Should().NotContain(s => s.Name == "HistoryPseudo");
+        historyStates.Select(s => s.Name).Should().Contain("GuardComposite");
     }
 
     [Fact]

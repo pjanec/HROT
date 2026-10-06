@@ -104,6 +104,25 @@ public static class HsmDocumentFactory
             hsmAsset.MarkDirty();
         }
 
+        // ── 0b. Infer the output-lane masks ──────────────────────────────────
+        // ⭐⭐⭐ HSM-007 — THE PRODUCER THAT NEVER RAN. 📄 HSM_Editor_NodeEditor_Host_Design.md §10.3 step 2:
+        //   "At asset open, the editor reflects each [HsmAction]'s Lane property." That step existed as a tested
+        //   class (HsmOutputLaneMaskInferrer) with ZERO production callers, so every editor-owned asset carried
+        //   OutputLaneMask == 0 and the WHOLE lane-conflict feature was inert: rule 7 could not fire, the
+        //   hsm.region_conflicts renderer (fed from this very method) stayed dark, and the inspector's
+        //   "Output lanes (inferred)" summary was always blank.
+        // ⭐ Here, and not in the mapper, for the same reason step 0 is here: opening a document is the one moment
+        //   that has the asset in hand, and it re-runs after a hot reload for free — which matters because the
+        //   masks are derived from [HsmAction].Lane in the LOADED assemblies, and a reload changes those.
+        // ⚠ This is a DERIVED field, never persisted and never author-edited (§10.3 step 4), so — unlike step 0's
+        //   heal — it does NOT MarkDirty: recomputing it must not make an untouched asset look edited.
+        // ⛔ What this does NOT fix: the RUNTIME half. Nothing carries the mask into the emitted blob (the editor
+        //   does not emit it, §10.3 step 5, and nothing in Fhsm.Compiler computes it), so
+        //   HsmKernelCore.ArbitrateOutputLanes still arbitrates on zeros. See the HSM-007 runtime row.
+        Validation.HsmOutputLaneMaskInferrer.ApplyToAsset(
+            hsmAsset,
+            Validation.HsmOutputLaneMaskInferrer.BuildLaneDictionaryFromLoadedAssemblies());
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         // ⭐⭐⭐ E5 / items 6-7 (2026-09-26) — THE CANVAS NOW ASKS THE SAME QUESTIONS THE DIAGNOSTICS
         //    WINDOW DOES. 🔴 This used to be `new HsmGraphModel(hsmAsset)` with NO resolvers, while
@@ -132,6 +151,10 @@ public static class HsmDocumentFactory
         var typeSystem   = new HsmTypeSystem();
         var validator    = new HsmLinkValidator(hsmAsset);
         var commandSink  = new HsmCommandSink(hsmAsset);
+        // ⭐ CE-1001: HSM registered NO node picker, so Tab / "Add Node…" / an arrow dropped on empty canvas opened
+        //    whichever BTree or Blueprint catalogue was opened last (or nothing). Its own scope, its own catalogue.
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{hsmAsset.AssetId:N}");
+        HsmPickerSources.Register(pickers, nodeCatalog);
 
         // ── 3. Custom renderers (built-in HSM set + caller extras) ────────────
         var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers, out var regionConflicts);
@@ -146,7 +169,7 @@ public static class HsmDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,
@@ -168,6 +191,7 @@ public static class HsmDocumentFactory
             hostServices.TypeSystem,
             hostServices.NodeCatalog,
             hostServices);
+        hostServices.SetNodeContextMenu(hsmAsset, view);   // ⭐ CE-1003: "Set as Initial State"
 
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();

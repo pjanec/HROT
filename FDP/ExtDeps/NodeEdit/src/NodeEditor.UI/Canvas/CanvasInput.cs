@@ -48,7 +48,7 @@ internal sealed class CanvasInput
         switch (mode)
         {
             case InteractionMode.Idle:
-                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input);
+                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input, spatialIndex);
                 break;
 
             case InteractionMode.Panning:
@@ -78,6 +78,10 @@ internal sealed class CanvasInput
             case InteractionMode.PendingWire:
                 HandlePendingWire(view, input);
                 break;
+
+            case InteractionMode.ResizingContainer:
+                HandleResizingContainer(view, input);
+                break;
         }
 
         // ── Delete / Backspace ───────────────────────────────────────────────
@@ -90,7 +94,7 @@ internal sealed class CanvasInput
 
     // ── Idle ──────────────────────────────────────────────────────────────────
 
-    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input)
+    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input, SpatialIndex? spatialIndex = null)
     {
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
@@ -190,6 +194,19 @@ internal sealed class CanvasInput
                     // Optionally pre-select the source node
                     break;
 
+                case HoverKind.NodeEdge:
+                    // CE-1000: the border band of a node in a node-to-node graph starts a link. A release without
+                    // dragging is still a click on the node (handled in HandlePendingWire).
+                    if (BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: shift, sticky: false))
+                        return;
+                    break;
+
+                case HoverKind.Node when shift && view.Model.Kind.Routing == LinkRouting.NodeToNode:
+                    // CE-1000: Shift-drag anywhere on a node starts a link; Shift-click still adds to the selection.
+                    if (BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: true, sticky: false))
+                        return;
+                    break;
+
                 case HoverKind.Node:
                     if (!ctrl && !shift && !view.Selection.Contains(SelectionEntry.OfNode(hover.Node)))
                         view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
@@ -228,6 +245,11 @@ internal sealed class CanvasInput
                         view.Selection.Add(SelectionEntry.OfAttachment(hover.Attachment));
                     break;
 
+                case HoverKind.Container
+                    when hover.ContainerZone is ContainerHoverZone.RegionDivider or ContainerHoverZone.ResizeEdge:
+                    BeginContainerResize(view, input, hover, id => spatialIndex?.GetBounds(id)?.Size);
+                    break;
+
                 case HoverKind.Container:
                     if (hover.ContainerZone == ContainerHoverZone.CollapseArrow)
                     {
@@ -238,6 +260,13 @@ internal sealed class CanvasInput
                             var inv = new GraphCommand.SetContainerCollapsed(hover.Node, containerNode.IsCollapsed);
                             view.Execute(fwd, inv, "Toggle Container Collapse");
                         }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Header && shift
+                             && view.Model.Kind.Routing == LinkRouting.NodeToNode
+                             && BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: true, sticky: false))
+                    {
+                        // CE-1000: Shift-drag on a container's header starts a link from the container.
+                        return;
                     }
                     else if (hover.ContainerZone == ContainerHoverZone.Header)
                     {
@@ -401,6 +430,11 @@ internal sealed class CanvasInput
         {
             bool wasDrag = view.Interaction.DragThresholdCrossed;
             var menuTarget = view.Interaction.Hover;
+            // CE-1000: the link-start band is part of the node for the context menu. CE-1001: so is a
+            // container's header — a composite had no node menu at all (no Rename, no Add Transition).
+            if (menuTarget.Kind == HoverKind.NodeEdge
+                || (menuTarget.Kind == HoverKind.Container && menuTarget.ContainerZone == ContainerHoverZone.Header))
+                menuTarget = new HoverInfo { Kind = HoverKind.Node, Node = menuTarget.Node };
             view.Interaction.ResetToIdle();
             if (!wasDrag)
             {
@@ -469,7 +503,7 @@ internal sealed class CanvasInput
         if (input.IsMouseReleased(MouseButton.Left))
         {
             if (view.Interaction.DragThresholdCrossed && view.Interaction.DragOverridePositions.Count > 0)
-                CommitNodeDrop(view, input);
+                CommitNodeDrop(view, input, id => spatialIndex.GetBounds(id)?.Size);
             view.Interaction.ResetToIdle();
         }
     }
@@ -544,7 +578,8 @@ internal sealed class CanvasInput
 
     // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
     // Internal for testing (ContainerDragTests).
-    internal static void CommitNodeDrop(GraphView view, IInputSource input)
+    // childSize (CE-1004): a node's MEASURED graph size (the spatial index); null ⇒ its SizeOverride or a default.
+    internal static void CommitNodeDrop(GraphView view, IInputSource input, Func<NodeId, Vector2?>? childSize = null)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
         var finalLocalPositions = new Dictionary<NodeId, Vector2>();
@@ -590,28 +625,18 @@ internal sealed class CanvasInput
                             : container.GetRegionIndexForChild(nid);
                         if (rIdx > 0)
                         {
+                            // ⭐ CE-1004 (A): THE band-size function, with MEASURED child sizes — this copy used a
+                            //    160×64 default, so a dropped state could jump relative to the band it was dropped in.
                             bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
-                            float[] regionSizes = new float[container.Regions.Count];
-                            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
-
-                            foreach (var childId in container.ChildNodeIds)
-                            {
-                                if (topLevelNodes.Contains(childId)) continue;
-                                var childNode = view.Model.FindNode(childId);
-                                if (childNode == null) continue;
-                                int cRIdx = container.GetRegionIndexForChild(childId);
-                                if (cRIdx >= 0 && cRIdx < regionSizes.Length)
-                                {
-                                    var size = childNode.SizeOverride ?? new Vector2(160, 64);
-                                    float extent = isHorizontal ? childNode.Position.X + size.X : childNode.Position.Y + size.Y;
-                                    regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], extent);
-                                }
-                            }
-
-                            float offset = 0f;
-                            for (int i = 0; i < rIdx; i++) offset += regionSizes[i];
-                            if (isHorizontal) rawLocalPos.X -= offset;
-                            else rawLocalPos.Y -= offset;
+                            var sizes = RegionLayoutComputer.ComputeRegionSizes(
+                                container, view.Model,
+                                cid => childSize?.Invoke(cid) ?? view.Model.FindNode(cid)?.SizeOverride ?? new Vector2(160, 64),
+                                skipChild: topLevelNodes.Contains);
+                            float offset = RegionLayoutComputer.RegionOffset(sizes, rIdx);
+                            if (isHorizontal) rawLocalPos.X = Math.Max(0f, rawLocalPos.X - offset);
+                            else              rawLocalPos.Y = Math.Max(0f, rawLocalPos.Y - offset);
+                            // ⭐ CE-1004 (C): a state dropped above (left of) a LATER band's start is clamped into that
+                            //    band — the band cannot grow into the one before it.
                         }
                     }
                 }
@@ -699,13 +724,27 @@ internal sealed class CanvasInput
             float shiftX = minX == float.MaxValue ? 0f : minX;
             float shiftY = minY == float.MaxValue ? 0f : minY;
 
+            // ⭐ CE-1004 (C): the container moves ONLY to grow up / left — when a child would sit above or left of the
+            //    interior (negative local position); the children keep their canvas place. It used to shift on EVERY drop
+            //    to put the top-left child at 0, moving the whole container and snapping the dragged state back —
+            //    contrary to NodeEditor_Extension_ContainerNodes.md §5.4 ("The canvas doesn't auto-translate containers").
+            shiftX = Math.Min(0f, shiftX);
+            shiftY = Math.Min(0f, shiftY);
             if (hasChildren && (Math.Abs(shiftX) > 0.01f || Math.Abs(shiftY) > 0.01f))
             {
                 var shift = new Vector2(shiftX, shiftY);
 
                 foreach (var childKvp in futureChildren)
                 {
-                    finalLocalPositions[childKvp.Key] = childKvp.Value - shift;
+                    // CE-1004: a child of a LATER band sits in band-local coordinates; band 0 growing already pushes
+                    //    it along the stack axis, so it takes only the cross-axis part of the shift.
+                    int cr = topLevelNodes.Contains(childKvp.Key) && targetParents.TryGetValue(childKvp.Key, out var tp) && tp == cid
+                        ? (view.Interaction.DropTargetRegionIndex ?? -1)
+                        : containerModel.GetRegionIndexForChild(childKvp.Key);
+                    var childShift = containerModel.Regions.Count > 0 && cr > 0
+                        ? (isHorizontal ? new Vector2(0f, shift.Y) : new Vector2(shift.X, 0f))
+                        : shift;
+                    finalLocalPositions[childKvp.Key] = childKvp.Value - childShift;
                     if (!targetParents.ContainsKey(childKvp.Key))
                         targetParents[childKvp.Key] = cid;
                 }
@@ -940,6 +979,81 @@ internal sealed class CanvasInput
 
     // ── Resizing comment ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ CE-1004 (R1) — starts a band-divider or corner-grip resize. The drag previews live
+    /// (<see cref="InteractionState.RegionSizePreview"/> / <see cref="InteractionState.ContainerSizePreview"/>) and
+    /// commits ONE undoable command on release.
+    /// </summary>
+    internal static void BeginContainerResize(GraphView view, IInputSource input, HoverInfo hover, Func<NodeId, Vector2?> sizeOf)
+    {
+        var node = view.Model.FindNode(hover.Node);
+        if (node?.AsContainer() is not { } container) return;
+
+        float startRegion = 0f;
+        float? oldPreferred = null;
+        if (hover.ContainerZone == ContainerHoverZone.RegionDivider)
+        {
+            var sizes = RegionLayoutComputer.ComputeRegionSizes(container, view.Model,
+                id => sizeOf(id) ?? view.Model.FindNode(id)?.SizeOverride ?? new Vector2(160, 64));
+            if (hover.ContainerRegionIndex < 0 || hover.ContainerRegionIndex >= sizes.Length) return;
+            startRegion = sizes[hover.ContainerRegionIndex];
+            oldPreferred = container.Regions[hover.ContainerRegionIndex].PreferredSize;
+        }
+
+        view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
+        view.Interaction.Mode = InteractionMode.ResizingContainer;
+        view.Interaction.DragStartScreen = input.MousePosition;
+        view.Interaction.DragThresholdCrossed = false;
+        view.Interaction.ContainerResize = new ContainerResize
+        {
+            Container = hover.Node,
+            RegionIndex = hover.ContainerZone == ContainerHoverZone.RegionDivider ? hover.ContainerRegionIndex : -1,
+            Edge = hover.ContainerEdge,
+            StartGraph = view.Viewport.ScreenToGraph(input.MousePosition),
+            StartRegionSize = startRegion,
+            StartOuterSize = sizeOf(hover.Node) ?? node.SizeOverride ?? Vector2.Zero,
+            OldPreferredSize = oldPreferred,
+            OldSizeOverride = node.SizeOverride,
+        };
+    }
+
+    internal static void HandleResizingContainer(GraphView view, IInputSource input)
+    {
+        var r = view.Interaction.ContainerResize;
+        if (r is null) { view.Interaction.ResetToIdle(); return; }
+        var node = view.Model.FindNode(r.Container);
+        if (node?.AsContainer() is not { } container) { view.Interaction.ResetToIdle(); return; }
+
+        var delta = view.Viewport.ScreenToGraph(input.MousePosition) - r.StartGraph;
+        if ((input.MousePosition - view.Interaction.DragStartScreen).Length() > TimingConstants.DragThresholdPixels)
+            view.Interaction.DragThresholdCrossed = true;
+
+        bool horiz = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+        if (r.RegionIndex >= 0)
+            r.PreviewRegionSize = MathF.Max(RegionLayoutComputer.MinRegionSize, r.StartRegionSize + (horiz ? delta.X : delta.Y));
+        else
+            r.PreviewOuterSize = Vector2.Max(Vector2.Zero, r.StartOuterSize + new Vector2(
+                (r.Edge & ContainerResizeEdge.Right)  != 0 ? delta.X : 0f,
+                (r.Edge & ContainerResizeEdge.Bottom) != 0 ? delta.Y : 0f));
+
+        if (!input.IsMouseReleased(MouseButton.Left)) return;
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            if (r.RegionIndex >= 0 && r.PreviewRegionSize is { } size)
+                view.Execute(
+                    new GraphCommand.SetRegionPreferredSize(r.Container, r.RegionIndex, (float)Math.Round(size, 1)),
+                    new GraphCommand.SetRegionPreferredSize(r.Container, r.RegionIndex, r.OldPreferredSize),
+                    "Resize Region");
+            else if (r.PreviewOuterSize is { } outer)
+                view.Execute(
+                    new GraphCommand.SetContainerSize(r.Container, new Vector2((float)Math.Round(outer.X, 1), (float)Math.Round(outer.Y, 1))),
+                    new GraphCommand.SetContainerSize(r.Container, r.OldSizeOverride),
+                    "Resize Container");
+        }
+        view.Interaction.ResetToIdle();
+    }
+
     private static void HandleResizingComment(GraphView view, IInputSource input)
     {
         int handle = view.Interaction.ActiveCommentResizeHandle;
@@ -1055,7 +1169,143 @@ internal sealed class CanvasInput
 
     // ── Pending wire ──────────────────────────────────────────────────────────
 
-    private static void HandlePendingWire(GraphView view, IInputSource input)
+    /// <summary>
+    /// CE-1000 — starts a link from a whole node (node-to-node routing): from the node's link-source pin, the first
+    /// output pin the validator accepts as a source. Returns false when the node has no output pin.
+    /// </summary>
+    internal static bool BeginNodeWire(GraphView view, IInputSource input, NodeId nodeId, bool addToSelectionOnClick, bool sticky)
+    {
+        var sourcePin = view.Model.NodeLinkPin(nodeId, PinDirection.Output);
+        if (sourcePin is null) return false;
+
+        view.Interaction.DragStartScreen = input.MousePosition;
+        view.Interaction.DragThresholdCrossed = false;
+        view.Interaction.Mode = InteractionMode.PendingWire;
+        view.Interaction.PendingWire = new PendingWire
+        {
+            SourcePin = sourcePin.Value,
+            SourceNode = nodeId,
+            AddToSelectionOnClick = addToSelectionOnClick,
+            Sticky = sticky,
+            CursorGraph = view.Viewport.ScreenToGraph(input.MousePosition),
+        };
+        return true;
+    }
+
+    /// <summary>The node an element under the cursor belongs to (node body, border band, container, or one of its pins).</summary>
+    internal static NodeId? HoveredNodeOf(GraphView view, HoverInfo hover) => hover.Kind switch
+    {
+        HoverKind.Node or HoverKind.NodeEdge or HoverKind.Container => hover.Node,
+        HoverKind.Pin => view.Model.FindPin(hover.Pin)?.OwnerNodeId,
+        HoverKind.Attachment => view.Model.FindAttachment(hover.Attachment)?.HostNodeId,
+        _ => null,
+    };
+
+    /// <summary>
+    /// A wire dropped on empty canvas: open the contextual node picker; the pick adds the node and the link in ONE
+    /// undo step. CE-1001: in node-to-node graphs the new node's link pin comes from
+    /// <see cref="IGraphModel.NodeLinkPin"/> (the catalogue carries no pin signatures for whole-node links).
+    /// </summary>
+    private static void OpenPickerForWire(GraphView view, IInputSource input, PendingWire pw)
+    {
+        view.Interaction.Mode = InteractionMode.PickerOpen;
+        var srcPin = view.Model.FindPin(pw.SourcePin);
+
+        var context = new Dictionary<string, object?>
+        {
+            ["sourcePinId"] = pw.SourcePin,
+            ["cursorGraph"] = pw.CursorGraph,
+            ["sourceDirection"] = srcPin?.Direction,
+            ["sourceKind"] = srcPin?.Kind,
+            ["sourceType"] = srcPin?.Type
+        };
+
+        view.Host.Pickers.Open(
+            "nodes.by-pin",
+            input.MousePosition,
+            pick =>
+            {
+                if (pick is NodeCatalogEntry entry)
+                {
+                    var srcPinModel = view.Model.FindPin(pw.SourcePin);
+                    if (srcPinModel != null)
+                    {
+                        // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
+                        var pinIds = new List<PinId>();
+                        int totalPins = entry.Inputs.Count + entry.Outputs.Count;
+                        for (int i = 0; i < totalPins; i++)
+                        {
+                            pinIds.Add(IdGenerator.NewPinId());
+                        }
+
+                        var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
+                        var newNodeId = IdGenerator.NewNodeId();
+
+                        var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
+                        var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
+
+                        var fwds = new List<GraphCommand> { nodeFwd };
+                        var invs = new List<GraphCommand> { nodeInv };
+
+                        // 2. Find a compatible pin using the catalog entry signatures
+                        var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
+                        // CE-1001: a whole-node link targets the pin the MODEL names for the new node.
+                        PinId? compatiblePinId = pw.SourceNode != null
+                            ? view.Model.NodeLinkPin(newNodeId, PinDirection.Input)
+                            : null;
+                        int pinIdx = 0;
+
+                        foreach (var sig in compatiblePinId == null ? entry.Inputs : Array.Empty<PinSignature>())
+                        {
+                            if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
+                                (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                            {
+                                compatiblePinId = pinIds[pinIdx];
+                                break;
+                            }
+                            pinIdx++;
+                        }
+
+                        if (compatiblePinId == null)
+                        {
+                            foreach (var sig in entry.Outputs)
+                            {
+                                if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
+                                    (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                {
+                                    compatiblePinId = pinIds[pinIdx];
+                                    break;
+                                }
+                                pinIdx++;
+                            }
+                        }
+
+                        // 3. Form the link command targeting the deterministic PinId
+                        if (compatiblePinId.HasValue)
+                        {
+                            var linkId = IdGenerator.NewLinkId();
+                            var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
+                            var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
+
+                            fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
+                            invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
+                        }
+
+                        // 4. Execute as a single atomic batch (inverses must be reversed)
+                        invs.Reverse();
+                        var batchFwd = new GraphCommand.Batch("Add Node", fwds);
+                        var batchInv = new GraphCommand.Batch("Add Node", invs);
+
+                        view.Execute(batchFwd, batchInv, "Add Node");
+                    }
+                }
+                view.Interaction.ResetToIdle();
+            },
+            () => view.Interaction.ResetToIdle(),
+            context);
+    }
+
+    internal static void HandlePendingWire(GraphView view, IInputSource input)
     {
         var pw = view.Interaction.PendingWire;
         if (pw == null) { view.Interaction.ResetToIdle(); return; }
@@ -1073,8 +1323,66 @@ internal sealed class CanvasInput
         pw.CandidateTarget = null;
         pw.CandidateValid = false;
         pw.CandidateNeedsCast = false;
+        pw.CandidateNode = null;
 
         var hover = view.Interaction.Hover;
+
+        if (pw.SourceNode is { } srcNode)
+        {
+            // ── CE-1000: node-to-node — the candidate is a whole NODE, connected to its first valid input pin ──
+            var under = HoveredNodeOf(view, hover);
+            if (under != srcNode) pw.LeftSourceNode = true;
+
+            if (pw.Sticky && (input.IsKeyPressed(EditorKey.Escape) || input.IsMousePressed(MouseButton.Right)))
+            {
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (under is { } target && (target != srcNode || pw.LeftSourceNode))
+            {
+                var pin = view.Model.NodeLinkPin(target, PinDirection.Input);
+                pw.CandidateNode = target;
+                if (pin is { } p && p != pw.SourcePin
+                    && view.Validator.Validate(pw.SourcePin, p).Verdict != LinkValidity.Invalid)
+                {
+                    pw.CandidateTarget = p;
+                    pw.CandidateValid = true;
+                }
+            }
+
+            bool finish = pw.Sticky ? input.IsMousePressed(MouseButton.Left) : input.IsMouseReleased(MouseButton.Left);
+            if (!finish) return;
+
+            // A press-release without dragging is a click on the node, not a link.
+            if (!pw.Sticky && !view.Interaction.DragThresholdCrossed)
+            {
+                var entry = SelectionEntry.OfNode(srcNode);
+                if (pw.AddToSelectionOnClick) view.Selection.Add(entry);
+                else if (!view.Selection.Contains(entry)) view.Selection.ReplaceWith(entry);
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (pw.CandidateTarget is { } toPin && pw.CandidateValid)
+            {
+                var (fwd, inv) = new CommandBuilder(view.Model).AddLink(pw.SourcePin, toPin);
+                view.Execute(fwd, inv, "Connect " + view.Model.Kind.LinkDisplayName);
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (hover.Kind == HoverKind.None)
+            {
+                OpenPickerForWire(view, input, pw);
+                return;
+            }
+
+            // Over a node that refuses the link (or back on the source): nothing is created.
+            view.Interaction.ResetToIdle();
+            return;
+        }
+
         if (hover.Kind == HoverKind.Pin && hover.Pin != pw.SourcePin)
         {
             var result = view.Validator.Validate(pw.SourcePin, hover.Pin);
@@ -1137,98 +1445,7 @@ internal sealed class CanvasInput
             else if (dropHover.Kind == HoverKind.None && view.Interaction.DragThresholdCrossed)
             {
                 // Dropped on empty canvas: suspend canvas input and open contextual picker.
-                view.Interaction.Mode = InteractionMode.PickerOpen;
-                var srcPin = view.Model.FindPin(pw.SourcePin);
-
-                var context = new Dictionary<string, object?>
-                {
-                    ["sourcePinId"] = pw.SourcePin,
-                    ["cursorGraph"] = pw.CursorGraph,
-                    ["sourceDirection"] = srcPin?.Direction,
-                    ["sourceKind"] = srcPin?.Kind,
-                    ["sourceType"] = srcPin?.Type
-                };
-
-                view.Host.Pickers.Open(
-                    "nodes.by-pin",
-                    input.MousePosition,
-                    pick =>
-                    {
-                        if (pick is NodeCatalogEntry entry)
-                        {
-                            var srcPinModel = view.Model.FindPin(pw.SourcePin);
-                            if (srcPinModel != null)
-                            {
-                                // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
-                                var pinIds = new List<PinId>();
-                                int totalPins = entry.Inputs.Count + entry.Outputs.Count;
-                                for (int i = 0; i < totalPins; i++)
-                                {
-                                    pinIds.Add(IdGenerator.NewPinId());
-                                }
-
-                                var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
-                                var newNodeId = IdGenerator.NewNodeId();
-
-                                var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
-                                var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
-
-                                var fwds = new List<GraphCommand> { nodeFwd };
-                                var invs = new List<GraphCommand> { nodeInv };
-
-                                // 2. Find a compatible pin using the catalog entry signatures
-                                var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
-                                PinId? compatiblePinId = null;
-                                int pinIdx = 0;
-
-                                foreach (var sig in entry.Inputs)
-                                {
-                                    if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
-                                        (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
-                                    {
-                                        compatiblePinId = pinIds[pinIdx];
-                                        break;
-                                    }
-                                    pinIdx++;
-                                }
-
-                                if (compatiblePinId == null)
-                                {
-                                    foreach (var sig in entry.Outputs)
-                                    {
-                                        if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
-                                            (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
-                                        {
-                                            compatiblePinId = pinIds[pinIdx];
-                                            break;
-                                        }
-                                        pinIdx++;
-                                    }
-                                }
-
-                                // 3. Form the link command targeting the deterministic PinId
-                                if (compatiblePinId.HasValue)
-                                {
-                                    var linkId = IdGenerator.NewLinkId();
-                                    var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
-                                    var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
-
-                                    fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
-                                    invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
-                                }
-
-                                // 4. Execute as a single atomic batch (inverses must be reversed)
-                                invs.Reverse();
-                                var batchFwd = new GraphCommand.Batch("Add Node", fwds);
-                                var batchInv = new GraphCommand.Batch("Add Node", invs);
-
-                                view.Execute(batchFwd, batchInv, "Add Node");
-                            }
-                        }
-                        view.Interaction.ResetToIdle();
-                    },
-                    () => view.Interaction.ResetToIdle(),
-                    context);
+                OpenPickerForWire(view, input, pw);
             }
             else
             {

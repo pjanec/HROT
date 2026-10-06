@@ -18,6 +18,8 @@ public enum InteractionMode
     DraggingComment,
     /// <summary>A comment box is being resized.</summary>
     ResizingComment,
+    /// <summary>CE-1004: a region divider or a container edge is being dragged to resize.</summary>
+    ResizingContainer,
     /// <summary>LMB-drag from empty canvas is drawing a marquee selection rect.</summary>
     MarqueeSelecting,
     /// <summary>LMB-drag from a pin is drawing a pending connection wire.</summary>

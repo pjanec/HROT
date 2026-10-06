@@ -43,26 +43,13 @@ public sealed class BTreeBlackboardVariableContributor : IReferenceCatalogContri
                 HostKind:        AssetKind.BTree,
                 HostElementId:   node.VisualId,
                 HostDisplayPath: node.DisplayLabel,
-                TargetKey:       $"{btAsset.AssetId:D}::{etf}",
+                TargetKey:       BlackboardVariableSubElement.KeyFor(btAsset.AssetId, etf),
                 TargetKind:      SubElementKind.BlackboardVariable));
         }
         return result;
     }
 }
 
-// Sub-element representing one blackboard variable.
-// Key format: "{assetId:D}::{variableName}" (Guid with hyphens, double-colon separator).
-internal sealed class BlackboardVariableSubElement : IAssetSubElement
-{
-    public string Key         { get; }
-    public SubElementKind Kind => SubElementKind.BlackboardVariable;
-    public string DisplayName { get; }
-    public Guid?  SourceAssetId { get; }
-
-    public BlackboardVariableSubElement(Guid assetId, string variableName)
-    {
-        SourceAssetId = assetId;
-        DisplayName   = variableName;
-        Key           = $"{assetId:D}::{variableName}";
-    }
-}
+// ⭐ HSM-017 (2026-10-06): BlackboardVariableSubElement MOVED to Hrot.Editor.AiShared.References so the HSM host
+//   can produce byte-identical keys. ⛔ Do not re-declare it here — two spellings of the key format is how a
+//   rename comes to report success while leaving the other host's binding dangling.

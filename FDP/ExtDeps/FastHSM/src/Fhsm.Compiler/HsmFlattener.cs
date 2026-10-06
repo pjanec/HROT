@@ -355,6 +355,24 @@ namespace Fhsm.Compiler
             return null;  // Should not happen if graph is valid
         }
         
+        /// <summary>
+        /// ⭐ CE-1003 (Q84 A0) — the initial state of each orthogonal region of <paramref name="parallel"/>, in region
+        /// order. Children that DECLARE a region (<see cref="StateNode.RegionIndex"/>) are grouped: one region per
+        /// index, its initial the member marked <c>IsInitial</c>, else the first member. A child that declares none
+        /// is a region of its own — the rule this flattener applied to EVERY child before, which silently turned a
+        /// region holding a sequence (Worker → Done) into one region per state, all running at once.
+        /// </summary>
+        internal static IEnumerable<StateNode> RegionInitials(StateNode parallel)
+        {
+            var declared = parallel.Children.Where(c => c.RegionIndex.HasValue)
+                                            .GroupBy(c => c.RegionIndex!.Value)
+                                            .OrderBy(g => g.Key);
+            foreach (var region in declared)
+                yield return region.FirstOrDefault(c => c.IsInitial) ?? region.First();
+            foreach (var single in parallel.Children.Where(c => !c.RegionIndex.HasValue))
+                yield return single;
+        }
+
         private static RegionDef[] FlattenRegions(StateMachineGraph graph)
         {
             var regionDefs = new List<RegionDef>();
@@ -381,13 +399,12 @@ namespace Fhsm.Compiler
                 
             foreach (var pState in parallelStates)
             {
-                // Each child of a parallel state defines an orthogonal region
-                foreach (var child in pState.Children)
+                foreach (var initial in RegionInitials(pState))
                 {
                     regionDefs.Add(new RegionDef
                     {
                         ParentStateIndex = pState.FlatIndex,
-                        InitialStateIndex = child.FlatIndex,
+                        InitialStateIndex = initial.FlatIndex,
                         Priority = 0
                     });
                 }

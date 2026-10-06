@@ -113,6 +113,9 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         s.Name           = f.Name;
         s.Comment        = f.Comment;
+        // ⭐ Q84 C1 — history is the composite's own setting; a state without children has nothing to resume.
+        s.IsHistory      = s.Children.Count > 0 && f.History == HsmHistoryMode.ResumeLastChild;
+        s.IsDeepHistory  = s.Children.Count > 0 && f.History == HsmHistoryMode.ResumeLastLeaf;
         s.IsBreakpoint   = f.IsBreakpoint;
         s.DeferredEventIds.Clear();
         if (f.DeferredEventIds is not null)
@@ -128,7 +131,8 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         s.OnEntry  = BehaviorActionBindingEditor.Apply(s.OnEntry,  f.OnEntry,  ApplyContext(composeBaseName: null));
         s.OnExit   = BehaviorActionBindingEditor.Apply(s.OnExit,   f.OnExit,   ApplyContext(composeBaseName: null));
         s.Activity = BehaviorActionBindingEditor.Apply(s.Activity, f.Activity, ApplyContext("bpActivityParams"));
-        s.Timer    = BehaviorActionBindingEditor.Apply(s.Timer,    f.Timer,    ApplyContext(composeBaseName: null));
+        // ⛔ HSM-012 — s.Timer is NOT applied: the facet no longer offers it (the kernel never arms a timer).
+        //   The model field is left exactly as loaded, so a hand-authored timer survives a round-trip untouched.
         ApplySopOrder(s, f);   // ⭐ CE-2083
 
         _asset.MarkDirty();
