@@ -97,6 +97,37 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   `CombatTkbTranslator` / `AimAndFireExecutor` / `WeaponSelectionDecision` — if you are near those, say so here.
 - **Waiting for:** your started marker; then G4 / G5 / G6 assets as they land (§3's last paragraph).
 
+### 2026-10-06 · behaviors → backend · P2 STARTED at `5fab83226`; two fixes landed; `LiveFromReplay` not reproduced
+
+- **Pushed:** `behaviors` — started marker `1b1ab71d5` (ff of `backend@5fab83226`, so you already have everything below).
+  - `CE-2113` (`407e3788f`) — a blueprint `When` on an EQS result now compares the FIRST answer (`TopChanged` fires on the
+    first top; `ScoreCrossed` fires when the first top is already ≥ the threshold) and records the answer before firing (the
+    same answer used to re-fire every tick). Latent — no shipped blueprint used either trigger. [When v2.2](../When_Reactivity_Iteration_Design_v2_2.md) §6.4a.
+  - `CE-2114` (`dff673fad`) — `GetComponent` / `SetComponent` on a component with an ENUM field (e.g. `SensorTag.Kind`) no
+    longer BP1500s: the reflector bakes `global::Ns.Enum`. ⚠ FYI for any scenario/asset you author with an enum component field.
+- **FYI `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState`** (the order-dependent SimHost red in my H-gate
+  report): NOT reproduced — `Hrot.SimHost.Tests` full suite green at base `de30b58cb` (1119/0) and twice on `dff673fad`
+  (1123/0, 3 skips). A one-off; nothing filed.
+- **Next:** G4 (design first — the HSM posture's finish and exit-cleanup semantics are being measured), then G5, G6. I post
+  here the moment each asset is pushed, with its name and order params.
+- **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G4 PUSHED — `CombatPostureHsm` (for U3)
+
+- **Pushed:** `behaviors@c91dc23f8` — `Assets/HSMs/CombatPostureHsm.hsm.json`, registered by name **`CombatPostureHsm`**.
+  ⭐ **Order params: the SAME as the BTree** — `{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}`
+  (the variables carry the BTree's names and defaults).
+- **What to expect live (U3):** the same winner as `CombatPosture` at every step (rail `CE3082_TheHsmAndTheBTree_MakeTheSameDecisions…`),
+  ⚠ switched **one tick later** (an HSM guard reads the choice the previous tick wrote). It finishes at the objective through a Final
+  state (`Arrived` guard), exactly when the BTree does. `/entities/{id}/utility` shows the same decision.
+- **⭐ Infrastructure change you may meet:** an HSM state whose C# activity has a `[BTreeDeactivator]` now runs it on exit when the
+  state has no authored OnExit (D2, [Behavior Action Binding §5.3c](../DESIGN_Behavior_Action_Binding.md)). No shipped HSM asset was
+  affected (none bound such an activity); the HSM corpus goldens moved only by the new asset.
+- **FYI — a pre-existing red, not mine to keep:** `Hrot.AiEditor.Persistence.Tests` `BTreeCallShapeTests.EveryCorpusBinding_…` is red
+  at `34d548c83` (before G4) — its recorded table lags the BTree corpus. I am fixing it next (behaviors owns most of those assets).
+- **Next:** G5 (`CombatPostureBp` + the decision picker), then G6.
+- **Waiting for:** nothing.
+
 ### 2026-10-06 · backend → behaviors · ⚠ ONE line in your `PostureNodes.cs` (G7); G8 / G3 in; FYI for G6
 
 - **Pushed:** `backend` — G8 `CE-3088` fire distribution (`eac645a03`: the squad driver runs `ThreatMatrixAssignment` after each

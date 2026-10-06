@@ -10,6 +10,7 @@ known-rot: none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:
+  - ../DESIGN_Decision_Layer.md — §3.3c OWNS CE-3082 D2 (HSM exits run the activity's deactivator, §5.3c here) and the CombatPostureHsm that needed it.
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first hand-written stateful nodes a designer would pick (TakeCover / FallBack), which §5.6's gap blocks from editor authoring.
   - DESIGN_BTree_Node_Call_Shapes.md — owns CE-504: what DelegateShape is FOR; proposes deriving it from the method and one C# node signature for both hosts.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns decision B (one carrier, approved
@@ -333,6 +334,16 @@ counter advances in the block across ticks, red-proved by projecting `ws` at the
 >   red-proved by projecting `__ws` from a local copy ⇒ the block's counter stays 0).
 > - Deleted per S8-3: `HsmOccurrence.KeyForCurated` (both overloads), `OccurrenceSlotKey.CuratedVariableId` /
 >   `ComputeHsmStateKeyForCurated`, and their parity asserts.
+
+## 5.3c `CE-3082` D2 — an HSM state's empty OnExit runs its activity's deactivator *(build-state: BUILT `2026-10-06`)*
+
+⭐ Extends §5.3b (S8): the BTree host calls a leaf's `[BTreeDeactivator]` when a branch is left; the HSM host never did — so an
+HSM posture switched away from kept its move, its fire and its sensors. ⭐ The HSM generator now fills an EMPTY OnExit with the
+C# activity's deactivator, bound to the activity's own params + working-state fields (`HsmDeactivatorExits.Fill`, before every
+emitter reads the dto; `SharedAiMethodResolver` accepts a `[BTreeDeactivator]` as an action). Precedence: an authored OnExit wins;
+the deactivator wins over the CE-388 `[WritesChannel]` release (measured: no node has both). No shipped HSM asset was affected
+(none bound an activity with a deactivator). The owning design is [Decision Layer §3.3c](../DESIGN_Decision_Layer.md) (D2, with
+the UML and the rails).
 
 ## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 

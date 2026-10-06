@@ -1,0 +1,106 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3082000-0000-0000-0000-000000000001
+
+using System;
+
+using Fdp.Toolkit.Utility;
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class CombatPostureHsm
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("CombatPostureHsm");
+
+        builder.RegisterAction("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.PostureNodes.Engage");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.PostureNodes.Hold");
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors");
+
+        builder.RegisterGuard("Fdp.Toolkit.Utility.UtilityNodes.IsOption");
+        builder.RegisterGuard("Hrot.AI.Behaviors.Brains.PostureNodes.Arrived");
+
+        StateBuilder hold = null!;
+        StateBuilder advance = null!;
+        StateBuilder takeCover = null!;
+        StateBuilder suppress = null!;
+        StateBuilder fallBack = null!;
+
+        var concurrent = builder.State("Concurrent", stableId: new Guid("30820000-0000-0000-0000-000000000001"))
+            .Initial()
+            .Parallel();
+        concurrent.Child("Choose", sb2 =>
+        {
+            sb2.Initial().Activity("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption");
+        }, stableId: new Guid("30820000-0000-0000-0000-000000000002"));
+        concurrent.Child("Sense", sb2 =>
+        {
+            sb2.Initial().Activity("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors");
+        }, stableId: new Guid("30820000-0000-0000-0000-000000000003"));
+        concurrent.Child("Posture", sb2 =>
+        {
+            sb2.Initial();
+            sb2.Child("Hold", sb3 =>
+            {
+                hold = sb3;
+                sb3.Initial().Activity("Hrot.AI.Behaviors.Brains.PostureNodes.Hold");
+            }, stableId: new Guid("30820000-0000-0000-0000-000000000005"));
+            sb2.Child("Advance", sb3 =>
+            {
+                advance = sb3;
+                sb3.Activity("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack");
+            }, stableId: new Guid("30820000-0000-0000-0000-000000000006"));
+            sb2.Child("TakeCover", sb3 =>
+            {
+                takeCover = sb3;
+                sb3.Activity("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover");
+            }, stableId: new Guid("30820000-0000-0000-0000-000000000007"));
+            sb2.Child("Suppress", sb3 =>
+            {
+                suppress = sb3;
+                sb3.Activity("Hrot.AI.Behaviors.Brains.PostureNodes.Engage");
+            }, stableId: new Guid("30820000-0000-0000-0000-000000000008"));
+            sb2.Child("FallBack", sb3 =>
+            {
+                fallBack = sb3;
+                sb3.Activity("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack");
+            }, stableId: new Guid("30820000-0000-0000-0000-000000000009"));
+        }, stableId: new Guid("30820000-0000-0000-0000-000000000004"));
+        builder.State("Arrived", stableId: new Guid("30820000-0000-0000-0000-00000000000a"))
+            .Final();
+        hold.On(0).GoTo("Advance", visualId: new Guid("30820000-0000-0000-0001-000000000001")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        hold.On(0).GoTo("TakeCover", visualId: new Guid("30820000-0000-0000-0001-000000000002")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        hold.On(0).GoTo("Suppress", visualId: new Guid("30820000-0000-0000-0001-000000000003")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        hold.On(0).GoTo("FallBack", visualId: new Guid("30820000-0000-0000-0001-000000000004")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        advance.On(0).GoTo("Hold", visualId: new Guid("30820000-0000-0000-0001-000000000005")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        advance.On(0).GoTo("TakeCover", visualId: new Guid("30820000-0000-0000-0001-000000000006")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        advance.On(0).GoTo("Suppress", visualId: new Guid("30820000-0000-0000-0001-000000000007")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        advance.On(0).GoTo("FallBack", visualId: new Guid("30820000-0000-0000-0001-000000000008")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        advance.On(0).GoTo("Arrived", visualId: new Guid("30820000-0000-0000-0001-000000000015")).Guard("Hrot.AI.Behaviors.Brains.PostureNodes.Arrived").Polled().Priority(1);
+        takeCover.On(0).GoTo("Hold", visualId: new Guid("30820000-0000-0000-0001-000000000009")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        takeCover.On(0).GoTo("Advance", visualId: new Guid("30820000-0000-0000-0001-00000000000a")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        takeCover.On(0).GoTo("Suppress", visualId: new Guid("30820000-0000-0000-0001-00000000000b")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        takeCover.On(0).GoTo("FallBack", visualId: new Guid("30820000-0000-0000-0001-00000000000c")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        suppress.On(0).GoTo("Hold", visualId: new Guid("30820000-0000-0000-0001-00000000000d")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        suppress.On(0).GoTo("Advance", visualId: new Guid("30820000-0000-0000-0001-00000000000e")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        suppress.On(0).GoTo("TakeCover", visualId: new Guid("30820000-0000-0000-0001-00000000000f")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        suppress.On(0).GoTo("FallBack", visualId: new Guid("30820000-0000-0000-0001-000000000010")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        fallBack.On(0).GoTo("Hold", visualId: new Guid("30820000-0000-0000-0001-000000000011")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        fallBack.On(0).GoTo("Advance", visualId: new Guid("30820000-0000-0000-0001-000000000012")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        fallBack.On(0).GoTo("TakeCover", visualId: new Guid("30820000-0000-0000-0001-000000000013")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+        fallBack.On(0).GoTo("Suppress", visualId: new Guid("30820000-0000-0000-0001-000000000014")).Guard("Fdp.Toolkit.Utility.UtilityNodes.IsOption").Polled();
+
+        return builder;
+    }
+
+    [HsmDefinition("CombatPostureHsm", AssetId = "a3082000-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

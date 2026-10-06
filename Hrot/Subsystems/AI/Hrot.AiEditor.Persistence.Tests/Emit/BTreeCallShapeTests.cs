@@ -121,6 +121,17 @@ public sealed class BTreeCallShapeTests
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000017", BTreeDelegateShapeDto.Stateful),
         ("CombatPosture.btree.json", "c2073000-0000-0000-0000-000000000018", BTreeDelegateShapeDto.NoParams),
+        ("Flank.btree.json", "c2108000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),            // CE-2108
+        ("Flank.btree.json", "c2108000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
+        ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000103", BTreeDelegateShapeDto.Stateful),
+        ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000104", BTreeDelegateShapeDto.Stateful),
+        ("Sentry.btree.json", "c3079000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Plain),              // CE-3079 H2
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),    // CE-3079 H5
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000006", BTreeDelegateShapeDto.Plain),
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000007", BTreeDelegateShapeDto.Stateful),
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000010", BTreeDelegateShapeDto.Stateful),
+        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),

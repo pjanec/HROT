@@ -146,6 +146,16 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3082</c> D1 — true when THIS advance arrived: its move was issued and the channel reports Success. The HSM
+        /// host's finish (an HSM activity's status is discarded, so the posture HSM leaves Advance for its Final state on this
+        /// guard). Reads the SAME working state <see cref="AdvanceAndAttack"/> writes. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3c.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool Arrived(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
+            => ws.Moving == 1 && world.HasComponent<LocomotionChannel>(self)
+               && LocomotionMoveTo.Status(world, self) == NodeStatus.Success;
+
         /// <summary>Leaving the posture: its sensors go.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors")]
         public static void Deactivate_PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)

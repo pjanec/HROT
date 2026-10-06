@@ -124,6 +124,33 @@ namespace Hrot.SimHost.Tests
                 Repo.SetComponent(sensor, buf);
             }
 
+            /// <summary>⭐ CE-3082 — the names of the HSM behaviour's active leaves (one per region).</summary>
+            public unsafe string[] ActiveStates(string behaviour)
+            {
+                Assert.True(Registry.TryGetId(behaviour, out int id));
+                Assert.True(Registry.TryGetDefinition(id, out var def));
+                if (!Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(Repo, Unit, out byte* ptr, out int size)) return System.Array.Empty<string>();
+                ushort* leaves = Fhsm.Kernel.HsmKernel.GetActiveLeafIds(ptr, size, out int count);
+                var names = new string[count];
+                for (int i = 0; i < count; i++) names[i] = leaves[i] == 0xFFFF ? "-" : def!.HsmMetadata?.GetStateName(leaves[i]) ?? $"State_{leaves[i]}";
+                return names;
+            }
+
+            public void SetHealth(float health01) => Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(Unit).Current = health01 * 100f;
+
+            /// <summary>⭐ CE-3082 — the decision's CURRENT WINNER as the host keeps it: <c>St.choice</c> in the behaviour's own block.</summary>
+            public unsafe byte Winner(string behaviour)
+            {
+                Assert.True(Registry.TryGetId(behaviour, out int hash));
+                if (behaviour == "CombatPosture")
+                {
+                    Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(Repo, Unit, hash, out var b));
+                    return b->St.choice.Winner;
+                }
+                Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Machines.CombatPostureHsm_Block>(Repo, Unit, hash, out var h));
+                return h->St.choice.Winner;
+            }
+
             public unsafe Vector3 Destination()
             {
                 ref readonly var ch = ref Repo.GetComponentRO<LocomotionChannel>(Unit);
@@ -197,6 +224,109 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("CombatPosture", w.TaskName);
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull,
                 "the TakeCover child runs, with its own sensor");
+        }
+
+        // ── ⭐ CE-3082 (G4) — the SAME posture decision hosted as an HSM (docs/DESIGN_Decision_Layer.md §3.3c) ───────────────
+
+        private const string HsmPosture = "CombatPostureHsm";
+
+        [Fact]
+        public void CE3082_CombatPostureHsm_IsCompiledAndRegistered()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId(HsmPosture, out _), "a mission task (U3) must be able to name it");
+        }
+
+        /// <summary>⭐ D1 — a weak enemy ⇒ the Advance leaf, moving to the objective firing; arrival ⇒ the HSM reaches its Final
+        /// state (its activity's Success is discarded, so the Arrived guard is the finish) and the run's sensors go.</summary>
+        [Fact]
+        public void CE3082_AgainstAWeakEnemy_TheHsmAdvancesFiring_AndFinishesAtTheObjective()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order(HsmPosture, Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(HsmPosture, w.TaskName);
+            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the Sense region keeps the cover sensor");
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.NotEqual(HsmPosture, w.TaskName);                     // Final ⇒ the mission task is done
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
+        }
+
+        /// <summary>⭐⭐ D3 CLOSED — the HSM switch railed at RUNTIME, both ways: a weak enemy ⇒ Advance (firing); hurt +
+        /// outnumbered + cover ⇒ TakeCover, and the advance's FIRE STOPS because leaving the Advance leaf ran
+        /// <c>Deactivate_AdvanceAndAttack</c> (D2 — TakeCover never touches the weapon, so nothing else stops it); healthy with
+        /// nothing to fight ⇒ back to Advance.</summary>
+        [Fact]
+        public void CE3082_HealthEdits_SwitchTheHsmPosture_BothWays_AndLeavingALeafRunsItsDeactivator()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);                                   // a weak enemy ⇒ AdvanceAndAttack
+            w.Order(HsmPosture, Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+
+            w.SetHealth(0.3f);
+            w.Remember(Entity.Null);
+            w.Contact(armed: true);
+            w.Contact(armed: true);                                    // hurt and outnumbered
+            w.Tick();
+            w.Tick();
+            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+            Assert.False(cover.IsNull);
+            w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Contains("TakeCover", w.ActiveStates(HsmPosture));
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "the TakeCover leaf runs, with its own sensor");
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+
+            w.SetHealth(1f);
+            w.Remember(Entity.Null);                                   // nothing left to fight ⇒ AdvanceAndAttack (CE-2105)
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Contains("Advance", w.ActiveStates(HsmPosture));
+            Assert.DoesNotContain("TakeCover", w.ActiveStates(HsmPosture));
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());   // the advance's move replaced the cover move
+        }
+
+        /// <summary>⭐ U3's premise — the BTree and the HSM make the SAME decision for the same inputs, step by step, and the HSM's
+        /// active posture leaf is that decision's option.</summary>
+        [Fact]
+        public void CE3082_TheHsmAndTheBTree_MakeTheSameDecisions_ForTheSameInputs()
+        {
+            string[] leafOf = { "-", "Advance", "TakeCover", "Suppress", "FallBack", "Hold" };
+            var worlds = new[] { (w: new World(), name: "CombatPosture"), (w: new World(), name: HsmPosture) };
+            foreach (var (w, name) in worlds)
+            {
+                w.Arm();
+                w.Contact(armed: false);
+                w.Order(name, Objective);
+            }
+            var steps = new System.Action<World>[]
+            {
+                w => { },                                                                 // weak enemy ⇒ advance
+                w => { w.SetHealth(0.3f); w.Remember(Entity.Null); w.Contact(true); w.Contact(true); },   // hurt, outnumbered
+                w => { w.SetHealth(1f); w.Remember(Entity.Null); },                       // healthy, nothing to fight
+            };
+            var seen = new List<byte>();
+            foreach (var step in steps)
+            {
+                foreach (var (w, _) in worlds) { step(w); for (int i = 0; i < 4; i++) w.Tick(); }
+                byte bt = worlds[0].w.Winner("CombatPosture"), hsm = worlds[1].w.Winner(HsmPosture);
+                Assert.Equal(bt, hsm);
+                Assert.True(System.Array.IndexOf(worlds[1].w.ActiveStates(HsmPosture), leafOf[hsm]) >= 0,
+                    $"top {hsm} ⇒ {leafOf[hsm]}, HSM leaves [{string.Join(",", worlds[1].w.ActiveStates(HsmPosture))}]");
+                seen.Add(hsm);
+            }
+            Assert.True(seen.Distinct().Count() >= 2, $"the inputs must move the decision (saw {string.Join(",", seen)})");
         }
 
         [Fact]
