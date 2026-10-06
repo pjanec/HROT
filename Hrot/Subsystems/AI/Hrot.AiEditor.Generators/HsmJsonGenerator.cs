@@ -218,6 +218,11 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         // ⭐⭐⭐ CE-417 B-2 (a′) — a bound C# [SharedAi*] method gets ONE generated call per binding, reading its host
         //   variable in place. ⛔ The variable must BE the method's ref type: refused here, loudly, rather than left to a
         //   CS1503 in generated code (or, before CE-417, a silent type-pun — F7, HsmVariableShowcase).
+        // ⭐⭐ CE-3082 D2 — an HSM state's EMPTY OnExit runs its C# activity's [BTreeDeactivator] (the BTree host calls it when
+        //   a branch is left; the HSM host never did). A DTO rewrite BEFORE every emitter reads the dto, so the filled OnExit is
+        //   an ordinary binding. 📄 docs/DESIGN_Decision_Layer.md §3.3c D2.
+        Hrot.AiEditor.Persistence.Emit.HsmDeactivatorExits.Fill(dto, fqn => BTreeDeactivatorScanner.DeactivatorFqnOf(compilation, fqn));
+
         var sharedAi = SharedAiMethodResolver.Make(compilation);
         bool sharedAiOk = true;
         // ⭐ S8 — the HSM binds every shared form; only a stateful binding whose working state is not a block St member of the

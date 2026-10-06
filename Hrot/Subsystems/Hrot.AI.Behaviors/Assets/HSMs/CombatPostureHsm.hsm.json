@@ -1,0 +1,902 @@
+{
+  "$meta": {
+    "docType": "Hrot.Hsm",
+    "schemaVersion": 2
+  },
+  "AssetId": "a3082000-0000-0000-0000-000000000001",
+  "Name": "CombatPostureHsm",
+  "TargetNamespace": "Hrot.AI.Behaviors.Machines",
+  "BlackboardTypeName": "CombatPostureHsm_Blackboard",
+  "States": [
+    {
+      "StableId": "30820000-0000-0000-0000-000000000000",
+      "Name": "__Root",
+      "ChildStableIds": [
+        "30820000-0000-0000-0000-000000000001",
+        "30820000-0000-0000-0000-00000000000a"
+      ],
+      "ParentStableId": null,
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 0,
+      "Y": 0,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000001",
+      "Name": "Concurrent",
+      "ChildStableIds": [
+        "30820000-0000-0000-0000-000000000002",
+        "30820000-0000-0000-0000-000000000003",
+        "30820000-0000-0000-0000-000000000004"
+      ],
+      "ParentStableId": "30820000-0000-0000-0000-000000000000",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": true,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 100,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "CE-3082 — docs/DESIGN_Decision_Layer.md §3.3c. Three regions: decide, sense, act (the BTree's Parallel).",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000002",
+      "Name": "Choose",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000001",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 150,
+      "Y": 180,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "Scores CombatPostureDecision each tick (hysteresis on the last winner) into the shared 'choice'.",
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.ChooseOption",
+        "ExpressionTargetField": "choose",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000003",
+      "Name": "Sense",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000001",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 1,
+      "DeferredEventNames": [],
+      "X": 350,
+      "Y": 180,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "Cover + retreat sensors at the top threat — what the decision's EqsTopScore inputs read.",
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors",
+        "ExpressionTargetField": "sensors",
+        "WorkingStateTargetField": "sensorsWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000004",
+      "Name": "Posture",
+      "ChildStableIds": [
+        "30820000-0000-0000-0000-000000000005",
+        "30820000-0000-0000-0000-000000000006",
+        "30820000-0000-0000-0000-000000000007",
+        "30820000-0000-0000-0000-000000000008",
+        "30820000-0000-0000-0000-000000000009"
+      ],
+      "ParentStableId": "30820000-0000-0000-0000-000000000001",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 2,
+      "DeferredEventNames": [],
+      "X": 550,
+      "Y": 180,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "The winner's posture. Leaf-to-leaf polled transitions guarded IsOption(target); leaving a leaf runs its node's deactivator (D2).",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000005",
+      "Name": "Hold",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 500,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "Nothing chosen yet / nothing to do: stays put.",
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Hold"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000006",
+      "Name": "Advance",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 620,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack",
+        "ExpressionTargetField": "advance",
+        "WorkingStateTargetField": "advanceWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.AdvanceState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000007",
+      "Name": "TakeCover",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 740,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover",
+        "ExpressionTargetField": "cover",
+        "WorkingStateTargetField": "coverWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000008",
+      "Name": "Suppress",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 860,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Engage",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTargetField": "engageWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-000000000009",
+      "Name": "FallBack",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 980,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack",
+        "ExpressionTargetField": "fallback",
+        "WorkingStateTargetField": "fallbackWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-00000000000a",
+      "Name": "Arrived",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000000",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": true,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 400,
+      "Y": 480,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "The advance reached the objective: the posture (and the mission task) ends.",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    }
+  ],
+  "Regions": [
+    {
+      "StableId": "30820000-0000-0000-0002-000000000001",
+      "RegionIndex": 0,
+      "Name": "TopRegion",
+      "Priority": 0,
+      "InitialChildStableId": "30820000-0000-0000-0000-000000000001",
+      "Comment": null,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0002-000000000002",
+      "RegionIndex": 0,
+      "Name": "Decide",
+      "Priority": 0,
+      "InitialChildStableId": "30820000-0000-0000-0000-000000000002",
+      "Comment": null,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0002-000000000003",
+      "RegionIndex": 1,
+      "Name": "Sense",
+      "Priority": 0,
+      "InitialChildStableId": "30820000-0000-0000-0000-000000000003",
+      "Comment": null,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "30820000-0000-0000-0002-000000000004",
+      "RegionIndex": 2,
+      "Name": "Act",
+      "Priority": 0,
+      "InitialChildStableId": "30820000-0000-0000-0000-000000000004",
+      "Comment": null,
+      "ColorOverride": null
+    }
+  ],
+  "Transitions": [
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000001",
+      "SourceStableId": "30820000-0000-0000-0000-000000000005",
+      "TargetStableId": "30820000-0000-0000-0000-000000000006",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000002",
+      "SourceStableId": "30820000-0000-0000-0000-000000000005",
+      "TargetStableId": "30820000-0000-0000-0000-000000000007",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000003",
+      "SourceStableId": "30820000-0000-0000-0000-000000000005",
+      "TargetStableId": "30820000-0000-0000-0000-000000000008",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000004",
+      "SourceStableId": "30820000-0000-0000-0000-000000000005",
+      "TargetStableId": "30820000-0000-0000-0000-000000000009",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000005",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-000000000005",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHold",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000006",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-000000000007",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000007",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-000000000008",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000008",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-000000000009",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000009",
+      "SourceStableId": "30820000-0000-0000-0000-000000000007",
+      "TargetStableId": "30820000-0000-0000-0000-000000000005",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHold",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000a",
+      "SourceStableId": "30820000-0000-0000-0000-000000000007",
+      "TargetStableId": "30820000-0000-0000-0000-000000000006",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000b",
+      "SourceStableId": "30820000-0000-0000-0000-000000000007",
+      "TargetStableId": "30820000-0000-0000-0000-000000000008",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000c",
+      "SourceStableId": "30820000-0000-0000-0000-000000000007",
+      "TargetStableId": "30820000-0000-0000-0000-000000000009",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000d",
+      "SourceStableId": "30820000-0000-0000-0000-000000000008",
+      "TargetStableId": "30820000-0000-0000-0000-000000000005",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHold",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000e",
+      "SourceStableId": "30820000-0000-0000-0000-000000000008",
+      "TargetStableId": "30820000-0000-0000-0000-000000000006",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000000f",
+      "SourceStableId": "30820000-0000-0000-0000-000000000008",
+      "TargetStableId": "30820000-0000-0000-0000-000000000007",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000010",
+      "SourceStableId": "30820000-0000-0000-0000-000000000008",
+      "TargetStableId": "30820000-0000-0000-0000-000000000009",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000011",
+      "SourceStableId": "30820000-0000-0000-0000-000000000009",
+      "TargetStableId": "30820000-0000-0000-0000-000000000005",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHold",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000012",
+      "SourceStableId": "30820000-0000-0000-0000-000000000009",
+      "TargetStableId": "30820000-0000-0000-0000-000000000006",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000013",
+      "SourceStableId": "30820000-0000-0000-0000-000000000009",
+      "TargetStableId": "30820000-0000-0000-0000-000000000007",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000014",
+      "SourceStableId": "30820000-0000-0000-0000-000000000009",
+      "TargetStableId": "30820000-0000-0000-0000-000000000008",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000015",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000a",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Arrived",
+        "ExpressionTargetField": "advance",
+        "WorkingStateTargetField": "advanceWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.AdvanceState"
+      },
+      "Priority": 1,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": "D1 — the HSM's finish: this advance arrived (an HSM activity's Success is discarded)."
+    }
+  ],
+  "GlobalTransitions": [],
+  "Events": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "CombatPostureHsm_Blackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "choose",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.ChooseOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Decision\":\"3c6f9e42-5d10-6f3a-ac23-posture0000001\"}",
+        "Comment": "The posture decision (CombatPostureDecision)."
+      },
+      {
+        "Name": "choice",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.UtilityChoice",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "The current winner — written by ChooseOption, read by every branch guard.",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "isAdvance",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":1}",
+        "Comment": "AdvanceAndAttack = option 1."
+      },
+      {
+        "Name": "isCover",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":2}",
+        "Comment": "TakeCover = option 2."
+      },
+      {
+        "Name": "isSuppress",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":3}",
+        "Comment": "Suppress = option 3."
+      },
+      {
+        "Name": "isFallBack",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":4}",
+        "Comment": "Flee (fall back) = option 4."
+      },
+      {
+        "Name": "isHold",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":5}",
+        "Comment": "Hold = option 5 (a real option here: the HSM must transition back to it)."
+      },
+      {
+        "Name": "sensors",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "The posture's own cover and retreat queries."
+      },
+      {
+        "Name": "advance",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.AdvanceParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Objective\":[0,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}",
+        "Comment": "The objective (the mission task's goal), speed, arrival radius, fire cooldown."
+      },
+      {
+        "Name": "cover",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "Take-cover tunables (as the TakeCover tree)."
+      },
+      {
+        "Name": "engage",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"CooldownSeconds\":1}",
+        "Comment": "Suppress: seconds between shots."
+      },
+      {
+        "Name": "fallback",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "Fall-back tunables (as the FallBack tree)."
+      },
+      {
+        "Name": "sensorsWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "PostureSensors' working state (its two sensors). (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "advanceWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.AdvanceState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "AdvanceAndAttack's working state — also read by the Arrived guard. (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "coverWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "TakeCover's working state. (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "engageWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "Engage's working state. (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "fallbackWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "FallBack's working state. (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      }
+    ]
+  }
+}

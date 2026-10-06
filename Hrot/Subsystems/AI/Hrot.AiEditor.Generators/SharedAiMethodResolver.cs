@@ -16,6 +16,9 @@ internal static class SharedAiMethodResolver
     private const string SharedAiActionAttr    = "Fbt.Kernel.SharedAiActionAttribute";
     private const string SharedAiConditionAttr = "Fbt.Kernel.SharedAiConditionAttribute";
     private const string WritesChannelAttr     = "Fbt.Kernel.WritesChannelAttribute";
+    // ⭐ CE-3082 D2 — a [BTreeDeactivator] is callable as an ACTION (an HSM state's OnExit; its void return is a status
+    //   nothing reads, as every HSM action's is).
+    private const string DeactivatorAttr       = "Fbt.BTreeDeactivatorAttribute";
 
     public static Func<string, SharedAiMethodInfo?> Make(Compilation compilation)
     {
@@ -37,7 +40,7 @@ internal static class SharedAiMethodResolver
                         foreach (var a in m.GetAttributes())
                         {
                             string? n = a.AttributeClass?.ToDisplayString();
-                            if (n == SharedAiActionAttr) isAction = true;
+                            if (n == SharedAiActionAttr || n == DeactivatorAttr) isAction = true;
                             else if (n == SharedAiConditionAttr) isCondition = true;
                             else if (n == WritesChannelAttr && a.ConstructorArguments.Length > 0
                                      && a.ConstructorArguments[0].Value is int kind) writes.Add(kind);

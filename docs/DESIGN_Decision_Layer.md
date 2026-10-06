@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: READY-TO-BUILD §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -617,7 +617,7 @@ to ~0.235 with an enemy present (re-pinned in `StarterPackIntegrationTests`, mea
 walking to the objective. Rails: `TacticsTreesTests.CE2105_WithNothingToFight_ThePostureAdvancesToTheObjective_WithoutFiring`,
 `StarterPackIntegrationTests.CombatPosture_NoContacts_SelectsAdvanceAndAttack`.
 
-### 3.3c `CE-3082` (G4) — CombatPostureHsm, the build design *(behaviors, `2026-10-06`; build-state: READY-TO-BUILD)*
+### 3.3c `CE-3082` (G4) — CombatPostureHsm, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
 
 **Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G4 — the SAME decision as §3.3b hosted as an
 HSM, reusing the BTree's option children (ruling 9), and closing **D3** (the HSM switch railed at runtime, not only at compile).
@@ -702,10 +702,24 @@ sequenceDiagram
 | **D4** the rail host is `TacticsTreesTests.World` (production registry, StandardInputs, ingress, BrainTickSystem); the active leaf read through `RootHsmAccess` + `HsmKernel.GetActiveLeafIds` | the BTree posture's own suite (T-1) — the HSM rails sit beside `CE2073_*` | a new harness |
 
 **Acceptance (a rail each, red-proved):** ① registered by name · ② a weak enemy ⇒ the `Advance` leaf, moving to the objective
-firing; arrival ⇒ the run finishes (Final) and its sensors go · ③ ⭐ **D3 closed — the RUNTIME switch both ways:** hurt +
-outnumbered + cover ⇒ `TakeCover`; health restored ⇒ back to `Advance`, and the TakeCover sensor is gone (the deactivator ran on
-exit) · ④ the same winner sequence as the BTree for the same inputs (U3's premise) · ⑤ generator: an HSM activity with a
+firing; arrival ⇒ the run finishes (Final) and its sensors go · ③ ⭐ **D3 closed — the RUNTIME switch both ways:** weak enemy ⇒ `Advance` firing;
+hurt + outnumbered + cover ⇒ `TakeCover`, and the advance's fire stops (its deactivator ran on exit); health restored ⇒ back to
+`Advance` · ④ the same winner sequence as the BTree for the same inputs (U3's premise) · ⑤ generator: an HSM activity with a
 deactivator gets it as OnExit; an authored OnExit is kept; a node without one is untouched (golden byte-identical).
+
+⭐ **AS-BUILT (`2026-10-06`)** — built as drawn; the asset is `Assets/HSMs/CombatPostureHsm.hsm.json` (Name `CombatPostureHsm`,
+order params as the BTree: `{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}`). Differences:
+
+| as built | where | why |
+|---|---|---|
+| `Hold` is a real option here (`isHold`, option 5) with its own incoming transitions; the BTree reaches Hold by falling through | the asset | an HSM leaf is only entered by a transition — without it a unit could never return to Hold |
+| the D2 fill is generator-side only (`HsmJsonGenerator` → `HsmDeactivatorExits.Fill`); the editor's preview emit (no compilation) does not fill | `HsmEmitCore.cs:94` passes no resolver | the same split as the CE-388 `[WritesChannel]` default — only the compilation knows the attribute |
+| the "same decisions" rail reads each host's `St.choice` from its own block (`RootParamsAccess.TryGetBlockFor`) | `TacticsTreesTests.World.Winner` | ⛔ the unit's `UtilityResultBuffer` is NOT the winner record — `TopThreat`'s ranking writes the same buffer (measured: a posture unit's buffer held a ranking entry, option 0) |
+
+Rails: `TacticsTreesTests.CE3082_*` (4: registered · weak enemy ⇒ Advance, arrival ⇒ Final ⇒ finished, sensors gone · ⭐ the
+runtime switch both ways + leaving Advance stops its fire (its deactivator ran) · the BTree and the HSM pick the same winner at every step) ·
+`SharedAiBindingCompilesTests.CE3082_*` (3: deactivator filled as OnExit and compiles · an authored OnExit wins · no deactivator ⇒
+no OnExit). Red-proof: with the fill removed, the generator rail and the switch rail red (the advance keeps firing after TakeCover took over). ⚠ Measured on the way: a TakeCover sensor is NOT evidence of the exit — TakeCover releases its own sensor the tick it loses its threat, before the switch.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
