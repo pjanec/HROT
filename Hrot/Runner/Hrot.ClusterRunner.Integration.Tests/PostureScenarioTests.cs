@@ -500,6 +500,14 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine($"postures: {string.Join(" → ", postures)}");
         _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
         _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
+        var cgfMap = harness.Cgf!.GhostEntityMap;
+        foreach (var n in hostileNames.Prepend("Rifleman"))
+        {
+            var e = ByName(cgf, n);
+            string auth = !e.IsNull && cgf.HasComponent<NetworkAuthority>(e) ? $"{cgf.GetComponent<NetworkAuthority>(e).PrimaryOwnerId}/{cgf.GetComponent<NetworkAuthority>(e).LocalNodeId}" : "none";
+            string mapped = cgfMap != null && cgfMap.TryGetNetworkId(e, out long nid) ? $"net{nid}" : "UNMAPPED";
+            _out.WriteLine($"cgf {n}: e{e.Index} authority(owner/local)={auth} hasAuthority={Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, e)} map={mapped}");
+        }
         foreach (var g in bullets.GroupBy(kv => (kv.Key.Item1, kv.Value.Shooter)))
             _out.WriteLine($"shots[{g.Key.Item1}] {g.Key.Shooter}: {g.Count()} — " +
                 string.Join(" ", g.Select(kv => $"f{kv.Value.Frame}:{kv.Value.Spawn.X:F0},{kv.Value.Spawn.Y:F0},{kv.Value.Spawn.Z:F1}→{kv.Value.Last.X:F0},{kv.Value.Last.Y:F0},{kv.Value.Last.Z:F1}")));
