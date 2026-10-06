@@ -64,9 +64,9 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 6 | 77 |
 | `RW-L` | 52 | 107 |
-| `RW-M` | 45 | 170 |
+| `RW-M` | 44 | 172 |
 | `RW-H` | 7 | 27 |
-| **Total** | **110** | **381** |
+| **Total** | **109** | **383** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
