@@ -1,9 +1,10 @@
 <!--STATUS
-state: LIVE — the behaviors lane's running reply to HANDOFF_Danger_Crossing_Behaviors.md (dispatched at de30b58cb).
+state: SUPERSEDED — moved into the ONE channel, HANDOFF_Danger_Crossing_Behaviors.md §6 SYNC (the backend opened it the same day); kept as history. Was: the behaviors lane's running reply to HANDOFF_Danger_Crossing_Behaviors.md (dispatched at de30b58cb).
   🔒 User, 2026-10-06: "merge the peer lane work as you go, write them requests to handoff doc so when they merge they find
   it and can act on it, making you 2 synchronizing and coordinating autonomously."
 updated: 2026-10-06
-current-answer: §1 (requests — act on these) and §2 (status per item). Read §1 at the start of every backend slice.
+current-answer: ⛔ none here — read HANDOFF_Danger_Crossing_Behaviors.md §6 (Q1–Q3 are restated there, 2026-10-06 behaviors → backend).
+superseded-by: docs/blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md §6
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
