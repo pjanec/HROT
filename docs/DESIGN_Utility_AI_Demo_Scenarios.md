@@ -966,3 +966,126 @@ Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 
 | ⭐ **B7 — the blueprint variant** `ua-danger-crossing-bp` | the same file, the rifleman's task `DangerCrossingBp` (H7) with `{"Objective":[285,220,0]}` — **PASS live** (hold at (239.7, 187.8) ≥ 10 s, sim 246 s) and **PASS in-process** (the rail is a theory over both names, 4 m 28 s). ⇒ ⭐ CE-3078's acceptance (*"the blueprint form of `ua-danger-crossing`"*) is met: the per-kind nodes `SpawnSensor` / `When SensorResult` / `ReadSensorResult` drive the danger sensor end to end across hosts |
 | ⭐ Q4 (behaviors H6) — the area answer's TIME | `DangerAreaCognitiveBuffer.LastUpdateTimeSeconds` added (588 B; stamped from `view.Time` by `DangerAreaSensorSystem.Apply` / `DangerAreaRefreshSystem`, cleared with the answer on a route change) ⇒ `BecomesStale` is decidable on the area family too; `SensorKindInfo`'s contract is FIVE members now (Sensors §7.10). The shipped `DangerCrossingBp` decls re-baked (`HasAnswerTime: true`; persistence-shape golden: that one line) |
 
+
+## 11. G8 + G3 — fire distribution runs, and the squad becomes readable *(`2026-10-06`, `CE-3088` + `CE-3087`; `build-state: READY-TO-BUILD` — the programme and the item are approved, R-209 Q6; this is the build design)*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` + grep + a read-only corpus sweep, `2026-10-06`; ⚠ `check_index_coverage`
+is not reachable through the CLI, so absence claims below are grep-corroborated)*: `search_graph name_pattern=".*ThreatMatrix.*"`
+→ **1** class `ThreatMatrixAssignmentSystem` (`Utility/Group/ThreatMatrixAssignmentSystem.cs:22-132`, a plain `Run(repo, leader)`
+library call, **no caller**) · `".*Assignment.*" label=Class` → 14, of which the squad ones are `AssignmentSlot` /
+`AssignmentSlotArray` (`ThreatMatrixAssignmentState.cs`), `LeaderAssignmentDecision`, `SquadAssignmentOverlaySource` (reads the
+roster, not the slots) · the merged pool `SquadCognitiveState.Contacts` (`SquadContactPool`, 16 × `SquadContact{EntityId = packed
+handle, …, Flags 0x8000 = heard}`, written by `SquadPerceptionMergeSystem.Run` — subordinates only, `:47-95`) · the reader of an
+assignment `StandardInputs.IsAssignedTarget` (`:290-306`) in `ThreatRankingDecision` (0.9, Threshold) → `EqsTacticsNodes.TopThreat`
+→ `PostureNodes.Fire` · the frame driver `SquadCoordinationSystem` (`CgfLogicPack.cs:199`, `gateOnAuthority: true` from
+`CgfSubsystem.cs:960`).
+
+**Design basis.** [`Utility_AI_Design_v1_1.md`](designs/utility-ai/Utility_AI_Design_v1_1.md) §10 (LIVE) owns the assignment:
+leader writes `SquadCognitiveState.Assignment`, a member reads its slot (§10.1), "leader proposes, member vetoes" (§10.3), "a
+consideration, not an order" (§10.4) — ⚠ its §10.2 sources targets from "the commander's perceived `TargetMemory`", which
+[`Squad_Coordination_Design_v1_1.md`](designs/group-maneuvers/Squad_Coordination_Design_v1_1.md) §4 overrides: the merged pool is
+"what the leader's **fire and role allocation read**". [`DESIGN_Squad_Wiring.md`](designs/group-maneuvers/DESIGN_Squad_Wiring.md)
+§5 D3 is about `CommanderUtilityTickSystem` ONLY — ⇒ the threat matrix was never wired for no recorded reason
+(`DESIGN_Decision_Layer.md:73` attributes it to D3 — a misattribution, corrected there).
+
+```mermaid
+classDiagram
+  class SquadCoordinationSystem {
+    <<existing — CgfLogicPack, Simulation>>
+    -bool _gateOnAuthority
+    -ThreatMatrixAssignmentSystem? _fire  NEW
+    +SquadCoordinationSystem(bool gateOnAuthority, ThreatMatrixAssignmentSystem? fire = null)  CHANGED
+    +Execute(view, dt)
+  }
+  class SquadPerceptionMergeSystem {
+    <<existing, static>>
+    +Run(repo, commander, tick, interval) bool merged  CHANGED: returns whether it merged
+  }
+  class ThreatMatrixAssignmentSystem {
+    <<existing, never called>>
+    +Run(repo, leader)  CHANGED: targets = pool ∪ leader memory
+  }
+  class SquadTargetSet {
+    <<NEW, stack-only ref struct>>
+    +Fill(in SquadContactPool, in TargetMemory?) int count
+    +Handle(i) long
+  }
+  class SquadCognitiveState {
+    <<existing, 1024 B, on the leader>>
+    +AssignmentSlotArray Assignment
+    +SquadContactPool Contacts
+  }
+  class StandardInputs_IsAssignedTarget {
+    <<existing reader, member side>>
+  }
+  class DebugApiService_Squad {
+    <<NEW — GET entities/id/squad, G3>>
+  }
+  SquadCoordinationSystem --> SquadPerceptionMergeSystem : 1 merge per commander
+  SquadCoordinationSystem --> ThreatMatrixAssignmentSystem : when the merge ran
+  ThreatMatrixAssignmentSystem --> SquadTargetSet : builds the target list
+  ThreatMatrixAssignmentSystem --> SquadCognitiveState : writes Assignment
+  SquadPerceptionMergeSystem --> SquadCognitiveState : writes Contacts
+  StandardInputs_IsAssignedTarget ..> SquadCognitiveState : reads its slot
+  DebugApiService_Squad ..> SquadCognitiveState : reads roster, pool, slots
+```
+
+*What the picture shows that prose hid: the whole capability already exists on both ends — the writer (`ThreatMatrixAssignment`)
+and the member's reader (`IsAssignedTarget` in ThreatRanking) — and the gap is ONE edge (the driver's call) plus ONE input
+(the pool); nothing new on the member side.*
+
+```mermaid
+sequenceDiagram
+  participant K as CGF kernel (Simulation)
+  participant SC as SquadCoordinationSystem
+  participant M as SquadPerceptionMerge
+  participant T as ThreatMatrixAssignment
+  participant L as leader SquadCognitiveState
+  participant B as member brain (CombatPosture)
+  K->>SC: Execute (every frame)
+  loop each owned commander
+    SC->>M: Run(commander, tick, 6)
+    M-->>SC: merged? (cadence ≈ 10 Hz or a member's memory changed)
+    alt merged this tick
+      SC->>T: Run(commander)
+      T->>L: clear slots · score member×target (LeaderAssignment) · greedy, ≤ 2 per target
+    end
+  end
+  B->>L: IsAssignedTarget(own slot) in ThreatRanking → TopThreat → Fire
+```
+
+*What the picture shows: the assignment is recomputed only when the pool changed, so the 16 × 16 scorer pass runs at the merge's
+cadence, not per frame — and the member's side is unchanged.*
+
+```mermaid
+graph TD
+  CLP["CgfLogicPack (every Brain host)"] -->|"constructs + passes ThreatMatrixAssignmentSystem(LeaderAssignment)"| SCS["SquadCoordinationSystem"]
+  CS["CgfSubsystem"] -->|"gateOnAuthority: true"| CLP
+  KER["CGF kernel, Simulation phase"] -->|"ticks every frame"| SCS
+  SCS --> MERGE["SquadPerceptionMerge"]
+  SCS --> TMA["ThreatMatrixAssignment (NEW edge)"]
+  BTS["BrainTickSystem"] --> CP["member CombatPosture → TopThreat"]
+  CUT["CommanderUtilityTickSystem"]
+  SIM["SimHost / Stride"] -.->|"never registers the pack"| SCS
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+  class CUT dead
+```
+
+*What the picture shows: only a Brain host (CGF) runs the squad layer, gated to commanders it owns — so the assignment is
+computed once per squad in a cluster; `CommanderUtilityTickSystem` stays unwired (U7, CE-507 D3).*
+
+| decision | ⭐ lean (why) | rejected |
+|---|---|---|
+| **D1** targets | the merged pool's IDENTIFIED contacts **∪** the leader's own identified memory, deduplicated, ≤ 16 — the pool is F4's fix (Squad Coordination §4) and the merge walks **subordinates only** (`SquadPerceptionMergeSystem.cs:47-95`), so a leader that sees an enemy itself must still count it | pool only — loses the leader's own sightings · memory only — F4 |
+| **D2** cadence | run when the merge ran this tick (`Run` returns it) | every frame — 16 × 16 `UtilityScorer.Evaluate` per squad per frame for an answer that changes at ≤ 10 Hz |
+| **D3** wiring | `SquadCoordinationSystem` takes the assignment system as a constructor dependency; `CgfLogicPack` passes it (the pack already registers the decisions, `:197`) | constructing it inside the driver — hides the decision id; ⚠ an optional dependency the production caller must PASS (CLAUDE.md "silent default") ⇒ a rail on the CONSTRUCTED pack |
+| **D4** the veto | unchanged — the member's CombatPosture picks Flee when hurt (§10.3 as built, `StarterPackIntegrationTests.Wounded_Member_Vetoes_…`) | a health term in `LeaderAssignmentDecision` — §10.4: the assignment is a consideration, the member decides |
+| **D5** G3 route | `GET /entities/{id}/squad` on a commander: roster (member networkId, name, assigned target networkId/name, score, focus count) + the merged pool (networkId or "heard", threat, sources) + `lastMergeTick`; on a member: its commander's id and its own slot | maneuver / danger areas in the same route now — U7 reads them, and their writers are not wired (CE-507); add the fields when they are |
+| ⚠ known deviation, NOT fixed here | `GreedyMatrixAssigner` walks members in roster order, not "sort pairs by score" (§10.2) — U6's acceptance (spread, ≤ 2 per target) holds either way | — |
+
+**Acceptance (rails first):** ① the driver calls the assignment after a merge — a 4-member squad seeing 3 targets gets every
+member a slot, no target more than 2 (`SquadCoordinationSystemTests`) · ② a target seen only by a member (not the leader) is
+assignable (F4) · ③ the zero-alloc rail stays green · ④ `CgfLogicPack` constructs the driver WITH the assignment system · ⑤ the
+`/squad` route lists members with their targets (+ RouteDoc / MCP catalog) · ⑥ U6 `ua-fire-distribution` on `basic-desert`:
+live check + in-process twin — targets spread, ≤ 2 per target, each member SPENDS rounds, a member set to 10 HP takes a defensive
+posture.
