@@ -295,6 +295,17 @@ public sealed class CanvasRenderer
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.NotAllowed);
         }
+        // CE-1004 (R1): resize cursors over a band divider / the container grip, and while dragging one.
+        else if (view.Interaction.ContainerResize is { } resize)
+        {
+            ImGui.SetMouseCursor(ResizeCursor(view, resize.Container, resize.RegionIndex));
+        }
+        else if (view.Interaction.Hover is { Kind: HoverKind.Container } ch
+                 && ch.ContainerZone is ContainerHoverZone.RegionDivider or ContainerHoverZone.ResizeEdge)
+        {
+            ImGui.SetMouseCursor(ResizeCursor(view, ch.Node,
+                ch.ContainerZone == ContainerHoverZone.RegionDivider ? ch.ContainerRegionIndex : -1));
+        }
 
         // 8c. Hover tooltip: show the model-supplied tooltip for the hovered node/pin.
         DrawHoverTooltip(view);
@@ -526,6 +537,16 @@ public sealed class CanvasRenderer
     /// renderer stays case-agnostic — the host injects the actual text via its model projection.
     /// Suppressed while interacting (wiring, marquee, picker) so it never fights an active gesture.
     /// </summary>
+    // CE-1004: a band divider moves along the container's stack axis; the grip moves both edges.
+    private static ImGuiMouseCursor ResizeCursor(GraphView view, NodeId container, int regionIndex)
+    {
+        if (regionIndex < 0) return ImGuiMouseCursor.ResizeNWSE;
+        return view.Model.FindNode(container) is IContainerNodeModel c
+               && c.RegionOrientation == RegionLayoutOrientation.HorizontalStack
+            ? ImGuiMouseCursor.ResizeEW
+            : ImGuiMouseCursor.ResizeNS;
+    }
+
     private void DrawHoverTooltip(GraphView view)
     {
         if (view.Interaction.Mode != InteractionMode.Idle) { _tooltipKey = null; return; }

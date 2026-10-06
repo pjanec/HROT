@@ -1188,7 +1188,7 @@ public sealed class StateNode : IContainerNodeModel
             if (!IsParallel || RegionNodes.Count == 0)
                 return Array.Empty<RegionDescriptor>();
             return RegionNodes
-                .Select(r => new RegionDescriptor(r.RegionIndex, r.Name, r.Priority, null))
+                .Select(r => new RegionDescriptor(r.RegionIndex, r.Name, r.Priority, null, r.PreferredSize))
                 .ToList();
         }
     }
@@ -1292,6 +1292,8 @@ public sealed class RegionNode
     public string Name;
     public byte Priority;
     public StateNode? InitialChild;
+    // CE-1004 (R1): editor-only band size along the stack axis (graph units); null = content-sized.
+    public float? PreferredSize;
 
     // Editor-only
     public string? Comment;

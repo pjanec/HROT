@@ -140,4 +140,40 @@ public sealed class RegionLayoutComputerTests
         // interior Y starts at outline + headerHt
         result[0].Min.Y.Should().BeApproximately(OutlinePx + HeaderHt, precision: 0.01f);
     }
+
+    // ── CE-1004 (A + R1): one band-size function; author-set band sizes ──────
+
+    [Fact]
+    public void CE1004_APreferredSize_SetsTheBand_AndTheFloorStillHolds()
+    {
+        var container = new StubContainer([new RegionDescriptor(0, "A", 0, null, PreferredSize: 140f),
+                                           new RegionDescriptor(1, "B", 0, null, PreferredSize: 10f),
+                                           Reg(2, "C")]);
+        var sizes = RegionLayoutComputer.ComputeRegionSizes(container, null!, _ => null);
+        sizes.Should().Equal(140f, RegionLayoutComputer.MinRegionSize, RegionLayoutComputer.MinRegionSize);
+        RegionLayoutComputer.RegionOffset(sizes, 2).Should().Be(140f + RegionLayoutComputer.MinRegionSize);
+    }
+
+    [Fact]
+    public void CE1004_ALivePreview_WinsOverTheStoredSize()
+    {
+        var container = new StubContainer([new RegionDescriptor(0, "A", 0, null, PreferredSize: 140f), Reg(1, "B")]);
+        var sizes = RegionLayoutComputer.ComputeRegionSizes(container, null!, _ => null,
+            preferredOverride: i => i == 0 ? 90f : null);
+        sizes[0].Should().Be(90f);
+    }
+
+    [Fact]
+    public void CE1004_SpareSpace_GoesToTheLastBand_SoEarlierBandsStartWhereTheirChildrenAre()
+    {
+        // Equal sharing moved every divider away from the children it bounds; the child offset sums the bands
+        // BEFORE a band, so only the LAST band may absorb the slack.
+        var container = new StubContainer([new RegionDescriptor(0, "A", 0, null, PreferredSize: 100f), Reg(1, "B")]);
+        var tall = new RectF(Vector2.Zero, new Vector2(200f, 400f));
+        var strips = RegionLayoutComputer.Compute(container, tall, HeaderHt, OutlinePx);
+
+        strips[0].Size.Y.Should().BeApproximately(100f, 0.01f);
+        strips[1].Size.Y.Should().BeGreaterThan(100f);
+        strips[1].Min.Y.Should().BeApproximately(strips[0].Min.Y + 100f, 0.01f);
+    }
 }

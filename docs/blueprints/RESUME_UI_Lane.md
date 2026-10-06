@@ -4,7 +4,7 @@ updated: 2026-10-06
 current-answer: ⭐⭐⭐ SESSION 2026-10-06 — HSM GRAPH UX, BUILT on `ui` (commits 976c1305e, d47a018a9, 2662df6ae):
   S1-S3 canvas (CE-1000/1001/1002: border-to-border arcs, border/Shift drag, "Add Transition", state picker on
   empty drop, unique names, canvas rename, ScopedPickerRegistry per document) · Q84 A0+B regions/initial (CE-1003)
-  · Q84 C1/D1 history on the composite · BP-93 save-only. OPEN: CE-1004 (region bands auto-size — needs a design),
+  · Q84 C1/D1 history on the composite · BP-93 save-only · CE-1004 band/container sizing (DESIGN_Hsm_Canvas_Authoring §11a: one band-size function, drop never moves the container unless growing up/left, divider + corner-grip author sizes). OPEN:
   CE-1005 (kernel: entering a parallel state starts one region), dragging the start marker (S4 drag; menu item
   built), HSM-007/008/009(create/delete events)/011/012/017. ⚠ Windows visual check of the canvas owed.
   Next ui id: CE-1006.

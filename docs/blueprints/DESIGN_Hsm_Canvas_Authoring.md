@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: BUILT (S1-S3, 2026-10-06 — §8a) · S4 waits on Q84 · revised 2026-10-06 (D4/D6 consistency, D8 withdrawn)
+build-state: BUILT (S1-S3, 2026-10-06 — §8a; CE-1004 — §11a) · S4 waits on Q84 · revised 2026-10-06 (D4/D6 consistency, D8 withdrawn)
 current-answer: §2 decisions, §3-§5 diagrams, §8 slices, §8a AS-BUILT (S1-S3 built 2026-10-06).
 stale-below: nothing
 known-rot: none yet
@@ -15,7 +15,8 @@ related-designs:
     region IS, and how history is modelled. S4 (drag the initial marker) waits on it.
   - NodeEditor_Extension_CustomCanvasRenderer.md — owns the custom-renderer seam; this doc adds ONE accessor to it
     (TryGetLinkScreenPath, §3).
-  - NodeEditor_Extension_ContainerNodes.md — owns composite/container layout and drop-into-container; unchanged here.
+  - NodeEditor_Extension_ContainerNodes.md — owns composite/container layout and drop-into-container; §11 (CE-1004)
+    supersedes its §5.3 (no manual size), §5.4 as-built drop shift, §13.2 (divider drag deferred) — marked there.
   - Hsm_Issues_Tracker.md — the HSM-0xx rows this design closes or depends on (§9).
 -->
 
@@ -295,3 +296,81 @@ current tangents, which move into `LinkPathBuilder.PinWire` unchanged).
 | `NodeEditor_Extension_CustomCanvasRenderer.md` | **applies** — exposes node rects and pin points only; §3 adds the link-path accessor |
 | `NodeEditor_Extension_ContainerNodes.md` | **does not change** — drop-into-container and region layout are reused as is |
 | `docs/projects/Hrot/AI/Hrot.Hsm.Editor.md` (lists `HsmTransitionSnapHelper`) | **inventory only**, no intent beyond "snap while dragging" — D9 keeps that behaviour via the hit-tester |
+
+## 11. CE-1004 — region and container sizing *(designed `2026-10-06`, user-approved A + C + R1)*
+
+> 🔒 **User:** *"regions are auto-sizing which makes the control where the sub-SM nodes are placed within the region
+> pretty difficult"* · approval: *"If it still be possible to drop a node outside of lane to disconnect it from the
+> lane, then go with A + C + R1"* — ✅ it is: the drop target is the container under the CURSOR
+> (`CanvasInput.UpdateContainerDropTarget`), unaffected by A/C/R1; a rail pins it.
+
+**Measured causes:** ① every drop shifts the children so the top-left one is at 0 and MOVES THE CONTAINER by that
+amount (`CommitNodeDrop` "shift" block) — contrary to `NodeEditor_Extension_ContainerNodes.md` §5.4 *"The canvas
+doesn't auto-translate containers"*; ② a band's size is its content's extent (no author control — divider drag was
+"deferred to Slice 2+", §13.2); ③ the band geometry is computed in FOUR places that disagree (spare space, default vs
+measured child sizes).
+
+| # | decision | rejected |
+|---|---|---|
+| **A** | ⭐ ONE band-size function, `RegionLayoutComputer.ComputeRegionSizes`, used by the band drawing, the child offset, the drop and the container bounds. Spare space goes to the LAST band, so a band's start depends only on the bands before it | keep four copies — they drift |
+| **C** | ⭐ the drop shift happens only when a child would sit ABOVE or LEFT of the interior (the container grows that way, children keep their canvas place); never to remove space the author left. A child dropped above a later band's start is clamped to that band | design §5.4 literally (never translate; grow right only) — a child dropped above would sit outside the box |
+| **R1** | ⭐ author sizes: a band's size = max(its **preferred size**, its content, 60); drag the divider between bands to set the upper band's preferred size; drag the container's **bottom-right corner grip** to set its **preferred outer size** *(as-built: the grip only — the right/bottom border band already starts a transition, §2 D2)* (= `INodeModel.SizeOverride`, already persisted for HSM states and ignored for containers until now). Two new generic commands, undoable | fixed equal bands — content overflows |
+
+```mermaid
+classDiagram
+    direction LR
+    class RegionDescriptor { <<record, Core>> +float? PreferredSize NEW }
+    class RegionLayoutComputer {
+        <<static, Core>>
+        +ComputeRegionSizes(container, childSize) float[] NEW
+        +Compute(...) RegionStrip[]  uses sizes
+    }
+    class ContainerBoundsComputer { <<static, Core>> sum of sizes, max with SizeOverride }
+    class CanvasLayout { <<UI>> child offset = sum of earlier sizes }
+    class CanvasInput { <<UI>> drop offset + shift only when negative; divider and edge drags NEW }
+    class HitTester { <<UI>> ContainerHoverZone.RegionDivider / ResizeEdge(corner) NEW }
+    class GraphView { <<Core>> NodeCanvasPosition band offset  uses sizes }
+    class GraphCommand {
+        +SetRegionPreferredSize(container, index, size?) NEW
+        +SetContainerSize(container, size?) NEW
+    }
+    class HsmCommandSink { <<HSM>> applies both }
+    class RegionNode { <<HSM>> +float? PreferredSize NEW, persisted }
+    RegionLayoutComputer <.. ContainerBoundsComputer
+    RegionLayoutComputer <.. CanvasLayout
+    RegionLayoutComputer <.. CanvasInput
+    RegionLayoutComputer <.. GraphView
+    CanvasInput ..> GraphCommand
+    HsmCommandSink ..> RegionNode
+```
+*What it shows:* one producer of band geometry with five readers (as-built: `GraphView.NodeCanvasPosition` was a FIFTH
+copy, found while building), and the two new commands as the only new write path.
+
+```mermaid
+sequenceDiagram
+    actor U as Author
+    participant H as HitTester
+    participant I as CanvasInput
+    participant S as HsmCommandSink
+    U->>H: hover the line between band 0 and band 1
+    H-->>I: Container zone RegionDivider(0)
+    U->>I: drag down 40 px
+    I->>I: live override, band 0 = max(content, start + drag)
+    U->>I: release
+    I->>S: SetRegionPreferredSize(P, 0, new) / inverse old
+    S->>S: RegionNode[0].PreferredSize = new
+```
+
+### 11a. AS-BUILT *(2026-10-06)*
+
+| item | as built | deviation from §11 |
+|---|---|---|
+| A | `RegionLayoutComputer.ComputeRegionSizes` + `RegionOffset`; read by `ContainerBoundsComputer`, `CanvasLayout` (offset + bounds), `CanvasInput.CommitNodeDrop` (measured sizes from the spatial index, dragged nodes skipped), `HitTester` (dividers), `ContainerRenderer`, **`GraphView.NodeCanvasPosition`** | ⚠ the 5th copy (`GraphView`, Core) has no measured sizes, so it counts a child as `SizeOverride ?? 160×64`; the canvas uses measured sizes. Same as before for that copy — now at least it honours preferred sizes |
+| C | `shift = min(0, shift)` per axis; children of a later band take only the cross-axis shift; a drop above a later band's start clamps to that band | none |
+| R1 | divider: `HitTester` ±4 px on the line between bands → `ResizingContainer` mode → live preview (`InteractionState.RegionSizePreview`) → release commits `SetRegionPreferredSize` (inverse = old value, label *Resize Region*). Grip: 12 px corner → `SetContainerSize` (*Resize Container*). Cursors NS/EW/NWSE; hovered handle drawn in the accent colour | **corner grip only**, no edge drag (see the table above). The debug API (`GraphCommandJson`) also accepts both commands |
+| HSM | `RegionNode.PreferredSize` → `RegionDescriptor`; `RegionNodeDto.PreferredSize` written only when set (existing files do not move); `HsmCommandSink` applies both commands (`SetContainerSize` → `StateNode.SizeOverride`, already persisted) | ⚠ `HsmAutoLayout` sets `SizeOverride = 400×200` on composites it lays out — that is now a minimum size for them (it was ignored for containers before). Intended size, so kept |
+| detach | dropping a state where no container is under the cursor still reparents it to the root | none — pinned by `ContainerDragTests.CE1004_DroppingAChildOutsideItsContainer_StillDetachesIt` |
+
+Rails: `ContainerDragTests` (C, grow-up, detach, divider + grip commit/undo) · `RegionLayoutComputerTests` (preferred,
+preview, spare-to-last) · `ContainerBoundsTests` (minimum size) · `HsmCommandSinkRegionTests` (sink + file round trip).
+

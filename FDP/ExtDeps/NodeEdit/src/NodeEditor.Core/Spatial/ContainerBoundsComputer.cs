@@ -25,12 +25,16 @@ public static class ContainerBoundsComputer
     /// For nested containers, the child's own size should already be computed before calling this.
     /// </param>
     /// <param name="headerHeight">Header height in graph units (from IEditorTheme.NodeHeaderHeight).</param>
+    /// <param name="regionPreferredOverride">CE-1004: a live band size per region (divider drag preview), or null.</param>
+    /// <param name="sizeOverride">CE-1004: a live outer size (grip drag preview); else <see cref="INodeModel.SizeOverride"/> is the minimum.</param>
     /// <returns>The outer size (width, height) of the container in graph units.</returns>
     public static Vector2 ComputeOuterSize(
         IContainerNodeModel container,
         IGraphModel model,
         Func<NodeId, Vector2?> getChildGraphSize,
-        float headerHeight)
+        float headerHeight,
+        Func<int, float?>? regionPreferredOverride = null,
+        Vector2? sizeOverride = null)
     {
         float maxX = container.MinimumInteriorSize.X;
         float maxY = container.MinimumInteriorSize.Y;
@@ -38,30 +42,17 @@ public static class ContainerBoundsComputer
         if (container.Regions.Count > 0)
         {
             bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
-            float[] regionSizes = new float[container.Regions.Count];
-            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
+            // ⭐ CE-1004 (A): the ONE band-size function — the same numbers the band drawing and child offsets use.
+            float[] regionSizes = Layout.RegionLayoutComputer.ComputeRegionSizes(
+                container, model, getChildGraphSize, preferredOverride: regionPreferredOverride);
 
             foreach (var childId in container.ChildNodeIds)
             {
                 var childNode = model.FindNode(childId);
                 var childSize = getChildGraphSize(childId);
                 if (childNode == null || !childSize.HasValue) continue;
-
-                int rIdx = container.GetRegionIndexForChild(childId);
-                if (isHorizontal)
-                {
-                    float extentY = childNode.Position.Y + childSize.Value.Y;
-                    maxY = Math.Max(maxY, extentY);
-                    if (rIdx >= 0 && rIdx < regionSizes.Length)
-                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.X + childSize.Value.X);
-                }
-                else
-                {
-                    float extentX = childNode.Position.X + childSize.Value.X;
-                    maxX = Math.Max(maxX, extentX);
-                    if (rIdx >= 0 && rIdx < regionSizes.Length)
-                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.Y + childSize.Value.Y);
-                }
+                if (isHorizontal) maxY = Math.Max(maxY, childNode.Position.Y + childSize.Value.Y);
+                else              maxX = Math.Max(maxX, childNode.Position.X + childSize.Value.X);
             }
 
             float totalRegionSize = 0f;
@@ -86,6 +77,15 @@ public static class ContainerBoundsComputer
 
         float outerWidth  = maxX + container.Padding.Left + container.Padding.Right  + 2f * OutlineWidth;
         float outerHeight = headerHeight + maxY + container.Padding.Top + container.Padding.Bottom + 2f * OutlineWidth;
+
+        // ⭐ CE-1004 (R1): the author-set outer size (INodeModel.SizeOverride, or a live edge drag) is a MINIMUM —
+        //    a container is never smaller than what it holds.
+        var preferred = sizeOverride ?? container.SizeOverride;
+        if (preferred is { } p)
+        {
+            outerWidth  = Math.Max(outerWidth,  p.X);
+            outerHeight = Math.Max(outerHeight, p.Y);
+        }
         return new Vector2(outerWidth, outerHeight);
     }
 }

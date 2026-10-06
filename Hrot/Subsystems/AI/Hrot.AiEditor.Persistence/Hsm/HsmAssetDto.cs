@@ -152,6 +152,9 @@ public sealed class RegionNodeDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Guid? OwnerStableId { get; set; }
+    /// <summary>CE-1004 (R1): the author-set band size along the parallel state's stack axis (graph units); null = content-sized.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? PreferredSize { get; set; }
     public string? Comment { get; set; }
     public string? ColorOverride { get; set; }
 }

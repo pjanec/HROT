@@ -3,6 +3,7 @@ using ImGuiNET;
 using NodeEditor.Core;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -306,7 +307,10 @@ internal sealed class CanvasLayoutBuilder
             container,
             view.Model,
             id => layout.NodeGraphSizes.TryGetValue(id, out var s) ? s : (Vector2?)null,
-            headerHt);
+            headerHt,
+            // ⭐ CE-1004: a divider / corner drag in progress shows live.
+            regionPreferredOverride: i => view.Interaction.RegionSizePreview(container.Id, i),
+            sizeOverride: view.Interaction.ContainerSizePreview(container.Id));
 
         layout.NodeGraphSizes[container.Id] = outerSize;
     }
@@ -341,32 +345,17 @@ internal sealed class CanvasLayoutBuilder
             int rIdx = container.GetRegionIndexForChild(id);
             if (rIdx > 0)
             {
-                bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
-                float[] regionSizes = new float[container.Regions.Count];
-                for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
-
-                foreach (var childId in container.ChildNodeIds)
-                {
-                    var childNode = view.Model.FindNode(childId);
-                    if (childNode == null) continue;
-                    int cRIdx = container.GetRegionIndexForChild(childId);
-                    if (cRIdx >= 0 && cRIdx < regionSizes.Length)
-                    {
-                        var size = layout.NodeGraphSizes.TryGetValue(childId, out var s)
-                            ? s
-                            : (childNode.SizeOverride ?? new Vector2(160, 64));
-                        if (isHorizontal)
-                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.X + size.X);
-                        else
-                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.Y + size.Y);
-                    }
-                }
-
-                for (int i = 0; i < rIdx; i++)
-                {
-                    if (isHorizontal) regionOffsetX += regionSizes[i];
-                    else regionOffsetY += regionSizes[i];
-                }
+                // ⭐ CE-1004 (A): the band start comes from THE band-size function — the same numbers the dividers
+                //    are drawn from and the drop uses.
+                var sizes = RegionLayoutComputer.ComputeRegionSizes(
+                    container, view.Model,
+                    cid => layout.NodeGraphSizes.TryGetValue(cid, out var s)
+                        ? s
+                        : (view.Model.FindNode(cid)?.SizeOverride ?? new Vector2(160, 64)),
+                    preferredOverride: i => view.Interaction.RegionSizePreview(container.Id, i));
+                float offset = RegionLayoutComputer.RegionOffset(sizes, rIdx);
+                if (container.RegionOrientation == RegionLayoutOrientation.HorizontalStack) regionOffsetX = offset;
+                else regionOffsetY = offset;
             }
         }
 

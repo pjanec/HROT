@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06 (STATUS block added; body unchanged)
-current-answer: the body
+updated: 2026-10-06 (CE-1004 supersessions marked in §5.3, §5.4, §13.2)
+current-answer: the body, EXCEPT the three CE-1004 notes (§5.3 manual size, §5.4 drop shift, §13.2 divider drag)
+known-rot: §5.3 "no manual resize" and §13.2 "divider drag deferred" — SUPERSEDED 2026-10-06 by
+  DESIGN_Hsm_Canvas_Authoring.md §11 (corner grip + divider drag, both as MINIMUM sizes over the content).
 related-designs:
+  - DESIGN_Hsm_Canvas_Authoring.md §11 (CE-1004) — owns band sizing (one ComputeRegionSizes), the drop shift rule, and author-set band / container sizes
   - DESIGN_Hsm_Canvas_Authoring.md — draws HSM transitions border-to-border over container bodies and reuses drop-into-container unchanged; Q84 proposes that an HSM parallel 'region' be one child state (region count = child count)
 -->
 # NodeEditor — Container Nodes extension
@@ -283,6 +286,10 @@ The container auto-resizes whenever:
 - A child's bounds change (the child itself was resized or had attachments added/removed).
 - The container's padding or minimum-interior-size changes.
 
+> ⛔ **SUPERSEDED `2026-10-06` (CE-1004)** — see [`DESIGN_Hsm_Canvas_Authoring.md` §11](DESIGN_Hsm_Canvas_Authoring.md):
+> a container now has a bottom-right **corner grip**; the size it sets (`INodeModel.SizeOverride`) is a **minimum** —
+> the container still always encloses its children, which keeps this section's rationale intact. Text below is history.
+
 Auto-resize is the *only* way a container's size changes in v1. The user does not manually resize a container by drag (no resize handles on the corners). The container's size is a pure function of its contents.
 
 This is opinionated. It diverges from comments (NodeEdit §22, which are user-resizable). The rationale: containers in HSM are *structural*; their size is data-derived. A user-resized container that doesn't enclose its children would be a UI bug, and constantly fighting the user's manual sizing against auto-fit produces a worse experience than just doing the right thing automatically. Hosts that want a different behavior (Blueprint composite-nodes might want manual size) can request a future `AllowManualResize` toggle; deferred to Slice 2+.
@@ -292,6 +299,11 @@ This is opinionated. It diverges from comments (NodeEdit §22, which are user-re
 When a child moves to a position that would exceed the container's interior (positive or negative), the container's bounds grow to fit. The container's *position* (its origin in its own parent's space) does NOT move — only its size changes. If a child drags toward negative X, the container's width grows by the same amount and the container's right edge extends; the container's left edge stays put.
 
 If the user wants the container to "slide" to follow a child to negative space, that's done by selecting and dragging the container itself. The canvas doesn't auto-translate containers.
+
+> ⚠ **As-built note `2026-10-06` (CE-1004):** the implementation did translate the container on EVERY drop (to put the
+> top-left child at local 0). It now translates only when a child lands above / left of the interior — the container
+> grows that way and every child keeps its canvas place (local coordinates cannot be negative). It never moves to
+> remove space the author left. Owner: [`DESIGN_Hsm_Canvas_Authoring.md` §11](DESIGN_Hsm_Canvas_Authoring.md) decision C.
 
 ### 5.5 Nested container layout
 
@@ -647,6 +659,7 @@ Region headers are drawn at the top of each region's content area:
 
 - Click region header → selects the *container* (not the region itself — regions are not selection targets). The Details panel can route to a "Container with focus on region N" target if the host registers one.
 - Drag region header divider → no behavior (regions are equal-sized by default; manual resize deferred to Slice 2+).
+  ⛔ **SUPERSEDED `2026-10-06` (CE-1004):** dragging the line between two bands sets the upper band's preferred size (`GraphCommand.SetRegionPreferredSize`, undoable) — a minimum over its content. See `DESIGN_Hsm_Canvas_Authoring.md` §11.
 - Right-click region header → context menu (host-provided): "Rename region," "Change priority," "Delete region," "Add region above/below."
 
 ### 13.3 Region direction

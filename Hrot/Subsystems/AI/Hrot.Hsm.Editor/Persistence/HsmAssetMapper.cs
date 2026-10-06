@@ -106,8 +106,7 @@ public static class HsmAssetMapper
                 // BP-299: ownership is written explicitly now. The owner is the state whose
                 // RegionNodes contains this region -- the model already knows it; only the JSON did not.
                 OwnerStableId        = OwnerOf(asset, r)?.StableId,
-                // BP-299: ownership is written explicitly now. The owner is the state whose
-                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
+                PreferredSize       = r.PreferredSize,
                 Comment             = r.Comment,
                 ColorOverride       = r.ColorOverride,
             });
@@ -305,6 +304,7 @@ public static class HsmAssetMapper
                 StableId      = rDto.StableId,
                 RegionIndex   = rDto.RegionIndex,
                 Priority      = rDto.Priority,
+                PreferredSize = rDto.PreferredSize,
                 Comment       = rDto.Comment,
                 ColorOverride = rDto.ColorOverride,
             };

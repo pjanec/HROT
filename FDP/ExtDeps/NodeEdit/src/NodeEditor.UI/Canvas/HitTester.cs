@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -26,6 +27,11 @@ internal sealed class HitTester
     /// <summary>CE-1000: width (screen px) of the band just inside a node's border that starts a link.</summary>
     internal const float NodeEdgeBandPx = 8f;
 
+    /// <summary>CE-1004: half-height (screen px) of the clickable line between two bands.</summary>
+    internal const float RegionDividerHitPx = 4f;
+    /// <summary>CE-1004: size (px at zoom 1) of the container's bottom-right resize grip.</summary>
+    internal const float ContainerGripPx = 12f;
+
     // Visual Z-Layers. Higher value = later paint = wins hit test.
     // Ordering (low to high):
     //   BeforeContent < CommentBody < ContainerInterior < AfterWires < NodeBody
@@ -41,6 +47,7 @@ internal sealed class HitTester
     internal const int ZLayerContainerHeader   = 60;
     internal const int ZLayerContainerChevron  = 65;
     internal const int ZLayerNodeEdge          = 67;   // CE-1000: link-start band (node-to-node routing only)
+    internal const int ZLayerContainerResize   = 68;   // CE-1004: region divider + container corner grip
     internal const int ZLayerTopMost           = 70;
     internal const int ZLayerAttachment        = 80;
     internal const int ZLayerWire              = 90;
@@ -164,6 +171,39 @@ internal sealed class HitTester
             {
                 if (nodeScreenRects.TryGetValue(node.Id, out var containerScreenRect))
                 {
+                    // ⭐ CE-1004 (R1): the corner grip resizes the container; the line between two bands resizes the
+                    //    upper (left) band. Both win over the header / interior and the link-start border band.
+                    if (!container.IsCollapsed)
+                    {
+                        float grip = MathF.Max(8f, ContainerGripPx * view.Viewport.Zoom);
+                        var cornerRect = new RectF(containerScreenRect.Max - new Vector2(grip, grip), new Vector2(grip, grip));
+                        if (cornerRect.Contains(mouse))
+                            SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id,
+                                ContainerZone = ContainerHoverZone.ResizeEdge, ContainerEdge = ContainerResizeEdge.Corner },
+                                ZLayerContainerResize, nodeSubLayer, 1);
+
+                        if (container.Regions.Count > 1 && containerScreenRect.Contains(mouse))
+                        {
+                            var strips = RegionLayoutComputer.Compute(
+                                container, view.Model, id => spatialIndex.GetBounds(id)?.Size,
+                                containerScreenRect, containerHeaderHtPx, 1f, view.Viewport.Zoom,
+                                preferredOverride: i => view.Interaction.RegionSizePreview(node.Id, i));
+                            bool horiz = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                            for (int i = 0; i < strips.Count - 1; i++)
+                            {
+                                var end = strips[i].Min + strips[i].Size;
+                                float d = horiz ? MathF.Abs(mouse.X - end.X) : MathF.Abs(mouse.Y - end.Y);
+                                if (d <= RegionDividerHitPx)
+                                {
+                                    SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id,
+                                        ContainerZone = ContainerHoverZone.RegionDivider, ContainerRegionIndex = i },
+                                        ZLayerContainerResize, nodeSubLayer, 2);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     var headerScreenRect = new RectF(
                         containerScreenRect.Min,
                         new Vector2(containerScreenRect.Size.X, containerHeaderHtPx));

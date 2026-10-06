@@ -48,7 +48,7 @@ internal sealed class CanvasInput
         switch (mode)
         {
             case InteractionMode.Idle:
-                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input);
+                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input, spatialIndex);
                 break;
 
             case InteractionMode.Panning:
@@ -78,6 +78,10 @@ internal sealed class CanvasInput
             case InteractionMode.PendingWire:
                 HandlePendingWire(view, input);
                 break;
+
+            case InteractionMode.ResizingContainer:
+                HandleResizingContainer(view, input);
+                break;
         }
 
         // ── Delete / Backspace ───────────────────────────────────────────────
@@ -90,7 +94,7 @@ internal sealed class CanvasInput
 
     // ── Idle ──────────────────────────────────────────────────────────────────
 
-    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input)
+    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input, SpatialIndex? spatialIndex = null)
     {
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
@@ -239,6 +243,11 @@ internal sealed class CanvasInput
                         view.Selection.Toggle(SelectionEntry.OfAttachment(hover.Attachment));
                     else if (shift)
                         view.Selection.Add(SelectionEntry.OfAttachment(hover.Attachment));
+                    break;
+
+                case HoverKind.Container
+                    when hover.ContainerZone is ContainerHoverZone.RegionDivider or ContainerHoverZone.ResizeEdge:
+                    BeginContainerResize(view, input, hover, id => spatialIndex?.GetBounds(id)?.Size);
                     break;
 
                 case HoverKind.Container:
@@ -494,7 +503,7 @@ internal sealed class CanvasInput
         if (input.IsMouseReleased(MouseButton.Left))
         {
             if (view.Interaction.DragThresholdCrossed && view.Interaction.DragOverridePositions.Count > 0)
-                CommitNodeDrop(view, input);
+                CommitNodeDrop(view, input, id => spatialIndex.GetBounds(id)?.Size);
             view.Interaction.ResetToIdle();
         }
     }
@@ -569,7 +578,8 @@ internal sealed class CanvasInput
 
     // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
     // Internal for testing (ContainerDragTests).
-    internal static void CommitNodeDrop(GraphView view, IInputSource input)
+    // childSize (CE-1004): a node's MEASURED graph size (the spatial index); null ⇒ its SizeOverride or a default.
+    internal static void CommitNodeDrop(GraphView view, IInputSource input, Func<NodeId, Vector2?>? childSize = null)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
         var finalLocalPositions = new Dictionary<NodeId, Vector2>();
@@ -615,28 +625,18 @@ internal sealed class CanvasInput
                             : container.GetRegionIndexForChild(nid);
                         if (rIdx > 0)
                         {
+                            // ⭐ CE-1004 (A): THE band-size function, with MEASURED child sizes — this copy used a
+                            //    160×64 default, so a dropped state could jump relative to the band it was dropped in.
                             bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
-                            float[] regionSizes = new float[container.Regions.Count];
-                            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
-
-                            foreach (var childId in container.ChildNodeIds)
-                            {
-                                if (topLevelNodes.Contains(childId)) continue;
-                                var childNode = view.Model.FindNode(childId);
-                                if (childNode == null) continue;
-                                int cRIdx = container.GetRegionIndexForChild(childId);
-                                if (cRIdx >= 0 && cRIdx < regionSizes.Length)
-                                {
-                                    var size = childNode.SizeOverride ?? new Vector2(160, 64);
-                                    float extent = isHorizontal ? childNode.Position.X + size.X : childNode.Position.Y + size.Y;
-                                    regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], extent);
-                                }
-                            }
-
-                            float offset = 0f;
-                            for (int i = 0; i < rIdx; i++) offset += regionSizes[i];
-                            if (isHorizontal) rawLocalPos.X -= offset;
-                            else rawLocalPos.Y -= offset;
+                            var sizes = RegionLayoutComputer.ComputeRegionSizes(
+                                container, view.Model,
+                                cid => childSize?.Invoke(cid) ?? view.Model.FindNode(cid)?.SizeOverride ?? new Vector2(160, 64),
+                                skipChild: topLevelNodes.Contains);
+                            float offset = RegionLayoutComputer.RegionOffset(sizes, rIdx);
+                            if (isHorizontal) rawLocalPos.X = Math.Max(0f, rawLocalPos.X - offset);
+                            else              rawLocalPos.Y = Math.Max(0f, rawLocalPos.Y - offset);
+                            // ⭐ CE-1004 (C): a state dropped above (left of) a LATER band's start is clamped into that
+                            //    band — the band cannot grow into the one before it.
                         }
                     }
                 }
@@ -724,13 +724,27 @@ internal sealed class CanvasInput
             float shiftX = minX == float.MaxValue ? 0f : minX;
             float shiftY = minY == float.MaxValue ? 0f : minY;
 
+            // ⭐ CE-1004 (C): the container moves ONLY to grow up / left — when a child would sit above or left of the
+            //    interior (negative local position); the children keep their canvas place. It used to shift on EVERY drop
+            //    to put the top-left child at 0, moving the whole container and snapping the dragged state back —
+            //    contrary to NodeEditor_Extension_ContainerNodes.md §5.4 ("The canvas doesn't auto-translate containers").
+            shiftX = Math.Min(0f, shiftX);
+            shiftY = Math.Min(0f, shiftY);
             if (hasChildren && (Math.Abs(shiftX) > 0.01f || Math.Abs(shiftY) > 0.01f))
             {
                 var shift = new Vector2(shiftX, shiftY);
 
                 foreach (var childKvp in futureChildren)
                 {
-                    finalLocalPositions[childKvp.Key] = childKvp.Value - shift;
+                    // CE-1004: a child of a LATER band sits in band-local coordinates; band 0 growing already pushes
+                    //    it along the stack axis, so it takes only the cross-axis part of the shift.
+                    int cr = topLevelNodes.Contains(childKvp.Key) && targetParents.TryGetValue(childKvp.Key, out var tp) && tp == cid
+                        ? (view.Interaction.DropTargetRegionIndex ?? -1)
+                        : containerModel.GetRegionIndexForChild(childKvp.Key);
+                    var childShift = containerModel.Regions.Count > 0 && cr > 0
+                        ? (isHorizontal ? new Vector2(0f, shift.Y) : new Vector2(shift.X, 0f))
+                        : shift;
+                    finalLocalPositions[childKvp.Key] = childKvp.Value - childShift;
                     if (!targetParents.ContainsKey(childKvp.Key))
                         targetParents[childKvp.Key] = cid;
                 }
@@ -964,6 +978,81 @@ internal sealed class CanvasInput
     }
 
     // ── Resizing comment ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-1004 (R1) — starts a band-divider or corner-grip resize. The drag previews live
+    /// (<see cref="InteractionState.RegionSizePreview"/> / <see cref="InteractionState.ContainerSizePreview"/>) and
+    /// commits ONE undoable command on release.
+    /// </summary>
+    internal static void BeginContainerResize(GraphView view, IInputSource input, HoverInfo hover, Func<NodeId, Vector2?> sizeOf)
+    {
+        var node = view.Model.FindNode(hover.Node);
+        if (node?.AsContainer() is not { } container) return;
+
+        float startRegion = 0f;
+        float? oldPreferred = null;
+        if (hover.ContainerZone == ContainerHoverZone.RegionDivider)
+        {
+            var sizes = RegionLayoutComputer.ComputeRegionSizes(container, view.Model,
+                id => sizeOf(id) ?? view.Model.FindNode(id)?.SizeOverride ?? new Vector2(160, 64));
+            if (hover.ContainerRegionIndex < 0 || hover.ContainerRegionIndex >= sizes.Length) return;
+            startRegion = sizes[hover.ContainerRegionIndex];
+            oldPreferred = container.Regions[hover.ContainerRegionIndex].PreferredSize;
+        }
+
+        view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
+        view.Interaction.Mode = InteractionMode.ResizingContainer;
+        view.Interaction.DragStartScreen = input.MousePosition;
+        view.Interaction.DragThresholdCrossed = false;
+        view.Interaction.ContainerResize = new ContainerResize
+        {
+            Container = hover.Node,
+            RegionIndex = hover.ContainerZone == ContainerHoverZone.RegionDivider ? hover.ContainerRegionIndex : -1,
+            Edge = hover.ContainerEdge,
+            StartGraph = view.Viewport.ScreenToGraph(input.MousePosition),
+            StartRegionSize = startRegion,
+            StartOuterSize = sizeOf(hover.Node) ?? node.SizeOverride ?? Vector2.Zero,
+            OldPreferredSize = oldPreferred,
+            OldSizeOverride = node.SizeOverride,
+        };
+    }
+
+    internal static void HandleResizingContainer(GraphView view, IInputSource input)
+    {
+        var r = view.Interaction.ContainerResize;
+        if (r is null) { view.Interaction.ResetToIdle(); return; }
+        var node = view.Model.FindNode(r.Container);
+        if (node?.AsContainer() is not { } container) { view.Interaction.ResetToIdle(); return; }
+
+        var delta = view.Viewport.ScreenToGraph(input.MousePosition) - r.StartGraph;
+        if ((input.MousePosition - view.Interaction.DragStartScreen).Length() > TimingConstants.DragThresholdPixels)
+            view.Interaction.DragThresholdCrossed = true;
+
+        bool horiz = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+        if (r.RegionIndex >= 0)
+            r.PreviewRegionSize = MathF.Max(RegionLayoutComputer.MinRegionSize, r.StartRegionSize + (horiz ? delta.X : delta.Y));
+        else
+            r.PreviewOuterSize = Vector2.Max(Vector2.Zero, r.StartOuterSize + new Vector2(
+                (r.Edge & ContainerResizeEdge.Right)  != 0 ? delta.X : 0f,
+                (r.Edge & ContainerResizeEdge.Bottom) != 0 ? delta.Y : 0f));
+
+        if (!input.IsMouseReleased(MouseButton.Left)) return;
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            if (r.RegionIndex >= 0 && r.PreviewRegionSize is { } size)
+                view.Execute(
+                    new GraphCommand.SetRegionPreferredSize(r.Container, r.RegionIndex, (float)Math.Round(size, 1)),
+                    new GraphCommand.SetRegionPreferredSize(r.Container, r.RegionIndex, r.OldPreferredSize),
+                    "Resize Region");
+            else if (r.PreviewOuterSize is { } outer)
+                view.Execute(
+                    new GraphCommand.SetContainerSize(r.Container, new Vector2((float)Math.Round(outer.X, 1), (float)Math.Round(outer.Y, 1))),
+                    new GraphCommand.SetContainerSize(r.Container, r.OldSizeOverride),
+                    "Resize Container");
+        }
+        view.Interaction.ResetToIdle();
+    }
 
     private static void HandleResizingComment(GraphView view, IInputSource input)
     {

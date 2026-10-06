@@ -55,6 +55,18 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             case GraphCommand.AddRegion cmd:
                 ApplyAddRegion(cmd);
                 break;
+            // ⭐ CE-1004 (R1): author-sized bands and containers (divider / corner-grip drag).
+            case GraphCommand.SetRegionPreferredSize cmd:
+                if (_asset.FindStateByStableId(cmd.ContainerId.Value) is { } rs
+                    && cmd.RegionIndex >= 0 && cmd.RegionIndex < rs.RegionNodes.Count)
+                    rs.RegionNodes[cmd.RegionIndex].PreferredSize = cmd.Size;
+                else return new GraphCommandResult(false, "SetRegionPreferredSize: no such region");
+                break;
+            case GraphCommand.SetContainerSize cmd:
+                if (_asset.FindStateByStableId(cmd.ContainerId.Value) is { } cs)
+                    cs.SizeOverride = cmd.Size;
+                else return new GraphCommandResult(false, "SetContainerSize: no such state");
+                break;
             case GraphCommand.RemoveRegion cmd:
                 ApplyRemoveRegion(cmd);
                 break;
