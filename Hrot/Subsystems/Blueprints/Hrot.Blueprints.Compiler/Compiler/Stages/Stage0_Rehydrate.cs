@@ -151,6 +151,19 @@ internal static class Stage0_Rehydrate
                 EnrichGetComponentPins(pins, gcn, staticShapes);
                 break;
 
+            case SpawnSensorNode ssn3:
+                // ⭐ CE-3078 N3 — after the static exec In / Out, the ONE projection the editor uses too.
+                foreach (var (name, dir, typeId) in SpawnSensorNode.DataPins(ssn3.Decl))
+                    pins.Add(MakePin(name, dir, isExec: false, typeId: typeId));
+                break;
+
+            case ReadSensorResultNode rsr:
+                // ⭐ CE-3078 N2 — the ONE projection the editor uses too (ReadSensorResultNode.DataPins).
+                pins.Clear();
+                foreach (var (name, dir, typeId, _) in ReadSensorResultNode.DataPins(rsr.Decl))
+                    pins.Add(MakePin(name, dir, isExec: false, typeId: typeId));
+                break;
+
             case SetComponentNode scn:
                 EnrichSetComponentPins(pins, scn, staticShapes);
                 break;
@@ -1428,6 +1441,7 @@ internal static class Stage0_Rehydrate
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
+        ReadSensorResultNode  => false,   // ⭐ CE-3078 N2: pure
         // Q#14 Option B — Make/Break/SetMembers are PURE data nodes (no exec pins).
         MakeStructNode        => false,
         BreakStructNode       => false,

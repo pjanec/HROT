@@ -30,6 +30,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(WhenNode),           "When")]           // NEW
 [JsonDerivedType(typeof(ReadEqsResultNode),  "ReadEqsResult")]  // NEW
 [JsonDerivedType(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")] // NEW
+[JsonDerivedType(typeof(ReadSensorResultNode), "ReadSensorResult")]   // ⭐ CE-3078 N2
+[JsonDerivedType(typeof(SpawnSensorNode), "SpawnSensor")]             // ⭐ CE-3078 N3
 [JsonDerivedType(typeof(ScoreDecisionNode),    "ScoreDecision")]
 [JsonDerivedType(typeof(ReadRankedResultNode), "ReadRankedResult")]
 [JsonDerivedType(typeof(PartitionElementsNode), "PartitionElements")]
@@ -711,9 +713,34 @@ public sealed class WhenNode : Node
     public EventFiredPayload? EventFired { get; set; }
     public ConditionMetPayload? ConditionMet { get; set; }
     public EqsResultPayload? EqsResult { get; set; }
+    /// <summary>⭐ <c>CE-3078</c> N4 — <see cref="WhenMode.SensorResult"/>'s payload (omitted from JSON otherwise, so every existing
+    /// When node persists byte-identically).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SensorResultPayload? SensorResult { get; set; }
 }
 
-public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult }
+/// <summary>⚠ Persisted by value — append only.</summary>
+public enum WhenMode { ValueChanged, EventFired, ConditionMet, EqsResult, SensorResult }
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N4 — <c>When SensorResult(kind, trigger)</c> on the unit's sensor of a kind. Decided by the baked trigger's
+/// SHAPE (D4), never by its name: Header (<c>FirstReady</c> / <c>Changed</c> = the answer's stamp moved / <c>BecomesStale</c>),
+/// <c>FieldChanged</c> (entry 0's field differs from last seen — from the field's default, so the first area seen fires),
+/// <c>FieldCrossed</c> (entry 0's field crossed <see cref="Threshold"/> — up fires OnFired, down OnEnded; it starts "below",
+/// so an area already over the threshold when first seen fires). No area ⇒ the field reads as its default (0). ⚠ Field triggers compare EVERY tick, not once per answer: the area
+/// family is re-rated between answers (§7.10b).
+/// </summary>
+public sealed class SensorResultPayload
+{
+    /// <summary>The kind's baked types and triggers.</summary>
+    public SensorKindDecl? Decl { get; set; }
+    /// <summary>The trigger's name — one of <see cref="SensorKindDecl.Triggers"/>.</summary>
+    public string Trigger { get; set; } = "";
+    /// <summary>The FieldCrossed threshold.</summary>
+    public float Threshold { get; set; }
+    /// <summary>The BecomesStale age (s).</summary>
+    public float MaxAgeSeconds { get; set; }
+}
 
 [Flags]
 public enum WhenEdge { None = 0, RisingEdge = 1, FallingEdge = 2 }
@@ -822,6 +849,125 @@ public sealed class ReadEqsResultNode : Node
     /// <summary>⭐ <c>CE-3054</c> D — as <see cref="EqsResultPayload.UnitSensorKind"/>: the unit's sensor of this kind (0 = the variable).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]   // 0 = the variable: the persisted shape of every existing asset is unchanged
     public byte UnitSensorKind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-3078 (N1–N4) — the per-KIND sensor nodes. docs/DESIGN_Sensors_And_Doctrine.md §7.10a.
+// The editor BAKES a SensorKindDecl from the toolkit's SensorKindRegistry into the node (the compiler is
+// netstandard2.0 and cannot read the registry — the GetComponent CA-01 precedent); the compiler lowers only
+// from the baked decl, so an asset compiles the same on any host.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>⭐ <c>CE-3078</c> — one sensor kind's types, baked by the editor from <c>SensorKindRegistry</c> (D1).</summary>
+public sealed class SensorKindDecl
+{
+    /// <summary>The kind (<c>SensorModality</c> value; 0 = an EQS query sensor).</summary>
+    public byte Kind { get; set; }
+    /// <summary>Display name of the kind (e.g. "DangerArea") — editor text only.</summary>
+    public string KindName { get; set; } = "";
+    /// <summary>Its result family ("Ranked" / "Area") — editor text only; the lowering never branches on it.</summary>
+    public string Family { get; set; } = "";
+    /// <summary>FQN of the component holding the answer on the sensor child (Q1: <c>Count</c>, <c>IsReady</c>,
+    /// <c>LastUpdateTick</c>, <c>GetSpanRO()</c>).</summary>
+    public string ResultComponentFqn { get; set; } = "";
+    /// <summary>FQN of one entry of the answer.</summary>
+    public string ElementTypeFqn { get; set; } = "";
+    /// <summary>The element's public fields — one out-pin each on <see cref="ReadSensorResultNode"/> (D2).</summary>
+    public List<ComponentFieldDecl> ElementFields { get; set; } = new();
+
+    /// <summary>⭐ N3 — FQN of what configures the kind; null when a behaviour does not spawn it (<see cref="EnsureMethodFqn"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsTypeFqn { get; set; }
+    /// <summary>⭐ N3 — the settings' public fields — one in-pin each on <see cref="SpawnSensorNode"/> (D3).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? SettingsFields { get; set; }
+    /// <summary>⭐ N3 — FQN of the settings' public static <c>Default</c>, the base an unwired pin keeps; null = <c>default(T)</c>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsDefaultFqn { get; set; }
+    /// <summary>⭐ N3 (Q2) — FQN of the static <c>Entity Ensure(EntityRepository, Entity owner, int site, in TSettings, long key)</c>;
+    /// null = the kind is not spawned by a behaviour (not offered by <see cref="SpawnSensorNode"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EnsureMethodFqn { get; set; }
+
+    /// <summary>⭐ N4 (Q3) — the kind's <c>When SensorResult</c> triggers, as DATA (name, element field, shape).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<SensorTriggerDecl>? Triggers { get; set; }
+    /// <summary>⭐ N4 — the result component carries <c>float LastUpdateTimeSeconds</c> (the answer's TIME — not one of Q1's four
+    /// members); a <c>BecomesStale</c> trigger needs it (BP2076 otherwise).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasAnswerTime { get; set; }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 (Q3) — one trigger of a kind: how it is decided, never a name the compiler knows.</summary>
+public sealed class SensorTriggerDecl
+{
+    /// <summary>What the node offers (e.g. "ThreatCrossed").</summary>
+    public string Name { get; set; } = "";
+    /// <summary>The element field it watches (entry 0's); null for a header trigger.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementField { get; set; }
+    /// <summary>"Header" (from the answer's header: FirstReady / Changed / BecomesStale), "FieldChanged" or "FieldCrossed".</summary>
+    public string Shape { get; set; } = "Header";
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N2 — read entry <c>Index</c> of the unit's sensor of a kind (<c>UnitSensors.Of</c>): header pins
+/// <c>IsReady</c> / <c>Count</c> / <c>AnswerTick</c>, then one out-pin per element field (D2). Pure. The ranked
+/// <see cref="ReadEqsResultNode"/> is unchanged (D5).
+/// </summary>
+public sealed class ReadSensorResultNode : Node
+{
+    /// <summary>The kind's baked types; null = not baked (BP2074).</summary>
+    public SensorKindDecl? Decl { get; set; }
+
+    /// <summary>The header out-pins, in order — reserved names (an element field of the same name is prefixed).</summary>
+    public static readonly IReadOnlyList<(string Name, string TypeId)> HeaderPins = new[]
+    {
+        ("IsReady", "System.Boolean"),
+        ("Count", "System.Int32"),
+        ("AnswerTick", "System.UInt32"),
+    };
+
+    /// <summary>The ONE pin projection — Stage0 and the editor both build pins from it, so the canvas and the compiler
+    /// cannot disagree. <c>Member</c> is the read path on the helper's result struct.</summary>
+    public static IReadOnlyList<(string Name, string Direction, string TypeId, string Member)> DataPins(SensorKindDecl? decl)
+    {
+        var pins = new List<(string, string, string, string)> { ("Index", "In", "System.Int32", "") };
+        foreach (var (name, type) in HeaderPins) pins.Add((name, "Out", type, name));
+        if (decl is null) return pins;
+        foreach (var f in decl.ElementFields)
+        {
+            if (string.IsNullOrEmpty(f.Name) || f.IsCollection) continue;
+            bool reserved = false;
+            foreach (var (h, _) in HeaderPins) if (h == f.Name) { reserved = true; break; }
+            pins.Add((reserved ? "Element" + f.Name : f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId, "Element." + f.Name));
+        }
+        return pins;
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> N3 — create (find-or-create) this behaviour run's sensor of a kind, configured from one in-pin per
+/// settings field, through the kind's own Ensure method (Q2, D3); out <c>Sensor</c> (the child entity). One sensor per
+/// <c>Key</c> from a single node (CE-485). Unwired settings keep the settings type's <c>Default</c>.
+/// </summary>
+public sealed class SpawnSensorNode : Node
+{
+    /// <summary>The kind's baked types; null = not baked (BP2074).</summary>
+    public SensorKindDecl? Decl { get; set; }
+
+    /// <summary>The ONE data-pin projection (after the exec In / Out) — Stage0 and the editor both use it.</summary>
+    public static IReadOnlyList<(string Name, string Direction, string TypeId)> DataPins(SensorKindDecl? decl)
+    {
+        var pins = new List<(string, string, string)>();
+        if (decl?.SettingsFields is { } fields)
+            foreach (var f in fields)
+                if (!string.IsNullOrEmpty(f.Name) && !f.IsCollection && f.Name != "Key" && f.Name != "Sensor")
+                    pins.Add((f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(("Key", "In", "Fdp.Core.Entity"));
+        pins.Add(("Sensor", "Out", "Fdp.Core.Entity"));
+        return pins;
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

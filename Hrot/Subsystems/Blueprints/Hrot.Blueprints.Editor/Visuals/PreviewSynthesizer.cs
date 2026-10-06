@@ -20,6 +20,9 @@ public static class PreviewSynthesizer
             WhenMode.EventFired    => SynthesizeEventFired(node.EventFired),
             WhenMode.ConditionMet  => SynthesizeConditionMet(node.ConditionMet),
             WhenMode.EqsResult     => SynthesizeEqsResult(node.EqsResult),
+            WhenMode.SensorResult  => node.SensorResult is { Decl: { } d } sr   // ⭐ CE-3078 N4
+                ? $"{d.KindName} {sr.Trigger}" + (sr.Trigger.EndsWith("Crossed") ? "≥" + sr.Threshold.ToString("0.##", global::System.Globalization.CultureInfo.InvariantCulture) : "")
+                : "Sensor Result",
             _                      => "(unknown mode)"
         };
 

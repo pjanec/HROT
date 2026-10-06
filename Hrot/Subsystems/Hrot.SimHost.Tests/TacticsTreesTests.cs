@@ -406,6 +406,58 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// 🔴 <c>CE-3079</c> H7 / <c>CE-3078</c> — the same behaviour as a BLUEPRINT built only from the per-kind sensor nodes
+        /// (<c>DangerCrossingBp</c>: SpawnSensor(DangerArea) → When SensorResult(ThreatCrossed ≥ 0.5) → ReadSensorResult(0) near /
+        /// far handles → MoveTo), through the real ingress and brain, against a hand-filled answer: walks → rushes across a
+        /// 0-threat crossing to its far side → walks on → holds at a 0.8 crossing's near side → resumes when the route is clear →
+        /// arrives, and the run ends Success.
+        /// </summary>
+        [Fact]
+        public void CE3079_DangerCrossingBlueprint_Walks_RushesACrossing_HoldsShortOfAWatchedOne_ThenArrives()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>()) w.Repo.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()) w.Repo.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            Assert.True(w.Registry.TryGetId("DangerCrossingBp", out _), "the blueprint must be registered so an order can name it");
+            w.Order("DangerCrossingBp", "{\"Objective\":[300,300,0]}");
+            Step(w); Step(w); Step(w);
+            Assert.Equal("DangerCrossingBp", w.TaskName);
+
+            var sensor = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w.Repo, w.Unit, SensorModality.DangerArea);
+            Assert.False(sensor.IsNull, "SpawnSensor(DangerArea) makes the run's sensor");
+            var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);   // never the unit's own move
+            Assert.Equal(new Vector3(300f, 300f, 0f), settings.RoutePoint);
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());   // no answer: walks
+            Assert.Equal(1.5f, Speed(w));
+
+            DangerAnswer(w, sensor, 1, Area(1, 0f, 10f));                  // an unwatched crossing 10 m ahead
+            Step(w);
+            Assert.Equal(new Vector3(121f, 100f, 0f), w.Destination());   // rush: straight to the FAR side
+            Assert.Equal(4.5f, Speed(w));
+            Arrive(w);
+            for (int i = 0; i < 5; i++) Step(w);                           // the stale answer still lists it: no move back
+            Assert.Equal(new Vector3(121f, 100f, 0f), w.Destination());
+
+            DangerAnswer(w, sensor, 2, Area(2, 0.8f, 50f));                 // refreshed: past it; a WATCHED crossing 50 m on
+            Step(w); Step(w);
+            Assert.Equal(new Vector3(102f, 100f, 0f), w.Destination());   // When ThreatCrossed → hold at its near side
+            Assert.Equal(1.5f, Speed(w));
+            Arrive(w);
+            for (int i = 0; i < 300; i++) { Step(w); Assert.False(w.Finished(out _)); }
+            Assert.Equal(new Vector3(102f, 100f, 0f), w.Destination());   // still holding
+
+            DangerAnswer(w, sensor, 3);                                     // the route is clear (threat falls with it)
+            Step(w); Step(w);
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());   // resumes the walk
+            Arrive(w);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 5 && !done; i++) { Step(w); done = w.Finished(out result); }
+            Assert.True(done, "arriving at the objective ends the run");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         [Fact]
         public void CE2092_TakeCover_Ordered_MovesToTheAnswer_AndEndsWhenNothingIsLeftToHideFrom()
         {

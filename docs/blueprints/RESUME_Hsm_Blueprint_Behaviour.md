@@ -4,7 +4,7 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ENTITY BEHAVIOUR, WITH BLUEPRINT ACTIONS AND GUARDS**. ⚠ A STATE doc, not canon: every
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-10-02 (current-answer: the unified behaviour run, S7 + demos)
+updated: 2026-10-06 (current-answer: the danger-crossing demo handoff, H1–H7)
 build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE, and the
   RUNTIME is PROVED END TO END live (§8.4): the demo scenario drives to a seeded destination and
   destroys a target. Built: CE-402/403/388(D-A2,D-B1,D-D1,D-F)/404(D-E WITHDRAWN)/405/406/407/
@@ -12,7 +12,15 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐⭐ **NOW (2026-10-02): the unified behaviour run** — DESIGN_Unified_Behaviour_Run.md is the
+current-answer: ⭐⭐⭐⭐⭐ **NOW (2026-10-06): the `ua-danger-crossing` demo** — dispatched by the backend lane in
+  `batches/HANDOFF_Danger_Crossing_Behaviors.md` (§0–§5 frozen at de30b58cb; ⭐ §6 SYNC is the ONE channel between the two
+  lanes — read its newest entries first). Built on `behaviors`: H1 `ThreatsAtLeast.WithinMetres`, H2 `Sentry` BTree (+ CE-2111,
+  CE-2112), H3 family guard (CE-3078), H4 `DangerAreaNodes` + `LocomotionMoveTo.Stop`, H5 `DangerCrossing` BTree, H6 the per-kind
+  sensor nodes N2 `ReadSensorResult` · N3 `SpawnSensor` · N4 `When SensorResult` (CE-3078), H7 `DangerCrossingBp` blueprint.
+  As-built: `DESIGN_Utility_AI_Demo_Scenarios.md` §10.4a / §10.5a and `DESIGN_Sensors_And_Doctrine.md` §7.10b. OPEN: Q4 asked of
+  backend (answer time on the area buffer — not blocking); the final gate report per handoff §5. ⛔ The paragraph below is the
+  2026-10-02 state.
+  — was: ⭐⭐⭐⭐ **NOW (2026-10-02): the unified behaviour run** — DESIGN_Unified_Behaviour_Run.md is the
   owning design and its §4 per-slice "design"/"as-built" sections are the build record: S1–S6b + S7a/S7b (the
   Behaviour Task node, CE-2019/CE-2020) BUILT, §7 demos Demo_TaskChain + Demo_MissionPlan shipped (CE-2021).
   NEXT: CE-2022 (a task passes parameters to its child), S6b-2b (deferred, demand-driven). Typed event nodes

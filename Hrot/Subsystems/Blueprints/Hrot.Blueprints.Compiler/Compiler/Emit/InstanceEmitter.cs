@@ -49,6 +49,30 @@ internal static class InstanceEmitter
             EmitEqsConstFields(e, eqsOps);
         }
 
+        var whenSensorOps = AllStatements(asset).Select(s => s.Operation).OfType<IrOp_WhenSensorResultCheck>()
+            .GroupBy(o => o.SynthFieldName).Select(g => g.First()).ToList();   // ⭐ CE-3078 N4
+        if (whenSensorOps.Count > 0)
+        {
+            e.WriteLine();
+            foreach (var op in whenSensorOps)
+            {
+                e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+                e.WriteLine($"public struct {op.SynthStructTypeName}");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine("public uint  LastTick;");
+                e.WriteLine("public byte  Seen;");
+                e.WriteLine("public byte  Above;");
+                e.WriteLine("public float PrevAge;");
+                e.WriteLine($"public {op.FieldCSharpType ?? "float"} Value;");
+                e.Outdent();
+                e.WriteLine("}");
+                var id8 = ExtractId8FromSynthFieldName(op.SynthFieldName);
+                if (op.ThresholdLiteral is not null) e.WriteLine($"private const float _whenSensorThreshold_{id8} = {op.ThresholdLiteral};");
+                if (op.MaxAgeLiteral is not null)    e.WriteLine($"private const float _whenSensorMaxAge_{id8} = {op.MaxAgeLiteral};");
+            }
+        }
+
         var readEqsOps = CollectReadEqsResultOps(asset);
         if (readEqsOps.Count > 0)
         {
@@ -63,6 +87,12 @@ internal static class InstanceEmitter
             EmitScoreDecisionHelpers(e, scoreDecisionOps);
         }
 
+        var readSensorResultOps = CollectReadSensorResultOps(asset);   // ⭐ CE-3078 N2
+        if (readSensorResultOps.Count > 0)
+        {
+            e.WriteLine();
+            EmitReadSensorResultHelpers(e, readSensorResultOps);
+        }
         var readRankedResultOps = CollectReadRankedResultOps(asset);
         if (readRankedResultOps.Count > 0)
         {
@@ -1504,6 +1534,70 @@ internal static class InstanceEmitter
             e.WriteLine($"global::Fdp.Toolkit.Utility.Integration.UtilityBlueprintBridge" +
                         $".Decide(view, self, {op.DecisionIdLiteral}, lastWinner, tick, " +
                         $"out result.WinningOptionId, out result.TopCandidate, out result.TopScore);");
+            e.WriteLine("return result;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+    }
+
+    private static List<IrOp_ReadSensorResult> CollectReadSensorResultOps(IrAsset asset)
+    {
+        var result = new List<IrOp_ReadSensorResult>();
+        var seen   = new HashSet<string>();
+        foreach (var stmt in AllStatements(asset))
+        {
+            if (stmt.Operation is not IrOp_ReadSensorResult op) continue;
+            if (!seen.Add(op.NodeId8)) continue;
+            result.Add(op);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3078</c> N2 — one helper per <c>ReadSensorResult</c> node: the unit's sensor of the kind
+    /// (<c>UnitSensors.Of</c>), then the FOUR result members every result component has (Q1, §7.10a) — the same text for
+    /// every kind, so a new kind needs no compiler change. Not ready / no sensor ⇒ a default struct (IsReady false).
+    /// </summary>
+    private static void EmitReadSensorResultHelpers(CSharpEmitter e, List<IrOp_ReadSensorResult> ops)
+    {
+        foreach (var op in ops)
+        {
+            string rc = $"global::{op.ResultComponentFqn.Replace('+', '.')}";
+            e.WriteLine($"[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+            e.WriteLine($"private struct {op.ResultStructTypeName}");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine("public bool IsReady;");
+            e.WriteLine("public int  Count;");
+            e.WriteLine("public uint AnswerTick;");
+            e.WriteLine($"public global::{op.ElementTypeFqn.Replace('+', '.')} Element;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+
+            e.WriteLine($"[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            e.WriteLine($"private static {op.ResultStructTypeName} ReadSensorResult_{op.NodeId8}(");
+            e.Indent();
+            e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+            e.WriteLine("global::Fdp.Core.Entity self,");
+            e.WriteLine("int index)");
+            e.Outdent();
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"var result = default({op.ResultStructTypeName});");
+            e.WriteLine($"var child = global::Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(view, self, (global::Fdp.Toolkit.Perception.Components.SensorModality){op.Kind});");
+            e.WriteLine($"if (!view.IsAlive(child) || !view.HasComponent<{rc}>(child))");
+            e.Indent(); e.WriteLine("return result;"); e.Outdent();
+            e.WriteLine($"ref readonly var buffer = ref view.GetComponentRO<{rc}>(child);");
+            e.WriteLine("if (!buffer.IsReady)");
+            e.Indent(); e.WriteLine("return result;"); e.Outdent();
+            e.WriteLine("result.IsReady    = true;");
+            e.WriteLine("result.Count      = buffer.Count;");
+            e.WriteLine("result.AnswerTick = buffer.LastUpdateTick;");
+            e.WriteLine("if (buffer.Count <= 0)");
+            e.Indent(); e.WriteLine("return result;"); e.Outdent();
+            e.WriteLine("result.Element = buffer.GetSpanRO()[global::System.Math.Clamp(index, 0, buffer.Count - 1)];");
             e.WriteLine("return result;");
             e.Outdent();
             e.WriteLine("}");

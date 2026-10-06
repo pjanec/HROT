@@ -51,6 +51,7 @@ internal static class Stage2_Validate
         new V_WhenNodeRules(),
         new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
+        new V_SensorNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_ComponentAccessRules(),
         new V_ListVariableRules(),
@@ -1273,6 +1274,7 @@ internal sealed class V_WhenNodeRules : IValidator
                     WhenMode.EventFired   => node.EventFired == null,
                     WhenMode.ConditionMet => node.ConditionMet == null,
                     WhenMode.EqsResult    => node.EqsResult == null,
+                    WhenMode.SensorResult => node.SensorResult == null,   // ⭐ CE-3078 N4
                     _                     => false,
                 };
                 if (missingPayload)
@@ -1596,6 +1598,104 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ CE-3078 — V_SensorNodeRules (BP2073-BP2074): the per-kind sensor nodes. docs/DESIGN_Sensors_And_Doctrine.md §7.10a.
+// A node with no baked decl is a diagnostic, never a silent no-op (R-133).
+// ---------------------------------------------------------------------------
+
+internal sealed class V_SensorNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
+                || (graph.Kind == GraphKind.Function && !graph.Nodes.OfType<EventEntryNode>().Any());
+
+            foreach (var node in graph.Nodes.OfType<ReadSensorResultNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"ReadSensorResult is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "ReadSensorResult has no baked sensor kind (pick the kind again in the editor: the node carries "
+                        + "the kind's result component and element type, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+
+            foreach (var node in graph.Nodes.OfType<WhenNode>())
+            {
+                if (node.Mode != WhenMode.SensorResult || node.SensorResult is not { } sr) continue;   // a missing payload is BP2002
+                var d = sr.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "When SensorResult has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
+                if (WhenSensorResultShape.Resolve(sr, out _, out _, out var why) is false)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2076,
+                        $"When SensorResult({d.KindName}, {sr.Trigger}): {why}", asset.AssetId, graph.Id, node.Id));
+            }
+
+            foreach (var node in graph.Nodes.OfType<SpawnSensorNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"SpawnSensor is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "SpawnSensor has no baked sensor kind (pick the kind again in the editor, CE-3078).",
+                        asset.AssetId, graph.Id, node.Id));
+                else if (string.IsNullOrWhiteSpace(d.EnsureMethodFqn) || string.IsNullOrWhiteSpace(d.SettingsTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2075,
+                        $"SpawnSensor: sensor kind {d.KindName} ({d.Kind}) is not spawned by a behaviour — it has no Ensure method "
+                        + "(a TKB perception sensor is read, not spawned; an EQS query is spawned with SpawnEqsSensor).",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+/// <summary>⭐ <c>CE-3078</c> N4 — the ONE resolution of a <c>When SensorResult</c> trigger from its baked decl (Stage2 and Stage5).</summary>
+internal static class WhenSensorResultShape
+{
+    private static readonly HashSet<string> Numbers = new(StringComparer.Ordinal)
+    {
+        "System.Single", "System.Double", "System.Int32", "System.UInt32", "System.Int16", "System.UInt16",
+        "System.Byte", "System.SByte", "System.Int64", "System.UInt64", "float", "double", "int", "uint", "short", "ushort", "byte", "sbyte", "long", "ulong",
+    };
+
+    /// <summary>The trigger's shape ("Header" / "FieldChanged" / "FieldCrossed") and, for a field trigger, the field's pin TypeId.
+    /// False (with the reason) when the trigger is not the kind's or cannot be decided.</summary>
+    public static bool Resolve(SensorResultPayload sr, out string shape, out string? fieldTypeId, out string why)
+    {
+        shape = ""; fieldTypeId = null; why = "";
+        var d = sr.Decl!;
+        var t = d.Triggers?.FirstOrDefault(x => x.Name == sr.Trigger);
+        if (t is null) { why = $"'{sr.Trigger}' is not a trigger of this kind ({string.Join(", ", d.Triggers?.Select(x => x.Name) ?? Array.Empty<string>())})."; return false; }
+        shape = t.Shape;
+        if (shape == "Header")
+        {
+            if (t.Name is not ("FirstReady" or "Changed" or "BecomesStale")) { why = $"unknown header trigger '{t.Name}'."; return false; }
+            if (t.Name == "BecomesStale" && !d.HasAnswerTime) { why = "BecomesStale needs the answer's time, and this kind's result component has no LastUpdateTimeSeconds."; return false; }
+            return true;
+        }
+        if (shape is not ("FieldChanged" or "FieldCrossed")) { why = $"unknown trigger shape '{shape}'."; return false; }
+        var f = d.ElementFields.FirstOrDefault(x => x.Name == t.ElementField);
+        if (f is null) { why = $"the element has no field '{t.ElementField}'."; return false; }
+        fieldTypeId = f.TypeId;
+        if (shape == "FieldCrossed" && !Numbers.Contains(f.TypeId)) { why = $"FieldCrossed needs a number; '{f.Name}' is {f.TypeId}."; return false; }
+        return true;
     }
 }
 

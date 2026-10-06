@@ -240,6 +240,11 @@ public static class DiagnosticCodes
     // Stage 2 -- Validate (ReadEqsResultNode rules)
     public const string BP2020 = "BP2020";  // ReadEqsResultNode in unsupported dispatch
     public const string BP2021 = "BP2021";  // ReadEqsResultNode sensor variable not declared
+    // ⭐ CE-3078 — the per-kind sensor nodes (ReadSensorResult / SpawnSensor / When SensorResult)
+    public const string BP2073 = "BP2073";  // sensor node in unsupported dispatch
+    public const string BP2074 = "BP2074";  // sensor node carries no baked SensorKindDecl (or an incomplete one)
+    public const string BP2075 = "BP2075";  // SpawnSensor for a kind a behaviour does not spawn (no Ensure method / settings type)
+    public const string BP2076 = "BP2076";  // When SensorResult: the trigger is not the kind's, or cannot be decided (FieldCrossed on a non-number, BecomesStale with no answer time)
 
     // Stage 2 -- Validate (SpawnEqsSensorNode rules)
     public const string BP2030 = "BP2030";  // SpawnEqsSensorNode in unsupported dispatch

@@ -1,0 +1,15 @@
+StructureHash: 0xC8E2775261FD6EBB
+Parameters:
+  Objective : System.Numerics.Vector3 @0 size=12
+  WalkSpeed : System.Single @12 size=4
+  RushSpeed : System.Single @16 size=4
+  CrossWithin : System.Single @20 size=4
+WorkingState:
+  (empty)
+Variables:
+  Holding : System.Boolean @24 size=1
+  Walking : System.Boolean @25 size=1
+GraphLocalSlots:
+  _when_9631df53_prev : _WhenSensor_9631df53_PrevState @16 size=32
+Diagnostics:
+  (none)

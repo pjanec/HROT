@@ -1269,6 +1269,38 @@ internal sealed class GraphScheduler
                 goto scheduleSuccessors;
             }
 
+            case WhenMode.SensorResult:
+            {
+                // ⭐ CE-3078 N4 — by the baked trigger's SHAPE (D4); Stage2 BP2074 / BP2076 refused anything undecidable.
+                var sr = wn.SensorResult;
+                if (sr?.Decl is null || !WhenSensorResultShape.Resolve(sr, out var shape, out var fieldTypeId, out _)) break;
+                var trig = sr.Decl.Triggers!.First(x => x.Name == sr.Trigger);
+                string? fieldCs = fieldTypeId is null ? null
+                    : fieldTypeId.StartsWith("global::", StringComparison.Ordinal) ? fieldTypeId : "global::" + fieldTypeId.Replace('+', '.');
+                string F(float v) => $"{v.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}f";
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = null,
+                    Operation   = new IrOp_WhenSensorResultCheck(
+                        Kind:                 sr.Decl.Kind,
+                        ResultComponentFqn:   sr.Decl.ResultComponentFqn,
+                        Shape:                shape,
+                        Trigger:              sr.Trigger,
+                        ElementField:         trig.ElementField,
+                        FieldCSharpType:      fieldCs,
+                        ThresholdLiteral:     shape == "FieldCrossed" ? F(sr.Threshold) : null,
+                        MaxAgeLiteral:        sr.Trigger == "BecomesStale" ? F(sr.MaxAgeSeconds) : null,
+                        SynthFieldName:       synthFieldName,
+                        SynthStructTypeName:  $"_WhenSensor_{idShort}_PrevState",
+                        SynthStructSizeBytes: 32,
+                        OnFiredBlock:         hasFired ? onFiredBlock : null,
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                    Debug = debug,
+                });
+                bb.Terminator = new IrTerm_Goto(outBlock) { Debug = debug };
+                goto scheduleSuccessors;
+            }
+
             case WhenMode.EqsResult:
             {
                 var er = wn.EqsResult;
@@ -2245,6 +2277,38 @@ internal sealed class GraphScheduler
                     _statementPinCache[handleOutPin.Id] = handleResult;
                 }
 
+                break;
+            }
+
+            case SpawnSensorNode spn:
+            {
+                // ⭐ CE-3078 N3 — the kind's own Ensure (Q2), the CE-485 site / key shape of SpawnEqsSensor.
+                var decl = spn.Decl!;   // Stage2 BP2074 / BP2075 refuse a node without one
+                IrValue? Wired(string pinName)
+                {
+                    var pin = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In" && string.Equals(p.Name, pinName, StringComparison.Ordinal));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == spn.Id && l.ToPinId == pin.Id);
+                    return link is null ? null : ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+                var settings = new List<(string, IrValue)>();
+                foreach (var (name, dir, _) in SpawnSensorNode.DataPins(decl))
+                    if (dir == "In" && name != "Key" && Wired(name) is { } v) settings.Add((name, v));
+                var entityType = new IrTypeRef { FullName = "Fdp.Core.Entity", IsUnmanaged = true, SizeBytes = 8 };
+                var sensorResult = AllocValue(entityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = sensorResult,
+                    Operation   = new IrOp_SpawnSensor((int)BlueprintIdHash.Compute(spn.Id), decl.SettingsTypeFqn!, decl.SettingsDefaultFqn,
+                                                       decl.EnsureMethodFqn!, settings, Wired("Key")),
+                    Debug = DebugOf(spn),
+                });
+                var sensorOut = spn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Name == "Sensor");
+                if (sensorOut is not null)
+                {
+                    _pinValueCache[sensorOut.Id]     = sensorResult;
+                    _statementPinCache[sensorOut.Id] = sensorResult;
+                }
                 break;
             }
 
@@ -3952,6 +4016,61 @@ internal sealed class GraphScheduler
                 }
 
                 // Return the value for the specifically requested pin
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
+                break;
+            }
+
+            case ReadSensorResultNode rsr:
+            {
+                // ⭐ CE-3078 N2 — one helper call per node (all out-pins share it), then a field read per pin.
+                string id8 = rsr.Id.ToString("N").Substring(0, 8);
+                string structTypeName = $"_SensorRead_{id8}";
+                var resultStructType = new IrTypeRef { FullName = structTypeName, IsUnmanaged = true };
+
+                var indexPin = rsr.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                                                             && string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase));
+                var indexLink = indexPin is null ? null : _graph.Links.FirstOrDefault(l => l.ToNodeId == rsr.Id && l.ToPinId == indexPin.Id);
+                IrValue indexValue;
+                if (indexLink is not null)
+                    indexValue = ResolveNodeOutput(indexLink.FromNodeId, indexLink.FromPinId, stmts);
+                else
+                {
+                    indexValue = AllocValue(Stage5_Schedule.Int32Type);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = indexValue,
+                        Operation   = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                    });
+                }
+
+                var decl = rsr.Decl!;   // Stage2 BP2074 refuses a node without one
+                var helperResult = AllocValue(resultStructType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = helperResult,
+                    Operation   = new IrOp_ReadSensorResult(indexValue, id8, structTypeName, decl.Kind, decl.ResultComponentFqn, decl.ElementTypeFqn),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                });
+
+                var members = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (name, dir, _, member) in ReadSensorResultNode.DataPins(decl))
+                    if (dir == "Out") members[name] = member;
+                foreach (var outPin in rsr.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    if (_pinValueCache.ContainsKey(outPin.Id)) continue;
+                    if (!members.TryGetValue(outPin.Name, out var member)) continue;
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var t2) ? t2 : Stage5_Schedule.UnknownType;
+                    var fieldResult = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldResult,
+                        Operation   = new IrOp_FieldRead(helperResult, member, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id] = fieldResult;
+                }
+
                 result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
                 break;
             }

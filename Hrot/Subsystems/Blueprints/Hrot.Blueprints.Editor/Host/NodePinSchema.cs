@@ -149,6 +149,9 @@ internal static class NodePinSchema
             GetAllVariablesNode  => AllVariablesPins(asset, "Out", withExec: false),
             SetVariablesNode     => AllVariablesPins(asset, "In",  withExec: true),
             GetComponentNode gcn => GetComponentPins(gcn),
+            // ⭐ CE-3078 N2 — the SAME projection Stage0 uses (ReadSensorResultNode.DataPins).
+            ReadSensorResultNode rsr => ReadSensorResultNode.DataPins(rsr.Decl).Select(p => MakeData(p.Name, p.Direction, p.TypeId)).ToList(),
+            SpawnSensorNode spn      => SpawnSensorPins(spn),
             SetComponentNode scn => SetComponentPins(scn),
             ComponentForEachNode cfe   => ComponentForEachPins(cfe),
             ComponentItemGetNode cig   => ComponentItemGetPins(cig),
@@ -1047,6 +1050,14 @@ internal static class NodePinSchema
     /// designer-placed node is always multi-pin; the legacy shape is reachable only for
     /// pre-CA-01 assets already on disk.
     /// </summary>
+    /// <summary>⭐ CE-3078 N3 — exec In / Out, then the SAME data projection Stage0 uses (SpawnSensorNode.DataPins).</summary>
+    private static IReadOnlyList<Pin> SpawnSensorPins(SpawnSensorNode spn)
+    {
+        var pins = new List<Pin> { MakeExec("In", "In"), MakeExec("Out", "Out") };
+        foreach (var (name, dir, typeId) in SpawnSensorNode.DataPins(spn.Decl)) pins.Add(MakeData(name, dir, typeId));
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> GetComponentPins(GetComponentNode gcn)
     {
         if (gcn.Fields is { Count: > 0 })

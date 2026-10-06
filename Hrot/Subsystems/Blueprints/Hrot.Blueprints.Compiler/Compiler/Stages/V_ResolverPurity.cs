@@ -64,6 +64,7 @@ internal sealed class V_ResolverPurity : IValidator
         typeof(CallCustomEventNode),
         typeof(CallPeerBlueprintNode),
         typeof(SpawnEqsSensorNode),
+        typeof(SpawnSensorNode),   // ⭐ CE-3078 N3: creates a sensor child
 
         // ── commander / partition mutations ───────────────────────────────────
         typeof(AcquireSlotNode),

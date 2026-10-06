@@ -225,6 +225,9 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             // ⭐ CE-485: one sensor per KEY from a single spawn node (e.g. one per area in a loop). Unconnected ⇒ key 0.
             Data("Key",             "In",  "Fdp.Core.Entity"),
         },
+        // ⭐ CE-3078 N2 — pins are projected from the baked decl by Stage0 (ReadSensorResultNode.DataPins).
+        ReadSensorResultNode      => Array.Empty<PinSchema>(),
+        SpawnSensorNode           => new[] { ExecIn(), ExecOut() },   // ⭐ CE-3078 N3 — data pins from the decl (Stage0)
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),
         PartitionElementsNode     => new[] { ExecIn(), ExecOut() },

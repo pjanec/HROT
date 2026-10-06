@@ -609,6 +609,9 @@ public sealed class NodeCoverageTests
         // value passes both Stage2 validation AND Roslyn compilation today.
         yield return ("Inline/ScoreDecision", new[] { BuildScoreDecisionMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        // ⭐ CE-3078 N2 — the per-kind sensor read (a DangerArea decl baked by the editor's SensorKindBaker).
+        yield return ("Sensors/ReadSensorResult", new[] { Sensors.ReadSensorResultTests.BuildReadAsset(0).asset }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Sensors/SpawnSensor", new[] { Sensors.SpawnSensorTests.BuildSpawnAsset() }, null, CoverageMode.FullRoslynPipeline);   // ⭐ CE-3078 N3
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/SetComponent", new[] { BuildSetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);

@@ -97,7 +97,9 @@ public sealed class GoldenCorpusTests
         // ⭐ 29 → 35 (CE-2021, 2026-10-02): the §7 demos of DESIGN_Unified_Behaviour_Run — `Demo_TaskChain` and
         //    `Demo_MissionPlan` (Behaviour Task chains, While Running abort, a task run ALONGSIDE) and their four step
         //    children `Demo_Advance` · `Demo_Engage` · `Demo_Retreat` · `Demo_TakeCover`.
-        Assert.Equal(35, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 35 → 36 (CE-3079 H7 / CE-3078, 2026-10-06): `DangerCrossingBp` — the FIRST asset built from the per-kind
+        //    sensor nodes (SpawnSensor · When SensorResult · ReadSensorResult), the DangerCrossing BTree as a blueprint.
+        Assert.Equal(36, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────
