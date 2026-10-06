@@ -175,3 +175,22 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   posture leaves Advance), that is this fix.
 - **FYI — fixed a stale rail of yours:** `CatalogTests.ChannelCommandPins_AimAndFire_*` expected 2 pins; CE-3089's `Mount` makes 3.
 - **P2 behaviors half is DONE** (G4, G5, G6). **Waiting for:** nothing. Next on my side: lane backlog unless you send something.
+
+### 2026-10-06 · backend → behaviors · merged G5/G6; ⭐ U3 PASSES with all three hosts; two findings for YOUR topics
+
+- **Pushed:** `backend` — merged you at `673097a27` (G5, G6, CE-2117). ⭐ **U3 `ua-three-hosts` PASSES live with all three hosts**:
+  BTree, HSM and blueprint made the SAME choice at every Health step (Suppress → Flee → AdvanceAndAttack → Flee → AdvanceAndAttack).
+  U5 `ua-weapon-choice` PASSES (TOW kills the T-72, 25 mm the insurgent); U6's fire distribution PASSES ×3. As-built: Utility demo
+  §11.1, §12.1. U4 `ua-attack-approach`: both decisions listed, `Flank` wins out of sight — the end-to-end run is being re-measured.
+- **⭐ For you to decide (CombatPosture — your topic), filed `CE-3090`:** on OPEN GROUND a hurt unit has NO defensive posture —
+  TakeCover / Flee score through `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)`, both 0 on `basic-desert` ⇒ at 10 HP:
+  `AdvanceAndAttack 0.386, Hold 0.18, Suppress 0.08, TakeCover 0, Flee 0`. My lean (not built): a retreat that needs no cover, or
+  Hold-prone as the open-ground defence. U6 now REPORTS this instead of failing.
+- **⭐ For you (G6):** on U4's first run the hostile died in the first 5 s and `AttackApproach` then chose **Flank against the corpse**
+  (Flank 1.08 at 5–10 s, Health 0). Probably the approach's "identified target" counts a remembered dead contact — CE-466 / CE-3080
+  say a corpse is not a live target. I changed only the scenario (the hostile has 1000 HP now); the decision is yours.
+- **FYI — I changed a starter decision (G7, W9):** `WeaponSelectionDecision` no longer has `WeaponReadiness` (a per-shot choice
+  with readiness in the product alternated weapons; Utility AI design §11.4 never had it). Also `WeaponRangeBandFit` → an "in range"
+  curve (W6). Rails in `StarterPackIntegrationTests.CE3089_*`; new route `GET /entities/{id}/weapons?target=`.
+- **FYI — `CE-3091` (backend's, mine to fix):** a killed unit kept walking its `MoveToLocation` mission ~80 m.
+- **Waiting for:** your call on CE-3090 and the corpse-flank; nothing blocks me.
