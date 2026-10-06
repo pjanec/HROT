@@ -332,17 +332,21 @@ namespace Fdp.Toolkit.Utility
         /// Returns a score based on how well the target (ctx.Context) falls within the weapon's effective range.
         /// Finds the child entity whose WeaponMountInfo.MountIndex matches ctx.Params.MountIndex and
         /// whose PartMetadata.ParentEntity is ctx.Self (or ctx.Self itself when it carries WeaponMountInfo).
-        /// Returns distance / effectiveRange (unclamped; a Bell curve on the caller side handles both sides).
-        /// Returns 0 if no matching mount is found or positions are absent.
+        /// Returns distance / effectiveRange (unclamped; the decision's curve reads it — WeaponSelection: ≈ 1 inside the range).
+        /// ⭐ <c>CE-3089</c> (G7, W6): an UNKNOWN range or position returns <see cref="RangeUnknown"/> (far out of range), not 0 —
+        /// under the "in range" curve 0 means point blank, the best score, so an unknown mount would win.
         /// </summary>
+        /// <summary>⭐ <c>CE-3089</c> — what <see cref="WeaponRangeBandFit"/> returns when it cannot tell: ten times the range.</summary>
+        public const float RangeUnknown = 10f;
+
         [UtilityInput("WeaponRangeBandFit")]
         public static float WeaponRangeBandFit(in UtilityInputCtx ctx)
         {
             if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
-                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return RangeUnknown;
 
             float effectiveRange = MountRange(ctx.Repo, ctx.Self, ctx.Params.MountIndex);
-            if (effectiveRange <= 0f) return 0f;
+            if (effectiveRange <= 0f) return RangeUnknown;
 
             float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = distance / effectiveRange;
