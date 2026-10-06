@@ -204,6 +204,15 @@ namespace Hrot.SimHost.Systems
                 };
             }
 
+            // ⭐ CE-3072 B3 (R-213) — a danger-area sensor is not a ranked query: route + terrain → areas, on its own result path
+            //   (DangerAreaResultEvent). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
+            if (sensor.BlueprintId == Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId)
+            {
+                SolveDangerArea(entity, parentNetworkId, localChildIndex, in sensor);
+                evalState.Phase = EqsEvalPhase.Idle;
+                return EqsCost.Sensor + EqsCost.Path;
+            }
+
             // Try to look up the template from the registry singleton.
             IEqsTemplateRegistry? registry = repo.HasSingletonManaged<IEqsTemplateRegistry>()
                 ? repo.GetSingletonManaged<IEqsTemplateRegistry>()
@@ -368,6 +377,22 @@ namespace Hrot.SimHost.Systems
                                     sensor.FactionFilter, sensor.ThreatThreshold,
                                     sensor.ContextSlot0, sensor.ContextSlot1, sensor.ContextSlot2);
             return true;
+        }
+
+        // ⭐ CE-3072 B3 — the areas along the sensor's route, published for the egress (cluster) and the Brain (fused world).
+        private void SolveDangerArea(Entity entity, long parentNetworkId, int localChildIndex, in EqsSensor sensor)
+        {
+            var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
+            int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas);
+            _currentRepo.Bus.PublishManaged(new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
+            {
+                ParentNetworkId = parentNetworkId,
+                LocalChildIndex = localChildIndex,
+                Epoch           = sensor.Epoch,
+                RefreshTick     = _currentTick,
+                Areas           = areas,
+                Count           = count,
+            });
         }
 
         private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)

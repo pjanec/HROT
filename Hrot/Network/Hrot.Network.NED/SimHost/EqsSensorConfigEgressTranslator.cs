@@ -141,7 +141,7 @@ namespace Hrot.Network.NED.SimHost
                     ContextSlot2NetworkId = slot2,
                     Suspended             = sensor.Suspended,
                     // ⭐ R-179: a child sensor names its solver; a legacy instance-0 sensor keeps its Perception group.
-                    SolverNodeId          = localChildIndex == 0 ? 0 : SolverFor((parentNetworkId, localChildIndex)),
+                    SolverNodeId          = localChildIndex == 0 ? 0 : SolverFor((parentNetworkId, localChildIndex), sensor.BlueprintId),
                     ConfigKind            = payload?.Kind ?? string.Empty,
                     ConfigJson            = payload?.Json ?? string.Empty,
                     Override              = tkb && payload != null,
@@ -288,17 +288,27 @@ namespace Hrot.Network.NED.SimHost
         /// sensor this node inherited keeps the solver already on the wire; re-picked only when that node has left the
         /// cluster cache (a departure removes it, S7). <c>0</c> while no Perception node is known — the next scan retries.
         /// </summary>
-        private int SolverFor((long ParentNetworkId, int LocalChildIndex) key)
+        private int SolverFor((long ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
         {
             if (_clusterCache == null) return 0;
             var known = _clusterCache.AllNodeIds();
             if (_solverOf.TryGetValue(key, out int solver) && Contains(known, solver)) return solver;
             solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)
                 ? wire.SolverNodeId
-                : _clusterCache.GetLeastLoadedNode(NodeRole.Perception) ?? 0;
+                : _clusterCache.GetLeastLoadedNode(RoleFor(blueprintId)) ?? 0;
             if (solver != 0) _solverOf[key] = solver;
             return solver;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B3 — the role a sensor's solver must carry: a danger-area sensor plans its route there, so it needs
+        /// the navmesh too (<c>Perception | NavigationSolver</c> — every SimHost; ⛔ not a Stride node, which is
+        /// <c>MuscleGround | Perception</c>). Every other sensor: <c>Perception</c>. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
+        /// </summary>
+        internal static NodeRole RoleFor(uint blueprintId)
+            => blueprintId == Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId
+                ? NodeRole.Perception | NodeRole.NavigationSolver
+                : NodeRole.Perception;
 
         private static bool Contains(IReadOnlyList<int> nodes, int node)
         {
