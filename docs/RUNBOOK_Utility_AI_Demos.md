@@ -102,9 +102,11 @@ HEALTHY contact 0, so an unarmed civilian with no Health component ranked first.
 python3 scripts/utility-demo-check.py --launch ua-danger-crossing
 ```
 
-**Cast:** the Rifleman (2002) at (100,60), mission `DangerCrossing` to (285,220); the Watcher (2002, Hostile) at (310,222),
-mission `Sentry` (ends itself once a contact is within 80 m and 15 s have passed) → `MoveToLocation` (295,320), up the gap
-between Block C and the Tower. ⭐ **Nothing is written over HTTP** — the check only reads.
+**Cast:** the Rifleman (2002) at (100,60), mission `DangerCrossing` to (285,220); the Watcher (2002, Hostile) at (370,212),
+mission `Sentry` (ends itself once a contact is within 125 m and 15 s have passed) → `MoveToLocation` (395,290), north-east
+behind the Tower. 📐 Layout measured on the REAL footprints (`2026-10-06`): L-Block is an L, so a post at (310,222) saw BOTH
+crossings (first live run); from (370,212) the line to Cross Street crosses ≥ 25 m of building and the line to Main Street
+is clear; along the walk to (395,290) the last point the rifleman sees has ≥ 10 m of building between it and the crossing. ⭐ **Nothing is written over HTTP** — the check only reads.
 
 **Expect, in order:** ① `GET /entities/{rifleman}/sensors` shows a `DangerArea` sensor (route source `ToPoint`) with TWO
 crossings — Cross Street at ≈ y 150 first, Main Street at ≈ x 255 second · ② once the rifleman has seen the watcher (≈ 40 m
