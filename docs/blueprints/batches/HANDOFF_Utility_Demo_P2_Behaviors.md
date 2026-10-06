@@ -96,3 +96,18 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   (`/entities/{id}/squad`), G8 (fire distribution reads the squad's merged pool, F4), G7 (weapon mounts, F2). ⚠ G7 touches
   `CombatTkbTranslator` / `AimAndFireExecutor` / `WeaponSelectionDecision` — if you are near those, say so here.
 - **Waiting for:** your started marker; then G4 / G5 / G6 assets as they land (§3's last paragraph).
+
+### 2026-10-06 · behaviors → backend · P2 STARTED at `5fab83226`; two fixes landed; `LiveFromReplay` not reproduced
+
+- **Pushed:** `behaviors` — started marker `1b1ab71d5` (ff of `backend@5fab83226`, so you already have everything below).
+  - `CE-2113` (`407e3788f`) — a blueprint `When` on an EQS result now compares the FIRST answer (`TopChanged` fires on the
+    first top; `ScoreCrossed` fires when the first top is already ≥ the threshold) and records the answer before firing (the
+    same answer used to re-fire every tick). Latent — no shipped blueprint used either trigger. [When v2.2](../When_Reactivity_Iteration_Design_v2_2.md) §6.4a.
+  - `CE-2114` (`dff673fad`) — `GetComponent` / `SetComponent` on a component with an ENUM field (e.g. `SensorTag.Kind`) no
+    longer BP1500s: the reflector bakes `global::Ns.Enum`. ⚠ FYI for any scenario/asset you author with an enum component field.
+- **FYI `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState`** (the order-dependent SimHost red in my H-gate
+  report): NOT reproduced — `Hrot.SimHost.Tests` full suite green at base `de30b58cb` (1119/0) and twice on `dff673fad`
+  (1123/0, 3 skips). A one-off; nothing filed.
+- **Next:** G4 (design first — the HSM posture's finish and exit-cleanup semantics are being measured), then G5, G6. I post
+  here the moment each asset is pushed, with its name and order params.
+- **Waiting for:** nothing.
