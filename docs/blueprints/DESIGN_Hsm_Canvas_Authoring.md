@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: READY-TO-BUILD (S1-S3) · S4 waits on Q84 · revised 2026-10-06 (D4/D6 consistency, D8 withdrawn)
-current-answer: §2 decisions, §3-§5 diagrams, §8 slices. Everything here is the target; nothing is built yet.
+build-state: BUILT (S1-S3, 2026-10-06 — §8a) · S4 waits on Q84 · revised 2026-10-06 (D4/D6 consistency, D8 withdrawn)
+current-answer: §2 decisions, §3-§5 diagrams, §8 slices, §8a AS-BUILT (S1-S3 built 2026-10-06).
 stale-below: nothing
 known-rot: none yet
 known-conflict: HSM_Editor_NodeEditor_Host_Design.md §7.1 chose "two invisible pins, NodeEditor unchanged" for
@@ -252,6 +252,22 @@ current tangents, which move into `LinkPathBuilder.PinWire` unchanged).
 | **S2** | context-menu "Add Transition" (sticky wire); `HsmNodeCatalog.QueryForPinContext` → picker on empty drop; unique names; `HsmCommandSink` handles `Title`; `DuplicateStateName` | two palette placements ⇒ `State`, `State 2` · canvas Rename (F2) renames the state and one undo restores it · rename into a clash ⇒ Error diagnostic · "Add Transition" then click a state ⇒ one transition |
 | **S3** | label/arrowhead/breakpoint dot/fired pulse on the path; delete `HsmTransitionSnapHelper` | label point lies on the drawn path · breakpoint dot of a transition ≠ its source state's dot · Windows visual check against the UnityHFSM pictures |
 | **S4** | initial-marker drag + "Set as initial" context item | ⏸ **waits on [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md)** |
+
+## 8a. ✅ AS-BUILT `2026-10-06` — S1, S2, S3 (CE-1000, CE-1001, CE-1002)
+
+| design said | built | deviation / addition, and why |
+|---|---|---|
+| `LinkPath` + `LinkPathBuilder` in Core, `CanvasLayout.LinkScreenPaths`, `TryGetLinkScreenPath` | ✅ as drawn (§3) — `LinkPath` holds 1..n `BezierSegment`s (n > 1 with waypoints); `TryGetLinkScreenPath` is a default interface member returning false, so the 5 existing test fakes need no change | — |
+| renderer / hit-tester / pending wire read the path | ✅ `WireRenderer.DrawPath` (+ `DrawArrowhead` along `Tangent(1)`), `HitTester` samples `path.DistanceTo`, `DrawPendingWire` draws `ToPoint`/`NodeToNode`/`SelfLoop` | `HitTester.WireTangents` kept as a one-line delegate (the `WireTangentTests` rails name it) |
+| `NodeEdge` hover zone, border/Shift drag | ✅ `HoverKind.NodeEdge` (z 67: above node body and container header, below wires/pins); Shift on a node body or container header | ➕ **pins are NOT hit-tested in node-to-node graphs** — otherwise HSM's invisible pins (left/right mid-edge) still win and start a pin-wire. ➕ a NodeEdge or container-HEADER right-click opens the NODE menu — 📐 composites had **no context menu at all** before |
+| a click is not a link; no accidental self-transition | ✅ `PendingWire.SourceNode` / `LeftSourceNode` / `AddToSelectionOnClick` | — |
+| "Add Transition" context item (sticky wire) | ✅ generic "Add {`LinkDisplayName`}" in the node menu of node-to-node graphs; `PendingWire.Sticky` finishes on a left PRESS, Esc / right-click cancels | — |
+| drop on empty canvas → state picker, one undo step | ✅ shared `OpenPickerForWire` (extracted from the pin path); the new node's pin comes from ➕ **`IGraphModel.NodeLinkPin`** (default: the node's first pin of that direction; HSM overrides it from the StableId so it answers for a not-yet-created state) | the catalogue carries no pin signatures for whole-node links, so the pin-signature match could never link |
+| (not in the design) | ➕ **`ScopedPickerRegistry`**, used by the BTree, Blueprint AND HSM document factories; HSM gains `HsmPickerSources` | 📐 **found while building D4:** all AI documents registered `nodes.all` / `nodes.by-pin` in ONE process-wide registry — the last opened BTree/Blueprint document owned them for every canvas. HSM registered none, so Tab / "Add Node…" on an HSM canvas offered another editor's nodes (or nothing), and two open blueprints offered each other's. ⚠ cross-editor change (BTree, Blueprint factories) |
+| unique names + `DuplicateStateName` | ✅ `HsmCommandSink.UniqueStateName` ("State", "State 2", …); validator rule (Error) | — |
+| canvas Rename (F2) works on HSM | ✅ `HsmCommandSink` handles `SetNodeProperty("Title")` (trimmed; empty refused) | — |
+| S3: label / bp dot / pulse on the path | ✅ `HsmTransitionLabelRenderer.LabelAnchor` (outer side of the bend), `HsmBreakpointGutterRenderer.TryTransitionDotCenter` (25 % along), `HsmRuntimeOverlayRenderer` highlights the fired arrow + a diamond moving along it | the HSM renderer's own chord-aimed arrowhead (`ComputeArrowheadGeometry`) and its 5 tests are deleted — the canvas draws the arrowhead now |
+| D9 delete `HsmTransitionSnapHelper` | ✅ deleted with its tests; `Hrot.Hsm.Editor.md` updated | — |
 
 ## 9. Neighbouring work — measured `2026-10-06`, so nothing surprises the build
 

@@ -190,6 +190,19 @@ internal sealed class CanvasInput
                     // Optionally pre-select the source node
                     break;
 
+                case HoverKind.NodeEdge:
+                    // CE-1000: the border band of a node in a node-to-node graph starts a link. A release without
+                    // dragging is still a click on the node (handled in HandlePendingWire).
+                    if (BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: shift, sticky: false))
+                        return;
+                    break;
+
+                case HoverKind.Node when shift && view.Model.Kind.Routing == LinkRouting.NodeToNode:
+                    // CE-1000: Shift-drag anywhere on a node starts a link; Shift-click still adds to the selection.
+                    if (BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: true, sticky: false))
+                        return;
+                    break;
+
                 case HoverKind.Node:
                     if (!ctrl && !shift && !view.Selection.Contains(SelectionEntry.OfNode(hover.Node)))
                         view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
@@ -238,6 +251,13 @@ internal sealed class CanvasInput
                             var inv = new GraphCommand.SetContainerCollapsed(hover.Node, containerNode.IsCollapsed);
                             view.Execute(fwd, inv, "Toggle Container Collapse");
                         }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Header && shift
+                             && view.Model.Kind.Routing == LinkRouting.NodeToNode
+                             && BeginNodeWire(view, input, hover.Node, addToSelectionOnClick: true, sticky: false))
+                    {
+                        // CE-1000: Shift-drag on a container's header starts a link from the container.
+                        return;
                     }
                     else if (hover.ContainerZone == ContainerHoverZone.Header)
                     {
@@ -401,6 +421,11 @@ internal sealed class CanvasInput
         {
             bool wasDrag = view.Interaction.DragThresholdCrossed;
             var menuTarget = view.Interaction.Hover;
+            // CE-1000: the link-start band is part of the node for the context menu. CE-1001: so is a
+            // container's header — a composite had no node menu at all (no Rename, no Add Transition).
+            if (menuTarget.Kind == HoverKind.NodeEdge
+                || (menuTarget.Kind == HoverKind.Container && menuTarget.ContainerZone == ContainerHoverZone.Header))
+                menuTarget = new HoverInfo { Kind = HoverKind.Node, Node = menuTarget.Node };
             view.Interaction.ResetToIdle();
             if (!wasDrag)
             {
@@ -1055,7 +1080,143 @@ internal sealed class CanvasInput
 
     // ── Pending wire ──────────────────────────────────────────────────────────
 
-    private static void HandlePendingWire(GraphView view, IInputSource input)
+    /// <summary>
+    /// CE-1000 — starts a link from a whole node (node-to-node routing): from the node's link-source pin, the first
+    /// output pin the validator accepts as a source. Returns false when the node has no output pin.
+    /// </summary>
+    internal static bool BeginNodeWire(GraphView view, IInputSource input, NodeId nodeId, bool addToSelectionOnClick, bool sticky)
+    {
+        var sourcePin = view.Model.NodeLinkPin(nodeId, PinDirection.Output);
+        if (sourcePin is null) return false;
+
+        view.Interaction.DragStartScreen = input.MousePosition;
+        view.Interaction.DragThresholdCrossed = false;
+        view.Interaction.Mode = InteractionMode.PendingWire;
+        view.Interaction.PendingWire = new PendingWire
+        {
+            SourcePin = sourcePin.Value,
+            SourceNode = nodeId,
+            AddToSelectionOnClick = addToSelectionOnClick,
+            Sticky = sticky,
+            CursorGraph = view.Viewport.ScreenToGraph(input.MousePosition),
+        };
+        return true;
+    }
+
+    /// <summary>The node an element under the cursor belongs to (node body, border band, container, or one of its pins).</summary>
+    internal static NodeId? HoveredNodeOf(GraphView view, HoverInfo hover) => hover.Kind switch
+    {
+        HoverKind.Node or HoverKind.NodeEdge or HoverKind.Container => hover.Node,
+        HoverKind.Pin => view.Model.FindPin(hover.Pin)?.OwnerNodeId,
+        HoverKind.Attachment => view.Model.FindAttachment(hover.Attachment)?.HostNodeId,
+        _ => null,
+    };
+
+    /// <summary>
+    /// A wire dropped on empty canvas: open the contextual node picker; the pick adds the node and the link in ONE
+    /// undo step. CE-1001: in node-to-node graphs the new node's link pin comes from
+    /// <see cref="IGraphModel.NodeLinkPin"/> (the catalogue carries no pin signatures for whole-node links).
+    /// </summary>
+    private static void OpenPickerForWire(GraphView view, IInputSource input, PendingWire pw)
+    {
+        view.Interaction.Mode = InteractionMode.PickerOpen;
+        var srcPin = view.Model.FindPin(pw.SourcePin);
+
+        var context = new Dictionary<string, object?>
+        {
+            ["sourcePinId"] = pw.SourcePin,
+            ["cursorGraph"] = pw.CursorGraph,
+            ["sourceDirection"] = srcPin?.Direction,
+            ["sourceKind"] = srcPin?.Kind,
+            ["sourceType"] = srcPin?.Type
+        };
+
+        view.Host.Pickers.Open(
+            "nodes.by-pin",
+            input.MousePosition,
+            pick =>
+            {
+                if (pick is NodeCatalogEntry entry)
+                {
+                    var srcPinModel = view.Model.FindPin(pw.SourcePin);
+                    if (srcPinModel != null)
+                    {
+                        // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
+                        var pinIds = new List<PinId>();
+                        int totalPins = entry.Inputs.Count + entry.Outputs.Count;
+                        for (int i = 0; i < totalPins; i++)
+                        {
+                            pinIds.Add(IdGenerator.NewPinId());
+                        }
+
+                        var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
+                        var newNodeId = IdGenerator.NewNodeId();
+
+                        var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
+                        var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
+
+                        var fwds = new List<GraphCommand> { nodeFwd };
+                        var invs = new List<GraphCommand> { nodeInv };
+
+                        // 2. Find a compatible pin using the catalog entry signatures
+                        var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
+                        // CE-1001: a whole-node link targets the pin the MODEL names for the new node.
+                        PinId? compatiblePinId = pw.SourceNode != null
+                            ? view.Model.NodeLinkPin(newNodeId, PinDirection.Input)
+                            : null;
+                        int pinIdx = 0;
+
+                        foreach (var sig in compatiblePinId == null ? entry.Inputs : Array.Empty<PinSignature>())
+                        {
+                            if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
+                                (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                            {
+                                compatiblePinId = pinIds[pinIdx];
+                                break;
+                            }
+                            pinIdx++;
+                        }
+
+                        if (compatiblePinId == null)
+                        {
+                            foreach (var sig in entry.Outputs)
+                            {
+                                if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
+                                    (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                {
+                                    compatiblePinId = pinIds[pinIdx];
+                                    break;
+                                }
+                                pinIdx++;
+                            }
+                        }
+
+                        // 3. Form the link command targeting the deterministic PinId
+                        if (compatiblePinId.HasValue)
+                        {
+                            var linkId = IdGenerator.NewLinkId();
+                            var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
+                            var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
+
+                            fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
+                            invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
+                        }
+
+                        // 4. Execute as a single atomic batch (inverses must be reversed)
+                        invs.Reverse();
+                        var batchFwd = new GraphCommand.Batch("Add Node", fwds);
+                        var batchInv = new GraphCommand.Batch("Add Node", invs);
+
+                        view.Execute(batchFwd, batchInv, "Add Node");
+                    }
+                }
+                view.Interaction.ResetToIdle();
+            },
+            () => view.Interaction.ResetToIdle(),
+            context);
+    }
+
+    internal static void HandlePendingWire(GraphView view, IInputSource input)
     {
         var pw = view.Interaction.PendingWire;
         if (pw == null) { view.Interaction.ResetToIdle(); return; }
@@ -1073,8 +1234,66 @@ internal sealed class CanvasInput
         pw.CandidateTarget = null;
         pw.CandidateValid = false;
         pw.CandidateNeedsCast = false;
+        pw.CandidateNode = null;
 
         var hover = view.Interaction.Hover;
+
+        if (pw.SourceNode is { } srcNode)
+        {
+            // ── CE-1000: node-to-node — the candidate is a whole NODE, connected to its first valid input pin ──
+            var under = HoveredNodeOf(view, hover);
+            if (under != srcNode) pw.LeftSourceNode = true;
+
+            if (pw.Sticky && (input.IsKeyPressed(EditorKey.Escape) || input.IsMousePressed(MouseButton.Right)))
+            {
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (under is { } target && (target != srcNode || pw.LeftSourceNode))
+            {
+                var pin = view.Model.NodeLinkPin(target, PinDirection.Input);
+                pw.CandidateNode = target;
+                if (pin is { } p && p != pw.SourcePin
+                    && view.Validator.Validate(pw.SourcePin, p).Verdict != LinkValidity.Invalid)
+                {
+                    pw.CandidateTarget = p;
+                    pw.CandidateValid = true;
+                }
+            }
+
+            bool finish = pw.Sticky ? input.IsMousePressed(MouseButton.Left) : input.IsMouseReleased(MouseButton.Left);
+            if (!finish) return;
+
+            // A press-release without dragging is a click on the node, not a link.
+            if (!pw.Sticky && !view.Interaction.DragThresholdCrossed)
+            {
+                var entry = SelectionEntry.OfNode(srcNode);
+                if (pw.AddToSelectionOnClick) view.Selection.Add(entry);
+                else if (!view.Selection.Contains(entry)) view.Selection.ReplaceWith(entry);
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (pw.CandidateTarget is { } toPin && pw.CandidateValid)
+            {
+                var (fwd, inv) = new CommandBuilder(view.Model).AddLink(pw.SourcePin, toPin);
+                view.Execute(fwd, inv, "Connect " + view.Model.Kind.LinkDisplayName);
+                view.Interaction.ResetToIdle();
+                return;
+            }
+
+            if (hover.Kind == HoverKind.None)
+            {
+                OpenPickerForWire(view, input, pw);
+                return;
+            }
+
+            // Over a node that refuses the link (or back on the source): nothing is created.
+            view.Interaction.ResetToIdle();
+            return;
+        }
+
         if (hover.Kind == HoverKind.Pin && hover.Pin != pw.SourcePin)
         {
             var result = view.Validator.Validate(pw.SourcePin, hover.Pin);
@@ -1137,98 +1356,7 @@ internal sealed class CanvasInput
             else if (dropHover.Kind == HoverKind.None && view.Interaction.DragThresholdCrossed)
             {
                 // Dropped on empty canvas: suspend canvas input and open contextual picker.
-                view.Interaction.Mode = InteractionMode.PickerOpen;
-                var srcPin = view.Model.FindPin(pw.SourcePin);
-
-                var context = new Dictionary<string, object?>
-                {
-                    ["sourcePinId"] = pw.SourcePin,
-                    ["cursorGraph"] = pw.CursorGraph,
-                    ["sourceDirection"] = srcPin?.Direction,
-                    ["sourceKind"] = srcPin?.Kind,
-                    ["sourceType"] = srcPin?.Type
-                };
-
-                view.Host.Pickers.Open(
-                    "nodes.by-pin",
-                    input.MousePosition,
-                    pick =>
-                    {
-                        if (pick is NodeCatalogEntry entry)
-                        {
-                            var srcPinModel = view.Model.FindPin(pw.SourcePin);
-                            if (srcPinModel != null)
-                            {
-                                // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
-                                var pinIds = new List<PinId>();
-                                int totalPins = entry.Inputs.Count + entry.Outputs.Count;
-                                for (int i = 0; i < totalPins; i++)
-                                {
-                                    pinIds.Add(IdGenerator.NewPinId());
-                                }
-
-                                var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
-                                var newNodeId = IdGenerator.NewNodeId();
-
-                                var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
-                                var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
-
-                                var fwds = new List<GraphCommand> { nodeFwd };
-                                var invs = new List<GraphCommand> { nodeInv };
-
-                                // 2. Find a compatible pin using the catalog entry signatures
-                                var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
-                                PinId? compatiblePinId = null;
-                                int pinIdx = 0;
-
-                                foreach (var sig in entry.Inputs)
-                                {
-                                    if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
-                                        (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
-                                    {
-                                        compatiblePinId = pinIds[pinIdx];
-                                        break;
-                                    }
-                                    pinIdx++;
-                                }
-
-                                if (compatiblePinId == null)
-                                {
-                                    foreach (var sig in entry.Outputs)
-                                    {
-                                        if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
-                                            (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
-                                        {
-                                            compatiblePinId = pinIds[pinIdx];
-                                            break;
-                                        }
-                                        pinIdx++;
-                                    }
-                                }
-
-                                // 3. Form the link command targeting the deterministic PinId
-                                if (compatiblePinId.HasValue)
-                                {
-                                    var linkId = IdGenerator.NewLinkId();
-                                    var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
-                                    var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
-
-                                    fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
-                                    invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
-                                }
-
-                                // 4. Execute as a single atomic batch (inverses must be reversed)
-                                invs.Reverse();
-                                var batchFwd = new GraphCommand.Batch("Add Node", fwds);
-                                var batchInv = new GraphCommand.Batch("Add Node", invs);
-
-                                view.Execute(batchFwd, batchInv, "Add Node");
-                            }
-                        }
-                        view.Interaction.ResetToIdle();
-                    },
-                    () => view.Interaction.ResetToIdle(),
-                    context);
+                OpenPickerForWire(view, input, pw);
             }
             else
             {

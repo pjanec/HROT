@@ -87,80 +87,30 @@ public sealed class HsmTransitionLabelRendererTests
         HsmTransitionLabelRenderer.FormatLabel(t).Should().Be("Hit [SG:3]");
     }
 
-    // ── ComputeArrowheadGeometry tests ──────────────────────────────────────
+    // ── CE-1000 LabelAnchor: the label sits beside the drawn arrow, on the outer side of its bend ──
 
     [Fact]
-    public void ComputeArrowheadGeometry_tip_is_at_target()
+    public void CE1000_LabelAnchor_IsOnTheOuterSideOfTheBend()
     {
-        var source = new Vector2(0f, 0f);
-        var target = new Vector2(100f, 0f);
-
-        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
-
-        result.Should().NotBeNull();
-        result!.Value.tip.Should().Be(target);
+        // A→B left to right; NodeToNode bends to the left of travel = up (y down) in screen space.
+        var path = NodeEditor.Core.Canvas.LinkPathBuilder.NodeToNode(
+            new NodeEditor.Primitives.RectF(new Vector2(0, 0), new Vector2(100, 40)),
+            new NodeEditor.Primitives.RectF(new Vector2(300, 0), new Vector2(100, 40)));
+        var size = new Vector2(40, 12);
+        var topLeft = HsmTransitionLabelRenderer.LabelAnchor(path, size);
+        var mid = path.Point(0.5f);
+        Assert.True(topLeft.Y + size.Y <= mid.Y, "label box must sit above an arc that bends up");
+        Assert.InRange(topLeft.X + size.X * 0.5f, mid.X - 1f, mid.X + 1f);
     }
 
     [Fact]
-    public void ComputeArrowheadGeometry_tip_points_toward_target()
+    public void CE1000_LabelAnchor_OfAPair_Separate()
     {
-        // Source → target goes right (+X). Tip must be closer to target than base vertices.
-        var source = new Vector2(0f, 0f);
-        var target = new Vector2(100f, 0f);
-
-        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
-
-        result.Should().NotBeNull();
-        var (tip, left, right) = result!.Value;
-
-        // Both base vertices should be behind (lower X) the tip when going right.
-        left.X.Should().BeLessThan(tip.X);
-        right.X.Should().BeLessThan(tip.X);
-
-        // Base vertices should be symmetric around the shaft axis (same X, opposite Y).
-        left.X.Should().BeApproximately(right.X, 1e-4f);
-        left.Y.Should().BeApproximately(-right.Y, 1e-4f);
-    }
-
-    [Fact]
-    public void ComputeArrowheadGeometry_triangle_is_non_degenerate()
-    {
-        // A non-degenerate triangle has non-zero area.
-        // Area = 0.5 * |cross(b-a, c-a)|
-        var source = new Vector2(10f, 20f);
-        var target = new Vector2(80f, 50f);
-
-        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
-
-        result.Should().NotBeNull();
-        var (tip, left, right) = result!.Value;
-
-        var ab = left  - tip;
-        var ac = right - tip;
-        float cross = ab.X * ac.Y - ab.Y * ac.X;   // Z-component of 3D cross product
-        MathF.Abs(cross).Should().BeGreaterThan(1e-4f, "triangle must have non-zero area");
-    }
-
-    [Fact]
-    public void ComputeArrowheadGeometry_coincident_points_returns_null()
-    {
-        var pos = new Vector2(50f, 50f);
-
-        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(pos, pos, 7f, 5f);
-
-        result.Should().BeNull("coincident source and target give no valid direction");
-    }
-
-    [Fact]
-    public void ComputeArrowheadGeometry_diagonal_direction_tip_at_target()
-    {
-        var source = new Vector2(0f, 0f);
-        var target = new Vector2(30f, 40f);  // 3-4-5 triangle scaled ×10 → length 50
-
-        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
-
-        result.Should().NotBeNull();
-        result!.Value.tip.X.Should().BeApproximately(target.X, 1e-4f);
-        result!.Value.tip.Y.Should().BeApproximately(target.Y, 1e-4f);
+        var a = new NodeEditor.Primitives.RectF(new Vector2(0, 0), new Vector2(100, 40));
+        var b = new NodeEditor.Primitives.RectF(new Vector2(300, 0), new Vector2(100, 40));
+        var size = new Vector2(40, 12);
+        var ab = HsmTransitionLabelRenderer.LabelAnchor(NodeEditor.Core.Canvas.LinkPathBuilder.NodeToNode(a, b), size);
+        var ba = HsmTransitionLabelRenderer.LabelAnchor(NodeEditor.Core.Canvas.LinkPathBuilder.NodeToNode(b, a), size);
+        Assert.True(MathF.Abs(ab.Y - ba.Y) > size.Y, "the two labels of A→B and B→A must not overlap");
     }
 }

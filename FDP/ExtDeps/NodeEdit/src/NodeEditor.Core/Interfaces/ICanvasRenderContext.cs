@@ -90,6 +90,17 @@ public interface ICanvasRenderContext
     /// Returns false if the pin was not laid out.
     /// </summary>
     bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos);
+
+    /// <summary>
+    /// ⭐ CE-1000 — the drawn shape of a link this frame, screen space: the SAME <see cref="LinkPath"/> the canvas
+    /// draws and hit-tests, so a label, arrowhead or badge placed on it sits on the visible curve. False when the link
+    /// was not laid out (an endpoint culled or hidden). Default: false (test fakes need not implement it).
+    /// </summary>
+    bool TryGetLinkScreenPath(LinkId id, out LinkPath path)
+    {
+        path = null!;
+        return false;
+    }
 }
 
 /// <summary>

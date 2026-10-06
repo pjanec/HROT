@@ -120,8 +120,22 @@ public sealed class HsmGraphModel : IGraphModel
 
     public GraphId Id          => new GraphId(_asset.AssetId);
     public string  DisplayName => _asset.Name;
+    // ⭐ CE-1000: transitions are drawn state border to state border and started from a state's border band
+    //    (or Shift-drag) — the pins stay as the link's identity only. 📄 DESIGN_Hsm_Canvas_Authoring.md §2 D1.
     public GraphKindDescriptor Kind { get; } =
-        new("HsmGraph", "State Machine", AllowsLatent: false, RequiresEntryNode: false);
+        new("HsmGraph", "State Machine", AllowsLatent: false, RequiresEntryNode: false)
+        {
+            Routing = LinkRouting.NodeToNode,
+            LinkDisplayName = "Transition",
+        };
+
+    /// <summary>
+    /// CE-1000/1001 — a state's hidden pins derive from its StableId, so this answers for a state that is about to
+    /// be created too (the "drop on empty canvas" batch links to it in the same undo step).
+    /// </summary>
+    public PinId? NodeLinkPin(NodeId node, PinDirection direction) => new PinId(direction == PinDirection.Output
+        ? StateNode.DeriveOutputPinId(node.Value)
+        : StateNode.DeriveInputPinId(node.Value));
 
     // Nodes: all non-root states (RootState is synthetic and never shown).
     public IReadOnlyCollection<INodeModel> Nodes => _asset.AllStates;

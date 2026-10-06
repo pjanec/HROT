@@ -29,7 +29,8 @@ public readonly record struct HoverInfo
     public static HoverInfo None => default;
 }
 
-public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container, CustomElement }
+/// <summary>What the cursor is over. <see cref="NodeEdge"/> (CE-1000) is the link-start band just inside a node's border, used only by <c>LinkRouting.NodeToNode</c> graphs.</summary>
+public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container, CustomElement, NodeEdge }
 
 public enum CommentHoverZone { None, Header, Body, ResizeHandle }
 

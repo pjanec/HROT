@@ -104,4 +104,8 @@ public enum HsmDiagnosticCode
     // ⭐ CE-2083 — a state's SOP order RUNS AS its activity (DESIGN_Decision_Layer §4.10 D3): an order AND an Activity binding
     // is one slot with two owners (the generator refuses it, HSM0001); and an order must name a behaviour. Hard-error.
     SopOrderInvalid,
+
+    // ⭐ CE-1001 / HSM-006 — two states share a name. Emit binds a transition to its target BY NAME, so this is a
+    // silently wrong machine (the builder binds whichever it resolves first). Hard-error.
+    DuplicateStateName,
 }

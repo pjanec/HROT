@@ -86,6 +86,7 @@ public sealed class HsmValidator
         var diagnostics = new List<HsmDiagnostic>();
 
         CheckInitialChildren(asset, diagnostics);
+        CheckDuplicateStateNames(asset, diagnostics);   // CE-1001 / HSM-006
         CheckHistoryOutsideComposite(asset, diagnostics);
         CheckFinalStateWithChildren(asset, diagnostics);
         CheckFinalStateWithOutgoingTransitions(asset, diagnostics);
@@ -134,6 +135,23 @@ public sealed class HsmValidator
                     $"Composite state '{s.Name}' has {initialCount} children marked as initial; only one is allowed.",
                     new[] { s.StableId }));
             }
+        }
+    }
+
+    // CE-1001 / HSM-006: DuplicateStateName. Names are load-bearing in emit (`.GoTo("Name")`). The synthetic root
+    // is not a state an author names, so it is skipped.
+    private static void CheckDuplicateStateNames(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var group in asset.AllStates
+                     .Where(s => !ReferenceEquals(s, asset.RootState))
+                     .GroupBy(s => s.Name, StringComparer.Ordinal)
+                     .Where(g => g.Count() > 1))
+        {
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.DuplicateStateName,
+                HsmDiagnosticSeverity.Error,
+                $"{group.Count()} states are named '{group.Key}'; transitions bind their target by name, so every state needs a unique name.",
+                group.Select(s => s.StableId).ToArray()));
         }
     }
 

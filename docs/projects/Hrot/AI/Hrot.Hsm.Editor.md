@@ -273,7 +273,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 | `Host/HsmLinkValidator.cs` | `HsmLinkValidator` (internal) | Implements `ILinkValidator`. Validates that a new transition is legal: pins must resolve to known states; Final states cannot be sources; History pseudo-states cannot be targets. |
 | `Host/HsmKinds.cs` | `HsmKinds` (internal static) | String constants for the six state kind IDs used by the catalog and `StateNode.Kind`. |
 | `Host/HsmTraceLaneProvider.cs` | `HsmTraceLaneProvider` | Implements `ITraceLaneProvider`. Declares the six HSM trace lane descriptors (States, Events, Actions, Guards, Timers, Conflicts). |
-| `Host/HsmTransitionSnapHelper.cs` | `HsmTransitionSnapHelper` (public static) | Snap-to-state helper for drag-to-create-transition gestures. Finds the nearest valid snap target within a configurable canvas radius. |
+| ~~`Host/HsmTransitionSnapHelper.cs`~~ | ⛔ **deleted `2026-10-06` (CE-1002)** — it had only a test caller; dragging an arrow onto a state is now resolved by the canvas hit-tester (`docs/blueprints/DESIGN_Hsm_Canvas_Authoring.md` D9) |
 
 ### Emit
 
@@ -607,24 +607,6 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
     public void RequestViewportReset();
     public bool ViewportResetPending { get; }
     public bool ConsumeViewportReset();
-}
-```
-
-### HsmTransitionSnapHelper
-
-```csharp
-public static class HsmTransitionSnapHelper
-{
-    public static StateNode? FindNearestSnapTarget(
-        Vector2 canvasPos,
-        HsmAsset asset,
-        StateNode? excludeSource = null,
-        float snapRadiusCanvas = 24f);
-
-    public static bool IsValidTransitionTarget(
-        StateNode state,
-        HsmAsset asset,
-        bool allowFinalTarget = true);
 }
 ```
 

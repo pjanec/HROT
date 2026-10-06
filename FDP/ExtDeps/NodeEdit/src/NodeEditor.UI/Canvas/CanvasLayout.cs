@@ -1,6 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core;
+using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
@@ -32,6 +33,12 @@ internal sealed class CanvasLayout
     /// <summary>Graph-unit sizes for all nodes, including containers after auto-resize.</summary>
     public Dictionary<NodeId, Vector2> NodeGraphSizes { get; } = [];
 
+    /// <summary>
+    /// ⭐ CE-1000 — the drawn shape of every laid-out link, screen space. Computed ONCE per frame at the end of
+    /// <see cref="CanvasLayoutBuilder.Build"/>; the wire renderer, the hit-tester and custom renderers all read it.
+    /// </summary>
+    public Dictionary<LinkId, LinkPath> LinkScreenPaths { get; } = [];
+
     public void Clear()
     {
         NodeScreenRects.Clear();
@@ -40,6 +47,7 @@ internal sealed class CanvasLayout
         AttachmentLayouts.Clear();
         AttachmentScreenRects.Clear();
         NodeGraphSizes.Clear();
+        LinkScreenPaths.Clear();
     }
 }
 
@@ -209,6 +217,9 @@ internal sealed class CanvasLayoutBuilder
             layout.NodeScreenRects[node.Id] = new RectF(screenPos, graphSize * zoom);
         }
 
+        // Fourth pass (CE-1000): link paths, from the final node rects / pin points.
+        BuildLinkPaths(view, layout);
+
         if (rebuildSpatial)
         {
             spatialIndex.Rebuild(entries!);
@@ -221,6 +232,53 @@ internal sealed class CanvasLayoutBuilder
                 var canvasPos = GetVisualCanvasPosition(view, layout, node.Id);
                 spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
             }
+        }
+    }
+
+    internal static void BuildLinkPaths(GraphView view, CanvasLayout layout)
+    {
+        var kind = view.Model.Kind;
+        float zoom = view.Viewport.Zoom;
+        bool nodeToNode = kind.Routing == LinkRouting.NodeToNode;
+        // Lane = index among links with the same (source node, target node) — parallel arrows fan out.
+        var laneCounts = nodeToNode ? new Dictionary<(NodeId, NodeId), int>() : null;
+
+        foreach (var link in view.Model.Links)
+        {
+            List<Vector2>? wps = null;
+            if (link.Waypoints.Count > 0)
+            {
+                wps = new List<Vector2>(link.Waypoints.Count);
+                for (int i = 0; i < link.Waypoints.Count; i++)
+                {
+                    var rr = new RerouteRef(link.Id, i);
+                    var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr)
+                        ? ovr : link.Waypoints[i];
+                    wps.Add(view.Viewport.GraphToScreen(wpGraph));
+                }
+            }
+
+            if (!nodeToNode)
+            {
+                if (!layout.PinScreenPositions.TryGetValue(link.FromPin, out var a)) continue;
+                if (!layout.PinScreenPositions.TryGetValue(link.ToPin, out var b)) continue;
+                layout.LinkScreenPaths[link.Id] = LinkPathBuilder.PinWire(a, b, wps, kind.Orientation, zoom);
+                continue;
+            }
+
+            var fromPin = view.Model.FindPin(link.FromPin);
+            var toPin   = view.Model.FindPin(link.ToPin);
+            if (fromPin is null || toPin is null) continue;
+            if (!layout.NodeScreenRects.TryGetValue(fromPin.OwnerNodeId, out var fromRect)) continue;
+            if (!layout.NodeScreenRects.TryGetValue(toPin.OwnerNodeId, out var toRect)) continue;
+
+            var key = (fromPin.OwnerNodeId, toPin.OwnerNodeId);
+            laneCounts!.TryGetValue(key, out int lane);
+            laneCounts[key] = lane + 1;
+
+            layout.LinkScreenPaths[link.Id] = fromPin.OwnerNodeId == toPin.OwnerNodeId
+                ? LinkPathBuilder.SelfLoop(fromRect, lane, zoom)
+                : LinkPathBuilder.NodeToNode(fromRect, toRect, lane, zoom, wps);
         }
     }
 

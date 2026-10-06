@@ -132,6 +132,10 @@ public static class HsmDocumentFactory
         var typeSystem   = new HsmTypeSystem();
         var validator    = new HsmLinkValidator(hsmAsset);
         var commandSink  = new HsmCommandSink(hsmAsset);
+        // ⭐ CE-1001: HSM registered NO node picker, so Tab / "Add Node…" / an arrow dropped on empty canvas opened
+        //    whichever BTree or Blueprint catalogue was opened last (or nothing). Its own scope, its own catalogue.
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{hsmAsset.AssetId:N}");
+        HsmPickerSources.Register(pickers, nodeCatalog);
 
         // ── 3. Custom renderers (built-in HSM set + caller extras) ────────────
         var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers, out var regionConflicts);
@@ -146,7 +150,7 @@ public static class HsmDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,

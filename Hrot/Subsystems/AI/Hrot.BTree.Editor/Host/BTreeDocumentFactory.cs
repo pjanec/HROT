@@ -148,7 +148,10 @@ public static class BTreeDocumentFactory
         var nodeCatalog  = new BTreeNodeCatalog(actionSchema, btAsset.BlackboardTypeName);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
-        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema, assetCatalog);   // CE-417 B-1
+        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema, assetCatalog);
+        // ⭐ CE-1001: this document's node pickers live in its OWN scope of the shared registry — the last opened
+        //    document used to own "nodes.all" for every canvas.
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{btAsset.AssetId:N}");   // CE-417 B-1
 
         // ── 3. Custom renderers (built-in BTree set + caller extras) ──────────
         var store = selectionStore ?? new EditorSelectionStore();
@@ -160,7 +163,7 @@ public static class BTreeDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,
@@ -197,7 +200,7 @@ public static class BTreeDocumentFactory
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
         // ── Picker sources ──────────────────────────────────────────────────
-        BTreePickerSources.Register(bundle.PickerRegistry, nodeCatalog);
+        BTreePickerSources.Register(pickers, nodeCatalog);
 
         // Store the BehaviorTreeAsset in AssetRef so the composition root can wire
         // the selection→Inspector bridge (BTreeSelectionBridgeHelper.BuildAfterDrawAction)

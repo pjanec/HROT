@@ -47,8 +47,14 @@ internal sealed class HsmNodeCatalog : INodeCatalog
         return results.ToList();
     }
 
+    /// <summary>
+    /// ⭐ CE-1001 — a transition dropped on empty canvas offers the states it can create, Simple first (so Enter
+    /// creates a plain state). Pseudo-states that cannot be a transition target are left out.
+    /// </summary>
     public IReadOnlyList<NodeCatalogEntry> QueryForPinContext(PinContextQuery q)
-        => Array.Empty<NodeCatalogEntry>();
+        => Query(new NodeSearchQuery(q.Text ?? string.Empty))
+            .Where(e => e.Kind.Id != HsmKinds.History && e.Kind.Id != HsmKinds.DeepHistory)
+            .ToList();
 
     // ---- Static catalog construction ----
 

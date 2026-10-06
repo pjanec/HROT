@@ -235,6 +235,9 @@ public static class BlueprintDocumentFactory
             enumProvider: enumProvider, behaviorActions: behaviorActions);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
+        // ⭐ CE-1001: this document's node pickers live in its OWN scope of the shared registry (two open
+        //    blueprints used to offer each other's nodes — the last opened one owned "nodes.all").
+        var pickers = new NodeEditor.Core.Interfaces.ScopedPickerRegistry(bundle.PickerRegistry, $"doc:{bpAsset.AssetId:N}");
         var renderers = BuildRenderers(bpAsset, extraRenderers);
 
         // ── 6. Host services ──────────────────────────────────────────────────
@@ -243,7 +246,7 @@ public static class BlueprintDocumentFactory
             typeSystem:      typeSystem,
             linkValidator:   validator,
             commandSink:     commandSink,
-            pickers:         bundle.PickerRegistry,
+            pickers:         pickers,
             clipboard:       bundle.ClipboardInterface,
             icons:           bundle.IconProvider,
             diagnostics:     bundle.DiagnosticsSink,
@@ -289,7 +292,7 @@ public static class BlueprintDocumentFactory
         // ⚠ Read through `switcher`, never the captured `graph` — the same staleness trap BP-24 hit
         // at five build-time capture sites.
         BlueprintPickerSources.Register(
-            bundle.PickerRegistry, nodeCatalog, bpAsset, () => switcher.CurrentGraph);
+            pickers, nodeCatalog, bpAsset, () => switcher.CurrentGraph);
 
         // ── 9. FindBar + IEditorCommands (BCP-F) ─────────────────────────────
         var commands = new EditorCommandsImpl();

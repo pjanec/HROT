@@ -259,7 +259,7 @@ public sealed class CanvasRenderer
         // Prepare the custom-renderer context before hit-testing so hit-testers
         // have access to the current viewport and visible sets.
         _renderCtx.BeginFrame(view, dl, visibleNodeIds, visibleLinkIds, _layout);
-        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects, _renderCtx);
+        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects, _layout.LinkScreenPaths, _renderCtx);
 
         // ── Draw phases ───────────────────────────────────────────────────
 
@@ -277,7 +277,7 @@ public sealed class CanvasRenderer
         _containers.DrawBackground(view, dl, _layout, visibleNodeIds);
 
         // 7. Wires — only those whose endpoints or waypoints are in the visible rect.
-        _wires.DrawAll(view, dl, _layout.PinScreenPositions, visibleNodeIds, visibleGraphRect);
+        _wires.DrawAll(view, dl, _layout.PinScreenPositions, _layout.LinkScreenPaths, visibleNodeIds, visibleGraphRect);
 
         // 7b. Custom: AfterWires pass — after wires, before regular/child nodes.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterWires);
@@ -472,6 +472,24 @@ public sealed class CanvasRenderer
         var pw = view.Interaction.PendingWire;
         if (pw == null || view.Interaction.Mode != InteractionMode.PendingWire) return;
 
+        // CE-1000: a whole-node link previews border to border (or border to cursor), with an arrowhead.
+        if (pw.SourceNode is { } srcNode && _layout.NodeScreenRects.TryGetValue(srcNode, out var srcRect))
+        {
+            float z = view.Viewport.Zoom;
+            var cursor = view.Viewport.GraphToScreen(pw.CursorGraph);
+            var preview = pw.CandidateNode is { } cand && _layout.NodeScreenRects.TryGetValue(cand, out var candRect)
+                ? (cand == srcNode ? LinkPathBuilder.SelfLoop(srcRect, 0, z) : LinkPathBuilder.NodeToNode(srcRect, candRect, 0, z))
+                : LinkPathBuilder.ToPoint(srcRect, cursor, z);
+            uint col = pw.CandidateNode.HasValue
+                ? pw.CandidateValid
+                    ? ImGui.GetColorU32(new Vector4(0.3f, 1f, 0.3f, 1f))
+                    : ImGui.GetColorU32(new Vector4(1f, 0.3f, 0.3f, 1f))
+                : ImGui.GetColorU32(new Vector4(0.8f, 0.8f, 0.8f, 0.85f));
+            float th = MathF.Max(0.75f, view.Host.Theme.WireThicknessData * z);
+            WireRenderer.DrawPath(dl, preview, col, th, isExec: false, z);
+            return;
+        }
+
         _layout.PinScreenPositions.TryGetValue(pw.SourcePin, out var a);
         if (a == default) a = view.Host.Input.MousePosition;
 
@@ -492,7 +510,7 @@ public sealed class CanvasRenderer
         float zoom = view.Viewport.Zoom;
         float thickness = MathF.Max(0.75f,
             (isExec ? view.Host.Theme.WireThicknessExec : view.Host.Theme.WireThicknessData) * zoom);
-        var (c1, c2) = HitTester.WireTangents(a, b, view.Model.Kind.Orientation, zoom);
+        var (c1, c2) = LinkPathBuilder.PinWireTangents(a, b, view.Model.Kind.Orientation, zoom);
 
         if (isExec)
             dl.AddBezierWithArrow(a, c1, c2, b, wireColor, thickness, thickness * 2.5f);
@@ -781,6 +799,16 @@ public sealed class CanvasRenderer
                                     view, target.Node, isHoveredSelected);
 
                 ImGui.Separator();
+
+                // ⭐ CE-1001: in a node-to-node graph a link can be started from the menu — the arrow then follows
+                //    the cursor and a left-click on the target finishes it (Esc / right-click cancels).
+                if (view.Model.Kind.Routing == LinkRouting.NodeToNode
+                    && view.Model.NodeLinkPin(target.Node, PinDirection.Output) is not null
+                    && ImGui.MenuItem("Add " + view.Model.Kind.LinkDisplayName))
+                {
+                    CanvasInput.BeginNodeWire(view, view.Host.Input, target.Node,
+                        addToSelectionOnClick: false, sticky: true);
+                }
 
                 // BP-17: a custom header. The generated title becomes the subtitle, so renaming a
                 // node never costs the only indication of what it actually is.

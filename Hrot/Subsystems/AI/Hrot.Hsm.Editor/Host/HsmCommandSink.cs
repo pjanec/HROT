@@ -179,7 +179,10 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                 break;
         }
 
-        var state = new StateNode(name)
+        // ⭐ CE-1001 / HSM-006: emit binds transitions to their target BY NAME, so two "State"s were a silently
+        //    wrong machine. A new state takes the first free "Name", "Name 2", "Name 3", … (the validator's
+        //    DuplicateStateName still catches a rename into a clash).
+        var state = new StateNode(UniqueStateName(name))
         {
             StableId        = cmd.AssignedId.Value,
             Position        = cmd.Position,
@@ -190,6 +193,18 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         };
 
         _asset.RegisterState(state, _asset.RootState);
+    }
+
+    /// <summary>CE-1001: <paramref name="baseName"/> if no state carries it, else the first free "baseName N" (N ≥ 2).</summary>
+    internal string UniqueStateName(string baseName)
+    {
+        var taken = new HashSet<string>(_asset.AllStates.Select(s => s.Name), StringComparer.Ordinal);
+        if (!taken.Contains(baseName)) return baseName;
+        for (int n = 2; ; n++)
+        {
+            var candidate = baseName + " " + n;
+            if (!taken.Contains(candidate)) return candidate;
+        }
     }
 
     private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)
@@ -323,6 +338,15 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                     if (trans is not null)
                         trans.IsBreakpoint = value;
                 }
+                break;
+            }
+            case "Title":
+            {
+                // ⭐ CE-1001: the canvas "Rename… (F2)" modal sends SetNodeProperty(node, "Title", …) — it was
+                //    silently ignored here, so renaming a state on the canvas did nothing. Empty names are refused.
+                if (cmd.Value is string title && !string.IsNullOrWhiteSpace(title)
+                    && _asset.FindStateByStableId(cmd.Node.Value) is { } renamed)
+                    renamed.Name = title.Trim();
                 break;
             }
             // Other property keys are silently ignored (forward-compatible).
