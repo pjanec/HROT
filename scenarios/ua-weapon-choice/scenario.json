@@ -1,0 +1,114 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a3089000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7501
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Bradley",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[100,515,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a3089000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          220,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7502
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Insurgent",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a3089000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          480,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.9239,
+          0.3827
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "NetworkIdentity": {
+        "Value": 7503
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "T-72",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

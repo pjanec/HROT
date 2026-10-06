@@ -215,6 +215,29 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3089</c> (G7) — <see cref="TopCandidate(EntityRepository, Entity, int, ushort, out Entity, out float)"/>
+        /// WITH a context: a WeaponSelection ranks the unit's mounts against <paramref name="context"/> (the target), which its
+        /// effectiveness and range inputs need (F2: without it every mount scored 0). Ranks into a LOCAL buffer — the unit's
+        /// <see cref="UtilityResultBuffer"/> is left to its own decisions.
+        /// </summary>
+        public bool TopCandidate(EntityRepository repo, Entity self, int decisionId, Entity context, ushort tick,
+                                 out Entity top, out float topScore)
+        {
+            top = Entity.Null;
+            topScore = 0f;
+            if (!_registry.TryGet(decisionId, out var def, out _) || def == null) return false;
+            if (def.Kind == DecisionKind.PostureSelect) return false;
+            var output = new UtilityResultBuffer();
+            EvaluateCandidates(repo, self, in def, context, ref output, TraceOf(repo, self), tick);
+            LogDecision(repo, self, decisionId, in output, isOption: false);
+            if (output.Count == 0) return false;
+            var best = output.GetSpanRO()[0];
+            top = new Entity((ulong)best.CandidateHandle);
+            topScore = best.Score;
+            return true;
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on an observed unit's
         /// <see cref="UtilityDecisionLog"/>; nothing when the unit is not observed.
         /// </summary>
@@ -264,8 +287,10 @@ namespace Fdp.Toolkit.Utility
             }
             else // WeaponSelection
             {
-                // Candidates = self (if it has WeaponMountInfo) + child mounts.
-                if (repo.HasComponent<WeaponMountInfo>(self))
+                // Candidates = self (mount 0) + child mounts. ⭐ CE-3089 (G7, W2): the OWNER is mount 0 when it carries a
+                //   WeaponState (P0.2's intent, WeaponMountQuery.EnumerateMounts) — it never carries WeaponMountInfo in production,
+                //   so the old test excluded the primary weapon from every choice.
+                if (repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;

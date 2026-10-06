@@ -344,10 +344,40 @@ def run_fire_distribution(c, timeout):
     c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
 
 
+# ── U5 (CE-3089) — weapon choice: the Bradley's 25 mm at the insurgent, the TOW at the T-72 ──────────────────────────────
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §12. The evidence is the TARGETS: only a TOW (800 mm) penetrates the T-72's 500 mm
+#   front armour (the 25 mm's 60 mm cannot), so the tank losing health proves the TOW fired; the 25 mm is the owner's ammo.
+
+def health(nid):
+    h = ((data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}).get("Health") or {}
+    return h.get("Current")
+
+
+def run_weapon_choice(c, timeout):
+    ids = ids_by_name()
+    brad, ins, tank = ids.get("Bradley"), ids.get("Insurgent"), ids.get("T-72")
+    if not c.ok(None not in (brad, ins, tank), "the Bradley, the insurgent and the T-72 are loaded"):
+        return
+    gun0, _ = ammo(brad)
+    tank0 = health(tank)
+    print(f"    start: 25 mm rounds {gun0}, T-72 health {tank0}")
+    call("POST", "/sim/play", {})
+
+    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and h < tank0 and h, timeout * 2)
+    c.ok(hit is not None, f"the T-72 loses health — only a TOW penetrates its front armour ({tank0} → {hit})")
+    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0 and h, timeout * 2)
+    c.ok(dead is not None, "the insurgent is killed")
+    gun1, _ = ammo(brad)
+    c.ok(gun0 is not None and gun1 is not None and gun1 < gun0, f"the 25 mm (the owner's mount 0) spent rounds ({gun0} → {gun1})")
+    c.ok(gun0 is not None and gun1 is not None and gun0 - gun1 < 60,
+         f"…a burst, not the magazine into the tank ({gun0 - gun1 if gun1 is not None and gun0 is not None else '?'} rounds)")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
-             "ua-fire-distribution": run_fire_distribution}
+             "ua-fire-distribution": run_fire_distribution,
+             "ua-weapon-choice": run_weapon_choice}
 
 
 def main():

@@ -494,6 +494,77 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.Flee, posture);
         }
 
+        // ── CE-3089 (G7) — the unit fires the weapon its target calls for, on the PRODUCTION layout ──────────────────────────
+        //    (mount 0 = the owner's own WeaponState, mount 1 = a child — CombatTkbTranslator). 📄 Utility demo design §12.
+
+        private (Entity bradley, Entity tow, Entity infantry, Entity tank) ProductionBradley(int towAmmo = 7)
+        {
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var bradley = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 300);   // the 25 mm IS the owner's WeaponState
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f,
+                ammo01: towAmmo / 7f, initialAmmunition: 7);
+            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 2000f, maxHealth: 100f);
+            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     2000f, maxHealth: 2500f);
+            return (bradley, tow, infantry, tank);
+        }
+
+        /// <summary>⭐ W2 + W3: the OWNER is mount 0 — the 25 mm against infantry, the TOW child against a tank.
+        /// ✅ Red-proof: the old candidate test (self only with <c>WeaponMountInfo</c>) ⇒ the 25 mm is never a candidate, the
+        /// infantry gets the TOW.</summary>
+        [Fact]
+        public void CE3089_WeaponChoice_OnTheProductionLayout_25mmOnInfantry_TowOnATank()
+        {
+            var (bradley, tow, infantry, tank) = ProductionBradley();
+
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, infantry, out var m0));
+            Assert.Equal(bradley, m0);
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m1));
+            Assert.Equal(tow, m1);
+        }
+
+        /// <summary>⭐ An empty launcher ⇒ the gun, even at a tank (no ammo scores 0).</summary>
+        [Fact]
+        public void CE3089_AnEmptyTow_FallsBackToThe25mm()
+        {
+            var (bradley, _, _, tank) = ProductionBradley(towAmmo: 0);
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var mount));
+            Assert.Equal(bradley, mount);
+        }
+
+        /// <summary>⭐ The executor on <c>Mount = Auto</c> fires <c>WeaponIndex 1</c> at a tank and spends the CHILD's round;
+        /// <c>Mount = 0</c> (every other writer) still fires the primary. ✅ Red-proof: keep <c>WeaponIndex = 0</c> ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE3089_TheExecutor_OnAuto_FiresTheTowAtATank_AndSpendsTheChildsRound()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>())
+                repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            repo.RegisterEvent<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (bradley, tow, _, tank) = ProductionBradley();
+            var exec = new global::Fdp.Toolkit.Combat.Executors.AimAndFireExecutor();
+
+            int Fire(byte mount)
+            {
+                var ch = new global::Fdp.Toolkit.Behavior.Components.WeaponChannel();
+                *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref ch.Params[0]) =
+                    new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams { Target = tank, CooldownSeconds = 0f, Mount = mount };
+                exec.OnEnter(bradley, ref ch, repo);
+                exec.Execute(bradley, ref ch, repo, 0.016f);
+                repo.Bus.SwapBuffers();
+                var intents = repo.Bus.Read<global::Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+                Assert.Equal(1, intents.Length);
+                return intents[0].WeaponIndex;
+            }
+
+            Assert.Equal(1, Fire(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams.MountAuto));
+            Assert.Equal(6, repo.GetComponentRO<WeaponState>(tow).Ammo);        // the TOW's round
+            Assert.Equal(300, repo.GetComponentRO<WeaponState>(bradley).Ammo);  // the gun untouched
+
+            Assert.Equal(0, Fire(0));                                            // the default: the primary, as before
+            Assert.Equal(299, repo.GetComponentRO<WeaponState>(bradley).Ammo);
+        }
+
         // ── CE-3088 (G8, F4) — the squad's fire distribution reads the MERGED pool and runs from the frame driver ──────
         //    📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11.
 

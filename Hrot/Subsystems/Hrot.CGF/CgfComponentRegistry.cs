@@ -29,6 +29,11 @@ public static class CgfComponentRegistry
 
         KinematicComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
+        // ⭐ CE-3089 (G7) — weapon MOUNT children (mount ≥ 1) on the Brain, where ammo is spent and the weapon is chosen;
+        //   registering it turns on CombatTkbTranslator's child branch. Local parts, never on the wire (Q79 F-6), not saved
+        //   (CE-3045). ⛔ Not in the shared CombatComponentRegistry: SimHost resolves a shot from the TKB by index and needs
+        //   no child. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §12 W1.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
         world.RegisterComponent<ActiveSensorTracks>();
 
         PresentationComponentRegistry.RegisterAll(world);
