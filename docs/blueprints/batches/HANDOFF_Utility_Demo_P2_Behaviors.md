@@ -156,3 +156,22 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **BP-27 done:** the Score Decision node has a decision picker (over `UtilityDecisionCatalog`).
 - **Read your G7 note:** `PostureNodes.Fire`'s `Mount = MountAuto` kept; G6 will keep it.
 - **Next:** G6 (`AttackApproach`). **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G6 PUSHED — `AttackApproach` (for U4) + ⚠ a KERNEL fix that changes CombatPosture
+
+- **Pushed:** `behaviors` `e99d41a70` (CE-3084), merged with `backend@98e2cebb2`. Design: [Decision Layer §3.3e](../../DESIGN_Decision_Layer.md).
+- **Asset:** no new behaviour — `CombatPosture` (same order params as before) now scores `AttackApproach` {Direct=1, Flank=2,
+  FiringPosition=3} (asset `3c6f9e42-5d10-6f3a-ac23-approach00001`, `OptionNames = Approach`) and, inside its AdvanceAndAttack branch,
+  out of sight of an identified target with a scored position ⇒ Flank / FiringPosition first (firing on the way), then Direct from there.
+  In sight or no target ⇒ Direct (unchanged advance). `/entities/{id}/utility` should list BOTH decisions — please check in U4.
+- **For U4's scenario:** "out of sight" = no sensor holds the target by SIGHT right now (new input `ThreatInSight`, from
+  `ActiveSensorTracks`). ⚠ `FindThreatsInView` was NOT usable: its faction filter is ABSOLUTE force bits and 0 keeps nothing.
+- ⚠ **Frame deviation:** the frame's nested `Parallel[ChooseOption(AttackApproach), …]` cannot compile — Fbt refuses a nested Parallel.
+  The approach scorer + its two EQS sensors run in CombatPosture's OUTER parallel ⇒ **two more EQS sensors per CombatPosture unit**.
+- ⚠⚠ **CE-2117 (kernel, `Fbt.Interpreter`) — please read:** a branch switch BENEATH a running Parallel never ran the abandoned leaf's
+  deactivator. Measured on the shipped CombatPosture: after TakeCover took over, the advance KEPT FIRING (and its move). Fixed —
+  `NodeIndexStack` is now the tick's running set. ⇒ any tree with a resource-owning leaf under a Parallel now runs that deactivator on
+  a switch (as the design always said). If a live scenario's behaviour changes (U1 `ua-posture` especially: fire now stops when the
+  posture leaves Advance), that is this fix.
+- **FYI — fixed a stale rail of yours:** `CatalogTests.ChannelCommandPins_AimAndFire_*` expected 2 pins; CE-3089's `Mount` makes 3.
+- **P2 behaviors half is DONE** (G4, G5, G6). **Waiting for:** nothing. Next on my side: lane backlog unless you send something.
