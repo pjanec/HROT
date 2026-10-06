@@ -431,4 +431,50 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine($"approach {ApproachWinner()}, ammo {ammo}");
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3094</c> — the "universal soldier" (<c>ua-universal-soldier</c>): a rifleman on a two-leg MISSION of
+    /// <c>CombatPosture</c> along Main Street (ROE FireAtWill + StayOnTask, SOP <c>BasicInfantrySop</c>) meets a GROUP of three
+    /// armed hostiles advancing on him. 📄 <c>docs/TUTORIAL_Universal_Soldier.md</c> · <c>docs/TUTORIAL_Behaviour_Composition.md</c> §8.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE3094_UniversalSoldier_MissionOfPostureLegs_AgainstAGroup()
+    {
+        using var harness = await StartShippedScenario("ua-universal-soldier");
+        var cgf = harness.Cgf!.World!;
+        string[] hostileNames = { "Hostile 1", "Hostile 2", "Hostile 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && hostileNames.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the rifleman and the three hostiles must spawn on CGF");
+        var rifleman = ByName(cgf, "Rifleman");
+        Observe(cgf, rifleman);
+
+        Posture? Winner() => TryDecision(cgf, rifleman, "Combat posture", out var s) && s.Winner != 0 ? (Posture)s.Winner : null;
+        Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
+        float Hp(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : 0f;
+        Vector3 Pos(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
+        int Leg() => cgf.HasComponent<MissionPlanQueue>(rifleman) ? cgf.GetComponent<MissionPlanQueue>(rifleman).CurrentPhase : -1;
+        int HostilesUp() => hostileNames.Count(n => Hp(ByName(cgf, n)) > 0f);
+        string State()
+        {
+            string ammo = cgf.HasComponent<WeaponState>(rifleman) ? $"{cgf.GetComponent<WeaponState>(rifleman).Ammo}" : "?";
+            string hostiles = string.Join(" ", hostileNames.Select(n => { var h = ByName(cgf, n); return $"{n[^1]}:{Hp(h):F0}@{Pos(h).X:F0},{Pos(h).Y:F0}"; }));
+            return $"leg={Leg()} posture={Winner()} approach={ApproachWinner()} pos={Pos(rifleman).X:F0},{Pos(rifleman).Y:F0} hp={Hp(rifleman):F0} ammo={ammo} | {hostiles}";
+        }
+
+        var postures = new System.Collections.Generic.List<Posture?>();
+        var approaches = new System.Collections.Generic.List<Approach?>();
+        var final = new Vector3(380, 200, 0);
+        for (int f = 0; f < 24000; f++)
+        {
+            harness.PumpFrames(1);
+            if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
+            if (ApproachWinner() is { } a && (approaches.Count == 0 || approaches[^1] != a)) approaches.Add(a);
+            if (f % 150 == 0) _out.WriteLine($"f{f}: {State()}");
+            if (Hp(rifleman) <= 0f) { _out.WriteLine($"f{f}: RIFLEMAN DOWN — {State()}"); break; }
+            if (Leg() >= 1 && Vector3.Distance(Pos(rifleman), final) <= 3.5f) { _out.WriteLine($"f{f}: FINAL OBJECTIVE — {State()}"); break; }
+        }
+        _out.WriteLine($"postures: {string.Join(" → ", postures)}");
+        _out.WriteLine($"approaches: {string.Join(" → ", approaches)}");
+        _out.WriteLine($"end: {State()} hostiles up={HostilesUp()}");
+    }
 }
