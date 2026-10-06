@@ -182,12 +182,17 @@ def run_posture(c, timeout):
     step(100, FIGHT, "healed again ⇒ fighting")
     print(f"    postures reached this run: {sorted(x for x in seen if x)}")
 
-    # Hysteresis: Health held still ⇒ the winner does not flicker.
-    _, d0 = winner_of(rifle)
-    time.sleep(5)
-    _, d1 = winner_of(rifle)
-    c.ok(d0 and d1 and d0.get("switchCount") == d1.get("switchCount"),
-         f"no flicker while Health is held (switchCount {d0 and d0.get('switchCount')} → {d1 and d1.get('switchCount')})")
+    # Hysteresis: Health held ⇒ the winner never flips BACK (A → B → A). ⚠ One forward switch is not a flicker — the fight
+    #   itself moves on (measured live 2026-10-06: switchCount 5 → 6 in 5 s after the heal). Same rule as the in-process
+    #   twin PostureScenarioTests.CE3085_U1_* — sample, assert no reversal, print the sequence.
+    seq = [winner_of(rifle)[0]]
+    for _ in range(25):
+        time.sleep(0.2)
+        w = winner_of(rifle)[0]
+        if w != seq[-1]:
+            seq.append(w)
+    flick = any(seq[i] == seq[i - 2] for i in range(2, len(seq)))
+    c.ok(not flick, f"no flicker while Health is held (winners {' → '.join(str(x) for x in seq)})")
     u = utility(rifle)
     c.ok(bool((u.get("lastPass") or {}).get("options")), "the per-consideration breakdown (lastPass) is readable")
 

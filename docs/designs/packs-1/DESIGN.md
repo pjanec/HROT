@@ -1,3 +1,15 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06 (STATUS block added; §2.B consequence of CE-3091)
+current-answer: the pack layout and §2.B (HealthApplicationSystem strips CanMove) are BUILT.
+known-rot: ⚠ §2.B's "non-lethal hit = mobility kill" was written for the UrbanCombat APC but the strip runs for EVERY
+  entity with ActorCapabilityState (HealthApplicationSystem.cs:112-119). Until CE-3091 (2026-10-06) it was inert for a
+  move already running; since CE-3091 a unit hit once really stops. Whether infantry should is an OPEN policy question
+  filed with CE-3091 (docs/blueprints/Blueprint_Issues_Tracker.md).
+related-designs:
+  - ../brain-death/BD1-DESIGN.md — owns what stopping a running action means (§1.1 OnExit guarantee, §1.1a CE-3091:
+    losing CanMove runs the running executor's OnExit). This document owns WHEN CanMove is stripped.
+-->
 # DESIGN.md — Logic Packs & Translator Packs Refactoring
 
 ## Background and Vision
