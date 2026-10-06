@@ -1491,16 +1491,20 @@ internal static class StatementEmitter
         e.WriteLine($"    ? top.EntityId");
         e.WriteLine($"    : unchecked((long)(((ulong)(uint)global::System.BitConverter.SingleToInt32Bits(top.PositionX) << 32) | (uint)global::System.BitConverter.SingleToInt32Bits(top.PositionY)));");
         e.WriteLine();
-        e.WriteLine($"if (currentTopId != prev.PrevTopId && prev.LastEvaluatedEpoch != 0)");
+        // ⭐ CE-2113 — the FIRST answer is compared too (against PrevTopId 0 = "no top"): it fires, so a When on TopChanged
+        //   acts on the first top (When v2.2 §15: "fires on first result"). And the answer is RECORDED BEFORE the goto —
+        //   the fire jumps away and never comes back to this block, so recording after it re-fired every tick.
+        e.WriteLine($"bool changed = currentTopId != prev.PrevTopId;");
+        e.WriteLine($"prev.PrevTopId    = currentTopId;");
+        e.WriteLine($"prev.PrevTopScore = top.Score;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
+        e.WriteLine($"if (changed)");
         e.WriteLine("{");
         e.Indent();
         if (op.OnFiredBlock.HasValue)
             e.WriteLine($"goto __block_{e.Ctx.LabelForBlock(op.OnFiredBlock.Value)};");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine();
-        e.WriteLine($"prev.PrevTopId    = currentTopId;");
-        e.WriteLine($"prev.PrevTopScore = top.Score;");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("else");
@@ -1508,9 +1512,9 @@ internal static class StatementEmitter
         e.Indent();
         e.WriteLine($"prev.PrevTopId    = 0L;");
         e.WriteLine($"prev.PrevTopScore = 0f;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -1548,7 +1552,11 @@ internal static class StatementEmitter
         e.WriteLine($"bool wasAbove = prev.PrevTopScore >= _whenScoreThreshold_{id8};");
         e.WriteLine($"bool isAbove  = currentScore      >= _whenScoreThreshold_{id8};");
         e.WriteLine();
-        e.WriteLine($"if (!wasAbove && isAbove && prev.LastEvaluatedEpoch != 0)");
+        // ⭐ CE-2113 — from "below" (PrevTopScore 0 on the first answer, as N4's FieldCrossed): a top already over the
+        //   threshold at first sight fires. The answer is recorded BEFORE the goto (see TopChanged above).
+        e.WriteLine($"prev.PrevTopScore = currentScore;");
+        e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
+        e.WriteLine($"if (!wasAbove && isAbove)");
         e.WriteLine("{");
         e.Indent();
         if (op.OnFiredBlock.HasValue)
@@ -1557,18 +1565,21 @@ internal static class StatementEmitter
         e.WriteLine("}");
         if (op.OnEndedBlock.HasValue)
         {
-            e.WriteLine($"else if (wasAbove && !isAbove && prev.LastEvaluatedEpoch != 0)");
+            e.WriteLine($"else if (wasAbove && !isAbove)");
             e.WriteLine("{");
             e.Indent();
             e.WriteLine($"goto __block_{e.Ctx.LabelForBlock(op.OnEndedBlock.Value)};");
             e.Outdent();
             e.WriteLine("}");
         }
-        e.WriteLine();
-        e.WriteLine($"prev.PrevTopScore = currentScore;");
         e.Outdent();
         e.WriteLine("}");
+        e.WriteLine("else");
+        e.WriteLine("{");
+        e.Indent();
         e.WriteLine($"prev.LastEvaluatedEpoch = buffer.LastUpdateTick;");
+        e.Outdent();
+        e.WriteLine("}");
         e.Outdent();
         e.WriteLine("}");
     }

@@ -13,6 +13,7 @@ related-designs:
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first consumer of §7.9 (a When TopChanged per answer).
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the groups, grants and reclaim; §7.7 here adds dtBrainIntent to the Brain group and starts the published intent on a gain.
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — §10 the danger sensor, the first kind of a second result family (§7.10 here).
+  - docs/blueprints/When_Reactivity_Iteration_Design_v2_2.md — OWNS the When EQS Result triggers (§6; as built §6.4a: first answer compared, CE-2113); §7.9 here owns their per-answer gate.
   - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine + origin rulings A–G (R-188, R-189) this design builds.
