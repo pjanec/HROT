@@ -49,6 +49,9 @@ namespace Fdp.Toolkit.Behavior
         public float MinDanger;
         /// <summary>Only LIVE contacts (<see cref="ThreatFreshness.IsLive"/>) when set; every remembered one otherwise.</summary>
         public bool LiveOnly;
+        /// <summary>⭐ <c>CE-3079</c> H1 (§10.5) — only contacts whose REMEMBERED position is within this many metres of the unit
+        /// (ground distance, XY); 0 = any distance. A unit with no <c>SimTransform</c> measures nothing, so counts none.</summary>
+        public float WithinMetres;
     }
 
     /// <summary>
@@ -94,16 +97,26 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>True when the unit remembers at least <see cref="ThreatCountParams.Count"/> contacts at least
-        /// <see cref="ThreatCountParams.MinDanger"/> dangerous (live ones only when <see cref="ThreatCountParams.LiveOnly"/>) —
-        /// "two armed enemies in sight".</summary>
+        /// <see cref="ThreatCountParams.MinDanger"/> dangerous (live ones only when <see cref="ThreatCountParams.LiveOnly"/>; within
+        /// <see cref="ThreatCountParams.WithinMetres"/> when set) — "two armed enemies in sight", "a threat within 90 m".</summary>
         [SharedAiCondition]
         public static unsafe bool ThreatsAtLeast(ref ThreatCountParams p, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<TargetMemory>(self)) return false;
+            bool near = p.WithinMetres > 0f;
+            Vector2 at = default;
+            if (near)
+            {
+                if (!world.HasComponent<SimTransform>(self)) return false;
+                var pos = world.GetComponentRO<SimTransform>(self).Position;
+                at = new Vector2(pos.X, pos.Y);
+            }
+            float within2 = p.WithinMetres * p.WithinMetres;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             int need = p.Count == 0 ? 1 : p.Count, found = 0;
             for (int i = 0; i < mem.Count; i++)
             {
+                if (near && Vector2.DistanceSquared(at, new Vector2(mem.PositionsX[i], mem.PositionsY[i])) > within2) continue;
                 if (p.LiveOnly && !ThreatFreshness.IsLive(world, self, in mem, i)) continue;
                 if (ThreatDanger.OfSlot(world, self, in mem, i) < p.MinDanger) continue;   // ⭐ CE-3063 ② — heard ones by class
                 if (++found >= need) return true;

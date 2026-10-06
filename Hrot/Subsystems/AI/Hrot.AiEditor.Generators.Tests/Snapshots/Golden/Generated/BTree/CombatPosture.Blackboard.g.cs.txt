@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 104)]
+[StructLayout(LayoutKind.Explicit, Size = 120)]
 public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
@@ -24,9 +24,9 @@ public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
     public global::Hrot.AI.Behaviors.Brains.AdvanceParams advance;
     [FieldOffset(48)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams cover;
-    [FieldOffset(72)]
-    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
     [FieldOffset(80)]
+    public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
+    [FieldOffset(88)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams fallback;
 }
 
@@ -43,6 +43,6 @@ public struct CombatPosture_Block
 {
     [FieldOffset(0)]
     public CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard In;
-    [FieldOffset(104)]
+    [FieldOffset(120)]
     public CombatPosture_BlockState St;
 }

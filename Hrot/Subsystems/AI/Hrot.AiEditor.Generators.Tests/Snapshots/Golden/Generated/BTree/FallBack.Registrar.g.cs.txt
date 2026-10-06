@@ -144,7 +144,7 @@ public static class FallBackRegistrar
             Name         = "FallBack",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 12088599513005329737UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 12737655520619904180UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("tactics", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 0),

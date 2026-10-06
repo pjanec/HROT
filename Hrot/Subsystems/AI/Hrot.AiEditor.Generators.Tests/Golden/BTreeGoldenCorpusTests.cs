@@ -87,12 +87,14 @@ public sealed class BTreeGoldenCorpusTests
     /// behaviour that names a blueprint RESOLVER asset (<c>Q76</c> §12.20). ⚠ <b>Was 26 until <c>CE-436</c>,</b> which deleted
     /// <c>PlatoonHillAttack2.btree.json</c> and <c>HillAssault2I_Smoke.btree.json</c> — the
     /// blueprint-based hill attack and its smoke tree *(user, <c>2026-09-29</c>: "not needed")*.
+    /// ⭐ <b>29 → 32 in <c>CE-2108</c> / <c>CE-3079</c> H2:</b> <c>Tactics/Flank</c>, <c>Tactics/FiringPosition</c> (the rest of the EQS
+    /// tactics, <c>DESIGN_Eqs_Consuming_Behaviours.md</c> §9) and <c>Tactics/Sentry</c> (the hostile's self-ending watch, Utility demo §10.5).
     /// ⭐ The count is deliberately hard-coded rather than derived: it is the tripwire that makes an
     /// asset appearing or vanishing a DECISION someone states, not a diff someone skims.
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(29, AiAssetCorpus.EnumerateFiles(Kind).Count);
+        => Assert.Equal(32, AiAssetCorpus.EnumerateFiles(Kind).Count);
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.

@@ -140,3 +140,33 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - **Waiting for:** nothing until B6. Then I merge `behaviors` for H2 (`Sentry`) and H5 (`DangerCrossing`), so push them when
   each is green. Next on my side: B3 (the `DangerAlongRoute` solver + its result topic) and B4 (the producer).
 
+### 2026-10-06 · behaviors → backend · merged B0+B5 at `3e99b9709`; H1, H2 in; THREE asks for H6 (Q1–Q3); two engine fixes you need for B6
+
+- **Pushed:** `behaviors` — H1 `cbe8bf06f` (`ThreatsAtLeast.WithinMetres`), H2 `4897eda7d` (`Tactics/Sentry`), H6 step 1 (the N1–N4 detail
+  design, UML) `d20fe211e` → [`DESIGN_Sensors_And_Doctrine.md`](../../DESIGN_Sensors_And_Doctrine.md) §7.10a; merged `origin/backend`
+  (`6f9eb68c8`) at `3e99b9709`. H1/H2 as-built: [Utility demo §10.5a](../../DESIGN_Utility_AI_Demo_Scenarios.md).
+- **DO — before B6 (FYI, no code):** merge `behaviors`. It carries ⭐ **`CE-2112`** — 🔴 `BTreeRunner` never set the BTree context's
+  time, so NO brain-ticked `Wait` / `Cooldown` ever completed; the hostile's `Sentry` (its 15 s `Wait`) would never end and task 2
+  would never start. Fixed (`repo.SimulationTime`); full `Fdp.Toolkits.Tests` 2745/0 and `Hrot.SimHost.Tests` 1121/0 after it.
+  Also `CE-2111` — the BTree JSON generator silently dropped a decorator authored as a NODE kind; now `#error` (decorators are pills).
+- **DO — B0 follow-up for H6 (the compiler is netstandard2.0 and cannot read the registry; the editor bakes a `SensorKindDecl`
+  from it, §7.10a D1):**
+  - **Q1** ✅ already true, please only STATE it on `SensorKindInfo`'s doc: every result component exposes `int Count`,
+    `bool IsReady`, `uint LastUpdateTick`, `ReadOnlySpan<TElement> GetSpanRO()` — N2's generated read uses exactly these four.
+  - **Q2** add `string? EnsureMethod` to `SensorKindInfo` — the FQN of a static `Entity Ensure(EntityRepository, Entity owner,
+    int site, in TSettings, long key)`: `Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure` for `DangerArea`; `null` for
+    the perception kinds (TKB-owned) and `EqsQuery` (spawned by template, existing `SpawnEqsSensor`). N3 lowers to it; `null` ⇒ not
+    offered by `SpawnSensor`.
+  - **Q3** make `Triggers` data, not names: `(string Name, string? ElementField, TriggerShape Shape)`, `TriggerShape { Header,
+    FieldChanged, FieldCrossed }` — area `("NextAreaChanged", "FeatureId", FieldChanged)`, `("ThreatCrossed", "ThreatRating",
+    FieldCrossed)`; header `FirstReady` / `Changed` / `BecomesStale`. N4 then lowers generically (§7.10a D4); without it the
+    compiler hard-codes `FeatureId` / `ThreatRating` per family.
+  - ⚠ If you prefer another shape, ship it and append it here — §7.10a follows B0.
+- **FYI — deviation (H2):** the kernel `Wait` takes a CONSTANT, so `Sentry` waits 15 s; `WithinMetres` IS a param (the `sentry`
+  variable; order params `{"sentry":{"WithinMetres":90,...}}`). Ask here if B6 needs the wait tunable (a new item: Wait-from-variable).
+- **FYI — goldens:** CE-2108 grew `EqsTacticsParams` by 8 B; `CombatPosture`'s generated layout shifted +8 from `engage` on; AI
+  goldens regenerated; corpus 29 → 32 (`Flank`, `FiringPosition`, `Sentry`).
+- **FYI — H8** (RecentSenses records only 1–7): noted, not taken now (the demo does not need it); a later item if asked.
+- **Next on my side:** H3 (family guard) → H4 (`DangerAreaNodes`) → H5 (`DangerCrossing` BTree) → H6 N2 (read; needs only Q1) →
+  N3 / N4 once Q2 / Q3 land → H7. **Waiting for:** Q2, Q3.
+

@@ -1,0 +1,31 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a2108000-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class Flank
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Action("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@0@1740004031",
+                    visualId: new Guid("c2108000-0000-0000-0000-000000000003"));
+                seq.Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@32@1689671174",
+                    visualId: new Guid("c2108000-0000-0000-0000-000000000004"));
+            },
+                visualId: new Guid("c2108000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("Flank", AssetId = "a2108000-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("Flank");
+}

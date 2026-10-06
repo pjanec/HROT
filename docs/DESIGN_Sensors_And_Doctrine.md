@@ -1356,6 +1356,99 @@ existing family needs no new node. ⚠ **And a family node bound to a kind of AN
 Lane: behaviors owns the blueprint nodes (BTree/HSM read nodes the same way); backend owns the registry and the result types.
 First consumer: the danger sensor (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–10.3).
 
+### 7.10a N1–N4 detail design — editor bakes, compiler lowers *(behaviors, `2026-10-06`, `CE-3078`; build-state: READY-TO-BUILD — waits only for `feat(CE-3072 B0)`)*
+
+Handoff H6 step 1 ([`HANDOFF_Danger_Crossing_Behaviors.md`](blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md)). Requests
+this design makes of B0 are in [`REPLY_Danger_Crossing_Behaviors_To_Backend.md`](blueprints/batches/REPLY_Danger_Crossing_Behaviors_To_Backend.md) §1 (Q1–Q3).
+
+📐 **INVENTORY** *(read-only sweep + grep, `2026-10-06`)*: the three ranked nodes today — `ReadEqsResultNode` (`Nodes.cs:819`,
+pins fixed in `BuiltInNodeRegistry.cs:202-211` AND by hand in the palette `WhenNodePaletteEntries.cs:33-56`, lowered by
+`Stage5_Schedule.cs:3885-3957` → `IrOp_ReadEqsResult` → `InstanceEmitter.cs:1373-1446`), `SpawnEqsSensorNode` (`Nodes.cs:831`,
+`Stage5:2186-2249` → `StatementEmitter.cs:1320-1366` → `EqsChildSensor.Ensure`), `WhenNode{Mode = EqsResult}` (`Nodes.cs:705-813`,
+`Stage5:1272-1316`, `StatementEmitter.cs:1249-1482`). ⭐ The kind is a byte `UnitSensorKind` the compiler writes as TEXT
+(`(SensorModality)k`) — ⛔ **the compiler (netstandard2.0) never references `SensorModality`, so it CANNOT read the B0
+registry**. ⭐ The precedent that solves exactly that: `GetComponentNode` — the editor (net8.0) reflects the type and BAKES
+`Fields` into the node (CA-01, `Nodes.cs:942-975`, `ComponentFieldReflector.cs`), Stage0 projects pins from the baked list
+(`Stage0_Rehydrate.cs:508-546`), Stage5 emits one `IrOp_FieldRead` per field (`Stage5:2986-3161`). No golden contains a
+`When EqsResult`; the ranked read / spawn are in `Golden/Emit/PlatoonHillAttackBp.cs.txt` only.
+
+```mermaid
+classDiagram
+  class SensorKindRegistry { <<backend B0, Fdp.Toolkit.Perception — net8 only>> TryGet(kind) · All }
+  class SensorKindInfo { <<backend B0>> Kind · Family · SettingsType · ResultComponent · ElementType · Triggers · Q2 EnsureMethod }
+  class SensorKindBaker { <<NEW, Hrot.Blueprints.Editor>> Bake(kind) SensorKindDecl · PaletteEntries() }
+  class SensorKindDecl { <<NEW, compiler Assets — plain data>> Kind byte · Family string · ResultComponentFqn · ElementTypeFqn · ElementFields List~StructFieldDecl~ · SettingsTypeFqn · SettingsFields · EnsureMethodFqn · Triggers List~SensorTriggerDecl~ }
+  class SensorTriggerDecl { <<NEW>> Name · ElementField · Shape Header/FieldChanged/FieldCrossed }
+  class ReadSensorResultNode { <<NEW>> SensorKindDecl Decl · in Index · out IsReady Count AnswerTick + one per ElementField }
+  class SpawnSensorNode { <<NEW>> SensorKindDecl Decl · in Key + one per SettingsField · out Handle }
+  class WhenNode { <<existing>> Mode += SensorResult · SensorResultPayload }
+  class SensorResultPayload { <<NEW>> SensorKindDecl Decl · Trigger · Threshold · MaxAgeSeconds }
+  class ReadEqsResultNode { <<existing, UNCHANGED>> the ranked read — no asset moves }
+  class StructFieldDecl { <<existing>> MakeStruct / BreakStruct field list }
+  SensorKindBaker ..> SensorKindRegistry : reflects (editor only)
+  SensorKindBaker ..> SensorKindDecl : bakes
+  SensorKindDecl o-- StructFieldDecl
+  SensorKindDecl o-- SensorTriggerDecl
+  ReadSensorResultNode o-- SensorKindDecl
+  SpawnSensorNode o-- SensorKindDecl
+  SensorResultPayload o-- SensorKindDecl
+  WhenNode o-- SensorResultPayload
+```
+
+*What the picture shows that prose hid: ONE baked record, `SensorKindDecl`, is what all three nodes carry — the compiler
+lowers from it and never sees the registry, exactly as `GetComponent` lowers from its baked `Fields`. The registry is read
+once, by the editor, when the author picks a kind; an asset therefore compiles the same on any host, with or without the
+toolkit loaded.*
+
+```mermaid
+sequenceDiagram
+  participant A as author (editor)
+  participant K as SensorKindBaker (editor)
+  participant R as SensorKindRegistry (B0)
+  participant C as compiler (Stage0 → Stage2 → Stage5)
+  participant G as generated code (runtime)
+  A->>K: palette "Read sensor result: DangerArea"
+  K->>R: TryGet(DangerArea)
+  R-->>K: Area · DangerAreaCognitiveBuffer · DangerAreaDescriptor · triggers
+  K-->>A: node with Decl baked (element fields reflected) → pins
+  A->>C: compile the .bp.json
+  C->>C: Stage0 pins from Decl · Stage2 rules · Stage5 IrOp_ReadSensorResult + one IrOp_FieldRead per pin
+  C-->>G: helper ReadSensorResult_id(state, view, self, i)
+  G->>G: child = UnitSensors.Of(view, self, kind) · HasComponent ResultComponent · buf.IsReady/Count/LastUpdateTick · buf.GetSpanRO()[clamped i]
+```
+
+*What the picture shows that prose hid: the four member reads in the last line are the WHOLE generic contract a result
+component must meet (Q1) — both existing buffers meet it, so a new kind needs no compiler change.*
+
+```mermaid
+graph TD
+  ED["Hrot.Blueprints.Editor (net8.0)<br/>SensorKindBaker, palette, drawers"] -->|reflects| REG["Fdp.Toolkits SensorKindRegistry (B0)"]
+  ED -->|writes Decl into| ASSET[".bp.json"]
+  ASSET --> COMP["Hrot.Blueprints.Compiler (netstandard2.0)<br/>Stage0/2/5, emitters"]
+  COMP -.->|"never references (netstandard2.0)"| REG
+  COMP --> GEN["generated C# in the AI assembly"]
+  GEN -->|calls| RT["UnitSensors.Of · DangerAreaChildSensor.Ensure · result buffers"]
+```
+
+*What the picture shows that prose hid: the only edge into the registry is the editor's; the compiler's dotted edge is
+the one that cannot exist — the reason every kind fact is baked into the asset.*
+
+| # | ⭐ decision *(within approved N1–N4, R-213)* | rejected (one line each) |
+|---|---|---|
+| **D1** | the editor BAKES a `SensorKindDecl` into each node (as CA-01 `Fields`); the compiler lowers only from it | compiler reads the registry — impossible, netstandard2.0 has no reference to the toolkit |
+| **D2** | `ReadSensorResult` header pins `IsReady`, `Count`, `AnswerTick` (= `LastUpdateTick`), then ONE out-pin per element field (reflected public instance fields of `ElementType`, as `BreakStruct`); in-pin `Index` (clamped); the sensor is the unit's of the kind (`UnitSensors.Of`) — no handle in-pin (today's `Handle` input is never read, inventory) | a `Handle` in-pin — dead on the existing node already |
+| **D3** | `SpawnSensor` in-pins = the settings type's public fields (+ `Key`); lowered to `{EnsureMethodFqn}(world, self, site, in settings, key)` (Q2); `Handle` out. Kinds with no Ensure method are not offered | `ConfigJson` (N3 as first written): the settings type IS blittable (B0 `DangerAreaSettings`), so a typed struct is simpler and allocation-free — ⚠ deviation from §7.10's N3 wording, folded here |
+| **D4** | `When SensorResult` triggers by SHAPE (Q3): Header `FirstReady` / `Changed` (stamp moved) / `BecomesStale` (age > MaxAgeSeconds), `FieldChanged` (entry 0's field differs from last seen), `FieldCrossed` (entry 0's field crossed `Threshold`, either direction — once per crossing); When memory = last stamp + last field value (+ last side) | one emitter branch per family trigger name — the compiler would grow with every family |
+| **D5** | ranked kinds keep `ReadEqsResult` / `SpawnEqsSensor` / `When EqsResult`; the palette offers `ReadSensorResult` / `When SensorResult` for every registered kind (ranked included, reading `EqsResult`'s fields) and `SpawnSensor` for kinds with an Ensure method | migrate the ranked nodes onto the new ones — moves the golden (H6 acceptance: zero golden movement) |
+| **D6** | an editor-time warning when `ReadEqsResult` / `When EqsResult` picks a kind whose family is not Ranked (the N1 half of the §10.4 guard) | runtime-only guard (H3 covers runtime; authors deserve it at edit time) |
+
+**Rails (H6 acceptance, planned):** golden corpus byte-identical (zero movement, prove with the golden suite) · a blueprint
+reads `NearSideHandle` / `ThreatRating` of a hand-filled danger child through `ReadSensorResult(DangerArea, 0)` · `When
+SensorResult(DangerArea, ThreatCrossed)` fires once per crossing (up, then down) and not while it stays · `SpawnSensor(DangerArea)`
+creates the child through `DangerAreaChildSensor.Ensure` with the pinned settings · the palette lists one entry per registered
+kind · `NodeCoverageTests` cover the three node types · Stage2: a node with no Decl / an unknown family is a diagnostic, not a
+silent no-op.
+
 ## 8. Claim table
 
 | claim | code — how it IS | design — how it was MEANT |

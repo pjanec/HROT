@@ -753,6 +753,16 @@ the rifleman watched it leave — the rating follows what the rifleman knows, ne
 | task 1 = hold with `TimerElapsed` | not tied to the rifleman — on a slow cluster the hostile could leave before the rifleman arrives, and the hold would never be seen |
 | the hostile simply walks out of view | the rifleman remembers where he lost it; if that spot still sees the crossing the threat stays (≈ 0.99 for minutes) — the withdrawal point must be chosen by the sight rule above |
 
+#### 10.5a As-built — H1 / H2 *(behaviors, `2026-10-06`)*
+
+| # | as built | ⛔ §10.5 said |
+|---|---|---|
+| A1 | `ThreatCountParams.WithinMetres` (appended last): GROUND distance (XY) from the unit's `SimTransform` to each REMEMBERED position; 0 = any distance; a unit with no `SimTransform` counts none | "measured from the unit to the remembered position" ✅ |
+| A2 | `Tactics/Sentry.btree.json` = `Sequence[ ThreatsAtLeast (with an UntilSuccess PILL) , Wait 15 s ]`; param variable `sentry` (`ThreatCountParams`: Count 1, MinDanger 0.5, WithinMetres 90) — overridable in the order's params JSON | "params WithinMetres and WaitSeconds" — ⚠ **the kernel `Wait` takes a CONSTANT** (`BTreeWaitPayloadDto.Duration`), so the wait is 15 s, not a param |
+| A3 | ⭐ **two defects found and fixed on the way:** `CE-2111` — the generator silently dropped a decorator authored as a node kind (now `#error`; decorators are pills) · `CE-2112` — 🔴 `BTreeRunner` never set the context's time, so NO brain-ticked `Wait` / `Cooldown` ever completed; now `repo.SimulationTime` | — |
+
+Rails: `SensorNodesTests.CE3079_ThreatsAtLeast_WithinMetres_*` · `TacticsTreesTests.CE3079_Sentry_EndsOnlyAfterAContactIsNear_AndTheWaitElapses_AndNeverFires` · `CE3079_ATwoTaskMission_AdvancesFromSentry_WhenItEndsItself` (a 2-task `MissionPlanQueue` goes 0 → 1 only after the 15 s) · `BTreeJsonGeneratorTests.CE2111_*`.
+
 ### 10.6 Build plan — the `ua-danger-crossing` programme on TWO lanes *(`2026-10-06`; `build-state: BUILDING`)*
 
 🔒 **User, `2026-10-06`:** *"Approved. Also 3080 lean approved, solve it part of this 'danger crossing demo' programme. Divide
