@@ -63,6 +63,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly int _localNodeId;
         private readonly Dictionary<(long ParentNetId, int ChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
+        private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         /// <summary>Sensors this node was told another node solves (diagnostics and rails).</summary>
         public long SolvedElsewhereCount { get; private set; }
@@ -83,6 +84,8 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
+
+            ForgetLastWorld(view);
 
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -164,6 +167,26 @@ namespace Hrot.Network.NED.SimHost
         public long StaleSampleCount { get; private set; }
 
         /// <summary>Applies what <see cref="Receive"/> left pending (exposed for rails that drive <c>Receive</c>).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-3076</c> (<c>CE-2101</c>'s rule, <c>DESIGN_Cluster_Load_Phase.md</c> §8) — the per-world bookkeeping goes at the
+        /// world boundary: ids restart at 1000, so the next world's (parent, part) keys are the last world's. 🔴 Measured: a stale
+        /// <c>_recordedSolver</c> skipped <see cref="RecordSolver"/> for the new parent ghost ⇒ no <c>dtEqsResult</c> owner ⇒ the
+        /// commander's area query was never answered (NoAnswerTimeout) when <c>hill-attack-close</c> loaded after <c>ua-posture</c>.
+        /// A stale <c>_pending</c> would apply the last world's config to the new parent; a stale <c>_awaitingPlayback</c> would hold
+        /// its carrier forever. ⭐ Kept: <c>_order</c> (a last-world sample arriving late is still stale) and <c>_childGhostCache</c>
+        /// (every hit is re-validated against the world).
+        /// </summary>
+        private void ForgetLastWorld(ISimulationView view)
+        {
+            if (!Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) return;
+            _recordedSolver.Clear();
+            _pending.Clear();
+            _awaitingPlayback.Clear();
+        }
+
+        /// <summary>The start of a poll, for a rail that drives <see cref="Receive"/> without DDS.</summary>
+        internal void ObserveWorldForRail(ISimulationView view) => ForgetLastWorld(view);
+
         internal void ApplyPendingForRail(IEntityCommandBuffer cmd, ISimulationView view) => ApplyPending(cmd, view);
 
         // Applies every pending sample whose parent is present; re-applies one only when a named slot

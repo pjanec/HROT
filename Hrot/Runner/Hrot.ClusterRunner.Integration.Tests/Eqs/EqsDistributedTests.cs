@@ -1336,6 +1336,49 @@ public sealed class EqsDistributedTests
         Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3076</c> — after the WORLD BOUNDARY (a second live load in one process: ids restart at 1000, <c>WorldEpoch</c>
+    /// moves, <c>DESIGN_Cluster_Load_Phase.md</c> §8) the SAME (parent id, part) names a NEW parent, and the named solver must be
+    /// recorded as the result part's owner on THAT parent. 🔴 Before: the translator's "already recorded" memory outlived the
+    /// world, <c>RecordSolver</c> returned early, the new parent had no result owner — measured live: <c>hill-attack-close</c>
+    /// loaded after <c>ua-posture</c> never got its area query answered (NoAnswerTimeout), so the hostiles were never engaged.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE3076_AfterTheWorldBoundary_AReusedParentId_GetsItsResultOwnerRecorded()
+    {
+        using var rig = new LifecycleRig();
+        var map = rig.H.SimHost.TestHook_EntityMap;
+        map.TryGetEntity(rig.Commander, out Entity onSim);
+        Assert.True(rig.H.PumpUntil(() => rig.Sim.HasComponent<NetworkAuthority>(onSim), timeoutFrames: 3000));
+        int me = rig.Sim.GetComponentRO<NetworkAuthority>(onSim).LocalNodeId;
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null, map, me);
+        long t = 0;
+        void Arrive(int part)
+        {
+            var cmd = new EntityCommandBuffer();
+            ingress.ObserveWorldForRail(rig.Sim);   // the start of a poll
+            ingress.Receive(cmd, new EqsSensorConfigTopic
+            {
+                ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f,
+                SolverNodeId = me,
+            }, valid: true, disposed: false, ++t);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+
+        Arrive(31);
+        Assert.Equal(me, LifecycleRig.ResultOwner(rig.Sim, onSim, 31));
+
+        // The world boundary, as WorldBoundaryReset does it: the id now names a NEW entity, and the epoch moves.
+        var reborn = rig.Sim.CreateEntity();
+        map.Unregister(rig.Commander, 0);
+        map.Register(rig.Commander, reborn);
+        Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(rig.Sim);
+
+        Arrive(31);
+        Assert.Equal(me, LifecycleRig.ResultOwner(rig.Sim, reborn, 31));
+    }
+
     // ── CE-3036 (S3) — TKB sensors: built on every node, silent on the wire until overridden ─────────────────────────
 
     private static readonly SensorEntryDto TkbRadar = new()
