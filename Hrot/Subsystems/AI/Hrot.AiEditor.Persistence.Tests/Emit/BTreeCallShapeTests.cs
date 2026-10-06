@@ -132,6 +132,10 @@ public sealed class BTreeCallShapeTests
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000010", BTreeDelegateShapeDto.Stateful),
         ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
+        ("PostureAdvance.btree.json", "c3083100-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),    // CE-3083 G5 wrappers
+        ("PostureSuppress.btree.json", "c3083200-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
+        ("PostureHold.btree.json", "c3083300-0000-0000-0000-000000000002", BTreeDelegateShapeDto.NoParams),
+        ("PostureSense.btree.json", "c3083400-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),

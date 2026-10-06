@@ -139,6 +139,34 @@ namespace Fbt.Runtime
         }
 
         // Sweeps oldPath for entries not present in newPath and invokes deactivators for each.
+        /// <summary>
+        /// ⭐ <c>CE-2116</c> — the run is ABANDONED by its host (a Behaviour Task's Abort, an HSM state's exit, a BTree host
+        /// leaving the hosting node, a behaviour change) while it is still LIVE (the caller asserts that): every node on the
+        /// active path leaves, so each resource-owning one's deactivator runs — what a tick that moves the path away would do.
+        /// ⚠ The root itself is swept too: index 0 is the root, and a one-leaf tree's running leaf IS the root, which the
+        /// cursor cannot record (0 means "none"). A Parallel root sweeps its whole subtree (and nothing is swept twice). The
+        /// state is left as it was; the caller zeroes it.
+        /// </summary>
+        public void Abort(ref TBlackboard blackboard, ref BehaviorTreeState state, ref TContext context)
+        {
+            if (_blob.Nodes.Length == 0) return;
+            if (_blob.Nodes[0].Type == NodeType.Parallel)
+            {
+                SweepExitedNode(0, ref blackboard, ref state, ref context);   // its children, at any depth
+                return;
+            }
+            Span<ushort> oldPath = stackalloc ushort[9];
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    oldPath[i] = state.NodeIndexStack[i];
+            }
+            oldPath[8] = state.RunningNodeIndex;
+            Span<ushort> emptyPath = stackalloc ushort[9];
+            SweepExitedNodes(oldPath, emptyPath, ref blackboard, ref state, ref context);
+            SweepExitedNode(0, ref blackboard, ref state, ref context);       // a leaf (or hosting) root
+        }
+
         private void SweepExitedNodes(
             Span<ushort> oldPath,
             Span<ushort> newPath,

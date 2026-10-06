@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+build-state: BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -12,7 +12,7 @@ related-designs:
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the frame this answers (G1–G11).
-  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.
+  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node; OWNS the hosted-child reset that CE-2116 (§3.3d) made abort a live child.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; an SOP calls it (§7), never a host.
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
   - docs/blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md — the P2 frame (G4–G6) §3.3c answers for G4.
@@ -720,6 +720,93 @@ Rails: `TacticsTreesTests.CE3082_*` (4: registered · weak enemy ⇒ Advance, ar
 runtime switch both ways + leaving Advance stops its fire (its deactivator ran) · the BTree and the HSM pick the same winner at every step) ·
 `SharedAiBindingCompilesTests.CE3082_*` (3: deactivator filled as OnExit and compiles · an authored OnExit wins · no deactivator ⇒
 no OnExit). Red-proof: with the fill removed, the generator rail and the switch rail red (the advance keeps firing after TakeCover took over). ⚠ Measured on the way: a TakeCover sensor is NOT evidence of the exit — TakeCover releases its own sensor the tick it loses its threat, before the switch.
+
+### 3.3d `CE-3083` (G5) — CombatPostureBp + the decision picker, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G5 — the SAME decision as §3.3b/§3.3c hosted as a
+BLUEPRINT (one `ScoreDecision` + a Behaviour Task per option), plus the editor's decision picker (BP-27). Programme:
+[Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G5, U3.
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-06`; ⚠ `check_index_coverage` is not available through the CLI)*:
+`ScoreDecisionNode` (compiler: `Stage5_Schedule` → `IrOp_ScoreDecision`, hidden `_score_<id8>_last` hysteresis) ·
+`RunBehaviorNode` (Behaviour Task, S7: Start/Abort, Started/WhileRunning/Succeeded/Failed; `ParamsTypeId`+`ParamsVariable`) ·
+the BTree's option nodes (`PostureNodes`, `EqsTacticsNodes`) and the `TakeCover` / `FallBack` behaviours (§3.3b) ·
+⭐ an existing decision combo: `ComponentEditDrawer` over `UtilityDecisionCatalog.Shared` for a `UtilityDecisionRef` FIELD (CE-2068) —
+the picker reuses that catalog, not a new discovery · `BehaviorTaskNodeDrawer` (the node-drawer pattern) · no `ScoreDecisionNode`
+drawer existed (BP-27, `RW-M`).
+
+```mermaid
+classDiagram
+  class CombatPostureBp_bp { <<NEW asset>> Param advance; Var Winner byte; Tick graph }
+  class PostureSense { <<NEW BTree>> PostureSensors(sensors) — never ends }
+  class PostureAdvance { <<NEW BTree>> AdvanceAndAttack(advance) }
+  class PostureSuppress { <<NEW BTree>> Engage(engage) }
+  class PostureHold { <<NEW BTree>> Hold }
+  class TakeCover { <<existing behaviour>> }
+  class FallBack { <<existing behaviour>> }
+  class ScoreDecisionNodeDrawer { <<NEW, Blueprints.Editor>> +CatalogDecisions() list of name and assetId }
+  class UtilityDecisionCatalog { <<existing>> Shared.Entries — Def.AssetId, DebugName }
+  class Stage5_Schedule { <<existing, fixed CE-2115>> Start/Abort into a merge point = goto the shared block }
+  class HostedSubtree { <<existing, fixed CE-2116>> ResetAt aborts a live run first }
+  class IBehaviorRunner { <<existing, grows>> +Abort(ctx, brain, block) default no-op }
+  class BTreeRunner { <<existing, grows>> Abort = Interpreter.Abort }
+  CombatPostureBp_bp ..> PostureSense : Behaviour Task
+  CombatPostureBp_bp ..> PostureAdvance : Behaviour Task + Params
+  CombatPostureBp_bp ..> PostureSuppress
+  CombatPostureBp_bp ..> PostureHold
+  CombatPostureBp_bp ..> TakeCover
+  CombatPostureBp_bp ..> FallBack
+  ScoreDecisionNodeDrawer ..> UtilityDecisionCatalog
+  HostedSubtree ..> IBehaviorRunner : Abort on reset
+  BTreeRunner ..|> IBehaviorRunner
+```
+
+*What the picture shows that prose hid:* a Behaviour Task runs a REGISTERED BEHAVIOUR, not a node — so the three option nodes that
+were not yet behaviours get one-leaf wrapper BTrees (ruling 9: the nodes are reused, not re-implemented); and an abort reaches the
+child's node only through `HostedSubtree` → the runner, which had no abort at all (CE-2116).
+
+```mermaid
+sequenceDiagram
+  participant T as Tick graph (blueprint)
+  participant S as Sense task (Started ⇒ alongside)
+  participant D as ScoreDecision ⇒ Winner
+  participant P as the winner's task (e.g. PostureAdvance)
+  participant H as HostedSubtree / BTreeRunner
+  T->>S: Start (once — Started fires the dispatcher)
+  loop every tick, Sense WhileRunning
+    S->>D: score ⇒ Set Winner
+  end
+  T->>P: dispatcher: Winner == k ⇒ Start task k (Hold if none)
+  P->>P: WhileRunning: Winner != k ⇒ Abort
+  P->>H: Abort ⇒ ResetAt ⇒ AbortRunning ⇒ Interpreter.Abort (runs the leaf's deactivator: stop move + fire)
+  H-->>T: Failed ⇒ back to the dispatcher (CE-2115: one merge block)
+  P-->>T: PostureAdvance Succeeded (arrived) ⇒ Return Success ⇒ the run finishes
+```
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **E1** the decision is scored inside the SENSE task's WhileRunning chain and stored in a `Winner` variable | one scoring per tick in one place; every option task reads the variable to decide whether to abort itself | a ScoreDecision per option task (N scorings a tick, N hysteresis fields that disagree) |
+| **E2** each option task aborts ITSELF (`WhileRunning`: `Winner != k` ⇒ Abort), Failed loops back to the dispatcher | Abort is legal only from the task's own chain or after Started (BP1685) | one central "abort the old task" node (the blueprint cannot name "the running task") |
+| **E3** one-leaf wrapper BTrees for the node-only options (`PostureAdvance`, `PostureSuppress`, `PostureHold`, `PostureSense`) | a Behaviour Task runs a registered behaviour; the node and its deactivator are reused | a new "run a shared node" blueprint node (a second binding surface, ruling 9) |
+| **E4** the picker lists `UtilityDecisionCatalog` and stores the decision's ASSET ID; an unknown id is kept and flagged | the compiler hashes exactly that id (`UtilityIdHash`) into the id the catalog registers under ⇒ a pick resolves by construction; same list as the CE-2068 field combo | a free GUID text box (the BP-27 defect); a second decision registry for the editor |
+
+**Acceptance (a rail each, red-proved):** ① registered by name · ② weak enemy ⇒ PostureAdvance, moving + firing; arrival ⇒ the run
+finishes · ③ health edits switch both ways, and leaving Advance stops its fire · ④ the BTree, the HSM and the blueprint make the
+same decisions · ⑤ the picker: lists / filters the catalog, one undoable edit, unknown id kept · ⑥ every shipped ScoreDecision
+resolves in the catalog.
+
+⭐ **AS-BUILT (`2026-10-06`)** — the asset is `Assets/Blueprints/CombatPostureBp.bp.json` (Name `CombatPostureBp`; order params:
+`{"advance":{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}}` — the blueprint Parameter `advance`
+holds PostureAdvance's inputs, whose own variable is `advance`). Two infrastructure defects were found by building it:
+
+| found | what was wrong | fix |
+|---|---|---|
+| **CE-2115** | a node reached BOTH from a task's Started and from another task's Failed was scheduled TWICE ⇒ duplicate labels, CS0140 | `Stage5_Schedule`: a Behaviour Task Start/Abort whose next node is a merge point jumps to the ONE shared merge block (`GetOrAllocMergeBlock`), as every other exec edge does |
+| **CE-2116** | an aborted BTree child kept running its leaf's effects (the advance kept firing): `HostedSubtree.ResetAt` only zeroed the brain; no runner had an abort | `IBehaviorRunner.Abort` (default no-op), `BTreeRunner.Abort` = new `Interpreter.Abort` (sweeps the running path's deactivators, then the root — a one-leaf tree's leaf IS node 0, never on the path); `ResetAt` calls it when the start word says a run is live. ⚠ It applies to EVERY host abort (blueprint Abort, ingress reset, an HSM hosting a BTree). HSM / blueprint children: still the no-op |
+
+Rails: `TacticsTreesTests.CE3083_*` (3: registered · weak enemy ⇒ advance + finish · ⭐ switch both ways + fire stops · all three hosts
+same decisions) · `ScoreDecisionNodeDrawerTests.BP27_*` (6) · `BlueprintBehaviourTests.CE2115_*` · `HostedSubtreeCursorTests.CE2116_*`
+(red-proved: the lone-leaf case fails without the root sweep).
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

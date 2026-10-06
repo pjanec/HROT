@@ -80,6 +80,8 @@ public static class BlueprintEditorBootstrap
         // so whatever the palette baked at creation was permanent. Each reuses a catalog that was
         // already in the editor; none needed new discovery machinery.
         registry.Register(typeof(ReadRankedResultNode), new ReadRankedResultNodeDrawer(editService));
+        // ⭐ BP-27 / CE-3083 — the Score Decision's decision picker, over the process UtilityDecisionCatalog.
+        registry.Register(typeof(ScoreDecisionNode),    new ScoreDecisionNodeDrawer(editService));
         registry.Register(typeof(WaitForChannelNode),   new WaitForChannelNodeDrawer(channelCatalog, editService));
         registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
         // ⭐ CE-2015 — an event node's own policy / capacity / Self-filter (DESIGN_Typed_Event_Nodes E4).

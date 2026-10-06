@@ -147,6 +147,16 @@ namespace Hrot.SimHost.Tests
                     Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(Repo, Unit, hash, out var b));
                     return b->St.choice.Winner;
                 }
+                if (behaviour == "CombatPostureBp")
+                {
+                    // ⭐ CE-3083 — the blueprint keeps its winner in its own Vars (St) member `Winner`; its generated class name
+                    //   carries the asset hash, so the block is found by reflection and read at its field offset.
+                    var bp = typeof(PostureNodes).Assembly.GetTypes().Single(t => t.Name.StartsWith("CombatPostureBp_") && t.Name.EndsWith("_Bp"));
+                    var block = bp.GetNestedType("Block")!; var vars = bp.GetNestedType("Vars")!;
+                    int off = (int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St") + (int)System.Runtime.InteropServices.Marshal.OffsetOf(vars, "Winner");
+                    Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(Repo, Unit, out byte* root, out int len) && off < len);
+                    return root[off];
+                }
                 Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Machines.CombatPostureHsm_Block>(Repo, Unit, hash, out var h));
                 return h->St.choice.Winner;
             }
@@ -327,6 +337,96 @@ namespace Hrot.SimHost.Tests
                 seen.Add(hsm);
             }
             Assert.True(seen.Distinct().Count() >= 2, $"the inputs must move the decision (saw {string.Join(",", seen)})");
+        }
+
+        // ── ⭐ CE-3083 (G5) — the SAME posture decision hosted as a BLUEPRINT (docs/DESIGN_Decision_Layer.md §3.3d) ─────────────
+
+        private const string BpPosture = "CombatPostureBp";
+        private const string BpObjective = "{\"advance\":{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}}}";
+
+        [Fact]
+        public void CE3083_CombatPostureBp_AndItsOptionBehaviours_AreRegistered()
+        {
+            var w = new World();
+            foreach (var name in new[] { BpPosture, "PostureAdvance", "PostureSuppress", "PostureHold", "PostureSense" })
+                Assert.True(w.Registry.TryGetId(name, out _), $"{name} must be registered (U3 orders the blueprint; each option is a behaviour)");
+        }
+
+        /// <summary>A weak enemy ⇒ the blueprint starts the advance task (moving to the objective, firing); arrival ⇒ the task
+        /// succeeds ⇒ the blueprint returns Success and the run's sensors go.</summary>
+        [Fact]
+        public void CE3083_AgainstAWeakEnemy_TheBlueprintAdvancesFiring_AndFinishesAtTheObjective()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order(BpPosture, BpObjective);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal(BpPosture, w.TaskName);
+            Assert.Equal((byte)1, w.Winner(BpPosture));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the Sense task keeps the cover sensor");
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.NotEqual(BpPosture, w.TaskName);
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
+        }
+
+        /// <summary>⭐ the switch, both ways: hurt + outnumbered + cover ⇒ the advance task is ABORTED (its fire stops) and TakeCover
+        /// starts; healthy with nothing to fight ⇒ back to the advance.</summary>
+        [Fact]
+        public void CE3083_HealthEdits_SwitchTheBlueprintsTask_BothWays()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order(BpPosture, BpObjective);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+
+            w.SetHealth(0.3f);
+            w.Remember(Entity.Null);
+            w.Contact(armed: true);
+            w.Contact(armed: true);
+            w.Tick();
+            w.Tick();
+            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+            Assert.False(cover.IsNull);
+            w.Answer(cover, 5, 30f, 40f);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal((byte)2, w.Winner(BpPosture));
+            Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.TakeCoverSite).IsNull, "the TakeCover task runs, with its own sensor");
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+
+            w.SetHealth(1f);
+            w.Remember(Entity.Null);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal((byte)1, w.Winner(BpPosture));
+            Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());
+        }
+
+        /// <summary>⭐ U3's premise, all three hosts — the BTree, the HSM and the blueprint pick the same winner at every step.</summary>
+        [Fact]
+        public void CE3083_AllThreeHosts_MakeTheSameDecisions_ForTheSameInputs()
+        {
+            var worlds = new[] { (w: new World(), name: "CombatPosture", json: Objective), (w: new World(), name: HsmPosture, json: Objective),
+                                 (w: new World(), name: BpPosture, json: BpObjective) };
+            foreach (var (w, name, json) in worlds) { w.Arm(); w.Contact(armed: false); w.Order(name, json); }
+            var steps = new System.Action<World>[]
+            {
+                w => { },
+                w => { w.SetHealth(0.3f); w.Remember(Entity.Null); w.Contact(true); w.Contact(true); },
+                w => { w.SetHealth(1f); w.Remember(Entity.Null); },
+            };
+            foreach (var step in steps)
+            {
+                foreach (var (w, _, _) in worlds) { step(w); for (int i = 0; i < 6; i++) w.Tick(); }
+                var winners = worlds.Select(x => x.w.Winner(x.name)).ToArray();
+                Assert.True(winners.Distinct().Count() == 1, $"BTree / HSM / blueprint winners differ: {string.Join(",", winners)}");
+            }
         }
 
         [Fact]
