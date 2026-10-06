@@ -250,3 +250,35 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - **Next on my side:** H7 — the `DangerCrossing` BLUEPRINT (`SpawnSensor` → `When ThreatCrossed` → `ReadSensorResult(0)` near / far
   handles → `MoveTo`) + its in-process rail; B6's blueprint variant can name it once it lands. **Waiting for:** nothing (Q4 is not
   blocking).
+
+### 2026-10-06 · behaviors → backend · ✅ H1–H7 ALL BUILT — the final gate report (§5); merged your live PASS (`e3e9dcca7`)
+
+- **Pushed:** `behaviors` — H7 `DangerCrossingBp` (`412f861d8`, the blueprint form, built only from N2–N4) and the merge of
+  `origin/backend@e3e9dcca7` at `0518ea18f` (the only conflict was this section — both entries kept, yours first). ⭐ **B7 can name
+  `DangerCrossingBp`**: order params `{"Objective":[x,y,z]}` (ONE field — the blueprint has no double objective; optional
+  `WalkSpeed` 1.5, `RushSpeed` 4.5, `CrossWithin` 15). As-built: [Utility demo §10.4a](../../DESIGN_Utility_AI_Demo_Scenarios.md) (H7 row).
+- **⚠ Two differences from the BTree a live check should expect** (§10.4a H7): it rushes straight to the FAR handle (no stop at the
+  near side), and the hold has no hysteresis (it releases when the rating falls below 0.5, not 0.4). It re-decides every tick
+  (no `WaitForChannel`) and ends on arrival through a new callable, `Move Arrived`.
+- **Gates** (on the merged tree `0518ea18f`; each TEST project built once, then `--no-build`; tree clean after every suite):
+
+| gate | command | result | vs base / note |
+|---|---|---|---|
+| toolkit | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | **2769/0**, 1 skip | +H1/H3 rails; the skip is pre-existing |
+| SimHost | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build` | 1122/**1**, 3 skips | the red `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` PASSES alone (1/0) — order-dependent, touches no file of this batch; ⚠ NOT re-run at base |
+| cluster EQS | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --no-build --filter Eqs` | 114/**1** → **115/0** | the red (`EqsAuthoringOnBothHostsTests…AreaTemplate`, `DotRecast.Detour` not found) PASSES at base `de30b58cb` AND here after `dotnet restore` — a stale local restore (no DotRecast in `project.assets.json`), not code |
+| generators | `dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests --no-build` | **388/0** | |
+| blueprints | `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests --no-build` | **4188/0**, 17 skips | the 17 skips are pre-existing |
+| tracker | `python3 scripts/tracker-counts.py --check` | OK — open 110 / done 381 | |
+| mermaid | `node scripts/mermaid-check.mjs` on both edited designs | 35 + 17 blocks parse | |
+
+- **Golden movement (diff shape):** BTree corpus 32 → 33 (`Tactics/DangerCrossing`: one `btree-persistence-shape` line + 3 new
+  generated files); blueprint corpus 35 → 36 (`DangerCrossingBp`: one `persistence-shape` line + its `Emit` / `Tier1` goldens);
+  AI goldens regenerated once for CE-2108's `EqsTacticsParams` +8 B (a pure offset shift). ⭐ **H6 moved ZERO existing goldens.**
+- **Ids allocated (behaviors block):** CE-2111 (the BTree generator dropped a decorator authored as a node), CE-2112 (BTree context
+  time never set — no brain-ticked Wait / Cooldown ever ended). Diagnostics BP2073–BP2076 (the sensor nodes). The items themselves
+  ran under your CE-3078 / CE-3079.
+- **Designs folded as-built:** Utility demo §10.4a (H3, H4, H5, H7) + §10.5a (H1, H2); Sensors §7.10a (the N1–N4 detail design,
+  UML) + §7.10b (N2, N3, N4 as built, the two findings).
+- **Open, not blocking:** Q4 (an answer time on `DangerAreaCognitiveBuffer`, so `BecomesStale` works for the area family — my lean
+  (a)). **Waiting for:** nothing. ⭐ The H-items are DONE from my side.
