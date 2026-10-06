@@ -478,7 +478,7 @@ Creates the kernel. Neither argument may be null.
 | `void Initialize()` | Validates policies, registers component types, assigns providers, builds initial topology, and topologically sorts systems. Throws on misconfiguration. |
 | `void Update()` | Advances the `ITimeController` and runs one full simulation frame. |
 | `void StepFrame(float deltaTime)` | Requires `ISteppableTimeController`. Advances one manual frame without advancing wall clock. |
-| `void Dispose()` | Waits up to 2 s for in-flight tasks; disposes all providers; disposes time controller; clears module lists. |
+| `void Dispose()` | Waits up to 2 s for in-flight tasks — ⭐ **including a parked ZOMBIE run** (`CE-3077`; the park nulls `CurrentTask`, so the wait used to skip it); disposes every provider EXCEPT one a still-running zombie reads (leaked at teardown rather than freed under it — measured: AccessViolation in `EntityIndex.IsAlive` from `VisionBroadphase.Rebuild` as the editor shut down); disposes time controller; clears module lists. Rail: `ResilienceIntegrationTests.Resilience_TeardownUnderARunningZombie_DoesNotFreeItsSnapshot_CE3077`. |
 
 **Runtime hot-plug API**
 

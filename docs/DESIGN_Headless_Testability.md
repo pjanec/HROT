@@ -4,7 +4,7 @@ build-state: §"Step 6" and §Conformance are BUILT (2026-08-24) — see §6e an
   what shipped and its five deviations; the rest of the file is DESIGN. Steps 6+7 of the sequencing table
   are DONE. ⭐ The ack-gate's cluster half is CLOSED (HN-028) and its CONDITION corrected — the flag alone
   was level-triggered and confirmed nothing; see §6e.
-updated: 2026-08-24
+updated: 2026-10-06 (§6e row CE-3077: a step from EDIT is a tick)
 current-answer: §6e and the conformance AS-BUILT (both added 2026-08-24) are what SHIPPED — read them
   before §6a's class diagram, which shows the superseded one-service shape. Otherwise: the whole file — the methodology AND architecture for de-risking the cross-host unification with
   FULL HEADLESS testability. Test-type taxonomy · the shared substrate · the ONE-BINARY/--mode model · the
@@ -389,6 +389,7 @@ sequenceDiagram
 | 🔴🔴 **§6c's *"gate INSIDE `Step()`"* is IMPOSSIBLE** | the ACK drain and `Step()` are both main-thread ⇒ deadlock. ⭐ The gate is in the HTTP handler; the return contract is unchanged |
 | ⭐⭐⭐ **the cluster half of the gate is CLOSED** *(`HN-028`, `2026-08-24`)* | `OrchestratorSubsystem` now exposes the one fact as `public bool? IsAwaitingStepAcks` *(`null` ⇒ no master)*, read LIVE through a `Func<bool?>`. ⇒ **`hasMaster:true`** in `--mode all`, and the rail INVERTED rather than being deleted. *(Prior state, SUPERSEDED: blocked cross-lane, `hasMaster:false` asserted.)* |
 | 🔴🔴 **§6c's gate CONDITION was wrong — level-triggered** | 📐 measured: `isAwaitingStepAcks` reads `false` **2 ms after issuing** because the step is an intent crossing DDS and the master has not begun ⇒ the old gate confirmed **nothing**. ⭐ The condition is now **`!awaiting && totalTime > before`** — an AND with a monotone observable. ⛔ An edge-trigger cannot work: the editor's roster is empty and never observably awaits. 📄 Full reasoning: `Architect_Question_54` § AS-BUILT-2 |
+| 🔴 **`2026-10-06` (`CE-3077`) — from EDIT, the first step was not a tick** | 📐 measured: after `/scenario/load/edit` the editor is `inPreview:false`; `EditorTimeTransportFacade.Step` turns the FIRST step into *enter preview, paused at t=0* (the Step button's meaning), so the clock could not move and the gate above answered **504 after 20 s** — 8 system-suite reds, and the runbook's *"step only after Play"* trap. ⭐ The route now issues the tick once a step has moved edit → preview (`DebugApiHost` `/sim/step`); the button keeps its meaning. ⚠ A separate teardown crash (an EQS zombie's snapshot freed by `ModuleHostKernel.Dispose`) was masking it in the logs — fixed in the same item |
 | ⛔⛔ **`--mode all` must run WINDOWED (Xvfb), not headless** | 📐 measured: a panel publishes only when it DRAWS, and the headless runner loop never calls `DrawUIAll` ⇒ every dump would be empty. ⭐ Same reason the editor harness has always run under Xvfb |
 | ⭐ **§6d's goldens re-proof: DONE** | `bash scripts/run-system-tests.sh` ⇒ **80 / 80**, including `PanelGoldenRails`. ⭐ Their stepping is the same `POST /sim/step` seam `--mode all` uses — now ack-gated |
 
