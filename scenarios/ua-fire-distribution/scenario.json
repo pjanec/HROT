@@ -225,8 +225,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7621
@@ -257,8 +257,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7622
@@ -289,8 +289,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7623
