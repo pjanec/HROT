@@ -18,7 +18,8 @@ current-answer: ⭐⭐⭐ SESSION 2026-10-06 (b) — THE HSM TRACKER TAIL IS CLO
     HSM-012  the Timer facet is withdrawn (the kernel never arms one; no duration field exists ANYWHERE), plus a
              new TimerActionNotImplemented warning so an existing binding is diagnosable. Arming = HSM-021.
     HSM-011  the forward-plan doc is marked HISTORICAL, §1 kept live, every rotted status claim named.
-  ⭐ 32 new test cases (28 methods). Hrot.Hsm.Editor.Tests 634 → 666/666 · Hrot.BTree.Editor.Tests 646/646. Gates: rulings 104/104,
+  ⭐ 32 new test cases (28 methods). Hrot.Hsm.Editor.Tests 634 → 666/666 · Hrot.BTree.Editor.Tests 646/646 ·
+    Hrot.Editor.AiShared.Tests 2126/2127 · Hrot.Blueprints.Tests 4206/4223 (skips pre-existing). Gates: rulings 104/104,
     design-digest --check clean, tracker-counts OK.
   ⚠ NEW ROWS, all split out by MEASUREMENT: HSM-020 (carry the mask into the blob — touches FastHSM, needs a user
     decision), HSM-021 (timer arming — new ROM field + builder param + kernel phase), HSM-022 (the BTree twin of
