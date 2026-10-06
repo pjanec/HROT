@@ -1349,7 +1349,7 @@ result type, so a new kind adds a registry entry and its types — no new node.
 params/working-state STRUCT is the pin set, and a struct cannot be projected from a registry, so they are **typed per
 FAMILY, never per kind** — `SensorNodes.Sees`/`Read` stay the ranked family's (they read `EqsCognitiveBuffer`, `SensorNodes.cs:65`),
 and the area family gets its own `DangerAreaNodes` (`EnsureSensor`, `DangerAhead`, `HoldShort`, `Cross`). A new KIND in an
-existing family needs no new node. 📄 The first consumer and its node list: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.4.
+existing family needs no new node. ⚠ **And a family node bound to a kind of ANOTHER family must FAIL loudly, not wait for ever** — `SensorNodes.Sees`/`Read` and the blueprint `ReadEqsResult` pick the sensor by kind and read `EqsCognitiveBuffer`, which a `DangerArea` child does not carry (guard: Utility demo §10.4). 📄 The first consumer and its node list: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.4.
 
 Lane: behaviors owns the blueprint nodes (BTree/HSM read nodes the same way); backend owns the registry and the result types.
 First consumer: the danger sensor (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–10.3).
