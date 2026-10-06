@@ -1215,3 +1215,23 @@ the production layout: mount 0 on the owner) · ③ the executor with Auto fires
 ammo; with Mount 0 it fires mount 0 as before (`AimAndFireExecutorTests` — the old `WeaponIndex == 0` assert kept for the default) ·
 ④ an empty TOW ⇒ the 25 mm (RoundsLeft / HasAmmo) · ⑤ U5 `ua-weapon-choice` on `basic-desert`: live check + in-process twin — the
 T-72 loses health (only a TOW penetrates its 500 front armour), the insurgent is killed, the owner's 25 mm ammo falls. · ⑥ ⚠ **the mount children now EXIST on CGF for every multi-mount unit** (the hill-attack tanks too) — the hill-attack live checks must not move (they fire mount 0), and the part machinery that keys on `PartMetadata` was read for it: the EQS part-id allocator counts EQS parts only (`EqsChildSensor.cs:102-110`), a network part is resolved by `(root, descriptor, instance)` so a mount part (no network descriptor) is never matched (Q79 §0.10), the scenario extractor never sees one (marked not-saved, CE-3045)
+
+### 11.1 ✅ AS-BUILT — G8 (`CE-3088`) + G3 (`CE-3087`), `2026-10-06`
+
+| §11 said | as built / measured |
+|---|---|
+| D1–D5 | ✅ as drawn: `SquadPerceptionMergeSystem.Run` returns whether it merged; `ThreatMatrixAssignmentSystem.Run` reads pool ∪ leader memory (stack, ≤ 16, heard skipped); `SquadCoordinationSystem(gate, fire)` runs it after a merge; `CgfLogicPack` passes it; `GET /entities/{id}/squad` |
+| acceptance ①–⑤ | rails `StarterPackIntegrationTests.CE3088_*` (3), `SquadCoordinationSystemTests.CE3088_*_DoesNotAllocate`, `CgfLogicPackTests` (`FireAssignment` not null) |
+| ⑥ U6 `ua-fire-distribution` live | ✅ **PASS ×3** for the distribution: four members assigned, spread over 2 of 3 targets (East ×2, West ×2), no target over 2, every member fires. ⚠ **the hurt-member step is REPORTED, not asserted** — finding below |
+| ⚠ **finding `CE-3090`** *(the behaviors lane's topic)* | on OPEN GROUND a hurt member has NO defensive posture: TakeCover / Flee score through `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)`, which read 0 on `basic-desert` ⇒ at 10 HP: `AdvanceAndAttack 0.386, Hold 0.18, Suppress 0.08, TakeCover 0, Flee 0`. The §10.3 veto is railed at unit level and unreachable where there is no cover |
+| scenario tuning | the riflemen advance at 0.5 m/s on the hostile line (an objective 5 m ahead ended the posture at once); the hostiles have 600 HP (with 100 the squad killed them in seconds and a hurt member rightly kept advancing — nobody left to flee) |
+
+### 12.1 ✅ AS-BUILT — G7 (`CE-3089`), `2026-10-06`
+
+| §12 said | as built / measured |
+|---|---|
+| W1–W5 | ✅ as drawn |
+| W6–W9 | ⭐ **four defects found only LIVE** (the unit rails imitated the layout; three of the four were invisible to them) — each fixed with a rail and recorded in §12's table: the range Bell, duplicated mount children, a mount child with no position, a mount child that never reloaded + readiness in a per-shot choice |
+| the diagnostic | ⭐ `GET /entities/{id}/weapons[?target=]` — every mount, every WeaponSelection input, the choice; it is what found W8 and W9 |
+| U5 `ua-weapon-choice` live | ✅ **PASS**: the TOW kills the T-72 (2500 → 0 HP), the 25 mm kills the insurgent in a 3-round burst, sim 4.1 s. In-process twin `WeaponChoiceScenarioTests.CE3089_U5_*` PASS |
+| ⚠ hill-attack regression | ✅ `hill-attack-close` unchanged with mount children on CGF (commander finishes t=40.5, hostiles 0) |
