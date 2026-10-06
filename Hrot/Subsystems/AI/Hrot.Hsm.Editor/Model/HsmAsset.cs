@@ -283,7 +283,32 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
-    /// <summary>Renames a variable. No-op if not found. Fires Changed.</summary>
+    /// <summary>
+    /// Renames a variable, <b>and every binding that targets it</b>. No-op if not found. Fires Changed.
+    ///
+    /// <para>⭐⭐⭐ <b><c>HSM-017</c> (2026-10-06) — THE <c>ExpressionTargetField</c> FIX-UP IS DONE HERE, IN THE
+    /// MODEL, AND THAT IS NOT WHERE ONE WOULD EXPECT IT.</b> The designed route is
+    /// <c>VariableRenameCommit</c> → <c>RefactorService.PreviewRename</c> → <c>ApplyRename</c>, references first and
+    /// the declaration second. 📐 Measured: that route <b>cannot move an HSM binding</b>.
+    /// <c>BTreeHsmSchemaSource.GetRefactorKey</c> returns <c>null</c>, so the commit falls back to the composite key
+    /// <c>{assetId:D}::{name}</c>; <c>PreviewRename</c> then looks for that literal string <b>in the asset's source
+    /// file</b> (<c>line.Contains(fromKey)</c>) — and a <c>.hsm.json</c> stores the bare name
+    /// (<c>"ExpressionTargetField": "EngageTarget"</c>). ⇒ zero line edits, <c>ApplyRename</c> writes nothing, the
+    /// declaration moves and every binding keeps naming the old string.</para>
+    ///
+    /// <para>⛔ <b>Why not "give the schema source a real refactor key" instead.</b> A BTree/HSM variable has no
+    /// persisted identity — the file stores the NAME — so the only key that appears in the text IS the name, and a
+    /// line-level <c>string.Replace</c> on it would also rewrite <c>speedLimit</c>, a method FQN containing the word,
+    /// and any comment. ⇒ for a name-keyed host the exact edit is a MODEL edit, which is this.</para>
+    ///
+    /// <para>⚠ <b>Still worth the contributor</b> (<c>HsmReferenceContributor</c>, same row): the catalogue is what
+    /// answers "find references" and what any future structured refactor would drive from. ⛔ But it is not what
+    /// makes this rename safe — this method is.</para>
+    ///
+    /// <para>⚠ <b>Scope (<c>R-88</c>):</b> this repairs the EDITOR's bindings. A variable name is separately
+    /// load-bearing at runtime for <c>Scope=Behavior</c>/<c>Scope=Entity</c> slot keys and scenario overrides, and
+    /// renaming still moves those slots — unchanged by this fix.</para>
+    /// </summary>
     public void RenameVariable(string oldName, string newName)
     {
         int idx = _blackboardVariables.FindIndex(v => v.Name == oldName);
@@ -294,7 +319,24 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
             _aliases.Remove(oldName);
             _aliases[newName] = list;
         }
+
+        // ⭐ HSM-017 — the same site set CountNodesReferencingVariable walks, so a binding that COUNTS as a
+        //   reference is a binding that MOVES on a rename. ⛔ Two different walks is how a count and a fix-up
+        //   come to disagree.
+        foreach (var t in AllTransitions)        RetargetBindings(oldName, newName, t.Guard, t.Action);
+        foreach (var g in AllGlobalTransitions)  RetargetBindings(oldName, newName, g.Guard, g.Action);
+        foreach (var s in AllStates)             RetargetBindings(oldName, newName, s.OnEntry, s.OnExit, s.Activity, s.Timer);
+
         MarkDirty();
+    }
+
+    /// <summary>⭐ <c>HSM-017</c> — points every binding whose output targets <paramref name="oldName"/> at
+    /// <paramref name="newName"/>, using the ONE definition of "targets" (<see cref="IsExpressionTargetOf"/>).</summary>
+    private static void RetargetBindings(string oldName, string newName, params BehaviorActionBinding?[] bindings)
+    {
+        foreach (var b in bindings)
+            if (b is not null && IsExpressionTargetOf(b.ExpressionTargetField, oldName))
+                b.ExpressionTargetField = newName;
     }
 
     /// <summary>
@@ -637,6 +679,122 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
 
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);
+
+    /// <summary>The event named <paramref name="name"/>, case-insensitively, or null.</summary>
+    public EventDefinition? FindEventByName(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? null
+            : _allEventsList.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    // ═══ HSM-009 — AUTHORING AN EVENT ═══════════════════════════════════════════════════════════════════
+    //
+    // ⭐⭐⭐ Until these three existed there was NO WAY TO AUTHOR AN EVENT AT ALL. 📐 Measured 2026-10-06:
+    //    EventDefinition was constructed in exactly two places, both LOADERS (HsmAssetProjector from a compiled
+    //    blob, HsmAssetMapper from JSON), plus CE-2088's EnsureEvent for an engine-raised event the author PICKS.
+    //    ⇒ a machine with no events could never acquire one, so a transition's [HsmEventPicker] had nothing to
+    //    offer and authoring a triggered transition meant hand-editing the .hsm.json — which is exactly the
+    //    Phase-1 bar ("build a working machine without touching C#") the editor is supposed to clear.
+    // 📄 HSM_Editor_NodeEditor_Host_Design.md §9.1 (the table's "+ Add Event" and its right-click menu).
+    //
+    // ⭐ WHY THESE LIVE ON THE ASSET AND NOT ON HsmCommandSink (R-47 says mutations go through the sink):
+    //    the sink's vocabulary is the GRAPH's — AddNode / AddLink / SetNodeProperty — and an event is an
+    //    ASSET-LEVEL DECLARATION, like a blackboard variable. ⭐ Variables set the precedent and it is followed
+    //    here: AddVariable / RemoveVariable / RenameVariable are public model methods that MarkDirty, called
+    //    straight from the panel. ⚠ The consequence is the same one the variables surface already has — these
+    //    are not on the undo stack. ⛔ Do not "fix" that for events alone; it is one decision for both surfaces.
+
+    /// <summary>
+    /// ⭐ Declares a new event. Returns null when the name is blank or already taken (the caller shows why).
+    ///
+    /// <para>⚠ <b>Two id rules, and both matter.</b> ① A name that matches an ENGINE-RAISED event
+    /// (<c>Sensor.FirstThreat</c> …) takes that event's RESERVED id — <c>HsmEventIds</c> is the one assignment and
+    /// would rebind it at emit anyway, so allocating a sequential id here would make the editor and the emitter
+    /// disagree about the same name. ② Otherwise the lowest free id from 1: <b>0 means "no event"</b> (every
+    /// reader tests <c>EventId != 0</c>) and the high band is reserved (<c>R-45</c>: <c>0xFFFF</c> is the kernel
+    /// sentinel, <c>0xFFFE</c> is its timer event, and built-ins sit at <c>0xFF00+</c>).</para>
+    /// </summary>
+    public EventDefinition? CreateEvent(string? name)
+    {
+        var trimmed = name?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return null;
+        if (FindEventByName(trimmed) != null) return null;
+
+        if (Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn(trimmed, out ushort reserved))
+        {
+            var builtIn = EnsureEvent(trimmed, reserved);
+            MarkDirty();
+            return builtIn;
+        }
+
+        ushort id = NextFreeEventId();
+        if (id == 0) return null;   // exhausted the authorable range
+
+        var created = new EventDefinition(trimmed, id);
+        _allEventsList.Add(created);
+        _eventIdToEvent[id] = created;
+        MarkDirty();
+        return created;
+    }
+
+    /// <summary>
+    /// ⭐ Removes an event. Returns false when no event has that id.
+    ///
+    /// <para>⚠ <b>Transitions that still name it are left alone, deliberately.</b> Rewriting their
+    /// <c>EventId</c> to 0 would silently turn an event-triggered transition into a completion transition — a
+    /// different machine. ⭐ The dangling reference is REPORTED instead, by the validator rule that already
+    /// exists for exactly this (<c>HsmDiagnosticCode.EventReferenceDangling</c>), which is §9.1's
+    /// "flags warning if any transition references it".</para>
+    /// </summary>
+    public bool RemoveEvent(ushort eventId)
+    {
+        var existing = FindEventById(eventId);
+        if (existing is null) return false;
+
+        _allEventsList.Remove(existing);
+        _eventIdToEvent.Remove(eventId);
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Renames an event. Returns false when the id is unknown, the name is blank, it is already taken by
+    /// another event, or it names an engine-raised event.
+    ///
+    /// <para>⭐ <b>A rename needs no refactor pass</b>, unlike a variable rename: a transition stores the
+    /// event's <c>EventId</c> (a ushort) and carries <c>EventName</c> only for display, re-symbolicated from the
+    /// machine metadata. ⇒ moving the declaration moves every reference by construction.</para>
+    ///
+    /// <para>⛔ <b>Renaming TO an engine-raised name is refused</b> rather than accepted: the id would stay
+    /// sequential in the model while <c>HsmEventIds</c> rebinds that name to the reserved id at emit, so the
+    /// built machine would answer a different event from the authored one. ⭐ Delete and re-create to adopt a
+    /// built-in — which goes through <see cref="CreateEvent"/>'s rule ① and gets the right id.</para>
+    /// </summary>
+    public bool RenameEvent(ushort eventId, string? newName)
+    {
+        var existing = FindEventById(eventId);
+        if (existing is null) return false;
+
+        var trimmed = newName?.Trim();
+        if (string.IsNullOrEmpty(trimmed)) return false;
+        if (string.Equals(trimmed, existing.Name, StringComparison.Ordinal)) return false;
+
+        var clash = FindEventByName(trimmed);
+        if (clash != null && !ReferenceEquals(clash, existing)) return false;
+        if (Hrot.AiEditor.Persistence.Emit.HsmEventIds.TryGetBuiltIn(trimmed, out _)) return false;
+
+        existing.Name = trimmed;
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>⭐ The lowest unused id in the AUTHORABLE range (1 … 0xFEFF); 0 when exhausted.</summary>
+    private ushort NextFreeEventId()
+    {
+        for (ushort candidate = 1; candidate < 0xFF00; candidate++)
+            if (!_eventIdToEvent.ContainsKey(candidate))
+                return candidate;
+        return 0;
+    }
 
     /// <summary>
     /// ⭐ CE-1003 (Q84 B) — the container whose start state <paramref name="child"/> can be, and, for a child of a

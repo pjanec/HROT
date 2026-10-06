@@ -18,6 +18,8 @@ related-designs:
   - NodeEditor_Extension_ContainerNodes.md — owns composite/container layout and drop-into-container; §11 (CE-1004)
     supersedes its §5.3 (no manual size), §5.4 as-built drop shift, §13.2 (divider drag deferred) — marked there.
   - Hsm_Issues_Tracker.md — the HSM-0xx rows this design closes or depends on (§9).
+  - BTree_HSM_Editor_State_And_Forward_Plan.md — ⛔ HISTORICAL (HSM-011): it still says HSM "cannot author at
+    all". Quote only its §1 substrate reconciliation; THIS doc owns what authoring does today.
 -->
 
 # HSM canvas authoring — UnityHFSM-style geometry and gestures

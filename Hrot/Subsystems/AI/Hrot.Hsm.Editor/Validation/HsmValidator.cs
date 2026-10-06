@@ -99,6 +99,7 @@ public sealed class HsmValidator
         CheckSubtreeReferenceDangling(asset, diagnostics);
         CheckMethodAndBlueprintBothBound(asset, diagnostics);
         CheckSopOrders(asset, diagnostics);   // CE-2083
+        CheckTimerActionNotImplemented(asset, diagnostics);   // HSM-012
         CheckResolverShape(asset, diagnostics);
 
         if (blackboard != null)
@@ -382,6 +383,28 @@ public sealed class HsmValidator
         }
     }
 
+    // ⛔ HSM-012: a Timer binding is EMITTED and NEVER FIRES.
+    // 📐 Measured 2026-10-06: HsmFlattener.cs:182 packs StateDef.TimerActionId and HsmEmitter writes it, but
+    //    HsmKernelCore never reads it and every production write of TimerDeadlines[] is zero (cancel-on-exit at
+    //    HsmKernelCore.cs:1319/1325/1331, hot-reload reset at HotReloadManager.cs:139-167). There is no arming API
+    //    in Fhsm.Kernel and no duration field anywhere, so the binding cannot do anything.
+    // ⭐ The editor no longer OFFERS the field (HsmFacets.StateFacet). This rule exists so an asset that already
+    //    carries one says so out loud instead of looking wired.
+    private static void CheckTimerActionNotImplemented(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.Timer is not { IsEmpty: false }) continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.TimerActionNotImplemented,
+                HsmDiagnosticSeverity.Warning,
+                $"State '{s.Name}' binds a Timer action, but the HSM kernel never arms a timer — it will never fire. "
+              + "Move the work to Activity (tick), or remove the binding.",
+                new[] { s.StableId }));
+        }
+    }
+
     private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
     {
         foreach (var s in asset.AllStates)
@@ -422,14 +445,22 @@ public sealed class HsmValidator
         {
             if (!s.IsParallel || s.RegionNodes.Count < 2) continue;
 
-            // Compute OR-mask per region index from direct children.
+            // ⭐⭐⭐ HSM-008 — OR THE LEAVES OF EACH REGION, NOT THE DIRECT CHILDREN.
+            // 📄 HSM_Editor_NodeEditor_Host_Design.md §12.2: "Compute the union of OutputLaneMask across all
+            //    LEAF states in R1." ⛔ This used to OR `s.Children` only, so a conflict one level down was
+            //    invisible — a region whose direct child is a composite contributed the composite's own mask
+            //    and nothing from the states that actually run.
+            // ⭐ Leaves, specifically, because that is what the kernel arbitrates: ArbitrateOutputLanes reads
+            //    `definition.GetState(activeLeafIds[i])` (HsmKernelCore.cs:971) — the ACTIVE LEAF of each region.
+            // ⚠ A region's index comes from its TOP-LEVEL child under the parallel; nested descendants do not
+            //    re-declare it, so the walk carries the index down rather than reading it off each node.
             var regionMasks = new Dictionary<int, byte>();
             foreach (var child in s.Children)
             {
-                if (!regionMasks.TryGetValue(child.RegionIndex, out byte existing))
-                    regionMasks[child.RegionIndex] = child.OutputLaneMask;
-                else
-                    regionMasks[child.RegionIndex] = (byte)(existing | child.OutputLaneMask);
+                byte mask = UnionOfLeafLaneMasks(child);
+                regionMasks[child.RegionIndex] = regionMasks.TryGetValue(child.RegionIndex, out byte existing)
+                    ? (byte)(existing | mask)
+                    : mask;
             }
 
             var indices = regionMasks.Keys.ToList();
@@ -448,6 +479,24 @@ public sealed class HsmValidator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>HSM-008</c> — the union of <c>OutputLaneMask</c> over every LEAF state at or under <paramref name="root"/>.
+    ///
+    /// <para>A state with no children IS the leaf and contributes its own mask; a composite contributes only
+    /// through its leaves, because the kernel arbitrates on each region's ACTIVE LEAF
+    /// (<c>HsmKernelCore.ArbitrateOutputLanes</c>). ⛔ Shaped like <c>SubtreeHostsUnder</c> on purpose — the walk
+    /// is over the STATE TREE, so it cannot cycle and wants no depth cap.</para>
+    /// </summary>
+    private static byte UnionOfLeafLaneMasks(StateNode root)
+    {
+        if (root.Children.Count == 0) return root.OutputLaneMask;
+
+        byte mask = 0;
+        foreach (var child in root.Children)
+            mask |= UnionOfLeafLaneMasks(child);
+        return mask;
     }
 
     // Rule 8 (S2-4): ConcurrentStatefulSubtree.

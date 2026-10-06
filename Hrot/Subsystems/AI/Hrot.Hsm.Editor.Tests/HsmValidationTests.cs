@@ -320,4 +320,137 @@ public class HsmValidationTests
         diagnostics.Where(d => d.Code == HsmDiagnosticCode.OutputLaneConflict)
             .Should().BeEmpty();
     }
+
+    // ---- HSM-008: the lane union is over LEAF states, not direct children ----
+
+    [Fact]
+    public void Conflict_is_found_when_the_overlapping_lanes_are_NESTED_under_the_regions()
+    {
+        var root = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0 });
+        parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1 });
+
+        // Each region's DIRECT child is a composite with mask 0 — the writing states are one level down.
+        // Before HSM-008 this asset validated clean while both regions wrote the Animation lane.
+        var ca = new StateNode("CA") { IsInitial = true, RegionIndex = 0, OutputLaneMask = 0x00, Parent = parallel };
+        var cb = new StateNode("CB") { RegionIndex = 1, OutputLaneMask = 0x00, Parent = parallel };
+        var caLeaf = new StateNode("CALeaf") { IsInitial = true, OutputLaneMask = 0x01, Parent = ca };
+        var cbLeaf = new StateNode("CBLeaf") { IsInitial = true, OutputLaneMask = 0x01, Parent = cb };
+        ca.Children.Add(caLeaf);
+        cb.Children.Add(cbLeaf);
+        parallel.Children.Add(ca);
+        parallel.Children.Add(cb);
+
+        var asset = MakeAsset(root,
+            new List<StateNode> { parallel, ca, cb, caLeaf, cbLeaf },
+            allRegions: new List<RegionNode>(parallel.RegionNodes));
+
+        var diagnostics = new HsmValidator().Validate(asset);
+
+        diagnostics.Should().Contain(d =>
+            d.Code == HsmDiagnosticCode.OutputLaneConflict &&
+            d.Severity == HsmDiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void No_conflict_when_nested_leaves_in_different_regions_use_disjoint_lanes()
+    {
+        var root = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0 });
+        parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1 });
+
+        var ca = new StateNode("CA") { IsInitial = true, RegionIndex = 0, Parent = parallel };
+        var cb = new StateNode("CB") { RegionIndex = 1, Parent = parallel };
+        var caLeaf = new StateNode("CALeaf") { IsInitial = true, OutputLaneMask = 0x01, Parent = ca };
+        var cbLeaf = new StateNode("CBLeaf") { IsInitial = true, OutputLaneMask = 0x02, Parent = cb };
+        ca.Children.Add(caLeaf);
+        cb.Children.Add(cbLeaf);
+        parallel.Children.Add(ca);
+        parallel.Children.Add(cb);
+
+        var asset = MakeAsset(root,
+            new List<StateNode> { parallel, ca, cb, caLeaf, cbLeaf },
+            allRegions: new List<RegionNode>(parallel.RegionNodes));
+
+        var diagnostics = new HsmValidator().Validate(asset);
+
+        diagnostics.Where(d => d.Code == HsmDiagnosticCode.OutputLaneConflict)
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_composites_OWN_mask_does_not_contribute_when_it_has_leaves()
+    {
+        // ⭐ The kernel arbitrates the ACTIVE LEAF, so a composite's own (stale) mask must not create a
+        //    conflict its leaves do not have.
+        var root = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0 });
+        parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1 });
+
+        var ca = new StateNode("CA") { IsInitial = true, RegionIndex = 0, OutputLaneMask = 0x01, Parent = parallel };
+        var cb = new StateNode("CB") { RegionIndex = 1, OutputLaneMask = 0x01, Parent = parallel };
+        var caLeaf = new StateNode("CALeaf") { IsInitial = true, OutputLaneMask = 0x01, Parent = ca };
+        var cbLeaf = new StateNode("CBLeaf") { IsInitial = true, OutputLaneMask = 0x02, Parent = cb };
+        ca.Children.Add(caLeaf);
+        cb.Children.Add(cbLeaf);
+        parallel.Children.Add(ca);
+        parallel.Children.Add(cb);
+
+        var asset = MakeAsset(root,
+            new List<StateNode> { parallel, ca, cb, caLeaf, cbLeaf },
+            allRegions: new List<RegionNode>(parallel.RegionNodes));
+
+        var diagnostics = new HsmValidator().Validate(asset);
+
+        diagnostics.Where(d => d.Code == HsmDiagnosticCode.OutputLaneConflict)
+            .Should().BeEmpty();
+    }
+
+    // ---- HSM-007: the inspector's "Output lanes (inferred)" summary ----
+
+    [Theory]
+    [InlineData((byte)0x00, "none")]
+    [InlineData((byte)0x01, "Animation")]
+    [InlineData((byte)0x03, "Animation, Navigation")]
+    public void The_inferred_lane_summary_names_the_lanes_in_the_mask(byte mask, string expected)
+        => Hrot.Hsm.Editor.Inspector.HsmFacetMapper.DescribeLanes(mask).Should().Be(expected);
+
+    // ---- HSM-012: a Timer binding is emitted and never armed ----
+
+    [Fact]
+    public void State_with_a_Timer_binding_is_reported_as_never_firing()
+    {
+        var root = new StateNode("__root__");
+        var idle = new StateNode("Idle") { IsInitial = true, Parent = root };
+        idle.Timer = new Hrot.Editor.AiShared.BehaviorActionBinding { MethodFqn = "Ai.States.OnTimer" };
+        root.Children.Add(idle);
+
+        var diagnostics = new HsmValidator().Validate(MakeAsset(root, new List<StateNode> { idle }));
+
+        diagnostics.Should().Contain(d =>
+            d.Code == HsmDiagnosticCode.TimerActionNotImplemented &&
+            d.Severity == HsmDiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void State_without_a_Timer_binding_is_not_reported()
+    {
+        var root = new StateNode("__root__");
+        var idle = new StateNode("Idle") { IsInitial = true, Parent = root };
+        root.Children.Add(idle);
+
+        var diagnostics = new HsmValidator().Validate(MakeAsset(root, new List<StateNode> { idle }));
+
+        diagnostics.Where(d => d.Code == HsmDiagnosticCode.TimerActionNotImplemented)
+            .Should().BeEmpty();
+    }
 }

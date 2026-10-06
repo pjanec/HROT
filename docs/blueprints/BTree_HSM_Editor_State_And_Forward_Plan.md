@@ -1,6 +1,41 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-10-06 (HSM-011 — status claims measured and marked stale; no content rewritten)
+current-answer: §1 ONLY — the two-eras substrate reconciliation (C# vs JSON source of truth). That ruling is
+  still live and is cited by HSM_Editor_NodeEditor_Host_Design.md's own STATUS block.
+stale-below: ⛔ EVERY STATUS / PROGRESS / "MISSING" CLAIM in §2 onward, and the whole EB-/EH- forward plan.
+  They describe the tree of 2026-06-12 and were measured FALSE on 2026-10-06. Do NOT plan from them.
+known-rot:
+  - §2.3 "HSM editor — structurally rich but cannot author" and its table row "Create state / delete state /
+    draw transition / delete transition = MISSING, HsmCommandSink.cs:139,151 ApplyAddNode/AddLink are TODO":
+    ⛔ FALSE. Measured 2026-10-06: HsmCommandSink.cs is 533 lines, ApplyAddNode:160 and ApplyAddLink:300 are
+    implemented, and the file carries no TODO. EH-01..EH-05 landed long ago.
+  - §2.3 "Initial-state arrows TODO (HsmInitialArrowRenderer.cs:32)": ⛔ FALSE. The renderer is 212 lines with
+    no TODO; initial arrows and the LCA highlight both draw.
+  - §6 residual verify item "confirm the Events table / Globals strip are registered into the HSM perspective":
+    ⚠ now ANSWERED, and it is a SPLIT: the Events table IS registered (as HsmEventsDetailsView, a details-panel
+    view, EditorSubsystem.cs:3451) while HsmGlobalsStrip still has ZERO production callers. See HSM-009.
+  - The §10 conclusion "HSM cannot author at all until four TODO-stubbed command-sink methods are implemented":
+    ⛔ FALSE for the same reason, and the purpose chain built on it ("BTree goes first") is spent.
+superseded-by: for HSM status and plan — Hsm_Issues_Tracker.md (the rows) and DESIGN_Hsm_Canvas_Authoring.md
+  (the live canvas authoring design). ⛔ This file is NOT superseded for §1's substrate ruling.
+related-designs:
+  - HSM_Editor_NodeEditor_Host_Design.md — owns the HSM editor's feature/UX spec (model, facets, validator,
+    renderers); this doc only reconciled its SUBSTRATE assumptions with the JSON persistence that shipped.
+  - DESIGN_Hsm_Canvas_Authoring.md — owns the live canvas geometry and authoring gestures; it, not this doc,
+    says what HSM authoring can do today.
+  - Hsm_Issues_Tracker.md — the HSM-0xx rows; the source of truth for what is still open.
+  - BTree_HSM_JSON_Persistence_Detailed_Design.md — owns the JSON substrate this doc reconciled against.
+-->
 # BTree / HSM Visual Editor — Reconciled State & Forward Plan
 
-> **Status:** Authoritative working spec for the "make BTree/HSM visual editing usable" effort. Grounded in direct source verification on branch `blueprint-integ-1`. **Refreshed 2026-06-12** after the `main-toolbar-1` and `blueprint-finalize/BB1` merges landed in this tree.
+> 🔴🔴 **HISTORICAL — DO NOT PLAN FROM THIS FILE** *(marked `2026-10-06`, `HSM-011`)*. Its §1 substrate
+> reconciliation is still live and still cited; **every status claim below it is from `2026-06-12` and has been
+> measured false** — HSM authoring is built. The STATUS block above names each rotted claim with its measurement.
+> For what HSM authoring does today read [`DESIGN_Hsm_Canvas_Authoring.md`](DESIGN_Hsm_Canvas_Authoring.md); for
+> what is still open read [`Hsm_Issues_Tracker.md`](Hsm_Issues_Tracker.md).
+
+> **Status (2026-06-12, historical):** Authoritative working spec for the "make BTree/HSM visual editing usable" effort. Grounded in direct source verification on branch `blueprint-integ-1`. **Refreshed 2026-06-12** after the `main-toolbar-1` and `blueprint-finalize/BB1` merges landed in this tree.
 > **Audience:** Lead (planning) + implementation agents (batch execution).
 > **Supersedes for planning purposes:** the *substrate* assumptions in `BTree_Editor_NodeEditor_Host_Design.md`, `HSM_Editor_NodeEditor_Host_Design.md`, and `AI_Editor_Shared_Infrastructure.md`. Those remain the **feature/UX spec**; this doc reconciles them with the JSON substrate that actually landed (`BTree_HSM_JSON_Persistence_Detailed_Design.md`).
 > **Decisions locked with lead:** (1) editing first, debugging is Phase 2; (2) BTree first, then HSM; (3) this doc is the single reconciled spec; (4) live action/condition catalog wiring is in-scope now; (5) richer showcase content + the appearance polish that surfaces it are in-scope; (6) validation surfaced **both** ways (Diagnostics table **and** inline canvas); (7) Starter recipe holds the minimal valid content.

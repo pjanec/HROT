@@ -26,11 +26,17 @@ decision first.
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 1 | 0 |
-| `RW-L` | 5 | 2 |
-| `RW-M` | 4 | 4 |
-| `RW-H` | 2 | 1 |
-| **Total** | **12** | **7** |
+| `WIRING` | 0 | 1 |
+| `RW-L` | 1 | 7 |
+| `RW-M` | 1 | 8 |
+| `RW-H` | 1 | 3 |
+| **Total** | **3** | **19** |
+
+> ⚠⚠ **The previous table (`12 open / 7 done`) was ALREADY STALE before the `2026-10-06` batch touched it** —
+> `HSM-001/002/003/005/006/010` had been ticked by the `Q84` / canvas work (`CE-1000`…`CE-1004`) without the
+> count being recomputed. 📌 Recomputed here with the file's own reconciliation recipe (below), three ways:
+> checkbox tally **3 / 19** · column sums `0+1+1+1 = 3` open, `1+7+8+3 = 19` done · 22 rows total.
+> ⭐ **Every original row is now closed**; the three open ones were all split out of this batch by measurement.
 
 ⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
 the canvas to a ticking entity, with every stage cited. These rows assume it.
@@ -252,7 +258,26 @@ validator can disagree about the same machine.
 Each of these is a component that exists, is tested in isolation, and has **zero production
 callers** — the pipe is wired, nothing fills it.
 
-- [ ] **HSM-007** · `WIRING` — **`OutputLaneMask` is never computed on the JSON path, so the whole
+- [x] **HSM-007** · `WIRING` — ✅ **THE EDITOR HALF IS BUILT `2026-10-06`; the RUNTIME half is split out as
+  `HSM-020`.** `HsmDocumentFactory.Build` step 0b now calls `HsmOutputLaneMaskInferrer.ApplyToAsset` with a
+  dictionary built from the loaded assemblies — §10.3 step 2's *"at asset open, the editor reflects each
+  `[HsmAction]`'s `Lane`"* — so rule 7, the `hsm.region_conflicts` renderer and the inspector's
+  "Output lanes (inferred)" summary are reachable for the first time. ⭐ Chosen there because it is the one place
+  with the asset in hand and it re-runs after a hot reload, which the derived mask needs. ⚠ The mask is derived
+  and does NOT `MarkDirty`. ⭐ **And step 4's summary had to be built too** — `HsmFacetMapper` hard-coded
+  `OutputLanesSummary = ""`, harmless only while the mask was always 0, and the one consumer that would still have
+  lied once it was not; it now names the lanes in the mask *(names, not §10.3 step 4's per-action attribution — a
+  bitfield does not remember which action set which bit)*.
+  ⚠ **Reflection is guarded at three levels** (assembly / type / per-method attribute
+  read) mirroring `ActionSchemaExporter.ScanAssembly` — 📌 without the per-method one, 15 rails went red with a
+  `TypeLoadException` from `GetCustomAttribute` on an unrelated loaded host assembly.
+  🔴🔴 **AND THE ROW'S OWN FRAMING WAS TOO NARROW:** §10.3 step 5 says the editor need not emit the mask because
+  *"the kernel computes it at compile time"* — 📐 **measured FALSE.** Nothing in `Fhsm.Compiler` ever sets
+  `StateNode.OutputLaneMask` but `Fhsm.Tests`; `HsmBuilder`/`StateBuilder` expose no lane API; the Hrot emit chain
+  mentions lanes zero times. ⇒ `HsmKernelCore.ArbitrateOutputLanes` arbitrates on **zeros** for every
+  editor-authored machine, so runtime lane arbitration was inert too. ⭐ Folded into
+  `HSM_Editor_NodeEditor_Host_Design.md` §10.3a and §19 Q2; the remaining work is **`HSM-020`**.
+  ⛔ Original text: **`OutputLaneMask` is never computed on the JSON path, so the whole
   lane-conflict feature is inert.** `HsmOutputLaneMaskInferrer.ApplyToAsset` / `BuildLaneDictionary`
   have no callers outside their own tests. `StateNodeDto` has no lane field, and the only production
   writer is `HsmAssetProjector:53` — the *legacy reflection* path, used for hand-authored assets.
@@ -265,14 +290,36 @@ callers** — the pipe is wired, nothing fills it.
   from the `[HsmAction].Lane` attributes)? Host doc §19 Q2 asks the analogous question about
   emitting it and leans "keep it inferred".
 
-- [ ] **HSM-008** · `RW-L` — **Lane-conflict detection only looks at direct children.**
+- [x] **HSM-008** · `RW-L` — ✅ **BUILT `2026-10-06`.** `CheckOutputLaneConflicts` now unions `OutputLaneMask`
+  over **every leaf** at or under each direct child (`UnionOfLeafLaneMasks`), which is design §12.2's own wording
+  and is what the kernel arbitrates — `ArbitrateOutputLanes` reads the ACTIVE LEAF (`HsmKernelCore.cs:971`).
+  ⭐ The region index still comes from the top-level child and is carried down, because a nested parallel
+  composite's `RegionIndex` means the INNER composite's region *(the same reasoning as rule 8's
+  `SubtreeHostsUnder`)*. 3 new rails incl. a composite whose own stale mask must NOT create a conflict its leaves
+  do not have. ⚠⚠ **The row's claim that rules 8/8b share the restriction was STALE** — `DEBT-AIB-029` (Batch 76)
+  already gave both the full-subtree walk; only the lane rule was shallow. ⚠ And this rule could not fire at all
+  until `HSM-007` populated the masks — **a green validator was not evidence**. Design: §12.2a.
+  ⛔ Original text: **Lane-conflict detection only looks at direct children.**
   `CheckOutputLaneConflicts` ORs masks from `s.Children` only; design §12.2 specifies *"the union of
   `OutputLaneMask` across all **leaf states** in R1"*. Any conflict one level down is invisible.
   Rules 8/8b (`ConcurrentStatefulSubtree`, `ConcurrentSharedScopeKey`) share the same direct-children
   restriction and say so in their comments. Gated behind HSM-007 — until masks are populated this
   rule cannot fire at all, so fix them together.
 
-- [ ] **HSM-009** · `RW-M` — **The Events table and Globals strip are built but never registered,
+- [x] **HSM-009** · `RW-M` — ✅ **BUILT `2026-10-06` — AN EVENT CAN BE AUTHORED.** `HsmAsset.CreateEvent` /
+  `RemoveEvent` / `RenameEvent` + the window's "+ Add Event" modal, a Delete item that states how many transitions
+  will dangle, and a Rename that **applies** *(it previously only PREVIEWED — the modal had no Apply at all)*.
+  ⭐ "+ Add Event" is drawn before the empty-state early-return, because an empty machine is exactly where it is
+  needed. ⭐ Two id rules, both measured: an engine-raised name takes its **reserved** id (`HsmEventIds` would
+  rebind it at emit anyway, so a sequential id would make editor and emitter disagree), every other event takes the
+  lowest free id **from 1** (`0` means "no event"; the high band is reserved per `R-45`); renaming TO a built-in
+  name is refused. ⭐ A delete leaves referencing transitions ALONE — rewriting `EventId` to 0 would silently turn a
+  triggered transition into a completion transition; the existing `EventReferenceDangling` rule reports it, which
+  is §9.1's "flags warning". ⭐ **Find References was also always empty** and is fixed: it passed the bare name
+  where the contributor publishes `{AssetId:D}::{EventName}`. 13 new rails. Design: §9.1a.
+  ⚠ **Still open, deliberately:** `HsmGlobalsStrip` has zero production callers; and these operations are not on
+  the undo stack — the same as the variables surface they follow, and one decision for both *(see §9.1a)*.
+  ⛔ Original text: **The Events table and Globals strip are built but never registered,
   and there is no way to author an event.** `HsmEventsWindow` and `HsmGlobalsStrip` have zero
   production callers; `EditorSubsystem` registers only the canvas
   (`_hsmRegistrar.RegisterExtraWindow(windowManager, hsmCanvasWindow)`). Separately and more
@@ -494,7 +541,18 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
 
 ## Area E2 🔧 — Kernel features the editor exposes but the runtime does not implement
 
-- [ ] **HSM-012** 🔴📐 · `RW-H` — **The editor authors timers; the kernel never arms one.**
+- [x] **HSM-012** 🔴📐 · `RW-H` — ✅ **THE TRAP IS CLOSED `2026-10-06`; the ARMING is split out as `HSM-021`.**
+  The `Timer` binding facet is removed from `StateFacet` (and from the mapper/dispatcher), so the editor no longer
+  offers a binding that is emitted and can never fire. ⭐ **What is kept:** `StateNode.Timer`, the mapper
+  round-trip, the emit path and the blackboard aggregator's requirement — a hand-authored asset still round-trips
+  untouched *(no rush removals)*. ⭐ **And the withdrawal does not create a NEW silence:** a new validator rule
+  `TimerActionNotImplemented` (Warning) reports any state that still carries one. ⚠ Measured: **zero** authored
+  `.hsm.json` carries a Timer binding, so the withdrawal costs nothing today. 2 new rails, and ONE EXISTING RAIL MOVED WITH IT — `Hrot.Editor.AiShared.Tests` `SE1_StructEditFacetRenderTests.EditService_HsmFacets_MarkTheBlueprintCapableSlots` asserts the HSM facet's binding slots by name, so it now expects three instead of four *(it caught the removal, which is the rail working)*. Design: §11.1b.
+  📐 **The decisive measurement for the remaining half:** every production write of `TimerDeadlines[i]` is `= 0`
+  (cancel-on-exit `HsmKernelCore.cs:1319/1325/1331`, hot-reload reset `HotReloadManager.cs:139-167`), and
+  **no duration field exists anywhere** — not in `StateDef`, not in the facet, not in the design. ⇒ arming is a new
+  ROM field + builder param + kernel phase, not a wiring gap: **`HSM-021`**.
+  ⛔ Original text: **The editor authors timers; the kernel never arms one.**
   `StateFacet` exposes a `TimerAction` picker, `HsmEmitCore:656` emits `.TimerAction(...)`,
   `HsmFlattener:175` packs it into `StateDef.TimerActionId`, and `HsmEmitter` writes it into the
   blob. **`HsmKernelCore` never reads `TimerActionId`, and never writes a non-zero
@@ -521,7 +579,27 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
 programme measured these; each has an **HSM half that nobody owns**. Their ledger entry is cited so
 the two trackers do not drift.
 
-- [ ] **HSM-017** 🔴 · `RW-M` — **Renaming a bound variable dangles the binding — and on HSM nothing
+- [x] **HSM-017** 🔴 · `RW-M` — ✅ **BUILT `2026-10-06`, and the root cause was NOT the one this row names.**
+  📐 The re-verification's reframe (*"HSM contributes no variable references"*) is true and was only HALF the
+  story: the rename ROUTE cannot move an HSM binding either. `BTreeHsmSchemaSource.GetRefactorKey` returns `null`,
+  so `VariableRenameCommit` falls back to the composite key `{assetId:D}::{name}`, and
+  `RefactorService.PreviewRename` then looks for that literal string **in the asset's source file**
+  (`line.Contains(fromKey)`) — while a `.hsm.json` stores the bare name (`"ExpressionTargetField": "EngageTarget"`).
+  ⇒ **zero line edits, nothing written, declaration renamed alone.** ⛔ A contributor alone would have left the
+  rename just as broken, with a green rail over it.
+  ✅ **Both halves built:** ① `HsmReferenceContributor` now enumerates blackboard variables and every
+  `ExpressionTargetField` reference (states ×4 slots, transitions, globals) — **extended rather than mirrored**,
+  because the site walk and BOTH composition-root registrations already existed there; ② `HsmAsset.RenameVariable`
+  retargets every binding that names the variable, walking the same sites `CountNodesReferencingVariable` counts.
+  ⭐ `BlackboardVariableSubElement` moved to `Hrot.Editor.AiShared.References` (cross-lane: one line in
+  `Hrot.BTree.Editor`) so both hosts spell the key identically — two spellings is how a rename reports success and
+  dangles the other host. 9 new rails incl. the `speed`/`speedLimit` substring trap a text rewrite would fall into.
+  ⚠ **Scope (`R-88`):** this repairs the EDITOR's bindings; a name is separately load-bearing at runtime for
+  `Scope=Behavior`/`Scope=Entity` slot keys and scenario overrides, unchanged here.
+  ⚠ **The row's second half needs a wording fix, not a build:** it says HSM has "only `HSM0001`" — `HsmJsonGenerator`
+  now has `HSM0001`–`HSM0004`, but **none is a dangling-binding check**, so the asymmetry with BTree's
+  `BTREE0002` whole-asset skip stands. ⭐ The BTree twin of the model defect is filed as **`HSM-022`**.
+  ⛔ Original text: **Renaming a bound variable dangles the binding — and on HSM nothing
   catches it at build.** ✅ Verified on the merged tree `2026-08-20`: `HsmAsset.RenameVariable:244`
   renames the entry and fixes up `_aliases`, and **never touches `ExpressionTargetField`** — the
   binding still names the old string. This is the HSM half of the coordinator's `M-15`/`M-16`:
@@ -572,7 +650,16 @@ the two trackers do not drift.
   `SubtreeReferenceDangling` rules.
 ## Area F 📄 — Documentation accuracy
 
-- [ ] **HSM-011** · `RW-L` — **`BTree_HSM_Editor_State_And_Forward_Plan.md` is materially stale and
+- [x] **HSM-011** · `RW-L` — ✅ **DONE `2026-10-06` — marked, not rewritten.** The forward-plan doc now carries a
+  STATUS block (`state: HISTORICAL`) and a banner at the top. ⭐ **Scoped deliberately:** its §1 substrate
+  reconciliation (JSON, not C#, is the source of truth) is still LIVE and is cited by this very host design's own
+  STATUS, so the file is NOT superseded wholesale — `current-answer` names §1 as the only quotable part and
+  `stale-below` condemns every status/progress claim under it. Each rotted claim is named with its measurement:
+  `HsmCommandSink` is 533 lines with `ApplyAddNode:160`/`ApplyAddLink:300` implemented and no TODO (it claimed
+  four TODO stubs); `HsmInitialArrowRenderer` is 212 lines with no TODO; and its §6 open question *"are the Events
+  table / Globals strip registered?"* is now answered as a SPLIT — the Events table is (as a details view), the
+  Globals strip is not. ⭐ Reciprocal `related-designs` links added in both directions.
+  ⛔ Original text: **`BTree_HSM_Editor_State_And_Forward_Plan.md` is materially stale and
   will mis-plan the work.** Refreshed 2026-06-12; it states HSM *"cannot author at all"* and that
   four command-sink methods are `TODO` stubs at `HsmCommandSink.cs:139,151`. In this tree
   `HsmCommandSink` is 457 lines with **every** create-op implemented, and EH-01…EH-05 have
@@ -581,6 +668,50 @@ the two trackers do not drift.
   `HsmShowcase.hsm.json`, 510 tests). Its §6 residual verify item *"confirm Events-table/Globals-strip
   are registered into the HSM perspective"* now resolves to **no** (→ HSM-009). Either refresh it or
   mark it superseded — leaving it is the trap, because it reads as authoritative.
+
+---
+
+## Area I ⚙️🔧 — Split out of HSM-007/012/017 by measurement *(new `2026-10-06`, ui lane)*
+
+- [ ] **HSM-020** 🔴📐 · `RW-M` — **The output-lane mask never reaches the blob, so the KERNEL's lane arbitration
+  is inert for every editor-authored machine.** 📐 Measured `2026-10-06` while building `HSM-007`:
+  `HsmKernelCore.ArbitrateOutputLanes` (`:955-1000`) reads `StateDef.OutputLaneMask` of each region's active leaf
+  and suppresses the second writer — ⛔ but **nothing ever fills that field.** `HsmFlattener.cs:165` copies
+  `node.OutputLaneMask` from the compiler's `StateNode`, and the only writers of that field in the repo are
+  `Fhsm.Tests` fixtures; `HsmBuilder`/`StateBuilder` expose **no lane API**; `Hrot.AiEditor.Generators` mentions
+  lanes **zero times**. ⇒ a parallel machine authored in the editor runs with both regions writing the same lane and
+  the kernel silent about it. ⚠⚠ **The design says this is fine and the design is wrong**:
+  `HSM_Editor_NodeEditor_Host_Design.md` §10.3 step 5 justifies not emitting the mask because *"the kernel computes
+  it at compile time"* — refuted above; §19 Q2's *"lean toward keep it inferred"* rests on the same premise, and both
+  are marked in §10.3a / §19. **Work:** carry the inferred mask into the emitted machine — a `StateBuilder` lane
+  parameter, `HsmEmitCore` emitting it, `HsmFlattener` keeping the copy it already does. ⚠ It touches **FastHSM**
+  (`FDP/ExtDeps`, vendored-as-source, `R-48` no stable ABI) ⇒ 🔒 **needs a user decision, with the alternative being
+  to accept that lane arbitration only works for hand-written machines and to say so in the editor.**
+  *— split out of `HSM-007`, which built only the editor half*
+
+- [ ] **HSM-021** 🔴📐 · `RW-H` — **An HSM timer cannot be armed, and there is nowhere to say "how long".**
+  📐 Measured `2026-10-06`: every PRODUCTION write of `HsmInstance*.TimerDeadlines[i]` is `= 0` — cancel-on-exit
+  (`HsmKernelCore.cs:1319/1325/1331`) and hot-reload reset (`HotReloadManager.cs:139-167`); the only non-zero writes
+  in the tree are `Fhsm.Tests` fixtures. There is no `SetTimer`/`StartTimer`/`Arm` in `Fhsm.Kernel`, so
+  `ProcessTimerPhase` decrements a counter that is always zero and `FireTimerEvent` (`TimerEventId = 0xFFFE`) is
+  unreachable. ⛔⛔ **And no duration field exists anywhere** — not in `StateDef`, not in the facet, not in
+  §11.1 — so even an arming kernel would have nothing to arm WITH. **Work:** a per-state duration in `StateDef`
+  (new ROM field) + a builder parameter + an `OnEntry`-time arm in the kernel; then restore the facet slot
+  (`HsmFacets.StateFacet`, removed by `HSM-012`) and retire `TimerActionNotImplemented`. ⚠ FastHSM change, same
+  `R-48` caution as `HSM-020`; 🔒 architect/user call on layering. ⭐ Until then the editor correctly offers nothing.
+  *— split out of `HSM-012`, which closed the authoring trap*
+
+- [ ] **HSM-022** 🔴 · `RW-L` — **The BTree twin of `HSM-017`: `BehaviorTreeAsset.RenameVariable` almost certainly
+  leaves `ExpressionTargetField` dangling too, and the shared rename ROUTE cannot save it.** 📐 Measured on the HSM
+  side and the mechanism is shared: `BTreeHsmSchemaSource.GetRefactorKey` returns `null` for **both** hosts, so
+  `VariableRenameCommit` falls back to `{assetId:D}::{name}` and `RefactorService.PreviewRename` searches the asset
+  FILE for that literal — which a `.btree.json` does not contain (it stores the bare name, e.g.
+  `"ExpressionTargetField": "hitSense"`). ⇒ the refactor half is inert on BTree as well, and
+  `BTreeBlackboardVariableContributor`'s rails only assert the contributor's OUTPUT — **no rail drives a rename
+  end to end.** ⚠ **Less severe than the HSM case and that is why it is a row, not a fix here:** BTree catches the
+  dangle at build (`BTreeJsonGenerator` skips the whole asset with a `BTREE0002` warning) where HSM had nothing.
+  **Work:** mirror HSM's model-level fix-up in `BehaviorTreeAsset.RenameVariable`, plus one end-to-end rail.
+  ⛔ **Not done here on purpose: `Hrot.BTree.Editor` is the behaviors lane's model.** *— found while building `HSM-017`*
 
 ---
 
@@ -607,6 +738,7 @@ Stated so no one mistakes silence for a clean bill:
 | 2026-08-14 | Created. HSM-001…HSM-011 from the first docs-vs-code audit. Five rows reproduced with throwaway probes; probes deleted, suite left green at 510/510. |
 | 2026-10-02 | Re-evaluated after `origin/behaviors` (+44). **HSM-004 and HSM-018 closed** — both were already fixed upstream (`BP-299` 2026-08-17, ruling 14 2026-08-16) before earlier passes called them live. HSM-013's `DEBT-BF-04` residue narrowed by `CE-417` (per-slot ETF). Reconciliation recipe fixed. `Hrot.Hsm.Editor.Tests` 622/622. |
 | 2026-10-06 | **Re-verified on `ui` (graph + grep, no code changed) — see the section below.** Still open: HSM-001/002/003/005/006/007/008/010/011/012/017. HSM-009 partial (`CE-2088`). Q84 opened for the region / initial / history model; canvas design `DESIGN_Hsm_Canvas_Authoring.md` (CE-1000..1002). |
+| 2026-10-06 (later) | **HSM-007 / 008 / 009 / 011 / 012 / 017 BUILT** on `ui` — the editor half of the lane masks, the leaf-state lane union, event create/delete/rename, the forward-plan doc marked HISTORICAL, the Timer facet withdrawn, and the variable-rename fix-up + HSM variable references. 32 new test cases (28 methods); `Hrot.Hsm.Editor.Tests` 634 → **666/666**, `Hrot.BTree.Editor.Tests` **646/646**. ⭐ **Three rows split out by measurement, not deferred by preference: `HSM-020`** (the mask never reaches the blob ⇒ the KERNEL's arbitration is inert too, which refutes design §10.3 step 5), **`HSM-021`** (no timer arming and no duration field anywhere), **`HSM-022`** (the BTree twin of the rename defect). Counts recomputed — the table had been stale since the `Q84` work. As-built folded into `HSM_Editor_NodeEditor_Host_Design.md` §9.1a / §10.3a / §11.1b / §12.2a. |
 
 ## Re-verification `2026-10-06` (ui lane)
 
@@ -616,10 +748,10 @@ Stated so no one mistakes silence for a clean bill:
 | HSM-003 | open — ⚠ **reframed** | the COMPILER ignores declared regions — every child of a parallel state becomes a region (`HsmFlattener.cs:381-394`), contrary to the FastHSM design (§2.2–§2.4: named regions, each with its own initial state); "initial" reaches it only as the child's `.Initial()` (`HsmEmitCore.cs:780`). Region's `InitialChild` is the right owner once the compiler is fixed | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) B |
 | HSM-005 | open | `HsmCommandSink.ApplyRemoveRegion:359` unchanged | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) A |
 | HSM-006 | open | `HsmCommandSink.cs:178` still names every state `"State"`; no duplicate-name rule in `HsmDiagnosticCode` | `CE-1001` |
-| HSM-007 / 008 | open | `HsmOutputLaneMaskInferrer.ApplyToAsset` has only test callers | unchanged |
-| HSM-009 | partial | `CE-2088`: `HsmAsset.EnsureEvent` declares an engine-raised `Sensor.*` event when picked; author-defined events still cannot be created or deleted; `HsmGlobalsStrip` still unregistered | next after `CE-1001` |
+| HSM-007 / 008 | ✅ **built later the same day** | `HsmOutputLaneMaskInferrer.ApplyToAsset` has only test callers | ⇒ now called from `HsmDocumentFactory.Build`; the lane rule unions leaves. ⛔ The RUNTIME half is `HSM-020` |
+| HSM-009 | ✅ **built later the same day** | `CE-2088`: `EnsureEvent` only; author-defined events could not be created or deleted | ⇒ `CreateEvent`/`RemoveEvent`/`RenameEvent` + the window's modals. ⚠ `HsmGlobalsStrip` is STILL unregistered |
 | HSM-010 | open | `HsmNodeCatalog` still offers both history entries; kernel history is a flag on the re-entered composite (`HsmKernelCore.cs:846,877`) | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) C |
-| HSM-011 | open | the forward-plan doc is still stale | unchanged |
-| HSM-012 | open | `StateDef.TimerActionId` is written (`HsmFlattener.cs:182`), never read by the kernel | hide the facet field (cheap, independent) |
-| HSM-017 | open — ⚠ **reframed** | rename now runs through `VariableRenameCommit` → refactor service, but HSM contributes no variable references (BTree has `BTreeBlackboardVariableContributor`; HSM has none) | add an HSM variable contributor |
+| HSM-011 | ✅ **done later the same day** | the forward-plan doc is still stale | ⇒ STATUS block + banner; §1 kept LIVE, every status claim marked with its measurement |
+| HSM-012 | ✅ **built later the same day** | `StateDef.TimerActionId` is written (`HsmFlattener.cs:182`), never read by the kernel | ⇒ facet withdrawn + a warning rule for assets that still carry one. ⛔ The ARMING is `HSM-021` — and there is no duration field anywhere |
+| HSM-017 | ✅ **built later the same day** — ⚠ and the reframe was only HALF right | rename runs through `VariableRenameCommit` → refactor service, but HSM contributes no variable references | ⇒ contributor added **and** `HsmAsset.RenameVariable` retargets the bindings. 📐 The route could not have worked anyway: the refactor service text-matches `{assetId:D}::{name}` against the asset FILE, which stores the bare name ⇒ zero edits. The BTree twin is `HSM-022` |
 | *new* | — | `CE-1003`: `HsmCuratedBindingDemo` draws 2 regions, the kernel runs 3 | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) |

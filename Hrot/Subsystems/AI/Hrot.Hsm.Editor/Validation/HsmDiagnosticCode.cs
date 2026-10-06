@@ -52,6 +52,12 @@ public enum HsmDiagnosticCode
     // OutputLaneMask was updated automatically.
     ActionSignatureMismatch,
 
+    // (HSM-012) A state carries a Timer action binding, but the kernel never arms a timer:
+    // HsmKernelCore does not read StateDef.TimerActionId and every production write of
+    // TimerDeadlines[] is zero. The binding is emitted and will never fire. The editor no
+    // longer offers the field; this reports the ones already in a hand-authored asset.
+    TimerActionNotImplemented,
+
     // After a hot reload, a reference in the asset points to a symbol
     // that no longer exists in the new assembly.
     DanglingReferenceAfterReload,
