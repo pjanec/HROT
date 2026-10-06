@@ -98,6 +98,10 @@ API names on the view/ECB at build.
 - **`ComponentFieldReflector`** (new) — reflects a component type's public fields → `(Name, TypeId, IsManaged)`,
   **no offset**, **does not reject managed fields** (unlike `SharedStructFieldReflector`). Flags each field
   managed/unmanaged for the persistence caveat.
+  ⭐ **As built `2026-10-06` (CE-2114):** an ENUM field (and an enum collection element) is baked as
+  `global::Ns.Enum` — the compiler's AN2 enum sentinel, the same rule as `NodePinSchema.EnumStampedTypeFqn`. ⛔ It
+  used to bake the bare FQN, which `Stage4_TypeResolve` cannot resolve ⇒ every `GetComponent` / `SetComponent` on a
+  component with an enum field (e.g. `SensorTag.Kind`) was BP1500. Rail `ComponentFieldReflectorTests.CE2114_*`.
 - **Discovery / palette** — `ComponentTypeProvider`: reflect **all** component types (read picker) and
   **`[BlueprintWritable]`** types (write picker) at editor startup. `GetComponentPaletteEntries` /
   `SetComponentPaletteEntries` in `BlueprintEditorBootstrap.CreatePaletteRegistry`.

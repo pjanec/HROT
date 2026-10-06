@@ -83,7 +83,7 @@ internal static class ComponentFieldReflector
             decls.Add(new ReflectedComponentField
             {
                 Name      = f.Name,
-                TypeId    = f.FieldType.FullName ?? f.FieldType.Name,
+                TypeId    = PinTypeId(f.FieldType),
                 IsManaged = IsManagedFieldType(f.FieldType),
             });
         }
@@ -238,7 +238,7 @@ internal static class ComponentFieldReflector
             result.Add(new ReflectedComponentCollection
             {
                 Name             = name,
-                ElementTypeId    = itemMethod.ReturnType.FullName ?? itemMethod.ReturnType.Name,
+                ElementTypeId    = PinTypeId(itemMethod.ReturnType),
                 CountAccessorFqn = AccessorFqn(countMethod),
                 ItemAccessorFqn  = AccessorFqn(itemMethod),
             });
@@ -265,7 +265,7 @@ internal static class ComponentFieldReflector
                     result.Add(new ReflectedComponentCollection
                     {
                         Name                = f.Name,
-                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        ElementTypeId       = PinTypeId(elementType),
                         CountAccessorFqn    = "",
                         ItemAccessorFqn     = "",
                         CollectionKind      = CollectionKind.ManagedMember,
@@ -283,7 +283,7 @@ internal static class ComponentFieldReflector
                     result.Add(new ReflectedComponentCollection
                     {
                         Name                = p.Name,
-                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        ElementTypeId       = PinTypeId(elementType),
                         CountAccessorFqn    = "",
                         ItemAccessorFqn     = "",
                         CollectionKind      = CollectionKind.ManagedMember,
@@ -486,6 +486,14 @@ internal static class ComponentFieldReflector
     /// <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> are authored, e.g.
     /// "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-2114 — a pin's TypeId for a CLR member type: an ENUM is spelled <c>global::Ns.Enum</c>, the compiler's AN2
+    /// enum sentinel (the <c>NodePinSchema.EnumStampedTypeFqn</c> / <c>SensorKindBaker</c> rule); a bare enum FQN does not
+    /// resolve in <c>Stage4_TypeResolve</c> (BP1500). Nested types use <c>.</c>, as C# spells them.
+    /// </summary>
+    private static string PinTypeId(Type type)
+        => type.IsEnum ? "global::" + (type.FullName ?? type.Name).Replace('+', '.') : type.FullName ?? type.Name;
+
     private static string AccessorFqn(MethodInfo m) => $"{m.DeclaringType!.FullName}.{m.Name}";
 }
 
