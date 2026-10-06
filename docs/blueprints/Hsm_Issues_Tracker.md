@@ -27,15 +27,16 @@ decision first.
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 0 | 1 |
-| `RW-L` | 1 | 7 |
-| `RW-M` | 1 | 9 |
+| `RW-L` | 4 | 7 |
+| `RW-M` | 2 | 9 |
 | `RW-H` | 1 | 3 |
-| **Total** | **3** | **20** |
+| **Total** | **7** | **20** |
 
 > ⚠⚠ **The previous table (`12 open / 7 done`) was ALREADY STALE before the `2026-10-06` batch touched it** —
 > `HSM-001/002/003/005/006/010` had been ticked by the `Q84` / canvas work (`CE-1000`…`CE-1004`) without the
 > count being recomputed. 📌 Recomputed here with the file's own reconciliation recipe (below), three ways:
 > checkbox tally **3 / 20** · column sums `0+1+1+1 = 3` open, `1+7+9+3 = 20` done · 23 rows total.
+> ⭐ `2026-10-06` (later): + `HSM-024`…`027` (Area J, user-reported) ⇒ **7 open / 20 done**, 27 rows.
 > ⭐ **Every original row is now closed**; the three open ones were all split out of this batch by measurement
 > (`HSM-021` timer arming, `HSM-022` the BTree rename twin, `HSM-023` annotate the actions with their lanes).
 
@@ -733,6 +734,40 @@ the two trackers do not drift.
   ⛔ **Not done here on purpose: `Hrot.BTree.Editor` is the behaviors lane's model.** *— found while building `HSM-017`*
 
 ---
+
+## Area J 🎨 — User-reported on the Windows check *(new `2026-10-06`, ui lane)*
+
+> 🔒 User-reported `2026-10-06` (ui, Windows check). ✅ **Confirmed working in the same check:** border-to-border arrows, the "Add Transition" context menu,
+> and the state picker on an empty drop (`CE-1000`/`CE-1001`, `DESIGN_Hsm_Canvas_Authoring.md` §8a).
+
+- [ ] **HSM-024** 📐 · `RW-M` — **"Composite State" from the palette places an ordinary-looking state, and there is no way
+  to add a region.** The user expected a container. 📐 Measured: `HsmCommandSink.cs:188-191` — Composite falls to
+  `default` (a plain state; no flags); a state only BECOMES a composite once it has children (`HsmAsset.cs:1292`).
+  `GraphCommand.AddRegion` is handled (`HsmCommandSink.cs:55`) but **no production code issues it** — only the
+  NodeEditor demo (`S35_ContainerNodes`). ⇒ needs: a composite that draws as a container while empty, and an
+  "Add Region" entry (node menu on a composite; region rename/remove beside it). Design note owed in
+  `DESIGN_Hsm_Canvas_Authoring.md` (Q84 settled what a region IS; this is the authoring gesture).
+
+- [ ] **HSM-025** 🔴 · `RW-L` — **The transition's event combo in the Details panel is EMPTY although the HSM has events.**
+  📐 Measured cause: `HsmPickerDrawers.cs:304` maps every `ushort` field to `HsmSyncGroupPickerDrawer`, and the
+  transition facet's `EventId` is a `ushort` (`HsmFacets.cs:161`) ⇒ it gets the SYNC-GROUP combo. The real
+  `HsmEventPickerDrawer` (`:129`) targets `string` and is reachable only through the string composite (`:275`).
+  ⇒ dispatch by FIELD (attribute or name), not by CLR type. ⚠ `HSM-009` made events authorable; this is why they
+  still cannot be picked.
+
+- [ ] **HSM-026** 📐 · `RW-L` — **A transition with neither an event nor a guard validates clean.** 📐 `HsmValidator.cs:253-275`
+  checks a missing event only when `EventId != 0`. ⚠ **Probably intentional at the model level:** `EventId 0` is a
+  COMPLETION transition (`Hsm_Concepts_For_Game_AI.md:79`; `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md` §2.3
+  "completion transitions are live"). ⇒ the fix is a WARNING that names it (e.g. "completion transition — fires when
+  the source completes"), or an error where completion cannot happen (a source with no completion semantics).
+  🔒 Ruling needed on which.
+
+- [ ] **HSM-027** · `RW-L` — **"Toggle Breakpoint" on a state does nothing visible.** 📐 Same root as `CE-1010`
+  (`Blueprint_Issues_Tracker.md`): only the Blueprint host registers `CommandCatalog.ToggleBreakpoint`, so the canvas
+  menu item is a no-op here. HSM HAS breakpoints — `HsmBreakpointGutterRenderer` + its own gutter menu
+  (`HsmBreakpointContextMenuProvider`) — while `StateNode.IsBreakpoint` only tints the node (`HsmAsset.cs:1311`) and
+  is set from the Details panel alone. ⇒ register the command against the existing breakpoint manager, or disable the
+  item (fixed generically by `CE-1010`).
 
 ## Not yet audited
 

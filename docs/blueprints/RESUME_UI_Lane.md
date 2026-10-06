@@ -1,7 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-current-answer: ⭐⭐⭐ SESSION 2026-10-06 (c) — HSM-020 BUILT (user cleared touching ExtDeps "as long as it stays
+current-answer: ⭐ 2026-10-06 (d) — USER'S WINDOWS CHECK RECORDED (no code): 15 reports → CE-1006…CE-1016
+  (Blueprint_Issues_Tracker, ui area after CE-1005) + HSM-024…027 (Hsm_Issues_Tracker Area J). Confirmed WORKING:
+  HSM border-to-border arrows, "Add Transition", picker on empty drop. Next ui id: CE-1017; next HSM id: HSM-028.
+  Session (c) below is still the latest BUILD state.
+  ⭐⭐⭐ SESSION 2026-10-06 (c) — HSM-020 BUILT (user cleared touching ExtDeps "as long as it stays
   generic"). FastHSM's output-lane arbitration had every part except a SETTER: StateBuilder now has
   OutputLanes(params CommandLane[]) for hand authors and OutputLaneMask(byte) for generated code. HsmEmitCore emits
   the byte form; the lane is resolved per host — generator from the Roslyn compilation (HsmActionLaneResolver),
