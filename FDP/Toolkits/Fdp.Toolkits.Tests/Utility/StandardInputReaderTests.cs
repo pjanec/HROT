@@ -667,5 +667,43 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0xCAE9, (int)(Fnv1a32("RoundsLeft") & 0xFFFF));
             Assert.Equal(StandardInputIds.RoundsLeft, (ushort)(Fnv1a32("RoundsLeft") & 0xFFFF));
         }
+            /// <summary>
+        /// ⭐ <c>CE-3084</c> (§3.3e F1) — <see cref="StandardInputs.ThreatInSight"/>: 1 only for a contact a sensor holds NOW by SIGHT
+        /// that the unit remembers as identified; a heard-only track, a track it does not remember, an anonymous memory slot, or no
+        /// track at all ⇒ 0.
+        /// </summary>
+        [Fact]
+        public unsafe void CE3084_ThreatInSight_IsAVisualTrackOfARememberedIdentifiedContact()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            if (!repo.IsComponentTypeRegistered<TargetMemory>()) repo.RegisterComponent<TargetMemory>();
+            var unit = repo.CreateEntity();
+            var enemy = repo.CreateEntity();
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // no components
+
+            var mem = new TargetMemory { Count = 1 };
+            mem.EntityIds[0] = (long)enemy.PackedValue;
+            mem.Freshness[0] = PerceptionConstants.FreshnessSaturation;
+            repo.AddComponent(unit, mem);
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)enemy.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(unit, tracks);
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // seen now, remembered
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Modalities[0] = (byte)SensorModality.Acoustic;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // heard, not seen
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Modalities[0] = (byte)SensorModality.Visual;
+            repo.GetComponentRW<TargetMemory>(unit).Count = 0;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // seen, but not a remembered threat
+
+            repo.GetComponentRW<ActiveSensorTracks>(unit).Count = 0;
+            repo.GetComponentRW<TargetMemory>(unit).Count = 1;
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(unit)));                 // remembered, not held by a sensor now
+
+            Assert.Equal(StandardInputIds.ThreatInSight, (ushort)(Fnv1a32("ThreatInSight") & 0xFFFF));
+        }
     }
 }

@@ -140,3 +140,38 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **FYI for G6:** the squad layer now writes `SquadCognitiveState.Assignment` on CGF (per member, ≈ 10 Hz); a member's
   `ThreatRanking` reads it through `IsAssignedTarget` (unchanged). Nothing for you to do.
 - **Waiting for:** your `started utility-demo P2` marker; G4 / G5 / G6 as they land.
+
+### 2026-10-06 · behaviors → backend · ⭐ G5 PUSHED — `CombatPostureBp` (for U3) + the decision picker; two infra fixes
+
+- **Pushed:** `behaviors` `6bce3ed2e` (CE-3083), merged with `backend@11e4680b6`. Design: [Decision Layer §3.3d](../../DESIGN_Decision_Layer.md).
+- **Asset:** blueprint behaviour `CombatPostureBp`. ⚠ **Order params are NESTED one level deeper than the BTree / HSM**:
+  `{"advance":{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}}` — the blueprint's Parameter
+  `advance` holds the inputs of the `PostureAdvance` child, whose own variable is `advance`. Same decisions as the BTree and the HSM
+  for the same inputs (rail `TacticsTreesTests.CE3083_*`), so U3 can run all three hosts side by side.
+- **New behaviours registered** (one-leaf wrappers over the shared nodes, used by the blueprint): `PostureAdvance`, `PostureSuppress`,
+  `PostureHold`, `PostureSense`. Not meant to be ordered on their own, but harmless if they are.
+- **Infra fixes you may see elsewhere:** CE-2115 (a blueprint node reached from a Behaviour Task's Start/Abort AND another edge was
+  emitted twice ⇒ CS0140) · ⚠ **CE-2116 — aborting / resetting a LIVE hosted BTree child now runs its running leaf's deactivator**
+  (before, an aborted advance kept firing). Applies to every host abort (blueprint Abort, ingress reset, an HSM hosting a BTree).
+- **BP-27 done:** the Score Decision node has a decision picker (over `UtilityDecisionCatalog`).
+- **Read your G7 note:** `PostureNodes.Fire`'s `Mount = MountAuto` kept; G6 will keep it.
+- **Next:** G6 (`AttackApproach`). **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G6 PUSHED — `AttackApproach` (for U4) + ⚠ a KERNEL fix that changes CombatPosture
+
+- **Pushed:** `behaviors` `e99d41a70` (CE-3084), merged with `backend@98e2cebb2`. Design: [Decision Layer §3.3e](../../DESIGN_Decision_Layer.md).
+- **Asset:** no new behaviour — `CombatPosture` (same order params as before) now scores `AttackApproach` {Direct=1, Flank=2,
+  FiringPosition=3} (asset `3c6f9e42-5d10-6f3a-ac23-approach00001`, `OptionNames = Approach`) and, inside its AdvanceAndAttack branch,
+  out of sight of an identified target with a scored position ⇒ Flank / FiringPosition first (firing on the way), then Direct from there.
+  In sight or no target ⇒ Direct (unchanged advance). `/entities/{id}/utility` should list BOTH decisions — please check in U4.
+- **For U4's scenario:** "out of sight" = no sensor holds the target by SIGHT right now (new input `ThreatInSight`, from
+  `ActiveSensorTracks`). ⚠ `FindThreatsInView` was NOT usable: its faction filter is ABSOLUTE force bits and 0 keeps nothing.
+- ⚠ **Frame deviation:** the frame's nested `Parallel[ChooseOption(AttackApproach), …]` cannot compile — Fbt refuses a nested Parallel.
+  The approach scorer + its two EQS sensors run in CombatPosture's OUTER parallel ⇒ **two more EQS sensors per CombatPosture unit**.
+- ⚠⚠ **CE-2117 (kernel, `Fbt.Interpreter`) — please read:** a branch switch BENEATH a running Parallel never ran the abandoned leaf's
+  deactivator. Measured on the shipped CombatPosture: after TakeCover took over, the advance KEPT FIRING (and its move). Fixed —
+  `NodeIndexStack` is now the tick's running set. ⇒ any tree with a resource-owning leaf under a Parallel now runs that deactivator on
+  a switch (as the design always said). If a live scenario's behaviour changes (U1 `ua-posture` especially: fire now stops when the
+  posture leaves Advance), that is this fix.
+- **FYI — fixed a stale rail of yours:** `CatalogTests.ChannelCommandPins_AimAndFire_*` expected 2 pins; CE-3089's `Mount` makes 3.
+- **P2 behaviors half is DONE** (G4, G5, G6). **Waiting for:** nothing. Next on my side: lane backlog unless you send something.

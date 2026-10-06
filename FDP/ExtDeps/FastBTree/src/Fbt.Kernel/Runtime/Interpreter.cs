@@ -113,6 +113,16 @@ namespace Fbt.Runtime
             // === EXECUTE TREE ===
             if (_blob.Nodes.Length == 0) return NodeStatus.Success; // Empty tree safety
 
+            // ⭐ CE-2117 -- NodeIndexStack is this tick's RUNNING SET: every resource-owning leaf (and hosting Subtree)
+            //   still Running when the tick ends (NoteRunning). RunningNodeIndex alone holds ONE index, and a running
+            //   Parallel overwrites it with its own -- so a branch switch BENEATH a Parallel was invisible to the sweep and
+            //   the abandoned leaf's deactivator never ran (measured: CombatPosture kept firing / moving after TakeCover won).
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    state.NodeIndexStack[i] = 0;
+            }
+
             var result = ExecuteNode(0, ref blackboard, ref state, ref context);
             
             // === CLEANUP ===
@@ -139,6 +149,34 @@ namespace Fbt.Runtime
         }
 
         // Sweeps oldPath for entries not present in newPath and invokes deactivators for each.
+        /// <summary>
+        /// ⭐ <c>CE-2116</c> — the run is ABANDONED by its host (a Behaviour Task's Abort, an HSM state's exit, a BTree host
+        /// leaving the hosting node, a behaviour change) while it is still LIVE (the caller asserts that): every node on the
+        /// active path leaves, so each resource-owning one's deactivator runs — what a tick that moves the path away would do.
+        /// ⚠ The root itself is swept too: index 0 is the root, and a one-leaf tree's running leaf IS the root, which the
+        /// cursor cannot record (0 means "none"). A Parallel root sweeps its whole subtree (and nothing is swept twice). The
+        /// state is left as it was; the caller zeroes it.
+        /// </summary>
+        public void Abort(ref TBlackboard blackboard, ref BehaviorTreeState state, ref TContext context)
+        {
+            if (_blob.Nodes.Length == 0) return;
+            if (_blob.Nodes[0].Type == NodeType.Parallel)
+            {
+                SweepExitedNode(0, ref blackboard, ref state, ref context);   // its children, at any depth
+                return;
+            }
+            Span<ushort> oldPath = stackalloc ushort[9];
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    oldPath[i] = state.NodeIndexStack[i];
+            }
+            oldPath[8] = state.RunningNodeIndex;
+            Span<ushort> emptyPath = stackalloc ushort[9];
+            SweepExitedNodes(oldPath, emptyPath, ref blackboard, ref state, ref context);
+            SweepExitedNode(0, ref blackboard, ref state, ref context);       // a leaf (or hosting) root
+        }
+
         private void SweepExitedNodes(
             Span<ushort> oldPath,
             Span<ushort> newPath,
@@ -151,8 +189,24 @@ namespace Fbt.Runtime
                 ushort old = oldPath[i];
                 if (old == 0) continue;
                 if (newPath.Contains(old)) continue;
+                if (oldPath[..i].Contains(old)) continue;   // CE-2117: a leaf is in the running set AND the cursor -- once
+                if (InsideExitingParallel(old, oldPath, newPath)) continue;   // CE-2117: that Parallel's block sweep covers it
                 SweepExitedNode(old, ref blackboard, ref state, ref context);
             }
+        }
+
+        /// <summary>CE-2117 -- true when <paramref name="index"/> lies inside a Parallel that is itself leaving the path: its
+        /// block sweep (<see cref="SweepParallelChildren"/>) already runs every still-running leaf beneath it.</summary>
+        private bool InsideExitingParallel(ushort index, Span<ushort> oldPath, Span<ushort> newPath)
+        {
+            for (int k = 0; k < oldPath.Length; k++)
+            {
+                ushort p = oldPath[k];
+                if (p == 0 || p == index || newPath.Contains(p) || (uint)p >= (uint)_blob.Nodes.Length) continue;
+                ref var node = ref _blob.Nodes[p];
+                if (node.Type == NodeType.Parallel && index > p && index < p + node.SubtreeOffset) return true;
+            }
+            return false;
         }
 
         // Invokes the deactivator for nodeIndex if it is resource-owning, and handles
@@ -831,6 +885,7 @@ namespace Fbt.Runtime
             if (status == NodeStatus.Running)
             {
                 state.RunningNodeIndex = (ushort)nodeIndex;
+                if (node.IsResourceOwning) NoteRunning(nodeIndex, ref state);
             }
             else if (state.RunningNodeIndex == nodeIndex)
             {
@@ -838,6 +893,22 @@ namespace Fbt.Runtime
             }
 
             return status;
+        }
+
+        /// <summary>
+        /// ⭐ CE-2117 -- records a still-Running node that owns something to release (a resource-owning leaf, a hosting
+        /// Subtree) in this tick's running set (<see cref="BehaviorTreeState.NodeIndexStack"/>), so the post-tick sweep sees
+        /// it LEAVE even when a Parallel holds the cursor. ⚠ Eight slots: a ninth concurrently-running owner is not tracked
+        /// (it still exits through <see cref="BehaviorTreeState.RunningNodeIndex"/> when that is its path).
+        /// </summary>
+        private static unsafe void NoteRunning(int nodeIndex, ref BehaviorTreeState state)
+        {
+            ushort n = (ushort)nodeIndex;
+            for (int i = 0; i < 8; i++)
+            {
+                if (state.NodeIndexStack[i] == n) return;
+                if (state.NodeIndexStack[i] == 0) { state.NodeIndexStack[i] = n; return; }
+            }
         }
 
         /// <summary>
@@ -868,6 +939,7 @@ namespace Fbt.Runtime
             if (status == NodeStatus.Running)
             {
                 state.RunningNodeIndex = (ushort)nodeIndex;
+                NoteRunning(nodeIndex, ref state);   // CE-2117
             }
             else if (state.RunningNodeIndex == nodeIndex)
             {

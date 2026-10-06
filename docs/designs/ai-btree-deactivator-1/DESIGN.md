@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06
+current-answer: the whole document; the "Parallel node handling" paragraph + its CE-2117 addendum for switches beneath a running Parallel.
+stale-below: nothing known.
+known-rot: none known (only the CE-2117 gap, now closed in place).
+related-designs:
+  - docs/DESIGN_Decision_Layer.md — §3.3e (CE-3084) found CE-2117: a nested approach decision under CombatPosture's Parallel.
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.3a OWNS the ObserverSelector (CE-3041) whose abandonment this sweep cleans up.
+-->
 # Design: EQS Sensor Lifecycle — Hybrid BTree Lifecycle Hook (Option 4)
 
 Derived from `.dev/eqs-2/EQS_Sensor_Lifecycle_Options.md`.
@@ -186,6 +196,16 @@ node index in the range `[childIndex, childIndex + childNode.SubtreeOffset)` and
 cleared or absent channel before acting, this blanket range sweep is idempotent and safe.
 It guarantees no orphaned resources regardless of how deeply nested the resource-owning
 leaf is within the Parallel branch.
+
+**⭐ `CE-2117` addendum (`2026-10-06`, behaviors) — a branch switch INSIDE a still-running Parallel.** The paragraph above covers
+the Parallel itself LEAVING the path. ⛔ It does not cover a switch beneath a Parallel that keeps running: the Parallel rewrites
+`RunningNodeIndex` with its own index every tick, and `NodeIndexStack` was never written by the interpreter (only tests called
+`PushNode`), so the abandoned leaf was on neither path and its deactivator NEVER ran. 📌 Measured on the shipped CombatPosture BTree
+(`Parallel[Choose, Sense, ObserverSelector[…]]`): after TakeCover took over, the advance kept its fire and move. **As built:**
+`NodeIndexStack` is now this tick's RUNNING SET — cleared before `ExecuteNode(0)`, and every resource-owning leaf (and hosting
+Subtree) still Running is recorded (`Interpreter.NoteRunning`, ≤ 8); the existing diff then sees it leave. `SweepExitedNodes` skips
+a duplicate (a leaf in the set AND the cursor sweeps once). ⚠ A ninth concurrently-running owner is not tracked. Rails:
+`HybridLifecycleTests.CE2117_*`, `TacticsTreesTests.CE2117_*`. Found by [Decision Layer §3.3e](../../DESIGN_Decision_Layer.md).
 
 **Tree completion cleanup:** When `Tick` returns `Success` or `Failure`, `RunningNodeIndex`
 resets to 0 and the stack clears. The path sweep fires deactivators correctly because every

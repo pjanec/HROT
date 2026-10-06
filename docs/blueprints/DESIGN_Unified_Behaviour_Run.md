@@ -12,7 +12,7 @@ known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
   (§5 U-1); Q77 §5.14 points to this document.
 related-designs:
-  - ../DESIGN_Decision_Layer.md — the decision layer (doctrine, utility); ⛔ it does NOT change the mission or Demo_MissionPlan (user, 2026-10-04).
+  - ../DESIGN_Decision_Layer.md — the decision layer (doctrine, utility); ⛔ it does NOT change the mission or Demo_MissionPlan (user, 2026-10-04). §3.3d (CombatPostureBp) found CE-2115 / CE-2116 in the Behaviour Task / hosted-child abort path.
   - DESIGN_Entity_Reference.md — generalises "S8o"'s type-plan walker to the `EntityRef` type (objects, lists); retires `[RemapNetworkId]`.
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint behaviour (dispatch, Return = finish, own
     resolver). This document changes where its brain state lives and lets it host and be hosted.
@@ -308,6 +308,7 @@ derived from the path, so the two never meet. Depth 1 is unchanged (the root fol
 | the occurrence key rides the context: `BTreeContext._occurrenceKey`, `BehaviorRunContext.OccurrenceKey` (0 at the root); `TickHosted` resolves the nested key and hands it to the child's run; both runners pass it into the contexts they build | `BTreeContext.cs`, `Runners/*.cs`, `HostedSubtree.cs` |
 | `EffectiveSlots` appends every descendant's run slot under its nested key, recursively (depth guard `MaxNestingDepth` = 16 throws: a cycle S5c will refuse at registration); ingress provisions from that list AND sweeps against it, and a behaviour change / clear detaches it | `HostedSubtree.cs`, `BehaviorIngressSystem.cs` |
 | reset is recursive: a child that is reset, started fresh or finishes takes its own hosted children with it (I7) | `HostedSubtree.ResetAt` / `ResetDescendants` |
+| ⭐ **CE-2116 (`2026-10-06`)** — a reset of a LIVE child (start word ≠ 0) first ABORTS it: `IBehaviorRunner.Abort` (default no-op; `BTreeRunner` → `Interpreter.Abort`, which runs the running path's and the root's deactivators) — before, an aborted BTree child kept its leaf's effects (an aborted advance kept firing). HSM / blueprint children: still the no-op. Found by [Decision Layer](../DESIGN_Decision_Layer.md) §3.3d | `HostedSubtree.ResetAt` → `AbortRunning` |
 | 🔴 **a defect that predated this work, found by the rail:** `BTreeHostedSites` keyed its site table by `blob.StructureHash`, which hashes node TYPES and child COUNTS only. Two trees of one shape (a host `Sequence(Subtree)` and its child `Sequence(Subtree)`) shared ONE map, and the last `Bind` won, so the child's site looked up the HOST's key. ⇒ keyed by the blob INSTANCE now (the interpreter hands the host its own blob; every registrar binds that instance). `HsmHostedSubtrees` got the same instance-keyed table for the runtime | `BTreeHostedSites.cs`, `HsmHostedSubtrees.cs`, `HsmRunner` |
 | rails `HostingMatrixTests.S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences` (red-proved by making `HostedKeyAt` ignore its parent) and `S5b_ResettingAChild_ResetsItsGrandchildToo` (it failed on the site-table collision before the fix) | |
 

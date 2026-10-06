@@ -1220,6 +1220,48 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-2115</c> — a BRANCH reached from a task's Started chain AND from another exec path is scheduled ONCE.</b> The
+    /// Started continuation re-inlined a merge-point node instead of jumping to its shared merge block (every other arm checks),
+    /// so the Branch was lowered twice and its labels collided (CS0140) — every loop back into a dispatcher broke the build
+    /// (CombatPostureBp, CE-3083). 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3d.
+    /// </summary>
+    [Fact]
+    public void CE2115_ADispatcherBranch_ReachedFromStartedAndFromATasksFailed_IsScheduledOnce()
+    {
+        const string Host = "CE2115MergeHost", Child = "CE2115MergeChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Failure;
+        RegisterCountingChild(Child);
+        var asset = BlueprintAssetBuilder.Behavior(Host)
+            .WithVariable("Ticks", typeof(int)).WithVariable("Done", typeof(int)).WithVariable("Failed", typeof(int))
+            .Build();
+        VariableDecl V(string n) => asset.Variables.Single(x => x.Name == n);
+        // Tick: Entry → [alongside] Start(child) ─Started→ B ; B.True → [run-and-wait] child ─Failed→ B (the loop) ; B.False → Failed++
+        var t = new Runtime.TypedEventGraph("Tick", GraphKind.Function);
+        var entry = t.Entry();
+        var along = t.RunBehavior(Child);
+        var task  = t.RunBehavior(Child);
+        var branch  = t.Adopt(new BranchNode { Id = Guid.NewGuid() });
+        var compare = t.Adopt(new CompareNode { Id = Guid.NewGuid(), Operator = ComparisonOperator.Equal });
+        t.Data(t.Get(V("Ticks")), "Value", compare, "A").Data(t.Literal(0), "Value", compare, "B").Data(compare, "Result", branch, "Condition");
+        t.Then(entry, along);
+        t.Then(along, branch, RunBehaviorNode.StartedPin);
+        var inc = t.Increment(V("Ticks"));
+        t.Then(branch, inc, "True");
+        t.Then(inc, task);
+        t.Then(task, branch, RunBehaviorNode.FailedPin);
+        t.Then(branch, t.Increment(V("Failed")), "False");
+        asset.Graphs.Clear();
+        asset.Graphs.Add(t.Graph);
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        var src = compiled.GeneratedSource!;
+        string label = "__block_branch_" + branch.Id.ToString("N").Substring(0, 8) + "_true:";
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(src, System.Text.RegularExpressions.Regex.Escape(label)).Count);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());     // ⛔ before the fix: CS0140 (the branch's labels twice)
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>S7b (B2) — Start while it runs RESTARTS the task.</b> A second hit while the child is mid-way resets the child
     /// (it starts over at its first step) and the task finishes once, on the second start's schedule.
     /// <para>✅ Red-proof: drop the reset from the shared Restart helper and the child continues instead (A runs once).</para>

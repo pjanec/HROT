@@ -42,6 +42,12 @@ namespace Fdp.Toolkit.Behavior.Runners
         /// root's equivalent is ingress's reset.
         /// </summary>
         void Start(BehaviorDefinition def, byte* brain, int brainBytes);
+
+        /// <summary>
+        /// ⭐ <c>CE-2116</c> — the host ABANDONS a still-running hosted child: release what its running steps hold (a BTree runs
+        /// its active path's deactivators) BEFORE the host zeroes the brain. Default: nothing to release.
+        /// </summary>
+        void Abort(ref BehaviorRunContext ctx, byte* brain, int brainBytes, ref byte block) { }
     }
 
     /// <summary>⭐ S4 — what a runner is handed each tick. A stack value: no allocation.</summary>

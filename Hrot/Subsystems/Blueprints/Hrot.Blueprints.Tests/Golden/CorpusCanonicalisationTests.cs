@@ -309,7 +309,8 @@ public sealed class CorpusCanonicalisationTests
         //    children `Demo_Advance` · `Demo_Engage` · `Demo_Retreat` · `Demo_TakeCover`.
         // ⭐ 35 → 36 (CE-3079 H7 / CE-3078, 2026-10-06): `DangerCrossingBp` — the FIRST asset built from the per-kind
         //    sensor nodes (SpawnSensor · When SensorResult · ReadSensorResult), the DangerCrossing BTree as a blueprint.
-        Assert.Equal(36, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 36 → 37 (CE-3083 G5, 2026-10-06): `CombatPostureBp`.
+        Assert.Equal(37, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

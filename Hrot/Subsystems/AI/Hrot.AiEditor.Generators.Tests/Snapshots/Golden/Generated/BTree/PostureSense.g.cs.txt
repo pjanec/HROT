@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3083000-0000-0000-0000-000000000004
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class PostureSense
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Action("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@0@368030495",
+                visualId: new Guid("c3083400-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("PostureSense", AssetId = "a3083000-0000-0000-0000-000000000004")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("PostureSense");
+}
