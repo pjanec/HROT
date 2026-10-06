@@ -949,3 +949,14 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 | rating | sight = `TerrainWorld.SegmentBlocked` from the last-known position +1.6 m to the area centre +1 m; danger `ThreatDanger.OfSlot`; no range cap; edges with hysteresis 0.5 / 0.4 on slot 0 |
 
 Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly.
+
+#### 10.5b ✅ AS-BUILT — B6 (`CE-3079`, backend), `2026-10-06`: the demo PASSES live, with no HTTP write
+
+| §10.3 / §10.5 said | as built |
+|---|---|
+| the watcher "east of the vertical road with sight of THAT crossing only" | ⚠ measured on the REAL footprints: L-Block is an L (`[230,110]…[255,170]`), so the first post (310,222) saw BOTH crossings and the rifleman held at the wrong one (run 1). ⭐ The watcher stands at (370,212): ≥ 25 m of building between it and Cross Street, a clear line to Main Street, 118 m from the hold point |
+| `Sentry` 90 m (H2's default) | 125 m (the order's `sentry.WithinMetres`), so the 15 s wait starts just before the rifleman reaches the hold (both units see 150 m, 360°) |
+| withdraw "up the gap between Block C and the Tower" | to (395,290), north-east behind the Tower — along that walk, the last point the rifleman sees has ≥ 10 m of building between it and the crossing (searched over the real footprints) |
+| the rifleman's order | `{"sensor":{"RouteTo":[285,220,0]},"walk":{"X":285,"Y":220,"Speed":1.5,"ArrivalRadius":3}}` (H5's shape — the objective is given twice) |
+| check | `utility-demo-check.py --launch --timeout 240 ua-danger-crossing` — **PASS** (sim 0 → 284 s): two `StreetCrossing` areas at 133 m / 198 m · only Main Street ≥ 0.5 · hold at (247.6, 187.7) ≥ 10 s · the watcher's mission advanced by itself to (395.4, 291.1) · the rating cleared · crossed and arrived |
+

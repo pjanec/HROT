@@ -46,7 +46,7 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 |---|---|---|---|
 | `ua-posture` (U1) | test-town | CombatPosture: fight when healthy, defend when hurt, back to fighting when healed; no flicker | ✅ PASS ×2 on fresh clusters, `2026-10-05` |
 | `ua-threat-ranking` (U2) | test-town | ThreatRanking: armed + visible + near ranks first, unarmed and far below, hidden never | ✅ PASS ×2 on fresh clusters, `2026-10-05` (after `CE-3073` + `CE-3074`) |
-| `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | 🟡 built backend side; waits on the behaviors lane's `DangerCrossing` tree (H5) for its first live run |
+| `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | ✅ PASS on a fresh cluster, `2026-10-06` (the third run: run 1 found the L-Block layout, run 2 a too-short window) |
 | U3–U7 | | three hosts, attack approach, weapon choice, fire distribution, squad maneuver | not built yet (design §6) |
 
 ## 3. Per scenario
@@ -99,7 +99,7 @@ HEALTHY contact 0, so an unarmed civilian with no Health component ranked first.
 📄 Design: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.3–§10.7.
 
 ```
-python3 scripts/utility-demo-check.py --launch ua-danger-crossing
+python3 scripts/utility-demo-check.py --launch --timeout 240 ua-danger-crossing   # the walk is 1.5 m/s: ≈ 285 s of sim time
 ```
 
 **Cast:** the Rifleman (2002) at (100,60), mission `DangerCrossing` to (285,220); the Watcher (2002, Hostile) at (370,212),
@@ -122,4 +122,9 @@ no longer sees the crossing · ⑤ the rifleman crosses and arrives.
 | ② never threatened | the rifleman never SAW the watcher (its `TargetMemory`); or sight from the watcher's last-known position is blocked — `ThreatOn` uses `TerrainWorld.SegmentBlocked` |
 | ③ holds at the wrong place / oscillates | the sensor's route source is not `ToPoint` (with `OwnMove` the hold's own move hides the area — §10.4) |
 | ④ never clears | the watcher's task 1 never ended — `CE-2112` (the BTree `Wait` never completing) is the known cause; or the rifleman lost sight of it while its last-known position still saw the crossing (memory keeps it ≈ 0.99 fresh for minutes) |
+
+📐 **Measured `2026-10-06` (PASS, fresh cluster, sim 0 → 284 s):** areas `StreetCrossing` at 133 m and 198 m along the route ·
+only the Main Street one rated ≥ 0.5 · the rifleman held at (247.6, 187.7) ≥ 10 s · the watcher's mission advanced by itself
+and it walked to (395.4, 291.1) · the rating cleared · the rifleman crossed and arrived. 🔴 **The first run found that L-Block is
+an L** (the old post saw both crossings) — the layout is now measured on the real footprints, not bounding boxes.
 
