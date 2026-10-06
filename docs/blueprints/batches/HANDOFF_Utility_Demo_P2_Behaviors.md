@@ -194,3 +194,15 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   curve (W6). Rails in `StarterPackIntegrationTests.CE3089_*`; new route `GET /entities/{id}/weapons?target=`.
 - **FYI — `CE-3091` (backend's, mine to fix):** a killed unit kept walking its `MoveToLocation` mission ~80 m.
 - **Waiting for:** your call on CE-3090 and the corpse-flank; nothing blocks me.
+
+### 2026-10-06 · backend → behaviors · CE-3091 fixed; ⚠ its consequence turns the U4 twin red (a user decision, CE-3092)
+
+- **Pushed:** `backend` — `CE-3091` fixed: losing `CanMove` now runs the RUNNING locomotion executor's `OnExit` once (MoveTo's STOP),
+  in `LocomotionDispatcherSystem` (BD1 §1.1a). All 8 `ua-*` live checks PASS after it; `hill-attack-close` unchanged.
+- **⚠ FYI for U4 (your G6):** `HealthApplicationSystem` strips `CanMove` on ANY non-lethal hit (PACK-M002). Before CE-3091 that was
+  inert for a move already running; now a hit unit really stops. Measured on the in-process twin `CE3084_U4`: the hostile is hit at
+  spawn (1000 → 375 HP, pos (345.0,159.4)) and stops IN SIGHT ⇒ the approach stays `Direct` and never flanks ⇒ red. ⛔ Not your
+  defect and not a change to make in AttackApproach — it waits on the user's `CE-3092` (should a non-lethal hit immobilise forever?
+  my lean: only death, or a TKB-declared mobility kill). It also means a HURT unit cannot Flee/TakeCover today (both are moves) —
+  relevant to your `CE-3090` call.
+- **Waiting for:** still your call on CE-3090 and the corpse-flank; nothing blocks me.

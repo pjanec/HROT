@@ -268,7 +268,7 @@ clears `_previousAction`, sets `DispatchedInstanceId = ActionInstanceId`, and fa
 
 ⚠ **Consequence, not decided here:** because §2.B of `packs-1` strips `CanMove` on **every** non-lethal hit (it was
 written for the UrbanCombat APC mobility kill), any unit hit once now really stops — before this fix the strip was
-silently inert for a move already running. That policy question is filed with `CE-3091` in the tracker.
+silently inert for a move already running. That policy question is `CE-3092` in the tracker (a user decision); measured: it turns the U4 twin `CE3084_U4` red — the hostile is hit at spawn and now stops in sight.
 
 **Problem:** When `MissionDirectorSystem` detects that the trigger has fired and `CurrentPhase >= PhaseCount`, it simply `continue`s without touching `BehaviorState`. The `ActiveBehaviorHash` permanently retains the last executed behavior (e.g. `MoveToLocation_BT`), keeping the muscle layer permanently stimulated.
 
