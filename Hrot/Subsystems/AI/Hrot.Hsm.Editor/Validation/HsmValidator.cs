@@ -183,12 +183,14 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (!s.IsHistory && !s.IsDeepHistory) continue;
-            if (s.Parent == null || s.Parent == asset.RootState || s.Parent.Children.Count <= 1)
+            // ⭐ Q84 C1: history is a property of the composite being re-entered. A state with NO children has
+            //    nothing to resume — the leftover shape of the old history pseudo-state.
+            if (s.Children.Count == 0)
             {
                 out_.Add(new HsmDiagnostic(
                     HsmDiagnosticCode.HistoryOutsideComposite,
                     HsmDiagnosticSeverity.Warning,
-                    $"History state '{s.Name}' is not inside a composite with multiple children.",
+                    $"State '{s.Name}' has history but no child states to resume; history belongs on a composite.",
                     new[] { s.StableId }));
             }
         }

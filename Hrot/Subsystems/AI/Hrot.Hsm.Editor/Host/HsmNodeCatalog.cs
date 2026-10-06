@@ -68,10 +68,8 @@ internal sealed class HsmNodeCatalog : INodeCatalog
              new[] { "state", "parallel", "orthogonal", "fork" },   "hsm/state_parallel"),
         Make(HsmKinds.Final,       "Final State",        "A terminal state; no outgoing transitions allowed.",
              new[] { "state", "final", "terminal", "end" },         "hsm/state_final"),
-        Make(HsmKinds.History,     "History State",      "Shallow history pseudo-state.",
-             new[] { "state", "history", "shallow" },               "hsm/state_history"),
-        Make(HsmKinds.DeepHistory, "Deep History State", "Deep history pseudo-state.",
-             new[] { "state", "history", "deep" },                  "hsm/state_deep_history"),
+        // ⭐ Q84 C1 (HSM-010): no History / Deep History palette entries. History is a property of a composite
+        //    ("On re-entry" in its inspector) — the kernel has no history pseudo-state, so those nodes did nothing.
     };
 
     private static NodeCatalogEntry Make(

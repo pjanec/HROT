@@ -52,6 +52,9 @@ public sealed class HsmFacetMapper
             SopBehavior             = s.SopOrder?.BehaviorName,
             SopParamsVariable       = s.SopOrder?.ParamsVariable ?? string.Empty,
             SopUrgency              = s.SopOrder?.Urgency ?? Hrot.AiEditor.Persistence.BTree.SopUrgencyDto.Alert,
+            History                 = s.IsDeepHistory ? HsmHistoryMode.ResumeLastLeaf
+                                    : s.IsHistory     ? HsmHistoryMode.ResumeLastChild
+                                    : HsmHistoryMode.StartAtInitial,
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19

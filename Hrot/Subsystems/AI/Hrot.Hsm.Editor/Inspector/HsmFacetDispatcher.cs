@@ -113,6 +113,9 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         s.Name           = f.Name;
         s.Comment        = f.Comment;
+        // ⭐ Q84 C1 — history is the composite's own setting; a state without children has nothing to resume.
+        s.IsHistory      = s.Children.Count > 0 && f.History == HsmHistoryMode.ResumeLastChild;
+        s.IsDeepHistory  = s.Children.Count > 0 && f.History == HsmHistoryMode.ResumeLastLeaf;
         s.IsBreakpoint   = f.IsBreakpoint;
         s.DeferredEventIds.Clear();
         if (f.DeferredEventIds is not null)

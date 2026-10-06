@@ -37,7 +37,9 @@ internal sealed class HsmLinkValidator : ILinkValidator
         if (source.IsFinal)
             return Invalid("Transitions from a Final state are not allowed.");
 
-        if (target.IsHistory || target.IsDeepHistory)
+        // Q84 C1: a composite WITH history is an ordinary target (entering it resumes); only a leftover childless
+        // history pseudo-state (pre-migration shape) is refused.
+        if ((target.IsHistory || target.IsDeepHistory) && target.Children.Count == 0)
             return Invalid("Transitions into a History pseudo-state are not allowed.");
 
         return Valid();

@@ -305,7 +305,7 @@ callers** — the pipe is wired, nothing fills it.
 
 ## Area E 🎨🔧 — Design contradictions
 
-- [ ] **HSM-010** 🔴📐 · `RW-M` — **History is modelled as the wrong kind of thing; the palette
+- [x] **HSM-010** 🔴📐 · `RW-M` — **History is modelled as the wrong kind of thing; the palette ✅ **CLOSED `2026-10-06` (Q84 C1/D1)** — the palette entries are gone; history is the composite's "On re-entry" setting (start at initial / resume last child / resume last leaf) = its `IsHistory`/`IsDeepHistory` flags; `HsmHistoryMigration` folds an old pseudo-node into its parent on load and before emit; `HsmShowcase` migrated.
   produces states the kernel cannot act on.** ⭐ **Upgraded 2026-08-14 after reading the kernel —
   this is not a validator strictness issue, it is a modelling mismatch.**
   **What FastHSM actually does:** history is a **flag on the composite that owns the children** —

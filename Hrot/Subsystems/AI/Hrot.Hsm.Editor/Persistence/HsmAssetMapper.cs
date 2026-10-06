@@ -229,6 +229,10 @@ public static class HsmAssetMapper
         string sourceFilePath,
         bool isEditorOwned)
     {
+        // ⭐ Q84 C1/D1 — fold any old History pseudo-state into its parent's flag (history is a property of the
+        //    composite being re-entered). The next Save writes the migrated shape.
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+
         // Build empty blob / metadata placeholders (runtime-only fields)
         var emptyBlob     = new HsmDefinitionBlob();
         var emptyMetadata = new MachineMetadata();

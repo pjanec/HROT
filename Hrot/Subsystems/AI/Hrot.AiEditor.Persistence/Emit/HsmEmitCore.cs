@@ -137,6 +137,10 @@ public static class HsmEmitCore
         System.Func<string, bool>? csharpWritesChannel = null,
         System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
+        // ⭐ Q84 C1/D1 — an old file's childless History pseudo-state becomes its parent's flag BEFORE emit, so the
+        //    generator and the editor build the same machine (idempotent; a migrated asset is untouched).
+        Hrot.AiEditor.Persistence.Hsm.HsmHistoryMigration.Apply(dto);
+
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 

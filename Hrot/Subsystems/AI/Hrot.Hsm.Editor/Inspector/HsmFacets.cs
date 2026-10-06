@@ -82,6 +82,11 @@ public struct StateFacet
     [EditDisplayName("SOP urgency (React)")]
     public Hrot.AiEditor.Persistence.BTree.SopUrgencyDto SopUrgency;
 
+    // ⭐ Q84 C1 (HSM-010) — what a COMPOSITE does when it is re-entered. Shallow/deep history are flags on the
+    //    composite itself (the kernel saves on exit and restores on entry of the state carrying them).
+    [EditDisplayName("On re-entry")]
+    public HsmHistoryMode History;
+
     public StateFlags Flags;
 
     [EditDisplayName("Deferred events")]
@@ -109,6 +114,17 @@ public struct StateFacet
 }
 
 /// <summary>⭐ <c>CE-2083</c> — whether a state issues an SOP order, and which.</summary>
+/// <summary>Q84 C1 — what a composite does when it is entered again.</summary>
+public enum HsmHistoryMode
+{
+    /// <summary>Start at its initial state (no history).</summary>
+    StartAtInitial = 0,
+    /// <summary>Resume the child that was active when it was left (shallow history).</summary>
+    ResumeLastChild = 1,
+    /// <summary>Resume the innermost state that was active (deep history).</summary>
+    ResumeLastLeaf = 2,
+}
+
 public enum HsmSopOrderKind
 {
     None = 0,

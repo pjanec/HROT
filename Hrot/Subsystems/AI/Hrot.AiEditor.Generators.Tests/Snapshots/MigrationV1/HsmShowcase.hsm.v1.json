@@ -362,7 +362,7 @@
       "Kind": "External",
       "SyncGroupId": 0,
       "Waypoints": [],
-      "Comment": "AlertState → HistoryPseudo on Resolved"
+      "Comment": "AlertState → GuardComposite on Resolved (GuardComposite has history, so it resumes; Q84 C1 replaced the HistoryPseudo node)"
     }
   ],
   "GlobalTransitions": [

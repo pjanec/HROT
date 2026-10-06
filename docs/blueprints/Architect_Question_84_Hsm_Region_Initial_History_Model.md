@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06 (all answered)
-current-answer: §6 — ALL DECIDED 2026-10-06: A0 (regions stay as designed; fix compiler + emitter), B (region's
+current-answer: §6 — ALL DECIDED 2026-10-06; §7 (A0+B) and §8 (C1+D1) AS-BUILT: A0 (regions stay as designed; fix compiler + emitter), B (region's
   InitialChild for parallel, child IsInitial for plain composite; circle + arrow, incl. top level), C1 (history on the
   composite), D1 (migrate HsmShowcase.HistoryPseudo). §0-§3 superseded where §6 says so.
 stale-below: nothing
@@ -254,3 +254,15 @@ only into the layout method.
 its regions (measured: leaves `A, -, -`); region slots are initialised only at instance start. Kernel work.
 ⏸ **Not built:** dragging the start marker onto another state (design S4) — the menu item covers the gesture; a
 draggable custom element needs a new NodeEditor hook.
+
+## 8. ✅ AS-BUILT `2026-10-06` — C1 + D1 (history)
+
+| piece | built |
+|---|---|
+| palette | `History State` / `Deep History State` removed from `HsmNodeCatalog` (the sink still accepts the kinds, for old command streams) |
+| inspector | `StateFacet.History` — **"On re-entry": Start at initial / Resume last child / Resume last leaf** → the composite's `IsHistory` / `IsDeepHistory`; ignored on a state with no children |
+| migration | `HsmHistoryMigration.Apply` (Persistence) — a childless history state folds into its parent: the parent takes the flag, transitions into it retarget to the parent, transitions out of it are dropped, it is removed. Idempotent; called by `HsmAssetMapper.ToModel` AND at the start of `HsmEmitCore` emit, so an old file builds the same machine in the editor and the generator |
+| canvas | `H` / `H*` is a badge in a composite's header corner; a transition INTO a composite with history is allowed (only a leftover childless pseudo-node is refused) |
+| validator | `HistoryOutsideComposite` now flags history on a state with NO children (the pseudo-node shape) |
+| asset | `HsmShowcase.hsm.json`: `HistoryPseudo` folded into `GuardComposite`; `AlertState --Resolved--> GuardComposite`. Golden `HsmShowcase.g.cs.txt`: `.History()` moves onto `GuardComposite`, the pseudo child and its `.History()` go, the GoTo retargets |
+| rails | `HsmHistoryMigrationTests`, `HsmShowcaseTests.Showcase_HistoryIsAPropertyOfAComposite_NotAPseudoState`; `ActionBindingMigrationTests` applies the history fold to its v1 fixture |
