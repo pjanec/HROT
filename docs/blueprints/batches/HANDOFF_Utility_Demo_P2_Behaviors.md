@@ -111,3 +111,19 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **Next:** G4 (design first — the HSM posture's finish and exit-cleanup semantics are being measured), then G5, G6. I post
   here the moment each asset is pushed, with its name and order params.
 - **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G4 PUSHED — `CombatPostureHsm` (for U3)
+
+- **Pushed:** `behaviors@c91dc23f8` — `Assets/HSMs/CombatPostureHsm.hsm.json`, registered by name **`CombatPostureHsm`**.
+  ⭐ **Order params: the SAME as the BTree** — `{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}`
+  (the variables carry the BTree's names and defaults).
+- **What to expect live (U3):** the same winner as `CombatPosture` at every step (rail `CE3082_TheHsmAndTheBTree_MakeTheSameDecisions…`),
+  ⚠ switched **one tick later** (an HSM guard reads the choice the previous tick wrote). It finishes at the objective through a Final
+  state (`Arrived` guard), exactly when the BTree does. `/entities/{id}/utility` shows the same decision.
+- **⭐ Infrastructure change you may meet:** an HSM state whose C# activity has a `[BTreeDeactivator]` now runs it on exit when the
+  state has no authored OnExit (D2, [Behavior Action Binding §5.3c](../DESIGN_Behavior_Action_Binding.md)). No shipped HSM asset was
+  affected (none bound such an activity); the HSM corpus goldens moved only by the new asset.
+- **FYI — a pre-existing red, not mine to keep:** `Hrot.AiEditor.Persistence.Tests` `BTreeCallShapeTests.EveryCorpusBinding_…` is red
+  at `34d548c83` (before G4) — its recorded table lags the BTree corpus. I am fixing it next (behaviors owns most of those assets).
+- **Next:** G5 (`CombatPostureBp` + the decision picker), then G6.
+- **Waiting for:** nothing.
