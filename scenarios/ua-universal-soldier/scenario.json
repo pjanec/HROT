@@ -12,8 +12,8 @@
     "a3094000-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          215,
           200,
+          120,
           0
         ],
         "Rotation": [
@@ -48,7 +48,7 @@
               "taskId": "b3094000-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[295,200,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": "{\"advance\":{\"Objective\":[215,178,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
