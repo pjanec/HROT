@@ -141,7 +141,10 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
     {
         var m = await DumpAsync("Scenario", "editor_fdp_inspector");
 
-        Assert.Equal(8, m!["totalEntityCount"]!.GetValue<int>());
+        // ⭐ CE-3077 — the inspector lists EVERY ECS entity, and since CE-3036 / CE-3062 each sensing unit carries two derived
+        //   TKB sensor children (vision, hearing) with no network id: 8 authored + 6 M1 Abrams × 2 = 20. ⛔ Pinned, not ">= 8",
+        //   so a silent change in which parts exist reddens. (Hidden behind the editor step 504 until CE-3077.)
+        Assert.Equal(20, m!["totalEntityCount"]!.GetValue<int>());
 
         var ids = (m["entities"] as JsonArray)!
                   .Select(e => e!["networkId"]?.GetValue<long?>())
