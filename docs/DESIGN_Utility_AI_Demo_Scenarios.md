@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor): N1–N4 and B1″–B4′ APPROVED 2026-10-06 (R-213) — READY-TO-BUILD as CE-3072 (the sensor), CE-3078 (per-kind sensor nodes, Sensors §7.10), CE-3079 (the ua-danger-crossing demo, §10.4).
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor): N1–N4 and B1″–B4′ APPROVED 2026-10-06 (R-213) — READY-TO-BUILD as CE-3072 (the sensor), CE-3078 (per-kind sensor nodes, Sensors §7.10), CE-3079 (the ua-danger-crossing demo, §10.4–§10.5), CE-3080 (dead = no danger). §10.5 and the CE-3080 lean APPROVED 2026-10-06 (R-214); BUILDING on two lanes per §10.6.
 current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10.2–§10.4 (danger sensor: the query, the sensor form, the demo and its nodes). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
@@ -752,3 +752,72 @@ the rifleman watched it leave — the rating follows what the rifleman knows, ne
 | a new mission trigger "contact within X m" | the mission model is frozen by user ruling (Decision Layer §2); a behaviour that ENDS ITSELF plus `BehaviorFinished` is how the existing model expresses any condition |
 | task 1 = hold with `TimerElapsed` | not tied to the rifleman — on a slow cluster the hostile could leave before the rifleman arrives, and the hold would never be seen |
 | the hostile simply walks out of view | the rifleman remembers where he lost it; if that spot still sees the crossing the threat stays (≈ 0.99 for minutes) — the withdrawal point must be chosen by the sight rule above |
+
+### 10.6 Build plan — the `ua-danger-crossing` programme on TWO lanes *(`2026-10-06`; `build-state: BUILDING`)*
+
+🔒 **User, `2026-10-06`:** *"Approved. Also 3080 lean approved, solve it part of this 'danger crossing demo' programme. Divide
+the work between you and behaviors lane to work in parallel, with merging the other lane as you go."* ⇒ §10.5 and the
+`CE-3080` lean (Health ≤ 0 ⇒ danger 0 inside `ThreatDanger.Of`) **APPROVED** (R-214).
+
+⭐ **Contract first.** The backend's first push, **B0**, is only TYPES and ACCESSORS — everything the behaviors lane's nodes
+compile and test against (a hand-filled buffer stands in for the solver). Both lanes then build in parallel; the real
+solver and producer replace the hand-filled buffer without touching a node.
+
+```mermaid
+classDiagram
+  class SensorModality { <<existing enum, flags>> Visual 1 · Radar 2 · Thermal 4 · Acoustic 8 · NEW DangerArea 16 }
+  class SensorResultFamily { <<NEW enum>> Ranked · Area }
+  class SensorKindInfo { <<NEW>> Kind · Family · SettingsType · ResultComponent · ElementType · Triggers }
+  class SensorKindRegistry { <<NEW, Fdp.Toolkit.Perception>> +TryGet(kind, out info) +FamilyOf(kind) +All }
+  class DangerAreaSettings { <<NEW, blittable>> CorridorHalfWidth · MaxAreas · RefreshSeconds · RouteSource · RoutePoint · RouteHandle }
+  class DangerRouteSource { <<NEW enum>> OwnMove · Handle · ToPoint }
+  class DangerAreaChildSensor { <<NEW>> +Ensure(world, owner, site, settings) Entity +Release(world, child) }
+  class DangerAreaCognitiveBuffer { <<existing, on the CHILD>> Count · IsReady · NEW LastUpdateTick · 8 slots }
+  class DangerAreaDescriptor { <<existing 68 B>> FeatureId · ThreatRating · Kind · box · NearSideHandle · FarSideHandle · NEW DistanceAlongRoute (72 B) }
+  class UnitSensors { <<existing>> Of(kind) · TryGetResults ranked · NEW TryGetResults~T~ · NEW ReadRanked(kind) status }
+  class SensorReadStatus { <<NEW enum>> Ok · NoSensor · NoAnswerYet · WrongFamily }
+  class SensorChange { <<existing enum>> … NearMiss 7 · NEW AreaAhead 8 · AreaThreatened 9 · AreaCleared 10 }
+  class EqsChildSensor { <<existing>> Ensure — run-stamped, behaviour-owned }
+  SensorKindRegistry o-- SensorKindInfo
+  SensorKindInfo --> SensorResultFamily
+  DangerAreaChildSensor ..> EqsChildSensor : same owner stamp and site rules
+  DangerAreaChildSensor ..> DangerAreaSettings
+  DangerAreaSettings --> DangerRouteSource
+  UnitSensors ..> SensorKindRegistry : family check
+  UnitSensors ..> SensorReadStatus
+  DangerAreaCognitiveBuffer o-- DangerAreaDescriptor
+```
+
+*What the picture shows that prose hid: the whole cross-lane surface is ten small types — the behaviors lane never touches
+the solver, the topic or the producer, and the backend never touches a node.*
+
+```mermaid
+graph TD
+  B0["B0 contract types<br/>(backend, FIRST push)"] --> H3["H3 family guard in nodes"]
+  B0 --> H4["H4 DangerAreaNodes"]
+  B0 --> H6["H6 N1–N4 blueprint sensor nodes"]
+  H1["H1 ThreatsAtLeast WithinMetres"] --> H2["H2 Sentry BTree"]
+  H4 --> H5["H5 DangerCrossing BTree"]
+  H6 --> H7["H7 DangerCrossing blueprint"]
+  B0 --> B1["B1 CE-3080 dead = no danger"]
+  B0 --> B2["B2 B4′ route handle on status"]
+  B2 --> B3["B3 DangerAlongRoute solver + topic"]
+  B3 --> B4["B4 producer: rate, sort, events"]
+  B0 --> B5["B5 sensor read route"]
+  B4 --> B6["B6 scenario + check + rail + runbook + live run"]
+  H2 --> B6
+  H5 --> B6
+  H7 --> B7["B7 blueprint variant of the scenario"]
+  B6 --> B7
+  classDef beh fill:#e8f0ff,stroke:#36c
+  class H1,H2,H3,H4,H5,H6,H7 beh
+```
+
+*What the picture shows that prose hid: after B0 the two chains never wait on each other until B6 — the behaviors lane's
+H1/H2 need nothing at all and can start at once; the backend merges `behaviors` only for B6/B7.*
+
+| merge point | who | when |
+|---|---|---|
+| behaviors merges `backend` | behaviors | ⭐ when `origin/backend` carries a commit titled `feat(CE-3072 B0)` — before H3/H4/H6; ⭐ again before its final commit |
+| backend merges `behaviors` | backend | at the start of every slice (rule 7), and ⭐ before B6 (needs H2, H5) and B7 (needs H7) |
+| the dispatch | backend → behaviors | [`HANDOFF_Danger_Crossing_Behaviors.md`](blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md) |
