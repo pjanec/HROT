@@ -244,6 +244,7 @@ public sealed class V_ResolverPurityTests
         "GetComponentNode", "ComponentContainsNode", "ComponentFindNode", "ComponentForEachNode",
         "ComponentItemCountNode", "ComponentItemGetNode",
         "ReadEqsResultNode", "ReadRankedResultNode",
+        "ReadSensorResultNode",   // ⭐ CE-3078 N2: reads the unit's sensor answer, writes nothing
 
         // ── control flow ─────────────────────────────────────────────────
         "BranchNode", "SequenceNode", "FlowForEachNode", "EventEntryNode", "ReturnNode",

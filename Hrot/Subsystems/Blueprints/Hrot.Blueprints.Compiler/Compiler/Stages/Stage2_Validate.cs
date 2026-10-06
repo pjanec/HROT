@@ -51,6 +51,7 @@ internal static class Stage2_Validate
         new V_WhenNodeRules(),
         new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
+        new V_SensorNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_ComponentAccessRules(),
         new V_ListVariableRules(),
@@ -1593,6 +1594,37 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
                         $"ReadEqsResultNode: sensor variable '{node.SensorVariableName}' "
                         + "is not declared as EqsSensorHandle.",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ CE-3078 — V_SensorNodeRules (BP2073-BP2074): the per-kind sensor nodes. docs/DESIGN_Sensors_And_Doctrine.md §7.10a.
+// A node with no baked decl is a diagnostic, never a silent no-op (R-133).
+// ---------------------------------------------------------------------------
+
+internal sealed class V_SensorNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
+                || (graph.Kind == GraphKind.Function && !graph.Nodes.OfType<EventEntryNode>().Any());
+
+            foreach (var node in graph.Nodes.OfType<ReadSensorResultNode>())
+            {
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2073,
+                        $"ReadSensorResult is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                var d = node.Decl;
+                if (d is null || string.IsNullOrWhiteSpace(d.ResultComponentFqn) || string.IsNullOrWhiteSpace(d.ElementTypeFqn))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2074,
+                        "ReadSensorResult has no baked sensor kind (pick the kind again in the editor: the node carries "
+                        + "the kind's result component and element type, CE-3078).",
                         asset.AssetId, graph.Id, node.Id));
             }
         }

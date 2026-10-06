@@ -3956,6 +3956,61 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case ReadSensorResultNode rsr:
+            {
+                // ⭐ CE-3078 N2 — one helper call per node (all out-pins share it), then a field read per pin.
+                string id8 = rsr.Id.ToString("N").Substring(0, 8);
+                string structTypeName = $"_SensorRead_{id8}";
+                var resultStructType = new IrTypeRef { FullName = structTypeName, IsUnmanaged = true };
+
+                var indexPin = rsr.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                                                             && string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase));
+                var indexLink = indexPin is null ? null : _graph.Links.FirstOrDefault(l => l.ToNodeId == rsr.Id && l.ToPinId == indexPin.Id);
+                IrValue indexValue;
+                if (indexLink is not null)
+                    indexValue = ResolveNodeOutput(indexLink.FromNodeId, indexLink.FromPinId, stmts);
+                else
+                {
+                    indexValue = AllocValue(Stage5_Schedule.Int32Type);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = indexValue,
+                        Operation   = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                    });
+                }
+
+                var decl = rsr.Decl!;   // Stage2 BP2074 refuses a node without one
+                var helperResult = AllocValue(resultStructType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = helperResult,
+                    Operation   = new IrOp_ReadSensorResult(indexValue, id8, structTypeName, decl.Kind, decl.ResultComponentFqn, decl.ElementTypeFqn),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id },
+                });
+
+                var members = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (name, dir, _, member) in ReadSensorResultNode.DataPins(decl))
+                    if (dir == "Out") members[name] = member;
+                foreach (var outPin in rsr.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    if (_pinValueCache.ContainsKey(outPin.Id)) continue;
+                    if (!members.TryGetValue(outPin.Name, out var member)) continue;
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var t2) ? t2 : Stage5_Schedule.UnknownType;
+                    var fieldResult = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldResult,
+                        Operation   = new IrOp_FieldRead(helperResult, member, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rsr.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id] = fieldResult;
+                }
+
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
+                break;
+            }
+
             case ReadRankedResultNode rrn:
             {
                 string id8 = rrn.Id.ToString("N").Substring(0, 8);

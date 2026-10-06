@@ -1449,6 +1449,15 @@ creates the child through `DangerAreaChildSensor.Ensure` with the pinned setting
 kind · `NodeCoverageTests` cover the three node types · Stage2: a node with no Decl / an unknown family is a diagnostic, not a
 silent no-op.
 
+#### 7.10b As-built — H6 *(behaviors, `2026-10-06`, `CE-3078`)*
+
+| node | as built | ⚠ deviation from §7.10a, and why |
+|---|---|---|
+| **N2** `ReadSensorResult` | `ReadSensorResultNode { SensorKindDecl Decl }` (`Nodes.cs`) — pins from ONE projection `ReadSensorResultNode.DataPins(decl)` that Stage0 AND the editor (`NodePinSchema`) both call: in `Index`; out `IsReady`, `Count`, `AnswerTick`, then one per element field. Stage5 → `IrOp_ReadSensorResult` + an `IrOp_FieldRead` per out-pin (`Element.<field>`); `InstanceEmitter` writes one helper per node: `UnitSensors.Of(view, self, kind)` → the four Q1 members → `GetSpanRO()[clamp(Index)]`. Stage2 `V_SensorNodeRules`: `BP2073` (dispatch other than Instance / Behavior), `BP2074` (no baked decl). Editor: `SensorKindBaker.Bake(kind)` (the ONLY reader of the registry) + `SensorPaletteEntries.ReadEntries()` — "Read Sensor Result: {kind}", one per registered kind | ① `SensorKindDecl.ElementFields` reuses `ComponentFieldDecl` (Name + TypeId), not `StructFieldDecl` — the read is a member access, as `GetComponent`'s, so there is no offset to bake. ② an ENUM element field is spelled `global::Ns.Enum` (a bare FQN is `BP1500` — the editor's `NodePinSchema` rule; `ComponentFieldReflector` does not do this, so the baker reflects the element type itself). ③ the palette offers every registered kind EXCEPT `EqsQuery` (kind 0): a query sensor is found by template, not by kind — it keeps `ReadEqsResult` through its variable |
+| rails | `Hrot.Blueprints.Tests/Sensors/ReadSensorResultTests.cs` ×7 — the bake (every public instance field, the enum rule), the palette (one entry per unit kind), Stage0 = the shared projection, `BP2073` / `BP2074`, and a blueprint reading entry 0 / 1 of a hand-filled danger child (red-proved: index forced to 0 ⇒ the index-1 case fails). Registered in `NodeCoverageTests` (full Roslyn compile) and the resolver purity partition (a pure read) | — |
+| ⚠ **finding for N4 — `BecomesStale` cannot lower for the area family** | `SensorKindRegistry.HeaderTriggers` gives EVERY family `BecomesStale`, but `DangerAreaCognitiveBuffer` has no `LastUpdateTimeSeconds` (the ranked buffer does) — Q1's four members carry no answer TIME | asked of backend in the handoff §6 SYNC (add the field, or drop the trigger for the area family); until then N4 offers `BecomesStale` only where the result component has the field |
+| ⚠ **finding for N4 — per-tick, not per-answer** | backend (§6 SYNC, `2026-10-06`): the area buffer is RE-RATED every Brain tick without a new `LastUpdateTick` | ⇒ `FieldChanged` / `FieldCrossed` compare entry 0 EVERY tick, not once per answer as `When EqsResult` does — a threat that falls between answers would otherwise never fire |
+
 ## 8. Claim table
 
 | claim | code — how it IS | design — how it was MEANT |

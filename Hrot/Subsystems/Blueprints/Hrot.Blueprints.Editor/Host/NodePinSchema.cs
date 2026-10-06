@@ -149,6 +149,8 @@ internal static class NodePinSchema
             GetAllVariablesNode  => AllVariablesPins(asset, "Out", withExec: false),
             SetVariablesNode     => AllVariablesPins(asset, "In",  withExec: true),
             GetComponentNode gcn => GetComponentPins(gcn),
+            // ⭐ CE-3078 N2 — the SAME projection Stage0 uses (ReadSensorResultNode.DataPins).
+            ReadSensorResultNode rsr => ReadSensorResultNode.DataPins(rsr.Decl).Select(p => MakeData(p.Name, p.Direction, p.TypeId)).ToList(),
             SetComponentNode scn => SetComponentPins(scn),
             ComponentForEachNode cfe   => ComponentForEachPins(cfe),
             ComponentItemGetNode cig   => ComponentItemGetPins(cig),

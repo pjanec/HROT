@@ -791,6 +791,25 @@ public sealed record IrOp_ScoreDecision(
 ) : IrOperation;
 
 /// <summary>
+/// ⭐ <c>CE-3078</c> N2 — emitted by Stage 5 for a <c>ReadSensorResultNode</c>: one helper call per node returning a
+/// struct { IsReady, Count, AnswerTick, Element }; the out-pins are <see cref="IrOp_FieldRead"/>s on it.
+/// </summary>
+public sealed record IrOp_ReadSensorResult(
+    /// <summary>IrValue holding the entry index (0 if unconnected).</summary>
+    IrValue IndexValue,
+    /// <summary>8-char hex prefix of the node ID (helper / struct names).</summary>
+    string NodeId8,
+    /// <summary>Name of the generated result struct type.</summary>
+    string ResultStructTypeName,
+    /// <summary>The sensor kind (<c>SensorModality</c> value).</summary>
+    byte Kind,
+    /// <summary>FQN of the result component on the sensor child.</summary>
+    string ResultComponentFqn,
+    /// <summary>FQN of one entry.</summary>
+    string ElementTypeFqn
+) : IrOperation;
+
+/// <summary>
 /// Emitted by Stage 5 when a ReadRankedResultNode output pin is first resolved.
 /// Stage 7 emits an [AggressiveInlining] helper + result struct per node.
 /// </summary>

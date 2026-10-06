@@ -1310,6 +1310,14 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_ReadSensorResult op:
+            {
+                // ⭐ CE-3078 N2 — the per-node helper (InstanceEmitter); its fields are read by IrOp_FieldRead.
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = ReadSensorResult_{op.NodeId8}({wv}, self, __t{op.IndexValue.Index});");
+                break;
+            }
+
             case IrOp_ReadRankedResult op:
             {
                 if (idx >= 0)

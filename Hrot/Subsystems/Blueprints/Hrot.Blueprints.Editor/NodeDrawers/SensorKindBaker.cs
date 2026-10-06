@@ -1,0 +1,68 @@
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Sensors;
+using Hrot.Blueprints.Core.Assets;
+
+namespace Hrot.Blueprints.Editor.NodeDrawers;
+
+/// <summary>
+/// ⭐ <c>CE-3078</c> (D1) — bakes a sensor kind's types from the toolkit's <see cref="SensorKindRegistry"/> into the
+/// <see cref="SensorKindDecl"/> the sensor nodes carry. The ONLY reader of the registry on the blueprint side: the compiler
+/// (netstandard2.0) cannot reference it, so every kind fact rides in the asset (the <c>GetComponent</c> CA-01 precedent).
+/// 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.10a.
+/// </summary>
+public static class SensorKindBaker
+{
+    /// <summary>The decl for <paramref name="kind"/>; null when the kind is not registered.</summary>
+    public static SensorKindDecl? Bake(SensorModality kind)
+    {
+        if (!SensorKindRegistry.TryGet(kind, out var info)) return null;
+        var elementFqn = info.ElementType.FullName!;
+        var decl = new SensorKindDecl
+        {
+            Kind               = (byte)kind,
+            KindName           = KindName(kind),
+            Family             = info.Family.ToString(),
+            ResultComponentFqn = info.ResultComponent.FullName!,
+            ElementTypeFqn     = elementFqn,
+        };
+        foreach (var f in info.ElementType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+            decl.ElementFields.Add(new ComponentFieldDecl { Name = f.Name, TypeId = PinTypeId(f.FieldType) });
+        return decl;
+    }
+
+    /// <summary>An enum pin is spelled <c>global::Ns.Enum</c> (a bare FQN is <c>BP1500</c>) — the <c>NodePinSchema</c> rule.</summary>
+    private static string PinTypeId(Type type)
+        => type.IsEnum ? "global::" + (type.FullName ?? type.Name).Replace('+', '.') : type.FullName ?? type.Name;
+
+    /// <summary>The kind as an author reads it (<c>"EqsQuery"</c> for kind 0, which carries no modality).</summary>
+    public static string KindName(SensorModality kind)
+        => kind == SensorKindRegistry.EqsQuery ? "EqsQuery" : kind.ToString();
+}
+
+/// <summary>⭐ <c>CE-3078</c> — palette entries for the per-kind sensor nodes, one per registered kind (D5).</summary>
+public static class SensorPaletteEntries
+{
+    /// <summary>The palette category of the sensor nodes (beside the ranked EQS nodes).</summary>
+    public const string Category = "EQS";
+
+    /// <summary>N2 — "Read Sensor Result: {kind}" for every registered kind, ranked included (D5).</summary>
+    public static IEnumerable<NodeKindDescriptor> ReadEntries()
+    {
+        foreach (var info in SensorKindRegistry.All)
+        {
+            var kind = info.Kind;
+            if (kind == SensorKindRegistry.EqsQuery) continue;   // a query sensor is read through its variable (ReadEqsResult)
+            var name = SensorKindBaker.KindName(kind);
+            yield return new NodeKindDescriptor
+            {
+                Kind        = $"Sensor.Read.{name}",
+                DisplayName = $"Read Sensor Result: {name}",
+                Category    = Category,
+                Tooltip     = $"Read entry Index of the unit's {name} sensor ({info.Family} family): IsReady, Count, AnswerTick and one pin per field of {info.ElementType.Name}.",
+                Icon        = "icons/eqs_read.svg",
+                // Re-bake per placed node so each node owns its decl (never one list shared across nodes).
+                CreateInstance = () => new ReadSensorResultNode { Id = Guid.NewGuid(), Decl = SensorKindBaker.Bake(kind) },
+            };
+        }
+    }
+}

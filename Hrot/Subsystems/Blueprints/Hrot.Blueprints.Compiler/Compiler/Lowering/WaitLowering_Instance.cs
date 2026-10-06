@@ -725,7 +725,7 @@ internal static class WaitLowering_Instance
                 case IrOp_PureCall: case IrOp_HasComponent: case IrOp_GetComponentRO: case IrOp_FieldRead:
                 case IrOp_Compare: case IrOp_BinaryOp: case IrOp_BooleanOp: case IrOp_Not:
                 case IrOp_MakeStruct: case IrOp_MakeTuple: case IrOp_TupleField: case IrOp_FormatString:
-                case IrOp_ReadEqsResult: case IrOp_ReadRankedResult:
+                case IrOp_ReadEqsResult: case IrOp_ReadRankedResult: case IrOp_ReadSensorResult:
                 case IrOp_DebugProbe_NodeEnter: case IrOp_DebugProbe_PinValue:
                     break;
                 default:

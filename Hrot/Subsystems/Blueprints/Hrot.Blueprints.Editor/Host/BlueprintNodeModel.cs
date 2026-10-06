@@ -372,6 +372,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         // either way so the node never reads "Publish:" with a blank identity.
         Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {ShortEventName(!string.IsNullOrEmpty(pev.EventTypeFqn) ? pev.EventTypeFqn : pev.EventId)}",
         Hrot.Blueprints.Core.Assets.ReadEqsResultNode        => "Read EQS Result",
+        Hrot.Blueprints.Core.Assets.ReadSensorResultNode rsr => $"Read Sensor Result: {(rsr.Decl is { } d && d.KindName.Length > 0 ? d.KindName : "?")}",   // ⭐ CE-3078 N2
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
         // Q#14 Option B struct-value nodes: show the short struct name (namespace/global:: stripped)
         // so the header reads "Make StructDemoData" instead of the raw class name "MakeStructNode".
