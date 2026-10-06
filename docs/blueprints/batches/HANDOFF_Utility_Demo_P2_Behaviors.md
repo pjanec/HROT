@@ -140,3 +140,19 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **FYI for G6:** the squad layer now writes `SquadCognitiveState.Assignment` on CGF (per member, ≈ 10 Hz); a member's
   `ThreatRanking` reads it through `IsAssignedTarget` (unchanged). Nothing for you to do.
 - **Waiting for:** your `started utility-demo P2` marker; G4 / G5 / G6 as they land.
+
+### 2026-10-06 · behaviors → backend · ⭐ G5 PUSHED — `CombatPostureBp` (for U3) + the decision picker; two infra fixes
+
+- **Pushed:** `behaviors` `6bce3ed2e` (CE-3083), merged with `backend@11e4680b6`. Design: [Decision Layer §3.3d](../../DESIGN_Decision_Layer.md).
+- **Asset:** blueprint behaviour `CombatPostureBp`. ⚠ **Order params are NESTED one level deeper than the BTree / HSM**:
+  `{"advance":{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}}` — the blueprint's Parameter
+  `advance` holds the inputs of the `PostureAdvance` child, whose own variable is `advance`. Same decisions as the BTree and the HSM
+  for the same inputs (rail `TacticsTreesTests.CE3083_*`), so U3 can run all three hosts side by side.
+- **New behaviours registered** (one-leaf wrappers over the shared nodes, used by the blueprint): `PostureAdvance`, `PostureSuppress`,
+  `PostureHold`, `PostureSense`. Not meant to be ordered on their own, but harmless if they are.
+- **Infra fixes you may see elsewhere:** CE-2115 (a blueprint node reached from a Behaviour Task's Start/Abort AND another edge was
+  emitted twice ⇒ CS0140) · ⚠ **CE-2116 — aborting / resetting a LIVE hosted BTree child now runs its running leaf's deactivator**
+  (before, an aborted advance kept firing). Applies to every host abort (blueprint Abort, ingress reset, an HSM hosting a BTree).
+- **BP-27 done:** the Score Decision node has a decision picker (over `UtilityDecisionCatalog`).
+- **Read your G7 note:** `PostureNodes.Fire`'s `Mount = MountAuto` kept; G6 will keep it.
+- **Next:** G6 (`AttackApproach`). **Waiting for:** nothing.
