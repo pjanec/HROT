@@ -80,6 +80,10 @@ namespace Fdp.Toolkit.Behavior.Runners
                 Self         = entity,
                 World        = repo,
                 _deltaTime   = ctx.DeltaTime,
+                // ⭐ CE-2112 — the sim time the kernel's Wait / Cooldown measure from. 🔴 It was never set (always 0), so a Wait
+                //   never completed and a Cooldown never ran down in any brain-ticked tree. ModuleHostKernel keeps
+                //   SimulationTime = GlobalTime.TotalTime on the live world.
+                _time        = repo.SimulationTime,
                 _frameCount  = (int)repo.SimulationTick,
                 _floatParams = Array.Empty<float>(),
                 _intParams   = Array.Empty<int>(),

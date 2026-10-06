@@ -394,6 +394,30 @@ public sealed class BTreeJsonGeneratorTests
             "the reflected compiled layout, or bin-packed offsets drift and corrupt AAR/replay schemas");
     }
 
+    /// <summary>
+    /// 🔴 <c>CE-2111</c> — a node kind the DTO accepts but the emitter does not emit (a decorator authored as a NODE, e.g.
+    /// <c>"kind": "UntilSuccess"</c>) must FAIL THE BUILD, not vanish: it used to become a <c>// Unknown node type</c> comment
+    /// and its whole subtree silently dropped out of the tree (found by the Sentry tree, CE-3079 H2). A decorator is a PILL.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]   // directly under the root
+    [InlineData(true)]    // inside a composite
+    public void CE2111_ADecoratorAuthoredAsANodeKind_EmitsAnError_NotASilentComment(bool underComposite)
+    {
+        Guid root = Guid.NewGuid(), seq = Guid.NewGuid(), until = Guid.NewGuid(), wait = Guid.NewGuid();
+        var dto = new BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "Ce2111", TargetNamespace = "Ce2111.Trees" };
+        dto.Nodes.Add(new BTreeRootNodeDto { VisualId = root, ChildVisualIds = { underComposite ? seq : until } });
+        if (underComposite) dto.Nodes.Add(new BTreeSequenceNodeDto { VisualId = seq, ChildVisualIds = { until } });
+        dto.Nodes.Add(new BTreeUntilSuccessNodeDto { VisualId = until, ChildVisualIds = { wait } });
+        dto.Nodes.Add(new BTreeWaitNodeDto { VisualId = wait, Wait = new BTreeWaitPayloadDto { Duration = 1f } });
+
+        string code = BTreeEmitCore.EmitTopologyCore(dto);
+
+        code.Should().Contain("#error", "an unemitted node kind must stop the build");
+        code.Should().Contain(until.ToString("D"), "the error names the node");
+        code.Should().NotContain("// Unknown node type").And.NotContain("// Unsupported node type");
+    }
+
     [Fact]
     public void EmitTopologyCore_IsDeterministic()
     {

@@ -1,0 +1,32 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3079000-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class Sentry
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.UntilSuccess(d4 => d4
+                    .Condition("Fdp.Toolkit.Behavior.SensorNodes.ThreatsAtLeast@0",
+                        visualId: new Guid("c3079000-0000-0000-0000-000000000004")),
+                    visualId: new Guid("c3079000-0000-0000-0000-000000000006"));
+                seq.Wait(15f,
+                    visualId: new Guid("c3079000-0000-0000-0000-000000000005"));
+            },
+                visualId: new Guid("c3079000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("Sentry", AssetId = "a3079000-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("Sentry");
+}

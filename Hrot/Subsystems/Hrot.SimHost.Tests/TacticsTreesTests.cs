@@ -248,6 +248,74 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
 
+        // ── ⭐ CE-3079 H2 — the Sentry tree (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.5) ──────────────────────────────────
+
+        /// <summary>Puts the unit at <paramref name="x"/>,0 and remembers one ARMED contact at (<paramref name="cx"/>, 0).</summary>
+        private static unsafe Entity SentryAt(World w, float x, float cx)
+        {
+            if (!w.Repo.HasComponent<Fdp.Core.SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new Fdp.Core.SimTransform());
+            w.Repo.GetComponentRW<Fdp.Core.SimTransform>(w.Unit).Position = new Vector3(x, 0f, 0f);
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[mem.Count - 1] = cx;
+            return enemy;
+        }
+
+        /// <summary>
+        /// 🔴 <c>CE-3079</c> H2 — the Sentry run ENDS (Success) only after a dangerous contact is within its radius (90 m) AND
+        /// the 15 s wait has run; a contact farther away keeps it watching. It never writes the weapon channel (no fire node).
+        /// </summary>
+        [Fact]
+        public void CE3079_Sentry_EndsOnlyAfterAContactIsNear_AndTheWaitElapses_AndNeverFires()
+        {
+            var w = new World();
+            w.Arm();
+            Assert.True(w.Registry.TryGetId("Sentry", out _), "Sentry must be registered so a mission task can name it");
+            SentryAt(w, 0f, 150f);                                    // an armed contact 150 m away: outside 90 m
+            w.Order("Sentry");
+            for (int i = 0; i < 1200; i++) { w.Tick(); Assert.False(w.Finished(out _), $"must keep watching while the contact is far (tick {i})"); }
+            Assert.Equal("Sentry", w.TaskName);
+
+            unsafe { w.Repo.GetComponentRW<TargetMemory>(w.Unit).PositionsX[0] = 60f; }   // it comes within 90 m
+            int ticks = 0;
+            bool done = false; Fbt.NodeStatus result = default;
+            while (!done && ticks < 2000) { w.Tick(); ticks++; done = w.Finished(out result); }
+            Assert.True(done, "the run must end once the contact is near and the wait has run");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            Assert.True(ticks * 0.016 >= 14.9, $"it must wait the 15 s first; ended after {ticks * 0.016:F1} s");
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.Equal(0u, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActionInstanceId);   // never written
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3079</c> H2 — the point of the Sentry: a two-task mission ([Sentry, BehaviorFinished] → [next, BehaviorFinished])
+        /// hands over to task 2 when the Sentry ends itself — the scenario's "sequencing of actions" (§10.5).
+        /// </summary>
+        [Fact]
+        public void CE3079_ATwoTaskMission_AdvancesFromSentry_WhenItEndsItself()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId("Sentry", out int sentry));
+            Assert.True(w.Registry.TryGetId("FallBack", out int next));
+            var queue = new MissionPlanQueue { PhaseCount = 2 };
+            queue.Phases[0] = new MissionPhase { BehaviorId = sentry, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Phases[1] = new MissionPhase { BehaviorId = next,   Trigger = MissionTrigger.BehaviorFinished };
+            w.Repo.AddComponent(w.Unit, queue);
+            var director = new MissionDirectorSystem();
+            SentryAt(w, 0f, 30f);                                     // a contact already near
+            w.Order("Sentry");
+
+            int ticks = 0;
+            while (w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentPhase == 0 && ticks < 2000)
+            {
+                w.Tick();
+                director.Execute(w.Repo, 0.016f);
+                ticks++;
+            }
+            Assert.Equal(1, w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentPhase);
+            Assert.True(ticks * 0.016 >= 14.9, $"task 2 only after the Sentry's wait; advanced after {ticks * 0.016:F1} s");
+        }
+
         [Fact]
         public void CE2092_TakeCover_Ordered_MovesToTheAnswer_AndEndsWhenNothingIsLeftToHideFrom()
         {

@@ -662,7 +662,9 @@ public static class BTreeEmitCore
                 EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
-                sb.AppendLine($"{pad}// Unsupported node type: {node.GetType().Name}");
+                // ⭐ CE-2111 — fail LOUDLY: a comment silently dropped the node (and its subtree) from the tree. A decorator
+                //   is authored as a PILL on its host node, never as a node kind (the DTO still accepts those kinds).
+                sb.AppendLine($"#error BTree node kind {node.GetType().Name} is not emitted (visual {node.VisualId:D}) — author a decorator as a pill on its host node");
                 break;
         }
     }
@@ -763,7 +765,9 @@ public static class BTreeEmitCore
                 EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
-                sb.AppendLine($"{pad}// Unknown node type: {node.GetType().Name}");
+                // ⭐ CE-2111 — fail LOUDLY: a comment silently dropped the node (and its subtree) from the tree. A decorator
+                //   is authored as a PILL on its host node, never as a node kind (the DTO still accepts those kinds).
+                sb.AppendLine($"#error BTree node kind {node.GetType().Name} is not emitted (visual {node.VisualId:D}) — author a decorator as a pill on its host node");
                 break;
         }
     }
