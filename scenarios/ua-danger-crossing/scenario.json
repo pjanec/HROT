@@ -63,8 +63,8 @@
     "a3079000-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          310,
-          222,
+          370,
+          212,
           0
         ],
         "Rotation": [
@@ -99,7 +99,7 @@
               "taskId": "b3079000-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "Sentry",
-              "behaviorParams": "{\"sentry\":{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":80}}",
+              "behaviorParams": "{\"sentry\":{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -111,7 +111,7 @@
               "taskId": "b3079000-0000-4000-8000-000000000003",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"x\":295,\"y\":320,\"speed\":2,\"arrivalRadius\":2}",
+              "behaviorParams": "{\"x\":395,\"y\":290,\"speed\":2,\"arrivalRadius\":2}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

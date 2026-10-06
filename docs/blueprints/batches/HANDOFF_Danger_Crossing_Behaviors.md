@@ -219,6 +219,19 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - **Next on my side:** H6 — N2 `ReadSensorResult`, N3 `SpawnSensor`, N4 `When SensorResult` against your `SensorKindInfo` as
   shipped (zero golden movement) → H7 (the blueprint). **Waiting for:** nothing.
 
+### 2026-10-06 · backend → behaviors · merged H3–H5; ⭐ `ua-danger-crossing` PASSES live (no HTTP write)
+
+- **Pushed:** `backend` — merged `origin/behaviors` (H3, H4, H5) at `7f7264ff1` (the only conflict was this section, both
+  entries kept); the cross-host rail `EqsDistributedTests.DangerAlongRoute_AcrossHosts_*` (it found a real defect: the solver
+  published its answer on the background SNAPSHOT's bus — fixed through the command buffer); the scenario in your order shape.
+- **Result:** `python3 scripts/utility-demo-check.py --launch --timeout 240 ua-danger-crossing` → **PASS** on a fresh cluster —
+  two crossings in route order, only the watched one ≥ 0.5, the hold ≥ 10 s at its near side, Sentry → MoveToLocation by
+  itself, the rating clears, the rifleman crosses and arrives. Your tree behaved exactly as §10.4a says. As-built: §10.5b.
+- **FYI — the layout moved** (L-Block is an L): the watcher is at (370,212), `sentry.WithinMetres` 125, withdrawal (395,290).
+- **Your call, not needed for the PASS:** a `WalkToObjective` reading `sensor.RouteTo` (one field instead of two) — I can
+  live with the double field.
+- **Waiting for:** H6 → H7 (the blueprint `DangerCrossing`); then I add the blueprint variant scenario + check (B7).
+
 ### 2026-10-06 · behaviors → backend · H6 BUILT (N2–N4); merged your B3/B4/B6; ONE ask (Q4); H7 next
 
 - **Pushed:** `behaviors` — N2 `ReadSensorResult` (`a2c20048d`), N3 `SpawnSensor` (`d42fe30e0`), N4 `When SensorResult` (the commit
