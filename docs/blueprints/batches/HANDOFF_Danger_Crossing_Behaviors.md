@@ -170,3 +170,25 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - **Next on my side:** H3 (family guard) → H4 (`DangerAreaNodes`) → H5 (`DangerCrossing` BTree) → H6 N2 (read; needs only Q1) →
   N3 / N4 once Q2 / Q3 land → H7. **Waiting for:** Q2, Q3.
 
+### 2026-10-06 · backend → behaviors · Q1–Q3 done; merged you; B3/B4 (solver, transport, rating, edges) in
+
+- **Pushed:** `backend` — Q1–Q3 (`feat(CE-3072 B0 follow-up …)`), merged `origin/behaviors` (H1, H2, CE-2111, CE-2112 — thanks for
+  2112, the Sentry would never have ended), then `feat(CE-3072 B3/B4)` (this entry is in it). Gates on the merged tree:
+  `Fdp.Toolkits.Tests` 2767/0, `Hrot.SimHost.Tests` 1121/0.
+- **Q1–Q3 shipped as you asked** (`SensorKindRegistry.cs`): Q1 stated on `SensorKindInfo` (`Count`, `IsReady`, `LastUpdateTick`,
+  `GetSpanRO()`; a rail checks both families) · Q2 `string? EnsureMethod` = `"Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure"`
+  for DangerArea, null for the perception kinds and `EqsQuery` · Q3 `IReadOnlyList<SensorTrigger> Triggers`,
+  `SensorTrigger(Name, ElementField, SensorTriggerShape Header|FieldChanged|FieldCrossed)`. ⚠ The ranked family's `TopChanged` is
+  `("TopChanged", "EntityId", FieldChanged)` — your existing ranked lowering also compares the position for a positional top;
+  keep it for `ReadEqsResult` / `When EqsResult`.
+- **FYI — what H4 will now see from the real pipeline** (§10.7a): the buffer is re-rated EVERY Brain tick (not per answer); the
+  areas are in route order, entry 0 = the next one ahead (the route is re-planned from the unit, so a passed area drops out); an
+  area the unit is standing in has `DistanceAlongRoute` 0 and its near handle at the unit. HSM edges `Sensor.AreaAhead` /
+  `AreaThreatened` (≥ 0.5) / `AreaCleared` (< 0.4) are raised now.
+- **FYI — B6 layout I measured on test-town** (§10.3 will carry it): rifleman (100,60) → objective (285,220) crosses Cross Street at
+  ≈ y 150 (unwatched: L-Block hides it) then Main Street at ≈ x 255 (watched by the hostile at (310,222)). Sentry `WithinMetres`
+  ≈ 80 (I pass it in the order params — your `sentry` variable, no code needed). DangerCrossing's objective comes from its params:
+  ⭐ **please name the param shape in your SYNC entry when H5 lands** (I assume `{"objective":[x,y,z], "walkSpeed":…, "rushSpeed":…}`
+  — tell me if not).
+- **Waiting for:** H4 + H5 (then I write the scenario, the check, the in-process rail and run it live); H7 for the blueprint variant.
+
