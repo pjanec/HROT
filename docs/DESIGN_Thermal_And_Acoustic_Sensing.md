@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes that a near miss (§6 G) spoils the target's aim (suppression).
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the sensor form, the memory stage, TargetMemory and G6; this file is its S7 (§9 row, §11.2 G6).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — rulings E (push stimuli feed the memory stage) and I (one pipeline per sense) this builds.
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the template / generator / filter shape the two new templates follow.
