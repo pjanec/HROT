@@ -1292,6 +1292,91 @@ public sealed class WhenNodeRuntimeTests
             "a new answer under the same epoch crossing 0.7 must fire");
     }
 
+    // ⭐⭐ CE-2113 — the FIRST answer is compared, against a zeroed "previous": TopChanged fires on the first top (the
+    //   design's own acceptance: "fires on first result"), ScoreCrossed fires when the
+    //   first top is already over the threshold (from "below", as N4's FieldCrossed). And a fire RECORDS the answer, so
+    //   the same answer on the next tick does not fire again. 📄 When v2.2 §6.5/§6.7 (as-built).
+    [Theory]
+    [InlineData(EqsTrigger.TopChanged)]
+    [InlineData(EqsTrigger.ScoreCrossed)]
+    public void CE2113_FirstAnswer_Fires_Once(EqsTrigger trigger)
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(trigger, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.9f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+
+        fixture.TickFrame(0.016f);
+        Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: the first answer (top 7, score 0.9 ≥ 0.7) must fire");
+
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: the same answer on the next tick must not fire again — the fire must record it");
+    }
+
+    [Theory]
+    [InlineData(EqsTrigger.TopChanged)]
+    [InlineData(EqsTrigger.ScoreCrossed)]
+    public void CE2113_AFireOnALaterAnswer_IsRecorded_NoRefire(EqsTrigger trigger)
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(trigger, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+
+        var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.9f };
+        fixture.World.SetComponent(childEntity, buffer2);
+        fixture.TickFrame(0.016f);
+        ResetBoolField(fixture, asset, parentEntity, "WasFired");
+
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            $"{trigger}: after firing on answer 2, the same answer must not fire again on the next tick");
+    }
+
+    [Fact]
+    public void CE2113_ScoreCrossed_FirstAnswerBelow_DoesNotFire()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+
+        var (asset, _, sensorVarName) = BuildEqsResultAsset(EqsTrigger.ScoreCrossed, scoreThreshold: 0.7f);
+        fixture.CompileAndLoad(asset);
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
+        WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
+        fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
+            "a first answer below the threshold is not a crossing");
+    }
+
     [Fact]
     public void EqsResult_BecomesStale_UsesSimTimeNotTicks()
     {

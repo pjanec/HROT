@@ -1,3 +1,12 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06
+current-answer: §6.4a (the EQS triggers as built — per answer, first answer compared); the rest of §6 for structure
+stale-below: §6.3 (epoch gate — superseded by CE-2089's per-answer gate) · the `prev.LastEvaluatedEpoch != 0` guard in §6.5/§6.7 code and bullets (superseded by CE-2113)
+known-rot: §6.5/§6.7 show OnFired INLINE; the lowering jumps to a separate block (`goto __block_N`) and never returns
+related-designs:
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.9 owns the per-answer gate (CE-2089); §7.10 owns When SensorResult (N4), the generic successor
+-->
 # When-Node Reactivity Iteration — Design (v2.2)
 
 > ⚠ **Implementation status (2026-08-06) — the design shipped; the authoring surface only partly did.**
@@ -877,7 +886,22 @@ Key points:
 - **`buffer.GetSpanRO()`** — inline-array-safe
 - **`top.EntityId != 0L ? top.EntityId : HashCode.Combine(top.PositionX, top.PositionY)`** — on-the-fly identity hash
 - **`prev.LastEvaluatedEpoch != 0` guard** inside the comparison prevents the initial epoch transition from firing TopChanged
-- **`prev.PrevTopId` updated unconditionally on each new epoch** — correct baseline for next detection
+- **`prev.PrevTopId` updated unconditionally on each new epoch** — correct baseline for next detection  *(⛔ the `!= 0` guard above is SUPERSEDED — §6.4a)*
+
+### 6.4a ⭐ AS BUILT (`2026-10-06`, CE-2113) — the EQS triggers compare the FIRST answer, and record BEFORE firing
+
+| | as built | ⛔ superseded |
+|---|---|---|
+| gate | once per ANSWER (`buffer.LastUpdateTick`, CE-2089, [Sensors §7.9](../DESIGN_Sensors_And_Doctrine.md)) | once per `sensor.Epoch` (§6.3) |
+| first answer, **TopChanged** | ⭐ **fires** (compared against `PrevTopId = 0`, "no top") | skipped by `prev.LastEvaluatedEpoch != 0` |
+| first answer, **ScoreCrossed** | ⭐ **fires when already ≥ threshold** (from "below", as N4's `FieldCrossed`); a first answer below fires nothing | skipped by the same guard |
+| state update | ⭐ `PrevTopId` / `PrevTopScore` / `LastEvaluatedEpoch` written **before** the `goto` to OnFired / OnEnded | written after the fire — but the fire is a jump to a separate block that never returns, so the answer was never recorded and **the same answer re-fired every tick** |
+
+Why: this design's own acceptance (`CoverAwarePatrol_FullScenario`, §15) says a `TopChanged` `When` *"fires on first
+result"*, and a cover already over the threshold at first sight was otherwise never "crossed" until it dipped and rose.
+⚠ No shipped blueprint used either trigger (both `CoverAwarePatrol.bp.json` copies are unwired 5-node stubs, 0 links), so
+both defects were latent. ⛔ Rejected: keep the skip and pair with `FirstReady` (the acceptance says otherwise).
+Rails: `WhenNodeRuntimeTests.CE2113_*` (5).
 
 ### 6.6 Lowered code — FirstReady trigger
 
