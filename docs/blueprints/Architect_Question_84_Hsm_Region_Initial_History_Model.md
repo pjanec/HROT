@@ -1,10 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06
-current-answer: §6 — ⛔ A1 WITHDRAWN 2026-10-06. Regions stay as designed (a composite holds named regions, each a
-  sub-state machine with its own initial state); the defect is the COMPILER, which ignores declared regions. B is back
-  to "the region's initial child". B (circle + arrow), C1, D1 approved. §0-§3 are reasoning from the IMPLEMENTATION and
-  are superseded where §6 says so.
+updated: 2026-10-06 (all answered)
+current-answer: §6 — ALL DECIDED 2026-10-06: A0 (regions stay as designed; fix compiler + emitter), B (region's
+  InitialChild for parallel, child IsInitial for plain composite; circle + arrow, incl. top level), C1 (history on the
+  composite), D1 (migrate HsmShowcase.HistoryPseudo). §0-§3 superseded where §6 says so.
 stale-below: nothing
 known-rot: none
 known-conflict: HSM_Editor_NodeEditor_Host_Design.md §6.2 (regions as editor objects holding several states) and §8.2
@@ -217,8 +216,8 @@ machine with a start circle, and states inside a region run in sequence. The edi
 
 | | |
 |---|---|
-| **A** | ⛔ **A1 withdrawn.** ⭐ **A0 (new lean): keep the regions as designed and fix the compiler + emitter** (above). No asset migration for regions; `HsmCuratedBindingDemo` becomes correct by the fix |
-| **B** | ✅ approved — circle + arrow to the first state; owner per the item 3 above (my first lean, which §0 wrongly retracted) |
+| **A** | ⛔ **A1 withdrawn.** ✅ **A0 APPROVED `2026-10-06`** (🔒 *"Regions: OK"*): **keep the regions as designed and fix the compiler + emitter** (above). No asset migration for regions; `HsmCuratedBindingDemo` becomes correct by the fix |
+| **B** | ✅ approved, re-confirmed after §6 (🔒 *"Initial state: OK"*) — circle + arrow to the first state; owner per the item 3 above (my first lean, which §0 wrongly retracted) |
 | **C** | ✅ C1 approved — history as a composite property |
 | **D** | ✅ D1 approved — narrowed to the history migration (`HsmShowcase.HistoryPseudo`) |
 | **E** | moot — the library's region commands keep doing what they do |

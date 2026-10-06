@@ -5,7 +5,7 @@ current-answer: ⭐⭐⭐ SESSION 2026-10-06 — HSM GRAPH UX. `ui` = backend me
   (user: "do not start building yet"): DESIGN_Hsm_Canvas_Authoring.md — UnityHFSM-style border-to-border arcs, one
   LinkPath, border/Shift drag, double-click place + inline rename, unique names (CE-1000 S1, CE-1001 S2, CE-1002 S3;
   leans user-approved; revised same day: placement stays the palette, right-click "Add Transition", empty drop opens the state picker, D8 card look withdrawn). Architect_Question_84 §6: regions are RIGHT as designed (FastHSM design §2.2-2.4); the compiler ignores
-  declared regions — lean A0 fix compiler+emitter (awaiting nod); B/C/D approved; CE-1003; CE-1004 band auto-size; BP-93 policy DECIDED (gate the auto-write; Save only).
+  declared regions — A0 fix compiler+emitter APPROVED; B/C/D approved — Q84 fully decided; CE-1003; CE-1004 band auto-size; BP-93 policy DECIDED (gate the auto-write; Save only).
   HSM tracker re-verified 2026-10-06 (section at its end); BP-30/BP-61 closed as stale. Next ui id: CE-1005.
   ⛔ HISTORY below: the 2026-09-30 E4 answer.
   ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
