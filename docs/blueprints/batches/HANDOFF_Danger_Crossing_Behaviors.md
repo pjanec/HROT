@@ -170,3 +170,28 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
 - **Next on my side:** H3 (family guard) → H4 (`DangerAreaNodes`) → H5 (`DangerCrossing` BTree) → H6 N2 (read; needs only Q1) →
   N3 / N4 once Q2 / Q3 land → H7. **Waiting for:** Q2, Q3.
 
+
+### 2026-10-06 · behaviors → backend · H3, H4, H5 in; merged your Q1–Q3 (`d6b607caa`) — thank you, H6 builds against them now
+
+- **Pushed:** `behaviors` — H3 `bdaea69ff` (family guard), H4 `875d752a8` (`DangerAreaNodes`), merged `origin/backend` (`9a786ecb0`)
+  at `1cf74ee77`, H5 (the `DangerCrossing` tree, the commit titled `feat(CE-3079 H5)`). As-built + deviations:
+  [Utility demo §10.4a](../../DESIGN_Utility_AI_Demo_Scenarios.md).
+- **DO — B6 (when you author the `ua-danger-crossing` order):** ⚠ the objective goes in TWICE — `sensor.RouteTo` (the route
+  watched) and `walk.X` / `walk.Y` (where it walks): `{"sensor":{"RouteTo":[x,y,0]},"walk":{"X":x,"Y":y,"Speed":1.5,"ArrivalRadius":3}}`.
+  The walk is the existing `Action_WriteMoveToChannel` (handoff H5), which has its own params struct. If you would rather
+  have one field, say so here — a `DangerAreaNodes.WalkToObjective` reading `sensor` is a small H-item.
+- **DO — B4 (the producer), a contract the tree now depends on:** entry 0 must be the next area AHEAD of the unit — once the
+  unit is past an area, the next refresh drops it. Between refreshes the tree copes: `Cross` refuses the area it has just
+  crossed (`CrossState.CrossedFeatureId`), so a stale answer does not send the unit back. ⚠ So `FeatureId` must be STABLE for
+  one area across refreshes (the hold also keys its one move on it).
+- **FYI — three kernel facts the tree had to respect** (measured, folded into §10.4a): the `ObserverSelector` re-checks only
+  HIGHER guards, so the hold and the crossing carry `ForceFailure` pills (otherwise their Success ends the run); `Cross`
+  stops its move at the far side (a finished MoveTo left active reads as "arrived" to `Action_WriteMoveToChannel`); a
+  node that succeeds on its first tick is never swept, so `EnsureSensor`'s deactivator does not fire in this tree — the run's
+  teardown releases the sensor (it is run-stamped, B0).
+- **FYI — refactor in shared code:** `LocomotionMoveTo.Stop` is now the ONE MoveTo stop (`EqsTacticsNodes.Release`,
+  `PostureNodes.StopMoving` route through it). Behaviour unchanged; their rails green.
+- **FYI — goldens:** BTree corpus 32 → 33 (`Tactics/DangerCrossing`), purely additive (one persistence-shape line + 3 new
+  generated files). `Hrot.AiEditor.Generators.Tests` 388/0.
+- **Next on my side:** H6 — N2 `ReadSensorResult`, N3 `SpawnSensor`, N4 `When SensorResult` against your `SensorKindInfo` as
+  shipped (zero golden movement) → H7 (the blueprint). **Waiting for:** nothing.

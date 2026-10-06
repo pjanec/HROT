@@ -316,6 +316,96 @@ namespace Hrot.SimHost.Tests
             Assert.True(ticks * 0.016 >= 14.9, $"task 2 only after the Sentry's wait; advanced after {ticks * 0.016:F1} s");
         }
 
+        // ── ⭐ CE-3079 H5 — the DangerCrossing tree (docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.4) ───────────────────────────────
+
+        private const string Crossing = "{\"sensor\":{\"RouteTo\":[300,300,0]},\"walk\":{\"X\":300,\"Y\":300,\"Speed\":1.5,\"ArrivalRadius\":3}}";
+
+        private static Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor Area(uint id, float threat, float along,
+            Fdp.Toolkit.Squad.DangerArea.DangerAreaKind kind = Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing)
+            => new()
+            {
+                FeatureId = id, ThreatRating = threat, Kind = kind, DistanceAlongRoute = along,
+                NearSideHandle = new Vector3(100f + id, 100f, 0f), FarSideHandle = new Vector3(120f + id, 100f, 0f),
+            };
+
+        private static void DangerAnswer(World w, Entity sensor, uint tick, params Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[] areas)
+        {
+            var buf = new Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer { Count = areas.Length, LastUpdateTick = tick };
+            for (int i = 0; i < areas.Length; i++) buf.GetSpanRW()[i] = areas[i];
+            w.Repo.SetComponent(sensor, buf);
+        }
+
+        /// <summary>One frame, with the MoveTo executor's half emulated: a NEW action instance enters Running (its <c>OnEnter</c>).</summary>
+        private static void Step(World w)
+        {
+            uint before = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            w.Tick();
+            ref var ch = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Unit);
+            if (ch.ActionInstanceId != before && ch.ActiveAction == NavigationConstants.ActionIdMoveTo) ch.Status = Fbt.NodeStatus.Running;
+        }
+
+        private static void Arrive(World w) => w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;
+
+        private static unsafe float Speed(World w)
+        {
+            ref readonly var ch = ref w.Repo.GetComponentRO<LocomotionChannel>(w.Unit);
+            fixed (byte* src = ch.Params) return ((MoveToParams*)src)->Speed;
+        }
+
+        /// <summary>
+        /// 🔴 <c>CE-3079</c> H5 — the shipped <c>DangerCrossing</c> tree through the real ingress and brain, against a HAND-FILLED
+        /// answer on the run's own sensor: it walks → rushes across a 0-threat crossing (and does not cross it again on the stale
+        /// answer) → walks on → holds short of a 0.8 crossing (and keeps holding at 0.45: hysteresis) → resumes when the route is
+        /// clear → arrives, and the run ends Success.
+        /// </summary>
+        [Fact]
+        public void CE3079_DangerCrossing_Walks_RushesACrossing_HoldsShortOfAWatchedOne_ThenArrives()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>()) w.Repo.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()) w.Repo.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            Assert.True(w.Registry.TryGetId("DangerCrossing", out _), "DangerCrossing must be registered so an order can name it");
+            w.Order("DangerCrossing", Crossing);
+            Step(w); Step(w); Step(w);
+            Assert.Equal("DangerCrossing", w.TaskName);
+
+            var sensor = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w.Repo, w.Unit, SensorModality.DangerArea);
+            Assert.False(sensor.IsNull, "the tree's first step makes the run's danger sensor");
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.RoutePoint);
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // no answer yet: walks
+            Assert.Equal(1.5f, Speed(w));
+
+            DangerAnswer(w, sensor, 1, Area(1, 0f, 10f));                               // an unwatched crossing, 10 m ahead
+            Step(w);
+            Assert.Equal(new Vector3(101f, 100f, 0f), w.Destination());               // rush: to the near side…
+            Assert.Equal(4.5f, Speed(w));
+            Arrive(w); Step(w);
+            Assert.Equal(new Vector3(121f, 100f, 0f), w.Destination());               // …and across
+            Arrive(w); Step(w);
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // walks on
+            Assert.Equal(1.5f, Speed(w));
+            for (int i = 0; i < 10; i++) Step(w);                                      // the stale answer still lists it:
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // ⛔ not crossed back
+
+            DangerAnswer(w, sensor, 2, Area(2, 0.8f, 50f));                             // a WATCHED crossing, 50 m ahead
+            Step(w);
+            Assert.Equal(new Vector3(102f, 100f, 0f), w.Destination());               // hold short: to its near side
+            Arrive(w);
+            for (int i = 0; i < 300; i++) { Step(w); Assert.False(w.Finished(out _)); }
+            DangerAnswer(w, sensor, 3, Area(2, 0.45f, 2f));                             // 0.45: still ≥ 0.5 − 0.1
+            for (int i = 0; i < 5; i++) Step(w);
+            Assert.Equal(new Vector3(102f, 100f, 0f), w.Destination());               // still holding
+
+            DangerAnswer(w, sensor, 4);                                                 // the route is clear
+            Step(w);
+            Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // resumes
+            Arrive(w);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 5 && !done; i++) { Step(w); done = w.Finished(out result); }
+            Assert.True(done, "arriving at the objective ends the run");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         [Fact]
         public void CE2092_TakeCover_Ordered_MovesToTheAnswer_AndEndsWhenNothingIsLeftToHideFrom()
         {

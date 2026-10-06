@@ -171,6 +171,32 @@ public sealed class DangerAreaNodesTests : System.IDisposable
         Assert.Equal(NodeStatus.Success, DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo));
     }
 
+    /// <summary>🔴 H5 — at the far side the crossing STOPS its move (a finished move left active reads as "arrived" to the tree's
+    /// next move), and until the sensor refreshes a stale answer still listing the crossed area does NOT send the unit back.</summary>
+    [Fact]
+    public void CE3079_Cross_StopsItsMoveAtTheFarSide_AndNeverRecrossesTheSameArea()
+    {
+        var sensor = Sensor();
+        Answer(sensor, 1, Area(1, 0f, 10f));
+        var p = new CrossParams { Speed = 5f, ArrivalRadius = 1f };
+        var ws = default(CrossState);
+        DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo);
+        _repo.GetComponentRW<LocomotionChannel>(_unit).Status = NodeStatus.Success;
+        DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo);
+        _repo.GetComponentRW<LocomotionChannel>(_unit).Status = NodeStatus.Success;
+        Assert.Equal(NodeStatus.Success, DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo));
+        Assert.Equal(0, _repo.GetComponentRO<LocomotionChannel>(_unit).ActiveAction);   // stopped at the far side
+
+        DangerAreaNodes.Deactivate_Cross(ref p, ref ws, _unit, _repo);                  // the tree moves on (the sweep)
+        uint instance = MoveInstance;
+        Assert.Equal(NodeStatus.Failure, DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo));   // the same (stale) area: no
+        Assert.Equal(instance, MoveInstance);                                                     // move back across it
+
+        Answer(sensor, 2, Area(2, 0f, 12f));                                             // the next area: crossed as usual
+        Assert.Equal(NodeStatus.Running, DangerAreaNodes.Cross(ref p, ref ws, _unit, _repo));
+        Assert.Equal(new Vector3(102f, 100f, 0f), Destination());
+    }
+
     [Fact]
     public void CE3079_LeavingTheTree_ReleasesTheSensor_AndAbortingACrossStopsIt()
     {

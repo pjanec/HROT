@@ -85,6 +85,13 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>The far side, captured at the start.</summary>
         public Vector3 FarSide;
+        /// <summary>The area being crossed (its <c>FeatureId</c>).</summary>
+        public uint FeatureId;
+        /// <summary>⭐ H5 — the area this run last crossed: until the sensor's next refresh the answer can still list it first, and
+        /// crossing it again would send the unit BACK. Kept across the node's exits; the run's end clears it.</summary>
+        public uint CrossedFeatureId;
+        /// <summary>1 once <see cref="CrossedFeatureId"/> is set.</summary>
+        public byte HasCrossed;
         /// <summary>0 = not started · 1 = going to the near side · 2 = going to the far side.</summary>
         public byte Phase;
     }
@@ -158,7 +165,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>
         /// Crosses the next area: to its near side, then across to its far side at <see cref="CrossParams.Speed"/>. Success at
-        /// the far side, or at once when no area is ahead. The handles are captured at the start.
+        /// the far side (the move is stopped there, so a following move starts fresh), or at once when no area is ahead. The
+        /// handles are captured at the start. Failure for the area this run has just crossed (a stale answer still listing it).
         /// </summary>
         [SharedAiAction]
         public static NodeStatus Cross(ref CrossParams p, ref CrossState ws, Entity self, EntityRepository world)
@@ -170,21 +178,26 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Running;
                 if (buffer.Count == 0) return NodeStatus.Success;
                 var area = buffer.GetSpanRO()[0];
+                if (ws.HasCrossed == 1 && area.FeatureId == ws.CrossedFeatureId) return NodeStatus.Failure;
                 if (!LocomotionMoveTo.Issue(world, self, area.NearSideHandle, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
                 ws.FarSide = area.FarSideHandle;
+                ws.FeatureId = area.FeatureId;
                 ws.Phase = 1;
                 return NodeStatus.Running;
             }
             var status = LocomotionMoveTo.Status(world, self);
             if (status == NodeStatus.Running) return NodeStatus.Running;
-            if (status == NodeStatus.Failure) { ws = default; return NodeStatus.Failure; }
+            if (status == NodeStatus.Failure) { Restart(ref ws); return NodeStatus.Failure; }
             if (ws.Phase == 1)
             {
                 if (!LocomotionMoveTo.Issue(world, self, ws.FarSide, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
                 ws.Phase = 2;
                 return NodeStatus.Running;
             }
-            ws = default;   // at the far side
+            LocomotionMoveTo.Stop(world, self);   // at the far side: a finished move left active would read as "arrived" to the next
+            ws.CrossedFeatureId = ws.FeatureId;
+            ws.HasCrossed = 1;
+            Restart(ref ws);
             return NodeStatus.Success;
         }
 
@@ -209,7 +222,15 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Cross(ref CrossParams p, ref CrossState ws, Entity self, EntityRepository world)
         {
             if (ws.Phase != 0) LocomotionMoveTo.Stop(world, self);
-            ws = default;
+            Restart(ref ws);
+        }
+
+        /// <summary>Back to "not started", keeping the area last crossed.</summary>
+        private static void Restart(ref CrossState ws)
+        {
+            ws.Phase = 0;
+            ws.FarSide = default;
+            ws.FeatureId = 0;
         }
 
         /// <summary>The next area ahead (entry 0 of the processed answer); false when there is no answer or no area.</summary>
