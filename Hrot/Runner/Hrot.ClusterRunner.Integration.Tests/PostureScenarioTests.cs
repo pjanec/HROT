@@ -506,6 +506,10 @@ public sealed class PostureScenarioTests : IDisposable
                 string tn = ShooterName(cgf, t);
                 string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
                 _out.WriteLine($"f{f}: rifleman ammo {lastAmmo}→{ammoNow}, fire target e{t.Index}:{t.Generation} '{tn}' {tm} alive={cgf.IsAlive(t)}");
+                var sh = harness.SimHost.World!; var shMap = harness.SimHost.App.TestHook_EntityMap;
+                string Sh(long net) => shMap.TryGetEntity(net, out var se) ? $"e{se.Index} alive={sh.IsAlive(se)} weapon={(sh.IsAlive(se) && sh.HasComponent<WeaponState>(se))} xf={(sh.IsAlive(se) && sh.HasComponent<SimTransform>(se))}" : "UNMAPPED";
+                long shooterNet = harness.Cgf!.GhostEntityMap!.TryGetNetworkId(rifleman, out long rn) ? rn : -1;
+                _out.WriteLine($"   simhost: shooter net{shooterNet} {Sh(shooterNet)} · target {tm} {(tm.StartsWith("net") ? Sh(long.Parse(tm[3..])) : "-")}");
                 lastAmmo = ammoNow;
             }
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
