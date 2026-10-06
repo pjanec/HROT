@@ -363,8 +363,10 @@ def run_weapon_choice(c, timeout):
     print(f"    start: 25 mm rounds {gun0}, T-72 health {tank0}")
     call("POST", "/sim/play", {})
 
-    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and h < tank0 and h, timeout * 2)
-    c.ok(hit is not None, f"the T-72 loses health — only a TOW penetrates its front armour ({tank0} → {hit})")
+    # ⚠ a 25 mm round GRAZES the tank (expected damage, ~25 HP — measured live 2026-10-06); only a TOW (2000 per hit) takes
+    #   ≥ 1000 off in one go. So the evidence is the size of the drop, not that there is one.
+    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and tank0 - h >= 1000, timeout * 2)
+    c.ok(hit is not None, f"the T-72 takes a TOW hit (≥ 1000 HP — the 25 mm only grazes it): {tank0} → {health(tank)}")
     dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0, timeout * 2)   # ⚠ not "and h": 0 is falsy
     c.ok(dead is not None, "the insurgent is killed")
     gun1, _ = ammo(brad)
