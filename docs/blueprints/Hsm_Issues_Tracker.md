@@ -613,7 +613,7 @@ Stated so no one mistakes silence for a clean bill:
 | row | state on `ui` at `c96aebc9` | evidence | where it goes |
 |---|---|---|---|
 | HSM-001 / 002 | open | `HsmValidator.CheckInitialChildren:115` still counts `IsInitial` over all children, parallel or not | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) A/B |
-| HSM-003 | open — ⚠ **reframed** | the kernel has no multi-state region: every child of a parallel state is a region (`HsmFlattener.cs:381-394`), and "initial" reaches it only as the child's `.Initial()` (`HsmEmitCore.cs:780`) | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) B |
+| HSM-003 | open — ⚠ **reframed** | the COMPILER ignores declared regions — every child of a parallel state becomes a region (`HsmFlattener.cs:381-394`), contrary to the FastHSM design (§2.2–§2.4: named regions, each with its own initial state); "initial" reaches it only as the child's `.Initial()` (`HsmEmitCore.cs:780`). Region's `InitialChild` is the right owner once the compiler is fixed | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) B |
 | HSM-005 | open | `HsmCommandSink.ApplyRemoveRegion:359` unchanged | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) A |
 | HSM-006 | open | `HsmCommandSink.cs:178` still names every state `"State"`; no duplicate-name rule in `HsmDiagnosticCode` | `CE-1001` |
 | HSM-007 / 008 | open | `HsmOutputLaneMaskInferrer.ApplyToAsset` has only test callers | unchanged |

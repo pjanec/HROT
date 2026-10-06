@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-current-answer: §5 ANSWERS — B1, C1, D1 APPROVED 2026-10-06; A1 and E1 explained with §2a pictures, awaiting the user. ⚠ §0 retracts a lean the user approved earlier the same day.
+current-answer: §6 — ⛔ A1 WITHDRAWN 2026-10-06. Regions stay as designed (a composite holds named regions, each a
+  sub-state machine with its own initial state); the defect is the COMPILER, which ignores declared regions. B is back
+  to "the region's initial child". B (circle + arrow), C1, D1 approved. §0-§3 are reasoning from the IMPLEMENTATION and
+  are superseded where §6 says so.
 stale-below: nothing
 known-rot: none
 known-conflict: HSM_Editor_NodeEditor_Host_Design.md §6.2 (regions as editor objects holding several states) and §8.2
@@ -49,6 +52,8 @@ No test runs this asset (grep: no C# reference).
 
 ## 2. The shape, if the leans are taken
 
+> ⛔ **SUPERSEDED by §6** — picture ③ / lean A1 is withdrawn; ① is the designed model, ② is the compiler defect.
+
 ```mermaid
 graph TD
     P["Parallel state P"] --> L1["child A (composite) = region 1"]
@@ -63,6 +68,8 @@ graph TD
 state, and "initial" and "history" are properties of a composite. One model, the kernel's.
 
 ## 2a. One example, three pictures — `HsmCuratedBindingDemo`
+
+> ⛔ **SUPERSEDED by §6** — picture ③ / lean A1 is withdrawn; ① is the designed model, ② is the compiler defect.
 
 **① What the editor DRAWS today** — a parallel state split into two bands; band 0 holds two states in sequence.
 ```mermaid
@@ -177,3 +184,48 @@ machine the author drew.
 | **C** history | ✅ **C1 approved** — *"OK"* |
 | **D** migration | ✅ **D1 approved** — *"OK"* |
 | **E** generic region commands | ⏳ user asked what "regions vs lanes" means — they are the SAME thing (one word too many in my summary): the shared canvas library draws a container split into **bands** and has add / remove / reorder-band commands that know nothing about HSM. E1 only says: keep those commands, and have the HSM editor turn "add band" into "add a child state to the parallel state" |
+
+## 6. ⛔ CORRECTION `2026-10-06` — the regions were RIGHT; the compiler is what is wrong
+
+> 🔒 **User:** *"the question is not how runtime interprets the edited graph - this part might be wrong. my question
+> targets what it was meant to be … i thought the HSM implementation has support for the regions."*
+
+⛔ **§0–§3 reasoned from how the compiler BEHAVES and called that the kernel's model. The design says otherwise.**
+
+| claim | design — how it was MEANT | code — how it IS |
+|---|---|---|
+| a composite declares **named regions**, each with a priority and its **own initial state**; its children are spread over them | ✅ `FastHSM/docs/design/HSM-Implementation-Design.md` §2.2 (JSON: `"regions": [{name: Movement, initial: approach}, {name: Weapon, initial: ready}]`, children `approach, ready, firing`) and §2.3 `BuilderRegion {Name, Priority, InitialState}` | ⚠ `Fhsm.Compiler/Graph/StateNode.Regions` + `RegionNode {Name, InitialState}` exist — ⛔ **nothing fills or reads them** |
+| the flattener emits one `RegionDef` per **declared** region | ✅ design §2.4 step 4 *"Flatten Regions: foreach region in state.Regions"* | ⛔ `HsmFlattener.FlattenRegions` emits one per **child** of a parallel state (`:381-394`) |
+| the runtime keeps one active leaf per region | ✅ design §3 (per-region transition check) | ✅ `activeLeafIds[regionIndex]`, `RegionDef {ParentStateIndex, InitialStateIndex}` — the table has the designed shape |
+| the editor's regions reach the compiler | — | ⛔ `HsmEmitCore.cs:684` emits them into the LAYOUT method only |
+
+⇒ **Your model is the designed one:** a parallel (orthogonal) composite contains regions, each region is a sub-state
+machine with a start circle, and states inside a region run in sequence. The editor already models exactly that
+(`RegionNode`, `StateNode.RegionIndex`, `RegionNode.InitialChild`).
+
+**What is broken, and where:**
+1. **Compiler** — `HsmFlattener` ignores declared regions and the fluent builder has no way to declare one. ⇒ fix it
+   to the design: a region API on the builder, `FlattenRegions` from declared regions (fallback: one per child, for
+   hand-written machines that declare none).
+2. **Emitter** — `HsmEmitCore` must emit each region as structure (name, priority, initial child, members), not only
+   as layout.
+3. **Editor** — the two writers for "initial" (HSM-003): ⭐ the region's `InitialChild` owns it for a parallel
+   composite, the child's `IsInitial` for a plain composite, one setter each; validator becomes region-aware (HSM-001,
+   HSM-002); fix `ApplyRemoveRegion` (HSM-005).
+
+**Revised answers:**
+
+| | |
+|---|---|
+| **A** | ⛔ **A1 withdrawn.** ⭐ **A0 (new lean): keep the regions as designed and fix the compiler + emitter** (above). No asset migration for regions; `HsmCuratedBindingDemo` becomes correct by the fix |
+| **B** | ✅ approved — circle + arrow to the first state; owner per the item 3 above (my first lean, which §0 wrongly retracted) |
+| **C** | ✅ C1 approved — history as a composite property |
+| **D** | ✅ D1 approved — narrowed to the history migration (`HsmShowcase.HistoryPseudo`) |
+| **E** | moot — the library's region commands keep doing what they do |
+
+⚠ **Not yet measured:** whether a transition between two states of the same region resolves correctly in
+`HsmKernelCore` once the flattener builds real regions (the region table has the right shape; the LCA path with a
+non-initial region member is untested). The fix carries a rail for exactly that.
+
+**Separate canvas issue the user named:** regions **auto-size** to their children, which makes placing states inside
+a region hard → `CE-1004`.
