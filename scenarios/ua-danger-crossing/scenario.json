@@ -48,7 +48,7 @@
               "taskId": "b3079000-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "DangerCrossing",
-              "behaviorParams": "{\"objective\":[285,220,0],\"walkSpeed\":2,\"rushSpeed\":4}",
+              "behaviorParams": "{\"sensor\":{\"RouteTo\":[285,220,0]},\"walk\":{\"X\":285,\"Y\":220,\"Speed\":1.5,\"ArrivalRadius\":3}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
