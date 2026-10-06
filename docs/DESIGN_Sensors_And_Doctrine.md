@@ -12,6 +12,7 @@ related-designs:
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS S7 (CE-3055): thermal + acoustic templates, heat, sound emission, anonymous contacts (this file's G6).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first consumer of §7.9 (a When TopChanged per answer).
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the groups, grants and reclaim; §7.7 here adds dtBrainIntent to the Brain group and starts the published intent on a gain.
+  - docs/DESIGN_Utility_AI_Demo_Scenarios.md — §10 the danger sensor, the first kind of a second result family (§7.10 here).
   - docs/DESIGN_Decision_Layer.md — the behaviors lane's decision-layer design (G1–G3: missions as doctrines, threat, intent, utility).
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — the sensor rulings A–N′ (R-185, R-186, R-187) this design builds.
   - docs/blueprints/Architect_Question_83_Doctrine_And_Order_Origin.md — the doctrine + origin rulings A–G (R-188, R-189) this design builds.
@@ -1303,6 +1304,47 @@ after a refresh is compared). `WhenNodeEqsLoweringTests.Lower_EqsResult_TopChang
 ⛔ **Rejected:** bumping the epoch on every answer (the epoch means "the question changed", which the Brain and
 `EqsChildSensor.Ensure` rely on) · a new per-node field (it moves `StructureHash` for every saved blueprint, for no
 gain over re-using the existing `uint`).
+
+### 7.10 Sensor nodes and per-kind RESULT TYPES *(proposal `2026-10-06`, backend; awaiting the user)*
+
+🔒 **User, `2026-10-06`:** *"different kind of sensors need different kind of result storage … we should not do a 'cast'
+to narrower result type"* · *"Is the node for getting sensor result generic enough to support the result type for a
+specified kind of sensor?"*
+
+📐 **Measured — no.** `ReadEqsResultNode`'s pins are fixed to the ranked list (`IsReady`, `ResultCount`, `Entity`,
+`Position` Vector2, `Score` — `BuiltInNodeRegistry.cs`), its helper reads only `EqsCognitiveBuffer`
+(`InstanceEmitter.EmitReadEqsResultHelpers`); `UnitSensorKind` (CE-3054 D) picks the sensor by kind but still assumes that
+buffer; `When EqsResult` triggers are score-based (`TopChanged`, `ScoreCrossed`); `SpawnEqsSensorNode`'s inputs are the EQS
+config (`SearchRadius`, `FactionFilter`, …). ⭐ **But the type-driven machinery exists:** `GetComponentNode` projects one
+out-pin PER FIELD of any component, the fields reflected by the editor and baked (`Fields`, CA-01); `MakeStructNode` /
+`BreakStructNode` do the same for any struct (Q#14 Option B).
+
+```mermaid
+classDiagram
+  class SensorKindRegistry { <<NEW>> kind → settings type, result component, result element type, family triggers }
+  class SpawnSensorNode { <<NEW, generalises SpawnEqsSensorNode>> kind · in-pins = fields of the kind's settings type → ConfigJson (M′) · out Handle }
+  class ReadSensorResultNode { <<NEW, generalises ReadEqsResultNode>> kind, index · header pins IsReady Count Age · one out-pin per field of the kind's result element }
+  class WhenSensorResultNode { <<NEW, generalises When EqsResult>> header triggers FirstReady Changed BecomesStale + the family's own (ranked TopChanged ScoreCrossed · area NextAreaChanged ThreatCrossed) }
+  class GetComponentNode { <<existing>> per-field pins baked by the editor (CA-01) }
+  class ReadEqsResultNode { <<existing>> = ReadSensorResult for the ranked family; kept so assets do not move }
+  SpawnSensorNode ..> SensorKindRegistry
+  ReadSensorResultNode ..> SensorKindRegistry
+  WhenSensorResultNode ..> SensorKindRegistry
+  ReadSensorResultNode ..> GetComponentNode : same baked-field pin projection
+```
+
+*What the picture shows that prose hid:* one registry decides every kind-specific pin; the nodes themselves never name a
+result type, so a new kind adds a registry entry and its types — no new node.
+
+| ⭐ lean | rejected |
+|---|---|
+| **N1** a `SensorKindRegistry` (kind → settings type, result component, element type, family triggers) the editor reflects and the compiler bakes from — as `GetComponent` does | a node per kind (`ReadDangerArea`, `ReadThermal`, …) — the node set grows with every kind |
+| **N2** `ReadSensorResult(kind, index)`: header pins + one pin per element field; `ReadEqsResult` stays as its ranked instance (no golden moves) | one wide pin set with every kind's fields (the cast, inverted) |
+| **N3** `SpawnSensor(kind)`: in-pins from the kind's settings type, lowered to `EqsChildSensor.Ensure` + `ConfigJson` (R-186) | keep the EQS-config pins for every kind |
+| **N4** `When SensorResult(kind)`: header triggers for every kind + the family's own | score-based triggers for kinds that have no score |
+
+Lane: behaviors owns the blueprint nodes (BTree/HSM read nodes the same way); backend owns the registry and the result types.
+First consumer: the danger sensor (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.2–10.3).
 
 ## 8. Claim table
 
