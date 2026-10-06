@@ -415,9 +415,18 @@ public sealed class PostureScenarioTests : IDisposable
         Observe(cgf, rifleman);
         Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
         int Ammo() => cgf.GetComponent<WeaponState>(rifleman).Ammo;
+        string Hostile()
+        {
+            var h = ByName(cgf, "Hidden Hostile");
+            if (h.IsNull) return "hostile not on CGF";
+            string hp = cgf.HasComponent<Health>(h) ? $"{cgf.GetComponent<Health>(h).Current}" : "?";
+            string pos = cgf.HasComponent<SimTransform>(h) ? $"{cgf.GetComponent<SimTransform>(h).Position}" : "?";
+            string caps = cgf.HasComponent<ActorCapabilityState>(h) ? $"{cgf.GetComponent<ActorCapabilityState>(h).Capabilities}" : "?";
+            return $"hostile hp={hp} pos={pos} caps={caps}; rifleman ammo={Ammo()}";
+        }
 
         Assert.True(harness.PumpUntil(() => ApproachWinner() is Approach.Flank or Approach.FiringPosition, timeoutFrames: 12000),
-            $"out of sight ⇒ Flank or FiringPosition; approach {ApproachWinner()}");
+            $"out of sight ⇒ Flank or FiringPosition; approach {ApproachWinner()}; {Hostile()}");
         int ammo = Ammo();
         _out.WriteLine($"approach {ApproachWinner()}, ammo {ammo}");
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
