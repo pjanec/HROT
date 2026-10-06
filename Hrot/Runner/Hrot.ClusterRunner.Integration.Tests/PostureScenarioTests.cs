@@ -132,13 +132,17 @@ public sealed class PostureScenarioTests : IDisposable
     /// rifleman's danger-area sensor lists the two crossings, only the watched one rates threatened, the rifleman HOLDS short
     /// of it, the watcher's own two-task mission (Sentry → MoveToLocation) withdraws it out of sight, the rating clears and
     /// the rifleman crosses and arrives. ⛔ Nothing is written into the run. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.5b.
+    /// ⭐ B7: the same acceptance twice — the rifleman's task the BTree <c>DangerCrossing</c> (H5) and the BLUEPRINT
+    /// <c>DangerCrossingBp</c> (H7); the cast, the watcher's mission and the map are identical.
     /// </summary>
-    [Fact(Timeout = 900_000)]
-    public async Task CE3079_DangerCrossing_HoldsShortOfTheWatchedCrossing_UntilTheWatchersMissionWithdrawsIt_ThenArrives()
+    [Theory(Timeout = 900_000)]
+    [InlineData("ua-danger-crossing")]
+    [InlineData("ua-danger-crossing-bp")]
+    public async Task CE3079_DangerCrossing_HoldsShortOfTheWatchedCrossing_UntilTheWatchersMissionWithdrawsIt_ThenArrives(string scenario)
     {
         var root = RepoRoot();
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "scenarios", "ua-danger-crossing", "scenario.json"),
+        File.Copy(Path.Combine(root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());

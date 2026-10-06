@@ -338,7 +338,8 @@
                 "ElementField": "ThreatRating",
                 "Shape": "FieldCrossed"
               }
-            ]
+            ],
+            "HasAnswerTime": true
           },
           "Id": "4f3be348-7511-5279-957d-546cf6a74eef",
           "Pins": [
@@ -583,7 +584,8 @@
                   "ElementField": "ThreatRating",
                   "Shape": "FieldCrossed"
                 }
-              ]
+              ],
+              "HasAnswerTime": true
             },
             "Trigger": "ThreatCrossed",
             "Threshold": 0.5,
@@ -752,7 +754,8 @@
                 "ElementField": "ThreatRating",
                 "Shape": "FieldCrossed"
               }
-            ]
+            ],
+            "HasAnswerTime": true
           },
           "Id": "8b0f4414-a9a4-5cc0-804c-dfb65b01bc0f",
           "Pins": [

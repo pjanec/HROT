@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor): N1–N4 and B1″–B4′ APPROVED 2026-10-06 (R-213) — READY-TO-BUILD as CE-3072 (the sensor), CE-3078 (per-kind sensor nodes, Sensors §7.10), CE-3079 (the ua-danger-crossing demo, §10.4–§10.5), CE-3080 (dead = no danger). §10.5 and the CE-3080 lean APPROVED 2026-10-06 (R-214); BUILDING on two lanes per §10.6.
+build-state: BUILDING — Q1–Q7 APPROVED 2026-10-05 (user: "Approved."), R-209. P1: G1 BUILT (CE-3070), G2 BUILT, U1 + U2 PASS live (G11 partial); the live runs found and fixed CE-3073 (one contact remembered) and CE-3074 (healthy contacts ranked 0). §9 (ammunition vs armour): A1–A4 APPROVED 2026-10-05 (R-212, A3 revised: read the TKB, no Armor component), BUILDING as CE-3071. §10 (the danger sensor): N1–N4 and B1″–B4′ APPROVED 2026-10-06 (R-213) — READY-TO-BUILD as CE-3072 (the sensor), CE-3078 (per-kind sensor nodes, Sensors §7.10), CE-3079 (the ua-danger-crossing demo, §10.4–§10.5), CE-3080 (dead = no danger). §10.5 and the CE-3080 lean APPROVED 2026-10-06 (R-214); ✅ BUILT on two lanes per §10.6 — both forms of the demo (BTree + blueprint) PASS live and in-process (§10.5b).
 current-answer: §4 (the seven scenarios), §6 (what has to be built), §8 (approved leans), §9 (armour model), §10.2–§10.4 (danger sensor: the query, the sensor form, the demo and its nodes). §2 is the measured state they rest on.
 stale-below: nothing — new document.
 known-rot: none.
@@ -777,7 +777,7 @@ the rifleman watched it leave — the rating follows what the rifleman knows, ne
 
 Rails: `SensorNodesTests.CE3079_ThreatsAtLeast_WithinMetres_*` · `TacticsTreesTests.CE3079_Sentry_EndsOnlyAfterAContactIsNear_AndTheWaitElapses_AndNeverFires` · `CE3079_ATwoTaskMission_AdvancesFromSentry_WhenItEndsItself` (a 2-task `MissionPlanQueue` goes 0 → 1 only after the 15 s) · `BTreeJsonGeneratorTests.CE2111_*`.
 
-### 10.6 Build plan — the `ua-danger-crossing` programme on TWO lanes *(`2026-10-06`; `build-state: BUILDING`)*
+### 10.6 Build plan — the `ua-danger-crossing` programme on TWO lanes *(`2026-10-06`; `build-state: BUILT` — B0–B7 and H1–H7, §10.5b)*
 
 🔒 **User, `2026-10-06`:** *"Approved. Also 3080 lean approved, solve it part of this 'danger crossing demo' programme. Divide
 the work between you and behaviors lane to work in parallel, with merging the other lane as you go."* ⇒ §10.5 and the
@@ -860,7 +860,7 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 | B1 `CE-3080` | `ThreatDanger.Of` returns 0 when `ThreatDanger.IsDead` (Health ≤ 0); rail `CE3080_KilledArmedContact_IsNoDanger_NoThreat_NoStrength` (ContactDanger, ContactThreatLevel, EnemyStrengthRatio) | one place for every threat reader |
 | B4′ | `PathfindingResultMaterializationSystem`'s move branch writes `NavigationStatus.RouteHandle`; ⚠ `NavigationExecutionSystem` resets the status only on a NEW intent, so the handle survives (the plan lands a solver round-trip after the intent) — the live run (B6) confirms it on the wire | |
 
-### 10.7 B3 + B4 — the `DangerAlongRoute` solve, its transport, and the Brain-side rating *(`2026-10-06`; `build-state: BUILDING`)*
+### 10.7 B3 + B4 — the `DangerAlongRoute` solve, its transport, and the Brain-side rating *(`2026-10-06`; `build-state: BUILT`, §10.7a)*
 
 📐 **Measured** (a read-only sweep, every row `file:line` in the batch notes): ① a SimHost in BOTH cluster forms carries
 `MuscleGround | Perception | NavigationSolver` (`SimHostApp.cs:186`) — so "the node holding the navmesh" IS a Perception
@@ -961,4 +961,8 @@ Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 
 | withdraw "up the gap between Block C and the Tower" | to (395,290), north-east behind the Tower — along that walk, the last point the rifleman sees has ≥ 10 m of building between it and the crossing (searched over the real footprints) |
 | the rifleman's order | `{"sensor":{"RouteTo":[285,220,0]},"walk":{"X":285,"Y":220,"Speed":1.5,"ArrivalRadius":3}}` (H5's shape — the objective is given twice) |
 | check | `utility-demo-check.py --launch --timeout 240 ua-danger-crossing` — **PASS** (sim 0 → 284 s): two `StreetCrossing` areas at 133 m / 198 m · only Main Street ≥ 0.5 · hold at (247.6, 187.7) ≥ 10 s · the watcher's mission advanced by itself to (395.4, 291.1) · the rating cleared · crossed and arrived |
+| repeat runs at 145 m | **PASS ×2 more** on fresh clusters: hold at (239.8, 187.8) sim 247 s · (240.0, 188.0) sim 256 s. ⭐ the hold point moves ≈ 8 m between runs (247.6 → 239.8) — the reason the Sentry radius needs margin |
+| in-process twin | `PostureScenarioTests.CE3079_DangerCrossing_…` — the shipped file in a `HrotRunnerHarness` (simhost, ig, excon, cgf), the same five steps, nothing written into the run — **PASS** (4 m 25 s) |
+| ⭐ **B7 — the blueprint variant** `ua-danger-crossing-bp` | the same file, the rifleman's task `DangerCrossingBp` (H7) with `{"Objective":[285,220,0]}` — **PASS live** (hold at (239.7, 187.8) ≥ 10 s, sim 246 s) and **PASS in-process** (the rail is a theory over both names, 4 m 28 s). ⇒ ⭐ CE-3078's acceptance (*"the blueprint form of `ua-danger-crossing`"*) is met: the per-kind nodes `SpawnSensor` / `When SensorResult` / `ReadSensorResult` drive the danger sensor end to end across hosts |
+| ⭐ Q4 (behaviors H6) — the area answer's TIME | `DangerAreaCognitiveBuffer.LastUpdateTimeSeconds` added (588 B; stamped from `view.Time` by `DangerAreaSensorSystem.Apply` / `DangerAreaRefreshSystem`, cleared with the answer on a route change) ⇒ `BecomesStale` is decidable on the area family too; `SensorKindInfo`'s contract is FIVE members now (Sensors §7.10). The shipped `DangerCrossingBp` decls re-baked (`HasAnswerTime: true`; persistence-shape golden: that one line) |
 

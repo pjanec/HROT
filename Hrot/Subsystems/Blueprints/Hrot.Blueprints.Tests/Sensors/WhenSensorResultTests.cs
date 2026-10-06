@@ -55,8 +55,11 @@ public sealed class WhenSensorResultTests
         var area = SensorKindBaker.Bake(SensorModality.DangerArea)!;
         Assert.Contains(area.Triggers!, t => t.Name == "ThreatCrossed" && t.ElementField == "ThreatRating" && t.Shape == "FieldCrossed");
         Assert.Contains(area.Triggers!, t => t.Name == "NextAreaChanged" && t.ElementField == "FeatureId" && t.Shape == "FieldChanged");
-        Assert.False(area.HasAnswerTime);                                                         // DangerAreaCognitiveBuffer has no time
-        Assert.DoesNotContain(SensorPaletteEntries.UsableTriggers(area), t => t.Name == "BecomesStale");
+        Assert.True(area.HasAnswerTime);                                                          // Q4 (backend, lean (a)): DangerAreaCognitiveBuffer carries one now
+        Assert.Contains(SensorPaletteEntries.UsableTriggers(area), t => t.Name == "BecomesStale");
+        var timeless = SensorKindBaker.Bake(SensorModality.DangerArea)!;
+        timeless.HasAnswerTime = false;                                                           // a family WITHOUT an answer time is still not offered it
+        Assert.DoesNotContain(SensorPaletteEntries.UsableTriggers(timeless), t => t.Name == "BecomesStale");
         var visual = SensorKindBaker.Bake(SensorModality.Visual)!;
         Assert.True(visual.HasAnswerTime);                                                         // EqsCognitiveBuffer has one
         Assert.Contains(SensorPaletteEntries.UsableTriggers(visual), t => t.Name == "BecomesStale");
@@ -72,12 +75,22 @@ public sealed class WhenSensorResultTests
     [Theory]
     [CoversDiagnosticCode("BP2076")]
     [InlineData("NoSuchTrigger")]
-    [InlineData("BecomesStale")]   // the area answer carries no time
+    [InlineData("BecomesStale")]   // a decl whose answer carries no time (Q4 gave the area family one — cleared here)
     public void CE3078_Validate_AnUndecidableTrigger_BP2076(string trigger)
     {
         var asset = BlueprintAssetBuilder.Instance("WhenBad").WithGraph("Tick", g => g.Entry().Return()).Build();
-        asset.Graphs[0].Nodes.Add(When(trigger, SensorKindBaker.Bake(SensorModality.DangerArea)));
+        var decl = SensorKindBaker.Bake(SensorModality.DangerArea)!;
+        decl.HasAnswerTime = false;
+        asset.Graphs[0].Nodes.Add(When(trigger, decl));
         Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP2076);
+    }
+
+    [Fact]
+    public void CE3072_Q4_BecomesStale_OnTheAreaFamily_IsDecidable()
+    {
+        var asset = BlueprintAssetBuilder.Instance("WhenStale").WithGraph("Tick", g => g.Entry().Return()).Build();
+        asset.Graphs[0].Nodes.Add(When("BecomesStale", SensorKindBaker.Bake(SensorModality.DangerArea), threshold: 5f));
+        Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP2076);
     }
 
     [Fact]

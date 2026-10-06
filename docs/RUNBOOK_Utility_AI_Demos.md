@@ -46,7 +46,8 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 |---|---|---|---|
 | `ua-posture` (U1) | test-town | CombatPosture: fight when healthy, defend when hurt, back to fighting when healed; no flicker | ✅ PASS ×2 on fresh clusters, `2026-10-05` |
 | `ua-threat-ranking` (U2) | test-town | ThreatRanking: armed + visible + near ranks first, unarmed and far below, hidden never | ✅ PASS ×2 on fresh clusters, `2026-10-05` (after `CE-3073` + `CE-3074`) |
-| `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | ✅ PASS on a fresh cluster, `2026-10-06` (the third run: run 1 found the L-Block layout, run 2 a too-short window) |
+| `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | ✅ PASS ×3 on fresh clusters at the 145 m Sentry, `2026-10-06` (runs 1–2 found the L-Block layout and a too-short window; run 4 the 125 m deadlock) + the in-process twin |
+| `ua-danger-crossing-bp` (CE-3079 B7) | test-town | the SAME demo, the rifleman's task the BLUEPRINT `DangerCrossingBp` (built only from the per-kind sensor nodes, CE-3078) | ✅ PASS on a fresh cluster, `2026-10-06` + the in-process twin |
 | U3–U7 | | three hosts, attack approach, weapon choice, fire distribution, squad maneuver | not built yet (design §6) |
 
 ## 3. Per scenario
@@ -99,8 +100,11 @@ HEALTHY contact 0, so an unarmed civilian with no Health component ranked first.
 📄 Design: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.3–§10.7.
 
 ```
-python3 scripts/utility-demo-check.py --launch --timeout 240 ua-danger-crossing   # the walk is 1.5 m/s: ≈ 285 s of sim time
+python3 scripts/utility-demo-check.py --launch --timeout 240 ua-danger-crossing   # the walk is 1.5 m/s: ≈ 250–285 s of sim time
+python3 scripts/utility-demo-check.py --launch --timeout 240 ua-danger-crossing-bp   # B7: the same, the task the blueprint DangerCrossingBp
 ```
+
+⭐ **`ua-danger-crossing-bp`** is the same file with ONE change: the rifleman's task is `DangerCrossingBp` with `{"Objective":[285,220,0]}` (one param, where the BTree's order gives the objective twice). Same cast, same watcher mission, same check. ⚠ The blueprint rushes straight to the far handle and releases its hold at < 0.5 (no hysteresis) — design §10.4a H7 row. In-process twin of both: `PostureScenarioTests.CE3079_DangerCrossing_…` (a theory over the two scenario names, ≈ 4.5 min each).
 
 **Cast:** the Rifleman (2002) at (100,60), mission `DangerCrossing` to (285,220); the Watcher (2002, Hostile) at (370,212),
 mission `Sentry` (ends itself once a contact is within 145 m and 15 s have passed) → `MoveToLocation` (395,290), north-east

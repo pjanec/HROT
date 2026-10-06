@@ -180,6 +180,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     ref var area = ref repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
                     area.Count = 0;
                     area.LastUpdateTick = 0;
+                    area.LastUpdateTimeSeconds = 0f;   // CE-3072 Q4
                 }
                 else
                 {

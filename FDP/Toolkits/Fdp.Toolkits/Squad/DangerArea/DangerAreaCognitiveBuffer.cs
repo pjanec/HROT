@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// <summary>
     /// Brain-side danger-area result cache written by <c>DangerAreaRefreshSystem</c>
     /// (squad danger-area pipeline, SS5.2).
-    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 8*72 (Slots) = 584 bytes.
+    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 4 (LastUpdateTimeSeconds) + 8*72 (Slots) = 588 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaCognitiveBuffer)]
@@ -36,6 +36,14 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// layout is unchanged apart from the descriptor size.
         /// </summary>
         public uint LastUpdateTick;
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> Q4 (behaviors lane, H6) — the simulation time in seconds the answer was applied, the second
+        /// member of the kind-neutral header (the ranked family's is <c>EqsCognitiveBuffer.LastUpdateTimeSeconds</c>).
+        /// ⭐ It is what the header trigger <c>BecomesStale</c> reads (<c>time - LastUpdateTimeSeconds</c>), which
+        /// <c>SensorKindRegistry.HeaderTriggers</c> gives EVERY family. 0 = no answer yet (cleared on a route change).
+        /// </summary>
+        public float LastUpdateTimeSeconds;
 
         /// <summary>Cached danger-area descriptors from the last refresh.</summary>
         public DangerAreaDescriptorArray Slots;

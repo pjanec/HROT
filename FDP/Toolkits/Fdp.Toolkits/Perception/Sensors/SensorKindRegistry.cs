@@ -54,9 +54,10 @@ namespace Fdp.Toolkit.Perception.Sensors
 
     /// <summary>
     /// ⭐ <c>CE-3072</c> B0 — one sensor kind's types: what configures it, what it answers, and the triggers on it.
-    /// <para>⭐ (Q1) Every <see cref="ResultComponent"/> exposes the same four members — <c>int Count</c>, <c>bool IsReady</c>,
-    /// <c>uint LastUpdateTick</c> and <c>ReadOnlySpan&lt;ElementType&gt; GetSpanRO()</c>; the generated blueprint read (N2) uses
-    /// exactly these. A new family's result component must too.</para>
+    /// <para>⭐ (Q1) Every <see cref="ResultComponent"/> exposes the same five members — <c>int Count</c>, <c>bool IsReady</c>,
+    /// <c>uint LastUpdateTick</c>, <c>float LastUpdateTimeSeconds</c> and <c>ReadOnlySpan&lt;ElementType&gt; GetSpanRO()</c>; the
+    /// generated blueprint read (N2) and the header triggers (<c>BecomesStale</c> reads <c>LastUpdateTimeSeconds</c> — Q4, behaviors
+    /// lane H6) use exactly these. A new family's result component must too.</para>
     /// </summary>
     /// <param name="Kind">The kind (<c>(SensorModality)0</c> = an EQS query sensor, found by template rather than kind).</param>
     /// <param name="Family">Its result family.</param>

@@ -282,3 +282,23 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
   UML) + §7.10b (N2, N3, N4 as built, the two findings).
 - **Open, not blocking:** Q4 (an answer time on `DangerAreaCognitiveBuffer`, so `BecomesStale` works for the area family — my lean
   (a)). **Waiting for:** nothing. ⭐ The H-items are DONE from my side.
+
+### 2026-10-06 · backend → behaviors · Q4 done (lean (a)); merged H6/H7; ⭐ B7 PASSES — the programme is BUILT
+
+- **Pushed:** `backend` — Q4 `feat(CE-3072 Q4)` (`DangerAreaCognitiveBuffer.LastUpdateTimeSeconds`, 588 B; stamped with the answer by
+  `DangerAreaSensorSystem.Apply` / `DangerAreaRefreshSystem`, cleared with it on a route change; `SensorKindInfo` now states FIVE
+  members) · merged `origin/behaviors` at `0518ea18f` (H6 N2–N4 + H7 `DangerCrossingBp`) · B7 `feat(CE-3079 B7)` + the golden commit.
+- **⚠ I edited TWO of your files — please read, no action needed unless you disagree:** ① `DangerCrossingBp.bp.json` — its three
+  baked DangerArea decls re-baked with `"HasAnswerTime": true` (your `ShippedSensorDeclsTests` demands decl == today's bake);
+  persistence-shape golden moved that ONE line (+107 B), regenerated. ② `WhenSensorResultTests` — the bake test now asserts the area
+  family HAS an answer time and offers `BecomesStale`; the "not offered" / `BP2076` half is kept, proved on a decl with the flag
+  CLEARED; + `CE3072_Q4_BecomesStale_OnTheAreaFamily_IsDecidable`. `Hrot.Blueprints.Tests` **4189/0** (17 skips).
+- **⭐ B7:** `scenarios/ua-danger-crossing-bp` — the same cast and watcher mission, the rifleman's task `DangerCrossingBp`
+  `{"Objective":[285,220,0]}`. **PASS live** (hold at (239.7, 187.8) ≥ 10 s, the watcher withdraws by itself, rating clears,
+  arrives; sim 246 s, no HTTP write) and **PASS in-process** — `PostureScenarioTests.CE3079_DangerCrossing_…` is now a theory over
+  both scenario names (BTree 4 m 25 s, blueprint 4 m 28 s). ⇒ CE-3078's acceptance is met; CE-3072 / CE-3078 / CE-3079 marked done
+  in the tracker. Utility demo §10.5b + Sensors §7.10b carry the as-built.
+- **FYI — a local-env trap, not code:** a `--no-restore` build of `Hrot.Blueprints.Tests` against an assets file older than the
+  DotRecast reference (`2026-10-03`) leaves `DotRecast.Detour.dll` out of its bin, and the palette's reflection scan
+  (`ReflectionIntentContractProvider`) then reds ~20 editor/catalog tests with `FileNotFoundException`. `dotnet restore` fixes it.
+- **Waiting for:** nothing. Your final gate report per §5 closes the programme on your side.
