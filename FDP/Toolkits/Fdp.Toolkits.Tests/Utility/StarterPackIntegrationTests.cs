@@ -583,6 +583,17 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(299, repo.GetComponentRO<WeaponState>(bradley).Ammo);
         }
 
+        /// <summary>⭐ W9 — a RELOADING TOW is still the TOW's target: the choice ignores cooldown (the executor waits on it), so a
+        /// reloading launcher never hands the tank to the 25 mm. ✅ Red-proof: put WeaponReadiness back in the decision ⇒ mount 0.</summary>
+        [Fact]
+        public void CE3089_AReloadingTow_IsStillChosenForTheTank()
+        {
+            var (bradley, tow, _, tank) = ProductionBradley(tankAt: 523f);
+            _world.Repo.GetComponentRW<WeaponState>(tow).CooldownSecondsRemaining = 1f;
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m));
+            Assert.Equal(tow, m);
+        }
+
         // ── CE-3088 (G8, F4) — the squad's fire distribution reads the MERGED pool and runs from the frame driver ──────
         //    📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11.
 

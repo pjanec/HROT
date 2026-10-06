@@ -16,6 +16,8 @@ namespace Fdp.Toolkit.Behavior.Systems
     // [UpdateAfter(typeof(BTreeTickSystem))] -- ordering maintained by array position in ActionDispatchModule.
     public class WeaponDispatcherSystem : DispatcherSystemBase<WeaponChannel>
     {
+        private EntityQuery? _mounts;
+
         public override void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -35,6 +37,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                         _executors[ch.ActiveAction]?.OnExit(evt.Entity, ref ch, repo);
                         ch.ActiveAction = 0;
                     }
+                }
+            }
+
+            // ⭐ CE-3089 (G7) — a weapon MOUNT child reloads too, whichever mount is firing (it has no WeaponChannel, so the loop
+            //   below never reaches it). Measured live: the TOW fired once and its cooldown stayed at 1 for the rest of the run.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>())
+            {
+                _mounts ??= repo.Query()
+                    .With<Fdp.Toolkit.Combat.Components.WeaponMountInfo>()
+                    .With<Fdp.Toolkit.Combat.Components.WeaponState>()
+                    .Build();
+                foreach (var mount in _mounts)
+                {
+                    ref var ws = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
+                    if (ws.CooldownSecondsRemaining > 0f) ws.CooldownSecondsRemaining -= deltaTime;
                 }
             }
 
