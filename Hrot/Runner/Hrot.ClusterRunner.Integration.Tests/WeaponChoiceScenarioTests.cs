@@ -69,7 +69,7 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive), ScenarioId = _scenarioId }),
         }).ConfigureAwait(false);
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
 
@@ -78,6 +78,20 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
             timeoutFrames: 2000), "the three units must spawn on CGF");
         Entity bradley = ByName(cgf, "Bradley"), tank = ByName(cgf, "T-72"), insurgent = ByName(cgf, "Insurgent");
 
+        var (n, chosen) = Diagnose(cgf, bradley, tank);
+        Assert.Equal(2, n);
+        Assert.Equal(1, chosen);
+
+        // ── the run: a TOW-sized hit on the tank, the insurgent killed ──
+        float tank0 = cgf.GetComponent<Health>(tank).Current;
+        Assert.True(harness.PumpUntil(() => tank0 - cgf.GetComponent<Health>(tank).Current >= 1000f, timeoutFrames: 20000),
+            $"the T-72 must take a TOW hit; health {cgf.GetComponent<Health>(tank).Current}, 25 mm {cgf.GetComponent<WeaponState>(bradley).Ammo}");
+        Assert.True(harness.PumpUntil(() => cgf.GetComponent<Health>(insurgent).Current <= 0f, timeoutFrames: 20000), "the insurgent must be killed");
+    }
+
+    /// <summary>Every mount, every WeaponSelection input, against <paramref name="target"/> — and the choice.</summary>
+    private (int Mounts, int Chosen) Diagnose(EntityRepository cgf, Entity bradley, Entity tank)
+    {
         // ── the diagnostic: every mount, every input, against the tank ──
         Span<Entity> mounts = stackalloc Entity[8];
         int n = WeaponMountQuery.EnumerateMounts(cgf, bradley, mounts);
@@ -92,13 +106,6 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
         }
         int chosen = WeaponChoice.Choose(cgf, bradley, tank, out _);
         _out.WriteLine($"WeaponChoice at the tank: mount {chosen}");
-        Assert.Equal(2, n);
-        Assert.Equal(1, chosen);
-
-        // ── the run: a TOW-sized hit on the tank, the insurgent killed ──
-        float tank0 = cgf.GetComponent<Health>(tank).Current;
-        Assert.True(harness.PumpUntil(() => tank0 - cgf.GetComponent<Health>(tank).Current >= 1000f, timeoutFrames: 20000),
-            $"the T-72 must take a TOW hit; health {cgf.GetComponent<Health>(tank).Current}, 25 mm {cgf.GetComponent<WeaponState>(bradley).Ammo}");
-        Assert.True(harness.PumpUntil(() => cgf.GetComponent<Health>(insurgent).Current <= 0f, timeoutFrames: 20000), "the insurgent must be killed");
+        return (n, chosen);
     }
 }
