@@ -85,6 +85,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             // ── Component registration ────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<Health>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.MobilityKill>();   // CE-3092
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<LocomotionChannel>();
@@ -220,6 +221,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             });
 
             world.AddComponent(e, new Health  { Current = MaxHealth, Max = MaxHealth });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.MobilityKill { BelowFraction = 1f });   // CE-3092 — an APC: any hit stops it
 
             world.AddComponent(e, new ActorCapabilityState
             {

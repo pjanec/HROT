@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world = new EntityRepository();
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<ActorCapabilityState>();
+            _world.RegisterComponent<MobilityKill>();
             _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterComponent<NetworkIdentity>();
             _world.RegisterEvent<DamageAssessedEvent>();
@@ -162,6 +163,8 @@ namespace Fdp.Toolkit.Combat.Tests
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
             });
+            // CE-3092: the strip is now an opt-in of the platform (a vehicle's mobility kill).
+            _world.AddComponent(entity, new MobilityKill { BelowFraction = 1f });
 
             // Non-lethal hit: 100 damage out of 500 max.
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 100f });
@@ -366,6 +369,67 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Empty(DrainDestroys());
             Assert.Equal(10f, _world.GetComponentRO<Health>(target).Current);
+        }
+
+        // ── CE-3092: the non-lethal strip is the platform's opt-in, not a rule for every unit ──
+
+        private Entity SpawnCapable(float max, MobilityKill? kill)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new Health { Current = max, Max = max });
+            _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.SetAuthority<Health>(e, true);
+            _world.AddComponent(e, new ActorCapabilityState
+            {
+                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
+            });
+            if (kill.HasValue) _world.AddComponent(e, kill.Value);
+            return e;
+        }
+
+        private ActorCapabilities HitAndRead(Entity e, float damage)
+        {
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            return _world.GetComponent<ActorCapabilityState>(e).Capabilities;
+        }
+
+        /// <summary>
+        /// CE-3092: a wounded soldier keeps moving. 📌 Measured: the unconditional strip froze a rifleman
+        /// at the first graze, so every posture leg (take cover, flank, flee) stalled at the spot he was hit.
+        /// </summary>
+        [Fact]
+        public void ANonLethalHit_OnAUnitWithoutAMobilityKill_KeepsCanMove_CE3092()
+        {
+            var e = SpawnCapable(100f, kill: null);
+            var caps = HitAndRead(e, 75f);
+            Assert.True(caps.HasFlag(ActorCapabilities.CanMove), "a wounded unit with no mobility-kill opt-in keeps moving");
+            Assert.True(caps.HasFlag(ActorCapabilities.CanShoot));
+        }
+
+        /// <summary>CE-3092: death still stops every unit, opted in or not.</summary>
+        [Fact]
+        public void ALethalHit_OnAUnitWithoutAMobilityKill_StillStripsBoth_CE3092()
+        {
+            var e = SpawnCapable(100f, kill: null);
+            var caps = HitAndRead(e, 100f);
+            Assert.False(caps.HasFlag(ActorCapabilities.CanMove));
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot));
+        }
+
+        /// <summary>CE-3092: a threshold opt-in strips CanMove only once health drops BELOW the fraction.</summary>
+        [Fact]
+        public void AThresholdMobilityKill_StripsOnlyBelowTheFraction_CE3092()
+        {
+            var e = SpawnCapable(100f, new MobilityKill { BelowFraction = 0.5f });
+
+            var afterGraze = HitAndRead(e, 30f);   // 70 % left
+            Assert.True(afterGraze.HasFlag(ActorCapabilities.CanMove), "above the threshold the unit keeps moving");
+
+            var afterHeavy = HitAndRead(e, 30f);   // 40 % left
+            Assert.False(afterHeavy.HasFlag(ActorCapabilities.CanMove), "below the threshold the mobility kill applies");
+            Assert.True(afterHeavy.HasFlag(ActorCapabilities.CanShoot), "a mobility kill never strips CanShoot");
         }
     }
 }

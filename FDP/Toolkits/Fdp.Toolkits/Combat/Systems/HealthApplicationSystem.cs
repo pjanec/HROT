@@ -101,22 +101,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   (AreaQuerySolverSystem), so the scenario terminates on health, not on removal.
                 //   📄 DESIGN_Node_Roles_And_Policies.md — and the real distributed-death defect CE-267
                 //   masked is being chased separately, not by deleting the corpse.
-                if (health.Current <= 0f)
-                {
-                    if (repo.HasComponent<ActorCapabilityState>(targetEntity))
-                    {
-                        ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
-                        caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
-                    }
-                }
-                // Non-lethal hit (HP below max but above 0): strip only CanMove (PACK-M002).
-                // This replaces the cross-domain ApcMobilityTriggerSystem so Brain-tier
-                // HsmDamageBridgeSystem can detect the capability change and inject MobilityLost.
-                else if (health.Current < health.Max && repo.HasComponent<ActorCapabilityState>(targetEntity))
-                {
-                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
-                }
+                // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (death; a non-lethal hit only on an opted-in type).
+                Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, targetEntity, in health);
             }
         }
     }
