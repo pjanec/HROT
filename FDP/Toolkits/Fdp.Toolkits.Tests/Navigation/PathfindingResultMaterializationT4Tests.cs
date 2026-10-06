@@ -133,6 +133,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             ref readonly var status = ref _world.GetComponent<NavigationStatus>(entity);
             Assert.Equal(NavigationPhase.Following, status.Phase);
             Assert.Equal(NavigationResult.InProgress, status.Result);
+            // ⭐ CE-3072 B4′ — the move REPORTS the route it is planned under (the danger query names it)
+            Assert.Equal(corridor.RouteHandle, status.RouteHandle);
 
             // Assert MoveStartedEvent
             _world.Bus.SwapBuffers();

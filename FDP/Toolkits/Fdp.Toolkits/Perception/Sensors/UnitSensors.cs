@@ -67,13 +67,41 @@ namespace Fdp.Toolkit.Perception.Sensors
             return best;
         }
 
-        /// <summary>The ranked results of the unit's <paramref name="kind"/> sensor (the EQS reader API: <c>IsReady</c>, <c>GetTop</c>, …).</summary>
+        /// <summary>The ranked results of the unit's <paramref name="kind"/> sensor (the EQS reader API: <c>IsReady</c>, <c>GetTop</c>, …).
+        /// ⚠ False both for "no sensor" and for "a sensor of another result family" — a reader that must tell them apart
+        /// (and fail loudly on the second) calls <see cref="ReadRanked"/>.</summary>
         public static bool TryGetResults(ISimulationView view, Entity unit, SensorModality kind, out EqsCognitiveBuffer results)
+            => TryGetResults<EqsCognitiveBuffer>(view, unit, kind, out results);
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 (R-213) — the answer of the unit's <paramref name="kind"/> sensor in ITS OWN result type
+        /// <typeparamref name="T"/> (the kind's <see cref="SensorKindInfo.ResultComponent"/> — <c>DangerAreaCognitiveBuffer</c>
+        /// for <see cref="SensorModality.DangerArea"/>). False when the unit has no such sensor, or the sensor does not carry
+        /// <typeparamref name="T"/> — ⛔ never a cast from another family's result.
+        /// </summary>
+        public static bool TryGetResults<T>(ISimulationView view, Entity unit, SensorModality kind, out T results) where T : unmanaged
         {
             var sensor = Of(view, unit, kind);
-            if (sensor.IsNull || !view.HasComponent<EqsCognitiveBuffer>(sensor)) { results = default; return false; }
-            results = view.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            if (sensor.IsNull || !view.HasComponent<T>(sensor)) { results = default; return false; }
+            results = view.GetComponentRO<T>(sensor);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 — the RANKED reader's read, with the reason when there is no answer: <see cref="SensorReadStatus.NoSensor"/>,
+        /// <see cref="SensorReadStatus.NoAnswerYet"/>, or ⛔ <see cref="SensorReadStatus.WrongFamily"/> — the kind's sensor
+        /// answers in another family (<see cref="SensorKindRegistry.FamilyOf"/>), so a ranked node pointed at it must FAIL with
+        /// an error, not wait for ever (R-133; docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.4 guard row).
+        /// </summary>
+        public static SensorReadStatus ReadRanked(ISimulationView view, Entity unit, SensorModality kind, out EqsCognitiveBuffer results)
+        {
+            results = default;
+            if (SensorKindRegistry.FamilyOf(kind) != SensorResultFamily.Ranked) return SensorReadStatus.WrongFamily;
+            var sensor = Of(view, unit, kind);
+            if (sensor.IsNull) return SensorReadStatus.NoSensor;
+            if (!view.HasComponent<EqsCognitiveBuffer>(sensor)) return SensorReadStatus.WrongFamily;
+            results = view.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            return results.IsReady ? SensorReadStatus.Ok : SensorReadStatus.NoAnswerYet;
         }
 
         /// <summary>

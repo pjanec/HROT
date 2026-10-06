@@ -25,6 +25,15 @@ namespace Fdp.Toolkit.Perception.Events
         Hit         = 6,
         /// <summary>⭐ <c>CE-3064</c> — a bullet passed close to the unit without hitting it: it is being SHOT AT (R-206).</summary>
         NearMiss    = 7,
+
+        /// <summary>⭐ <c>CE-3072</c> B0 — a danger-area sensor's NEXT AREA AHEAD changed (a new one, or none).</summary>
+        AreaAhead      = 8,
+
+        /// <summary>⭐ <c>CE-3072</c> B0 — the threat on the next area ahead rose to/above the producer's threshold.</summary>
+        AreaThreatened = 9,
+
+        /// <summary>⭐ <c>CE-3072</c> B0 — the threat on the next area ahead fell below it again.</summary>
+        AreaCleared    = 10,
     }
 
     /// <summary>

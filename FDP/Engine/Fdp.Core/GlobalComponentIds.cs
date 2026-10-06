@@ -517,15 +517,18 @@
         // NavigationCorridorPreview, NavigationPathDetailsBuffer, CrowdAgent). Squad IDs begin at 262.
 
         /// <summary><c>DangerAreaSensor</c> — standing query config on a sensor child entity
-        /// (squad danger-area pipeline, §5.1).</summary>
-        public const int DangerAreaSensor = 262;
+        /// (squad danger-area pipeline, §5.1). ⭐ <c>QA-037</c> / <c>CE-3072</c> B0 (<c>2026-10-06</c>): moved 262 → 271 — 262
+        /// is <c>NavFakeIds.FakeNavmeshState</c>.</summary>
+        public const int DangerAreaSensor = 271;
 
         /// <summary><c>DangerAreaCognitiveBuffer</c> — Brain-side result cache written by
-        /// <c>DangerAreaRefreshSystem</c> (squad danger-area pipeline, §5.2).</summary>
-        public const int DangerAreaCognitiveBuffer = 263;
+        /// <c>DangerAreaRefreshSystem</c> (squad danger-area pipeline, §5.2). ⭐ <c>QA-037</c>: moved 263 → 272 — 263 is
+        /// <c>NavFakeIds.FakeCrowdGlobalState</c>.</summary>
+        public const int DangerAreaCognitiveBuffer = 272;
 
-        /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).</summary>
-        public const int MovementModeIntent = 264;
+        /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).
+        /// ⭐ <c>QA-037</c>: moved 264 → 273 — 264 is <c>NavFakeIds.FakeCrowdAgentState</c>.</summary>
+        public const int MovementModeIntent = 273;
 
         /// <summary><c>SquadCognitiveState</c> — ⭐ <b>the commander's squad state, as its OWN 1024-byte
         /// component</b> (`O1`, 2026-09-20). It used to be a PROJECTION over the commander's
@@ -546,6 +549,9 @@
         //     process-global — the same shape QA-008 measured. Filed for the backend lane.
         //   ⇒ 270 is clear of the whole contested band. ⛔ An id census must read EVERY *Ids.cs file,
         //     not just this one (R-44: ids are globally unique across all of them).
+        //   ✅ FIXED 2026-10-06 (QA-037, CE-3072 B0 — the danger sensor needs both registered in production): the three
+        //     squad ids moved to 271 / 272 / 273 (a census of every `const int` 250–349 in FDP/ and Hrot/ found them free).
+        //     262–269 now belong to the navigation fakes alone.
 
         // ---- Terrain / zone loading (300–319) -----------------------------------
         // NOTE: starts at 300 deliberately. The "Zone toolkit (201+)" block above is full (202–216 went

@@ -342,6 +342,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `unload_replay({})` — unload replay sandbox when done inspecting.
 
 ### Group K — AI behavior traces
+- **`get_entity_sensors`** — Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072). Req `networkId` (number). Returns { count, sensors:[{partId, kind, family:Ranked|Area, templateId, epoch, suspended, origin:tkb|behaviour|other, answer:{ready, count, lastUpdateTick, top:[{entityId, score, position}]} | {ready, count, lastUpdateTick, areas:[{featureId, kind, threat, distanceAlongRoute, center, nearHandle, farHandle}]}, settings? }] }
+  Notes: A Ranked sensor lists its top 5 results; an Area sensor (the danger-area sensor) lists its areas, the next one ahead first.; answer.ready is false until the first answer — an Area answer with count 0 and ready true means a clear route.; settings appear for an Area sensor: which route it watches (OwnMove | Handle | ToPoint) and its corridor..
+  Example: `get_entity_sensors({"networkId":1000})` — read which danger areas a unit sees ahead on its route, and how threatened each is.
 - **`get_entity_trace`** — Extract AI behavior trace for an entity. Req `networkId` (number). Returns BTree active node path + history, HSM active leaves, or blueprint live state. Includes traceArmed flag.
   Notes: Arm the entity with observe_trace first to populate trace data.; Returns tier field indicating the AI tier type (BTree/HSM/blueprint)..
   Example: `get_entity_trace({"networkId":1000})` — read AI behavior trace for entity 1000 after arming.

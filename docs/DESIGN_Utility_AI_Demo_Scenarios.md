@@ -831,3 +831,96 @@ H1/H2 need nothing at all and can start at once; the backend merges `behaviors` 
 | behaviors merges `backend` | behaviors | ⭐ when `origin/backend` carries a commit titled `feat(CE-3072 B0)` — before H3/H4/H6; ⭐ again before its final commit |
 | backend merges `behaviors` | backend | at the start of every slice (rule 7), and ⭐ before B6 (needs H2, H5) and B7 (needs H7) |
 | the dispatch | backend → behaviors | [`HANDOFF_Danger_Crossing_Behaviors.md`](blueprints/batches/HANDOFF_Danger_Crossing_Behaviors.md) |
+
+#### 10.6a ✅ AS-BUILT — B0 (`CE-3072`) and B1 (`CE-3080`), `2026-10-06`
+
+| §10.6 said | as built | why |
+|---|---|---|
+| a NEW `DangerAreaSettings` component | ⭐ `DangerAreaSettings` is a plain struct carried by the EXISTING `DangerAreaSensor` component (`Settings` field) | reuse — the existing component already was "the standing query config on a sensor child"; no new id |
+| `UnitSensors.ReadRanked(kind) status` | `UnitSensors.ReadRanked(view, unit, kind, out EqsCognitiveBuffer) → SensorReadStatus` | as drawn |
+| `DangerAreaChildSensor.Ensure` "same owner stamp and site rules" | ⭐ the creation body is SHARED: `EqsChildSensor.Ensure<TResult>` adds the family's result component; the ranked `Ensure` is now `Ensure<EqsCognitiveBuffer>`; `Refresh` clears an area answer and never adds a ranked one | one implementation for every family (part ids, owner stamp, epoch rules) |
+| `DangerAreaCognitiveBuffer.LastUpdateTick` | took the old 4-byte pad slot; ⭐ `IsReady` is now `LastUpdateTick != 0` — an answer with NO areas is an answer (it used to be `Count > 0`, reading "no danger" as "not ready") | |
+| `SensorChange` +3 | ⭐ also `BuiltInHsmEvents.SensorNames` +3 (`Sensor.AreaAhead`, `Sensor.AreaThreatened`, `Sensor.AreaCleared`, ids `0xFF08`–`0xFF0A`) — caught by the rail `CE3040_TheBuiltInNames_MatchTheRuntimeEnum` | an HSM reacts to the danger sensor by these names |
+| (not in §10.6) | `SensorEntryDto.IsWellFormed` accepts `DangerArea` (no per-kind block; `DangerAreaSettings.Default`); `SensorChildFactory.EnsureTkbChild` gives a DangerArea TKB child the AREA result component; `PerceptionRoleComponentRegistry` registers `DangerAreaSensor` + `DangerAreaCognitiveBuffer` (CGF + SimHost) | the TKB activation route of §10.2 |
+| QA-037 | ⭐ `DangerAreaSensor` 262→271, `DangerAreaCognitiveBuffer` 263→272, `MovementModeIntent` 264→273 (a census of every `const int` 250–349 found them free); rail `QA037_TheSquadIds_CollideWithNoNavigationId` | they could not be registered in production while colliding with the navigation fakes |
+| B1 `CE-3080` | `ThreatDanger.Of` returns 0 when `ThreatDanger.IsDead` (Health ≤ 0); rail `CE3080_KilledArmedContact_IsNoDanger_NoThreat_NoStrength` (ContactDanger, ContactThreatLevel, EnemyStrengthRatio) | one place for every threat reader |
+| B4′ | `PathfindingResultMaterializationSystem`'s move branch writes `NavigationStatus.RouteHandle`; ⚠ `NavigationExecutionSystem` resets the status only on a NEW intent, so the handle survives (the plan lands a solver round-trip after the intent) — the live run (B6) confirms it on the wire | |
+
+### 10.7 B3 + B4 — the `DangerAlongRoute` solve, its transport, and the Brain-side rating *(`2026-10-06`; `build-state: BUILDING`)*
+
+📐 **Measured** (a read-only sweep, every row `file:line` in the batch notes): ① a SimHost in BOTH cluster forms carries
+`MuscleGround | Perception | NavigationSolver` (`SimHostApp.cs:186`) — so "the node holding the navmesh" IS a Perception
+node; ⚠ a Stride node is `MuscleGround | Perception` only (`StrideCapabilities.cs:64`) ⇒ the picker must ask for BOTH
+roles; ② the picker hard-codes `NodeRole.Perception` (`EqsSensorConfigEgressTranslator.cs:298`; `GetLeastLoadedNode` uses
+`HasFlag`, so a combined role works as-is); ③ `INavmeshProvider.PlanPath(from, to, span, layerMask)` is synchronous
+(`INavmeshProvider.cs:52`); test-town has no road graph, so its routes come from the Recast navmesh; ④ `EqsSolverSystem`
+falls to `PublishEmpty` for an unknown template (`:212`) — the one branch point; ⑤ every result rides `EqsResultEvent` /
+`EqsResultTopic` / `EqsResultUpdateEvent` into `EqsCognitiveBuffer` — ⛔ nothing carries an area descriptor; translators
+are a plain list per pack (`SimHostAuxiliaryTranslatorPack.cs:56`).
+
+```mermaid
+classDiagram
+  class EqsSolverSystem { <<existing, SimHost / editor>> NEW branch: TemplateId == DangerAreaChildSensor.TemplateId }
+  class DangerAlongRouteSolve { <<NEW, Hrot.SimHost>> +Solve(repo, carrier, sensor, key) route then classify then publish }
+  class DangerAlongRouteClassifier { <<NEW, Fdp.Toolkit.Squad.DangerArea, pure>> +Classify(route, terrain, corridor, out areas) int }
+  class INavmeshProvider { <<existing>> PlanPath }
+  class TrajectoryPoolManager { <<existing>> TryGetTrajectory(routeHandle) }
+  class TerrainWorld { <<existing>> SurfaceTypeAt · Surfaces · SegmentBlocked · SurfaceZ }
+  class DangerAreaResultEvent { <<NEW managed event>> ParentNetworkId · LocalChildIndex · Epoch · RefreshTick · Observer · Areas }
+  class DangerAreaResultTopic { <<NEW DDS "DangerAreaResult">> key ParentNetworkId+LocalChildIndex · Epoch · List~DangerAreaWire~ }
+  class DangerAreaResultEgressTranslator { <<NEW, solver side>> gate = owner of dtEqsResult part, as EQS }
+  class DangerAreaResultIngressTranslator { <<NEW, Brain side>> resolve child, skip own echo, publish event with Observer }
+  class DangerAreaSensorSystem { <<NEW, Brain>> apply answers (epoch) · rate every tick · AreaAhead / AreaThreatened / AreaCleared }
+  class EqsSensorConfigEgressTranslator { <<existing>> picker: Perception OR Perception+NavigationSolver for the danger template }
+  EqsSolverSystem --> DangerAlongRouteSolve
+  DangerAlongRouteSolve ..> INavmeshProvider : ToPoint
+  DangerAlongRouteSolve ..> TrajectoryPoolManager : OwnMove (the vehicle's corridor)
+  DangerAlongRouteSolve --> DangerAlongRouteClassifier
+  DangerAlongRouteClassifier ..> TerrainWorld
+  DangerAlongRouteSolve ..> DangerAreaResultEvent : publishes
+  DangerAreaResultEgressTranslator ..> DangerAreaResultEvent : reads
+  DangerAreaResultEgressTranslator ..> DangerAreaResultTopic : writes
+  DangerAreaResultIngressTranslator ..> DangerAreaResultTopic : reads
+  DangerAreaResultIngressTranslator ..> DangerAreaResultEvent : republishes
+  DangerAreaSensorSystem ..> DangerAreaResultEvent : applies
+  DangerAreaSensorSystem ..> TerrainWorld : sight from last-known contact to area
+```
+
+*What the picture shows that prose hid: the area answer travels a path PARALLEL to the ranked one (own event, own topic,
+own apply system) and touches the ranked path at exactly two points — the solver's branch and the picker's role.*
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF): DangerAreaSensorSystem
+  participant C as Brain: child sensor (EqsSensor + DangerAreaCognitiveBuffer)
+  participant E as EqsSensorConfigEgress (picker)
+  participant S as SimHost: EqsSolverSystem
+  participant D as DangerAlongRouteSolve
+  E->>S: config topic, SolverNodeId = least-loaded Perception+NavigationSolver
+  S->>D: danger template: Solve
+  D->>D: route = PlanPath(unit, ContextPoint1) or the vehicle's corridor
+  D->>D: classify: road runs ≤ 40 m = StreetCrossing / Intersection
+  D-->>B: DangerAreaResultEvent → topic → ingress → event (Observer)
+  B->>C: epoch matches: areas (threat 0), LastUpdateTick
+  loop every Brain tick
+    B->>C: threat = max over memory slots of danger × sight(last-known pos → area centre)
+    B-->>B: slot 0 changed: AreaAhead · threat ≥ 0.5: AreaThreatened · < 0.4: AreaCleared
+  end
+```
+
+*What the picture shows that prose hid: the threat is re-rated EVERY tick from the Brain's memory, so the hold releases the
+moment the rifleman sees the hostile reach cover — it does not wait for the next solve.*
+
+| who registers / ticks it | |
+|---|---|
+| `EqsModule` (SimHost `PerceptionSolver`; editor) → `EqsSolverSystem` | the branch to `DangerAlongRouteSolve` (existing system, existing cadence) |
+| `SimHostAuxiliaryTranslatorPack` — `Perception \| MuscleGround` | NEW `DangerAreaResultEgressTranslator`, beside `EqsResultEventEgressTranslator` |
+| `SimHostAuxiliaryTranslatorPack` — `Brain` | NEW `DangerAreaResultIngressTranslator`, beside `EqsResultIngressTranslator` |
+| `CgfLogicPack` + the editor's Brain capability | NEW `DangerAreaSensorSystem`, beside `EqsResultUpdateSystem` |
+
+| ⭐ lean (v1 scope — the demo's need) | rejected / later |
+|---|---|
+| route sources ToPoint (navmesh plan) and OwnMove (the vehicle's own corridor on the solver node, read from `TrajectoryPoolManager`); Handle answers empty for now | shipping the route handle on the config topic — not needed while the solver node also holds the vehicle |
+| kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing |
+| FeatureId = hash(road surface index, run centre on a 10 m grid) — stable across re-plans, so `AreaAhead` fires on a real change | a per-solve counter (every answer would look new) |
+| rating on the Brain from the unit's own memory, sight by `TerrainWorld.SegmentBlocked` (eye 1.6 m → area centre +1 m), danger by `ThreatDanger.OfSlot` (so dead = 0, CE-3080) | the squad pool (U7 adds it) |

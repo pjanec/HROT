@@ -39,6 +39,10 @@ public static class PerceptionRoleComponentRegistry
         //   the solver runs on the node that declares Perception (SimHost), not on the Brain.
         world.RegisterComponent<EqsSensor>();
         world.RegisterComponent<EqsCognitiveBuffer>();
+        // ⭐ CE-3072 B0 — the danger-area sensor's settings and answer (the AREA result family, R-213); possible only after
+        //   QA-037 moved their ids off the navigation fakes'
+        world.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+        world.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
         // ⭐ a sensor child's kind — TKB sensors are built on every node that registers it (DESIGN_Sensors_And_Doctrine §4).
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
         // ⭐ CE-3061 — what a thermal sensor reads on its targets (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §4).

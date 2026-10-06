@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// Standing query configuration placed on a sensor child entity.
     /// Carries the blueprint identity, refresh cadence, and staleness epoch for the
     /// danger-area pipeline (squad danger-area pipeline, SS5.1).
-    /// 16 bytes, sequential layout.
+    /// Sequential layout. ⭐ <c>CE-3072</c> B0: also carries the sensor's <see cref="Settings"/> (it grows by their size).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaSensor)]
@@ -22,5 +22,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public float RefreshIntervalSeconds;
         /// <summary>Simulation time (seconds) at which the last refresh completed.</summary>
         public float LastRefreshSimTime;
+
+        /// <summary>⭐ <c>CE-3072</c> B0 — what the sensor watches and how (corridor, route, cadence). Set by
+        /// <c>DangerAreaChildSensor.Ensure</c> / <c>Configure</c>; read by the solver (B3) and the producer (B4).</summary>
+        public DangerAreaSettings Settings;
     }
 }
