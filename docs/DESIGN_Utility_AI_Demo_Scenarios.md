@@ -236,15 +236,15 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 |---|---|---|---|---|
 | **G1** ✅ BUILT `2026-10-05` | the two distance readers read `SimTransform` (as EQS does, `EqsContext.cs:64`) — fixes F1 live (`CE-3070`) | S | U2, U4–U6 | — |
 | **G2** ✅ BUILT `2026-10-05` | `/entities/{id}/utility` + a per-decision `UtilityDecisionLog` (armed by the EXISTING `POST /trace/observe` — one switch); F3 fixed; options named by `[UtilityDecision(OptionNames = typeof(…))]` | M | all | — |
-| **G3** | `/entities/{id}/squad`: contacts, assignments, maneuver, danger areas | S | U6, U7 | — |
-| **G4** | `CombatPostureHsm` asset + a runtime switch rail (Decision Layer D3) | M | U3 | — |
-| **G5** | `CombatPostureBp` blueprint (ScoreDecision + Behaviour Task per option) + a decision picker on `ScoreDecision` (BP-27) | M | U3 | — |
-| **G6** | NEW decision `AttackApproach` + behaviours `Flank`, `MoveToFiringPosition` (the TakeCover pattern) + a `ThreatsInView` input use | M | U4 | G1 |
-| **G7** | weapon mounts: register `WeaponMountInfo`, per-mount range, effectiveness vs armour (not a copy of range fit), the fire executor fires the chosen mount, a `SelectWeapon` step in the engage path; `TopCandidate` passes the target as context (F2) | L | U5 | G1 |
-| **G8** | call `ThreatMatrixAssignmentSystem` from `SquadCoordinationSystem`; feed it the merged pool (F4); an infantry squad hierarchy in a scenario | M | U6 | G1, G3 |
+| **G3** `CE-3087` → backend | `/entities/{id}/squad`: contacts, assignments, maneuver, danger areas | S | U6, U7 | — |
+| **G4** `CE-3082` → behaviors | `CombatPostureHsm` asset + a runtime switch rail (Decision Layer D3) | M | U3 | — |
+| **G5** `CE-3083` → behaviors | `CombatPostureBp` blueprint (ScoreDecision + Behaviour Task per option) + a decision picker on `ScoreDecision` (BP-27) | M | U3 | — |
+| **G6** `CE-3084` → behaviors | NEW decision `AttackApproach` {Direct, Flank, FiringPosition}, nested in CombatPosture's AdvanceAndAttack branch + a `ThreatsInView` input use. ⚠ *corrected `2026-10-06`:* the behaviours `Flank` / `FiringPosition` were BUILT meanwhile (`CE-2108` / `CE-2109`, behaviors, `2026-10-05`) — G6 is the DECISION only | M | U4 | G1 |
+| **G7** `CE-3089` → backend | weapon mounts: register `WeaponMountInfo`, per-mount range, effectiveness vs armour (not a copy of range fit), the fire executor fires the chosen mount, a `SelectWeapon` step in the engage path; `TopCandidate` passes the target as context (F2) | L | U5 | G1 |
+| **G8** `CE-3088` → backend | call `ThreatMatrixAssignmentSystem` from `SquadCoordinationSystem`; feed it the merged pool (F4); an infantry squad hierarchy in a scenario | M | U6 | G1, G3 |
 | **G9** | CE-507 D2/D3: a danger-area provider (interim: features authored in the terrain file), F5, F6, a squad-maneuver behaviour on the commander, members reading their role | L | U7 | user decisions |
-| **G10** | `basic-desert` ridge + wadi; measure navmesh and `SurfaceZ` on the ramps | S | U5–U7 | — |
-| **G11** ⚠ PARTIAL `2026-10-05` | the seven scenario folders, `utility-demo-check.py` (asserting; `--launch` = a fresh cluster per run, CE-295), the runbook, one in-process rail each — ✅ U1 `ua-posture` and U2 `ua-threat-ranking` built and PASS ×2 live; ⏳ their in-process rails, U3–U7 | M | all | per scenario |
+| **G10** `CE-3086` → backend | `basic-desert` ridge + wadi; measure navmesh and `SurfaceZ` on the ramps | S | U5–U7 | — |
+| **G11** ⚠ PARTIAL `2026-10-05` (U1/U2 rails: `CE-3085`) | the seven scenario folders, `utility-demo-check.py` (asserting; `--launch` = a fresh cluster per run, CE-295), the runbook, one in-process rail each — ✅ U1 `ua-posture` and U2 `ua-threat-ranking` built and PASS ×2 live; ⏳ their in-process rails, U3–U7 | M | all | per scenario |
 
 ## 7. Out of scope — and why
 
