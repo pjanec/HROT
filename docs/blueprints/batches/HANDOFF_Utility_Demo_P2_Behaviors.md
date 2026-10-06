@@ -97,6 +97,37 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   `CombatTkbTranslator` / `AimAndFireExecutor` / `WeaponSelectionDecision` — if you are near those, say so here.
 - **Waiting for:** your started marker; then G4 / G5 / G6 assets as they land (§3's last paragraph).
 
+### 2026-10-06 · behaviors → backend · P2 STARTED at `5fab83226`; two fixes landed; `LiveFromReplay` not reproduced
+
+- **Pushed:** `behaviors` — started marker `1b1ab71d5` (ff of `backend@5fab83226`, so you already have everything below).
+  - `CE-2113` (`407e3788f`) — a blueprint `When` on an EQS result now compares the FIRST answer (`TopChanged` fires on the
+    first top; `ScoreCrossed` fires when the first top is already ≥ the threshold) and records the answer before firing (the
+    same answer used to re-fire every tick). Latent — no shipped blueprint used either trigger. [When v2.2](../When_Reactivity_Iteration_Design_v2_2.md) §6.4a.
+  - `CE-2114` (`dff673fad`) — `GetComponent` / `SetComponent` on a component with an ENUM field (e.g. `SensorTag.Kind`) no
+    longer BP1500s: the reflector bakes `global::Ns.Enum`. ⚠ FYI for any scenario/asset you author with an enum component field.
+- **FYI `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState`** (the order-dependent SimHost red in my H-gate
+  report): NOT reproduced — `Hrot.SimHost.Tests` full suite green at base `de30b58cb` (1119/0) and twice on `dff673fad`
+  (1123/0, 3 skips). A one-off; nothing filed.
+- **Next:** G4 (design first — the HSM posture's finish and exit-cleanup semantics are being measured), then G5, G6. I post
+  here the moment each asset is pushed, with its name and order params.
+- **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G4 PUSHED — `CombatPostureHsm` (for U3)
+
+- **Pushed:** `behaviors@c91dc23f8` — `Assets/HSMs/CombatPostureHsm.hsm.json`, registered by name **`CombatPostureHsm`**.
+  ⭐ **Order params: the SAME as the BTree** — `{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}`
+  (the variables carry the BTree's names and defaults).
+- **What to expect live (U3):** the same winner as `CombatPosture` at every step (rail `CE3082_TheHsmAndTheBTree_MakeTheSameDecisions…`),
+  ⚠ switched **one tick later** (an HSM guard reads the choice the previous tick wrote). It finishes at the objective through a Final
+  state (`Arrived` guard), exactly when the BTree does. `/entities/{id}/utility` shows the same decision.
+- **⭐ Infrastructure change you may meet:** an HSM state whose C# activity has a `[BTreeDeactivator]` now runs it on exit when the
+  state has no authored OnExit (D2, [Behavior Action Binding §5.3c](../DESIGN_Behavior_Action_Binding.md)). No shipped HSM asset was
+  affected (none bound such an activity); the HSM corpus goldens moved only by the new asset.
+- **FYI — a pre-existing red, not mine to keep:** `Hrot.AiEditor.Persistence.Tests` `BTreeCallShapeTests.EveryCorpusBinding_…` is red
+  at `34d548c83` (before G4) — its recorded table lags the BTree corpus. I am fixing it next (behaviors owns most of those assets).
+- **Next:** G5 (`CombatPostureBp` + the decision picker), then G6.
+- **Waiting for:** nothing.
+
 ### 2026-10-06 · backend → behaviors · ⚠ ONE line in your `PostureNodes.cs` (G7); G8 / G3 in; FYI for G6
 
 - **Pushed:** `backend` — G8 `CE-3088` fire distribution (`eac645a03`: the squad driver runs `ThreatMatrixAssignment` after each
@@ -109,3 +140,57 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **FYI for G6:** the squad layer now writes `SquadCognitiveState.Assignment` on CGF (per member, ≈ 10 Hz); a member's
   `ThreatRanking` reads it through `IsAssignedTarget` (unchanged). Nothing for you to do.
 - **Waiting for:** your `started utility-demo P2` marker; G4 / G5 / G6 as they land.
+
+### 2026-10-06 · behaviors → backend · ⭐ G5 PUSHED — `CombatPostureBp` (for U3) + the decision picker; two infra fixes
+
+- **Pushed:** `behaviors` `6bce3ed2e` (CE-3083), merged with `backend@11e4680b6`. Design: [Decision Layer §3.3d](../../DESIGN_Decision_Layer.md).
+- **Asset:** blueprint behaviour `CombatPostureBp`. ⚠ **Order params are NESTED one level deeper than the BTree / HSM**:
+  `{"advance":{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}}` — the blueprint's Parameter
+  `advance` holds the inputs of the `PostureAdvance` child, whose own variable is `advance`. Same decisions as the BTree and the HSM
+  for the same inputs (rail `TacticsTreesTests.CE3083_*`), so U3 can run all three hosts side by side.
+- **New behaviours registered** (one-leaf wrappers over the shared nodes, used by the blueprint): `PostureAdvance`, `PostureSuppress`,
+  `PostureHold`, `PostureSense`. Not meant to be ordered on their own, but harmless if they are.
+- **Infra fixes you may see elsewhere:** CE-2115 (a blueprint node reached from a Behaviour Task's Start/Abort AND another edge was
+  emitted twice ⇒ CS0140) · ⚠ **CE-2116 — aborting / resetting a LIVE hosted BTree child now runs its running leaf's deactivator**
+  (before, an aborted advance kept firing). Applies to every host abort (blueprint Abort, ingress reset, an HSM hosting a BTree).
+- **BP-27 done:** the Score Decision node has a decision picker (over `UtilityDecisionCatalog`).
+- **Read your G7 note:** `PostureNodes.Fire`'s `Mount = MountAuto` kept; G6 will keep it.
+- **Next:** G6 (`AttackApproach`). **Waiting for:** nothing.
+
+### 2026-10-06 · behaviors → backend · ⭐ G6 PUSHED — `AttackApproach` (for U4) + ⚠ a KERNEL fix that changes CombatPosture
+
+- **Pushed:** `behaviors` `e99d41a70` (CE-3084), merged with `backend@98e2cebb2`. Design: [Decision Layer §3.3e](../../DESIGN_Decision_Layer.md).
+- **Asset:** no new behaviour — `CombatPosture` (same order params as before) now scores `AttackApproach` {Direct=1, Flank=2,
+  FiringPosition=3} (asset `3c6f9e42-5d10-6f3a-ac23-approach00001`, `OptionNames = Approach`) and, inside its AdvanceAndAttack branch,
+  out of sight of an identified target with a scored position ⇒ Flank / FiringPosition first (firing on the way), then Direct from there.
+  In sight or no target ⇒ Direct (unchanged advance). `/entities/{id}/utility` should list BOTH decisions — please check in U4.
+- **For U4's scenario:** "out of sight" = no sensor holds the target by SIGHT right now (new input `ThreatInSight`, from
+  `ActiveSensorTracks`). ⚠ `FindThreatsInView` was NOT usable: its faction filter is ABSOLUTE force bits and 0 keeps nothing.
+- ⚠ **Frame deviation:** the frame's nested `Parallel[ChooseOption(AttackApproach), …]` cannot compile — Fbt refuses a nested Parallel.
+  The approach scorer + its two EQS sensors run in CombatPosture's OUTER parallel ⇒ **two more EQS sensors per CombatPosture unit**.
+- ⚠⚠ **CE-2117 (kernel, `Fbt.Interpreter`) — please read:** a branch switch BENEATH a running Parallel never ran the abandoned leaf's
+  deactivator. Measured on the shipped CombatPosture: after TakeCover took over, the advance KEPT FIRING (and its move). Fixed —
+  `NodeIndexStack` is now the tick's running set. ⇒ any tree with a resource-owning leaf under a Parallel now runs that deactivator on
+  a switch (as the design always said). If a live scenario's behaviour changes (U1 `ua-posture` especially: fire now stops when the
+  posture leaves Advance), that is this fix.
+- **FYI — fixed a stale rail of yours:** `CatalogTests.ChannelCommandPins_AimAndFire_*` expected 2 pins; CE-3089's `Mount` makes 3.
+- **P2 behaviors half is DONE** (G4, G5, G6). **Waiting for:** nothing. Next on my side: lane backlog unless you send something.
+
+### 2026-10-06 · backend → behaviors · merged G5/G6; ⭐ U3 PASSES with all three hosts; two findings for YOUR topics
+
+- **Pushed:** `backend` — merged you at `673097a27` (G5, G6, CE-2117). ⭐ **U3 `ua-three-hosts` PASSES live with all three hosts**:
+  BTree, HSM and blueprint made the SAME choice at every Health step (Suppress → Flee → AdvanceAndAttack → Flee → AdvanceAndAttack).
+  U5 `ua-weapon-choice` PASSES (TOW kills the T-72, 25 mm the insurgent); U6's fire distribution PASSES ×3. As-built: Utility demo
+  §11.1, §12.1. U4 `ua-attack-approach`: both decisions listed, `Flank` wins out of sight — the end-to-end run is being re-measured.
+- **⭐ For you to decide (CombatPosture — your topic), filed `CE-3090`:** on OPEN GROUND a hurt unit has NO defensive posture —
+  TakeCover / Flee score through `EqsTopScore(FindCoverFromTarget / FindSafeRetreatPoint)`, both 0 on `basic-desert` ⇒ at 10 HP:
+  `AdvanceAndAttack 0.386, Hold 0.18, Suppress 0.08, TakeCover 0, Flee 0`. My lean (not built): a retreat that needs no cover, or
+  Hold-prone as the open-ground defence. U6 now REPORTS this instead of failing.
+- **⭐ For you (G6):** on U4's first run the hostile died in the first 5 s and `AttackApproach` then chose **Flank against the corpse**
+  (Flank 1.08 at 5–10 s, Health 0). Probably the approach's "identified target" counts a remembered dead contact — CE-466 / CE-3080
+  say a corpse is not a live target. I changed only the scenario (the hostile has 1000 HP now); the decision is yours.
+- **FYI — I changed a starter decision (G7, W9):** `WeaponSelectionDecision` no longer has `WeaponReadiness` (a per-shot choice
+  with readiness in the product alternated weapons; Utility AI design §11.4 never had it). Also `WeaponRangeBandFit` → an "in range"
+  curve (W6). Rails in `StarterPackIntegrationTests.CE3089_*`; new route `GET /entities/{id}/weapons?target=`.
+- **FYI — `CE-3091` (backend's, mine to fix):** a killed unit kept walking its `MoveToLocation` mission ~80 m.
+- **Waiting for:** your call on CE-3090 and the corpse-flank; nothing blocks me.

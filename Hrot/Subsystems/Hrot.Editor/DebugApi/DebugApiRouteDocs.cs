@@ -1707,6 +1707,25 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read which posture a unit chose and the scores behind it"),
 
+        [("GET", "/entities/{networkId}/weapons")] = new RouteDoc(
+            Tool:    "get_entity_weapons",
+            Group:   "K — AI behavior traces",
+            Summary: "A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089).",
+            Returns: "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }",
+            Hint:    "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("target", "number", false, "Network id of a target to score the mounts against (query)"),
+            },
+            Notes: new[]
+            {
+                "choice is the mount the AimAndFire executor fires on Mount=Auto (the posture's fire step): 0 = the owner's primary.",
+                "rangeFit is distance / mount range (≈ 1 inside the range in the decision's curve); 10 = unknown.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"target\":1002}",
+            ExampleGist: "see which weapon a unit would fire at a target, and why"),
+
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",
             Group:   "K — AI behavior traces",

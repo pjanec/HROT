@@ -42,6 +42,23 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 HeardPoint;
     }
 
+    /// <summary>⭐ <c>CE-3084</c> — the approach decision's sensors (<see cref="PostureNodes.ApproachSensors"/>) and the threat they
+    /// are pointed at — <see cref="PostureSensorsState"/>'s shape, for the flank and firing-position queries.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ApproachSensorsState
+    {
+        /// <summary>The flank sensor (<see cref="FindFlankingPosition"/>).</summary>
+        public EqsSensorHandle Flank;
+        /// <summary>The firing-position sensor (<see cref="FindOpenFiringPosition"/>).</summary>
+        public EqsSensorHandle Firing;
+        /// <summary>The threat both are pointed at.</summary>
+        public Entity Threat;
+        /// <summary>Or the HEARD contact (memory id; 0 = none) …</summary>
+        public long HeardId;
+        /// <summary>… and the point they were pointed at.</summary>
+        public Vector3 HeardPoint;
+    }
+
     /// <summary>⭐ <c>CE-2073</c> — how the posture fires.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct EngageParams
@@ -100,15 +117,41 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
         {
             // ⭐ CE-3063 ③ — an entity, or a HEARD contact's point: cover is scored against either.
-            var was = new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint);
-            if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat)) return NodeStatus.Running;   // nothing to score yet
-            bool retarget = EqsTacticsNodes.Moved(in was, in threat);
-            ws.Cover   = Keep(ws.Cover,   world, self, CoverSite,   FindCoverFromTarget.BlueprintId,  in p, in threat, retarget);
-            ws.Retreat = Keep(ws.Retreat, world, self, RetreatSite, FindSafeRetreatPoint.BlueprintId, in p, in threat, retarget);
-            if (retarget || ws.HeardId != threat.HeardId) ws.HeardPoint = threat.Point;
-            ws.Threat = threat.Entity;
-            ws.HeardId = threat.HeardId;
+            KeepPair(ref ws.Cover, CoverSite, FindCoverFromTarget.BlueprintId, ref ws.Retreat, RetreatSite, FindSafeRetreatPoint.BlueprintId,
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-3084</c> — the approach's sensor sites.</summary>
+        public const int FlankScoreSite = 0x30840001, FiringScoreSite = 0x30840002;
+
+        /// <summary>
+        /// ⭐ <c>CE-3084</c> (§3.3e A2) — keeps the APPROACH decision's flank and firing-position sensors pointed at the unit's top
+        /// threat, so its <c>EqsTopScore</c> inputs read them before a manoeuvre runs (the manoeuvres own a sensor only while
+        /// running). The same body as <see cref="PostureSensors"/>. Running.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus ApproachSensors(ref PostureSensorsParams p, ref ApproachSensorsState ws, Entity self, EntityRepository world)
+        {
+            KeepPair(ref ws.Flank, FlankScoreSite, FindFlankingPosition.BlueprintId, ref ws.Firing, FiringScoreSite, FindOpenFiringPosition.BlueprintId,
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>The ONE body of the sensor-keeping nodes: two sensors on the top threat (an entity, or a heard point), re-pointed
+        /// when it moves.</summary>
+        private static void KeepPair(ref EqsSensorHandle a, int siteA, uint templateA, ref EqsSensorHandle b, int siteB, uint templateB,
+                                     ref Entity threatEntity, ref long heardId, ref Vector3 heardPoint,
+                                     in PostureSensorsParams p, Entity self, EntityRepository world)
+        {
+            var was = new ThreatAim(threatEntity, heardId, heardPoint);
+            if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat)) return;   // nothing to score yet
+            bool retarget = EqsTacticsNodes.Moved(in was, in threat);
+            a = Keep(a, world, self, siteA, templateA, in p, in threat, retarget);
+            b = Keep(b, world, self, siteB, templateB, in p, in threat, retarget);
+            if (retarget || heardId != threat.HeardId) heardPoint = threat.Point;
+            threatEntity = threat.Entity;
+            heardId = threat.HeardId;
         }
 
         /// <summary>Fires at the unit's top threat (re-aims when it changes); stops firing when nothing is remembered. Running.
@@ -146,12 +189,31 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3082</c> D1 — true when THIS advance arrived: its move was issued and the channel reports Success. The HSM
+        /// host's finish (an HSM activity's status is discarded, so the posture HSM leaves Advance for its Final state on this
+        /// guard). Reads the SAME working state <see cref="AdvanceAndAttack"/> writes. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3c.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool Arrived(ref AdvanceParams p, ref AdvanceState ws, Entity self, EntityRepository world)
+            => ws.Moving == 1 && world.HasComponent<LocomotionChannel>(self)
+               && LocomotionMoveTo.Status(world, self) == NodeStatus.Success;
+
         /// <summary>Leaving the posture: its sensors go.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors")]
         public static void Deactivate_PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
         {
             Drop(world, ws.Cover);
             Drop(world, ws.Retreat);
+            ws = default;
+        }
+
+        /// <summary>⭐ <c>CE-3084</c> — leaving the approach: its two sensors go.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors")]
+        public static void Deactivate_ApproachSensors(ref PostureSensorsParams p, ref ApproachSensorsState ws, Entity self, EntityRepository world)
+        {
+            Drop(world, ws.Flank);
+            Drop(world, ws.Firing);
             ws = default;
         }
 

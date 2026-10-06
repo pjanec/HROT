@@ -956,6 +956,16 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-3089 (G7) — a unit's weapon mounts; with ?target= the WeaponSelection inputs per mount and the choice.
+            _routes.Add(new("GET", "/entities/{networkId}/weapons", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                long? target = long.TryParse(ctx.Query("target"), out var t) ? t : null;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityWeapons(id, target)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // ⭐ CE-3087 (G3) — a squad as its commander sees it: members with their assigned targets + the merged contact pool.
             _routes.Add(new("GET", "/entities/{networkId}/squad", async ctx =>
             {

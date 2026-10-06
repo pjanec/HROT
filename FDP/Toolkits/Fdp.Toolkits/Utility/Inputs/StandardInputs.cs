@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort WeaponEffectivenessVsTarget = 0xEE5F;
         /// <summary>⭐ CE-3071 — how many rounds the mount has left, on a log scale (<see cref="StandardInputs.RoundsLeft"/>).</summary>
         public const ushort RoundsLeft               = 0xCAE9;
+        /// <summary>⭐ CE-3084 — an identified remembered contact is held by a sensor NOW, by sight (<see cref="StandardInputs.ThreatInSight"/>).</summary>
+        public const ushort ThreatInSight            = 0x2D27;
     }
 
     /// <summary>
@@ -224,6 +226,27 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3084</c> (<c>docs/DESIGN_Decision_Layer.md</c> §3.3e F1) — 1 when a sensor holds, RIGHT NOW and by SIGHT, a contact
+        /// ctx.Self remembers as identified (<see cref="ActiveSensorTracks"/> with the Visual modality, CE-3060), else 0. A self
+        /// input: it needs no context entity. ⛔ Not <see cref="HasLineOfSight"/> (needs a context; and the memory's modality is
+        /// OR-accumulated — ever seen, not seen now) and not <c>FindThreatsInView</c> (its faction filter is absolute — 0 keeps nothing).
+        /// </summary>
+        [UtilityInput("ThreatInSight")]
+        public static float ThreatInSight(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<ActiveSensorTracks>(ctx.Self) || !ctx.Repo.HasComponent<TargetMemory>(ctx.Self)) return 0f;
+            ref readonly var tracks = ref ctx.Repo.GetComponentRO<ActiveSensorTracks>(ctx.Self);
+            ref readonly var mem = ref ctx.Repo.GetComponentRO<TargetMemory>(ctx.Self);
+            for (int t = 0; t < tracks.Count; t++)
+            {
+                if ((tracks.Modalities[t] & (byte)SensorModality.Visual) == 0) continue;
+                for (int i = 0; i < mem.Count; i++)
+                    if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)) return 1f;
+            }
+            return 0f;
+        }
+
+        /// <summary>
         /// ⭐ CE-3054 C — the enemy's share of the strength in play: Σ danger of every REMEMBERED contact ÷ (that sum + the
         /// unit's own strength, <see cref="ThreatDanger.OwnStrength"/>). Freshness is NOT applied — hidden does not mean
         /// harmless (R-194, Decision Layer G1). One armed enemy vs a healthy armed unit = 0.5. 0 with nothing remembered.
@@ -332,17 +355,24 @@ namespace Fdp.Toolkit.Utility
         /// Returns a score based on how well the target (ctx.Context) falls within the weapon's effective range.
         /// Finds the child entity whose WeaponMountInfo.MountIndex matches ctx.Params.MountIndex and
         /// whose PartMetadata.ParentEntity is ctx.Self (or ctx.Self itself when it carries WeaponMountInfo).
-        /// Returns distance / effectiveRange (unclamped; a Bell curve on the caller side handles both sides).
-        /// Returns 0 if no matching mount is found or positions are absent.
+        /// Returns distance / effectiveRange (unclamped; the decision's curve reads it — WeaponSelection: ≈ 1 inside the range).
+        /// ⭐ <c>CE-3089</c> (G7, W6): an UNKNOWN range or position returns <see cref="RangeUnknown"/> (far out of range), not 0 —
+        /// under the "in range" curve 0 means point blank, the best score, so an unknown mount would win.
         /// </summary>
+        /// <summary>⭐ <c>CE-3089</c> — what <see cref="WeaponRangeBandFit"/> returns when it cannot tell: ten times the range.</summary>
+        public const float RangeUnknown = 10f;
+
         [UtilityInput("WeaponRangeBandFit")]
         public static float WeaponRangeBandFit(in UtilityInputCtx ctx)
         {
-            if (!TryGetWorldPosition(ctx.Repo, ctx.Self, out var selfPos) ||
-                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return 0f;
+            if (!TryGetWorldPosition(ctx.Repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos) ||
+                !TryGetWorldPosition(ctx.Repo, ctx.Context, out var ctxPos)) return RangeUnknown;
 
+            // ⭐ CE-3089 — a mount CHILD stands where its owner stands: it carries no SimTransform in production (CombatTkbTranslator
+            //   makes WeaponState + WeaponMountInfo + PartMetadata only), so the shooter's position is the owner's. Measured live: every
+            //   TOW child scored 0 here (RangeUnknown) — the test helper's children carried a SimTransform and hid it.
             float effectiveRange = MountRange(ctx.Repo, ctx.Self, ctx.Params.MountIndex);
-            if (effectiveRange <= 0f) return 0f;
+            if (effectiveRange <= 0f) return RangeUnknown;
 
             float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = distance / effectiveRange;
@@ -368,7 +398,7 @@ namespace Fdp.Toolkit.Utility
             float pen = mount?.Penetration ?? 0f, dmg = mount?.DamagePerHit ?? 0f;
 
             float armour = 0f;
-            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, ctx.Self, out var selfPos))
+            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos))
                 armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(
                     Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context),
                     Fdp.Toolkit.Combat.ArmorModel.FacingOf(repo.GetComponent<SimTransform>(ctx.Context), selfPos));
@@ -427,6 +457,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.WeaponRangeBandFit,       &WeaponRangeBandFit);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
+            UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

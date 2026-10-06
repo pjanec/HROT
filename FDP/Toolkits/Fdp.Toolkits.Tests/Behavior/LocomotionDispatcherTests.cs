@@ -111,6 +111,42 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-3091</c> — a RUNNING move whose unit loses CanMove (death) is ENDED: OnExit runs once (for MoveTo, the
+        /// STOP the mover follows), never again while the capability stays lost; a restored capability enters the behaviour's
+        /// re-issued action afresh. ✅ Red-proof: the old early `continue` ⇒ OnExit 0 (live: a killed unit walked ~80 m).</summary>
+        [Fact]
+        public void CE3091_LosingCanMove_EndsTheRunningMove_OnceAndOnlyOnce()
+        {
+            var world = TestWorldFactory.Create();
+            var sys = new LocomotionDispatcherSystem();
+            var spy = new SpyExecutor<LocomotionChannel>();
+            sys.RegisterExecutor(1, spy);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new LocomotionChannel { ActiveAction = 1, ActionInstanceId = 1, DispatchedInstanceId = 0, Status = NodeStatus.Running });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+            sys.Execute(world, 0.016f);                                        // the move starts
+            Assert.Equal(1, spy.OnEnterCallCount);
+
+            world.GetComponentRW<ActorCapabilityState>(e).Capabilities = ActorCapabilities.None;   // killed
+            sys.Execute(world, 0.016f);
+            Assert.Equal(1, spy.OnExitCallCount);                              // the move is ended — the STOP is sent
+            Assert.Equal(NodeStatus.Failure, world.GetComponent<LocomotionChannel>(e).Status);
+            world.GetComponentRW<LocomotionChannel>(e).ActionInstanceId++;     // the behaviour re-issues while it cannot move
+            sys.Execute(world, 0.016f);
+            Assert.Equal(1, spy.OnExitCallCount);                              // …not again
+            Assert.Equal(1, spy.OnEnterCallCount);
+
+            world.GetComponentRW<ActorCapabilityState>(e).Capabilities = ActorCapabilities.CanMove;   // e.g. ejected / repaired
+            world.GetComponentRW<LocomotionChannel>(e).Status = NodeStatus.Running;
+            world.GetComponentRW<LocomotionChannel>(e).ActionInstanceId++;
+            sys.Execute(world, 0.016f);
+            Assert.Equal(2, spy.OnEnterCallCount);                             // the re-issued move enters afresh
+            Assert.Equal(1, spy.OnExitCallCount);
+
+            world.Dispose();
+        }
+
         [Fact]
         public void Dispatcher_SkipsNullExecutor_Gracefully()
         {

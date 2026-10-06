@@ -286,6 +286,33 @@ public sealed unsafe class HostedSubtreeCursorTests
         Assert.True(blobWith.Nodes[1].IsResourceOwning);
     }
 
+    private static int _ce2116Deactivations;
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-2116</c> — an ABANDONED live run releases what it holds:</b> <c>Interpreter.Abort</c> runs the deactivator of
+    /// the running leaf — 🔴 including a ONE-LEAF tree, whose running leaf is the root (index 0) and which the cursor cannot record
+    /// (0 means "none"), so a path sweep alone never reached it. The host calls it before zeroing an abandoned hosted child
+    /// (<c>HostedSubtree.ResetAt</c>); a blueprint that aborted its advance task kept firing without it (CE-3083).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE2116_AbortingALiveRun_RunsTheRunningLeafsDeactivator(bool underASequence)
+    {
+        const string key = "CE2116_Leaf";
+        var b = new BTreeBuilder<HostBb, BTreeContext>();
+        b.GetRegistry().Register(key, static (ref HostBb bb, ref BehaviorTreeState st, ref BTreeContext c, int pi) => NodeStatus.Running);
+        b.GetRegistry().RegisterDeactivator(key, static (ref HostBb bb, ref BehaviorTreeState st, ref BTreeContext c, int pi) => _ce2116Deactivations++);
+        if (underASequence) b.Sequence(seq => seq.Action(key)); else b.Action(key);
+        var tree = new Fbt.Runtime.Interpreter<HostBb, BTreeContext>(b.Compile("CE2116"), b.GetRegistry());
+
+        var bb = new HostBb(); var state = new BehaviorTreeState(); var ctx = new BTreeContext();
+        _ce2116Deactivations = 0;
+        Assert.Equal(NodeStatus.Running, tree.Tick(ref bb, ref state, ref ctx));
+        tree.Abort(ref bb, ref state, ref ctx);
+        Assert.Equal(1, _ce2116Deactivations);
+    }
+
     /// <summary>
     /// ⭐ <b>Rail ③ — a wrong or missing key FAILS LOUDLY</b> (§19.6 ⑤).
     ///

@@ -98,6 +98,18 @@ internal static class BTreeDeactivatorScanner
         return list;
     }
 
+    /// <summary>⭐ <c>CE-3082</c> D2 — the FQN of the <c>[BTreeDeactivator]</c> beside the shared action <paramref name="actionFqn"/>,
+    /// or null. The HSM generator binds it as a state's OnExit (<c>HsmDeactivatorExits</c>).</summary>
+    internal static string? DeactivatorFqnOf(Compilation compilation, string actionFqn)
+    {
+        INamedTypeSymbol? attrSymbol = compilation.GetTypeByMetadataName("Fbt.BTreeDeactivatorAttribute");
+        if (attrSymbol == null) return null;
+        var action = BTreeMethodCompatibilityValidator.ResolveMethod(compilation, actionFqn);
+        if (action == null) return null;
+        var d = FindBeside(action, actionFqn, attrSymbol);
+        return d == null ? null : d.ContainingType.ToDisplayString() + "." + d.Name;
+    }
+
     private static IMethodSymbol? FindBeside(IMethodSymbol action, string actionFqn, INamedTypeSymbol attrSymbol)
     {
         foreach (var member in action.ContainingType.GetMembers())

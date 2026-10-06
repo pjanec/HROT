@@ -109,6 +109,20 @@ namespace Fdp.Toolkit.Behavior.Runners
             return rootResult;
         }
 
+        /// <summary>⭐ <c>CE-2116</c> — an abandoned run's active path leaves: each resource-owning node's deactivator runs.</summary>
+        public void Abort(ref BehaviorRunContext ctx, byte* brain, int brainBytes, ref byte block)
+        {
+            if (brain == null || brainBytes < sizeof(BehaviorTreeState) || ctx.Definition.BTreeInterpreter == null) return;
+            ref var btState = ref Unsafe.AsRef<BehaviorTreeState>(brain);
+            var context = new BTreeContext
+            {
+                Self = ctx.Self, World = ctx.World, _deltaTime = ctx.DeltaTime, _time = ctx.World.SimulationTime,
+                _frameCount = (int)ctx.World.SimulationTick, _floatParams = Array.Empty<float>(), _intParams = Array.Empty<int>(),
+                _instanceId = ctx.InstanceId, _occurrenceKey = ctx.OccurrenceKey,
+            };
+            ctx.Definition.BTreeInterpreter.Abort(ref block, ref btState, ref context);
+        }
+
         /// <summary>
         /// Decode the per-frame BTree trace delta into BehaviorLog strings. Allocates strings, but is only entered after
         /// explicit <c>EmitToLog</c> + <c>IsTraceEnabled</c> gates, so the steady-state path remains allocation-free.

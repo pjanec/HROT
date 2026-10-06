@@ -558,6 +558,12 @@ internal sealed class GraphScheduler
                         SealFallThrough(blockId, bb, DebugOf(abortNode));
                         return;
                     }
+                    if (IsMergePoint(abortNext.Id))
+                    {
+                        // ⭐ CE-2115 — as every other arm: a convergent successor is jumped to, never re-inlined.
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(abortNext)) { Debug = DebugOf(abortNode) };
+                        return;
+                    }
                     node = abortNext;
                     continue;
                 }
@@ -578,6 +584,14 @@ internal sealed class GraphScheduler
                     if (startedNext is null)
                     {
                         SealFallThrough(blockId, bb, DebugOf(taskStart));
+                        return;
+                    }
+                    if (IsMergePoint(startedNext.Id))
+                    {
+                        // ⭐⭐ CE-2115 — the Started continuation re-inlined a merge point (a dispatcher that a task's Failed also
+                        //   reaches) instead of jumping to its shared block, so the node was lowered twice and its branch labels
+                        //   collided (CS0140). Every other arm already checks.
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(startedNext)) { Debug = DebugOf(taskStart) };
                         return;
                     }
                     node = startedNext;

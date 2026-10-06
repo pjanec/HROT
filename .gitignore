@@ -63,3 +63,4 @@ build-output.txt
 # Blueprint debug session files (user-local, not committed)
 .debug/
 .type_index.json
+__pycache__/

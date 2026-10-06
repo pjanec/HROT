@@ -236,10 +236,12 @@ public sealed class CatalogTests
         var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
-        // AimAndFireParams fields: Target (Entity), CooldownSeconds (float).
+        // AimAndFireParams fields: Target (Entity), CooldownSeconds (float), and (CE-3089 G7) Mount (byte: 0 = the owner's
+        // weapon, 255 = the executor picks per shot).
         Assert.Contains("Target",          dataNames);
         Assert.Contains("CooldownSeconds", dataNames);
-        Assert.Equal(2, dataPins.Count);
+        Assert.Contains("Mount",           dataNames);
+        Assert.Equal(3, dataPins.Count);
     }
 
     [Fact]

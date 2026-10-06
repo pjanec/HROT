@@ -31,6 +31,8 @@
       "ChildVisualIds": [
         "c2073000-0000-0000-0000-000000000003",
         "c2073000-0000-0000-0000-000000000004",
+        "c3084000-0000-0000-0000-000000000002",
+        "c3084000-0000-0000-0000-000000000003",
         "c2073000-0000-0000-0000-000000000005"
       ],
       "DisplayLabel": "Decide, sense, act",
@@ -80,6 +82,43 @@
       }
     },
     {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.ChooseOption",
+        "ExpressionTargetField": "approach",
+        "WorkingStateTargetField": "approachChoice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Choose the approach",
+      "EditorMetadata": {
+        "X": 640,
+        "Y": 260,
+        "Comment": "CE-3084 — scores AttackApproachDecision each tick into 'approachChoice' (read inside the advance).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors",
+        "ExpressionTargetField": "approachSensors",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.ApproachSensorsState"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Approach sensors",
+      "EditorMetadata": {
+        "X": 860,
+        "Y": 260,
+        "Comment": "Flank + firing-position sensors at the top threat — what the approach's EqsTopScore inputs read.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
       "kind": "ObserverSelector",
       "VisualId": "c2073000-0000-0000-0000-000000000005",
       "ChildVisualIds": [
@@ -103,7 +142,7 @@
       "VisualId": "c2073000-0000-0000-0000-000000000006",
       "ChildVisualIds": [
         "c2073000-0000-0000-0000-000000000007",
-        "c2073000-0000-0000-0000-000000000008"
+        "c3084000-0000-0000-0000-000000000004"
       ],
       "DisplayLabel": "Advance and attack",
       "EditorMetadata": {
@@ -134,6 +173,129 @@
       }
     },
     {
+      "kind": "ObserverSelector",
+      "VisualId": "c3084000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [
+        "c3084000-0000-0000-0000-000000000005",
+        "c3084000-0000-0000-0000-000000000008",
+        "c2073000-0000-0000-0000-000000000008"
+      ],
+      "DisplayLabel": "Run the approach",
+      "EditorMetadata": {
+        "X": 760,
+        "Y": 760,
+        "Comment": "CE-3084 — docs/DESIGN_Decision_Layer.md §3.3e (the approach decision + its sensors run in the outer parallel: Fbt forbids a nested Parallel).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c3084000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [
+        "c3084000-0000-0000-0000-000000000006",
+        "c3084000-0000-0000-0000-000000000011"
+      ],
+      "DisplayLabel": "Flank",
+      "EditorMetadata": {
+        "X": 640,
+        "Y": 880,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFlank",
+        "WorkingStateTargetField": "approachChoice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000006",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is flank",
+      "EditorMetadata": {
+        "X": 580,
+        "Y": 1000,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c3084000-0000-0000-0000-000000000008",
+      "ChildVisualIds": [
+        "c3084000-0000-0000-0000-000000000009",
+        "c3084000-0000-0000-0000-000000000012"
+      ],
+      "DisplayLabel": "Firing position",
+      "EditorMetadata": {
+        "X": 860,
+        "Y": 880,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFiringPos",
+        "WorkingStateTargetField": "approachChoice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000009",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is firing position",
+      "EditorMetadata": {
+        "X": 800,
+        "Y": 1000,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank",
+        "ExpressionTargetField": "flank",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Flank",
+      "EditorMetadata": {
+        "X": 700,
+        "Y": 1120,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition",
+        "ExpressionTargetField": "firing",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c3084000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Firing position",
+      "EditorMetadata": {
+        "X": 920,
+        "Y": 1120,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
       "kind": "Action",
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack",
@@ -142,7 +304,7 @@
       },
       "VisualId": "c2073000-0000-0000-0000-000000000008",
       "ChildVisualIds": [],
-      "DisplayLabel": "Advance and attack",
+      "DisplayLabel": "Direct: advance and attack",
       "EditorMetadata": {
         "X": 560,
         "Y": 520,
@@ -354,6 +516,24 @@
       "FloatParam": null,
       "Comment": "never ends the posture: 'nothing to do' falls through to Hold",
       "StackIndex": 0
+    },
+    {
+      "VisualId": "c3084000-0000-0000-0000-000000000107",
+      "HostNodeVisualId": "c3084000-0000-0000-0000-000000000011",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "§3.3e F2 — the manoeuvre succeeds on ARRIVAL; that hands over to Direct, never ends the run",
+      "StackIndex": 0
+    },
+    {
+      "VisualId": "c3084000-0000-0000-0000-000000000110",
+      "HostNodeVisualId": "c3084000-0000-0000-0000-000000000012",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "§3.3e F2 — the manoeuvre succeeds on ARRIVAL; that hands over to Direct, never ends the run",
+      "StackIndex": 0
     }
   ],
   "Canvas": {
@@ -482,6 +662,78 @@
         },
         "DefaultValueJson": "{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
         "Comment": "Fall-back tunables (as the FallBack tree)."
+      },
+      {
+        "Name": "approach",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.ChooseOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Decision\":\"3c6f9e42-5d10-6f3a-ac23-approach00001\"}",
+        "Comment": "The approach decision (AttackApproachDecision), scored inside the advance."
+      },
+      {
+        "Name": "approachChoice",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.UtilityChoice",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "The approach's current winner — written by the inner ChooseOption, read by the approach guards.",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "isFlank",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":2}",
+        "Comment": "Approach.Flank = option 2."
+      },
+      {
+        "Name": "isFiringPos",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":3}",
+        "Comment": "Approach.FiringPosition = option 3."
+      },
+      {
+        "Name": "approachSensors",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.PostureSensorsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":40,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}",
+        "Comment": "The approach's own flank and firing-position queries."
+      },
+      {
+        "Name": "flank",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":1}",
+        "Comment": "Flank tunables (as the Flank tree), firing on the way."
+      },
+      {
+        "Name": "firing",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":1}",
+        "Comment": "Firing-position tunables (as the FiringPosition tree), firing on the way."
       }
     ]
   }

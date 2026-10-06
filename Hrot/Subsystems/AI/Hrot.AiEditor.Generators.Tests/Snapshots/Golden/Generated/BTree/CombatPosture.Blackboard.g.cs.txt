@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 120)]
+[StructLayout(LayoutKind.Explicit, Size = 208)]
 public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]
@@ -28,6 +28,18 @@ public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
     public global::Hrot.AI.Behaviors.Brains.EngageParams engage;
     [FieldOffset(88)]
     public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams fallback;
+    [FieldOffset(120)]
+    public global::Fdp.Toolkit.Utility.ChooseOptionParams approach;
+    [FieldOffset(124)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFlank;
+    [FieldOffset(125)]
+    public global::Fdp.Toolkit.Utility.IsOptionParams isFiringPos;
+    [FieldOffset(128)]
+    public global::Hrot.AI.Behaviors.Brains.PostureSensorsParams approachSensors;
+    [FieldOffset(144)]
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams flank;
+    [FieldOffset(176)]
+    public global::Hrot.AI.Behaviors.Brains.EqsTacticsParams firing;
 }
 
 /// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="CombatPosture_Block"/>.</summary>
@@ -35,6 +47,7 @@ public struct CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard
 public struct CombatPosture_BlockState
 {
     public global::Fdp.Toolkit.Utility.UtilityChoice choice;
+    public global::Fdp.Toolkit.Utility.UtilityChoice approachChoice;
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
@@ -43,6 +56,6 @@ public struct CombatPosture_Block
 {
     [FieldOffset(0)]
     public CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard In;
-    [FieldOffset(120)]
+    [FieldOffset(208)]
     public CombatPosture_BlockState St;
 }

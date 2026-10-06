@@ -475,6 +475,89 @@ namespace Probe
                                     string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
         }
 
+        // ---- CE-3082 D2: an HSM state's empty OnExit runs its activity's deactivator -------------------
+
+        private const string DeactivatorSource = @"
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Probe
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PickParams { public int Limit; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Choice { public int Winner; }
+
+    public static class ChoiceNodes
+    {
+        [SharedAiAction]
+        public static NodeStatus Pick(ref PickParams p, ref Choice ws, Entity self, EntityRepository world)
+        { ws.Winner = p.Limit; return NodeStatus.Running; }
+
+        [BTreeDeactivator(""Probe.ChoiceNodes.Pick"")]
+        public static void Unpick(ref PickParams p, ref Choice ws, Entity self, EntityRepository world) { ws = default; }
+
+        [SharedAiAction]
+        public static NodeStatus Authored(Entity self, EntityRepository world) => NodeStatus.Success;
+
+        [SharedAiAction]
+        public static NodeStatus Plain(ref PickParams p, Entity self, EntityRepository world) => NodeStatus.Running;
+    }
+}";
+
+        private static string DeactivatorHsm(string activityFqn, string? onExitFqn) => $$"""
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00003082-0000-0000-0000-0000000000aa", "Name": "DeactivatorExitProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "DeactivatorExitProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "30820000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "30820000-0000-0000-0000-00000000000a" ], "ParentStableId": null, "IsInitial": false, "RegionIndex": 0 },
+                { "StableId": "30820000-0000-0000-0000-00000000000a", "Name": "A",
+                  "ChildStableIds": [], "ParentStableId": "30820000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0,
+                  {{(onExitFqn == null ? "" : $"\"OnExit\": {{ \"MethodFqn\": \"{onExitFqn}\" }},")}}
+                  "Activity": { "MethodFqn": "{{activityFqn}}", "ExpressionTargetField": "pick",
+                                "WorkingStateTargetField": "choice", "WorkingStateTypeId": "Probe.Choice" } } ],
+              "Regions": [], "Transitions": [], "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "DeactivatorExitProbeMachine_Blackboard", "Variables": [
+                { "Name": "pick",   "Type": { "TypeId": "Probe.PickParams" } },
+                { "Name": "choice", "Type": { "TypeId": "Probe.Choice" }, "Role": "State", "Scope": "Behavior" } ] } }
+            """;
+
+        /// <summary>⭐ <b><c>CE-3082</c> D2</b> — an HSM state whose activity has a <c>[BTreeDeactivator]</c> runs it on exit, bound
+        /// to the activity's own params + working state (the BTree host's leave-a-branch behaviour). 📄 Decision Layer §3.3c.</summary>
+        [Fact]
+        public void CE3082_AnHsmStatesEmptyOnExit_RunsItsActivitysDeactivator_AndItCompiles()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(DeactivatorSource, DeactivatorHsm("Probe.ChoiceNodes.Pick", null));
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id.StartsWith("HSM")).Select(d => d.GetMessage(null)).Should().BeEmpty();
+            all.Should().Contain("global::Probe.ChoiceNodes.Unpick(ref", "the deactivator is the state's OnExit, called in the shared stateful form");
+            all.Should().Contain(".OnExit(", "the state binds an OnExit");
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine + string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        [Fact]
+        public void CE3082_AnAuthoredOnExit_Wins_OverTheDeactivator()
+        {
+            var (_, generated, _) = RunHsm(DeactivatorSource, DeactivatorHsm("Probe.ChoiceNodes.Pick", "Probe.ChoiceNodes.Authored"));
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+            all.Should().Contain("global::Probe.ChoiceNodes.Authored(").And.NotContain("Unpick", "an authored OnExit is never replaced");
+        }
+
+        [Fact]
+        public void CE3082_AnActivityWithNoDeactivator_GetsNoOnExit()
+        {
+            var (_, generated, _) = RunHsm(DeactivatorSource, DeactivatorHsm("Probe.ChoiceNodes.Plain", null).Replace(
+                "\"WorkingStateTargetField\": \"choice\", \"WorkingStateTypeId\": \"Probe.Choice\"", "\"WorkingStateTargetField\": null"));
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+            all.Should().NotContain(".OnExit(", "nothing to clean up ⇒ the slot stays empty (shipped assets' goldens do not move)");
+        }
+
         // ---- S8: the HSM binds the same shared forms -----------------------------------------------
 
         private static string HsmFormsAsset(string wsVariable) => $$"""

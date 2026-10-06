@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
-build-state: BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+updated: 2026-10-06
+build-state: BUILT §3.3e (CE-3084, G6: AttackApproach nested in the advance; CE-2117 kernel sweep). BUILT §3.3d (CE-3083, G5: CombatPostureBp + the decision picker; CE-2115, CE-2116). BUILT §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -12,9 +12,12 @@ related-designs:
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS the CE-3031 children (TakeCoverBp, FallBackBp) that CombatPosture picks between and that replace the SOP stand-ins.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP slot (its text still says "doctrine" — renamed by R-198), the origin gate (R-188, R-189, R-193) and the sensor side; this document owns what decides inside the slot (missions, threat, intent, utility).
   - docs/blueprints/batches/FRAME_Decision_Layer.md — the frame this answers (G1–G11).
-  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.
+  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node; OWNS the hosted-child reset that CE-2116 (§3.3d) made abort a live child.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; an SOP calls it (§7), never a host.
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
+  - docs/blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md — the P2 frame (G4–G6) §3.3c answers for G4.
+  - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the HSM binding sites and the CE-388 OnExit auto-bind that §3.3c D2 extends with deactivators.
+  - docs/designs/ai-btree-deactivator-1/DESIGN.md — OWNS the BTree exit sweep (deactivators); CE-2117 (§3.3e) extended it to switches beneath a running Parallel.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
 -->
 
@@ -614,6 +617,289 @@ live target. ⚠ The aggregator's compensation factor (`1 − 1/n`) moved the Ad
 to ~0.235 with an enemy present (re-pinned in `StarterPackIntegrationTests`, measured). ⛔ Rejected (my lean): the Hold leaf
 walking to the objective. Rails: `TacticsTreesTests.CE2105_WithNothingToFight_ThePostureAdvancesToTheObjective_WithoutFiring`,
 `StarterPackIntegrationTests.CombatPosture_NoContacts_SelectsAdvanceAndAttack`.
+
+### 3.3c `CE-3082` (G4) — CombatPostureHsm, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G4 — the SAME decision as §3.3b hosted as an
+HSM, reusing the BTree's option children (ruling 9), and closing **D3** (the HSM switch railed at runtime, not only at compile).
+Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G4, U3.
+
+**INVENTORY** *(codebase-memory CLI `search_graph`, `2026-10-06`: `.*Utility.*Decision.*` Class → 16, `ChooseOption|IsOption|ScoreDecision|RankCandidates` Method → 19, `.*(Posture|…).*` Class → 11; ⚠ `check_index_coverage` is not available through the CLI, so absence claims below are grep-corroborated)*:
+`UtilityNodes.ChooseOption` / `IsOption` (stateful, shared) · `PostureNodes` {`PostureSensors`, `Engage`, `AdvanceAndAttack`, `Hold`} +
+three `[BTreeDeactivator]`s · `EqsTacticsNodes` {`TakeCover`, `FallBack`} + deactivators · the HSM stateful binding (S8; a guard
+binding ETF + WS, compile-railed by `SharedAiBindingCompilesTests.CE2069_AnHsmBindsAStatefulGuard…`) · polled transitions
+(CE-381/382) · Final ⇒ `HsmRunner` Success ⇒ `BehaviorFinishedEvent` (rail ⑨, `BrainTickSystemHsmArmTests.CE398_R1`).
+
+⚠ **Two measured differences from the BTree host — each one decides a part of this design:**
+
+| the BTree gets it for free | the HSM, measured | ⇒ |
+|---|---|---|
+| a leaf's `Success` ends the posture (AdvanceAndAttack arrives) | a state's activity is a `void` kernel action — its `NodeStatus` is discarded (`HsmActionDispatcher.cs:20`, `SharedAiBindings.cs:283`); the only finish is a **Final** state (`HsmKernelCore.cs:357`, `HsmRunner.cs:205`) | **D1** a polled guard `PostureNodes.Arrived` → Final |
+| leaving a branch runs its node's `[BTreeDeactivator]` (stops the move / fire, drops the sensor, resets its working state) | ⛔ **no HSM path calls a deactivator** (`BTreeBridgeEmitCore.cs:1957` only); the CE-388 auto-bind fills an empty OnExit with a CHANNEL release, only for a blueprint / `[WritesChannel]` activity; and the resolver refuses a non-`[SharedAi*]` method on OnExit (`SharedAiMethodResolver.cs:40`) | **D2** an HSM state's empty OnExit runs its activity's deactivator |
+
+```mermaid
+classDiagram
+  class HsmJsonGenerator { <<existing, grows>> before emit: FillDeactivatorExits(dto, deactivatorOf) }
+  class HsmDeactivatorExits { <<NEW, Persistence/Emit>> +Fill(HsmAssetDto, Func~string,string?~ deactivatorOf) int }
+  class SharedAiMethodResolver { <<existing, widened>> accepts a [BTreeDeactivator] method as an ACTION (void ⇒ status ignored) }
+  class BTreeDeactivatorScanner { <<existing>> FindBeside(action) — reused by the generator's deactivatorOf }
+  class HsmEmitCore { <<existing, unchanged>> OnExit is now just an authored-looking binding }
+  class PostureNodes { <<existing, grows>> +Arrived(ref AdvanceParams, ref AdvanceState) bool  NEW SharedAiCondition }
+  class CombatPostureHsm_hsm { <<NEW asset>> Concurrent of Choose, Sense, Posture with 5 leaves; Arrived is Final }
+  HsmJsonGenerator ..> HsmDeactivatorExits
+  HsmJsonGenerator ..> BTreeDeactivatorScanner : deactivatorOf
+  HsmJsonGenerator ..> SharedAiMethodResolver
+  HsmDeactivatorExits ..> HsmEmitCore : the dto it emits
+  CombatPostureHsm_hsm ..> PostureNodes
+  CombatPostureHsm_hsm ..> UtilityNodes
+  CombatPostureHsm_hsm ..> EqsTacticsNodes
+```
+
+*What the picture shows that prose hid:* D2 is a DTO rewrite in front of an UNCHANGED emitter — the filled OnExit is an ordinary
+binding, so the namer, the thunk collector (`SharedAiBindings.Collect`) and the emitter need no new arm; only the resolver learns
+that a deactivator is callable.
+
+```mermaid
+graph TD
+  ROOT["__Root"] --> CON["Concurrent (parallel)"]
+  ROOT --> FIN["Arrived (Final)"]
+  CON --> CH["Choose — Activity ChooseOption(choose, choice)"]
+  CON --> SE["Sense — Activity PostureSensors(sensors, sensorsWs)"]
+  CON --> PO["Posture (composite)"]
+  PO --> H["Hold (initial)"]
+  PO --> A["Advance — AdvanceAndAttack(advance, advanceWs)"]
+  PO --> C["TakeCover — TakeCover(cover, coverWs)"]
+  PO --> S["Suppress — Engage(engage, engageWs)"]
+  PO --> F["FallBack — FallBack(fallback, fallbackWs)"]
+  A -->|"polled: Arrived(advance, advanceWs)"| FIN
+```
+
+*What the picture shows that prose hid:* the five posture leaves are joined by **20 leaf-to-leaf polled transitions**, each
+guarded `IsOption(target)` over the shared `choice` — ⛔ NOT a parent→child transition (selection walks leaf→ancestors, so a
+transition on `Posture` would exit and re-enter the active child every tick) and ⛔ NOT a global (globals ignore regions and
+re-enter the target every tick, `HsmKernelCore.cs:675`). Activities sit on leaves only (an activity on `Concurrent` would run once
+per region). 1 root + 3 regions = 4 slots — inside the 128 tier.
+
+```mermaid
+sequenceDiagram
+  participant K as HSM kernel (one tick)
+  participant G as polled guards (IsOption / Arrived)
+  participant X as OnExit (the old leaf's deactivator)
+  participant A as activities (ChooseOption, PostureSensors, the leaf's node)
+  K->>G: Idle: polled scan of the active leaves (reads LAST tick's choice)
+  G-->>K: IsOption(TakeCover) true on the Advance leaf
+  K->>X: exit Advance ⇒ Deactivate_AdvanceAndAttack (stop move + fire, ws = default)
+  K->>A: enter TakeCover, then activities ChooseOption, PostureSensors, TakeCover
+  Note over K,A: one tick behind the BTree: the guard reads the choice the previous tick wrote
+  G-->>K: Arrived(advance) true ⇒ Final ⇒ Terminated ⇒ HsmRunner Success ⇒ BehaviorFinished
+```
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **D1** finish = a polled transition Advance → Final guarded by a NEW `[SharedAiCondition] PostureNodes.Arrived` (ws `AdvanceState`: our move issued AND the channel reports Success) | the HSM has no other finish; the condition reads the SAME working state the activity writes, so it means "THIS advance arrived", not "some move finished" | an "activity Success completes the state" kernel feature — the kernel's action ABI is `void` (a cross-ExtDep change for one asset); the blueprint `MoveArrived` (a blueprint library call, not a shared node) |
+| **D2** the generator fills an EMPTY OnExit with the activity's `[BTreeDeactivator]`, bound to the activity's own ETF / WS (fill-an-empty-slot, as CE-388) | parity with the BTree host: switching away stops the old branch and resets its working state (re-entry starts clean); every shared node with a deactivator gains it on HSM, not just these | per-node `[SharedAiAction]` exit wrappers (a second entry point per node, ruling 9); asking authors to bind it (they would bind the wrong method or forget — the CE-388 argument) |
+| D2 precedence: an AUTHORED OnExit wins; the deactivator wins over the CE-388 `[WritesChannel]` channel release | the deactivator is the node's own cleanup (it stops what it started); measured: no shipped node has both, and **no shipped HSM asset binds an activity with a deactivator** (21 deactivators × 10 HSM assets, grep) ⇒ zero golden movement | running both (a second OnExit slot does not exist) |
+| **D3** each node's working state gets its own Behavior-scoped `St` variable (`sensorsWs`, `advanceWs`, `coverWs`, `engageWs`, `fallbackWs`) | the BTree binds them implicitly; on HSM the WS falls back to the ETF variable (the params type ⇒ HSM0003) | — |
+| **D4** the rail host is `TacticsTreesTests.World` (production registry, StandardInputs, ingress, BrainTickSystem); the active leaf read through `RootHsmAccess` + `HsmKernel.GetActiveLeafIds` | the BTree posture's own suite (T-1) — the HSM rails sit beside `CE2073_*` | a new harness |
+
+**Acceptance (a rail each, red-proved):** ① registered by name · ② a weak enemy ⇒ the `Advance` leaf, moving to the objective
+firing; arrival ⇒ the run finishes (Final) and its sensors go · ③ ⭐ **D3 closed — the RUNTIME switch both ways:** weak enemy ⇒ `Advance` firing;
+hurt + outnumbered + cover ⇒ `TakeCover`, and the advance's fire stops (its deactivator ran on exit); health restored ⇒ back to
+`Advance` · ④ the same winner sequence as the BTree for the same inputs (U3's premise) · ⑤ generator: an HSM activity with a
+deactivator gets it as OnExit; an authored OnExit is kept; a node without one is untouched (golden byte-identical).
+
+⭐ **AS-BUILT (`2026-10-06`)** — built as drawn; the asset is `Assets/HSMs/CombatPostureHsm.hsm.json` (Name `CombatPostureHsm`,
+order params as the BTree: `{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}`). Differences:
+
+| as built | where | why |
+|---|---|---|
+| `Hold` is a real option here (`isHold`, option 5) with its own incoming transitions; the BTree reaches Hold by falling through | the asset | an HSM leaf is only entered by a transition — without it a unit could never return to Hold |
+| the D2 fill is generator-side only (`HsmJsonGenerator` → `HsmDeactivatorExits.Fill`); the editor's preview emit (no compilation) does not fill | `HsmEmitCore.cs:94` passes no resolver | the same split as the CE-388 `[WritesChannel]` default — only the compilation knows the attribute |
+| the "same decisions" rail reads each host's `St.choice` from its own block (`RootParamsAccess.TryGetBlockFor`) | `TacticsTreesTests.World.Winner` | ⛔ the unit's `UtilityResultBuffer` is NOT the winner record — `TopThreat`'s ranking writes the same buffer (measured: a posture unit's buffer held a ranking entry, option 0) |
+
+Rails: `TacticsTreesTests.CE3082_*` (4: registered · weak enemy ⇒ Advance, arrival ⇒ Final ⇒ finished, sensors gone · ⭐ the
+runtime switch both ways + leaving Advance stops its fire (its deactivator ran) · the BTree and the HSM pick the same winner at every step) ·
+`SharedAiBindingCompilesTests.CE3082_*` (3: deactivator filled as OnExit and compiles · an authored OnExit wins · no deactivator ⇒
+no OnExit). Red-proof: with the fill removed, the generator rail and the switch rail red (the advance keeps firing after TakeCover took over). ⚠ Measured on the way: a TakeCover sensor is NOT evidence of the exit — TakeCover releases its own sensor the tick it loses its threat, before the switch.
+
+### 3.3d `CE-3083` (G5) — CombatPostureBp + the decision picker, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G5 — the SAME decision as §3.3b/§3.3c hosted as a
+BLUEPRINT (one `ScoreDecision` + a Behaviour Task per option), plus the editor's decision picker (BP-27). Programme:
+[Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G5, U3.
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-06`; ⚠ `check_index_coverage` is not available through the CLI)*:
+`ScoreDecisionNode` (compiler: `Stage5_Schedule` → `IrOp_ScoreDecision`, hidden `_score_<id8>_last` hysteresis) ·
+`RunBehaviorNode` (Behaviour Task, S7: Start/Abort, Started/WhileRunning/Succeeded/Failed; `ParamsTypeId`+`ParamsVariable`) ·
+the BTree's option nodes (`PostureNodes`, `EqsTacticsNodes`) and the `TakeCover` / `FallBack` behaviours (§3.3b) ·
+⭐ an existing decision combo: `ComponentEditDrawer` over `UtilityDecisionCatalog.Shared` for a `UtilityDecisionRef` FIELD (CE-2068) —
+the picker reuses that catalog, not a new discovery · `BehaviorTaskNodeDrawer` (the node-drawer pattern) · no `ScoreDecisionNode`
+drawer existed (BP-27, `RW-M`).
+
+```mermaid
+classDiagram
+  class CombatPostureBp_bp { <<NEW asset>> Param advance; Var Winner byte; Tick graph }
+  class PostureSense { <<NEW BTree>> PostureSensors(sensors) — never ends }
+  class PostureAdvance { <<NEW BTree>> AdvanceAndAttack(advance) }
+  class PostureSuppress { <<NEW BTree>> Engage(engage) }
+  class PostureHold { <<NEW BTree>> Hold }
+  class TakeCover { <<existing behaviour>> }
+  class FallBack { <<existing behaviour>> }
+  class ScoreDecisionNodeDrawer { <<NEW, Blueprints.Editor>> +CatalogDecisions() list of name and assetId }
+  class UtilityDecisionCatalog { <<existing>> Shared.Entries — Def.AssetId, DebugName }
+  class Stage5_Schedule { <<existing, fixed CE-2115>> Start/Abort into a merge point = goto the shared block }
+  class HostedSubtree { <<existing, fixed CE-2116>> ResetAt aborts a live run first }
+  class IBehaviorRunner { <<existing, grows>> +Abort(ctx, brain, block) default no-op }
+  class BTreeRunner { <<existing, grows>> Abort = Interpreter.Abort }
+  CombatPostureBp_bp ..> PostureSense : Behaviour Task
+  CombatPostureBp_bp ..> PostureAdvance : Behaviour Task + Params
+  CombatPostureBp_bp ..> PostureSuppress
+  CombatPostureBp_bp ..> PostureHold
+  CombatPostureBp_bp ..> TakeCover
+  CombatPostureBp_bp ..> FallBack
+  ScoreDecisionNodeDrawer ..> UtilityDecisionCatalog
+  HostedSubtree ..> IBehaviorRunner : Abort on reset
+  BTreeRunner ..|> IBehaviorRunner
+```
+
+*What the picture shows that prose hid:* a Behaviour Task runs a REGISTERED BEHAVIOUR, not a node — so the three option nodes that
+were not yet behaviours get one-leaf wrapper BTrees (ruling 9: the nodes are reused, not re-implemented); and an abort reaches the
+child's node only through `HostedSubtree` → the runner, which had no abort at all (CE-2116).
+
+```mermaid
+sequenceDiagram
+  participant T as Tick graph (blueprint)
+  participant S as Sense task (Started ⇒ alongside)
+  participant D as ScoreDecision ⇒ Winner
+  participant P as the winner's task (e.g. PostureAdvance)
+  participant H as HostedSubtree / BTreeRunner
+  T->>S: Start (once — Started fires the dispatcher)
+  loop every tick, Sense WhileRunning
+    S->>D: score ⇒ Set Winner
+  end
+  T->>P: dispatcher: Winner == k ⇒ Start task k (Hold if none)
+  P->>P: WhileRunning: Winner != k ⇒ Abort
+  P->>H: Abort ⇒ ResetAt ⇒ AbortRunning ⇒ Interpreter.Abort (runs the leaf's deactivator: stop move + fire)
+  H-->>T: Failed ⇒ back to the dispatcher (CE-2115: one merge block)
+  P-->>T: PostureAdvance Succeeded (arrived) ⇒ Return Success ⇒ the run finishes
+```
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **E1** the decision is scored inside the SENSE task's WhileRunning chain and stored in a `Winner` variable | one scoring per tick in one place; every option task reads the variable to decide whether to abort itself | a ScoreDecision per option task (N scorings a tick, N hysteresis fields that disagree) |
+| **E2** each option task aborts ITSELF (`WhileRunning`: `Winner != k` ⇒ Abort), Failed loops back to the dispatcher | Abort is legal only from the task's own chain or after Started (BP1685) | one central "abort the old task" node (the blueprint cannot name "the running task") |
+| **E3** one-leaf wrapper BTrees for the node-only options (`PostureAdvance`, `PostureSuppress`, `PostureHold`, `PostureSense`) | a Behaviour Task runs a registered behaviour; the node and its deactivator are reused | a new "run a shared node" blueprint node (a second binding surface, ruling 9) |
+| **E4** the picker lists `UtilityDecisionCatalog` and stores the decision's ASSET ID; an unknown id is kept and flagged | the compiler hashes exactly that id (`UtilityIdHash`) into the id the catalog registers under ⇒ a pick resolves by construction; same list as the CE-2068 field combo | a free GUID text box (the BP-27 defect); a second decision registry for the editor |
+
+**Acceptance (a rail each, red-proved):** ① registered by name · ② weak enemy ⇒ PostureAdvance, moving + firing; arrival ⇒ the run
+finishes · ③ health edits switch both ways, and leaving Advance stops its fire · ④ the BTree, the HSM and the blueprint make the
+same decisions · ⑤ the picker: lists / filters the catalog, one undoable edit, unknown id kept · ⑥ every shipped ScoreDecision
+resolves in the catalog.
+
+⭐ **AS-BUILT (`2026-10-06`)** — the asset is `Assets/Blueprints/CombatPostureBp.bp.json` (Name `CombatPostureBp`; order params:
+`{"advance":{"advance":{"Objective":[x,y,z],"Speed":3,"ArrivalRadius":5,"CooldownSeconds":1}}}` — the blueprint Parameter `advance`
+holds PostureAdvance's inputs, whose own variable is `advance`). Two infrastructure defects were found by building it:
+
+| found | what was wrong | fix |
+|---|---|---|
+| **CE-2115** | a node reached BOTH from a task's Started and from another task's Failed was scheduled TWICE ⇒ duplicate labels, CS0140 | `Stage5_Schedule`: a Behaviour Task Start/Abort whose next node is a merge point jumps to the ONE shared merge block (`GetOrAllocMergeBlock`), as every other exec edge does |
+| **CE-2116** | an aborted BTree child kept running its leaf's effects (the advance kept firing): `HostedSubtree.ResetAt` only zeroed the brain; no runner had an abort | `IBehaviorRunner.Abort` (default no-op), `BTreeRunner.Abort` = new `Interpreter.Abort` (sweeps the running path's deactivators, then the root — a one-leaf tree's leaf IS node 0, never on the path); `ResetAt` calls it when the start word says a run is live. ⚠ It applies to EVERY host abort (blueprint Abort, ingress reset, an HSM hosting a BTree). HSM / blueprint children: still the no-op |
+
+Rails: `TacticsTreesTests.CE3083_*` (3: registered · weak enemy ⇒ advance + finish · ⭐ switch both ways + fire stops · all three hosts
+same decisions) · `ScoreDecisionNodeDrawerTests.BP27_*` (6) · `BlueprintBehaviourTests.CE2115_*` · `HostedSubtreeCursorTests.CE2116_*`
+(red-proved: the lone-leaf case fails without the root sweep).
+
+### 3.3e `CE-3084` (G6) — AttackApproach, a decision nested in the advance, the build design *(behaviors, `2026-10-06`; build-state: BUILT — as-built at the end)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G6 — a NEW decision `AttackApproach`
+{Direct, Flank, FiringPosition} scored INSIDE CombatPosture's AdvanceAndAttack branch (the U1 shape one level down); Flank /
+FiringPosition are the CE-2108 actions (BUILT). Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G6, U4. Answers
+CE-2110 for the posture case.
+
+**INVENTORY** *(grep + the codebase-memory CLI, `2026-10-06`)*: `UtilityNodes.ChooseOption` / `IsOption` (a second decision = a
+second `ChooseOptionParams` + `UtilityChoice` pair; nothing else) · `PostureNodes.PostureSensors` (keeps two EQS sensors on the top
+threat for the decision's `EqsTopScore` inputs) · `EqsTacticsNodes.Flank` / `FiringPosition` (`Run`: Success on ARRIVAL, Failure
+with no identified threat, own sensor at `FlankSite` / `FiringPositionSite`, `FireWhileMoving`) · the starter templates
+`FindFlankingPosition`, `FindOpenFiringPosition`, `FindThreatsInView` · inputs `HasLineOfSight` (needs a CONTEXT entity),
+`HaveLiveTarget`, `EqsTopScore`, `EqsResultCount` · `ActiveSensorTracks` (the contacts a sensor holds NOW, with their modality).
+
+⚠ **Two measured facts that change the frame's suggested inputs:**
+
+| the frame suggested | measured | ⇒ |
+|---|---|---|
+| sight from `FindThreatsInView` | its `FactionFilterTest` keeps a candidate only when `FactionFilter` has the candidate's ABSOLUTE `ForceId` bit — `0` rejects every entity (`FactionFilterTest.ExecuteBatch`); the posture runs with `FactionFilter: 0` | **F1** a self-scoped input `ThreatInSight` instead: 1 when an identified, remembered contact is held by a sensor NOW with the Visual modality (`ActiveSensorTracks`, CE-3060) |
+| `HasLineOfSight` | reads `ctx.Context` — a self decision has none ⇒ always 0; and `TargetMemory.Modalities` is OR-accumulated (ever seen, not seen now) | (same F1) |
+| the approach parallel NESTED in the advance (the frame's shape) | ⛔ the FastBTree compiler refuses it: *"Nested Parallel detected! Both Parallel nodes will conflict on LocalRegisters[3]"* (`TreeCompiler.FlattenToBlob`, measured on the first build) | **F3** the approach's `ChooseOption` and `ApproachSensors` join the OUTER parallel, beside the posture's own; only the option leaves sit in the advance |
+| Flank / FiringPosition as the option leaves | both return **Success on arrival** — under CombatPosture's RequireOne parallels that would END the whole run at a flank point | **F2** each carries a `ForceFailure` PILL (the tree's own idiom — TakeCover / Suppress / FallBack already do; a decorator NODE is not emitted): arrival hands over to the next child (Direct), so the unit advances / fires from there |
+
+```mermaid
+classDiagram
+  class AttackApproachDecision { <<NEW, Toolkits StarterPack>> UtilityDecision, OptionNames = Approach }
+  class Approach { <<NEW enum>> Direct=1, Flank=2, FiringPosition=3 }
+  class StandardInputs { <<existing, grows>> +ThreatInSight(ctx) float  NEW }
+  class PostureNodes { <<existing, grows>> +ApproachSensors(ref PostureSensorsParams, ref ApproachSensorsState)  NEW; PostureSensors body shared }
+  class ApproachSensorsState { <<NEW>> Flank, Firing handles; Threat; HeardId; HeardPoint }
+  class EqsTacticsNodes { <<existing>> Flank, FiringPosition (CE-2108) }
+  class UtilityNodes { <<existing>> ChooseOption, IsOption }
+  class CombatPosture_btree { <<existing asset, grows>> the advance branch holds the approach parallel }
+  AttackApproachDecision ..> Approach
+  AttackApproachDecision ..> StandardInputs : ThreatInSight, HaveLiveTarget, EqsTopScore
+  CombatPosture_btree ..> UtilityNodes : a 2nd ChooseOption (approach)
+  CombatPosture_btree ..> PostureNodes : ApproachSensors, AdvanceAndAttack (Direct)
+  CombatPosture_btree ..> EqsTacticsNodes : Flank, FiringPosition
+  PostureNodes ..> ApproachSensorsState
+```
+
+*What the picture shows that prose hid:* the nested decision is ALL existing machinery except one input and one sensor-keeping node —
+no scorer, ChooseOption or tree-kernel change.
+
+```mermaid
+graph TD
+  P["Parallel RequireOne — Decide, sense, act"] --> C1["ChooseOption(choose) ⇒ choice"]
+  P --> S1["PostureSensors(sensors)"]
+  P --> C2["ChooseOption(approach) ⇒ approachChoice — NEW"]
+  P --> S2["ApproachSensors(approachSensors) — NEW"]
+  P --> OS["ObserverSelector — Run the winner"]
+  OS --> ADV["Sequence — Advance and attack"]
+  ADV --> G1["IsOption(isAdvance)"]
+  ADV --> OS2["ObserverSelector — Run the approach — NEW"]
+  OS2 --> FL["Sequence: IsOption(isFlank), Flank(flank) + ForceFailure pill"]
+  OS2 --> FP["Sequence: IsOption(isFiringPos), FiringPosition(firing) + ForceFailure pill"]
+  OS2 --> D["AdvanceAndAttack(advance) — Direct"]
+  OS --> REST["TakeCover · Suppress · Fall back · Hold (unchanged)"]
+```
+
+*What the picture shows that prose hid:* Direct is the selector's FALLBACK child, so with no approach option scored (no target, no
+answers yet) the branch is exactly today's advance, and the run still ends only when Direct's AdvanceAndAttack arrives. The approach
+is SCORED in the outer parallel (F3) but only ACTED ON inside the advance.
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **A1** Direct = WeightedSum[`ThreatInSight` ×1, `Constant(0.4)` ×1] ⇒ 0.7 in sight, 0.2 out of sight; Flank / FiringPosition = WeightedProduct[`HaveLiveTarget` Step, NOT-in-sight (`ThreatInSight` InverseLinear), `EqsTopScore(template)` Linear] | out of sight + an identified target + a scored position ⇒ the manoeuvre (≥ 0.2 whenever its score > 0); in sight ⇒ both are 0 ⇒ Direct; no target ⇒ Direct (advance without enemy, CE-2105) | `FindThreatsInView` count (F1: rejects everything at filter 0) |
+| **A2** a NEW node `ApproachSensors` keeps the flank + firing-position sensors on the top threat; `PostureSensors` and it share ONE body | the decision's `EqsTopScore` inputs need sensors BEFORE an option runs (the manoeuvres own their sensors only while running). ⚠ With F3 they run for the whole posture run — two more queries per CombatPosture unit (ScoreDelta-published) | widening `PostureSensors` itself (every OTHER user of it would pay too); a kernel change to allow a nested Parallel (a cross-ExtDep register rework for one asset) |
+| **A3** Flank / FiringPosition with a `ForceFailure` pill (F2), `FireWhileMoving = 1` | arrival must not end the run; the unit keeps firing on the way as Direct does | ending the posture at a flank point |
+| **A4** BTree host only (the HSM / blueprint postures keep a plain advance) | the frame nests it in the BTree; U4 runs the BTree | three hosts now — each is a second nesting to keep equal (do it when a scenario asks) |
+
+**Acceptance (rails, red-proved):** ① the decision is registered with its option names · ② `ThreatInSight` (unit): visual track of a
+remembered contact ⇒ 1; heard-only track, unremembered track, no track ⇒ 0 · ③ the decision's winner: out of sight + a flank answer
+⇒ Flank; in sight ⇒ Direct; no target ⇒ Direct · ④ the tree: out of sight + a flank answer ⇒ the unit moves to the flank point
+firing; on arrival it advances to the objective (the run does not end) · ⑤ in sight ⇒ Direct (the old advance) · ⑥ the outer posture
+still switches to TakeCover while a flank runs, and the flank manoeuvre (with its own sensor) goes with the branch.
+
+⭐ **AS-BUILT (`2026-10-06`)** — the tree is `Assets/BTrees/Tactics/CombatPosture.btree.json` (same order params as before — the
+approach adds no order input); the decision is `AttackApproachDecision` (asset `3c6f9e42-5d10-6f3a-ac23-approach00001`,
+`OptionNames = Approach`), so `/entities/{id}/utility` lists both decisions. Differences from the frame, all measured:
+
+| as built | why |
+|---|---|
+| F1 `ThreatInSight` instead of `FindThreatsInView` / `HasLineOfSight` | the table above |
+| F3 the approach scored in the OUTER parallel | Fbt refuses a nested Parallel |
+| ⭐ **CE-2117 (kernel)** — a switch beneath a running Parallel never ran the abandoned leaf's deactivator | found by rail ⑥, then measured on the SHIPPED tree: the advance kept firing after TakeCover took over (§3.3b's claimed parity with the HSM was only true for the HSM). Fixed in `Fbt.Interpreter`: `NodeIndexStack` is now the tick's running set ([deactivator design](designs/ai-btree-deactivator-1/DESIGN.md) addendum) |
+| ⚠ after a flank / firing-position ARRIVAL with the target still out of sight, the approach re-picks the manoeuvre and it moves again | the position queries filter on sight of the target, so arrival normally brings it into view and Direct wins; perception lag can cost a re-flank — accepted, watch U4 |
+
+Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3084_*` (4: registered with option names · ⭐ out of sight
+⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
+TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 

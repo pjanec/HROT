@@ -307,14 +307,15 @@ namespace Fdp.Toolkit.Tests
 
         // ── WeaponSelectionDecision ──────────────────────────────────────────────
 
-        // SC-SP-08: Mount whose effective range matches the engagement distance scores via Bell(1.0)=1.0.
-        // Mount at 500m effective range scores Bell(100/500)=Bell(0.2)<<1. Mount at 100m wins.
+        // SC-SP-08 — ⭐ re-homed by CE-3089 (G7, W6): the range term now reads "IN range" (≈ 1 up to the mount's range, falling off
+        // past it), not "AT range" (the old Bell peaked at distance == range and scored a close target ≈ 0). The claim kept:
+        // the range decides between two otherwise equal mounts — a target BEYOND one mount's range goes to the mount that reaches.
         [Fact]
-        public void WeaponSelection_MountAtEffectiveRange_RanksFirst()
+        public void WeaponSelection_TheMountThatReaches_RanksFirst()
         {
             var agent  = _world.SpawnAgent(1.0f, 1.0f);
             var target = _world.Repo.CreateEntity();
-            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
+            _world.Repo.AddComponent(target, new SimTransform { Position = new Vector3(300f, 0f, 0f) });
 
             var mount100  = _world.SpawnWeaponMount(agent, mountIndex: 1, weaponGuid: 0xAAAA_0001UL,
                 effRange: 100f,  ammo01: 1.0f, initialAmmunition: 30);
@@ -325,10 +326,11 @@ namespace Fdp.Toolkit.Tests
 
             ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(agent);
             Assert.True(buf.Count >= 2);
-            Assert.True(buf.GetSpanRO()[0].Score > buf.GetSpanRO()[1].Score);
-            // The winner is the mount at 100m effective range.
-            long winnerHandle = buf.GetSpanRO()[0].CandidateHandle;
-            Assert.Equal((long)mount100.PackedValue, winnerHandle);
+            // The winner is the mount whose 500 m reaches the 300 m target; the 100 m mount is out of range.
+            Assert.Equal((long)mount500.PackedValue, buf.GetSpanRO()[0].CandidateHandle);
+            float s100 = -1f;
+            for (int i = 0; i < buf.Count; i++) if (buf.GetSpanRO()[i].CandidateHandle == (long)mount100.PackedValue) s100 = buf.GetSpanRO()[i].Score;
+            Assert.True(s100 < buf.GetSpanRO()[0].Score * 0.1f, $"out of range scores far below in range ({s100} vs {buf.GetSpanRO()[0].Score})");
         }
 
         // SC-SP-09: A mount with zero ammo → WeaponHasAmmo=0 → Step(0)=0 → score=0.
@@ -497,15 +499,19 @@ namespace Fdp.Toolkit.Tests
         // ── CE-3089 (G7) — the unit fires the weapon its target calls for, on the PRODUCTION layout ──────────────────────────
         //    (mount 0 = the owner's own WeaponState, mount 1 = a child — CombatTkbTranslator). 📄 Utility demo design §12.
 
-        private (Entity bradley, Entity tow, Entity infantry, Entity tank) ProductionBradley(int towAmmo = 7)
+        private (Entity bradley, Entity tow, Entity infantry, Entity tank) ProductionBradley(int towAmmo = 7,
+            float infantryAt = 2000f, float tankAt = 2000f)
         {
             _world.UseTkb(UtilityTestWorld.BradleyTemplate(), UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
             var bradley = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 300);   // the 25 mm IS the owner's WeaponState
             _world.SetType(bradley, UtilityTestWorld.BradleyType);
             var tow = _world.SpawnWeaponMount(bradley, mountIndex: 1, weaponGuid: 2, effRange: 2500f,
                 ammo01: towAmmo / 7f, initialAmmunition: 7);
-            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 2000f, maxHealth: 100f);
-            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     2000f, maxHealth: 2500f);
+            // ⭐ the PRODUCTION child: CombatTkbTranslator gives it no position (the helper's SimTransform hid the defect —
+            //   ✅ red-proof: without OwnerOf in the weapon inputs, every TOW scores 0 and the gun fires at the tank).
+            _world.Repo.RemoveComponent<SimTransform>(tow);
+            var infantry = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, infantryAt, maxHealth: 100f);
+            var tank     = _world.SpawnTypedTarget(UtilityTestWorld.TankType,     tankAt,     maxHealth: 2500f);
             return (bradley, tow, infantry, tank);
         }
 
@@ -517,6 +523,18 @@ namespace Fdp.Toolkit.Tests
         {
             var (bradley, tow, infantry, tank) = ProductionBradley();
 
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, infantry, out var m0));
+            Assert.Equal(bradley, m0);
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m1));
+            Assert.Equal(tow, m1);
+        }
+
+        /// <summary>⭐ W6 — the U5 live geometry (insurgent 300 m, T-72 523 m — a fifth of both mounts' range): the same choice.
+        /// ✅ Red-proof: the old range Bell ⇒ every mount ≈ 0 ⇒ the 25 mm at the tank (measured live before the fix).</summary>
+        [Fact]
+        public void CE3089_WeaponChoice_AtMidRange_25mmOnInfantry_TowOnATank()
+        {
+            var (bradley, tow, infantry, tank) = ProductionBradley(infantryAt: 300f, tankAt: 523f);
             Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, infantry, out var m0));
             Assert.Equal(bradley, m0);
             Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m1));
@@ -563,6 +581,17 @@ namespace Fdp.Toolkit.Tests
 
             Assert.Equal(0, Fire(0));                                            // the default: the primary, as before
             Assert.Equal(299, repo.GetComponentRO<WeaponState>(bradley).Ammo);
+        }
+
+        /// <summary>⭐ W9 — a RELOADING TOW is still the TOW's target: the choice ignores cooldown (the executor waits on it), so a
+        /// reloading launcher never hands the tank to the 25 mm. ✅ Red-proof: put WeaponReadiness back in the decision ⇒ mount 0.</summary>
+        [Fact]
+        public void CE3089_AReloadingTow_IsStillChosenForTheTank()
+        {
+            var (bradley, tow, _, tank) = ProductionBradley(tankAt: 523f);
+            _world.Repo.GetComponentRW<WeaponState>(tow).CooldownSecondsRemaining = 1f;
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, bradley, tank, out var m));
+            Assert.Equal(tow, m);
         }
 
         // ── CE-3088 (G8, F4) — the squad's fire distribution reads the MERGED pool and runs from the frame driver ──────

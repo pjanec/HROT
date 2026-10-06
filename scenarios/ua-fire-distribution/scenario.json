@@ -42,7 +42,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[300,470,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[300,365,0],\"Speed\":0.5,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       }
     },
@@ -79,7 +79,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[270,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[270,365,0],\"Speed\":0.5,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -120,7 +120,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[290,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[290,365,0],\"Speed\":0.5,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -161,7 +161,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[310,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[310,365,0],\"Speed\":0.5,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -202,7 +202,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[330,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": "{\"advance\":{\"Objective\":[330,365,0],\"Speed\":0.5,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -225,8 +225,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7621
@@ -257,8 +257,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7622
@@ -289,8 +289,8 @@
         ]
       },
       "Health": {
-        "Current": 100,
-        "Max": 100
+        "Current": 600,
+        "Max": 600
       },
       "NetworkIdentity": {
         "Value": 7623

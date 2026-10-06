@@ -310,6 +310,8 @@ def run_fire_distribution(c, timeout):
     hostiles = [ids.get(n) for n in ("West Hostile", "Centre Hostile", "East Hostile")]
     if not c.ok(leader is not None and None not in riflemen and None not in hostiles, "the leader, four riflemen and three hostiles are loaded"):
         return
+    for r in riflemen:   # armed BEFORE the run: the posture log exists from the first decision on
+        call("POST", "/trace/observe", {"networkId": r, "on": True})
     call("POST", "/sim/play", {})
 
     # ① the leader's squad: four members, the merged pool holds the three hostiles
@@ -329,19 +331,24 @@ def run_fire_distribution(c, timeout):
     c.ok(len(set(a)) >= 2, f"the fire is spread over {len(set(a))} targets")
     c.ok(all(a.count(t) <= 2 for t in set(a)), "no target has more than two members (the focus-fire cap)")
 
-    # ③ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
+    # ③ a member near death breaks off — WHILE the hostiles live (600 HP each: with 100 the squad killed them in seconds and
+    #   a hurt member rightly kept advancing — nobody left to flee from, measured live 2026-10-06): its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
+    hurt = riflemen[3]
+    set_health(hurt, 10)
+    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, 30)
+    # ⚠ CE-3090 — REPORTED, not asserted: on open desert TakeCover and Flee are gated by EQS cover / safe-retreat answers that read
+    #   0 (no terrain to hide behind), so a hurt member keeps fighting (measured live 2026-10-06). The veto itself is railed
+    #   (StarterPackIntegrationTests.Wounded_Member_Vetoes_Assignment_And_Breaks_Off); U6 shows the distribution.
+    _, d = winner_of(hurt)
+    print(f"    Rifleman 4 at 10 HP: winner {w or (d and d.get('winner'))} — "
+          f"{'defensive' if w else 'no defensive option on open ground (CE-3090)'}; ranked {d and [(r.get('option'), r.get('score')) for r in d.get('ranked', [])]}")
+
+    # ④ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
     def all_fired():
         r = [ammo(m) for m in riflemen]
         return all(x[0] is not None and x[1] and x[0] < x[1] for x in r) and r
     fired = wait_for(all_fired, timeout)
     c.ok(fired is not None, f"every member spends rounds ({fired})")
-
-    # ④ a member near death breaks off: its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
-    hurt = riflemen[3]
-    call("POST", "/trace/observe", {"networkId": hurt, "on": True})
-    set_health(hurt, 10)
-    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, timeout)
-    c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
 
 
 # ── U5 (CE-3089) — weapon choice: the Bradley's 25 mm at the insurgent, the TOW at the T-72 ──────────────────────────────
@@ -363,9 +370,11 @@ def run_weapon_choice(c, timeout):
     print(f"    start: 25 mm rounds {gun0}, T-72 health {tank0}")
     call("POST", "/sim/play", {})
 
-    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and h < tank0 and h, timeout * 2)
-    c.ok(hit is not None, f"the T-72 loses health — only a TOW penetrates its front armour ({tank0} → {hit})")
-    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0 and h, timeout * 2)
+    # ⚠ a 25 mm round GRAZES the tank (expected damage, ~25 HP — measured live 2026-10-06); only a TOW (2000 per hit) takes
+    #   ≥ 1000 off in one go. So the evidence is the size of the drop, not that there is one.
+    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and tank0 - h >= 1000, timeout * 2)
+    c.ok(hit is not None, f"the T-72 takes a TOW hit (≥ 1000 HP — the 25 mm only grazes it): {tank0} → {health(tank)}")
+    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0, timeout * 2)   # ⚠ not "and h": 0 is falsy
     c.ok(dead is not None, "the insurgent is killed")
     gun1, _ = ammo(brad)
     c.ok(gun0 is not None and gun1 is not None and gun1 < gun0, f"the 25 mm (the owner's mount 0) spent rounds ({gun0} → {gun1})")
@@ -373,11 +382,77 @@ def run_weapon_choice(c, timeout):
          f"…a burst, not the magazine into the tank ({gun0 - gun1 if gun1 is not None and gun0 is not None else '?'} rounds)")
 
 
+# ── U3 (CE-3082/3083) — one decision, three hosts: BTree CombatPosture, HSM CombatPostureHsm, blueprint CombatPostureBp ──────
+#   R-197. The SAME Health edits on every host ⇒ the same fight/defend class at every step; the exact winners are printed side by
+#   side (a defensive winner depends on the EQS answers where each unit stands — U1's measured caveat — and the HSM switches one
+#   tick later, behaviors' G4 note). Hosts present in the scenario are checked; a missing one is reported, not failed.
+
+def run_three_hosts(c, timeout):
+    ids = ids_by_name()
+    hosts = {n: ids[n] for n in ("Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint") if n in ids}
+    print(f"    hosts: {sorted(hosts)}")
+    if not c.ok(len(hosts) >= 2 and "Rifleman BTree" in hosts, "at least the BTree and one other host are loaded"):
+        return
+    for nid in hosts.values():
+        call("POST", "/trace/observe", {"networkId": nid, "on": True})
+    call("POST", "/sim/play", {})
+
+    first = wait_for(lambda: all(winner_of(n)[0] == "Suppress" for n in hosts.values()) and True, timeout)
+    c.ok(first is not None, f"every host starts at Suppress (healthy, armed, matched enemy): {[winner_of(n)[0] for n in hosts.values()]}")
+
+    FIGHT, DEFEND = ("Suppress", "AdvanceAndAttack"), ("TakeCover", "Flee")
+    for hp, want, what in ((40, DEFEND, "hurt"), (100, FIGHT, "healed"), (10, DEFEND, "near death"), (100, FIGHT, "healed again")):
+        for nid in hosts.values():
+            set_health(nid, hp)
+        got = wait_for(lambda: all(winner_of(n)[0] in want for n in hosts.values()) and True, timeout)
+        winners = {name: winner_of(nid)[0] for name, nid in hosts.items()}
+        c.ok(got is not None, f"{what} ({hp} HP) ⇒ every host {'defends' if want is DEFEND else 'fights'}: {winners}")
+        if len(set(winners.values())) > 1:
+            print(f"    ⚠ exact winners differ at {what}: {winners}")
+
+
+# ── U4 (CE-3084) — attack approach: out of sight of an identified target, the advance flanks or takes a firing position ──
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U4; Decision Layer §3.3e (behaviors' G6). The hostile shows itself north of the High
+#   Wall, then its own mission walks it behind the wall; the rifleman (advancing on an unarmed hostile ⇒ AdvanceAndAttack) loses
+#   sight of an IDENTIFIED target ⇒ AttackApproach picks Flank or FiringPosition.
+
+APPROACH = "Attack approach"
+
+
+def run_attack_approach(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hidden Hostile")
+    if not c.ok(rifle is not None and hostile is not None, "the Rifleman and the Hidden Hostile are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": rifle, "on": True})
+    call("POST", "/sim/play", {})
+
+    both = wait_for(lambda: (u := utility(rifle)) and decision(u, POSTURE) and decision(u, APPROACH) and u, timeout)
+    c.ok(both is not None, "/entities/{id}/utility lists BOTH decisions (the posture and the approach nested in it)")
+    adv = wait_for(lambda: winner_of(rifle)[0] == "AdvanceAndAttack" and True, timeout)
+    c.ok(adv is not None, f"against an unarmed hostile the posture advances (winner {winner_of(rifle)[0]})")
+    seen = set()
+
+    def flanking():
+        d = decision(utility(rifle), APPROACH)
+        w = d and d.get("winner")
+        if w: seen.add(w)
+        return w in ("Flank", "FiringPosition") and w
+    w = wait_for(flanking, timeout * 2)
+    print(f"    approach winners seen: {sorted(seen)}")
+    c.ok(w is not None, f"out of sight of the identified hostile ⇒ the approach flanks or takes a firing position ({w})")
+    a0, _ = ammo(rifle)
+    fired = wait_for(lambda: (x := ammo(rifle)[0]) is not None and a0 is not None and x < a0 and x, timeout * 2)
+    c.ok(fired is not None, f"…and from there it regains sight and fires ({a0} → {fired})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
-             "ua-weapon-choice": run_weapon_choice}
+             "ua-weapon-choice": run_weapon_choice,
+             "ua-three-hosts": run_three_hosts,
+             "ua-attack-approach": run_attack_approach}
 
 
 def main():

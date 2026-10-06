@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3083000-0000-0000-0000-000000000002
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class PostureSuppress
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Action("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@0@737625167",
+                visualId: new Guid("c3083200-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("PostureSuppress", AssetId = "a3083000-0000-0000-0000-000000000002")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("PostureSuppress");
+}

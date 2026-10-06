@@ -499,12 +499,36 @@ public static unsafe class HostedSubtree
             byte* payload = store + entry.PayloadOffset;
             // ⭐ S5a — zero the CHILD's brain at its own width (a BTree cursor, an HSM instance, a blueprint Exec).
             int brainBytes = Math.Min(BrainBytesFor(childDef), entry.PayloadSize);
+            // ⭐⭐ CE-2116 — an abandoned child that is still RUNNING first releases what its running steps hold (a BTree runs its
+            //   active path's deactivators — the move, the fire, the sensor), as the same tree hosted at the root would when its
+            //   path moves away. 🔴 Zeroing alone left them running: a blueprint that aborted its advance task kept firing.
+            AbortRunning(world, self, childDef, payload, brainBytes, entry.PayloadSize, key);
             new Span<byte>(payload, brainBytes).Clear();
             // ⭐ CE-431 — an abandoned child's next entry is a fresh START.
             if (entry.PayloadSize >= brainBytes + sizeof(int))
                 Unsafe.AsRef<int>(payload + brainBytes) = 0;
         }
         ResetDescendants(world, self, childDef, key, depth + 1);
+    }
+
+    private static void AbortRunning(EntityRepository world, Entity self, BehaviorDefinition? childDef, byte* payload,
+                                     int brainBytes, int payloadSize, int occurrenceKey)
+    {
+        var runner = childDef?.Runner;
+        if (runner == null || brainBytes <= 0) return;
+        // ⭐ only a LIVE child: the start word stays 1 from its start until it completes (TickHosted clears it) — a child that
+        //   never started, or already finished, holds nothing.
+        if (payloadSize < brainBytes + sizeof(int) || Unsafe.AsRef<int>(payload + brainBytes) == 0) return;
+        int blockBytes = RootParamsAccess.RootParamsBytes(childDef!);
+        int blockOffset = BlockOffsetFor(childDef!);
+        ref byte block = ref blockBytes > 0 && blockOffset + blockBytes <= payloadSize
+            ? ref Unsafe.AsRef<byte>(payload + blockOffset) : ref BehaviorBlock.None;
+        var run = new Runners.BehaviorRunContext
+        {
+            World = world, Self = self, Definition = childDef!, OccurrenceKey = occurrenceKey,
+            InstanceId = world.HasComponent<Components.BehaviorState>(self) ? world.GetComponentRO<Components.BehaviorState>(self).InstanceId : 0u,
+        };
+        runner.Abort(ref run, payload, brainBytes, ref block);
     }
 
     private static void ResetDescendants(EntityRepository world, Entity self, BehaviorDefinition? def, int occurrenceKey, int depth)

@@ -1,0 +1,74 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a3083000-0000-0000-0000-000000000002",
+  "Name": "PostureSuppress",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c3083200-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c3083200-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Engage",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
+      },
+      "VisualId": "c3083200-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Suppress",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": "CE-3083 G5 — docs/DESIGN_Decision_Layer.md §3.3d. CombatPosture's Suppress branch as a behaviour.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "engage",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"CooldownSeconds\":1}",
+        "Comment": "As CombatPosture's variable of the same name."
+      }
+    ]
+  }
+}
