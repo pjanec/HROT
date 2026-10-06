@@ -583,23 +583,23 @@ only readers are the two squad inputs `ActiveFeatureThreatRating`/`ActiveFeature
 ```mermaid
 classDiagram
   class DangerAreaNodes {
-    <<NEW, Fdp.Toolkit.Behavior — shared: BTree + HSM bind it>>
+    <<NEW, Hrot.AI.Behaviors.Brains — shared: BTree + HSM bind it (as-built §10.4a)>>
     +EnsureSensor(DangerSensorParams, DangerSensorState) action
     +DangerAhead(DangerAheadParams) condition
     +HoldShort(HoldShortParams, HoldShortState) action
     +Cross(CrossParams, CrossState) action
   }
-  class DangerSensorParams { <<NEW>> Site · CorridorHalfWidth · MaxAreas · RefreshSeconds · RouteTo point }
+  class DangerSensorParams { <<NEW>> RouteTo point · CorridorHalfWidth · RefreshSeconds · MaxAreas }
   class DangerAheadParams { <<NEW>> MinThreat · WithinMetres · KindMask }
   class SensorNodes { <<existing>> Sees · Read — ranked family only }
   class EqsTacticsNodes { <<existing>> TakeCover · FallBack — the pattern copied }
   class CgfNodes { <<existing>> Action_WriteMoveToChannel }
-  class LocomotionMoveTo { <<existing>> Issue · Status · Stop }
+  class LocomotionMoveTo { <<existing; NEW Stop — the ONE stop>> Issue · Status · Stop }
   class UnitSensors { <<existing; NEW TryGetResults~T~>> Of(kind) }
-  class EqsChildSensor { <<existing>> Ensure — behaviour-owned, run-stamped }
+  class DangerAreaChildSensor { <<existing, B0>> Ensure · Release — behaviour-owned, run-stamped }
   class DangerAreaCognitiveBuffer { <<existing>> 8 x DangerAreaDescriptor, on the sensor child }
   DangerAreaNodes ..> UnitSensors : TryGetResults DangerArea
-  DangerAreaNodes ..> EqsChildSensor : EnsureSensor
+  DangerAreaNodes ..> DangerAreaChildSensor : EnsureSensor / release
   DangerAreaNodes ..> LocomotionMoveTo : HoldShort / Cross
   DangerAreaNodes ..> DangerAreaCognitiveBuffer : reads entry 0 = next area ahead
   DangerAreaNodes ..> DangerSensorParams
@@ -673,6 +673,16 @@ holds for.*
 | `HoldShort` built from `DangerAhead` + `Read` + `Action_WriteMoveToChannel` in the tree | the tree would need the area's handle in a blackboard slot — the shared tactics nodes (R-204) are self-contained precisely so a tree never carries sensor geometry |
 | the sensor watching the unit's own move (route source ①) | the reaction's own move hides the area it reacts to — a loop (§10.2 settings row) |
 | make the demo a squad drill in town now | it needs all of U7's unbuilt machinery; the single unit proves the sensor end to end on its own |
+
+#### 10.4a As-built — H3 / H4 *(behaviors, `2026-10-06`; the diagram above is already the as-built)*
+
+| item | as built | ⚠ deviation from §10.4 / the handoff, and why |
+|---|---|---|
+| H3 family guard (`CE-3078`) | `SensorNodes.Sees` → false, `Read` → **Failure**, both raise `BehaviorFault` code `WrongSensorFamily` (7), when `UnitSensors.ReadRanked` says `WrongFamily`; the blueprint `ReadEqsResult` / `When EqsResult` already refuse kind 16 at COMPILE time (BP2010 / BP2021 — message now names `ReadSensorResult` / `When SensorResult`) | the row said `BehaviorLog.Error` — ⛔ `BehaviorLog` lives in `Hrot.AI.Behaviors`, unreachable from `Fdp.Toolkits`; `BehaviorFault.Raise` is the toolkit's loud channel (ring + bus) |
+| H4 `DangerAreaNodes` (`CE-3079`) | `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/DangerAreaNodes.cs` — the four nodes + three deactivators; the sensor is a `DangerAreaChildSensor` (B0) at site `0x30790001`, settings `DangerAreaSettings.ToPoint(RouteTo)` (route source ③) | ① **assembly**: `Hrot.AI.Behaviors`, not `Fdp.Toolkit.Behavior` — the moves go through `LocomotionMoveTo`, which this assembly owns (the same reason `EqsTacticsNodes` live here). ② **`Site` is not a param** — a constant, like `EqsTacticsNodes`' sites. ③ **`LocomotionMoveTo.Stop`** is new: the stop that `EqsTacticsNodes.Release` and `PostureNodes.StopMoving` each carried privately is now ONE method all three route through |
+| `HoldShort` | ONE move to the near handle, then holds — re-issued only for a DIFFERENT area (`FeatureId`) or a failed move; Running before the first answer; Success on a ready answer with 0 areas (a clear route) or threat < `MinThreat − 0.1` | — |
+| `Cross` | captures the far handle at the start (the answer's entry 0 moves on once past); near → far at `Speed`; Success at the far handle, or at once on 0 areas | — |
+| rails | `Hrot.ClusterRunner.Integration.Tests/Eqs/DangerAreaNodesTests.cs` ×6, against a HAND-FILLED buffer on the run's real sensor child — B3/B4 fill the same component, so no node changes when they land | — |
 
 ### 10.5 The hostile runs on its own — a two-task MISSION *(`2026-10-06`, `CE-3079`; `build-state: READY-TO-BUILD`)*
 

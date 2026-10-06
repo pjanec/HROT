@@ -241,13 +241,6 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Threat = Entity.Null;
         }
 
-        private static void StopMoving(EntityRepository world, Entity self)
-        {
-            if (!world.HasComponent<LocomotionChannel>(self)) return;
-            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-            if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
-            loco.ActiveAction = 0;
-            unchecked { loco.ActionInstanceId++; }
-        }
+        private static void StopMoving(EntityRepository world, Entity self) => LocomotionMoveTo.Stop(world, self);
     }
 }

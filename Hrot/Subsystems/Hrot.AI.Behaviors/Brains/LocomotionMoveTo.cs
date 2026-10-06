@@ -46,6 +46,17 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-3079</c> H4 — stops the unit's MoveTo, if one is active (a new action instance so the executor lets go).
+        /// The ONE stop: <see cref="EqsTacticsNodes"/>, <see cref="PostureNodes"/> and <see cref="DangerAreaNodes"/> route through it.</summary>
+        public static void Stop(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<LocomotionChannel>(self)) return;
+            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
+            if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
+            loco.ActiveAction = 0;
+            unchecked { loco.ActionInstanceId++; }
+        }
+
         /// <summary>The status of the unit's MoveTo: Running / Success (arrived) / Failure; Failure when no MoveTo is active.</summary>
         public static NodeStatus Status(EntityRepository world, Entity self)
         {
