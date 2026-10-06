@@ -459,6 +459,68 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3072</c> B3/B4 — the danger-area sensor ACROSS HOSTS: a Brain-made <c>DangerArea</c> child is solved on the
+    /// SimHost (picked for <c>Perception | NavigationSolver</c>), its answer rides <c>DangerAreaResult</c> back, and the Brain's
+    /// <c>DangerAreaSensorSystem</c> applies it and rates it from the unit's memory. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        var sim = harness.SimHost.World!;
+        var cgf = harness.Cgf!.World!;
+
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName,
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson")), "test-town");
+        foreach (var w in new[] { sim, cgf })
+        {
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
+            w.SetSingletonManaged(town);
+        }
+
+        long unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
+        long watcherNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        Assert.True(harness.PumpUntil(() => new[] { unitNet, watcherNet }.All(n =>
+                harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
+             && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
+            "Both entities must exist on the Muscle and the Brain.");
+        Place(sim, SimEntity(harness, unitNet), 150f, 300f, ForceId.Friend);
+        Place(sim, SimEntity(harness, watcherNet), 260f, 300f, ForceId.Hostile);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out Entity cgfUnit);
+        harness.Cgf!.GhostEntityMap!.TryGetEntity(watcherNet, out Entity cgfWatcher);
+
+        // The route east along y 300 crosses Cross Street (x 190–210) once.
+        var child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(cgf, cgfUnit, siteId: 7,
+            Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(new Vector3(300f, 300f, 0f)));
+        Assert.False(child.IsNull);
+
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child).IsReady,
+                timeoutFrames: 3000),
+            "The SimHost must answer the Brain's danger-area sensor over DangerAreaResult.");
+        var buf = cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
+        Assert.Equal(1, buf.Count);
+        var area = buf.GetSpanRO()[0];
+        Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing, area.Kind);
+        Assert.InRange(area.Center.X, 195f, 205f);
+
+        // The Brain rates it from what the unit KNOWS: a remembered armed watcher with sight of the crossing ⇒ threatened.
+        if (!cgf.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) return;   // CGF always registers it
+        if (!cgf.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(cgfUnit))
+            cgf.AddComponent(cgfUnit, default(Fdp.Toolkit.Perception.Components.TargetMemory));
+        Assert.True(harness.PumpUntil(() =>
+        {
+            ref var mem = ref cgf.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(cgfUnit);
+            Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)cgfWatcher.PackedValue,
+                posX: 260f, posY: 300f, scoreBoost: Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation, tick: 1,
+                modality: SensorModality.Visual);
+            return cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating >= 0.5f;
+        }, timeoutFrames: 600), "The Brain must rate the crossing threatened from the remembered watcher with sight of it.");
+    }
+
+    /// <summary>
     /// T-DIS5: pointing a live sensor at a different area (epoch bump) must reach the Muscle and change
     /// the answer. Before the egress published on change, a reliable config sample was sent ONCE and a
     /// later parameter change never left the Brain (T-DIS2 had to remove and re-add the sensor).
