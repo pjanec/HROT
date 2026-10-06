@@ -35,20 +35,46 @@ namespace Fdp.Toolkit.Perception.Sensors
         WrongFamily = 3,
     }
 
-    /// <summary>⭐ <c>CE-3072</c> B0 — one sensor kind's types: what configures it, what it answers, and the triggers on it.</summary>
+    /// <summary>⭐ <c>CE-3072</c> B0 (Q3, behaviors lane) — how a <c>When SensorResult(kind)</c> trigger is decided.</summary>
+    public enum SensorTriggerShape : byte
+    {
+        /// <summary>From the answer's header only (ready, stamp, age) — every family.</summary>
+        Header = 0,
+        /// <summary>Entry 0's <see cref="SensorTrigger.ElementField"/> changed since the last answer.</summary>
+        FieldChanged = 1,
+        /// <summary>Entry 0's <see cref="SensorTrigger.ElementField"/> crossed the node's threshold (either way).</summary>
+        FieldCrossed = 2,
+    }
+
+    /// <summary>⭐ <c>CE-3072</c> B0 (Q3) — one trigger of a kind, as DATA, so N4 lowers every family the same way.</summary>
+    /// <param name="Name">What the node offers (<c>"ThreatCrossed"</c>).</param>
+    /// <param name="ElementField">The element field it watches (<c>"ThreatRating"</c>); null for a header trigger.</param>
+    /// <param name="Shape">How it is decided.</param>
+    public sealed record SensorTrigger(string Name, string? ElementField, SensorTriggerShape Shape);
+
+    /// <summary>
+    /// ⭐ <c>CE-3072</c> B0 — one sensor kind's types: what configures it, what it answers, and the triggers on it.
+    /// <para>⭐ (Q1) Every <see cref="ResultComponent"/> exposes the same four members — <c>int Count</c>, <c>bool IsReady</c>,
+    /// <c>uint LastUpdateTick</c> and <c>ReadOnlySpan&lt;ElementType&gt; GetSpanRO()</c>; the generated blueprint read (N2) uses
+    /// exactly these. A new family's result component must too.</para>
+    /// </summary>
     /// <param name="Kind">The kind (<c>(SensorModality)0</c> = an EQS query sensor, found by template rather than kind).</param>
     /// <param name="Family">Its result family.</param>
     /// <param name="SettingsType">What configures it — the in-pins of a blueprint <c>SpawnSensor(kind)</c> (N3).</param>
     /// <param name="ResultComponent">The component holding its answer, on the sensor child.</param>
     /// <param name="ElementType">One entry of the answer — the out-pins of <c>ReadSensorResult(kind, i)</c> (N2).</param>
     /// <param name="Triggers">The <c>When SensorResult(kind)</c> triggers (N4): the header ones every family has, then its own.</param>
+    /// <param name="EnsureMethod">(Q2) The FQN of a static <c>Entity Ensure(EntityRepository, Entity owner, int site, in TSettings,
+    /// long key)</c> that a behaviour calls to create its own sensor of this kind (N3 lowers <c>SpawnSensor(kind)</c> to it);
+    /// null when a behaviour does not create one this way (a TKB perception kind; an EQS query, spawned by template).</param>
     public sealed record SensorKindInfo(
         SensorModality Kind,
         SensorResultFamily Family,
         Type SettingsType,
         Type ResultComponent,
         Type ElementType,
-        IReadOnlyList<string> Triggers);
+        IReadOnlyList<SensorTrigger> Triggers,
+        string? EnsureMethod);
 
     /// <summary>
     /// ⭐⭐ <c>CE-3072</c> B0 / <c>CE-3078</c> N1 (R-213) — sensor kind → its types. The editor reflects it and the blueprint
@@ -63,19 +89,33 @@ namespace Fdp.Toolkit.Perception.Sensors
         public const SensorModality EqsQuery = 0;
 
         /// <summary>Header triggers every family has.</summary>
-        public static readonly IReadOnlyList<string> HeaderTriggers = new[] { "FirstReady", "Changed", "BecomesStale" };
+        public static readonly IReadOnlyList<SensorTrigger> HeaderTriggers = new[]
+        {
+            new SensorTrigger("FirstReady", null, SensorTriggerShape.Header),
+            new SensorTrigger("Changed", null, SensorTriggerShape.Header),
+            new SensorTrigger("BecomesStale", null, SensorTriggerShape.Header),
+        };
 
         private static readonly Dictionary<SensorModality, SensorKindInfo> _kinds = new();
         private static readonly object _lock = new();
 
         static SensorKindRegistry()
         {
-            var ranked = new[] { "FirstReady", "Changed", "BecomesStale", "TopChanged", "ScoreCrossed" };
+            var ranked = new List<SensorTrigger>(HeaderTriggers)
+            {
+                new("TopChanged", nameof(EqsResult.EntityId), SensorTriggerShape.FieldChanged),
+                new("ScoreCrossed", nameof(EqsResult.Score), SensorTriggerShape.FieldCrossed),
+            };
             foreach (var k in new[] { EqsQuery, SensorModality.Visual, SensorModality.Radar, SensorModality.Thermal, SensorModality.Acoustic })
-                Register(new SensorKindInfo(k, SensorResultFamily.Ranked, typeof(EqsSensor), typeof(EqsCognitiveBuffer), typeof(EqsResult), ranked));
+                Register(new SensorKindInfo(k, SensorResultFamily.Ranked, typeof(EqsSensor), typeof(EqsCognitiveBuffer), typeof(EqsResult), ranked, null));
+            var area = new List<SensorTrigger>(HeaderTriggers)
+            {
+                new("NextAreaChanged", nameof(DangerAreaDescriptor.FeatureId), SensorTriggerShape.FieldChanged),
+                new("ThreatCrossed", nameof(DangerAreaDescriptor.ThreatRating), SensorTriggerShape.FieldCrossed),
+            };
             Register(new SensorKindInfo(SensorModality.DangerArea, SensorResultFamily.Area, typeof(DangerAreaSettings),
-                typeof(DangerAreaCognitiveBuffer), typeof(DangerAreaDescriptor),
-                new[] { "FirstReady", "Changed", "BecomesStale", "NextAreaChanged", "ThreatCrossed" }));
+                typeof(DangerAreaCognitiveBuffer), typeof(DangerAreaDescriptor), area,
+                "Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure"));
         }
 
         /// <summary>Add or replace a kind (a toolkit adding its own sensor kind).</summary>

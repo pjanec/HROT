@@ -51,6 +51,7 @@ public static class PerceptionRoleComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         world.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent>();   // ⭐ CE-3072 B3
         // ⭐ CE-3039 — the edges of what a unit senses (design §7.3): published by EqsResultUpdateSystem (every host that runs
         //   it) and by the Brain's track / memory systems.
         world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();

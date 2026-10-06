@@ -31,6 +31,9 @@ namespace Hrot.SimHost;
 public sealed class EqsResultUpdateCapability : INodeCapability
 {
     private readonly EqsResultUpdateSystem _system = new();
+    // ⭐ CE-3072 B3/B4 — the danger-area sensor's Brain half (apply answers, rate, edges) rides the same capability: every
+    //   host that takes in sensor answers takes in this family's too. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
+    private readonly Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem _dangerAreas = new();
 
     public string Key => CapabilityKeys.EqsResultUpdate;
 
@@ -44,6 +47,7 @@ public sealed class EqsResultUpdateCapability : INodeCapability
     {
         if (simulation is null) throw new ArgumentNullException(nameof(simulation));
         simulation.Add(_system);
+        simulation.Add(_dangerAreas);
     }
 }
 

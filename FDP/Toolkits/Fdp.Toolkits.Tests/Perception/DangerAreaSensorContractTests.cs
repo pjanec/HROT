@@ -53,11 +53,23 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(typeof(DangerAreaSettings), area.SettingsType);
             Assert.Equal(typeof(DangerAreaCognitiveBuffer), area.ResultComponent);
             Assert.Equal(typeof(DangerAreaDescriptor), area.ElementType);
-            Assert.Contains("NextAreaChanged", area.Triggers);
-            Assert.Contains("ThreatCrossed", area.Triggers);
-            Assert.DoesNotContain("ScoreCrossed", area.Triggers);   // a score trigger on a family with no score
+            Assert.Contains(new SensorTrigger("NextAreaChanged", "FeatureId", SensorTriggerShape.FieldChanged), area.Triggers);
+            Assert.Contains(new SensorTrigger("ThreatCrossed", "ThreatRating", SensorTriggerShape.FieldCrossed), area.Triggers);
+            Assert.DoesNotContain(area.Triggers, t => t.Name == "ScoreCrossed");   // a score trigger on a family with no score
+            Assert.Equal("Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure", area.EnsureMethod);   // Q2
+            foreach (var t in area.Triggers)                                                               // Q3: the field exists
+                if (t.ElementField != null) Assert.NotNull(typeof(DangerAreaDescriptor).GetField(t.ElementField));
             Assert.True(SensorKindRegistry.TryGet(SensorModality.Visual, out var visual));
             Assert.Equal(typeof(EqsCognitiveBuffer), visual.ResultComponent);
+            Assert.Null(visual.EnsureMethod);
+            // Q1 — every result component carries the four members the generated read uses
+            foreach (var t in new[] { typeof(DangerAreaCognitiveBuffer), typeof(EqsCognitiveBuffer) })
+            {
+                Assert.NotNull(t.GetField("Count"));
+                Assert.NotNull(t.GetField("LastUpdateTick"));
+                Assert.NotNull(t.GetProperty("IsReady"));
+                Assert.NotNull(t.GetMethod("GetSpanRO"));
+            }
             foreach (var header in SensorKindRegistry.HeaderTriggers)
             {
                 Assert.Contains(header, area.Triggers);
