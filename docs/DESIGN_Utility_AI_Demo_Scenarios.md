@@ -573,7 +573,8 @@ demonstrate the new danger area sensor in urban environment?"*
 
 📐 **Measured vocabulary** (graph `search_graph` `.*Executor$` 22, `.*Decision$` 6; grep `[SharedAiAction|Condition]` 57):
 the shared tactics nodes are SELF-CONTAINED — `TakeCover` ensures its own sensor, reads it and issues the pathed move
-(`EqsTacticsNodes.cs:89`, R-204); the ranked-family reads are `SensorNodes.Sees`/`Read` (`SensorNodes.cs:63/73`, read
+(`EqsTacticsNodes.cs:120`, R-204; since CE-2108/2109 the four EQS manoeuvres share one body `Run` at `:157` — ranked-answer
+specific, so `DangerAreaNodes` copy its SHAPE, not the body); the ranked-family reads are `SensorNodes.Sees`/`Read` (`SensorNodes.cs:63/73`, read
 `EqsCognitiveBuffer` only); a plain move to a point is `CgfNodes.Action_WriteMoveToChannel` (`:243`); `PostureNodes.Hold`
 stops a move (`:143`); the BTree runtime has `ObserverSelector` (`Interpreter.cs:713`). ⛔ Nothing reads a danger area: the
 only readers are the two squad inputs `ActiveFeatureThreatRating`/`ActiveFeatureKindIs` (`SquadInputs.cs:188`), which need
