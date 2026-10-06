@@ -1496,8 +1496,9 @@ internal sealed class V_WhenNodeRules : IValidator
         {
             if (!V_EqsUnitSensorKind.IsUnitSensorKind(er.UnitSensorKind))
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
-                    $"WhenNode EqsResult: unit sensor kind {er.UnitSensorKind} is not a sensor kind "
-                    + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic).",
+                    $"WhenNode EqsResult: unit sensor kind {er.UnitSensorKind} is not a RANKED sensor kind "
+                    + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic) — a sensor of another result family (e.g. 16 DangerArea) "
+                    + "is reacted to with When SensorResult (CE-3078).",
                     asset.AssetId, graph.Id, node.Id));
         }
         else
@@ -1579,8 +1580,9 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                 {
                     if (!V_EqsUnitSensorKind.IsUnitSensorKind(node.UnitSensorKind))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
-                            $"ReadEqsResultNode: unit sensor kind {node.UnitSensorKind} is not a sensor kind "
-                            + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic).",
+                            $"ReadEqsResultNode: unit sensor kind {node.UnitSensorKind} is not a RANKED sensor kind "
+                            + "(1 Visual, 2 Radar, 4 Thermal, 8 Acoustic) — a sensor of another result family (e.g. 16 DangerArea) "
+                            + "is read with ReadSensorResult (CE-3078).",
                             asset.AssetId, graph.Id, node.Id));
                     continue;
                 }
@@ -2827,6 +2829,8 @@ internal static class BehaviorTaskRules
 
 internal static class V_EqsUnitSensorKind
 {
-    /// <summary>One <c>SensorModality</c> bit: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic.</summary>
+    /// <summary>One RANKED <c>SensorModality</c> bit: 1 Visual, 2 Radar, 4 Thermal, 8 Acoustic. ⭐ <c>CE-3078</c> H3 — this is
+    /// also the blueprint half of the §10.4 family guard: a kind of another result family (16 <c>DangerArea</c>) never compiles
+    /// on the ranked nodes, so it can never read <c>IsReady = false</c> for ever at run time.</summary>
     public static bool IsUnitSensorKind(byte kind) => kind is 1 or 2 or 4 or 8;
 }
