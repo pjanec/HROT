@@ -54,6 +54,19 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // first-activation bypass where Status is Inactive before OnEnter sets Running.
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanMove))
                 {
+                    // ⭐ CE-3091 — losing CanMove (death, a mobility hit, embarking) ENDS the running move: its executor's OnExit runs
+                    //   ONCE here — for MoveTo that is the STOP (NavigationIntent Mode None) the mover on SimHost follows. ⛔ Before,
+                    //   this `continue` skipped the lifecycle block below, so OnExit never ran and SimHost kept driving the last path:
+                    //   measured live, a killed unit walked ~80 m to its mission's destination (U4). BD1 §1.0b: finishing clears every
+                    //   channel. If the capability comes back, the behaviour's re-issued action (a new ActionInstanceId) enters afresh.
+                    EnsurePreviousActionCapacity(entity.Index + 1);
+                    ushort running = _previousAction[entity.Index];
+                    if (running != 0)
+                    {
+                        _executors[running]?.OnExit(entity, ref channel, repo);
+                        _previousAction[entity.Index] = 0;
+                        channel.DispatchedInstanceId = channel.ActionInstanceId;
+                    }
                     channel.Status = NodeStatus.Failure;
                     continue;
                 }
