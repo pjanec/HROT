@@ -118,6 +118,26 @@ public sealed class HsmValidator
         foreach (var s in asset.AllStates)
         {
             if (s.Children.Count == 0) continue;
+
+            // ⭐ CE-1003 (Q84 B) — HSM-001 / HSM-002: a parallel state's start states belong to its REGIONS. Counting
+            //    the per-child flag across the whole parallel state flagged every correct two-region machine and let
+            //    a region with no start state through. Each declared region with members needs its own initial state.
+            if (s.IsParallel)
+            {
+                foreach (var r in s.RegionNodes)
+                {
+                    var members = s.Children.Where(c => c.RegionIndex == r.RegionIndex).ToList();
+                    if (members.Count == 0) continue;
+                    if (r.InitialChild is null || !members.Contains(r.InitialChild))
+                        out_.Add(new HsmDiagnostic(
+                            HsmDiagnosticCode.RegionWithoutInitialState,
+                            HsmDiagnosticSeverity.Error,
+                            $"Region '{r.Name}' of parallel state '{s.Name}' has no initial state.",
+                            new[] { s.StableId }));
+                }
+                continue;
+            }
+
             int initialCount = s.Children.Count(c => c.IsInitial);
             if (initialCount == 0)
             {

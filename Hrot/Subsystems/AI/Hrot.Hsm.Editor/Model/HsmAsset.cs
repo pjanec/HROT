@@ -638,6 +638,69 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);
 
+    /// <summary>
+    /// ⭐ CE-1003 (Q84 B) — the container whose start state <paramref name="child"/> can be, and, for a child of a
+    /// PARALLEL state with declared regions, the region it belongs to. The one rule every reader and writer of
+    /// "initial" goes through.
+    /// </summary>
+    internal (StateNode Container, RegionNode? Region) StartScopeOf(StateNode child)
+    {
+        var container = child.Parent ?? RootState;
+        var region = container.IsParallel
+            ? container.RegionNodes.FirstOrDefault(r => r.RegionIndex == child.RegionIndex)
+            : null;
+        return (container, region);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1003 (Q84 B) — is <paramref name="child"/> the state its container (or its region) starts in?
+    /// A parallel state's REGION owns that fact (<see cref="RegionNode.InitialChild"/>); every other container's
+    /// children carry it (<see cref="StateNode.IsInitial"/>).
+    /// </summary>
+    public bool IsStartState(StateNode child)
+    {
+        var (_, region) = StartScopeOf(child);
+        return region != null ? ReferenceEquals(region.InitialChild, child) : child.IsInitial;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1003 (Q84 B) — THE ONE WRITER of "which child is initial": makes <paramref name="child"/> the start
+    /// state of its container (or region) and clears every sibling that competed for it. 📐 Before this there
+    /// were two unsynchronised writers (the region facet's text field and the per-child flag, written only by
+    /// loaders) and NO way at all to choose a plain composite's start state in the editor.
+    /// </summary>
+    public void SetStartState(StateNode child)
+    {
+        var (container, region) = StartScopeOf(child);
+        if (region != null)
+        {
+            region.InitialChild = child;
+        }
+        else
+        {
+            foreach (var sibling in container.Children)
+                sibling.IsInitial = ReferenceEquals(sibling, child);
+        }
+        MarkDirty();
+    }
+
+    /// <summary>CE-1003: <paramref name="child"/> stops being a start state (the undo of <see cref="SetStartState"/>).</summary>
+    public void ClearStartState(StateNode child)
+    {
+        var (_, region) = StartScopeOf(child);
+        if (region != null) { if (ReferenceEquals(region.InitialChild, child)) region.InitialChild = null; }
+        else child.IsInitial = false;
+        MarkDirty();
+    }
+
+    /// <summary>CE-1003: the current start state of <paramref name="child"/>'s container (or region), if any.</summary>
+    public StateNode? CurrentStartStateFor(StateNode child)
+    {
+        var (container, region) = StartScopeOf(child);
+        if (region != null) return region.InitialChild;
+        return container.Children.FirstOrDefault(c => c.IsInitial);
+    }
+
     /// <summary>Resolve the state whose hidden OUTPUT pin matches <paramref name="pinId"/> (transition source side).</summary>
     public StateNode? FindStateByOutputPin(Guid pinId)
     {

@@ -166,7 +166,7 @@ Nothing synchronises them. `HsmFacetDispatcher` sets `r.InitialChild` and never 
 `RegionNode.InitialChild` for parallel and `IsInitial` for composite — so the canvas and the
 validator can disagree about the same machine.
 
-- [ ] **HSM-001** 🔴 · `RW-L` — **Every UML-correct parallel composite is reported as an error.**
+- [x] **HSM-001** 🔴 · `RW-L` — **Every UML-correct parallel composite is reported as an error.** ✅ **CLOSED `2026-10-06` (CE-1003)** — a parallel state no longer counts the per-child flag; its regions own their start states.
   `HsmValidator.CheckInitialChildren` counts `IsInitial` across *all* children of a state, with no
   awareness of regions. A parallel state with 2 regions, each with its own initial child — correct
   by UML and by the kernel — yields `initialCount == 2`. ✅ **reproduced:**
@@ -176,13 +176,13 @@ validator can disagree about the same machine.
   semantically under-specified, which is why 510 green tests never caught it. Blocked on the
   Area-A ruling (HSM-003).
 
-- [ ] **HSM-002** 🔴 · `RW-L` — **A parallel region with no initial child at all passes clean.** The
+- [x] **HSM-002** 🔴 · `RW-L` — **A parallel region with no initial child at all passes clean.** The ✅ **CLOSED `2026-10-06` (CE-1003)** — `RegionWithoutInitialState` (Error).
   mirror of HSM-001. Region 0's initial child satisfies the whole-state count, so region 1 having
   `InitialChildStableId: null` produces **zero diagnostics** — the check that matters most for
   parallel states does not exist in any form. ✅ **reproduced:** validator returned an empty
   collection for a 2-region parallel state whose region 1 had no initial child. Blocked on HSM-003.
 
-- [ ] **HSM-003** 📐 · `RW-H` — **Decide the initial-state model.** Two candidate shapes:
+- [x] **HSM-003** 📐 · `RW-H` — **Decide the initial-state model.** Two candidate shapes: ✅ **CLOSED `2026-10-06` (CE-1003, Q84 B)** — one writer, `HsmAsset.SetStartState`: a parallel state's REGION owns it, other containers' children carry `IsInitial`; the emitter follows the same rule.
   **(A)** `RegionNode.InitialChild` becomes the single source of truth for *both* container kinds
   (a normal composite is modelled as an implicit single region); `IsInitial` becomes derived/display
   only. **(B)** `IsInitial` stays authoritative and the validator, renderer and persistence all
@@ -218,7 +218,7 @@ validator can disagree about the same machine.
   synthetic `__Root`, whose `Parent` is null. **Fix direction:** add an owner field to the DTO
   (a schema change — needs a migration stance for existing assets).
 
-- [ ] **HSM-005** 🔴 · `RW-L` — **Removing a region corrupts the surviving children's region
+- [x] **HSM-005** 🔴 · `RW-L` — **Removing a region corrupts the surviving children's region ✅ **CLOSED `2026-10-06` (CE-1003)** — later regions' children shift on remove AND insert.
   indices.** `ApplyRemoveRegion` re-indexes `state.RegionNodes` but never re-maps the children
   pointing into that list; only children *of the removed region* are touched. ✅ **reproduced**,
   removing the middle of three regions:
@@ -235,7 +235,7 @@ validator can disagree about the same machine.
 
 ## Area C 🎨⚙️ — Identity and emit
 
-- [ ] **HSM-006** 🔴 · `RW-M` — **Palette-created states all get the same name, and names are load
+- [x] **HSM-006** 🔴 · `RW-M` — **Palette-created states all get the same name, and names are load ✅ **CLOSED `2026-10-06` (CE-1001)** — unique names on create + `DuplicateStateName`.
   bearing.** `ApplyAddNode` hard-codes `"State"` (`"Parallel"`, `"Final"`, … per kind) and nothing
   anywhere enforces uniqueness. ✅ **reproduced:** two palette placements → `names: [State, State]`.
   This is **not cosmetic**: `HsmEmitCore` resolves transition targets *by name* —

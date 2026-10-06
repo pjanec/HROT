@@ -39,15 +39,15 @@ public static class CombatPostureHsm
             .Parallel();
         concurrent.Child("Choose", sb2 =>
         {
-            sb2.Initial().Activity("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption");
+            sb2.Initial().InRegion(0).Activity("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption");
         }, stableId: new Guid("30820000-0000-0000-0000-000000000002"));
         concurrent.Child("Sense", sb2 =>
         {
-            sb2.Initial().Activity("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors");
+            sb2.Initial().InRegion(1).Activity("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors");
         }, stableId: new Guid("30820000-0000-0000-0000-000000000003"));
         concurrent.Child("Posture", sb2 =>
         {
-            sb2.Initial();
+            sb2.Initial().InRegion(2);
             sb2.Child("Hold", sb3 =>
             {
                 hold = sb3;

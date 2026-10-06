@@ -228,3 +228,29 @@ non-initial region member is untested). The fix carries a rail for exactly that.
 
 **Separate canvas issue the user named:** regions **auto-size** to their children, which makes placing states inside
 a region hard → `CE-1004`.
+
+## 7. ✅ AS-BUILT `2026-10-06` — A0 + B (CE-1003)
+
+```mermaid
+graph LR
+    ED["Editor: RegionNode + StateNode.RegionIndex<br/>start state = region.InitialChild"] -->|HsmAssetMapper.ToDto| DTO["HsmAssetDto: Regions + RegionIndex"]
+    DTO -->|"HsmEmitCore.RegionPlan<br/>.InRegion(n) + .Initial() per region"| B["HsmBuilder (StateNode.RegionIndex)"]
+    B -->|"HsmFlattener.RegionInitials<br/>one RegionDef per DECLARED region"| K["Kernel: one active leaf per region"]
+```
+*What the picture shows:* the region now crosses every hop as STRUCTURE; before, it stopped at the DTO and was emitted
+only into the layout method.
+
+| piece | built |
+|---|---|
+| compiler | `StateNode.RegionIndex` (`int?`, null = undeclared ⇒ the old one-region-per-child rule), `StateBuilder.InRegion(n)`, `HsmFlattener.RegionInitials` (group by index; initial = the `IsInitial` member, else the first), `HsmGraphValidator`: a declared region with 2+ initial states is an error |
+| emitter | `HsmEmitCore.RegionPlan` — a parallel state that OWNS `RegionNodeDto`s emits `.InRegion(n)` on each child and `.Initial()` on its region's `InitialChildStableId` (the child's own flag is ignored there). A parallel state with no region records is emitted unchanged |
+| one writer (B) | `HsmAsset.SetStartState` / `ClearStartState` / `IsStartState` / `CurrentStartStateFor`; the sink's `SetNodeProperty("isInitial")`; node menu **"Set as Initial State"** (`HsmNodeContextMenuProvider`, undoable). 📐 there was NO editor gesture for a plain composite's start state before (the facet flag is display-only) |
+| validator | HSM-001: a parallel state no longer counts the per-child flag · HSM-002: `RegionWithoutInitialState` (Error) |
+| HSM-005 | `ApplyRemoveRegion` shifts later regions' children down; ➕ `ApplyAddRegion` shifts them up (the same bug on insert) |
+| start marker | the top-level start state gets its circle + arrow (`CollectInitialMarkers`) |
+| rails | `Fhsm.Tests/Kernel/DeclaredRegionTests` (4 — runs the kernel: a declared region starts only its initial, a transition inside it moves only it, undeclared children keep one region each, two initials is an error) · `Hrot.Hsm.Editor.Tests/Host/HsmRegionsAndInitialStateTests` |
+
+⚠ **Found while building, NOT fixed here — `CE-1005`:** entering a parallel state by a TRANSITION starts only one of
+its regions (measured: leaves `A, -, -`); region slots are initialised only at instance start. Kernel work.
+⏸ **Not built:** dragging the start marker onto another state (design S4) — the menu item covers the gesture; a
+draggable custom element needs a new NodeEditor hook.

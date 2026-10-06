@@ -136,6 +136,18 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        /// <summary>
+        /// ⭐ CE-1003 (Q84 A0) — declare which orthogonal region of its PARALLEL parent this child belongs to.
+        /// Children sharing an index form one region (a sub-state machine); <see cref="Initial"/> marks that region's
+        /// initial state. A child that never calls this is a region of its own.
+        /// </summary>
+        public StateBuilder InRegion(int regionIndex)
+        {
+            if (regionIndex < 0) throw new ArgumentOutOfRangeException(nameof(regionIndex));
+            _state.RegionIndex = regionIndex;
+            return this;
+        }
+
         public StateBuilder DeepHistory()
         {
             _state.IsDeepHistory = true;

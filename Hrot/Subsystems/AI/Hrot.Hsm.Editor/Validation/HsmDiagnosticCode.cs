@@ -108,4 +108,8 @@ public enum HsmDiagnosticCode
     // ⭐ CE-1001 / HSM-006 — two states share a name. Emit binds a transition to its target BY NAME, so this is a
     // silently wrong machine (the builder binds whichever it resolves first). Hard-error.
     DuplicateStateName,
+
+    // ⭐ CE-1003 (Q84 B) / HSM-002 — a declared region of a parallel state, holding states, names no initial state
+    // (RegionNode.InitialChild is unset or not one of its members). Hard-error.
+    RegionWithoutInitialState,
 }

@@ -340,6 +340,16 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                 }
                 break;
             }
+            case "isInitial":
+            {
+                // ⭐ CE-1003 (Q84 B): "Set as Initial State" (and its undo) — through the asset's one writer.
+                if (_asset.FindStateByStableId(cmd.Node.Value) is { } child)
+                {
+                    if (cmd.Value is true) _asset.SetStartState(child);
+                    else _asset.ClearStartState(child);
+                }
+                break;
+            }
             case "Title":
             {
                 // ⭐ CE-1001: the canvas "Rename… (F2)" modal sends SetNodeProperty(node, "Title", …) — it was
@@ -376,6 +386,15 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         // Reindex all regions so RegionIndex stays contiguous.
         for (int i = 0; i < state.RegionNodes.Count; i++)
             state.RegionNodes[i].RegionIndex = (byte)i;
+
+        // ⭐ CE-1003 — HSM-005's mirror: inserting a region shifts every later region's CHILDREN up with it
+        //    (only the region records were re-indexed, so the children silently moved into the wrong region).
+        //    ⚠ Skipped when this is the FIRST region: children of a parallel state with no regions all sit at 0
+        //    and the new region 0 adopts them.
+        if (state.RegionNodes.Count > 1)
+            foreach (var child in state.Children)
+                if (child.RegionIndex >= insertAt)
+                    child.RegionIndex++;
 
         _asset.RegisterRegion(region);
     }
@@ -428,6 +447,13 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         // Reindex remaining regions.
         for (int i = 0; i < state.RegionNodes.Count; i++)
             state.RegionNodes[i].RegionIndex = (byte)i;
+
+        // ⭐ CE-1003 / HSM-005 — the children of every LATER region shift down with it. Only the removed region's
+        //    own children used to be touched, so removing the middle of three regions left the third region's
+        //    children pointing past the end.
+        foreach (var child in state.Children)
+            if (child.RegionIndex > cmd.RegionIndex)
+                child.RegionIndex--;
     }
 
     private void ApplyReorderRegions(GraphCommand.ReorderRegions cmd)

@@ -172,6 +172,7 @@ public static class HsmDocumentFactory
             hostServices.TypeSystem,
             hostServices.NodeCatalog,
             hostServices);
+        hostServices.SetNodeContextMenu(hsmAsset, view);   // ⭐ CE-1003: "Set as Initial State"
 
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();
