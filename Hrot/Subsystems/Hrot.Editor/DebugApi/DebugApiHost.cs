@@ -431,8 +431,23 @@ namespace Hrot.Editor.DebugApi
                     double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
                                                     .ConfigureAwait(false);
 
+                    bool? previewBefore = await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull())
+                                                         .ConfigureAwait(false);
                     issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
                     if (issued.Status != 200) return issued;
+
+                    // ⭐⭐ CE-3077 — from EDIT the first step only ENTERS PREVIEW, paused, and does not tick: that is the editor's
+                    //    Step button (EditorTimeTransportFacade.Step — "step from edit = preview, paused at t=0"). ⛔ This route
+                    //    promises TICKS, so the gate below waited 20 s for a clock that could not move and answered 504 —
+                    //    measured on every editor system rail that steps after an edit load (8 reds), and the runbook's
+                    //    "the editor ignores /sim/step until it has been PLAYED once" trap was this. ⇒ the transition into
+                    //    preview is not the tick: issue the tick now. ⛔ The button's meaning is unchanged (not this route).
+                    if (previewBefore == false
+                        && await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) == true)
+                    {
+                        issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
+                        if (issued.Status != 200) return issued;
+                    }
 
                     var settled = await AwaitStepLandedAsync(before).ConfigureAwait(false);
                     if (settled is { } failure) return failure;
