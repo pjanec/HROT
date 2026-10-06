@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
-build-state: BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
+updated: 2026-10-06
+build-state: READY-TO-BUILD §3.3c (CE-3082, G4: CombatPostureHsm + HSM exits run deactivators). BUILDING §4 — BUILT: SOP orders in an HSM state and as a blueprint node (CE-2083, §4.10), ROE + RecentSenses (CE-2074/2076, §4.4), reactions in the gate (CE-2078, §4.1), the two SOP actions (CE-2079, §4.6), the shipped SOP (CE-2080, §4.7), the demo scenario (CE-2082, §4.8); next CE-3043 (editor AI section). READY-TO-BUILD for §3.3 (one scoring step, combat posture; approved 2026-10-04, not started); G3 open; G1, G2b approved; the mission stays unchanged.
 current-answer: §1 (decided), §2 (the mission stays), §3.3 (the approved build design and its tasks); §3.1–§3.2 are its reasoning.
 stale-below: nothing — new document.
 known-rot: none.
@@ -15,6 +15,8 @@ related-designs:
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — §6 "the mission plan as a blueprint" (the user's earlier direction) and §7 Demo_MissionPlan, the concept this generalises; U-10/U-11 the Behaviour Task node.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS scoring; an SOP calls it (§7), never a host.
   - docs/designs/brain-death/BD1-DESIGN.md — OWNS what a unit does with no behaviour.
+  - docs/blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md — the P2 frame (G4–G6) §3.3c answers for G4.
+  - docs/blueprints/DESIGN_Behavior_Action_Binding.md — OWNS the HSM binding sites and the CE-388 OnExit auto-bind that §3.3c D2 extends with deactivators.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
 -->
 
@@ -614,6 +616,96 @@ live target. ⚠ The aggregator's compensation factor (`1 − 1/n`) moved the Ad
 to ~0.235 with an enemy present (re-pinned in `StarterPackIntegrationTests`, measured). ⛔ Rejected (my lean): the Hold leaf
 walking to the objective. Rails: `TacticsTreesTests.CE2105_WithNothingToFight_ThePostureAdvancesToTheObjective_WithoutFiring`,
 `StarterPackIntegrationTests.CombatPosture_NoContacts_SelectsAdvanceAndAttack`.
+
+### 3.3c `CE-3082` (G4) — CombatPostureHsm, the build design *(behaviors, `2026-10-06`; build-state: READY-TO-BUILD)*
+
+**Frame:** [P2 handoff](blueprints/batches/HANDOFF_Utility_Demo_P2_Behaviors.md) G4 — the SAME decision as §3.3b hosted as an
+HSM, reusing the BTree's option children (ruling 9), and closing **D3** (the HSM switch railed at runtime, not only at compile).
+Programme: [Utility demo](DESIGN_Utility_AI_Demo_Scenarios.md) §6 G4, U3.
+
+**INVENTORY** *(codebase-memory CLI `search_graph`, `2026-10-06`: `.*Utility.*Decision.*` Class → 16, `ChooseOption|IsOption|ScoreDecision|RankCandidates` Method → 19, `.*(Posture|…).*` Class → 11; ⚠ `check_index_coverage` is not available through the CLI, so absence claims below are grep-corroborated)*:
+`UtilityNodes.ChooseOption` / `IsOption` (stateful, shared) · `PostureNodes` {`PostureSensors`, `Engage`, `AdvanceAndAttack`, `Hold`} +
+three `[BTreeDeactivator]`s · `EqsTacticsNodes` {`TakeCover`, `FallBack`} + deactivators · the HSM stateful binding (S8; a guard
+binding ETF + WS, compile-railed by `SharedAiBindingCompilesTests.CE2069_AnHsmBindsAStatefulGuard…`) · polled transitions
+(CE-381/382) · Final ⇒ `HsmRunner` Success ⇒ `BehaviorFinishedEvent` (rail ⑨, `BrainTickSystemHsmArmTests.CE398_R1`).
+
+⚠ **Two measured differences from the BTree host — each one decides a part of this design:**
+
+| the BTree gets it for free | the HSM, measured | ⇒ |
+|---|---|---|
+| a leaf's `Success` ends the posture (AdvanceAndAttack arrives) | a state's activity is a `void` kernel action — its `NodeStatus` is discarded (`HsmActionDispatcher.cs:20`, `SharedAiBindings.cs:283`); the only finish is a **Final** state (`HsmKernelCore.cs:357`, `HsmRunner.cs:205`) | **D1** a polled guard `PostureNodes.Arrived` → Final |
+| leaving a branch runs its node's `[BTreeDeactivator]` (stops the move / fire, drops the sensor, resets its working state) | ⛔ **no HSM path calls a deactivator** (`BTreeBridgeEmitCore.cs:1957` only); the CE-388 auto-bind fills an empty OnExit with a CHANNEL release, only for a blueprint / `[WritesChannel]` activity; and the resolver refuses a non-`[SharedAi*]` method on OnExit (`SharedAiMethodResolver.cs:40`) | **D2** an HSM state's empty OnExit runs its activity's deactivator |
+
+```mermaid
+classDiagram
+  class HsmJsonGenerator { <<existing, grows>> before emit: FillDeactivatorExits(dto, deactivatorOf) }
+  class HsmDeactivatorExits { <<NEW, Persistence/Emit>> +Fill(HsmAssetDto, Func~string,string?~ deactivatorOf) int }
+  class SharedAiMethodResolver { <<existing, widened>> accepts a [BTreeDeactivator] method as an ACTION (void ⇒ status ignored) }
+  class BTreeDeactivatorScanner { <<existing>> FindBeside(action) — reused by the generator's deactivatorOf }
+  class HsmEmitCore { <<existing, unchanged>> OnExit is now just an authored-looking binding }
+  class PostureNodes { <<existing, grows>> +Arrived(ref AdvanceParams, ref AdvanceState) bool  NEW SharedAiCondition }
+  class CombatPostureHsm_hsm { <<NEW asset>> Concurrent of Choose, Sense, Posture with 5 leaves; Arrived is Final }
+  HsmJsonGenerator ..> HsmDeactivatorExits
+  HsmJsonGenerator ..> BTreeDeactivatorScanner : deactivatorOf
+  HsmJsonGenerator ..> SharedAiMethodResolver
+  HsmDeactivatorExits ..> HsmEmitCore : the dto it emits
+  CombatPostureHsm_hsm ..> PostureNodes
+  CombatPostureHsm_hsm ..> UtilityNodes
+  CombatPostureHsm_hsm ..> EqsTacticsNodes
+```
+
+*What the picture shows that prose hid:* D2 is a DTO rewrite in front of an UNCHANGED emitter — the filled OnExit is an ordinary
+binding, so the namer, the thunk collector (`SharedAiBindings.Collect`) and the emitter need no new arm; only the resolver learns
+that a deactivator is callable.
+
+```mermaid
+graph TD
+  ROOT["__Root"] --> CON["Concurrent (parallel)"]
+  ROOT --> FIN["Arrived (Final)"]
+  CON --> CH["Choose — Activity ChooseOption(choose, choice)"]
+  CON --> SE["Sense — Activity PostureSensors(sensors, sensorsWs)"]
+  CON --> PO["Posture (composite)"]
+  PO --> H["Hold (initial)"]
+  PO --> A["Advance — AdvanceAndAttack(advance, advanceWs)"]
+  PO --> C["TakeCover — TakeCover(cover, coverWs)"]
+  PO --> S["Suppress — Engage(engage, engageWs)"]
+  PO --> F["FallBack — FallBack(fallback, fallbackWs)"]
+  A -->|"polled: Arrived(advance, advanceWs)"| FIN
+```
+
+*What the picture shows that prose hid:* the five posture leaves are joined by **20 leaf-to-leaf polled transitions**, each
+guarded `IsOption(target)` over the shared `choice` — ⛔ NOT a parent→child transition (selection walks leaf→ancestors, so a
+transition on `Posture` would exit and re-enter the active child every tick) and ⛔ NOT a global (globals ignore regions and
+re-enter the target every tick, `HsmKernelCore.cs:675`). Activities sit on leaves only (an activity on `Concurrent` would run once
+per region). 1 root + 3 regions = 4 slots — inside the 128 tier.
+
+```mermaid
+sequenceDiagram
+  participant K as HSM kernel (one tick)
+  participant G as polled guards (IsOption / Arrived)
+  participant X as OnExit (the old leaf's deactivator)
+  participant A as activities (ChooseOption, PostureSensors, the leaf's node)
+  K->>G: Idle: polled scan of the active leaves (reads LAST tick's choice)
+  G-->>K: IsOption(TakeCover) true on the Advance leaf
+  K->>X: exit Advance ⇒ Deactivate_AdvanceAndAttack (stop move + fire, ws = default)
+  K->>A: enter TakeCover, then activities ChooseOption, PostureSensors, TakeCover
+  Note over K,A: one tick behind the BTree: the guard reads the choice the previous tick wrote
+  G-->>K: Arrived(advance) true ⇒ Final ⇒ Terminated ⇒ HsmRunner Success ⇒ BehaviorFinished
+```
+
+| decision | why | ⛔ rejected |
+|---|---|---|
+| **D1** finish = a polled transition Advance → Final guarded by a NEW `[SharedAiCondition] PostureNodes.Arrived` (ws `AdvanceState`: our move issued AND the channel reports Success) | the HSM has no other finish; the condition reads the SAME working state the activity writes, so it means "THIS advance arrived", not "some move finished" | an "activity Success completes the state" kernel feature — the kernel's action ABI is `void` (a cross-ExtDep change for one asset); the blueprint `MoveArrived` (a blueprint library call, not a shared node) |
+| **D2** the generator fills an EMPTY OnExit with the activity's `[BTreeDeactivator]`, bound to the activity's own ETF / WS (fill-an-empty-slot, as CE-388) | parity with the BTree host: switching away stops the old branch and resets its working state (re-entry starts clean); every shared node with a deactivator gains it on HSM, not just these | per-node `[SharedAiAction]` exit wrappers (a second entry point per node, ruling 9); asking authors to bind it (they would bind the wrong method or forget — the CE-388 argument) |
+| D2 precedence: an AUTHORED OnExit wins; the deactivator wins over the CE-388 `[WritesChannel]` channel release | the deactivator is the node's own cleanup (it stops what it started); measured: no shipped node has both, and **no shipped HSM asset binds an activity with a deactivator** (21 deactivators × 10 HSM assets, grep) ⇒ zero golden movement | running both (a second OnExit slot does not exist) |
+| **D3** each node's working state gets its own Behavior-scoped `St` variable (`sensorsWs`, `advanceWs`, `coverWs`, `engageWs`, `fallbackWs`) | the BTree binds them implicitly; on HSM the WS falls back to the ETF variable (the params type ⇒ HSM0003) | — |
+| **D4** the rail host is `TacticsTreesTests.World` (production registry, StandardInputs, ingress, BrainTickSystem); the active leaf read through `RootHsmAccess` + `HsmKernel.GetActiveLeafIds` | the BTree posture's own suite (T-1) — the HSM rails sit beside `CE2073_*` | a new harness |
+
+**Acceptance (a rail each, red-proved):** ① registered by name · ② a weak enemy ⇒ the `Advance` leaf, moving to the objective
+firing; arrival ⇒ the run finishes (Final) and its sensors go · ③ ⭐ **D3 closed — the RUNTIME switch both ways:** hurt +
+outnumbered + cover ⇒ `TakeCover`; health restored ⇒ back to `Advance`, and the TakeCover sensor is gone (the deactivator ran on
+exit) · ④ the same winner sequence as the BTree for the same inputs (U3's premise) · ⑤ generator: an HSM activity with a
+deactivator gets it as OnExit; an authored OnExit is kept; a node without one is untouched (golden byte-identical).
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
