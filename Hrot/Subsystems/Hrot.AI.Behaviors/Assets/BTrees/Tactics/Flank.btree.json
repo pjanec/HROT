@@ -1,0 +1,118 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a2108000-0000-0000-0000-000000000001",
+  "Name": "Flank",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c2108000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c2108000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2108000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c2108000-0000-0000-0000-000000000003",
+        "c2108000-0000-0000-0000-000000000004"
+      ],
+      "DisplayLabel": "Move to a flank on the top threat, then fire",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 110,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank",
+        "ExpressionTargetField": "tactics",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      },
+      "VisualId": "c2108000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Move to a flank on the top threat",
+      "EditorMetadata": {
+        "X": 150,
+        "Y": 230,
+        "Comment": "CE-2108 \u2014 docs/DESIGN_Eqs_Consuming_Behaviours.md \u00a79. FindFlankingPosition (sees the threat, side-on); re-positions while moving; Success on arrival. Fails when no threat is identified.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Engage",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
+      },
+      "VisualId": "c2108000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Engage the top threat",
+      "EditorMetadata": {
+        "X": 450,
+        "Y": 230,
+        "Comment": "Fires at the top threat until the parent ends the run (the ROE gates every shot).",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "tactics",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":0}",
+        "Comment": "The tunables: query radius, re-position distance, speed, arrival radius, ScoreDelta threshold, threat forces (0 = all), fire cooldown and fire-while-moving (1 = fire on the way; the ROE still gates)."
+      },
+      {
+        "Name": "engage",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"CooldownSeconds\":1}",
+        "Comment": "Seconds between shots once in position."
+      }
+    ]
+  }
+}

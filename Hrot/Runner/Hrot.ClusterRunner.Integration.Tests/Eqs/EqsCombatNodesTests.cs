@@ -4,6 +4,7 @@ using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
@@ -387,5 +388,106 @@ public sealed class EqsCombatNodesTests : IDisposable
 
         _repo.GetComponentRW<LocomotionChannel>(_entity).Status = NodeStatus.Success;   // the executor reports arrival
         Assert.Equal(NodeStatus.Success, EqsTacticsNodes.FallBack(ref p, ref ws, _entity, _repo));
+    }
+
+    // ── CE-2108: Flank / FiringPosition — the same ONE body (§9.6 F4), ending on arrival, re-positioning on the way ──────
+    //   📄 docs/DESIGN_Eqs_Consuming_Behaviours.md §9.
+
+    /// <summary>🔴 F2 — a flank needs a threat it can SEE: nothing remembered, or only a HEARD contact ⇒ Failure (the parent picks
+    /// something else) and no sensor; TakeCover in the same state hides from the heard point instead.</summary>
+    [Fact]
+    public void CE2108_Flank_WithNoIdentifiedThreat_Fails_AndMakesNoSensor()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        Assert.Equal(NodeStatus.Failure, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+
+        _repo.AddComponent(_entity, new TargetMemory());
+        TargetMemory.HearContact(ref _repo.GetComponentRW<TargetMemory>(_entity), 0f, 50f, 0f, 8f, sourceClass: 1, scoreBoost: 5f, tick: 1);
+        Assert.Equal(NodeStatus.Failure, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+        Assert.Equal(NodeStatus.Failure, EqsTacticsNodes.FiringPosition(ref p, ref ws, _entity, _repo));
+        Assert.False(ws.Sensor.IsValid);
+
+        var cover = default(EqsTacticsState);
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.TakeCover(ref p, ref cover, _entity, _repo));   // the heard point is enough to hide from
+    }
+
+    /// <summary>🔴 F3 as built (§9.8 G6) — Flank points its own sensor (the flank template) at the threat and moves on the first
+    /// answer. A new answer far away does NOT re-route it while the threat stays put — the template scores relative to the
+    /// unit's own position, so its walk alone moves the best point (re-routing on that would chase it round the target);
+    /// once the THREAT has moved past the re-position distance, the next far answer re-routes. It ends on arrival, its sensor gone.</summary>
+    [Fact]
+    public void CE2108_Flank_ReroutesOnlyWhenTheThreatMoves_AndSucceedsOnArrival_WithItsSensorGone()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        var threat = Remember(_repo.CreateEntity());
+        void ThreatAt(float x, float y) { unsafe { ref var m = ref _repo.GetComponentRW<TargetMemory>(_entity); m.PositionsX[0] = x; m.PositionsY[0] = y; } }
+        ThreatAt(50f, 50f);
+        var p = Tunables(); var ws = default(EqsTacticsState);
+
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+        var child = ws.Sensor.ChildId;
+        var sensor = _repo.GetComponentRO<EqsSensor>(child);
+        Assert.Equal(FindFlankingPosition.BlueprintId, sensor.BlueprintId);
+        Assert.Equal(threat, sensor.ContextSlot1);
+
+        Answer(child, 5, 10f, 20f);
+        EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo);
+        uint first = _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId;
+        Assert.Equal(new Vector3(10f, 20f, 0f), Destination());
+
+        Answer(child, 6, 30f, 20f);   // 20 m away, the threat has not moved: the unit's own walk moved the answer — stay on course
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+        Assert.Equal(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+
+        ThreatAt(70f, 50f);           // the threat moved 20 m …
+        Answer(child, 7, 40f, 30f);   // … and the next far answer follows it: re-route
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+        Assert.NotEqual(first, _repo.GetComponentRO<LocomotionChannel>(_entity).ActionInstanceId);
+        Assert.Equal(new Vector3(40f, 30f, 0f), Destination());
+
+        _repo.GetComponentRW<LocomotionChannel>(_entity).Status = NodeStatus.Success;   // arrived
+        Assert.Equal(NodeStatus.Success, EqsTacticsNodes.Flank(ref p, ref ws, _entity, _repo));
+        _repo.FlushCommandBuffers();
+        Assert.False(_repo.IsAlive(child), "the sensor goes on arrival");
+    }
+
+    /// <summary>⭐ FiringPosition is the same body with its own template and site.</summary>
+    [Fact]
+    public void CE2108_FiringPosition_PointsTheFiringTemplateAtTheThreat()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        var threat = Remember(_repo.CreateEntity());
+        var p = Tunables(); var ws = default(EqsTacticsState);
+        Assert.Equal(NodeStatus.Running, EqsTacticsNodes.FiringPosition(ref p, ref ws, _entity, _repo));
+        var sensor = _repo.GetComponentRO<EqsSensor>(ws.Sensor.ChildId);
+        Assert.Equal(FindOpenFiringPosition.BlueprintId, sensor.BlueprintId);
+        Assert.Equal(threat, sensor.ContextSlot1);
+        Assert.Equal(ws.Sensor.ChildId, EqsChildSensor.Find(_repo, _entity, EqsTacticsNodes.FiringPositionSite));
+    }
+
+    /// <summary>🔴 §9.6a — with <c>FireWhileMoving</c> the unit fires at the threat while the move runs (the posture's ONE fire
+    /// step), and the weapon stops when it arrives; without it, no shot is aimed on the way.</summary>
+    [Fact]
+    public void CE2108_FireWhileMoving_AimsTheWeaponWhileTheMoveRuns_AndStopsOnArrival()
+    {
+        _repo.AddComponent(_entity, new LocomotionChannel());
+        _repo.AddComponent(_entity, new WeaponChannel());
+        var threat = Remember(_repo.CreateEntity());
+        var quiet = Tunables(); var ws = default(EqsTacticsState);
+        EqsTacticsNodes.FiringPosition(ref quiet, ref ws, _entity, _repo);
+        Answer(ws.Sensor.ChildId, 5, 10f, 20f);
+        EqsTacticsNodes.FiringPosition(ref quiet, ref ws, _entity, _repo);
+        Assert.Equal(NodeStatus.Running, _repo.GetComponentRO<LocomotionChannel>(_entity).Status);
+        Assert.NotEqual(CombatConstants.ActionIdAimAndFire, _repo.GetComponentRO<WeaponChannel>(_entity).ActiveAction);   // off ⇒ silent
+
+        var p = Tunables(); p.FireWhileMoving = 1;
+        EqsTacticsNodes.FiringPosition(ref p, ref ws, _entity, _repo);
+        Assert.Equal(CombatConstants.ActionIdAimAndFire, _repo.GetComponentRO<WeaponChannel>(_entity).ActiveAction);
+        Assert.Equal(threat, ws.Fire.Threat);
+
+        _repo.GetComponentRW<LocomotionChannel>(_entity).Status = NodeStatus.Success;   // arrived: the tree's Engage takes over
+        Assert.Equal(NodeStatus.Success, EqsTacticsNodes.FiringPosition(ref p, ref ws, _entity, _repo));
+        Assert.NotEqual(CombatConstants.ActionIdAimAndFire, _repo.GetComponentRO<WeaponChannel>(_entity).ActiveAction);
     }
 }

@@ -29,6 +29,11 @@ namespace Hrot.AI.Behaviors.Brains
         public float ScoreDeltaThreshold;
         /// <summary>Which forces count as threats for the query's exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
         public uint FactionFilter;
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — seconds between shots when <see cref="FireWhileMoving"/> (0 ⇒ 1 s).</summary>
+        public float FireCooldownSeconds;
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — 1 = fire at the top threat while moving there (the ROE still gates every shot).
+        /// A manoeuvre setting, not an ROE one: it does not outlive the run.</summary>
+        public byte FireWhileMoving;
     }
 
     /// <summary>⭐ <c>CE-2092</c> — the node's own memory between ticks (a node-scoped working state).</summary>
@@ -49,6 +54,11 @@ namespace Hrot.AI.Behaviors.Brains
         public uint LastAnswerTick;
         /// <summary>1 once a move was issued.</summary>
         public byte Moving;
+        /// <summary>⭐ <c>CE-2108</c> — what the weapon is aimed at while moving (<see cref="EqsTacticsParams.FireWhileMoving"/>).</summary>
+        public EngageState Fire;
+        /// <summary>⭐ <c>CE-2108</c> (§9.8 G6) — where the threat was when the current move was issued: Flank / FiringPosition
+        /// re-route only when the THREAT has moved, never because the unit's own walk changed a self-relative answer.</summary>
+        public Vector3 ThreatAtMove;
     }
 
     /// <summary>
@@ -74,6 +84,27 @@ namespace Hrot.AI.Behaviors.Brains
         public const int TakeCoverSite = 0x20920001;
         /// <summary>See <see cref="TakeCoverSite"/>.</summary>
         public const int FallBackSite  = 0x20930001;
+        /// <summary>⭐ <c>CE-2108</c> — see <see cref="TakeCoverSite"/>.</summary>
+        public const int FlankSite = 0x21080001, FiringPositionSite = 0x21080002;
+
+        /// <summary>⭐ <c>CE-2108</c> (§9.6 F4) — how the ONE body <see cref="Run"/> flies a manoeuvre.</summary>
+        [System.Flags]
+        private enum Mode : byte
+        {
+            /// <summary>TakeCover: re-position for as long as there is a threat; never ends on its own.</summary>
+            None = 0,
+            /// <summary>Success on arrival (the sensor goes, the unit stays).</summary>
+            EndOnArrival = 1,
+            /// <summary>A new answer ≥ <see cref="EqsTacticsParams.MinRepositionMetres"/> from the goal moves the unit again.</summary>
+            Reposition = 2,
+            /// <summary>Needs an IDENTIFIED threat (to see / shoot at); none ⇒ Failure. Else a heard point will do, none ⇒ Success.</summary>
+            NeedsEntity = 4,
+            /// <summary>⭐ §9.8 G6 — re-position only once the THREAT has moved ≥ <see cref="EqsTacticsParams.MinRepositionMetres"/>
+            /// since the move was issued. 📐 Both templates score relative to the unit's CURRENT position (the flank's bearing
+            /// reference is slot 0 = self; the firing position prefers near self), so as the unit walks the best point walks
+            /// with it — re-routing on every such answer would chase it round the target.</summary>
+            RepositionOnThreatMove = 8,
+        }
 
         /// <summary>The starter threat ranking (<see cref="ThreatRankingDecision"/>'s asset id).</summary>
         public static readonly int ThreatRankingId = UtilityDecisionCatalog.ComputeId("1a4f7c20-3b9e-4d18-8a01-threat0000001");
@@ -87,30 +118,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [SharedAiAction]
         public static NodeStatus TakeCover(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
-            if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out var threat))
-            {
-                Release(ref ws, self, world);
-                return NodeStatus.Success;
-            }
-
-            var child = EnsureSensor(ref p, ref ws, self, world, threat, FindCoverFromTarget.BlueprintId, TakeCoverSite);
-            if (child.IsNull) return NodeStatus.Running;
-
-            if (TryNewAnswer(world, child, ref ws, out var best)
-                && (ws.Moving == 0 || Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres))
-            {
-                LocomotionMoveTo.Issue(world, self, best, p.Speed, p.ArrivalRadius);
-                ws.Goal = best;
-                ws.Moving = 1;
-            }
-            else if (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Failure)
-            {
-                ws.Moving = 0;   // the move failed (or was taken over): the next answer moves again
-            }
-            return NodeStatus.Running;
-        }
+            => Run(ref p, ref ws, self, world, FindCoverFromTarget.BlueprintId, TakeCoverSite, Mode.Reposition);
 
         /// <summary>
         /// Falls back once to a point hidden from the top threat and far from it: one move, Success on arrival. The sensor
@@ -118,10 +126,43 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [SharedAiAction]
         public static NodeStatus FallBack(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindSafeRetreatPoint.BlueprintId, FallBackSite, Mode.EndOnArrival);
+
+        /// <summary>
+        /// ⭐ <c>CE-2108</c> — moves to a FLANK on the top identified threat (<see cref="FindFlankingPosition"/>: a point that sees
+        /// it, side-on to the threat→unit line), re-positioning while it moves; Success on arrival (the tree then fires).
+        /// Failure when no threat is identified (a heard point cannot be seen from anywhere) or the unit cannot move.
+        /// 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §9.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus Flank(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindFlankingPosition.BlueprintId, FlankSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
+
+        /// <summary>
+        /// ⭐ <c>CE-2108</c> — moves to a FIRING POSITION on the top identified threat (<see cref="FindOpenFiringPosition"/>: a
+        /// nearby point that sees it, higher and less exposed scoring more), as <see cref="Flank"/> does. 📄 §9.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus FiringPosition(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindOpenFiringPosition.BlueprintId, FiringPositionSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2108</c> (§9.6 F4) — the ONE body of the four manoeuvres: the top threat → the run's own sensor with
+        /// <paramref name="template"/> pointed at it → on each NEW answer a pathed MoveTo to the best point; <paramref name="mode"/>
+        /// says whether it ends on arrival, re-positions while moving and needs an identified threat. With
+        /// <see cref="EqsTacticsParams.FireWhileMoving"/> it also fires at the top threat while the move runs (§9.6a).
+        /// </summary>
+        private static NodeStatus Run(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world,
+                                      uint template, int site, Mode mode)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
+            bool endOnArrival = (mode & Mode.EndOnArrival) != 0;
+            bool onThreatMove = (mode & Mode.RepositionOnThreatMove) != 0;
+            bool reposition = onThreatMove || (mode & Mode.Reposition) != 0;
 
-            if (ws.Moving == 1)
+            if (endOnArrival && ws.Moving == 1)
             {
                 var status = LocomotionMoveTo.Status(world, self);
                 if (status == NodeStatus.Success)
@@ -129,27 +170,79 @@ namespace Hrot.AI.Behaviors.Brains
                     Release(ref ws, self, world, stopMoving: false);
                     return NodeStatus.Success;
                 }
-                if (status == NodeStatus.Running) return NodeStatus.Running;
-                ws.Moving = 0;   // failed: ask again
-                ws.LastAnswerTick = 0;
+                if (status == NodeStatus.Running && !reposition)
+                {
+                    FireOnTheMove(ref p, ref ws, self, world);
+                    return NodeStatus.Running;
+                }
+                if (status != NodeStatus.Running)
+                {
+                    ws.Moving = 0;   // failed: ask again
+                    ws.LastAnswerTick = 0;
+                }
             }
 
-            if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out var threat))
+            ThreatAim threat;
+            if ((mode & Mode.NeedsEntity) != 0)
+            {
+                if (!TopThreat(world, self, ws.Threat, out var seen))
+                {
+                    Release(ref ws, self, world);
+                    return NodeStatus.Failure;   // nothing identified to flank / shoot at: the parent picks something else
+                }
+                threat = new ThreatAim(seen, 0, default);
+            }
+            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat))
             {
                 Release(ref ws, self, world);
                 return NodeStatus.Success;
             }
 
-            var child = EnsureSensor(ref p, ref ws, self, world, threat, FindSafeRetreatPoint.BlueprintId, FallBackSite);
+            var child = EnsureSensor(ref p, ref ws, self, world, threat, template, site);
             if (child.IsNull) return NodeStatus.Running;
 
-            if (TryNewAnswer(world, child, ref ws, out var best))
+            bool hasThreatPos = ThreatPosition(world, self, threat, out var threatPos);
+            if (TryNewAnswer(world, child, ref ws, out var best)
+                && (ws.Moving == 0
+                    || (reposition && Vector3.Distance(best, ws.Goal) >= p.MinRepositionMetres
+                        && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
             {
                 LocomotionMoveTo.Issue(world, self, best, p.Speed, p.ArrivalRadius);
                 ws.Goal = best;
                 ws.Moving = 1;
+                ws.ThreatAtMove = threatPos;
             }
+            else if (!endOnArrival && ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Failure)
+            {
+                ws.Moving = 0;   // the move failed (or was taken over): the next answer moves again
+            }
+            FireOnTheMove(ref p, ref ws, self, world);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2108</c> — where the unit's memory places <paramref name="aim"/>: a heard contact's point, else the
+        /// remembered entity's fused position (the Brain reads its memory, not the threat's transform).</summary>
+        private static unsafe bool ThreatPosition(EntityRepository world, Entity self, in ThreatAim aim, out Vector3 position)
+        {
+            position = aim.Point;
+            if (aim.IsPoint) return true;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            long id = (long)aim.Entity.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == id) { position = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]); return true; }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2108</c> (§9.6a) — while a move runs and the params ask for it, fire at the top threat through the
+        /// posture's ONE fire step (the ROE gates every shot in the executor); otherwise the weapon this node aimed stops.</summary>
+        private static void FireOnTheMove(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+        {
+            if (p.FireWhileMoving == 0) return;
+            if (ws.Moving == 1 && LocomotionMoveTo.Status(world, self) == NodeStatus.Running)
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds > 0f ? p.FireCooldownSeconds : 1f);
+            else
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
         }
 
         /// <summary>Leaving the node (abort / branch switch): its sensor goes, and a move it issued stops.</summary>
@@ -160,6 +253,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>See <see cref="Deactivate_TakeCover"/>.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack")]
         public static void Deactivate_FallBack(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>See <see cref="Deactivate_TakeCover"/> (the weapon it aimed stops too).</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank")]
+        public static void Deactivate_Flank(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Release(ref ws, self, world);
+
+        /// <summary>See <see cref="Deactivate_Flank"/>.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition")]
+        public static void Deactivate_FiringPosition(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
             => Release(ref ws, self, world);
 
         // ── the shared steps ─────────────────────────────────────────────────────────────────────────
@@ -300,6 +403,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static void Release(ref EqsTacticsState ws, Entity self, EntityRepository world, bool stopMoving = true)
         {
+            PostureNodes.StopFiring(world, self, ref ws.Fire);   // CE-2108: a weapon this node aimed stops with it
             if (ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId)) EqsChildSensor.Destroy(world, ws.Sensor.ChildId);
             if (stopMoving && ws.Moving == 1 && world.HasComponent<LocomotionChannel>(self))
             {

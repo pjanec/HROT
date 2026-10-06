@@ -208,6 +208,47 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
+        public void CE2108_FlankAndFiringPosition_AreCompiledAndRegistered()
+        {
+            var w = new World();
+            Assert.True(w.Registry.TryGetId("Flank", out _), "Flank must be registered so an order, an SOP row or a mission task can name it");
+            Assert.True(w.Registry.TryGetId("FiringPosition", out _), "FiringPosition must be registered");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2108</c> — the FiringPosition TREE through the real ingress and brain: it moves to the answer FIRING on the way
+        /// (the tree's default <c>FireWhileMoving = 1</c>), and on arrival its sensor goes and the tree's <c>Engage</c> keeps the
+        /// weapon on the threat. 📄 <c>docs/DESIGN_Eqs_Consuming_Behaviours.md</c> §9.
+        /// </summary>
+        [Fact]
+        public void CE2108_FiringPosition_Ordered_MovesFiring_ThenEngagesOnArrival()
+        {
+            var w = new World();
+            w.Arm();
+            var enemy = w.Contact(armed: true);
+            w.Order("FiringPosition");
+            w.Tick();
+            w.Tick();
+            Assert.Equal("FiringPosition", w.TaskName);
+            var sensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FiringPositionSite);
+            Assert.False(sensor.IsNull);
+            Assert.Equal(enemy, w.Repo.GetComponentRO<EqsSensor>(sensor).ContextSlot1);
+
+            w.Answer(sensor, 5, 30f, 40f);
+            w.Tick();
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(new Vector3(30f, 40f, 0f), w.Destination());
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived
+            w.Tick();
+            w.Tick();
+            Assert.Equal("FiringPosition", w.TaskName);   // Engage keeps the run going
+            Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FiringPositionSite).IsNull, "the sensor goes on arrival");
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+        }
+
+        [Fact]
         public void CE2092_TakeCover_Ordered_MovesToTheAnswer_AndEndsWhenNothingIsLeftToHideFrom()
         {
             var w = new World();
