@@ -2,7 +2,10 @@
 state: LIVE
 updated: 2026-09-26 (§11.1a added — HSM subtree authoring)
 current-answer: the body below; §11.1a is the newest section and owns SUBTREE AUTHORING.
-known-rot: ⚠ this document predates the JSON substrate. `BTree_HSM_Editor_State_And_Forward_Plan.md`
+known-rot: ⚠ §7.1/§7.3 (pin wires, label at the Bezier midpoint) are SUPERSEDED for geometry and gestures by
+  DESIGN_Hsm_Canvas_Authoring.md (2026-10-06; the hidden pins stay as link identity). ⚠ §6.2 (editor regions holding
+  several states) and §8.2 (history as a pseudo-state node) contradict the kernel — proposed for supersession by Q84.
+  ⚠ this document predates the JSON substrate. `BTree_HSM_Editor_State_And_Forward_Plan.md`
   says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
   feature/UX spec. ⛔ Do not quote this doc for persistence shape.
 related-designs:
@@ -14,6 +17,10 @@ related-designs:
   - BTree_Editor_NodeEditor_Host_Design.md — the twin; owns BTree's subtree node and its walker.
   - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes the authored subtree
     reference (an HSM state hosting a BTree); it does NOT own the authoring surface.
+  - DESIGN_Hsm_Canvas_Authoring.md — owns the canvas GEOMETRY (border-to-border arcs, one LinkPath) and the
+    authoring GESTURES (border drag, double-click place, inline rename); supersedes §7.1/§7.3 for those.
+  - Architect_Question_84_Hsm_Region_Initial_History_Model.md — owns what a parallel region IS, who writes
+    "initial", and history as a composite property; proposes superseding §6.2 and §8.2.
   - Architect_Question_36_Subtree_Hosting_Runtime.md — the approved ruling (Q36-B = A) that the
     reference is a name BESIDE a Guid.
 -->

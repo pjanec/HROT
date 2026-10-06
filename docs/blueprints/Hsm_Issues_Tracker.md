@@ -606,3 +606,20 @@ Stated so no one mistakes silence for a clean bill:
 |---|---|
 | 2026-08-14 | Created. HSM-001…HSM-011 from the first docs-vs-code audit. Five rows reproduced with throwaway probes; probes deleted, suite left green at 510/510. |
 | 2026-10-02 | Re-evaluated after `origin/behaviors` (+44). **HSM-004 and HSM-018 closed** — both were already fixed upstream (`BP-299` 2026-08-17, ruling 14 2026-08-16) before earlier passes called them live. HSM-013's `DEBT-BF-04` residue narrowed by `CE-417` (per-slot ETF). Reconciliation recipe fixed. `Hrot.Hsm.Editor.Tests` 622/622. |
+| 2026-10-06 | **Re-verified on `ui` (graph + grep, no code changed) — see the section below.** Still open: HSM-001/002/003/005/006/007/008/010/011/012/017. HSM-009 partial (`CE-2088`). Q84 opened for the region / initial / history model; canvas design `DESIGN_Hsm_Canvas_Authoring.md` (CE-1000..1002). |
+
+## Re-verification `2026-10-06` (ui lane)
+
+| row | state on `ui` at `c96aebc9` | evidence | where it goes |
+|---|---|---|---|
+| HSM-001 / 002 | open | `HsmValidator.CheckInitialChildren:115` still counts `IsInitial` over all children, parallel or not | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) A/B |
+| HSM-003 | open — ⚠ **reframed** | the kernel has no multi-state region: every child of a parallel state is a region (`HsmFlattener.cs:381-394`), and "initial" reaches it only as the child's `.Initial()` (`HsmEmitCore.cs:780`) | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) B |
+| HSM-005 | open | `HsmCommandSink.ApplyRemoveRegion:359` unchanged | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) A |
+| HSM-006 | open | `HsmCommandSink.cs:178` still names every state `"State"`; no duplicate-name rule in `HsmDiagnosticCode` | `CE-1001` |
+| HSM-007 / 008 | open | `HsmOutputLaneMaskInferrer.ApplyToAsset` has only test callers | unchanged |
+| HSM-009 | partial | `CE-2088`: `HsmAsset.EnsureEvent` declares an engine-raised `Sensor.*` event when picked; author-defined events still cannot be created or deleted; `HsmGlobalsStrip` still unregistered | next after `CE-1001` |
+| HSM-010 | open | `HsmNodeCatalog` still offers both history entries; kernel history is a flag on the re-entered composite (`HsmKernelCore.cs:846,877`) | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) C |
+| HSM-011 | open | the forward-plan doc is still stale | unchanged |
+| HSM-012 | open | `StateDef.TimerActionId` is written (`HsmFlattener.cs:182`), never read by the kernel | hide the facet field (cheap, independent) |
+| HSM-017 | open — ⚠ **reframed** | rename now runs through `VariableRenameCommit` → refactor service, but HSM contributes no variable references (BTree has `BTreeBlackboardVariableContributor`; HSM has none) | add an HSM variable contributor |
+| *new* | — | `CE-1003`: `HsmCuratedBindingDemo` draws 2 regions, the kernel runs 3 | [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) |

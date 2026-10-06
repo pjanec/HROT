@@ -1,7 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
-current-answer: ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
+updated: 2026-10-06
+current-answer: ⭐⭐⭐ SESSION 2026-10-06 — HSM GRAPH UX. `ui` = backend merged (ff to c96aebc9). DESIGNED, NOT BUILT
+  (user: "do not start building yet"): DESIGN_Hsm_Canvas_Authoring.md — UnityHFSM-style border-to-border arcs, one
+  LinkPath, border/Shift drag, double-click place + inline rename, unique names (CE-1000 S1, CE-1001 S2, CE-1002 S3;
+  leans D1-D10, D1-D7 user-approved, D8-D10 new). OPEN for the user: Architect_Question_84 (region = child of the parallel
+  state, one writer for "initial", history as a composite property; retracts my approved "region InitialChild"
+  lean) — CE-1003; and BP-93 (BTree/HSM auto-written 0.5 s after each edit; lean: gate the write like Blueprint).
+  HSM tracker re-verified 2026-10-06 (section at its end); BP-30/BP-61 closed as stale. Next ui id: CE-1004.
+  ⛔ HISTORY below: the 2026-09-30 E4 answer.
+  ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
   batches/HANDOFF_E4_Product_First_Authoring.md dispatched at dba2233c4; detail design
   DESIGN_Product_First_Authoring.md. CE-460 (File / New Behavior… · Action… · Condition…, the blueprint
   Behavior template) and CE-462 (technology labels: behaviour picker + HSM action/guard combos) built;

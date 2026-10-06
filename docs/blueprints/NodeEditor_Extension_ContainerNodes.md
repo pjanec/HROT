@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-06 (STATUS block added; body unchanged)
+current-answer: the body
+related-designs:
+  - DESIGN_Hsm_Canvas_Authoring.md — draws HSM transitions border-to-border over container bodies and reuses drop-into-container unchanged; Q84 proposes that an HSM parallel 'region' be one child state (region count = child count)
+-->
 # NodeEditor — Container Nodes extension
 
 > **Status:** Specification for a NodeEditor extension. Authored by the AI Editor team for the NodeEditor team (same team, different hat).
