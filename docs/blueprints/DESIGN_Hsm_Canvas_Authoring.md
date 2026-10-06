@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-build-state: READY-TO-BUILD (S1-S3) · S4 waits on Q84
+build-state: READY-TO-BUILD (S1-S3) · S4 waits on Q84 · revised 2026-10-06 (D4/D6 consistency, D8 withdrawn)
 current-answer: §2 decisions, §3-§5 diagrams, §8 slices. Everything here is the target; nothing is built yet.
 stale-below: nothing
 known-rot: none yet
@@ -23,7 +23,7 @@ related-designs:
 
 > 🔒 **User, `2026-10-06`:** *"make it very easy to place nodes and connect them with transition arrows, so the
 > graphics geometry is similar to what can be found on images in the readme page of
-> [UnityHFSM](https://github.com/Inspiaaa/UnityHFSM)"* — leans D1–D7 approved the same day; D8–D10 are new.
+> [UnityHFSM](https://github.com/Inspiaaa/UnityHFSM)"* — leans approved the same day; ⭐ **revised the same day** — *"no double-click to place node … this should be from palette as in btree and blueprints to stay consistent"* · *"the context menu way needs to stay"* · D8 withdrawn · D9, D10 approved.
 
 **Target look** (UnityHFSM README): rounded state cards with a centred name · arrows leave and enter the **nearest
 border** · `A→B` and `B→A` are **two separate arcs** · the label sits **on** the arc · a filled dot + arrow marks
@@ -49,16 +49,16 @@ the initial child · composites are boxes with a header band and children inside
 
 ## 2. Decisions
 
-| # | decision *(🔒 D1–D7 approved `2026-10-06`; ⚠ D8–D10 are new leans, not yet approved)* | rejected — one line each |
+| # | decision *(🔒 all approved `2026-10-06`, D4/D6 revised for consistency with BTree/Blueprint, D8 withdrawn)* | rejected — one line each |
 |---|---|---|
 | **D1** | ⭐ A **generic NodeEditor option**, `GraphKindDescriptor.Routing = NodeToNode`; HSM opts in, BTree/Blueprint unchanged | HSM-only overlay that hides the links and draws its own — hit-test and selection would diverge (a 6th copy of the maths) · visible pin dots — keeps left→right S-curves |
 | **D2** | ⭐ **ONE geometry**: `LinkPathBuilder` in `NodeEditor.Core` computes every link path once per frame into `CanvasLayout.LinkScreenPaths`; renderer, hit-tester, pending wire and custom renderers all read it | keep per-consumer maths — measured drift (arrowhead aimed along the chord of an S-curve) |
-| **D3** | ⭐ **Start a transition** by dragging from a state's **border band** (8 px) **or Shift-drag anywhere** on it; plain drag inside still moves | border only — too fiddly on small cards · a modifier only — undiscoverable |
-| **D4** | ⭐ **Drop on empty canvas creates a plain state + the transition** in one undo step (no picker) | open the kind picker — an extra click on the most common gesture |
+| **D3** | ⭐ **Start a transition** three ways: drag from a state's **border band** (8 px) · **Shift-drag** anywhere on it · **right-click the state → "Add Transition"**, after which the arrow follows the cursor and a left-click on a state finishes it (Esc / right-click cancels). Plain drag inside still moves | border only — too fiddly on small cards · a modifier only — undiscoverable · drag only — 🔒 the context-menu way must stay |
+| **D4** | ⭐ **Drop on empty canvas opens the state picker** — the same `nodes.by-pin` picker BTree and Blueprint open there, with `Simple State` first; picking creates the state **and** the transition in one undo step. `HsmNodeCatalog.QueryForPinContext` (empty today) returns the state kinds | create a plain state with no picker — ⛔ revised: BTree/Blueprint open a picker here, and the HSM canvas must behave like them |
 | **D5** | ⭐ **Always a gentle arc**, bending to the left of travel ⇒ `A→B` and `B→A` separate by construction; more bend per extra parallel link | straight unless paired — two code paths, and labels of a pair collide |
-| **D6** | ⭐ **Double-click empty canvas creates a plain state** under the cursor and opens **inline rename**; F2 / double-click a card renames it | inspector-only rename (today) |
+| **D6** | ⭐ **Placing states is unchanged — the palette** (Tab / right-click canvas → "Add Node…"), exactly as BTree and Blueprint (neither has double-click placement — measured: `CanvasInput` handles double-click only on links and comment headers). **Renaming uses the existing canvas "Rename… (F2)"** (`CanvasRenderer.cs:787`, sends `SetNodeProperty(node, "Title", …)`) — ⛔ **which `HsmCommandSink.ApplySetNodeProperty` silently ignores today** (it handles only `isBreakpoint`), so S2 makes it work | double-click placement — ⛔ user: not in BTree/Blueprint, so not here · a new inline rename box — the shared modal already exists |
 | **D7** | ⭐ **Names are unique on create** (`State`, `State 2`, …) **and** a validator rule `DuplicateStateName` (Error) — names are load-bearing in emit (HSM-006) | uniquify only — the inspector can still rename into a clash |
-| **D8** | ⭐ **`NodeChrome = Card`** for HSM: rounded box, category fill, name centred (≤2 lines), no header strip; composites keep their container header | restyle via theme only — the header strip and pin rows are layout, not colour |
+| **D8** | ⛔ **WITHDRAWN** — state nodes keep the current Blueprint look. 🔒 User: *"probably ok as it is … Unity-HFSM does not bring anything new"* — agreed: the pictures differ only in compactness; the value is in the arrows | — |
 | **D9** | ⭐ Fold `HsmTransitionSnapHelper` into the border-band/drop-on-node hover (**route, then delete** — its job is what D3 does); record in `Hrot.Hsm.Editor.md` | keep it — a second "which state is under the cursor" next to the hit-tester |
 | **D10** | ⭐ Transition overlays move **onto the arrow**: breakpoint dot at the path's 25 % point, fired-transition pulse runs along the path | keep source-corner placement — collides with the state's own breakpoint dot |
 
@@ -73,11 +73,10 @@ classDiagram
         <<existing record, NodeEditor.Core>>
         +PinOrientation Orientation
         +LinkRouting Routing  NEW
-        +NodeChrome Chrome  NEW
-        +NodeKindKey? DefaultNodeKind  NEW
+        +string LinkDisplayName  NEW
     }
     class LinkRouting { <<enum NEW>> PinWires; NodeToNode }
-    class NodeChrome { <<enum NEW>> Blueprint; Card }
+    class PendingWire { <<existing>> +bool Sticky NEW }
     class LinkPath {
         <<struct NEW, Core>>
         +Vector2 P0, C1, C2, P3
@@ -101,14 +100,14 @@ classDiagram
     }
     class WireRenderer { <<existing>> draws LinkScreenPaths }
     class HitTester { <<existing>> NodeEdge zone NEW; wire hit via LinkPath }
-    class CanvasInput { <<existing>> edge/shift drag, dbl-click create, F2 }
+    class CanvasInput { <<existing>> edge/shift drag, sticky wire, picker on empty drop }
     class ICanvasRenderContext {
         <<existing interface>>
         +TryGetLinkScreenPath(LinkId, out LinkPath) NEW
     }
-    class InteractionState { <<existing>> +NodeId? RenamingNode NEW }
-    class HsmGraphModel { <<existing>> Kind: NodeToNode, Card, Simple }
-    class HsmCommandSink { <<existing>> unique names; SetNodeProperty title }
+    class HsmNodeCatalog { <<existing>> QueryForPinContext returns state kinds }
+    class HsmGraphModel { <<existing>> Kind: NodeToNode, "Transition" }
+    class HsmCommandSink { <<existing>> unique names; handles Title }
     class HsmTransitionLabelRenderer { <<existing>> reads TryGetLinkScreenPath }
     class HsmBreakpointGutterRenderer { <<existing>> dot on path }
     class HsmRuntimeOverlayRenderer { <<existing>> pulse on path }
@@ -116,7 +115,7 @@ classDiagram
     class HsmTransitionSnapHelper { <<existing, test-only>> DELETED by D9 }
 
     GraphKindDescriptor --> LinkRouting
-    GraphKindDescriptor --> NodeChrome
+    CanvasInput --> PendingWire
     CanvasLayout ..> LinkPathBuilder : once per frame
     CanvasLayout "1" *-- "0..*" LinkPath
     WireRenderer ..> CanvasLayout
@@ -161,34 +160,39 @@ sequenceDiagram
     participant I as CanvasInput
     participant V as HsmLinkValidator
     participant S as HsmCommandSink
-    U->>I: press on border band (or Shift + press on card)
-    I->>I: PendingWire from the node's output pin
-    loop drag
+    alt drag
+        U->>I: press on border band (or Shift + press on card)
+        I->>I: PendingWire from the node's output pin
+    else context menu
+        U->>I: right-click state, "Add Transition"
+        I->>I: PendingWire, Sticky = true
+    end
+    loop until release (drag) or left-click (sticky)
         I->>I: ToCursor path, hovered node highlights
     end
-    alt released over a state
+    alt over a state
         I->>V: Validate(src out pin, dst in pin)
         I->>S: Batch [AddLink]
-    else released on empty canvas
-        I->>S: Batch [AddNode(DefaultNodeKind), AddLink]
-        I->>I: RenamingNode = new node
+    else on empty canvas
+        I->>I: open nodes.by-pin picker (state kinds)
+        U->>I: pick a kind
+        I->>S: Batch [AddNode(kind), AddLink]
     end
 ```
 
-**4c — place and name a state** *(D6, D7)*
+**4c — name a state** *(D6, D7 — placement itself is the existing palette path, unchanged)*
 ```mermaid
 sequenceDiagram
     actor U as Author
     participant I as CanvasInput
     participant S as HsmCommandSink
     participant A as HsmAsset
-    U->>I: double-click empty canvas (inside a composite or not)
-    I->>S: AddNode(DefaultNodeKind, cursor, parent under cursor)
-    S->>A: UniqueName("State") -> "State 3"
-    I->>I: RenamingNode = id (inline text box on the card)
-    U->>I: type name, Enter
-    I->>S: SetNodeProperty(id, "title", name)
-    S->>A: rename (validator flags a clash)
+    U->>I: palette pick (Tab or right-click, Add Node)
+    I->>S: AddNode(kind, cursor)
+    S->>A: UniqueName("State") gives "State 3"
+    U->>I: right-click card, Rename (F2), type, Enter
+    I->>S: SetNodeProperty(id, "Title", name)
+    S->>A: rename, validator flags a clash
 ```
 
 ## 5. Modules — who calls what each frame
@@ -244,16 +248,16 @@ current tangents, which move into `LinkPathBuilder.PinWire` unchanged).
 
 | slice | scope | acceptance (railable headlessly, `R-124`) |
 |---|---|---|
-| **S1** | `LinkPath`/`LinkPathBuilder`, `LinkScreenPaths`, `TryGetLinkScreenPath`; `WireRenderer`/`HitTester`/`DrawPendingWire` read it; `NodeToNode` routing; `NodeEdge` hover zone; edge/Shift drag; drop-on-empty batch | `WireTangentTests` unchanged and green · new `LinkPathBuilderTests` (endpoints on border, `A→B`/`B→A` disjoint, tangent at P3) · HSM: one drag creates one transition, one undo removes it · empty-drop creates state+link, one undo removes both |
-| **S2** | double-click create (`DefaultNodeKind`), `RenamingNode` inline rename + F2, unique names, `DuplicateStateName` | two placements ⇒ `State`, `State 2` · rename into a clash ⇒ Error diagnostic · rename commits through the sink (undoable) |
-| **S3** | `NodeChrome.Card`; label/arrowhead/breakpoint dot/fired pulse on the path; delete `HsmTransitionSnapHelper` | label point lies on the drawn path · breakpoint dot of a transition ≠ its source state's dot · Windows visual check against the UnityHFSM pictures |
+| **S1** | `LinkPath`/`LinkPathBuilder`, `LinkScreenPaths`, `TryGetLinkScreenPath`; `WireRenderer`/`HitTester`/`DrawPendingWire` read it; `NodeToNode` routing; `NodeEdge` hover zone; edge/Shift drag; drop on a state | `WireTangentTests` unchanged and green · new `LinkPathBuilderTests` (endpoints on border, `A→B`/`B→A` disjoint, tangent at P3) · HSM: one drag creates one transition, one undo removes it |
+| **S2** | context-menu "Add Transition" (sticky wire); `HsmNodeCatalog.QueryForPinContext` → picker on empty drop; unique names; `HsmCommandSink` handles `Title`; `DuplicateStateName` | two palette placements ⇒ `State`, `State 2` · canvas Rename (F2) renames the state and one undo restores it · rename into a clash ⇒ Error diagnostic · "Add Transition" then click a state ⇒ one transition |
+| **S3** | label/arrowhead/breakpoint dot/fired pulse on the path; delete `HsmTransitionSnapHelper` | label point lies on the drawn path · breakpoint dot of a transition ≠ its source state's dot · Windows visual check against the UnityHFSM pictures |
 | **S4** | initial-marker drag + "Set as initial" context item | ⏸ **waits on [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md)** |
 
 ## 9. Neighbouring work — measured `2026-10-06`, so nothing surprises the build
 
 | row | state today | relation to this design |
 |---|---|---|
-| [BP-93](Blueprint_Issues_Tracker.md) (BTree/HSM written to disk 0.5 s after any edit, no Save) | ⛔ **still live** — `EditorSubsystem.cs:4631` schedules every change, the flush writes JSON | ⚠ easier editing = more accidental writes. Lean: gate the JSON write like the Blueprint arm and rely on Save/Save-All. **Needs the user's nod — touches BTree too** |
+| [BP-93](Blueprint_Issues_Tracker.md) (BTree/HSM written to disk 0.5 s after any edit, no Save) | ⛔ still live — `EditorSubsystem.cs:4631` schedules every change, the flush writes JSON | ✅ **lean accepted `2026-10-06`:** gate the BTree/HSM JSON write like the Blueprint arm; edits persist only via Save / Save All. Separate slice (touches BTree) |
 | HSM-006 (duplicate names) | open | ⭐ closed by S2 (D7) |
 | HSM-009 / [BP-91](Blueprint_Issues_Tracker.md) (no event create/delete) | partial — `CE-2088` declares engine events on pick | next after S2: an "Add event" row in the Events table + "New event…" in the transition's event picker |
 | HSM-001/002/003/005/010 | open | ⭐ all fold into [`Q84`](Architect_Question_84_Hsm_Region_Initial_History_Model.md) |
@@ -263,7 +267,7 @@ current tangents, which move into `LinkPathBuilder.PinWire` unchanged).
 | [BP-30](Blueprint_Issues_Tracker.md) (HSM AiPrimitives collide) | ✅ fixed — `HsmOccurrence.KeyFor` per (region, state) | none — the tracker row is stale |
 | [BP-53](Blueprint_Issues_Tracker.md) (cross-asset blueprint pick) | ✅ effectively done — `ActionBindingDrawer` blueprint combo (`allowsBlueprint`) | none |
 | [BP-56](Blueprint_Issues_Tracker.md) (no wire-level execution highlight) | open | ⭐ D10's pulse-along-path is the HSM half; the shared `LinkPath` makes the Blueprint half cheap |
-| [BP-101](Blueprint_Issues_Tracker.md) (no F2 rename) | open | S2 adds F2 for canvas nodes |
+| [BP-101](Blueprint_Issues_Tracker.md) (no F2 rename on panel items) | open | the canvas already has Rename (F2) for nodes; S2 makes it work on HSM |
 | [CE-299](Blueprint_Issues_Tracker.md) (HSM dispatcher-id collision) | open, runtime | unrelated to the canvas |
 
 ## 10. Design docs checked
