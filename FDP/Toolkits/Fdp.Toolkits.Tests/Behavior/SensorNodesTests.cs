@@ -81,6 +81,56 @@ namespace Fdp.Toolkit.Tests.Behavior
             Assert.False(SensorNodes.ThreatsAtLeast(ref twoLive, unit, _w.Repo));   // the faded one is not live
         }
 
+        /// <summary>A unit that runs a behaviour (so a fault has a run to latch on) with a DangerArea sensor child.</summary>
+        private Entity UnitWithADangerSensor()
+        {
+            var r = _w.Repo;
+            if (!r.IsComponentTypeRegistered<SensorTag>()) r.RegisterComponent<SensorTag>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            if (!r.IsComponentTypeRegistered<EqsSensor>()) r.RegisterComponent<EqsSensor>();
+            if (!r.IsComponentTypeRegistered<EqsCognitiveBuffer>()) r.RegisterComponent<EqsCognitiveBuffer>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()) r.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>()) r.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()) r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()) r.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!r.Bus.IsRegisteredManaged<Fdp.Toolkit.Behavior.Events.BehaviorFaultNotification>()) r.Bus.RegisterManaged<Fdp.Toolkit.Behavior.Events.BehaviorFaultNotification>();
+            var unit = _w.SpawnAgent(1f, 1f);
+            r.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 1234, InstanceId = 7 });
+            Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, unit, 7, Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default);
+            return unit;
+        }
+
+        private Fdp.Toolkit.Behavior.Events.BehaviorFaultCode FaultOf(Entity unit)
+            => _w.Repo.HasComponent<Fdp.Toolkit.Behavior.Events.BehaviorFaultLatch>(unit)
+                ? _w.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Events.BehaviorFaultLatch>(unit).Code
+                : Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.None;
+
+        /// <summary>
+        /// 🔴 <c>CE-3078</c> H3 (§10.4 guard, R-133) — the RANKED <c>Read</c> bound to a <c>DangerArea</c> sensor FAILS with a
+        /// <c>WrongSensorFamily</c> behaviour fault, instead of Running for ever on a buffer that sensor never carries.
+        /// </summary>
+        [Fact]
+        public void CE3078_Read_OnADangerAreaSensor_FailsWithAFault_NotRunningForEver()
+        {
+            var unit = UnitWithADangerSensor();
+            var p = new SensorReadParams { Kind = SensorModality.DangerArea };
+            var ws = default(SensorReading);
+            Assert.Equal(NodeStatus.Failure, SensorNodes.Read(ref p, ref ws, unit, _w.Repo));
+            Assert.Equal(default, ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.WrongSensorFamily, FaultOf(unit));
+        }
+
+        /// <summary>🔴 <c>CE-3078</c> H3 — the same for the <c>Sees</c> condition: false AND a fault, not a silent false.</summary>
+        [Fact]
+        public void CE3078_Sees_OnADangerAreaSensor_IsFalse_AndFaults()
+        {
+            var unit = UnitWithADangerSensor();
+            var p = new SensorReadParams { Kind = SensorModality.DangerArea };
+            Assert.False(SensorNodes.Sees(ref p, unit, _w.Repo));
+            Assert.Equal(Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.WrongSensorFamily, FaultOf(unit));
+        }
+
         /// <summary>🔴 <c>CE-3079</c> H1 (§10.5) — <c>WithinMetres</c> counts only contacts whose REMEMBERED position is within the
         /// distance of the unit; 0 keeps every distance (the rail above, unchanged).</summary>
         [Fact]

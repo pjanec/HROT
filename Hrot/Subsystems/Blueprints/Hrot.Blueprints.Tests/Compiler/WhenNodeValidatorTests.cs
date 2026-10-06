@@ -356,6 +356,23 @@ public sealed class WhenNodeValidatorTests
         Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2010);
     }
 
+    /// <summary>🔴 <c>CE-3078</c> H3 (§10.4 guard) — <c>When EqsResult</c> refuses a kind of another result family (16
+    /// DangerArea) at compile time, naming <c>When SensorResult</c>.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP2010")]
+    public void CE3078_Validate_ADangerAreaKind_OnWhenEqsResult_IsRefused()
+    {
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EqsResult,
+            Edges = WhenEdge.RisingEdge,
+            EqsResult = new EqsResultPayload { SensorVariableName = "", UnitSensorKind = 16, Trigger = EqsTrigger.FirstReady },
+        };
+        var d = Assert.Single(ValidateInstance(node), x => x.Code == DiagnosticCodes.BP2010);
+        Assert.Contains("When SensorResult", d.Message);
+    }
+
     // ---- BP2011: trigger requires threshold/max-age -------------------
 
     [Fact]

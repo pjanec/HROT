@@ -1,0 +1,31 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3079000-0000-0000-0000-000000000002
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Explicit, Size = 96)]
+public struct DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    [FieldOffset(0)]
+    public global::Hrot.AI.Behaviors.Brains.DangerSensorParams sensor;
+    [FieldOffset(24)]
+    public global::Hrot.AI.Behaviors.Brains.DangerAheadParams holdAhead;
+    [FieldOffset(40)]
+    public global::Hrot.AI.Behaviors.Brains.HoldShortParams hold;
+    [FieldOffset(56)]
+    public global::Hrot.AI.Behaviors.Brains.DangerAheadParams crossAhead;
+    [FieldOffset(72)]
+    public global::Hrot.AI.Behaviors.Brains.CrossParams cross;
+    [FieldOffset(80)]
+    public global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams walk;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct DangerCrossing_Block
+{
+    [FieldOffset(0)]
+    public DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard In;
+}

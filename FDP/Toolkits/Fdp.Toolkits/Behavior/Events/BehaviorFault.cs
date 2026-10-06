@@ -37,6 +37,10 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ <c>CE-3035</c> — an SOP wrote a movement / weapon / interaction channel. The write is reverted (the
         /// task keeps its command) and the SOP stops: an SOP acts only by assigning behaviours (R-199, design §4.5).</summary>
         SopCommandedChannel = 6,
+        /// <summary>⭐ <c>CE-3078</c> H3 (R-133) — a sensor node of one result FAMILY was pointed at a sensor kind of another (a
+        /// ranked reader at a <c>DangerArea</c> sensor): it would read nothing for ever, so the run stops instead.
+        /// 📄 <c>docs/DESIGN_Utility_AI_Demo_Scenarios.md</c> §10.4 (the guard row).</summary>
+        WrongSensorFamily = 7,
         /// <summary>First code free for behaviour-specific faults.</summary>
         Custom          = 1000,
     }

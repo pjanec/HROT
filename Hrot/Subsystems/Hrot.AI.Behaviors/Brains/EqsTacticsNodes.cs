@@ -405,15 +405,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PostureNodes.StopFiring(world, self, ref ws.Fire);   // CE-2108: a weapon this node aimed stops with it
             if (ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId)) EqsChildSensor.Destroy(world, ws.Sensor.ChildId);
-            if (stopMoving && ws.Moving == 1 && world.HasComponent<LocomotionChannel>(self))
-            {
-                ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-                if (loco.ActiveAction == NavigationConstants.ActionIdMoveTo)
-                {
-                    loco.ActiveAction = 0;
-                    unchecked { loco.ActionInstanceId++; }
-                }
-            }
+            if (stopMoving && ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
             ws = default;
         }
     }

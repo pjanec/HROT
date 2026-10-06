@@ -65,7 +65,9 @@ namespace Fdp.Toolkit.Behavior
         [SharedAiCondition]
         public static bool Sees(ref SensorReadParams p, Entity self, EntityRepository world)
         {
-            if (!UnitSensors.TryGetResults(world, self, p.Kind, out var buffer) || !buffer.IsReady) return false;
+            var status = UnitSensors.ReadRanked(world, self, p.Kind, out var buffer);
+            if (status == SensorReadStatus.WrongFamily) { WrongFamily(world, self, p.Kind, "Sees"); return false; }
+            if (status != SensorReadStatus.Ok) return false;
             int min = p.MinCount == 0 ? 1 : p.MinCount;
             return buffer.Count >= min && buffer.GetTop().Score >= p.MinTopScore;
         }
@@ -75,7 +77,14 @@ namespace Fdp.Toolkit.Behavior
         [SharedAiAction]
         public static NodeStatus Read(ref SensorReadParams p, ref SensorReading ws, Entity self, EntityRepository world)
         {
-            if (!UnitSensors.TryGetResults(world, self, p.Kind, out var buffer) || !buffer.IsReady)
+            var status = UnitSensors.ReadRanked(world, self, p.Kind, out var buffer);
+            if (status == SensorReadStatus.WrongFamily)
+            {
+                ws = default;
+                WrongFamily(world, self, p.Kind, "Read");
+                return NodeStatus.Failure;
+            }
+            if (status != SensorReadStatus.Ok)
             {
                 ws = default;
                 return NodeStatus.Running;
@@ -95,6 +104,15 @@ namespace Fdp.Toolkit.Behavior
             ws.Top         = top.EntityId > 0 ? EntityRef.Of(world, new Entity((ulong)top.EntityId)) : EntityRef.None;
             return NodeStatus.Running;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3078</c> H3 (§10.4 guard, R-133) — a RANKED reader bound to a kind of another result family (a
+        /// <c>DangerArea</c> sensor carries no <c>EqsCognitiveBuffer</c>) would read nothing for ever: FAIL loudly instead — a
+        /// behaviour fault, an Error row in the Message Log, and the run ends.
+        /// </summary>
+        private static void WrongFamily(EntityRepository world, Entity self, SensorModality kind, string node)
+            => Fdp.Toolkit.Behavior.Events.BehaviorFault.Raise(world, self, Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.WrongSensorFamily,
+                $"SensorNodes.{node} reads RANKED results, but sensor kind {kind} is of the {SensorKindRegistry.FamilyOf(kind)} family — use that family's nodes");
 
         /// <summary>True when the unit remembers at least <see cref="ThreatCountParams.Count"/> contacts at least
         /// <see cref="ThreatCountParams.MinDanger"/> dangerous (live ones only when <see cref="ThreatCountParams.LiveOnly"/>; within

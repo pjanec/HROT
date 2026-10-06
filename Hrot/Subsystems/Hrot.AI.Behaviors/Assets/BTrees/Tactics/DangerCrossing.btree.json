@@ -1,0 +1,295 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a3079000-0000-0000-0000-000000000002",
+  "Name": "DangerCrossing",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c3079100-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c3079100-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 500,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c3079100-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c3079100-0000-0000-0000-000000000003",
+        "c3079100-0000-0000-0000-000000000004"
+      ],
+      "DisplayLabel": "Watch the route, then go",
+      "EditorMetadata": {
+        "X": 500,
+        "Y": 110,
+        "Comment": "CE-3079 H5 \u2014 docs/DESIGN_Utility_AI_Demo_Scenarios.md \u00a710.4. The objective is set TWICE in the order's params: sensor.RouteTo (the route watched) and walk.X/Y (where it walks).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor",
+        "ExpressionTargetField": "sensor",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DangerSensorState"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Danger sensor: me \u2192 objective",
+      "EditorMetadata": {
+        "X": 200,
+        "Y": 230,
+        "Comment": "Route source \u2462 (to a point): the route is ALWAYS unit \u2192 objective, never the unit's own move. The run's end releases it.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "ObserverSelector",
+      "VisualId": "c3079100-0000-0000-0000-000000000004",
+      "ChildVisualIds": [
+        "c3079100-0000-0000-0000-000000000005",
+        "c3079100-0000-0000-0000-000000000008",
+        "c3079100-0000-0000-0000-000000000011"
+      ],
+      "DisplayLabel": "React to the next area ahead",
+      "EditorMetadata": {
+        "X": 700,
+        "Y": 230,
+        "Comment": "While a lower branch runs, the HIGHER guards are re-checked every tick; a running branch's own guard is not (HoldShort's hysteresis works because of that).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c3079100-0000-0000-0000-000000000005",
+      "ChildVisualIds": [
+        "c3079100-0000-0000-0000-000000000006",
+        "c3079100-0000-0000-0000-000000000007"
+      ],
+      "DisplayLabel": "Hold short of a watched area",
+      "EditorMetadata": {
+        "X": 450,
+        "Y": 360,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead",
+        "ExpressionTargetField": "holdAhead"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000006",
+      "ChildVisualIds": [],
+      "DisplayLabel": "A threatened area within 60 m",
+      "EditorMetadata": {
+        "X": 390,
+        "Y": 480,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort",
+        "ExpressionTargetField": "hold",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HoldShortState"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000007",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hold at its near side",
+      "EditorMetadata": {
+        "X": 510,
+        "Y": 480,
+        "Comment": "Ends when the threat falls below MinThreat \u2212 0.1, or no area is ahead.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c3079100-0000-0000-0000-000000000008",
+      "ChildVisualIds": [
+        "c3079100-0000-0000-0000-000000000009",
+        "c3079100-0000-0000-0000-000000000010"
+      ],
+      "DisplayLabel": "Rush across an exposed area",
+      "EditorMetadata": {
+        "X": 700,
+        "Y": 360,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead",
+        "ExpressionTargetField": "crossAhead"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000009",
+      "ChildVisualIds": [],
+      "DisplayLabel": "A crossing / intersection / open ground within 15 m",
+      "EditorMetadata": {
+        "X": 640,
+        "Y": 480,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross",
+        "ExpressionTargetField": "cross",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.CrossState"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000010",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Cross: near \u2192 far side",
+      "EditorMetadata": {
+        "X": 760,
+        "Y": 480,
+        "Comment": "Never re-crosses the area it just crossed (a stale answer can still list it).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel",
+        "ExpressionTargetField": "walk"
+      },
+      "VisualId": "c3079100-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Walk to the objective",
+      "EditorMetadata": {
+        "X": 950,
+        "Y": 360,
+        "Comment": "Success on arrival ends the run.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [
+    {
+      "VisualId": "c3079100-0000-0000-0000-000000000107",
+      "HostNodeVisualId": "c3079100-0000-0000-0000-000000000007",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "a released hold falls through to the crossing / the walk, never ends the run",
+      "StackIndex": 0
+    },
+    {
+      "VisualId": "c3079100-0000-0000-0000-000000000110",
+      "HostNodeVisualId": "c3079100-0000-0000-0000-000000000010",
+      "DecoratorType": "ForceFailure",
+      "IntParam": null,
+      "FloatParam": null,
+      "Comment": "a finished crossing falls through to the walk, never ends the run",
+      "StackIndex": 0
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "sensor",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DangerSensorParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RouteTo\":[0,0,0],\"CorridorHalfWidth\":0,\"RefreshSeconds\":0,\"MaxAreas\":0}",
+        "Comment": "The objective (RouteTo \u2014 set it with walk.X/Y) and the sensor's corridor / refresh / max areas (0 = the sensor's defaults)."
+      },
+      {
+        "Name": "holdAhead",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DangerAheadParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"MinThreat\":0.5,\"WithinMetres\":60,\"KindMask\":0}",
+        "Comment": "When to hold: an area rated at least MinThreat within WithinMetres along the route (any kind)."
+      },
+      {
+        "Name": "hold",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HoldShortParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"MinThreat\":0.5,\"Speed\":1.5,\"ArrivalRadius\":1.5}",
+        "Comment": "The hold: the same MinThreat (released below it \u2212 0.1), approach speed, arrival radius."
+      },
+      {
+        "Name": "crossAhead",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DangerAheadParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"MinThreat\":0,\"WithinMetres\":15,\"KindMask\":14}",
+        "Comment": "When to rush: any open ground / street crossing / intersection (KindMask 14) within WithinMetres."
+      },
+      {
+        "Name": "cross",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.CrossParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Speed\":4.5,\"ArrivalRadius\":1.5}",
+        "Comment": "The rush speed across, arrival radius at each side."
+      },
+      {
+        "Name": "walk",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.CgfNodes+MoveToLocationParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"X\":0,\"Y\":0,\"Speed\":1.5,\"ArrivalRadius\":3}",
+        "Comment": "The objective (X/Y \u2014 the same point as sensor.RouteTo), walking speed, arrival radius."
+      }
+    ]
+  }
+}

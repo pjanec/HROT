@@ -1,0 +1,344 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3079000-0000-0000-0000-000000000002
+
+#nullable enable
+
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+
+using Fbt;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[BlueprintRegistrar]
+public static class DangerCrossingRegistrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned BTree definition and action/condition thunks.
+    /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
+    {
+        // 1. Build the blob from the topology-core thunk.
+
+        // 2. Register baked-offset action/condition thunks before Interpreter construction.
+
+        // S1-3: baked-offset action thunks for managed blackboard.
+        // Key = {MethodFqn}@{offset} — matches blob key from topology emit.
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel@80",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)80));
+                    var status = global::Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel(ref dto, ctx.Self, ctx.World);
+                    return status;
+                }
+            });
+
+        // S1-3: baked-offset condition thunks for managed blackboard.
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@24",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)24));
+                    var status = global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                    return status;
+                }
+            });
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@56",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)56));
+                    var status = global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                    return status;
+                }
+            });
+
+        // S2-1: stateful action thunks — project Params at baked offset + WorkingState from partition slot.
+        // Key = {MethodFqn}@{paramOffset}@{slotKey} — per-node unique (includes FNV-1a slot key).
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor@0@1387474877",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DangerSensorParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1387474877;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1387474877 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1387474877");
+                        return Fbt.NodeStatus.Failure;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DangerSensorState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@40@1320364401",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HoldShortParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)40));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1320364401;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1320364401 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1320364401");
+                        return Fbt.NodeStatus.Failure;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HoldShortState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@72@1605583924",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CrossParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)72));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1605583924;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1605583924 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1605583924");
+                        return Fbt.NodeStatus.Failure;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.CrossState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+
+        // HAJSON-B / CE-504: deactivator hooks, one per binding — fired by the Interpreter on branch abort/exit.
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor@0@1387474877",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DangerSensorParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1387474877;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S3-G: stateful deactivator slot 1387474877 missing from the entity's occurrence store"
+                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1387474877");
+                        return;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DangerSensorState>(__wsPtr);
+                    global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Deactivate_EnsureSensor(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@40@1320364401",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HoldShortParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)40));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1320364401;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S3-G: stateful deactivator slot 1320364401 missing from the entity's occurrence store"
+                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1320364401");
+                        return;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HoldShortState>(__wsPtr);
+                    global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Deactivate_HoldShort(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@72@1605583924",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.CrossParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)72));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1605583924;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S3-G: stateful deactivator slot 1605583924 missing from the entity's occurrence store"
+                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1605583924");
+                        return;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.CrossState>(__wsPtr);
+                    global::Hrot.AI.Behaviors.Brains.DangerAreaNodes.Deactivate_Cross(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+
+        // 2b. Compile the blob AFTER deactivators are registered → resource-owning baked.
+        var blob = DangerCrossing.CreateBuilder().Compile("DangerCrossing", __k => actionRegistry.TryGetDeactivator(__k, out _));
+
+        // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
+
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
+        global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
+        unsafe
+        {
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
+            {
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerSensorParams>("{\"RouteTo\":[0,0,0],\"CorridorHalfWidth\":0,\"RefreshSeconds\":0,\"MaxAreas\":0}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>("{\"MinThreat\":0.5,\"WithinMetres\":60,\"KindMask\":0}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HoldShortParams>("{\"MinThreat\":0.5,\"Speed\":1.5,\"ArrivalRadius\":1.5}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>("{\"MinThreat\":0,\"WithinMetres\":15,\"KindMask\":14}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CrossParams>("{\"Speed\":4.5,\"ArrivalRadius\":1.5}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 72, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>("{\"X\":0,\"Y\":0,\"Speed\":1.5,\"ArrivalRadius\":3}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __v);
+                }
+            }
+            __bakeDefaults = __BakeDefaults;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
+
+                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
+                // variable's deserializer (DEBT-AIB-021 names this shape).
+                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
+                //    commits only on success, so a throw leaves the entity on its old behaviour.
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
+                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var __prop in __doc.RootElement.EnumerateObject())
+                        {
+                            switch (__prop.Name)
+                            {
+                                case "sensor":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerSensorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
+                                    break;
+                                }
+                                case "holdAhead":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __o);
+                                    break;
+                                }
+                                case "hold":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.HoldShortParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __o);
+                                    break;
+                                }
+                                case "crossAhead":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DangerAheadParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __o);
+                                    break;
+                                }
+                                case "cross":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CrossParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 72, __o);
+                                    break;
+                                }
+                                case "walk":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __o);
+                                    break;
+                                }
+                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
+                                default: break;
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        // 4b. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("DangerCrossing"), "DangerCrossing", new BehaviorDefinition
+        {
+            Name         = "DangerCrossing",
+            BrainTier    = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 5937811637367745637UL,   // CE-455: the root block's layout
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("sensor", typeof(global::Hrot.AI.Behaviors.Brains.DangerSensorParams), 0),
+                new("holdAhead", typeof(global::Hrot.AI.Behaviors.Brains.DangerAheadParams), 24),
+                new("hold", typeof(global::Hrot.AI.Behaviors.Brains.HoldShortParams), 40),
+                new("crossAhead", typeof(global::Hrot.AI.Behaviors.Brains.DangerAheadParams), 56),
+                new("cross", typeof(global::Hrot.AI.Behaviors.Brains.CrossParams), 72),
+                new("walk", typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams), 80),
+            },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.DangerCrossing_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.DangerCrossing_Block),
+            ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
+            WritesChannels = global::System.Array.Empty<global::System.Type>(),
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1387474877, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DangerSensorState>(), unchecked(3198254176u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.DangerSensorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DangerSensorState), "Danger sensor: me → objective"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1320364401, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.HoldShortState>(), unchecked(1151162236u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.HoldShortState>()), typeof(global::Hrot.AI.Behaviors.Brains.HoldShortState), "Hold at its near side"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1605583924, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.CrossState>(), unchecked(238070151u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.CrossState>()), typeof(global::Hrot.AI.Behaviors.Brains.CrossState), "Cross: near → far side"),
+            },
+        });
+    }
+}

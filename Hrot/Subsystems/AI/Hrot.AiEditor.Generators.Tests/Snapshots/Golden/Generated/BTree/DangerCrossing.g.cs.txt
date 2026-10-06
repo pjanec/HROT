@@ -1,0 +1,55 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: a3079000-0000-0000-0000-000000000002
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class DangerCrossing
+{
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Action("Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor@0@1387474877",
+                    visualId: new Guid("c3079100-0000-0000-0000-000000000003"));
+                seq.ObserverSelector(obs =>
+                {
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@24",
+                            visualId: new Guid("c3079100-0000-0000-0000-000000000006"));
+                        seq.ForceFailure(d6 => d6
+                            .Action("Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort@40@1320364401",
+                                visualId: new Guid("c3079100-0000-0000-0000-000000000007")),
+                            visualId: new Guid("c3079100-0000-0000-0000-000000000107"));
+                    },
+                        visualId: new Guid("c3079100-0000-0000-0000-000000000005"));
+                    obs.Sequence(seq =>
+                    {
+                        seq.Condition("Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead@56",
+                            visualId: new Guid("c3079100-0000-0000-0000-000000000009"));
+                        seq.ForceFailure(d6 => d6
+                            .Action("Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross@72@1605583924",
+                                visualId: new Guid("c3079100-0000-0000-0000-000000000010")),
+                            visualId: new Guid("c3079100-0000-0000-0000-000000000110"));
+                    },
+                        visualId: new Guid("c3079100-0000-0000-0000-000000000008"));
+                    obs.Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel@80",
+                        visualId: new Guid("c3079100-0000-0000-0000-000000000011"));
+                },
+                    visualId: new Guid("c3079100-0000-0000-0000-000000000004"));
+            },
+                visualId: new Guid("c3079100-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("DangerCrossing", AssetId = "a3079000-0000-0000-0000-000000000002")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("DangerCrossing");
+}

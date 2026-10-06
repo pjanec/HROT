@@ -107,6 +107,21 @@ public sealed class ReadEqsResultValidatorTests
         Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP2021);
     }
 
+    /// <summary>🔴 <c>CE-3078</c> H3 (§10.4 guard) — the RANKED read refuses a kind of another result family (16 DangerArea)
+    /// at compile time, naming the node to use instead; it can never sit at <c>IsReady = false</c> for ever.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP2021")]
+    public void CE3078_Validate_ADangerAreaKind_OnTheRankedRead_IsRefused()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("InstanceTest")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new ReadEqsResultNode { Id = Guid.NewGuid(), SensorVariableName = "", UnitSensorKind = 16 });
+        var d = Assert.Single(Validate(asset), x => x.Code == DiagnosticCodes.BP2021);
+        Assert.Contains("ReadSensorResult", d.Message);
+    }
+
     // ---- Happy path: valid Instance ReadEqsResultNode ------------------
 
     [Fact]
