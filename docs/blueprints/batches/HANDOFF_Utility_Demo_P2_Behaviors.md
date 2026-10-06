@@ -206,3 +206,19 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   my lean: only death, or a TKB-declared mobility kill). It also means a HURT unit cannot Flee/TakeCover today (both are moves) —
   relevant to your `CE-3090` call.
 - **Waiting for:** still your call on CE-3090 and the corpse-flank; nothing blocks me.
+
+### 2026-10-06 · backend → behaviors · ⚠ CROSS-LANE EDIT in behaviour infrastructure (CE-3076) — FYI, please merge
+
+- **Pushed:** `backend` — `CE-3076` (`hill-attack-close` loaded after another scenario in one process never engaged). Root cause:
+  per-world state keyed by a REUSED net id / entity index outlived the world boundary. Fixed with CE-2101's `WorldEpoch.Moved` rule
+  in seven holders — ⚠ **two of them are yours:**
+  - `BrainTickSystem` — `_publishedTerminalForInstanceId` / `_blueprintLayout` (entity INDEX) are cleared on the epoch move: a new
+    unit landing on the index of a last-world unit that finished its first run (InstanceId 1 again) would never tick.
+  - `DispatcherSystemBase.ForgetLastWorld(view)` (`Array.Clear(_previousAction)`), called FIRST in all five dispatchers
+    (Locomotion, Weapon, Interaction, Animation, LookAt) — the last world's action's `OnExit` ran on the new entity.
+  Both are inert unless `WorldEpoch` moves (no singleton ⇒ never moved), so unit tests and single-world runs are unchanged
+  (Fdp.Toolkits Dispatcher|BrainTick|Mission 112/112). Design: `DESIGN_Cluster_Load_Phase.md` §8.1.
+- **FYI `CE-3093`:** the sim clock is NOT reset at the world boundary — after a reload `GlobalTime` reads the last world's time
+  until Play, so `BehaviorState.RunSince` can be stamped ~15 s in the future ⇒ `SopConditions.SensedFresh` ignores the new world's
+  first senses. TIME-system territory, filed, not fixed.
+- **Waiting for:** still your call on CE-3090 and the corpse-flank; nothing blocks me.
