@@ -315,7 +315,7 @@ in [TUTORIAL_Universal_Soldier.md](TUTORIAL_Universal_Soldier.md).
 
 | gap | consequence | workaround |
 |---|---|---|
-| one non-lethal hit removes `CanMove` for good ([CE-3092](blueprints/Blueprint_Issues_Tracker.md), awaiting a user decision) | a hurt unit chooses TakeCover / FallBack but cannot move | — until decided |
+| ✅ fixed: a non-lethal hit no longer removes `CanMove` unless the platform opts into a mobility kill ([CE-3092](blueprints/Blueprint_Issues_Tracker.md)) | a hurt unit now really takes cover or falls back | — |
 | no utility **editor** | decisions are C# | copy a starter-pack decision, change weights / inputs |
 | no **re-routing** around a threat | "avoid" = cover / fall back, then continue | split the route into legs around known danger |
 | a hurt unit on **open ground** finds no cover / retreat point ([CE-3090](blueprints/Blueprint_Issues_Tracker.md)) | no defensive posture there | keep legs near structures |
