@@ -48,7 +48,11 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 | `ua-threat-ranking` (U2) | test-town | ThreatRanking: armed + visible + near ranks first, unarmed and far below, hidden never | ✅ PASS ×2 on fresh clusters, `2026-10-05` (after `CE-3073` + `CE-3074`) |
 | `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | ✅ PASS ×3 on fresh clusters at the 145 m Sentry, `2026-10-06` (runs 1–2 found the L-Block layout and a too-short window; run 4 the 125 m deadlock) + the in-process twin |
 | `ua-danger-crossing-bp` (CE-3079 B7) | test-town | the SAME demo, the rifleman's task the BLUEPRINT `DangerCrossingBp` (built only from the per-kind sensor nodes, CE-3078) | ✅ PASS on a fresh cluster, `2026-10-06` + the in-process twin |
-| U3–U7 | | three hosts, attack approach, weapon choice, fire distribution, squad maneuver | not built yet (design §6) |
+| `ua-three-hosts` (U3, CE-3082/3083) | test-town | ONE decision on THREE hosts: BTree `CombatPosture`, HSM `CombatPostureHsm`, blueprint `CombatPostureBp` — the same Health edits, the same choice | ✅ PASS, `2026-10-06` — identical winners on all three at every step |
+| `ua-attack-approach` (U4, CE-3084) | test-town | `AttackApproach` nested in the advance: out of sight of an identified hostile ⇒ Flank / FiringPosition, then fire from there | ✅ PASS, `2026-10-06` (run 1 found the hostile dying in 5 s — 1000 HP now) |
+| `ua-weapon-choice` (U5, CE-3089) | basic-desert | a Bradley fires the 25 mm at infantry and the TOW at a T-72 (`WeaponSelection` per shot) | ✅ PASS, `2026-10-06` (after four G7 defects, design §12 W6–W9) + the in-process twin |
+| `ua-fire-distribution` (U6, CE-3088) | basic-desert | a leader + 4 riflemen: fire spread over the targets, ≤ 2 per target, every member fires (`/entities/{id}/squad`) | ✅ PASS ×3 for the distribution, `2026-10-06`; ⚠ the hurt-member step is REPORTED — no defensive posture on open ground (`CE-3090`) |
+| U7 `ua-squad-maneuver` | basic-desert | squad maneuver | ⏳ waits for the CE-507 D2/D3 decisions (design §8 Q5) |
 
 ## 3. Per scenario
 
@@ -94,6 +98,22 @@ hidden one never ranked (scores rise with time in view — the check waits until
 🔴 **This scenario found two production defects on its first runs, both fixed:** `CE-3073` — the unit remembered only
 ONE of several contacts seen in the same frame (`ActiveSensorTracks.Count` 1); `CE-3074` — ThreatRanking scored every
 HEALTHY contact 0, so an unarmed civilian with no Health component ranked first.
+
+### 3.4 U3–U6 — run, and what to read when one fails
+
+```
+python3 scripts/utility-demo-check.py --launch --timeout 120 ua-three-hosts       # U3
+python3 scripts/utility-demo-check.py --launch --timeout 120 ua-attack-approach   # U4
+python3 scripts/utility-demo-check.py --launch --timeout 120 ua-weapon-choice     # U5
+python3 scripts/utility-demo-check.py --launch --timeout 120 ua-fire-distribution # U6
+```
+
+| scenario | what fails | look first at |
+|---|---|---|
+| U3 | the hosts disagree | `GET /entities/{id}/utility` on each — ⚠ the HSM switches ONE tick later (behaviors' G4 note); a defensive winner depends on where each unit stands (the EQS answers) |
+| U4 | never flanks | the approach decision in `/utility` (`Attack approach`); it needs an IDENTIFIED target out of SIGHT (`ThreatInSight`) — a dead target also counts today (SYNC note to behaviors) |
+| U5 | the gun fires at the tank | ⭐ `GET /entities/{bradley}/weapons?target={tank}` — every mount's inputs and the choice; `rangeFit` 10 = unknown range, `readiness` 0 = reloading |
+| U6 | no assignment | ⭐ `GET /entities/{leader}/squad` — members, assigned targets, the merged pool and `lastMergeTick` |
 
 ### 3.3 `ua-danger-crossing` (CE-3079)
 
