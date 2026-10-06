@@ -370,4 +370,56 @@ public sealed class PostureScenarioTests : IDisposable
         if (names.Contains("Civilian Near")) Assert.True(names.IndexOf("Civilian Near") > names.IndexOf("Armed Near"), State());
         if (names.Contains("Armed Far"))     Assert.True(names.IndexOf("Armed Far") > names.IndexOf("Armed Near"), State());
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3082</c> / <c>CE-3083</c> — U3 <c>ua-three-hosts</c> in-process (the live check's twin, R-197): ONE decision on THREE
+    /// hosts — the BTree <c>CombatPosture</c>, the HSM <c>CombatPostureHsm</c>, the blueprint <c>CombatPostureBp</c> — the same Health
+    /// edits ⇒ the same fight / defend class at every step on every host. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U3.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3082_U3_OneDecision_ThreeHosts_TheSameChoices()
+    {
+        using var harness = await StartShippedScenario("ua-three-hosts");
+        var cgf = harness.Cgf!.World!;
+        string[] names = { "Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint" };
+        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the three riflemen must spawn on CGF");
+        var units = names.Select(n => ByName(cgf, n)).ToArray();
+        foreach (var u in units) Observe(cgf, u);
+
+        Posture? Winner(Entity u) => TryDecision(cgf, u, "Combat posture", out var s) && s.Winner != 0 ? (Posture)s.Winner : null;
+        string State() => string.Join(", ", names.Select((n, i) => $"{n}={Winner(units[i])}"));
+
+        Assert.True(harness.PumpUntil(() => units.All(u => Winner(u) == Posture.Suppress), timeoutFrames: 6000), $"every host at Suppress; {State()}");
+        Posture[] fight = { Posture.Suppress, Posture.AdvanceAndAttack }, defend = { Posture.TakeCover, Posture.Flee };
+        foreach (var (hp, want, what) in new[] { (40f, defend, "hurt"), (100f, fight, "healed"), (10f, defend, "near death"), (100f, fight, "healed again") })
+        {
+            foreach (var u in units) cgf.GetComponentRW<Health>(u).Current = hp;
+            Assert.True(harness.PumpUntil(() => units.All(u => Winner(u) is { } w && Array.IndexOf(want, w) >= 0), timeoutFrames: 4000),
+                $"{what} ({hp} HP) ⇒ every host in the same class; {State()}");
+            _out.WriteLine($"{what}: {State()}");
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3084</c> — U4 <c>ua-attack-approach</c> in-process: the hostile shows itself north of the High Wall and walks behind it;
+    /// the advancing rifleman, out of sight of an IDENTIFIED target, takes a Flank or a FiringPosition approach and fires from there.
+    /// 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §4 U4; Decision Layer §3.3e.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3084_U4_OutOfSight_TheAdvanceFlanks_AndFiresFromThere()
+    {
+        using var harness = await StartShippedScenario("ua-attack-approach");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull, timeoutFrames: 2000), "the rifleman must spawn on CGF");
+        var rifleman = ByName(cgf, "Rifleman");
+        Observe(cgf, rifleman);
+        Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
+        int Ammo() => cgf.GetComponent<WeaponState>(rifleman).Ammo;
+
+        Assert.True(harness.PumpUntil(() => ApproachWinner() is Approach.Flank or Approach.FiringPosition, timeoutFrames: 12000),
+            $"out of sight ⇒ Flank or FiringPosition; approach {ApproachWinner()}");
+        int ammo = Ammo();
+        _out.WriteLine($"approach {ApproachWinner()}, ammo {ammo}");
+        Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
+    }
 }
