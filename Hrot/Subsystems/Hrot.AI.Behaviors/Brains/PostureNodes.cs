@@ -229,7 +229,10 @@ namespace Hrot.AI.Behaviors.Brains
                         || channel.ActiveAction != CombatConstants.ActionIdAimAndFire
                         || channel.Status == NodeStatus.Failure;
             if (!reissue) return true;
-            Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams { Target = threat, CooldownSeconds = cooldown };
+            // ⭐ CE-3089 (G7, backend — a cross-lane line, said in the P2 handoff's SYNC) — the posture / tactics fire step lets the
+            //   executor choose the weapon per shot (25 mm at infantry, TOW at a tank). 📄 Utility demo design §12 W3.
+            Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]) = new AimAndFireParams
+                { Target = threat, CooldownSeconds = cooldown, Mount = AimAndFireParams.MountAuto };
             unchecked { channel.ActionInstanceId++; }
             channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
             channel.Status = NodeStatus.Running;

@@ -424,5 +424,39 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f,    bullets[plain].Penetration);
             Assert.Equal(CombatConstants.DefaultBulletDamage, bullets[plain].Damage);
         }
+
+        /// <summary>⭐ <c>CE-3089</c> (G7, W5) — the bullet flies at the FIRED mount's muzzle velocity (TKB); mount 0, or a mount that
+        /// declares none, keeps the shooter's WeaponState velocity. ✅ Red-proof: read <c>weapon.MuzzleVelocity</c> only ⇒ 800, red.</summary>
+        [Fact]
+        public void CE3089_TheBullet_FliesAtTheFiredMountsMuzzleVelocity()
+        {
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t  = new Fdp.Interfaces.TkbTemplate("Bradley", 101);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Penetration = 60,  DamagePerHit = 60 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Penetration = 800, DamagePerHit = 2000, MuzzleVelocity = 300f },
+            } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var tow = SpawnShooter(Vector3.Zero, muzzleVelocity: 800f);
+            _world.AddComponent(tow, new TkbIdentity { TkbType = 101 });
+            var gun = SpawnShooter(new Vector3(0, 50, 0), muzzleVelocity: 800f);
+            _world.AddComponent(gun, new TkbIdentity { TkbType = 101 });
+            var target = SpawnTarget(new Vector3(100, 0, 0));
+
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = tow, Target = target, WeaponIndex = 1 });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = gun, Target = target, WeaponIndex = 0 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            var speed = new System.Collections.Generic.Dictionary<Entity, float>();
+            foreach (var e in _world.Query().With<BallisticProjectile>().With<SimVelocity>().Build())
+                speed[_world.GetComponent<BallisticProjectile>(e).Shooter] = _world.GetComponent<SimVelocity>(e).Linear.Length();
+            Assert.Equal(300f, speed[tow], 2);
+            Assert.Equal(800f, speed[gun], 2);
+        }
     }
 }

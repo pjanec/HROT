@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03
-current-answer: §1 — terrain-world slice 1 BUILT 2026-10-03 (report: batches/REPORT_Terrain_World_Slice1.md); §2 lists the open follow-ups (CE-3010 stance/animation; CE-3017 editor solver, CE-3018 grid rebase, CE-3024 Load-zone menu CLOSED 2026-10-03 — CGF menu actions wait on UXI-23 S5). ⭐ Asset management (user 2026-10-03) BUILT: increments A/B/C = CE-3019/3020/3021, design docs/DESIGN_Asset_Management.md §8 + §10 (D1–D7 leans). Panel buttons for publish/refresh BUILT (ClusterScenarioPanel Assets section; remote path fixed with E4's — CE-3022; CE-3023 fixed: request/status QoS no longer collapses a same-frame burst). Open there: §7.6's distributed-deployment limit (the orchestrator stats node disks).
-stale-below: nothing yet
+updated: 2026-10-06
+current-answer: §0 — the UTILITY AI DEMO programme (CE-3069; design docs/DESIGN_Utility_AI_Demo_Scenarios.md, approved R-209). §1 below is the 2026-10-03 state (terrain world, asset management) and is HISTORY for this lane's current work.
+stale-below: §1 and below — the 2026-10-03 terrain / asset-management state (history for this lane)
 related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the programme's owning design (push-only ownership, S1–S8, §5.7.1 live matrix, §5.9/§5.10 deferred designs).
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
@@ -10,6 +10,21 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 0. NOW (`2026-10-06`) — the utility AI demo programme
+
+- **Owning design:** [`DESIGN_Utility_AI_Demo_Scenarios.md`](../DESIGN_Utility_AI_Demo_Scenarios.md) — §4 the seven scenarios U1–U7, §6
+  the G-items, §8 the approved leans (R-209), §9 armour (CE-3071 ✅), §10 the danger sensor (CE-3072/3078/3079/3080 ✅), §11 G8+G3
+  (fire distribution + `/squad`), §12 G7 (weapon mounts). Runbook: [`RUNBOOK_Utility_AI_Demos.md`](../RUNBOOK_Utility_AI_Demos.md).
+- **Built:** U1 `ua-posture`, U2 `ua-threat-ranking` (live + in-process, CE-3085) · `ua-danger-crossing(-bp)` · G8 `CE-3088`, G3
+  `CE-3087`, G7 `CE-3089` (code + rails; U6 `ua-fire-distribution` / U5 `ua-weapon-choice` scenarios + checks — see the tracker rows
+  for the live result).
+- **Behaviors lane (P2):** G4 `CE-3082`, G5 `CE-3083`, G6 `CE-3084` dispatched in
+  [`HANDOFF_Utility_Demo_P2_Behaviors.md`](batches/HANDOFF_Utility_Demo_P2_Behaviors.md) — ⭐ its §6 SYNC is the channel; read the
+  newest entries first. The backend then builds U3 `ua-three-hosts` / U4 `ua-attack-approach` against their assets.
+- **Next on backend:** G10 `CE-3086` (desert ridge + wadi — only U7 needs it) · U7 waits on CE-507 D2/D3 (user decisions) ·
+  CE-3081 (more danger kinds, not approved) · open reds CE-3076 / CE-3077.
+- **Id block:** `CE-3000`–`CE-3999`, next free per the tracker header (`CE-3090` at this writing).
 
 ## 1. Where it stands (`2026-10-03`)
 

@@ -310,6 +310,8 @@ def run_fire_distribution(c, timeout):
     hostiles = [ids.get(n) for n in ("West Hostile", "Centre Hostile", "East Hostile")]
     if not c.ok(leader is not None and None not in riflemen and None not in hostiles, "the leader, four riflemen and three hostiles are loaded"):
         return
+    for r in riflemen:   # armed BEFORE the run: the posture log exists from the first decision on
+        call("POST", "/trace/observe", {"networkId": r, "on": True})
     call("POST", "/sim/play", {})
 
     # ① the leader's squad: four members, the merged pool holds the three hostiles
@@ -338,16 +340,77 @@ def run_fire_distribution(c, timeout):
 
     # ④ a member near death breaks off: its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
     hurt = riflemen[3]
-    call("POST", "/trace/observe", {"networkId": hurt, "on": True})
     set_health(hurt, 10)
     w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, timeout)
     c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
 
 
+# ── U5 (CE-3089) — weapon choice: the Bradley's 25 mm at the insurgent, the TOW at the T-72 ──────────────────────────────
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §12. The evidence is the TARGETS: only a TOW (800 mm) penetrates the T-72's 500 mm
+#   front armour (the 25 mm's 60 mm cannot), so the tank losing health proves the TOW fired; the 25 mm is the owner's ammo.
+
+def health(nid):
+    h = ((data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}).get("Health") or {}
+    return h.get("Current")
+
+
+def run_weapon_choice(c, timeout):
+    ids = ids_by_name()
+    brad, ins, tank = ids.get("Bradley"), ids.get("Insurgent"), ids.get("T-72")
+    if not c.ok(None not in (brad, ins, tank), "the Bradley, the insurgent and the T-72 are loaded"):
+        return
+    gun0, _ = ammo(brad)
+    tank0 = health(tank)
+    print(f"    start: 25 mm rounds {gun0}, T-72 health {tank0}")
+    call("POST", "/sim/play", {})
+
+    # ⚠ a 25 mm round GRAZES the tank (expected damage, ~25 HP — measured live 2026-10-06); only a TOW (2000 per hit) takes
+    #   ≥ 1000 off in one go. So the evidence is the size of the drop, not that there is one.
+    hit = wait_for(lambda: (h := health(tank)) is not None and tank0 is not None and tank0 - h >= 1000, timeout * 2)
+    c.ok(hit is not None, f"the T-72 takes a TOW hit (≥ 1000 HP — the 25 mm only grazes it): {tank0} → {health(tank)}")
+    dead = wait_for(lambda: (h := health(ins)) is not None and h <= 0, timeout * 2)   # ⚠ not "and h": 0 is falsy
+    c.ok(dead is not None, "the insurgent is killed")
+    gun1, _ = ammo(brad)
+    c.ok(gun0 is not None and gun1 is not None and gun1 < gun0, f"the 25 mm (the owner's mount 0) spent rounds ({gun0} → {gun1})")
+    c.ok(gun0 is not None and gun1 is not None and gun0 - gun1 < 60,
+         f"…a burst, not the magazine into the tank ({gun0 - gun1 if gun1 is not None and gun0 is not None else '?'} rounds)")
+
+
+# ── U3 (CE-3082/3083) — one decision, three hosts: BTree CombatPosture, HSM CombatPostureHsm, blueprint CombatPostureBp ──────
+#   R-197. The SAME Health edits on every host ⇒ the same fight/defend class at every step; the exact winners are printed side by
+#   side (a defensive winner depends on the EQS answers where each unit stands — U1's measured caveat — and the HSM switches one
+#   tick later, behaviors' G4 note). Hosts present in the scenario are checked; a missing one is reported, not failed.
+
+def run_three_hosts(c, timeout):
+    ids = ids_by_name()
+    hosts = {n: ids[n] for n in ("Rifleman BTree", "Rifleman HSM", "Rifleman Blueprint") if n in ids}
+    print(f"    hosts: {sorted(hosts)}")
+    if not c.ok(len(hosts) >= 2 and "Rifleman BTree" in hosts, "at least the BTree and one other host are loaded"):
+        return
+    for nid in hosts.values():
+        call("POST", "/trace/observe", {"networkId": nid, "on": True})
+    call("POST", "/sim/play", {})
+
+    first = wait_for(lambda: all(winner_of(n)[0] == "Suppress" for n in hosts.values()) and True, timeout)
+    c.ok(first is not None, f"every host starts at Suppress (healthy, armed, matched enemy): {[winner_of(n)[0] for n in hosts.values()]}")
+
+    FIGHT, DEFEND = ("Suppress", "AdvanceAndAttack"), ("TakeCover", "Flee")
+    for hp, want, what in ((40, DEFEND, "hurt"), (100, FIGHT, "healed"), (10, DEFEND, "near death"), (100, FIGHT, "healed again")):
+        for nid in hosts.values():
+            set_health(nid, hp)
+        got = wait_for(lambda: all(winner_of(n)[0] in want for n in hosts.values()) and True, timeout)
+        winners = {name: winner_of(nid)[0] for name, nid in hosts.items()}
+        c.ok(got is not None, f"{what} ({hp} HP) ⇒ every host {'defends' if want is DEFEND else 'fights'}: {winners}")
+        if len(set(winners.values())) > 1:
+            print(f"    ⚠ exact winners differ at {what}: {winners}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
-             "ua-fire-distribution": run_fire_distribution}
+             "ua-fire-distribution": run_fire_distribution,
+             "ua-weapon-choice": run_weapon_choice,
+             "ua-three-hosts": run_three_hosts}
 
 
 def main():

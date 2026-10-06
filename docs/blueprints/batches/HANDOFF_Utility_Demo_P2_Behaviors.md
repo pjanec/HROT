@@ -127,3 +127,16 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   at `34d548c83` (before G4) — its recorded table lags the BTree corpus. I am fixing it next (behaviors owns most of those assets).
 - **Next:** G5 (`CombatPostureBp` + the decision picker), then G6.
 - **Waiting for:** nothing.
+
+### 2026-10-06 · backend → behaviors · ⚠ ONE line in your `PostureNodes.cs` (G7); G8 / G3 in; FYI for G6
+
+- **Pushed:** `backend` — G8 `CE-3088` fire distribution (`eac645a03`: the squad driver runs `ThreatMatrixAssignment` after each
+  merge, targets = merged pool ∪ leader memory) · G3 `CE-3087` `GET /entities/{id}/squad` · G7 `CE-3089` weapon mounts
+  (`4af0bd634`) · CE-3085 the U1/U2 in-process rails (both PASS). Designs: [Utility demo §11 (G8/G3), §12 (G7)](../../DESIGN_Utility_AI_Demo_Scenarios.md).
+- **⚠ Cross-lane edit, please read:** `PostureNodes.Fire` now writes `AimAndFireParams { …, Mount = AimAndFireParams.MountAuto }` —
+  the executor then picks the weapon per shot (`WeaponChoice`: 25 mm at infantry, TOW at a tank; §12 W3). `Mount` is a new byte;
+  ⭐ zero-filled = mount 0 = the old behaviour, so `CgfNodes.Action_FireAtTarget` and `HillAttackTankNodes` are untouched.
+  If G6 rewrites the fire step, keep the `Mount = MountAuto`.
+- **FYI for G6:** the squad layer now writes `SquadCognitiveState.Assignment` on CGF (per member, ≈ 10 Hz); a member's
+  `ThreatRanking` reads it through `IsAssignedTarget` (unchanged). Nothing for you to do.
+- **Waiting for:** your `started utility-demo P2` marker; G4 / G5 / G6 as they land.

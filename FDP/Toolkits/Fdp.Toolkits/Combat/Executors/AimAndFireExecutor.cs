@@ -74,7 +74,13 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            ref var weapon = ref world.GetComponentRW<WeaponState>(entity);
+            // ⭐ CE-3089 (G7) — the mount that fires: chosen per shot (Auto), a named mount, or the primary (0, the default). Its
+            //   ammo and cooldown live on ITS WeaponState — the owner for mount 0, the mount child otherwise.
+            Entity mountEntity = entity;
+            int mountIndex = p.Mount == AimAndFireParams.MountAuto ? WeaponChoice.Choose(world, entity, p.Target, out mountEntity)
+                           : p.Mount == 0 ? 0
+                           : MountByIndex(world, entity, p.Mount, out mountEntity);
+            ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0)
             {
                 channel.Status = NodeStatus.Failure;
@@ -110,13 +116,30 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 Shooter     = entity,
                 Target      = p.Target,
-                WeaponIndex = 0,
+                WeaponIndex = mountIndex,
             });
 
             weapon.Ammo--;
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
             channel.Status = NodeStatus.Running;
+        }
+
+        /// <summary>The mount child with <paramref name="index"/> (its WeaponState entity); mount 0 on the owner when there is none.</summary>
+        private static int MountByIndex(EntityRepository world, Entity owner, int index, out Entity mount)
+        {
+            mount = owner;
+            if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return 0;
+            System.Span<Entity> mounts = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateMounts(world, owner, mounts);
+            for (int i = 0; i < n; i++)
+                if (world.HasComponent<WeaponMountInfo>(mounts[i]) && world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex == index
+                    && world.HasComponent<WeaponState>(mounts[i]))
+                {
+                    mount = mounts[i];
+                    return index;
+                }
+            return 0;
         }
 
         // OnExit

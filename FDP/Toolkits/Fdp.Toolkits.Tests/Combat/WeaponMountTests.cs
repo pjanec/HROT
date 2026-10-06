@@ -63,6 +63,27 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(3, wsCount);
         }
 
+        /// <summary>⭐ <c>CE-3089</c> (G7) — Inject is idempotent for the CHILDREN too (as it already was for the owner's WeaponState):
+        /// a second Inject makes no second child per mount. Measured live before the fix: three WeaponSelection candidates for a
+        /// two-mount Bradley. ✅ Red-proof: drop the existing-mount check ⇒ 5 WeaponStates.</summary>
+        [Fact]
+        public void CE3089_InjectTwice_MakesOneChildPerMount()
+        {
+            var template = BuildTemplate(new List<WeaponMountDto>
+            {
+                new WeaponMountDto { InitialAmmunition = 30, MuzzleVelocity = 800f },
+                new WeaponMountDto { InitialAmmunition = 20, MuzzleVelocity = 600f, WeaponGuid = 0xABCDEF01 },
+                new WeaponMountDto { InitialAmmunition = 4,  MuzzleVelocity = 0f,   WeaponGuid = 0xABCDEF02 },
+            });
+            var owner = _repo.CreateEntity();
+            _translator.Inject(_repo, owner, template);
+            _translator.Inject(_repo, owner, template);
+
+            int wsCount = 0;
+            foreach (var _ in _repo.Query().With<WeaponState>().Build()) wsCount++;
+            Assert.Equal(3, wsCount);
+        }
+
         // SC-P0-02-2: EnumerateMounts returns count=3; dest[0]=owner; children in MountIndex order
         [Fact]
         public void EnumerateMounts_ThreeMounts_ReturnsOwnerThenChildrenInOrder()

@@ -112,7 +112,12 @@ namespace Fdp.Toolkit.Combat.Systems
                 var direction = delta.LengthSquared() > 0f
                     ? Vector3.Normalize(delta)
                     : Vector3.UnitX;    // fallback: fire east if entities are co-located
-                var velocity  = direction * weapon.MuzzleVelocity;
+                // ⭐ CE-3089 (G7, W5) — the FIRED mount's muzzle velocity (TKB, read by type — A3); the shooter's WeaponState when the
+                //   type has no template or the mount declares none (a TOW no longer flies at the 25 mm's speed).
+                float muzzle = weapon.MuzzleVelocity;
+                if (evt.WeaponIndex > 0 && CombatTkb.MountOf(repo, shooter, evt.WeaponIndex) is { MuzzleVelocity: > 0f } fired)
+                    muzzle = fired.MuzzleVelocity;
+                var velocity  = direction * muzzle;
 
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:

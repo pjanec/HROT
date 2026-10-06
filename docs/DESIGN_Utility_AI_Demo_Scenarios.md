@@ -1089,3 +1089,128 @@ assignable (F4) · ③ the zero-alloc rail stays green · ④ `CgfLogicPack` con
 `/squad` route lists members with their targets (+ RouteDoc / MCP catalog) · ⑥ U6 `ua-fire-distribution` on `basic-desert`:
 live check + in-process twin — targets spread, ≤ 2 per target, each member SPENDS rounds, a member set to 10 HP takes a defensive
 posture.
+
+## 12. G7 — weapon mounts: the unit fires the weapon its target calls for *(`2026-10-06`, `CE-3089`; `build-state: READY-TO-BUILD` — approved R-209 Q4: "make WeaponEffectivenessVsTarget real … the choice driven by the target type")*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` + grep + a read-only corpus sweep, `2026-10-06`)*: `".*WeaponMount.*"
+label=Class` → **4**: `WeaponMountInfo` (`CombatComponents.cs:34-44`, id 216 — registered by NO production registry, only tests) ·
+`WeaponMountQuery` (`EnumerateMounts`: owner first, then children by `MountIndex` — no production caller) · `WeaponMountDto`
+(TKB) · `SimCombatDef.WeaponMount` · `".*WeaponSelect.*"` → `WeaponSelectionDecision` (5 inputs, "evalSelf = mount, context =
+target") · every production `WeaponState` reader (grep, 14 sites): `AimAndFireExecutor` (fires the OWNER's state, `WeaponIndex = 0`,
+`:77,109-117`) · `FireProcessingSystem` (muzzle velocity from the owner's state `:103-114`; damage + penetration ALREADY per mount
+via `CombatTkb.MountOf(shooter, WeaponIndex)` `:143-150`) · `WeaponDispatcherSystem` (drains the owner's cooldown) · `ThreatDanger`
+/ `StandardInputs` / `SquadInputs` / `SquadEventIngressSystem` (read a UNIT, never a part — a mount child has no `SimTransform`
+or `EntityInfo`, so it is never perceived or ranked) · `CombatTkbTranslator:98` (makes mount children ONLY when
+`WeaponMountInfo` is registered).
+
+**Design basis.** [`Utility_AI_Design_v1_1.md`](designs/utility-ai/Utility_AI_Design_v1_1.md) §11.4 (WeaponSelection ranks
+weapons), §6.1 (the inputs read the mount), §6.7 / P0.2 (mounts ≥ 1 are CHILD entities; mount 0 stays on the owner — `.dev/_DONE/
+utility-ai/PREREQ_Phase0_Bundle.md` P0.2: *"the scorer treats the owner's own WeaponState as candidate-index 0"* — ⚠ the shipped
+scorer does NOT, `UtilityScorer.cs:268`) · §9 here (CE-3071: one armour model for the shot and the choice; per-mount range; ⚠
+§9.1 *"AimAndFireExecutor still fires mount 0 — choosing another mount is G7"*) · [`DESIGN_Ownership_Groups_And_Grants.md`](DESIGN_Ownership_Groups_And_Grants.md)
+F-6 / Q79 — mount parts are LOCAL, never on the wire · [`DESIGN_Sensors_And_Doctrine.md`](DESIGN_Sensors_And_Doctrine.md) V2 —
+the mount child is the precedent for TKB-created children (the sensor children work the same way on CGF today).
+
+```mermaid
+classDiagram
+  class CgfComponentRegistry {
+    <<existing — CGF only>>
+    +RegisterAll() CHANGED: + WeaponMountInfo
+  }
+  class CombatTkbTranslator {
+    <<existing>>
+    +Inject() mounts ≥ 1 as children (WeaponState, WeaponMountInfo, PartMetadata) — unchanged, now reached
+  }
+  class UtilityScorer {
+    <<existing>>
+    +EvaluateCandidates() CHANGED: WeaponSelection candidates = WeaponMountQuery (owner = mount 0, then children)
+  }
+  class WeaponChoice {
+    <<NEW, static, Fdp.Toolkit.Combat>>
+    +Choose(repo, owner, target, out Entity mountEntity) int mountIndex
+  }
+  class AimAndFireParams {
+    <<existing, 12 → 13 B of 32>>
+    +Entity Target
+    +float CooldownSeconds
+    +byte Mount  NEW: 0 = primary (every zero-filled writer), 255 = Auto
+  }
+  class AimAndFireExecutor {
+    <<existing — CGF>>
+    +Execute() CHANGED: Mount Auto ⇒ WeaponChoice per shot; ammo + cooldown on THAT mount's WeaponState; WeaponIndex = mount
+  }
+  class PostureNodes_Fire {
+    <<existing — behaviors' shared fire step>>
+    +Fire() CHANGED: writes Mount = Auto
+  }
+  class FireProcessingSystem {
+    <<existing — SimHost>>
+    +Execute() CHANGED: muzzle velocity of the fired mount (TKB), not the owner's
+  }
+  class WeaponMountQuery { <<existing, first production caller>> }
+  WeaponChoice --> UtilityScorer : Evaluate(owner, WeaponSelection, context = target)
+  UtilityScorer --> WeaponMountQuery : candidates
+  AimAndFireExecutor --> WeaponChoice : Mount == Auto
+  PostureNodes_Fire --> AimAndFireParams : writes
+  CgfComponentRegistry ..> CombatTkbTranslator : registering it turns the child branch on
+```
+
+*What the picture shows that prose hid: the shot already resolves per mount (damage, penetration, the index on the wire), and
+the children are already authored — the whole gap is that nothing REGISTERS the child component, nothing COUNTS the owner as
+mount 0, and nothing WRITES an index other than 0.*
+
+```mermaid
+sequenceDiagram
+  participant F as PostureNodes.Fire (CGF brain)
+  participant X as AimAndFireExecutor (CGF)
+  participant C as WeaponChoice
+  participant S as UtilityScorer (WeaponSelection)
+  participant H as FireProcessingSystem (SimHost)
+  F->>X: ActionIdAimAndFire {Target, Cooldown, Mount = Auto}
+  loop each shot, cooldown elapsed
+    X->>C: Choose(owner, target)
+    C->>S: Evaluate(owner, WeaponSelection, context = target)
+    S-->>C: ranked mounts (owner = 0, TOW child = 1)
+    C-->>X: mount i + its WeaponState entity
+    X->>X: that mount: Ammo--, cooldown
+    X->>H: WeaponFireIntent {Shooter, Target, WeaponIndex = i} (existing wire)
+    H->>H: bullet: mount i's velocity, damage, penetration (TKB)
+  end
+```
+
+*What the picture shows: the choice is re-made per SHOT, so it follows a target switch and an empty launcher without any
+behaviour code; the wire and the hit side change only in where the muzzle velocity comes from.*
+
+```mermaid
+graph TD
+  CGFREG["CgfComponentRegistry (CGF)"] -->|"registers WeaponMountInfo"| TKB["CombatTkbTranslator: mount children"]
+  CGFK["CGF kernel"] -->|"ticks"| BTS["BrainTickSystem → PostureNodes.Fire"]
+  CGFK -->|"ticks (CgfLogicPack:173)"| EXE["AimAndFireExecutor"]
+  EXE -->|"WeaponFireIntent (wire)"| FPS["FireProcessingSystem (SimHost only — the combat role)"]
+  SIMREG["SimHost / IG / Stride registries"] -.->|"do NOT register WeaponMountInfo: no children there"| TKB
+  OTHER["CgfNodes.Action_FireAtTarget · HillAttackTankNodes"] -.->|"Mount = 0 (zero-filled): unchanged"| EXE
+  classDef dead stroke:#c00,stroke-dasharray: 4 3
+  class SIMREG,OTHER dead
+```
+
+*What the picture shows: only the Brain node (where ammo is spent and the choice is made) gets mount children, and the two
+other fire writers keep firing mount 0 — so the hill-attack baselines (tanks, `HillAttackTankNodes`) do not move.*
+
+| decision | ⭐ lean (why) | rejected |
+|---|---|---|
+| **W1** where children exist | register `WeaponMountInfo` in **`CgfComponentRegistry` only** — CGF spends the ammo and makes the choice; SimHost resolves the hit from the TKB by index and needs no child | the shared `CombatComponentRegistry` — makes unused children on SimHost / Stride (more local parts, no reader) |
+| **W2** mount 0 | the owner IS candidate 0 (`WeaponMountQuery.EnumerateMounts`, P0.2's stated intent) | put `WeaponMountInfo` on the owner too — a second marker for a fact `WeaponState` already states |
+| **W3** where the choice is made | in the executor, per shot, when the params say `Mount = Auto`; `PostureNodes.Fire` (the ONE posture/tactics fire step) writes Auto | a separate `SelectWeapon` BTree step — every fire writer would need it, and a choice made once goes stale when the target changes or the launcher empties · choosing in every writer — three copies |
+| **W4** default | `Mount` zero-filled = 0 = today's behaviour for every writer that does not opt in | Auto by default — moves the hill-attack baselines (tanks with a coax) for no demo |
+| **W5** muzzle velocity | the fired mount's TKB `MuzzleVelocity` (A3: read the TKB by type), the owner's `WeaponState` when there is no template | keep the owner's — a TOW would fly at the 25 mm's speed |
+| **W6** *(found live, `2026-10-06`)* the range term | `WeaponRangeBandFit` (distance ÷ mount range) through a REVERSED LOGISTIC at 1.0 (`exp −12`): ≈ 1 inside the range, 0.5 at it, ≈ 0 past 1.5× — "in range", what the input's own doc says | ⛔ the starter `Curve.Bell` (peak AT the range, `exp(−8(x−1)²)`): a target at a fifth of the range scored 0.007, so every mid-range engagement scored all mounts ≈ 0 and fell to mount 0 — measured on `ua-weapon-choice`: the Bradley put 122 rounds of 25 mm into a T-72 at 523 m. The old rail `SC-SP-08` (which pinned the peak) is re-homed: "the mount that REACHES wins" |
+| **W7** *(found live)* idempotent children | `CombatTkbTranslator` skips a mount whose child already exists (as it already did for the owner's `WeaponState`) | — measured: three WeaponSelection candidates for a two-mount Bradley (a second `Inject` duplicated the TOW child) |
+| **W8** *(found live)* a mount's position | the weapon inputs (`WeaponRangeBandFit`, the effectiveness facing) read the shooter's position from `CombatTkb.OwnerOf(mount)`; an unknown range or position reads `RangeUnknown` (10× range), not 0 — 0 means point blank under the in-range curve | ⛔ the mount child's own `SimTransform` — production children have NONE (`CombatTkbTranslator` makes `WeaponState` + `WeaponMountInfo` + `PartMetadata`); the test helper `SpawnWeaponMount` gave them one, which hid that every TOW scored 0 live. The production-layout rail strips it |
+| ⚠ cross-lane | `PostureNodes.cs` is the behaviors lane's file: ONE line (`Mount = Auto`) — said in the commit and in the P2 handoff's SYNC | — |
+
+**Acceptance (rails first):** ① a Bradley on CGF has a TOW child (mount 1) and the owner counts as mount 0 · ② `WeaponChoice`:
+the 25 mm on infantry, the TOW on a T-72 — through `TopCandidate`-free `Evaluate` WITH the target (the CE-3071 rail's claim, on
+the production layout: mount 0 on the owner) · ③ the executor with Auto fires `WeaponIndex 1` at a tank and spends the CHILD's
+ammo; with Mount 0 it fires mount 0 as before (`AimAndFireExecutorTests` — the old `WeaponIndex == 0` assert kept for the default) ·
+④ an empty TOW ⇒ the 25 mm (RoundsLeft / HasAmmo) · ⑤ U5 `ua-weapon-choice` on `basic-desert`: live check + in-process twin — the
+T-72 loses health (only a TOW penetrates its 500 front armour), the insurgent is killed, the owner's 25 mm ammo falls. · ⑥ ⚠ **the mount children now EXIST on CGF for every multi-mount unit** (the hill-attack tanks too) — the hill-attack live checks must not move (they fire mount 0), and the part machinery that keys on `PartMetadata` was read for it: the EQS part-id allocator counts EQS parts only (`EqsChildSensor.cs:102-110`), a network part is resolved by `(root, descriptor, instance)` so a mount part (no network descriptor) is never matched (Q79 §0.10), the scenario extractor never sees one (marked not-saved, CE-3045)
