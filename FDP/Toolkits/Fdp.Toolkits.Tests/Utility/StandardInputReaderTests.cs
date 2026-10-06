@@ -324,6 +324,25 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
         }
 
+        // ⭐ CE-3080 (R-214) — a KILLED armed contact (entity kept, Health 0, WeaponState still on) is no danger and no
+        //   threat, and adds nothing to the enemy's strength; a wounded one still counts in full.
+        [Fact]
+        public void CE3080_KilledArmedContact_IsNoDanger_NoThreat_NoStrength()
+        {
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.SeedContact(self, contact, 50f, 0.75f, 0f, true);                       // Health 0 — killed
+            _world.Repo.AddComponent(contact, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // still armed
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsDead(_world.Repo, contact));
+            Assert.Equal(0f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+            Assert.Equal(0f, StandardInputs.ContactThreatLevel(MakeCtx(self, contact)));
+            Assert.Equal(0f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)));
+
+            _world.Repo.GetComponentRW<Health>(contact).Current = 10f;                        // wounded, alive
+            Assert.Equal(1f, StandardInputs.ContactDanger(MakeCtx(self, contact)));
+            Assert.Equal(0.5f, StandardInputs.EnemyStrengthRatio(MakeCtx(self)), precision: 4);
+        }
+
         // ⭐ CE-3054 C — HaveLiveTarget: a contact long unseen (faded) is NOT a live target; one a sensor tracks is,
         //   however new (its score still ramping).
         [Fact]

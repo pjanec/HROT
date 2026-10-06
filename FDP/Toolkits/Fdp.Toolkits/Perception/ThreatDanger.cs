@@ -9,8 +9,8 @@ namespace Fdp.Toolkit.Perception
     /// ⭐⭐ <c>CE-3054</c> B — how DANGEROUS a contact is, judged at READ time (R-194 / R-201: memory stores identity +
     /// freshness, never danger). The ONE function every threat reader calls. 📄 docs/DESIGN_Sensors_And_Doctrine.md §7.8a.
     /// <para>First cut: armed (the target carries <see cref="WeaponState"/>, which <c>CombatTkbTranslator</c> stamps exactly
-    /// when its TKB has a weapon mount — replicas included) = 1, unarmed = <see cref="Unarmed"/>. A target this node does
-    /// not hold is UNKNOWN and counts as armed: hidden does not mean harmless.</para>
+    /// when its TKB has a weapon mount — replicas included) = 1, unarmed = <see cref="Unarmed"/>, ⭐ killed (Health ≤ 0,
+    /// <c>CE-3080</c>) = 0. A target this node does not hold is UNKNOWN and counts as armed: hidden does not mean harmless.</para>
     /// </summary>
     public static class ThreatDanger
     {
@@ -21,8 +21,16 @@ namespace Fdp.Toolkit.Perception
         public static float Of(ISimulationView view, Entity self, Entity target)
         {
             if (target.IsNull || !view.IsAlive(target)) return 1f;
+            // ⭐ CE-3080 (R-214) — a KILLED unit is no danger: its entity stays (Health 0) and still carries WeaponState, so
+            //   it used to read as armed for every threat reader. Here, once, for all of them. 📄 DESIGN_Sensors_And_Doctrine §7.8a.
+            if (IsDead(view, target)) return 0f;
             return view.HasComponent<WeaponState>(target) ? 1f : Unarmed;
         }
+
+        /// <summary>⭐ <c>CE-3080</c> — true when <paramref name="target"/> carries a <see cref="Health"/> at or below 0 (killed;
+        /// the entity is kept). A unit with no Health is not dead.</summary>
+        public static bool IsDead(ISimulationView view, Entity target)
+            => view.HasComponent<Health>(target) && view.GetComponentRO<Health>(target).Current <= 0f;
 
         /// <summary>
         /// ⭐ <c>CE-3063</c> (§6.1a K3, R-207) — the danger of memory slot <paramref name="slot"/>: an identified contact through

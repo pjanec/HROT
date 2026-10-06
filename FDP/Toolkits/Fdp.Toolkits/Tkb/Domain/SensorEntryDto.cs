@@ -59,6 +59,7 @@ namespace Fdp.Toolkit.Tkb.Domain
             SensorModality.Thermal  => Thermal != null,
             SensorModality.Acoustic => Acoustic != null,
             SensorModality.Radar    => Radar != null,
+            SensorModality.DangerArea => true,   // ⭐ CE-3072 B0 — no per-kind block yet: DangerAreaSettings.Default
             _ => false,
         };
     }

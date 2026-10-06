@@ -85,8 +85,14 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public Vector3 FarSideHandle;
 
         /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 — metres along the watched route from the unit to where the route enters this area (B1″). The
+        /// producer keeps the next area ahead first; 0 for a provider that does not know the route.
+        /// </summary>
+        public float DistanceAlongRoute;
+
+        /// <summary>
         /// Pinned expected size in bytes.  Verified by <c>DangerAreaProviderTests.DangerAreaDescriptor_PinnedSize_MatchesActual</c>.
         /// </summary>
-        public const int PinnedSize = 68;
+        public const int PinnedSize = 72;
     }
 }

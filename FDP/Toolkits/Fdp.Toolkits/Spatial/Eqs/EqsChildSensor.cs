@@ -55,6 +55,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </list>
         /// </summary>
         public static Entity Ensure(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, long key = 0)
+            => Ensure<EqsCognitiveBuffer>(view, parent, siteId, sensor, key);
+
+        /// <summary>
+        /// ⭐ <c>CE-3072</c> B0 — <see cref="Ensure(ISimulationView, Entity, int, in EqsSensor, long)"/> for a sensor whose
+        /// answer is of another result family: the child gets an empty <typeparamref name="TResult"/> (e.g.
+        /// <c>DangerAreaCognitiveBuffer</c>) INSTEAD of <see cref="EqsCognitiveBuffer"/>. ⭐ One creation body for every family
+        /// — the part-id allocation, owner stamp and epoch rules above are the same.
+        /// </summary>
+        public static Entity Ensure<TResult>(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, long key = 0)
+            where TResult : unmanaged
         {
             var existing = Find(view, parent, siteId, key);
             if (!existing.IsNull) return existing;
@@ -71,7 +81,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 var child = repo.CreateEntity();
                 repo.AddComponent(child, meta);
                 repo.AddComponent(child, config);
-                repo.AddComponent(child, default(EqsCognitiveBuffer));
+                repo.AddComponent(child, default(TResult));
                 repo.AddComponent(child, stamp);
                 Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, child);   // CE-3045 — never saved
                 return child;
@@ -81,7 +91,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var pending = cmd.CreateEntity();
             cmd.AddComponent(pending, meta);
             cmd.AddComponent(pending, config);
-            cmd.AddComponent(pending, default(EqsCognitiveBuffer));
+            cmd.AddComponent(pending, default(TResult));
             cmd.AddComponent(pending, stamp);
             Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(cmd, pending, view);   // CE-3045
             return Entity.Null;
@@ -162,6 +172,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(child);
                     buffer.Count = 0;
                     buffer.LastUpdateTick = 0;
+                }
+                else if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()
+                         && repo.HasComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child))
+                {
+                    // ⭐ CE-3072 B0 — an area-family sensor clears ITS answer; ⛔ never gets a ranked buffer added
+                    ref var area = ref repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child);
+                    area.Count = 0;
+                    area.LastUpdateTick = 0;
                 }
                 else
                 {

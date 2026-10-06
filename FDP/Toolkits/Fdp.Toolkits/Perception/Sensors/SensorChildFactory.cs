@@ -53,7 +53,24 @@ namespace Fdp.Toolkit.Perception.Sensors
             var child = repo.CreateEntity();
             repo.AddComponent(child, new PartMetadata { ParentEntity = parent, InstanceId = partId });
             repo.AddComponent(child, SensorFor(entry));
-            repo.AddComponent(child, default(EqsCognitiveBuffer));
+            // ⭐ CE-3072 B0 — the child carries the result component of ITS KIND'S FAMILY (R-213: no narrowing cast)
+            if (SensorKindRegistry.FamilyOf(entry.Kind) == SensorResultFamily.Area
+                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>()
+                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>())
+            {
+                repo.AddComponent(child, default(Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer));
+                var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default;
+                repo.AddComponent(child, new Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor
+                {
+                    BlueprintId = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId,
+                    RefreshIntervalSeconds = settings.RefreshSeconds,
+                    Settings = settings,
+                });
+            }
+            else
+            {
+                repo.AddComponent(child, default(EqsCognitiveBuffer));
+            }
             repo.AddComponent(child, new SensorTag { Kind = entry.Kind, TkbIndex = (byte)index, FromTkb = 1 });
             SetCapability(repo, child, entry, entry);
             DerivedParts.MarkNotSaved(repo, child);   // CE-3045
