@@ -936,3 +936,16 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 | kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing |
 | FeatureId = hash(road surface index, run centre on a 10 m grid) — stable across re-plans, so `AreaAhead` fires on a real change | a per-solve counter (every answer would look new) |
 | rating on the Brain from the unit's own memory, sight by `TerrainWorld.SegmentBlocked` (eye 1.6 m → area centre +1 m), danger by `ThreatDanger.OfSlot` (so dead = 0, CE-3080) | the squad pool (U7 adds it) |
+
+#### 10.7a ✅ AS-BUILT — B3 + B4 (`CE-3072`), `2026-10-06`
+
+| §10.7 said | as built |
+|---|---|
+| OwnMove reads the vehicle's corridor from `TrajectoryPoolManager` | ⚠ the pool is not an ECS singleton (resource injection) ⇒ OwnMove RE-PLANS to the unit's `NavigationIntent.FinalDestination` on the same navmesh — the same endpoints, so the same route. `Handle` is not read in v1 (the sensor falls back to OwnMove) |
+| `DangerAlongRouteSolve` in `Hrot.SimHost` | in `Fdp.Toolkit.Squad.DangerArea` (pure over `EqsContext`, `INavmeshProvider`, `TerrainWorld`) — unit-testable; `EqsSolverSystem` calls it |
+| `DangerAreaSensorSystem` registered by `CgfLogicPack` + the editor | ⭐ on `EqsResultUpdateCapability` beside `EqsResultUpdateSystem` — every host that takes in sensor answers, one registration (CE-221's rule) |
+| wire | `DangerAreaResultTopic` (`hrot-eqs-msgs`, keyed like `EqsResult`), `DangerAreaWire` (no threat), `DangerAreaWireMap` one mapping for both translators; egress skips an answer that ARRIVED from the wire (`Observer` set) |
+| cadence | the solver answers each time `EqsSolverSystem` schedules the sensor (cost `Sensor + Path`); `MaxAreas` / `RefreshSeconds` do not ride the wire (8 areas max) |
+| rating | sight = `TerrainWorld.SegmentBlocked` from the last-known position +1.6 m to the area centre +1 m; danger `ThreatDanger.OfSlot`; no range cap; edges with hysteresis 0.5 / 0.4 on slot 0 |
+
+Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly.

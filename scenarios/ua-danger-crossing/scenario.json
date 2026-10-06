@@ -1,0 +1,127 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a3079000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.3827,
+          0.9239
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7301
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3079000-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "DangerCrossing",
+              "behaviorParams": "{\"sensor\":{\"RouteTo\":[285,220,0]},\"walk\":{\"X\":285,\"Y\":220,\"Speed\":1.5,\"ArrivalRadius\":3}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "a3079000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          310,
+          222,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7302
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Watcher",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b3079000-0000-4000-8000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "Sentry",
+              "behaviorParams": "{\"sentry\":{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":80}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b3079000-0000-4000-8000-000000000003",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": "{\"x\":295,\"y\":320,\"speed\":2,\"arrivalRadius\":2}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

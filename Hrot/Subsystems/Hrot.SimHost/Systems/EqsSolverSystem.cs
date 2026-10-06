@@ -384,7 +384,7 @@ namespace Hrot.SimHost.Systems
         {
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
             int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas);
-            _currentRepo.Bus.PublishManaged(new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
+            var answer = new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
             {
                 ParentNetworkId = parentNetworkId,
                 LocalChildIndex = localChildIndex,
@@ -392,7 +392,12 @@ namespace Hrot.SimHost.Systems
                 RefreshTick     = _currentTick,
                 Areas           = areas,
                 Count           = count,
-            });
+            };
+            // ⛔ NOT _currentRepo.Bus: EqsModule is SlowBackground — asynchronous, on a SNAPSHOT — so a direct publish lands
+            //   on the snapshot's bus and is lost (measured: the cross-host rail never got an answer). The command buffer is
+            //   played back into the live world, as the ranked answer's EqsResultEvent is.
+            if (_currentCmd is EntityCommandBuffer ecb) ecb.PublishManagedEvent(answer);
+            else _currentRepo.Bus.PublishManaged(answer);   // a synchronous caller (tests) with no recording buffer
         }
 
         private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)
