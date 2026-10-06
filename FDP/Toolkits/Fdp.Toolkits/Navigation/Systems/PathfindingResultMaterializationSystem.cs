@@ -78,6 +78,11 @@ namespace Fdp.Toolkit.Navigation.Systems
                             ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
                             status.Phase  = NavigationPhase.Following;
                             status.Result = NavigationResult.InProgress;
+                            // ⭐ CE-3072 B4′ (R-213) — report the route this move is planned under, as the plan-only branch
+                            //   below already does: the Brain names it in a DangerAlongRoute query (route source OwnMove).
+                            //   ⚠ Survives NavigationExecutionSystem: it rewrites the status only on a NEW intent, and a
+                            //   plan lands a solver round-trip after the intent. 📄 DESIGN_Utility_AI_Demo_Scenarios §10.2.
+                            status.RouteHandle = evt.RouteHandle;
                         }
 
                         repo.Bus.Publish(new MoveStartedEvent
