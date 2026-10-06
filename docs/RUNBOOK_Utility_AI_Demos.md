@@ -46,6 +46,7 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 |---|---|---|---|
 | `ua-posture` (U1) | test-town | CombatPosture: fight when healthy, defend when hurt, back to fighting when healed; no flicker | ✅ PASS ×2 on fresh clusters, `2026-10-05` |
 | `ua-threat-ranking` (U2) | test-town | ThreatRanking: armed + visible + near ranks first, unarmed and far below, hidden never | ✅ PASS ×2 on fresh clusters, `2026-10-05` (after `CE-3073` + `CE-3074`) |
+| `ua-danger-crossing` (CE-3079) | test-town | the danger-area sensor: hold short of the WATCHED crossing, run across the unwatched one; the watcher's own two-task mission ends the threat — no HTTP intervention | 🟡 built backend side; waits on the behaviors lane's `DangerCrossing` tree (H5) for its first live run |
 | U3–U7 | | three hosts, attack approach, weapon choice, fire distribution, squad maneuver | not built yet (design §6) |
 
 ## 3. Per scenario
@@ -92,3 +93,31 @@ hidden one never ranked (scores rise with time in view — the check waits until
 🔴 **This scenario found two production defects on its first runs, both fixed:** `CE-3073` — the unit remembered only
 ONE of several contacts seen in the same frame (`ActiveSensorTracks.Count` 1); `CE-3074` — ThreatRanking scored every
 HEALTHY contact 0, so an unarmed civilian with no Health component ranked first.
+
+### 3.3 `ua-danger-crossing` (CE-3079)
+
+📄 Design: [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §10.3–§10.7.
+
+```
+python3 scripts/utility-demo-check.py --launch ua-danger-crossing
+```
+
+**Cast:** the Rifleman (2002) at (100,60), mission `DangerCrossing` to (285,220); the Watcher (2002, Hostile) at (310,222),
+mission `Sentry` (ends itself once a contact is within 80 m and 15 s have passed) → `MoveToLocation` (295,320), up the gap
+between Block C and the Tower. ⭐ **Nothing is written over HTTP** — the check only reads.
+
+**Expect, in order:** ① `GET /entities/{rifleman}/sensors` shows a `DangerArea` sensor (route source `ToPoint`) with TWO
+crossings — Cross Street at ≈ y 150 first, Main Street at ≈ x 255 second · ② once the rifleman has seen the watcher (≈ 40 m
+before Main Street), the Main Street crossing rates ≥ 0.5 and Cross Street stays low (L-Block hides it from the watcher) ·
+③ the rifleman runs across Cross Street without stopping and HOLDS within 4 m of Main Street's near handle for ≥ 10 s ·
+④ the watcher's mission moves to task 2 and it walks north; the rating falls below 0.4 as soon as its LAST-KNOWN position
+no longer sees the crossing · ⑤ the rifleman crosses and arrives.
+
+| what fails | look first at |
+|---|---|
+| ① no sensor, or `answer.ready` false | the solver node: `/diagnostics/architecture` `DangerAreaResult` `sentSamples` (SimHost) / `receivedSamples` (CGF); the config's `SolverNodeId` must be a node with `Perception \| NavigationSolver` |
+| ① one area where two are expected | the navmesh route bent through the intersection (one `Intersection` area) — the layout assumption failed; re-measure the route |
+| ② never threatened | the rifleman never SAW the watcher (its `TargetMemory`); or sight from the watcher's last-known position is blocked — `ThreatOn` uses `TerrainWorld.SegmentBlocked` |
+| ③ holds at the wrong place / oscillates | the sensor's route source is not `ToPoint` (with `OwnMove` the hold's own move hides the area — §10.4) |
+| ④ never clears | the watcher's task 1 never ended — `CE-2112` (the BTree `Wait` never completing) is the known cause; or the rifleman lost sight of it while its last-known position still saw the crossing (memory keeps it ≈ 0.99 fresh for minutes) |
+

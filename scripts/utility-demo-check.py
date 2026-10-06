@@ -223,7 +223,75 @@ def run_threat_ranking(c, timeout):
         c.ok(names.index("Armed Far") > names.index("Armed Near"), "the farther armed contact ranks below the nearer")
 
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking}
+# ── CE-3079 — the danger-area sensor: hold short of the watched crossing, cross when the watcher withdraws ──────────
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.3–§10.5. ⭐ NO HTTP WRITE: the run plays out on its own (user, 2026-10-06).
+
+def position(nid):
+    comps = (data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
+    p = (comps.get("SimTransform") or {}).get("Position")
+    return tuple(p) if p else None
+
+
+def danger_sensor(nid):
+    for s in (data(call("GET", f"/entities/{nid}/sensors")) or {}).get("sensors") or []:
+        if s.get("kind") == "DangerArea":
+            return s
+    return None
+
+
+def areas_of(sensor):
+    return ((sensor or {}).get("answer") or {}).get("areas") or []
+
+
+def run_danger_crossing(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Watcher")
+    if not c.ok(rifle is not None and hostile is not None, "the Rifleman and the Watcher are loaded"):
+        return
+    call("POST", "/sim/play", {})
+
+    # ① the sensor answers: two crossings, in route order, the second one watched
+    s = wait_for(lambda: (x := danger_sensor(rifle)) and len(areas_of(x)) >= 2 and x, timeout)
+    if not c.ok(s is not None, "the rifleman's danger-area sensor lists two crossings ahead"):
+        return
+    a = areas_of(s)
+    print(f"    areas: {[(x['kind'], x['distanceAlongRoute'], x['threat']) for x in a]}")
+    c.ok(a[0]["distanceAlongRoute"] < a[1]["distanceAlongRoute"], "in route order")
+    c.ok(s.get("settings", {}).get("routeSource") == "ToPoint", "the sensor watches the route to the objective (route source ToPoint)")
+
+    # ② the watched crossing rates high once the rifleman has seen the watcher; the other stays low
+    watched = wait_for(lambda: (x := areas_of(danger_sensor(rifle))) and any(y["threat"] >= 0.5 for y in x) and x, timeout)
+    if not c.ok(watched is not None, "a crossing is rated threatened (the watcher seen with sight of it)"):
+        return
+    hot = next(y for y in watched if y["threat"] >= 0.5)
+    c.ok(all(y["threat"] < 0.5 for y in watched if y["featureId"] != hot["featureId"]), "the unwatched crossing stays below 0.5")
+
+    # ③ the rifleman HOLDS at the watched crossing's near side
+    near = hot["nearHandle"]
+    def at_near():
+        p = position(rifle)
+        return p and ((p[0] - near[0]) ** 2 + (p[1] - near[1]) ** 2) ** 0.5 <= 4.0 and p
+    held_at = wait_for(at_near, timeout)
+    if not c.ok(held_at is not None, f"the rifleman reaches the near side of the watched crossing {near[:2]}"):
+        return
+    t_hold = sim_time()
+    stayed = wait_for(lambda: (sim_time() or 0) - (t_hold or 0) >= 10 and at_near(), 30, every=1)
+    c.ok(stayed is not None, "and holds there for at least 10 s")
+
+    # ④ the watcher's mission moves on by itself (Sentry ends → MoveToLocation) and it withdraws out of sight
+    cleared = wait_for(lambda: (x := areas_of(danger_sensor(rifle))) and all(y["threat"] < 0.4 for y in x) and x, timeout * 2)
+    c.ok(cleared is not None, "the threat falls once the rifleman has watched the watcher withdraw")
+    wp = position(hostile)
+    print(f"    watcher now at {wp}")
+
+    # ⑤ the rifleman crosses and arrives
+    objective = (285.0, 220.0)
+    arrived = wait_for(lambda: (p := position(rifle)) and ((p[0] - objective[0]) ** 2 + (p[1] - objective[1]) ** 2) ** 0.5 <= 6 and p,
+                       timeout * 2)
+    c.ok(arrived is not None, f"the rifleman crosses and arrives at the objective {objective}")
+
+
+SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing}
 
 
 def main():
