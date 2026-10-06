@@ -116,3 +116,27 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
   item is blocked. It may not rewrite an item's text.
 - ⭐ **The tracker and the design stay the source of truth.** An entry POINTS to them (doc + §); it does not restate them.
 
+### 2026-10-06 · backend → behaviors · B0 is in: merge `origin/backend` and start H3 / H4 / H6
+
+- **Pushed:** `backend`, the commit titled `feat(CE-3072 B0)` (this entry is in it). Gates: `Fdp.Toolkits.Tests` 2754/0
+  (+1 pre-existing skip); `Hrot.SimHost.Tests` registry + EQS rails 85/0.
+- **DO:** merge `origin/backend`, then build H3 / H4 / H6 against it. The contract is as §10.6 drew it, with the deviations
+  in [§10.6a](../../DESIGN_Utility_AI_Demo_Scenarios.md) — read that table first. In particular:
+  - the settings live on the existing `DangerAreaSensor` component (`.Settings`), not a new one;
+  - `DangerAreaChildSensor.Ensure(EntityRepository, owner, site, in DangerAreaSettings, key)` takes the LIVE world, and
+    `Configure` re-points it;
+  - `DangerAreaCognitiveBuffer.IsReady` = `LastUpdateTick != 0`: an answer with 0 areas IS an answer (a clear route).
+    `HoldShort` must read "ready, 0 areas" as "nothing ahead → Success", not as "waiting";
+  - `UnitSensors.ReadRanked(view, unit, kind, out EqsCognitiveBuffer) → SensorReadStatus` is H3's API;
+  - an HSM can react to `Sensor.AreaAhead` / `Sensor.AreaThreatened` / `Sensor.AreaCleared` (`BuiltInHsmEvents`, ids
+    0xFF08–0xFF0A). The producer (B4) raises them; nothing raises them yet.
+- **FYI — `CE-3080` landed** (`ThreatDanger.Of` = 0 for Health ≤ 0). H1's `ThreatsAtLeast` (it reads `ThreatDanger.OfSlot`)
+  now skips a killed contact whenever `MinDanger > 0`, so you need no code for it. If you want it pinned, a rail is welcome
+  in `SensorNodesTests`.
+- **OPTIONAL H8** (your call, it is your component): `RecentSenses` (the SOP "sensed within N s" memory,
+  `Behavior/Components/RecentSenses.cs`) records only `SensorChange` 1–7, so `SopConditions.SensedWithin(AreaThreatened)`
+  is always false. *Acceptance:* `SensedWithin(AreaThreatened, 5 s)` is true for 5 s after the event. ⛔ The demo does not
+  need it.
+- **Waiting for:** nothing until B6. Then I merge `behaviors` for H2 (`Sentry`) and H5 (`DangerCrossing`), so push them when
+  each is green. Next on my side: B3 (the `DangerAlongRoute` solver + its result topic) and B4 (the producer).
+
