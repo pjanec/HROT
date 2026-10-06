@@ -1,0 +1,310 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a3088000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          475,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7601
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[300,470,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a3088000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          270,
+          460,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7611
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[270,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a3088000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a3088000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          290,
+          460,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7612
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[290,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a3088000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a3088000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          310,
+          460,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7613
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[310,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a3088000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a3088000-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          330,
+          460,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7614
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\":{\"Objective\":[330,455,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a3088000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a3088000-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          240,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7621
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "West Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a3088000-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          300,
+          350,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7622
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Centre Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a3088000-0000-4000-8000-000000000023": {
+      "SimTransform": {
+        "Position": [
+          360,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071,
+          0.7071
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7623
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "East Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

@@ -1707,6 +1707,25 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read which posture a unit chose and the scores behind it"),
 
+        [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
+            Tool:    "get_entity_squad",
+            Group:   "K — AI behavior traces",
+            Summary: "A squad as its commander sees it — members with their assigned fire targets, and the merged contact pool (CE-3087).",
+            Returns: "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}] } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
+            Hint:    "Req: networkId (number) of a commander or a member. Read on the Brain perspective (Scenario on a cluster). Example: get_entity_squad({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.",
+                "An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).",
+                "Heard contacts (no identity) appear in the pool with heard:true and are never assigned.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "read which target each squad member is assigned and what the squad knows"),
+
         [("GET", "/entities/{networkId}/sensors")] = new RouteDoc(
             Tool:    "get_entity_sensors",
             Group:   "K — AI behavior traces",

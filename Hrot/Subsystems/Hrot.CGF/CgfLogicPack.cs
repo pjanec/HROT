@@ -196,7 +196,9 @@ namespace Hrot.CGF
             //   ScoreDecision found no decision. Idempotent. 📄 docs/DESIGN_Decision_Layer.md §3.3 (as-built).
             Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
             //   W2: the squad layer's one frame driver (perception merge on every owned commander).
-            _squadCoordinationSystem   = new Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(gateOnAuthority);
+            //   ⭐ CE-3088 — and the squad's fire distribution after each merge (📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11).
+            _squadCoordinationSystem   = new Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(gateOnAuthority,
+                new Fdp.Toolkit.Utility.ThreatMatrixAssignmentSystem(Fdp.Toolkit.Utility.LeaderAssignmentDecision.Id));
 
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();

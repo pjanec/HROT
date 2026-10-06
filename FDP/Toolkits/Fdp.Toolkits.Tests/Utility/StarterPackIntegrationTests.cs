@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Numerics;
 using Fdp.Core;
@@ -491,6 +492,72 @@ namespace Fdp.Toolkit.Tests
             byte posture = _world.Scorer.SelectPosture(_world.Repo, m1, CombatPostureDecision.Id);
 
             Assert.Equal((byte)Posture.Flee, posture);
+        }
+
+        // ── CE-3088 (G8, F4) — the squad's fire distribution reads the MERGED pool and runs from the frame driver ──────
+        //    📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11.
+
+        /// <summary>⭐ F4: a target only a MEMBER has seen (the leader saw nothing) is assignable — through the merged pool.
+        /// ✅ Red-proof: source the targets from the leader's own <c>TargetMemory</c> only (the pre-CE-3088 code) ⇒ unassigned.</summary>
+        [Fact]
+        public void CE3088_ATargetSeenOnlyByAMember_IsAssigned_ThroughTheMergedPool()
+        {
+            var leader = _world.SpawnLeader();
+            var member = _world.SpawnSquadMember(leader, health01: 1.0f, ammo01: 1.0f);
+            var target = _world.SpawnTarget();
+            _world.SeedContact(member, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);   // the leader: nothing
+
+            Assert.True(global::Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(_world.Repo, leader, currentTick: 1));
+            new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id).Run(_world.Repo, leader);
+
+            Assert.Equal((long)target.PackedValue, _world.AssignmentFor(leader, member));
+        }
+
+        /// <summary>⭐ The leader's OWN sighting still counts — the merge walks subordinates only, so the union keeps it.</summary>
+        [Fact]
+        public void CE3088_ATargetSeenOnlyByTheLeader_StillCounts()
+        {
+            var leader = _world.SpawnLeader();
+            var member = _world.SpawnSquadMember(leader, health01: 1.0f, ammo01: 1.0f);
+            var target = _world.SpawnTarget();
+            _world.SeedContact(leader, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+            _world.SeedContact(member, target, 100f, threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+            // the pool is empty (never merged): the leader's memory alone supplies the target
+
+            new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id).Run(_world.Repo, leader);
+
+            Assert.Equal((long)target.PackedValue, _world.AssignmentFor(leader, member));
+        }
+
+        /// <summary>⭐ The FRAME DRIVER runs it: four members, three targets seen by all ⇒ every member assigned, the targets
+        /// spread, no target over the focus cap of 2 — U6's acceptance at unit level. ✅ Red-proof: construct the driver
+        /// without the assignment system ⇒ every slot stays 0.</summary>
+        [Fact]
+        public void CE3088_TheSquadDriver_AssignsEveryMember_AfterAMerge_AtMostTwoPerTarget()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                _world.Repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            var leader = _world.SpawnLeader();
+            _world.Repo.AddComponent(leader, new global::Fdp.Toolkit.Behavior.Components.BehaviorState());
+            var members = new[]
+            {
+                _world.SpawnSquadMember(leader, 1f, 1f), _world.SpawnSquadMember(leader, 1f, 1f),
+                _world.SpawnSquadMember(leader, 1f, 1f), _world.SpawnSquadMember(leader, 1f, 1f),
+            };
+            var targets = new[] { _world.SpawnTarget(), _world.SpawnTarget(), _world.SpawnTarget() };
+            float[] range = { 100f, 150f, 200f };
+            foreach (var m in members)
+                for (int t = 0; t < targets.Length; t++)
+                    _world.SeedContact(m, targets[t], range[t], threatBoost: 0.7f, contactHealth01: 1f, hasLos: true);
+
+            var driver = new global::Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem(
+                gateOnAuthority: false, fire: new ThreatMatrixAssignmentSystem(LeaderAssignmentDecision.Id, maxFocusFireCount: 2));
+            driver.Execute(_world.Repo, 0.016f);
+
+            var assigned = members.Select(m => _world.AssignmentFor(leader, m)).ToArray();
+            Assert.All(assigned, a => Assert.Contains(a, targets.Select(t => (long)t.PackedValue)));
+            Assert.All(assigned.GroupBy(a => a), g => Assert.True(g.Count() <= 2, $"target {g.Key} has {g.Count()} members"));
+            Assert.True(assigned.Distinct().Count() >= 2, "the fire is spread");
         }
     }
 }

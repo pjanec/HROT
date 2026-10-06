@@ -88,5 +88,25 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
 
             Assert.Equal(0, after - before);
         }
+
+        /// <summary>⭐ <c>CE-3088</c> — the fire distribution it now runs after each merge keeps the hot path allocation-free.</summary>
+        [Fact]
+        public void CE3088_Execute_WithFireAssignment_DoesNotAllocate()
+        {
+            Fdp.Toolkit.Utility.UtilityAutoDiscovery.ScanAndRegister();
+            Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
+            Squad(owned: true);
+            Squad(owned: true);
+            var system = new SquadCoordinationSystem(
+                fire: new Fdp.Toolkit.Utility.ThreatMatrixAssignmentSystem(Fdp.Toolkit.Utility.LeaderAssignmentDecision.Id));
+            void Frame() { _repo.Tick(); system.Execute(_repo, 0.016f); }
+            for (int i = 0; i < 100; i++) Frame();   // warm up
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++) Frame();   // ≈ 166 merges + assignments
+            long after = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(0, after - before);
+        }
     }
 }

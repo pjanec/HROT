@@ -207,6 +207,10 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-3064 (2026-10-05) — 1 MORE: NearMissSensingSystem (a near miss → SensorChange.NearMiss, R-206).
             Assert.Equal(18, pack.SimulationSystems.Count);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
+            // ⭐ CE-3088 — the silent-default rail: the driver's fire assignment is an optional dependency, and the pack (every
+            //   Brain host) must PASS it. ✅ Red-proof: drop the argument in CgfLogicPack ⇒ null ⇒ red.
+            Assert.NotNull(((Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem)System.Linq.Enumerable.First(pack.SimulationSystems,
+                x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem)).FireAssignment);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.NearMissSensingSystem);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session

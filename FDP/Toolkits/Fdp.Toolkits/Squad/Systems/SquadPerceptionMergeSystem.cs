@@ -28,15 +28,16 @@ namespace Fdp.Toolkit.Squad.Systems
         /// <param name="commander">The squad commander entity.</param>
         /// <param name="currentTick">The current simulation tick.</param>
         /// <param name="mergeIntervalTicks">Minimum tick interval between cadence merges (default 6 = ~10 Hz at 60 tps).</param>
-        public static void Run(
+        /// <returns>⭐ <c>CE-3088</c> — true when the pool was re-merged this call (what the fire assignment keys on).</returns>
+        public static bool Run(
             EntityRepository repo,
             Entity commander,
             uint currentTick,
             uint mergeIntervalTicks = 6)
         {
             // 1. Guard: both UnitRoster and Blackboard1024 must be present.
-            if (!repo.HasComponent<UnitRoster>(commander)) return;
-            if (!repo.HasComponent<SquadCognitiveState>(commander)) return;
+            if (!repo.HasComponent<UnitRoster>(commander)) return false;
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return false;
 
             // 2. Project state.
             ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
@@ -57,7 +58,7 @@ namespace Fdp.Toolkit.Squad.Systems
             bool epochChanged = checksum != state.Contacts._memberEpochChecksum;
             bool dwellElapsed = state.Contacts.LastMergeTick == 0 ||
                                 currentTick - state.Contacts.LastMergeTick >= mergeIntervalTicks;
-            if (!epochChanged && !dwellElapsed) return;
+            if (!epochChanged && !dwellElapsed) return false;
 
             // 5. Build new contact pool on the stack.
             SquadContactPool localPool = default;
@@ -120,6 +121,7 @@ namespace Fdp.Toolkit.Squad.Systems
             var src = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref localPool.Contacts), 16);
             src.Slice(0, localPool.Count).CopyTo(dst);
+            return true;   // ⭐ CE-3088 — the driver re-assigns fire only when the pool was re-merged
         }
 
         /// <summary>

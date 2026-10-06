@@ -291,9 +291,63 @@ def run_danger_crossing(c, timeout):
     c.ok(arrived is not None, f"the rifleman crosses and arrives at the objective {objective}")
 
 
+# ── U6 (CE-3088) — fire distribution: the leader spreads the squad's fire, ≤ 2 per target; a hurt member breaks off ─────
+#   docs/DESIGN_Utility_AI_Demo_Scenarios.md §11. Reads GET /entities/{leader}/squad (G3, CE-3087).
+
+def squad(nid):
+    return data(call("GET", f"/entities/{nid}/squad")) or {}
+
+
+def ammo(nid):
+    w = ((data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}).get("WeaponState") or {}
+    return w.get("Ammo"), w.get("MaxAmmo")
+
+
+def run_fire_distribution(c, timeout):
+    ids = ids_by_name()
+    leader = ids.get("Leader")
+    riflemen = [ids.get(f"Rifleman {i}") for i in range(1, 5)]
+    hostiles = [ids.get(n) for n in ("West Hostile", "Centre Hostile", "East Hostile")]
+    if not c.ok(leader is not None and None not in riflemen and None not in hostiles, "the leader, four riflemen and three hostiles are loaded"):
+        return
+    call("POST", "/sim/play", {})
+
+    # ① the leader's squad: four members, the merged pool holds the three hostiles
+    sq = wait_for(lambda: (x := squad(leader)) and x.get("memberCount") == 4 and x.get("contactCount", 0) >= 3 and x, timeout)
+    if not c.ok(sq is not None, "the squad forms (4 members) and its merged pool holds the three hostiles"):
+        return
+
+    # ② every member is assigned a target; the fire is spread; no target has more than two
+    def assigned():
+        x = squad(leader)
+        a = [((m.get("assignment") or {}).get("name")) for m in x.get("members", [])]
+        return len(a) == 4 and all(a) and a
+    a = wait_for(assigned, timeout)
+    print(f"    assignments: {a}")
+    if not c.ok(a is not None, "every member is assigned a target (the fire distribution runs, CE-3088)"):
+        return
+    c.ok(len(set(a)) >= 2, f"the fire is spread over {len(set(a))} targets")
+    c.ok(all(a.count(t) <= 2 for t in set(a)), "no target has more than two members (the focus-fire cap)")
+
+    # ③ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
+    def all_fired():
+        r = [ammo(m) for m in riflemen]
+        return all(x[0] is not None and x[1] and x[0] < x[1] for x in r) and r
+    fired = wait_for(all_fired, timeout)
+    c.ok(fired is not None, f"every member spends rounds ({fired})")
+
+    # ④ a member near death breaks off: its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
+    hurt = riflemen[3]
+    call("POST", "/trace/observe", {"networkId": hurt, "on": True})
+    set_health(hurt, 10)
+    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, timeout)
+    c.ok(w is not None, f"Rifleman 4 at 10 HP takes a defensive posture ({w})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
-             "ua-danger-crossing-bp": run_danger_crossing}
+             "ua-danger-crossing-bp": run_danger_crossing,
+             "ua-fire-distribution": run_fire_distribution}
 
 
 def main():
