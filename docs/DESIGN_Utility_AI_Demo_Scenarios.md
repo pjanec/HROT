@@ -505,6 +505,19 @@ holds all three, so it is where it runs (an optimization). ⛔ **The missing pie
 | response | a NEW result topic with the same key, carrying up to 8 `DangerAreaDescriptor` (kind, oriented box + height band, near/far handles, distance along the route) — ⛔ no threat. `EqsResultEntry` (entity, position, score, flags) cannot carry them (squad design §5, architect-confirmed) |
 | on the Brain — ⭐ a PRODUCER system, not the behaviour *(user, `2026-10-06`: "the commander's behavior would want to get just the higher level results, already processed")* | one engine system per commander (`DangerAreaRefreshSystem` reshaped), the same shape as the existing producers `ThreatEvaluationSystem` / `EqsResultUpdateSystem` (Sensors §7.3): keeps the query's route handle current from `NavigationStatus`; on each answer AND each squad tick re-rates every area from the squad's CURRENT contacts (fills the descriptor's existing `ThreatRating`, R-194 read-time), sorts the next area ahead first, writes the processed buffer on the commander (F6), and raises `SensorChangedEvent` edges (area ahead / area now threatened) so an HSM or a blueprint `When` reacts. Behaviours only READ: a read-sensor node / utility input (`ManeuverSelect`, F5). ⛔ Rejected: the commander's behaviour asks, rates and sorts (every behaviour re-implements it; a BTree has no event entry) · an instance blueprint as the default (per-unit authoring for an engine-wide sense; fine later as an override of the RATING policy) |
 
+⭐ **Activation — the danger sensor is a SENSOR CHILD in the one sensor form** *(user, `2026-10-06`: "it is a 'smart sensor' so i
+guess it should follow same sensor sub-entity concept"; Sensors §4, R-185 – R-187)*. 📐 `ThreatEvaluationSystem` is NOT the model:
+it runs for every unit holding `TargetMemory` (`ThreatEvaluationSystem.cs:76`) — a unit-level fusion, not a sensor.
+
+| | as for every sensor kind |
+|---|---|
+| kind | a new `SensorModality.DangerArea` (the enum is the kind, flags `1,2,4,8` ⇒ next `16`) |
+| per-kind settings | `DangerAreaSensorDto` {corridor half-width, max areas, refresh seconds, route source = the unit's own move or a given handle} — in a TKB `SensorEntryDto` or a behaviour's `ConfigJson` |
+| switched on by | ① the TKB — a commander template lists the entry, default ON, `Disabled` to opt out, created at spawn on every node by `SensorChildFactory`; ② a behaviour — creates it (behaviour-owned, released when the run ends); ③ on/off at runtime = the `Suspended` override (`UnitSensors.SetEnabled`) |
+| solved on | the node holding the route (its `SolverNodeId`), the solver half of the kind (B1″) |
+| Brain half | the producer above, iterating sensor children of this kind on Brain-owned commanders; its processed buffer stays ON THE CHILD |
+| read by | `UnitSensors.Of(unit, DangerArea)` — the same accessor every sensor uses (CE-2071); ⇒ **F6 is fixed by reading through the accessor**, not by moving the buffer to the commander |
+
 📐 **Measured — how the Brain knows a route handle today: it does NOT, for a move.** The solver echoes a requested handle
 or allocates its own ≥ `0x40000000` (`PathfindingSolverSystem.cs:163`, `NavigationHandleAllocator.cs:13`); `MoveToExecutor`
 passes the behaviour's `MoveToParams.RouteHandle`, in practice 0; a move's plan stores the handle on the vehicle
