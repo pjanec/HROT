@@ -291,7 +291,9 @@ def run_danger_crossing(c, timeout):
     c.ok(arrived is not None, f"the rifleman crosses and arrives at the objective {objective}")
 
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing}
+SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
+             # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
+             "ua-danger-crossing-bp": run_danger_crossing}
 
 
 def main():
