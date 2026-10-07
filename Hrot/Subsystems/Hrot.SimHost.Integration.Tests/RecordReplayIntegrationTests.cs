@@ -64,9 +64,17 @@ namespace Hrot.SimHost.Integration.Tests
             // false — factory-only; direct registration as IClusterOpHandler is intentionally absent).
             var eventBus     = new FdpEventBus();
             var bootstrapper = new NodeBootstrapper();
+            // ⭐ CE-2063 ③ — a Brain node REQUIRES the ScenarioEntities load part (L4a: LoadPhaseChain.FromRoles throws, loudly,
+            //   when a Brain host composes no scenario step). This fixture predated that rule and passed none of the scenario deps;
+            //   it now passes the ones every production Brain host passes, so it tests what it names, not the composition guard.
             using var clusterSlave = bootstrapper.BuildOrchestration(
                 NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant,
-                eventBus: eventBus);
+                eventBus: eventBus,
+                scenarioSerializer:  new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("SimHost").Build(),
+                scenarioExtractor:   new Hrot.CGF.Orchestration.StagingEntityExtractor(),
+                scenarioSource:      new Hrot.Core.Network.ScenarioEntityCreationRequestSource(),
+                scenarioIdAllocator: new Hrot.SimHost.Integration.Tests.Infrastructure.StubIdAllocator(),
+                localTempRoot:       _tempDir);
 
             // Assert: ReferenceLiveLoadHandler is registered.
             Assert.True(clusterSlave.IsHandlerRegistered<ReferenceLiveLoadHandler>(),

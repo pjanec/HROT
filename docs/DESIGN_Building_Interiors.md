@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b as built) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c as built) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -545,7 +545,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 |---|---|---|
 | **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
 | **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
-| **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, `SetPolyFlags` from `DoorState`, a custom `IDtQueryFilter` (DotRecast has no `SetAreaCost`), `TraversalKind.Door` waypoints carried through (today `PlanPath` drops them), replan on a door change (today only the frustration watchdog replans) | ⏭ |
+| **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, a door-aware `IDtQueryFilter` reading the live state (⚠ not `SetPolyFlags` — N1), `TraversalKind.Door` on `PlanPath` waypoints | ✅ built (below); carrying `Door` through the trajectory pool + replanning moved to **5d** (N4) |
 | **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner; the behaviour nodes are the behaviors lane's | ⏭ |
 | **5e** | scenario `terrainObjects` section (save writes current door state; load applies it) + `TerrainObjectRef` — ⚠ the serializer reads only `Entities` and the distributed merge rebuilds only `{$meta, Header, Entities}`, so both need the section added | ⏭ |
 
@@ -628,7 +628,81 @@ doors, every other node receives them.
 | ⚠ deviation from §3b K3 | no separate `TerrainObjectMap` class: the map IS the `TerrainObjectKey` entities (`TerrainObjects.Find`) — a second table would be a second representation of one fact. 5e's `TerrainObjectRef` resolves through it |
 | ⚠ known limit | several Brain nodes (R-162) each running the load step would each create the doors — the same exposure the scenario's own entities have today; the `ExistingKeys` skip only covers a re-commit on one node |
 | visible effect | a door entity has `SimTransform` + `NetworkIdentity`, so the map draws its pick box (a door is selectable — the hook for 5d's commands); no symbol, no palette entry (bare template) |
-| rails | `TerrainWorldTests.Stage5b_*` (mirror) · `ScenarioLoadStepTests.Stage5b_*` (creation, order, ids, no doubling) · `EntityDoorStateTranslatorTests` (wire round trip into the other node's terrain) · `EntityCreationPackRails.EveryRoot_SchedulesTheTerrainObjectSystems` / `Build_AlwaysHasTheDoorMirror_OfflineToo` |
+| rails (5b) | `TerrainWorldTests.Stage5b_*` (mirror) · `ScenarioLoadStepTests.Stage5b_*` (creation, order, ids, no doubling) · `EntityDoorStateTranslatorTests` (wire round trip into the other node's terrain) · `EntityCreationPackRails.EveryRoot_SchedulesTheTerrainObjectSystems` / `Build_AlwaysHasTheDoorMirror_OfflineToo` |
+
+### 5c — doors in the navmesh *(backend, `2026-10-07`; leans of §3a "Doors", one mechanism changed — below)*
+
+**INVENTORY** *(codebase-memory `search_graph name_pattern=.*(Navmesh|NavMesh|QueryFilter|PathRegistry|TraversalKind|PlanPath).*`
+→ 35 classes, 14 production; interfaces → `INavmeshProvider`, `IPathRegistry`, `INavmeshFactory`; plus an Explore sweep, grep-confirmed)*:
+the bake is `RecastNavmeshFactory.Build(world)` → `RecastNavmeshBaker.Bake` (one `RcSampleInputGeomProvider`, local to `Bake`,
+`RecastNavmeshBaker.cs:136`) → `DotRecastNavmeshProvider`, published by `TerrainResidency.Commit` through `SwitchableNavmeshProvider`.
+**Zero** uses of `AddConvexVolume`/`MarkConvexPolyArea`/`SetPolyFlags`/area ids. Every poly gets flag 1 (`:255`). One
+`DtQueryDefaultFilter` per layer (`DotRecastNavmeshProvider.cs:49`). `PlanPath` writes `TraversalKind.Walk` literally (`:274`);
+`PathfindingSolverSystem.SolveNavmesh` keeps positions only (`:402`); `EngineBackedPathRegistry` hard-codes `Walk` (`:140`, `:202`);
+`OffMeshLinkDetectionSystem` has no production registration. The only replan is the frustration watchdog
+(`NavigationExecutionSystem.cs:181`); nothing compares `QueryVersion`. No "can open doors" capability exists; the agent class is the
+nav LAYER (`NavLayerSelection.For`: Infantry, or Vehicle for a `VehicleState`).
+
+| claim the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the mesh is shared READ-ONLY by two background threads | ✅ `DotRecastNavmeshProvider.cs:51-57` (CE-2122: EQS + NavigationSolver query in parallel, per-thread `DtNavMeshQuery`) | ✅ CE-2122 fix note in that file |
+| ⇒ a runtime `SetPolyFlags` would mutate it under those threads | ✅ DotRecast `SetPolyFlags` writes `DtPoly.flags` in place | ⛔ §3a assumed `SetPolyFlags` — written before CE-2122 was measured |
+| the door's live state is readable from any thread | ✅ `TerrainWorld.DoorState(i)` is a `Volatile.Read` of a byte (5a), fed by the mirror (5b) | ✅ §3j 5b |
+| infantry fits a doorway, a vehicle does not | ✅ vehicle radius 1.8 m (`RecastNavmeshBaker.cs:76`) erodes a 1 m opening away | ✅ §3a "excluded for vehicles" |
+
+```mermaid
+classDiagram
+    direction LR
+    class RecastNavmeshFactory { <<existing>> Build(world) — NOW passes the doorway volumes and the world to the provider }
+    class RecastNavmeshBaker { <<existing>> Bake(verts, indices, layers, doorways NEW) — AddConvexVolume per doorway, area = DoorArea }
+    class NavDoorways { <<NEW>> For(TerrainWorld) — one box per door: opening × wall thickness, sill → sill + 2.2 m · DoorArea = 2 }
+    class DotRecastNavmeshProvider { <<existing>> per layer: DoorPolys NEW (poly ref → door index) · Filter NEW (DoorAwareQueryFilter) · PlanPath marks Door waypoints NEW }
+    class DoorAwareQueryFilter { <<NEW, IDtQueryFilter>> PassFilter: Locked ⇒ no · vehicle layer ⇒ no door poly · GetCost: Closed ⇒ + ClosedDoorPenalty }
+    class TerrainWorld { <<existing>> DoorState(i) — Volatile, mirrored from the door entity (5b) }
+    class NavWaypoint { <<existing>> Traversal = Door on a doorway poly }
+    RecastNavmeshFactory ..> NavDoorways
+    RecastNavmeshFactory ..> RecastNavmeshBaker
+    RecastNavmeshFactory ..> DotRecastNavmeshProvider
+    DotRecastNavmeshProvider *-- DoorAwareQueryFilter : one per layer
+    DoorAwareQueryFilter ..> TerrainWorld : reads door state at query time
+    DotRecastNavmeshProvider ..> NavWaypoint
+```
+*What it shows that prose hid:* nothing is written into the mesh after the bake — the door's state reaches the planner through the
+filter, so the read-only mesh of CE-2122 stays read-only, and every query (`PlanPath`, `PathExists`, `PathCost`, EQS reachability,
+sampling) honours a locked door with no further change.
+
+```mermaid
+sequenceDiagram
+    participant R as TerrainResidency (load, off-thread)
+    participant F as RecastNavmeshFactory
+    participant B as RecastNavmeshBaker
+    participant P as DotRecastNavmeshProvider
+    participant Q as Nav solver / EQS (background)
+    participant T as TerrainWorld
+    R->>F: Build(world)
+    F->>B: Bake(verts, indices, layers, NavDoorways.For(world))
+    B->>B: AddConvexVolume per doorway, area DoorArea, then RcBuilder marks those spans
+    F->>P: new(meshes, world) — maps each DoorArea poly to its door
+    Q->>P: PlanPath(from, to, Infantry)
+    P->>T: DoorState(door) for each doorway poly the search touches
+    P-->>Q: waypoints, Traversal = Door on a doorway poly, a Locked door never crossed
+```
+
+| decision | lean | rejected (one line each) |
+|---|---|---|
+| **N1** how a door's state reaches the planner | ⭐ a `DoorAwareQueryFilter` reads `TerrainWorld.DoorState` at query time — ⚠ **mechanism changed from §3a's `SetPolyFlags`**, behaviour identical | runtime `SetPolyFlags` — mutates the mesh two background threads read (CE-2122) · a mesh copy per state change — a rebake by another name |
+| **N2** which agents may open doors | ⭐ the Infantry layer (closed = passable at a cost); the Vehicle layer never uses a door poly | a per-agent capability component — none exists and nothing would write it yet; add it when a unit type needs to differ |
+| **N3** the cost of a closed door | ⭐ `ClosedDoorPenaltyMetres = 10` added when entering a closed door's poly — a detour shorter than ~10 m wins | no penalty — a closed door would look free · a multiplier — a doorway poly is short, so it would barely register |
+| **N4** door waypoints and replanning | ⭐ `PlanPath` marks `Traversal = Door` now; **carrying it through the trajectory pool, and replanning on a door change, move to 5d** with their consumer (the door action) | carrying it now — three hops (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`) for a value nothing reads until 5d |
+
+⚠ **Interim, until 5d:** an infantry agent may plan through a CLOSED door and, with no door action yet, walk the doorway as if it
+were open. ⭐ Strictly better than before 5c, when every door — locked too — was an open gap to the planner.
+
+| 5c as built *(backend, `2026-10-07`)* | |
+|---|---|
+| matches the diagrams | `NavDoorways.For` (one box per door: opening × wall thickness + 0.4 m each side, sill − 0.5 → sill + 2.2 m, `DoorArea` = 2) → `RecastNavmeshBaker.Bake(…, doorways)` → `AddConvexVolume` · `DotRecastNavmeshProvider(meshes, world, doorways)` maps each `DoorArea` poly to its door (`NavDoorways.DoorPolys`) and gives each layer a `DoorAwareQueryFilter` (Infantry may open doors) · `PlanPath` marks `TraversalKind.Door` |
+| ⚠ found while building — a PRE-EXISTING contract bug | DotRecast answers an unreachable goal with a **partial** path (to the polygon nearest it), and `PathExists`/`PathCost` counted that as a path — against their own contracts (*"a walkable path exists"*, *"`MaxValue` when no path exists"*). Rare before (an island); with a locked door it is the normal answer for "into that room". ⇒ both now require a COMPLETE path (`polyPath[last] == endRef`); `PlanPath` still returns the partial one, so an agent still goes as near as it can |
+| rails | `RecastNavmeshFactoryTests.Stage5c_*` — the doorway bakes into door polygons and a path through it carries a `Door` waypoint · locked = wall, closed / destroyed / open = passable, read live · the filter charges a closed door once on entry and keeps vehicles out |
 
 ## 4. Change map — what each consumer must do
 

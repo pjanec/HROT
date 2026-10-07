@@ -59,7 +59,9 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     public INavmeshProvider? Build(TerrainWorld world)
     {
         if (!new TerrainWorldGeometrySource(world).TryGetTriangles(out var verts, out var indices)) return null;
-        var meshes = new RecastNavmeshBaker().Bake(verts, indices, Layers);
-        return meshes.Count == 0 ? null : new DotRecastNavmeshProvider(meshes);
+        // ⭐ Stage 5c — the doorways become their own polygons, judged at query time by the door's live state (§3j "5c").
+        var doorways = NavDoorways.For(world);
+        var meshes = new RecastNavmeshBaker().Bake(verts, indices, Layers, doorways);
+        return meshes.Count == 0 ? null : new DotRecastNavmeshProvider(meshes, world, doorways);
     }
 }

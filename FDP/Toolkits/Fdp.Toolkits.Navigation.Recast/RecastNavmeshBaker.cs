@@ -126,7 +126,8 @@ public sealed class RecastNavmeshBaker
     public Dictionary<NavLayerMask, DtNavMesh> Bake(
         float[]    verts,
         int[]      indices,
-        NavLayerMask layerMask = NavLayerMask.Infantry | NavLayerMask.Vehicle)
+        NavLayerMask layerMask = NavLayerMask.Infantry | NavLayerMask.Vehicle,
+        IReadOnlyList<NavDoorways.Volume>? doorways = null)
     {
         if (verts   == null) throw new ArgumentNullException(nameof(verts));
         if (indices == null) throw new ArgumentNullException(nameof(indices));
@@ -134,6 +135,11 @@ public sealed class RecastNavmeshBaker
         if (indices.Length % 3 != 0) throw new ArgumentException("indices length must be a multiple of 3.", nameof(indices));
 
         var geom = new RcSampleInputGeomProvider(verts, indices);
+        // ⭐ Buildings Stage 5c — each doorway's spans get their own area, so its passage bakes into polygons of its own (the mesh is
+        //   baked with every door OPEN; the query filter judges those polygons by the door's live state). §3j "5c".
+        if (doorways != null)
+            foreach (var d in doorways)
+                geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(NavDoorways.DoorArea));
         var result = new Dictionary<NavLayerMask, DtNavMesh>();
 
         foreach (NavLayerMask layer in LayerBits)

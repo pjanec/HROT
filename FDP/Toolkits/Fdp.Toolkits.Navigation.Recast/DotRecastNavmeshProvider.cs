@@ -46,7 +46,8 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     private sealed class LayerState : IDisposable
     {
         public DtNavMesh         NavMesh { get; }
-        public DtQueryDefaultFilter Filter { get; } = new DtQueryDefaultFilter();
+        /// <summary>⭐ Stage 5c — judges doorway polygons by their door's live state; the default filter for everything else.</summary>
+        public DoorAwareQueryFilter Filter { get; }
 
         // ⭐ CE-2122 — ONE QUERY PER THREAD. DtNavMeshQuery keeps its node pool / open list as instance state, so the EQS module
         //   and the NavigationSolver module (two background threads, one provider) corrupted it when they shared one instance:
@@ -56,9 +57,10 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         private readonly ThreadLocal<DtNavMeshQuery> _query;
         public DtNavMeshQuery Query => _query.Value!;
 
-        public LayerState(DtNavMesh mesh)
+        public LayerState(DtNavMesh mesh, DoorAwareQueryFilter? filter = null)
         {
             NavMesh = mesh;
+            Filter  = filter ?? new DoorAwareQueryFilter(new Dictionary<long, int>(), null, canOpenDoors: true);
             _query  = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
         }
 
@@ -89,6 +91,23 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
             _layers[kv.Key] = new LayerState(kv.Value);
         _queryVersion = 1;
     }
+
+    /// <summary>
+    /// ⭐ Buildings Stage 5c — a provider over meshes baked with <paramref name="doorways"/>: each layer maps its doorway polygons to
+    /// their doors and judges them through a <see cref="DoorAwareQueryFilter"/> reading <paramref name="world"/>'s live door state.
+    /// The Infantry layer may use a closed door (at a cost); every other layer never uses a doorway (§3j "5c" N2).
+    /// </summary>
+    public DotRecastNavmeshProvider(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes, Fdp.Toolkit.Terrain.TerrainWorld world,
+        IReadOnlyList<NavDoorways.Volume> doorways)
+    {
+        foreach (var kv in meshes)
+            _layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
+                NavDoorways.DoorPolys(kv.Value, doorways), world, canOpenDoors: kv.Key == NavLayerMask.Infantry));
+        _queryVersion = 1;
+    }
+
+    /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
+    public int DoorPolyCount(NavLayerMask layer) => _layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
 
     // ── NavMesh access (for DotRecastDtCrowdProvider construction) ───────────
 
@@ -188,8 +207,10 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// <inheritdoc/>
     public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
     {
-        var buf = new NavWaypoint[2];
-        return PlanPath(from, to, buf.AsSpan(), layerMask) > 0;
+        // ⭐ Stage 5c — a PARTIAL path (the search reached only the polygon nearest an unreachable goal) is NOT a path. Before
+        //   doors could be locked it was rare (an island); a locked doorway makes it the normal answer for "into that room".
+        var buf = new NavWaypoint[256];
+        return PlanPathCore(from, to, buf.AsSpan(), layerMask, out bool complete) > 0 && complete;
     }
 
     /// <inheritdoc/>
@@ -197,8 +218,8 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     {
         const int MaxWaypoints = 256;
         var buf = new NavWaypoint[MaxWaypoints];
-        int n   = PlanPath(from, to, buf.AsSpan(), layerMask);
-        if (n == 0) return float.MaxValue;
+        int n   = PlanPathCore(from, to, buf.AsSpan(), layerMask, out bool complete);
+        if (n == 0 || !complete) return float.MaxValue;   // ⭐ Stage 5c — the contract: no (complete) path ⇒ MaxValue
         if (n == 1) return 0f;
 
         float cost = 0f;
@@ -215,7 +236,12 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
 
     /// <inheritdoc/>
     public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
+        => PlanPathCore(from, to, waypoints, layerMask, out _);   // a partial path is still returned — the agent goes as near as it can
+
+    /// <param name="complete">False when the polygon path stops short of the goal's polygon (DotRecast's partial result).</param>
+    private int PlanPathCore(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, out bool complete)
     {
+        complete = false;
         if (waypoints.Length < 2) return 0;
 
         const int MaxPath     = 256;
@@ -265,13 +291,15 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
 
             if (straightStatus.Failed() || straightCount == 0) continue;
 
+            complete = polyPathBuf[pathCount - 1] == endRef;
             int count = Math.Min(straightCount, waypoints.Length);
             for (int i = 0; i < count; i++)
             {
                 waypoints[i] = new NavWaypoint
                 {
                     Position  = ToVector3(straightBuf[i].pos),
-                    Traversal = TraversalKind.Walk,
+                    // ⭐ Stage 5c — a corner on a doorway polygon is a door crossing (N4: carried to the agent in 5d)
+                    Traversal = ls.Filter.DoorOf(straightBuf[i].refs) >= 0 ? TraversalKind.Door : TraversalKind.Walk,
                 };
             }
             return count;
