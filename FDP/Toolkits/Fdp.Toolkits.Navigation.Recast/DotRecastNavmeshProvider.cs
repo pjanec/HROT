@@ -1,3 +1,4 @@
+using System.Threading;
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -45,15 +46,24 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     private sealed class LayerState : IDisposable
     {
         public DtNavMesh         NavMesh { get; }
-        public DtNavMeshQuery    Query   { get; }
         public DtQueryDefaultFilter Filter { get; } = new DtQueryDefaultFilter();
+
+        // ⭐ CE-2122 — ONE QUERY PER THREAD. DtNavMeshQuery keeps its node pool / open list as instance state, so the EQS module
+        //   and the NavigationSolver module (two background threads, one provider) corrupted it when they shared one instance:
+        //   "Operations that change non-concurrent collections must have exclusive access" in DtNodePool.GetNode, swallowed by the
+        //   module host (14 faults in one --mode all run, behaviors' measurement). The mesh itself is read-only after the bake and
+        //   is shared; only the scratch query is per thread. No lock — the two modules keep running in parallel.
+        private readonly ThreadLocal<DtNavMeshQuery> _query;
+        public DtNavMeshQuery Query => _query.Value!;
 
         public LayerState(DtNavMesh mesh)
         {
             NavMesh = mesh;
-            Query   = new DtNavMeshQuery(mesh);
+            _query  = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
         }
 
+        // ⚠ Deliberately NOT disposing the ThreadLocal: Rebake disposes the old layers on the main thread while a background module
+        //   may still be mid-query on them; a disposed ThreadLocal would throw there. The old queries are collected with the layer.
         public void Dispose() { /* DotRecast meshes have no unmanaged resources */ }
     }
 

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Recast;
@@ -118,5 +119,38 @@ public sealed class RecastNavmeshFactoryTests
             if (MathF.Abs(p.Y - 20f) < 0.15f && p.Z < 2.6f)
                 Assert.True(p.X > 24.3f && p.X < 25.9f, $"waypoint {i} {p} crosses the south wall outside the door");
         }
+    }
+
+    // ── ⭐ CE-2122 — the EQS and NavigationSolver modules query ONE provider from two background threads ─────────
+
+    [Fact]
+    public void CE2122_ConcurrentPlanPathAndPathCost_FromSeveralThreads_NeverCorruptTheQuery()
+    {
+        var nav = Bake(BlockWorld);
+        var errors = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
+        var threads = new System.Threading.Thread[4];
+        for (int t = 0; t < threads.Length; t++)
+        {
+            int seed = t;
+            threads[t] = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+                    for (int i = 0; i < 400; i++)
+                    {
+                        float y = 5f + ((i + seed) % 50);
+                        int n = nav.PlanPath(new Vector3(5, y, 0), new Vector3(55, 60 - y, 0), wps, (uint)NavLayerMask.Infantry);
+                        if (n < 2) throw new InvalidOperationException($"no path ({n}) at i={i}");
+                        if (!(nav.PathCost(new Vector3(5, y, 0), new Vector3(55, y, 0), (uint)NavLayerMask.Infantry) > 0f))
+                            throw new InvalidOperationException($"no cost at i={i}");
+                    }
+                }
+                catch (Exception ex) { errors.Enqueue(ex); }
+            });
+        }
+        foreach (var th in threads) th.Start();
+        foreach (var th in threads) th.Join();
+        Assert.True(errors.IsEmpty, string.Join(" | ", errors.Select(e => e.GetType().Name + ": " + e.Message).Take(3)));
     }
 }
