@@ -80,6 +80,9 @@ namespace Hrot.Map.Common.Translators
             //   re-engaged forever. That infinite loop is what CE-267's entity-removal was masking. The
             //   ingress guards on HasAuthority<Health>, so it never clobbers the owner's authoritative value.
             yield return new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ Buildings Stage 5b — a terrain door's live state, owner → every node (DoorStateMirrorSystem puts it into the terrain).
+            yield return new EntityDoorStateEgressTranslator(participant);
+            yield return new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);

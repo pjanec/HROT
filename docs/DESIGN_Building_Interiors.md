@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b as built) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -544,7 +544,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | slice | content | state |
 |---|---|---|
 | **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
-| **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, `TerrainObjectMap`) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ⏭ next |
+| **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
 | **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, `SetPolyFlags` from `DoorState`, a custom `IDtQueryFilter` (DotRecast has no `SetAreaCost`), `TraversalKind.Door` waypoints carried through (today `PlanPath` drops them), replan on a door change (today only the frustration watchdog replans) | ⏭ |
 | **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner; the behaviour nodes are the behaviors lane's | ⏭ |
 | **5e** | scenario `terrainObjects` section (save writes current door state; load applies it) + `TerrainObjectRef` — ⚠ the serializer reads only `Entities` and the distributed merge rebuilds only `{$meta, Header, Entities}`, so both need the section added | ⏭ |
@@ -554,6 +554,81 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | ⚠ deviation from the original Stage 1 behaviour | a doorway WAS a gap whatever its door's state; now a Closed/Locked door blocks sight and is a `door` crossing for fire (§3a: *"closed door = its panel"*). The Stage 1 rail `Stage1_SightPassesAWindowAndADoorway_ButNotTheWallBesideThem` was re-stated deliberately (the instance's front is locked ⇒ blocked; opened ⇒ clear). `test-town` has no doors — unchanged |
 | initial state | the terrain/instance `TerrainDoorDef.Initial` until the door entities (5b) mirror the replicated state |
 | rails | `TerrainWorldTests.Stage5_*` (closed blocks sight, is a door-wood crossing for fire; open / destroyed are gaps; locked blocks; no leaf in `Prisms`) |
+
+### 5b as built — door entities, the replicated state, the mirror *(backend, `2026-10-07`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioLoadStep { <<existing, Brain only>> Commit(ctx, world) — enqueues the scenario's requests, THEN the terrain's doors }
+    class TerrainObjectRequests { <<NEW, Hrot.Core>> ForDoors(world, existingKeys, allocator) — key order, the ONE allocator, IsTransient }
+    class EntityCreationRequest { <<existing>> TkbType Door=8805 · PreAllocatedNetworkId · IsTransient · InitialComponents }
+    class DoorState { <<NEW component 337>> TerrainDoorState State }
+    class TerrainObjectKey { <<NEW managed 338>> string Key }
+    class TerrainObjects { <<NEW>> Find(repo, key) · ExistingKeys(repo) — the K3 map IS these entities }
+    class EntityDoorState { <<NEW DDS, dtDoorState=120>> EntityId · State · Key }
+    class EntityDoorStateEgressTranslator { <<NEW>> owner of dtDoorState publishes on change }
+    class EntityDoorStateIngressTranslator { <<NEW>> ghost on unknown id · owner guard · DoorState + key }
+    class DoorStateMirrorSystem { <<NEW, BeforeSync>> DoorState → TerrainWorld.SetDoorState }
+    class EntityCreation { <<existing pack>> TerrainObjectSystems NEW · Unserviceable() names a missing one }
+    class TerrainWorld { <<existing, 5a>> DoorState(i) · SetDoorState(i, s) · DoorIndexOf(key) }
+    ScenarioLoadStep ..> TerrainObjectRequests
+    TerrainObjectRequests ..> EntityCreationRequest : one per door
+    TerrainObjectRequests ..> TerrainObjects : skips existing keys
+    EntityCreationRequest ..> DoorState
+    EntityCreationRequest ..> TerrainObjectKey
+    EntityDoorStateEgressTranslator ..> EntityDoorState
+    EntityDoorStateIngressTranslator ..> EntityDoorState
+    EntityDoorStateIngressTranslator ..> DoorState
+    EntityCreation *-- DoorStateMirrorSystem
+    DoorStateMirrorSystem ..> TerrainWorld
+```
+*What it shows that prose hid:* the key → runtime-id map of §3b K3 is **not a table** — it is the set of entities carrying
+`TerrainObjectKey`; and nothing on a node writes `TerrainWorld` door state except the one mirror.
+
+```mermaid
+sequenceDiagram
+    participant L as ScenarioLoadStep (Brain)
+    participant C as Create/Spawn (Brain)
+    participant E as Egress (owner)
+    participant I as Ingress (other node)
+    participant M as DoorStateMirror (every node)
+    participant T as TerrainWorld (every node)
+    L->>C: scenario requests, then one Door request per terrain door (key order, ids 1000+n)
+    C->>C: spawn: DoorState + TerrainObjectKey + SimTransform, ScenarioIgnoreTag (IsTransient)
+    M->>T: SetDoorState(DoorIndexOf(key), state)
+    E->>I: EntityDoorState {id, state, key} — TransientLocal, on change
+    I->>I: ghost (unknown id) + DoorState + TerrainObjectKey
+    M->>T: SetDoorState on the replica's terrain
+    Note over E,I: 5d door commands change DoorState on the owner, and this path carries it everywhere
+```
+
+```mermaid
+graph TD
+    Pack["EntityCreationPack.Build (shared)"] -->|builds| Mirror["DoorStateMirrorSystem"]
+    SimHost["SimHostNodeBootstrapper"] -->|RegisterGlobalSystem, every frame| Mirror
+    CGF["CgfSubsystem"] -->|RegisterGlobalSystem, every frame| Mirror
+    Editor["EditorSubsystem (offline)"] -->|RegisterGlobalSystem, every frame| Mirror
+    IG["IgNodeBootstrapper"] -->|RegisterGlobalSystem, every frame| Mirror
+    Stride["StrideNodeBootstrapper"] -->|RegisterGlobalSystem, every frame| Mirror
+    Shared["SharedTranslatorPack (Brain/Muscle)"] -->|egress + ingress| Wire["EntityDoorState"]
+    IgPack["EntityStatesIngressPack (pure IG)"] -->|ingress| Wire
+    Load["ScenarioLoadStep — Brain role only"] -->|creates doors| Pack
+```
+*What it shows:* the mirror is reached on **every** host — online or offline — through the one pack, and a host that forgets
+it is named by `EntityCreation.Unserviceable()` (rail `EveryRoot_SchedulesTheTerrainObjectSystems`); only the Brain creates
+doors, every other node receives them.
+
+| 5b as built | |
+|---|---|
+| ids (§3b K1/K3) | `TerrainObjectRequests.ForDoors` pre-allocates from the step's allocator — the cluster's one authority — in ordinal key order, AFTER the scenario's own requests ⇒ deterministic for a given scenario + terrain |
+| not saved (K5) | `IsTransient` ⇒ the spawning node stamps `ScenarioIgnoreTag`; replicas are not primary owners, so no node saves a door entity. Both new components are also `NoScenario` |
+| new scenario | doors are created for a NEW scenario too (the terrain has doors whether or not there are units) |
+| ownership | `dtDoorState` is in no group ⇒ the creator keeps it (creator's remainder); `RegisterMapping(dtDoorState → DoorState)` lets 5d move the write with the descriptor |
+| ⚠ deviation from §3b K3 | no separate `TerrainObjectMap` class: the map IS the `TerrainObjectKey` entities (`TerrainObjects.Find`) — a second table would be a second representation of one fact. 5e's `TerrainObjectRef` resolves through it |
+| ⚠ known limit | several Brain nodes (R-162) each running the load step would each create the doors — the same exposure the scenario's own entities have today; the `ExistingKeys` skip only covers a re-commit on one node |
+| visible effect | a door entity has `SimTransform` + `NetworkIdentity`, so the map draws its pick box (a door is selectable — the hook for 5d's commands); no symbol, no palette entry (bare template) |
+| rails | `TerrainWorldTests.Stage5b_*` (mirror) · `ScenarioLoadStepTests.Stage5b_*` (creation, order, ids, no doubling) · `EntityDoorStateTranslatorTests` (wire round trip into the other node's terrain) · `EntityCreationPackRails.EveryRoot_SchedulesTheTerrainObjectSystems` / `Build_AlwaysHasTheDoorMirror_OfflineToo` |
 
 ## 4. Change map — what each consumer must do
 

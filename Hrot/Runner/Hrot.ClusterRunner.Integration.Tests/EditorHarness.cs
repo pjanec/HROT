@@ -299,6 +299,7 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterGlobalSystem(EntityCreation.RequestSystem);       // CE-515 ③ — as EditorSubsystem schedules them
         Kernel.RegisterGlobalSystem(EntityCreation.FinalizationSystem);
+        foreach (var sys in EntityCreation.TerrainObjectSystems) Kernel.RegisterGlobalSystem(sys);   // ⭐ Stage 5b — as EditorSubsystem
         Kernel.RegisterModule(Hrot.SimHost.Modules.EqsModule.ForTerrainHost(Repo));   // CE-3038 — vision rides in the EQS module
         // ⭐ CE-493: CE-221 (2026-09-07) moved EqsResultUpdateSystem and UnitHierarchySystem out of the role packs into
         //   node capabilities. This harness wires the packs by hand, so it must install them as every production host does

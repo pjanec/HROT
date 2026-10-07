@@ -219,3 +219,15 @@ source of truth — entries POINT to them.
 - **Why it matters to you:** on a cluster SimHost, `StanceIntent` arrives only with your **`CE-2121` slice ② (the stance wire)** — once that lands,
   posture changes sight and fire on SimHost with no further backend change. Nothing to do on your side beyond what ② already plans.
 - **Also landed (FYI):** `CE-3101` — bullets now carry from the MUZZLE (the raycast latency is three ticks, not one); shot records `GET /combat/shots`.
+
+### 2026-10-07 · backend → ui/behaviors · FYI: doors are entities now (buildings Stage 5b, CE-3104)
+
+- **What changed:** the scenario load step (Brain) creates one **door entity** per terrain door — TKB `Door` = 8805, components
+  `DoorState` (337, replicated as `EntityDoorState`, `dtDoorState` = 120) and `TerrainObjectKey` (338, `"<terrain>/<building>/<doorId>"`).
+  `DoorStateMirrorSystem` (built by `EntityCreationPack`, scheduled by every host) writes the entity's state into each node's
+  `TerrainWorld`, so sight and fire follow it everywhere. `GET /doors` now names each door's `runtimeId` and `entityState`.
+  📄 [`DESIGN_Building_Interiors.md`](../../DESIGN_Building_Interiors.md) §3j "5b as built".
+- **ui:** a door entity has `SimTransform` + `NetworkIdentity`, so the map draws its pick box (no symbol, no palette entry). Only terrains
+  with doors produce them (`bt-range` today; `test-town` has none). Selecting one is the natural hook for door commands later.
+- **behaviors:** 5d (door commands — `OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) will change `DoorState` on the door's owner; the
+  replication path above already carries it everywhere. The behaviour nodes stay yours (§3a); nothing to do until 5d's design lands.

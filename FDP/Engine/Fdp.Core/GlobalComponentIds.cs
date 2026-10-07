@@ -672,5 +672,12 @@
         /// <summary><c>UnderFire</c> — when a unit was last hit or nearly missed (<c>AQ85</c> E, R-216): suppression spoils its aim.
         /// Muscle-local.</summary>
         public const int UnderFire = 336;
+
+        /// <summary><c>DoorState</c> — a door entity's live state, replicated (buildings Stage 5b, 📄 docs/DESIGN_Building_Interiors.md
+        /// §3j). 337/338 free by a census of backend, behaviors and ui, <c>2026-10-07</c> — <c>R-44</c>.</summary>
+        public const int DoorState = 337;
+
+        /// <summary><c>TerrainObjectKey</c> — the terrain-provided string key of the object an entity stands for (§3b K2).</summary>
+        public const int TerrainObjectKey = 338;
     }
 }

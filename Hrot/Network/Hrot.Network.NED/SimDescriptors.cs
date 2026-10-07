@@ -61,6 +61,26 @@ namespace Hrot.NED.Descriptors
         public float Max;
     }
 
+    // ⭐ Buildings Stage 5b — a terrain DOOR's live state, published by the door's owner, applied on every other node, and mirrored
+    //   into each node's TerrainWorld (sight, fire, the 5c path filter). 📄 docs/DESIGN_Building_Interiors.md §3a, §3j.
+    //   ⭐ The KEY rides along: it is static, but a replica needs it to know WHICH terrain door the entity stands for (§3b K2 — a
+    //   string, never a number). TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every door's current state.
+    [DdsTopic("EntityDoorState")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsManaged]
+    public partial struct EntityDoorState
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>TerrainDoorState</c>: 0 Open · 1 Closed · 2 Locked · 3 Destroyed.</summary>
+        public byte State;
+
+        /// <summary>The terrain-object key, <c>"&lt;terrain&gt;/&lt;building&gt;/&lt;doorId&gt;"</c>.</summary>
+        public string Key;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,

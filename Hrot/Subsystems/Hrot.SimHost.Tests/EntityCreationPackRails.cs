@@ -280,7 +280,7 @@ namespace Hrot.SimHost.Tests
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
                 creation.PromotionSystem,
-            }));
+            }.Concat(creation.TerrainObjectSystems)));   // ⭐ Stage 5b — the door mirror joined, deliberately
 
             var missingRequest = creation.Unserviceable(new object[]
             {
@@ -293,6 +293,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("SpawnSystem", missingAll);
             Assert.Contains("FinalizationSystem", missingAll);
             Assert.Contains("PromotionSystem", missingAll);
+            Assert.Contains("DoorStateMirrorSystem", missingAll);   // ⭐ Stage 5b
         }
 
         /// <summary>
@@ -459,7 +460,7 @@ namespace Hrot.SimHost.Tests
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
                 creation.PromotionSystem,
-            }));
+            }.Concat(creation.TerrainObjectSystems)));   // ⭐ Stage 5b — the door mirror joined, deliberately
         }
 
         /// <summary>
@@ -579,6 +580,33 @@ namespace Hrot.SimHost.Tests
             });
             Assert.Contains("NetworkPollingSystem", missing);
             Assert.Contains("DeleteEntityRequestSystem", missing);
+        }
+
+        /// <summary>
+        /// ⭐ Buildings Stage 5b — the door mirror is built by the pack and scheduled by EVERY composition root, online or offline
+        /// (📄 docs/DESIGN_Building_Interiors.md §3j). ⛔ A root without it keeps every door at its terrain default while the door's
+        /// owner has opened or locked it — silently, which is why the pack reports it and this rail reads each root.
+        /// </summary>
+        [Theory]
+        [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs")]
+        public void EveryRoot_SchedulesTheTerrainObjectSystems(string rootPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            Assert.True(src.Contains("in creation.TerrainObjectSystems"), $"{rootPath} does not schedule creation.TerrainObjectSystems.");
+            Assert.True(src.Contains("Concat(creation.TerrainObjectSystems)"), $"{rootPath} does not report them through Unserviceable.");
+            Assert.False(src.Contains("new Fdp.Toolkit.Terrain.DoorStateMirrorSystem") || src.Contains("new DoorStateMirrorSystem"),
+                $"{rootPath} builds its own door mirror — the pack builds it (R-174).");
+        }
+
+        [Fact]
+        public void Build_AlwaysHasTheDoorMirror_OfflineToo()
+        {
+            var creation = EntityCreationPack.Build(MinimalContext(out _));
+            Assert.Single(creation.TerrainObjectSystems.OfType<Fdp.Toolkit.Terrain.DoorStateMirrorSystem>());
         }
 
         /// <summary>

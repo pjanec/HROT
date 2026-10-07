@@ -64,6 +64,8 @@ namespace Hrot.NED.Descriptors
         //    Side-buffer pair (queue spec + queue progress)
         dtAnimationMontageQueue       = 106, // Brain → Muscle: AnimationMontageQueue (DD-2 §4)
         dtAnimationMontageQueueState  = 107, // Muscle → Brain: queue-state           (DD-2 §4.3)
+        // ⭐ Buildings Stage 5b — a terrain door's live state (owner → every node). 📄 docs/DESIGN_Building_Interiors.md §3j
+        dtDoorState                   = 120,
         // etc., all known descriptor types here
     }
 

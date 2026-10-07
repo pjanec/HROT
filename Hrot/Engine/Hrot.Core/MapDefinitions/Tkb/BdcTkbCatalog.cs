@@ -263,6 +263,11 @@ namespace Hrot.Map.Definitions.Tkb
             var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
             tkbDb.Register(routeTemplate);
+
+            // ⭐ Buildings Stage 5b — a terrain door (📄 docs/DESIGN_Building_Interiors.md §3j). A bare template like the two above:
+            //   its state (DoorState) and key (TerrainObjectKey) arrive with the creation request on the creator and through the
+            //   EntityDoorState descriptor everywhere else — nothing for a TKB translator to inject.
+            tkbDb.Register(new TkbTemplate("Door", TkbEntityTypes.Door));
         }
     }
 }

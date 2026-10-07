@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.Numerics;
 using Fbt;
@@ -251,6 +252,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// nothing to do is the honest outcome; silencing the assertion would not be.</para>
         /// </summary>
         private readonly Fdp.Toolkit.Replication.Systems.GhostPromotionSystem _promotionSystem;
+        private readonly System.Collections.Generic.IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _terrainObjectSystems;
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
@@ -362,13 +364,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _spawnSystem        = creation.SpawnSystem;
             _finalizationSystem = creation.FinalizationSystem;
             _promotionSystem    = creation.PromotionSystem;
+            _terrainObjectSystems = creation.TerrainObjectSystems;
             Translators         = creation.Translators;
 
             // The pack builds every piece; this harness schedules all three below in Tick(), so
             // nothing may be unserviceable. Asserting here rather than logging keeps the harness
             // honest about the thing it now exists to prove.
             var unserviceable = creation.Unserviceable(new object[]
-                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem });
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem }.Concat(_terrainObjectSystems));
             if (unserviceable.Length > 0)
                 throw new InvalidOperationException(
                     "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
@@ -814,6 +817,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 //    arrive), but scheduled so Unserviceable() stays satisfied rather than silenced.
                 _promotionSystem.Execute(view, dt);
                 cmdBuf.Playback(_world);
+
+                // ⭐ Buildings Stage 5b — the terrain-object systems (door state → the resident terrain), BeforeSync like production.
+                foreach (var sys in _terrainObjectSystems) sys.Execute(view, dt);
 
                 // Sub-swap B: ConstructionOrder moves to read buffer so
                 // BlueprintApplicationSystem can apply the TKB template.

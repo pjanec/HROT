@@ -1057,6 +1057,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
         //    true by construction for all three rather than two.
         _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
+        // ⭐ Buildings Stage 5b — the terrain-object systems (door state → the resident terrain), on every host. 📄 DESIGN_Building_Interiors.md §3j
+        foreach (var sys in creation.TerrainObjectSystems)
+            _context.Kernel.RegisterGlobalSystem(sys);
 
         // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
         //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
@@ -1064,7 +1067,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
             creation.PromotionSystem,
-        }.Concat(creation.NetworkSystems));
+        }.Concat(creation.NetworkSystems).Concat(creation.TerrainObjectSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
 

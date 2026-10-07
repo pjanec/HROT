@@ -92,6 +92,9 @@ public static class NedOwnershipGroupBinding
         // components, so without this OwnershipIngressSystem on the Brain would not clear NavigationStatus authority
         // when a Muscle takes dtNavigationStatus.
         map.RegisterMapping((long)EDescriptorType.dtNavigationStatus, NavigationContractsComponentIds.NavigationStatus);
+        // ⭐ Buildings Stage 5b — no group: the door's creator keeps it (the creator's remainder). The mapping lets a transfer
+        //   (5d door commands) move the DoorState write with the descriptor. 📄 docs/DESIGN_Building_Interiors.md §3j.
+        map.RegisterMapping((long)EDescriptorType.dtDoorState, GlobalComponentIds.DoorState);
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

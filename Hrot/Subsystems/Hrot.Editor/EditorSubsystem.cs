@@ -1745,6 +1745,9 @@ namespace Hrot.Editor
             //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
             //   that skipped it would warn forever through Unserviceable().
             _kernel.RegisterGlobalSystem(creation.PromotionSystem);
+            // ⭐ Buildings Stage 5b — the terrain-object systems (door state → the resident terrain), on every host. 📄 DESIGN_Building_Interiors.md §3j
+            foreach (var sys in creation.TerrainObjectSystems)
+                _kernel.RegisterGlobalSystem(sys);
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
@@ -1752,7 +1755,7 @@ namespace Hrot.Editor
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
                 creation.PromotionSystem,
-            });
+            }.Concat(creation.TerrainObjectSystems));
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));

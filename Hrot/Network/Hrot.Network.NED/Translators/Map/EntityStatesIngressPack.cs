@@ -55,6 +55,7 @@ public class EntityStatesIngressPack : IEcsModule
             new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId),
             new MapRouteIngressTranslator(participant, entityMap, geoTransform),
             new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),
+            new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),   // ⭐ Stage 5b — doors
         };
     }
 

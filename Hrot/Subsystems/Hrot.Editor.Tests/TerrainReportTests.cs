@@ -93,6 +93,24 @@ namespace Hrot.Editor.Tests
         }
 
         [Fact]
+        public void Doors_Stage5b_NameTheDoorEntity_AndItsReplicatedState()
+        {
+            using var repo = Repo();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1007L));
+            repo.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H/front" });
+
+            var door = Assert.Single((JsonArray)TerrainReport.Doors(repo)["doors"]!)!;
+            Assert.Equal(1007L, (long)door["runtimeId"]!);
+            Assert.Equal("Open", (string?)door["entityState"]);
+            Assert.Equal("Locked", (string?)door["state"]);   // the terrain until the mirror runs (DoorStateMirrorSystem)
+        }
+
+        [Fact]
         public void NoResidentTerrain_SaysSo_RatherThanAnEmptyAnswer()
         {
             using var repo = Repo(withTerrain: false);

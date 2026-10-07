@@ -518,6 +518,49 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.DoesNotContain(w.Prisms, p => p.Label == "range/H/front");   // the navmesh (and SurfaceZ) read Prisms only
         }
 
+        /// <summary>
+        /// ⭐ Stage 5b — the door ENTITY's replicated state reaches the terrain through <see cref="DoorStateMirrorSystem"/>: the
+        /// terrain's own initial value until the entity says otherwise, then the entity's, on every change; a new terrain (a commit
+        /// swaps the singleton) is re-indexed. 📄 docs/DESIGN_Building_Interiors.md §3j.
+        /// </summary>
+        [Fact]
+        public void Stage5b_TheDoorEntitysState_IsMirroredIntoTheTerrain_AndFollowsEveryChange()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<DoorState>();
+            repo.RegisterManagedComponent<TerrainObjectKey>();
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            repo.SetSingletonManaged(w);
+            int door = w.DoorIndexOf("range/H/front");
+            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);
+
+            var mirror = new DoorStateMirrorSystem();
+            mirror.Execute(repo, 0f);
+            Assert.Equal(TerrainDoorState.Closed, w.DoorState(door));   // no door entity yet: the terrain's own state stands
+            Assert.Equal(0, mirror.Writes);
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            mirror.Execute(repo, 0f);
+            Assert.Equal(TerrainDoorState.Open, w.DoorState(door));
+            Assert.False(w.SegmentBlocked(from, to));
+
+            repo.SetComponent(e, new DoorState { State = TerrainDoorState.Locked });
+            mirror.Execute(repo, 0f);
+            Assert.True(w.SegmentBlocked(from, to));
+            mirror.Execute(repo, 0f);
+            Assert.Equal(2, mirror.Writes);                              // only changes are written
+
+            var w2 = TerrainWorldParser.Parse(OneDoorHouse, "range");   // a terrain commit swaps the singleton
+            repo.SetSingletonManaged(w2);
+            mirror.Execute(repo, 0f);
+            Assert.Equal(TerrainDoorState.Locked, w2.DoorState(w2.DoorIndexOf("range/H/front")));
+
+            Assert.Equal(e, TerrainObjects.Find(repo, "range/H/front"));
+            Assert.Equal(new[] { "range/H/front" }, TerrainObjects.ExistingKeys(repo));
+        }
+
         private static string ShippedTerrain(string name)
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);

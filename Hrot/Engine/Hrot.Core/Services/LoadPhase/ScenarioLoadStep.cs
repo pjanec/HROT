@@ -141,12 +141,26 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     /// </remarks>
     public void Commit(LoadPhaseContext context, EntityRepository? world)
     {
-        if (_pendingRequests == null || _pendingTransactionId != context.TransactionId) return;
+        // ⛔ a prepared batch of ANOTHER transaction is stale — neither it nor this transaction's doors are ours to enqueue
+        if (_pendingTransactionId != null && _pendingTransactionId != context.TransactionId) return;
 
         try
         {
-            foreach (var request in _pendingRequests)
-                _source.Enqueue(request);
+            if (_pendingRequests != null)
+                foreach (var request in _pendingRequests)
+                    _source.Enqueue(request);
+
+            // ⭐ Buildings Stage 5b — the TERRAIN's entities (its doors), right after the scenario's own, in key order, ids from the
+            //   same allocator (§3b K1/K3). ⭐ Also for a NEW scenario: the terrain has doors whether or not the scenario has units.
+            //   The terrain is resident here — TerrainLoadStep commits first. 📄 docs/DESIGN_Building_Interiors.md §3j.
+            if (world != null && world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>())
+            {
+                var terrain = world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+                if (terrain != null && terrain.Doors.Count > 0)
+                    foreach (var request in TerrainObjectRequests.ForDoors(
+                                 terrain, Fdp.Toolkit.Terrain.TerrainObjects.ExistingKeys(world), _idAllocator))
+                        _source.Enqueue(request);
+            }
         }
         finally
         {

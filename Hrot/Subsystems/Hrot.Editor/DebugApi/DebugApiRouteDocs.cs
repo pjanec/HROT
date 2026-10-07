@@ -2032,13 +2032,14 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/doors")] = new RouteDoc(
             Tool:    "list_doors",
             Group:   "N — World / coordinates",
-            Summary: "The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5).",
-            Returns: "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }",
+            Summary: "The doors the resident terrain defines, by terrain-object key, with their live state (what sight and fire see) and the door entity that stands for each (buildings Stage 5b).",
+            Returns: "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, initial, source, x, y, sillZ, building, storey, runtimeId, entityState}] }",
             Hint:    "No params. Example: list_doors({})",
             Params: new RouteParam[] { },
             Notes: new[]
             {
-                "key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist).",
+                "key = '<terrain>/<building>/<doorId>', a string — never a network id. runtimeId is the door ENTITY's network id (created by the scenario load), null before it exists.",
+                "state = the terrain's live state; entityState = the door entity's replicated DoorState. They differ only for the frame before the mirror runs.",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "see which doors of the range are locked"),

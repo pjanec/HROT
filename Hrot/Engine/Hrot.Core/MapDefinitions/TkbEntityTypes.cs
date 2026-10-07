@@ -27,6 +27,11 @@ namespace Hrot.Map.Common
         // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1.
         public const long TerrainZone = 8804;
 
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Buildings Stage 5b — a terrain DOOR as an entity: created once per terrain door
+        //    by the scenario load step, its runtime id from the one allocator, its key a TerrainObjectKey, its state a replicated
+        //    DoorState. Never in the palette (a bare template with no visual). 📄 docs/DESIGN_Building_Interiors.md §3a, §3b, §3j.
+        public const long Door = 8805;
+
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;
