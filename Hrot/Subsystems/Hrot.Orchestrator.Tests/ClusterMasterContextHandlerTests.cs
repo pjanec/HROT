@@ -160,6 +160,51 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
             "implies a LoadingLive step.");
     }
 
+    // ── ⭐ Q86 §4-G (R-215): a load resets the clock to 0; paused-or-running is a property of the load ──
+
+    /// <summary>Drives one live load through the process manager, then reports <paramref name="reached"/>; returns
+    /// how many <see cref="Fdp.Toolkit.Time.Domain.ResumeTimeIntent"/> the manager published.</summary>
+    private int ResumesAfterLiveLoad(string scenarioId, string? timeMode, Fdp.Toolkit.Orchestration.ClusterState reached)
+    {
+        SetupScenarioFiles(scenarioId);
+        using var participant = new DdsParticipant(15);
+        var bus = new FdpEventBus();
+        var handler = new GlobalContextClusterOpHandler(participant, string.Empty) { LocalTempRoot = _tempDir };
+        var gcpm = new GlobalContextProcessManager(bus, handler);
+
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
+            TimeMode      = timeMode,
+        });
+        bus.SwapBuffers();
+        gcpm.Tick();
+
+        foreach (var state in new[] { Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, reached })
+        {
+            bus.PublishManaged(new ClusterStateTransitionedEvent { NewStateId = state, SubsystemName = "Cluster" });
+            bus.SwapBuffers();
+            gcpm.Tick();
+        }
+        bus.SwapBuffers();
+        return bus.ReadManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>().Count;
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatDidNotAskToStartPaused_RunsOnceTheClusterIsLive()
+        => Assert.Equal(1, ResumesAfterLiveLoad("q86g_run", null, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive));
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatAskedToStartPaused_StaysPaused()
+        => Assert.Equal(0, ResumesAfterLiveLoad("q86g_paused", GlobalContextProcessManager.StartPausedTimeMode,
+                                                Fdp.Toolkit.Orchestration.ClusterState.OperatingLive));
+
+    [Fact(Timeout = 10_000)]
+    public void Q86G_ALiveLoad_ThatEndsAnywhereButLive_DoesNotResume()
+        => Assert.Equal(0, ResumesAfterLiveLoad("q86g_abort", null, Fdp.Toolkit.Orchestration.ClusterState.Idle));
+
     /// <summary>
     /// When no GlobalContextClusterOpHandler is registered, a TransitionState(LoadingLive)
     /// must complete without throwing.

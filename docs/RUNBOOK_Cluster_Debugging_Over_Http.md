@@ -131,6 +131,10 @@ curl -s --noproxy '*' -X POST $B/scenario/load/live \
      -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
 ```
 
+⭐ **A load resets the sim clock to 0** (`R-215`, `Q86` §4-G). Whether it then RUNS is a property of the load:
+`"startPaused"` (default **true**) keeps it paused for the `POST /sim/play` step below; `"startPaused": false` runs
+it as soon as the cluster reports `OperatingLive`.
+
 A good load answers:
 
 ```json

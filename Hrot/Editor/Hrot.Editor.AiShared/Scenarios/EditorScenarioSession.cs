@@ -160,6 +160,9 @@ public sealed class EditorScenarioSession : IScenarioSession
             TargetState   = ClusterState.OperatingLive,
             ScenarioId    = scenarioName,
             ExerciseId    = Guid.NewGuid(),
+            // ⭐ Q86 §4-G — the editor loads to a clock at 0, PAUSED (🔒 "Scenario load should reset the clock to zero
+            //   and paused"); running after a load is a property of the load, and the editor's load does not ask for it.
+            TimeMode      = "Deterministic",
         });
     }
 
