@@ -57,7 +57,9 @@ namespace Fdp.Toolkit.Tkb.Parameters
     public static class ParameterResolver
     {
         /// <summary>Every parameter of <paramref name="template"/>, in a stable order (platform, collider, sensors, mounts).</summary>
-        public static IReadOnlyList<ResolvedParameter> ResolveAll(TkbTemplate template)
+        /// <param name="db">⭐ R-217 — the database the template lives in, so a mount's loaded ammo (<see cref="WeaponMountDto.AmmoGuid"/>)
+        /// can be looked up for its launcher × ammo penetration; null ⇒ the mount's own value is reported.</param>
+        public static IReadOnlyList<ResolvedParameter> ResolveAll(TkbTemplate template, ITkbDatabase? db = null)
         {
             if (template == null) throw new ArgumentNullException(nameof(template));
             var list = new List<ResolvedParameter>
@@ -77,7 +79,7 @@ namespace Fdp.Toolkit.Tkb.Parameters
                 {
                     list.Add(MuzzleVelocity(template, i));
                     list.Add(DamagePerHit(template, i));
-                    list.Add(Penetration(template, i));
+                    list.Add(Penetration(template, i, db));
                     list.Add(MountRange(template, i));
                     list.Add(Dispersion(template, i));
                 }
@@ -178,16 +180,47 @@ namespace Fdp.Toolkit.Tkb.Parameters
                 : Fallback(name, EngineFallbacks.BulletDamage, nameof(EngineFallbacks.BulletDamage));
         }
 
-        /// <summary><c>Weapon[i].Penetration</c> (mm RHA) — 0 means no armour model: the hit does flat damage
-        /// (<c>ArmorModel</c>).</summary>
-        public static ResolvedParameter Penetration(TkbTemplate t, int mount)
+        /// <summary>
+        /// <c>Weapon[i].Penetration</c> (mm RHA) — 0 means no armour model: the hit does flat damage (<c>ArmorModel</c>).
+        /// ⭐ Buildings §3d P1 (R-217): the <see cref="MountPenetration"/> lookup — the launcher × ammo pair first.
+        /// </summary>
+        public static ResolvedParameter Penetration(TkbTemplate t, int mount, ITkbDatabase? db = null)
         {
             var name = ParameterNames.Mount(mount, ParameterNames.Penetration);
             var m = Mount(t, mount);
             if (m == null) return NotApplicable(name, "no such mount");
-            return m.Penetration > 0f
-                ? Stated(t, name, m.Penetration, $"WeaponSuiteDto.Mounts[{mount}].Penetration")
+            var (value, source, fromPair) = MountPenetration(db, m);
+            if (fromPair) return new(name, value, ParameterProvenance.Explicit, source);
+            return value > 0f
+                ? Stated(t, name, value, $"WeaponSuiteDto.Mounts[{mount}].Penetration")
                 : new(name, 0f, ParameterProvenance.EngineFallback, "0 = no armour model (flat damage per hit)");
+        }
+
+        /// <summary>
+        /// ⭐⭐ Buildings §3d P1 (R-217) — THE penetration lookup of a mount's round, used by the fire chain
+        /// (<c>FireProcessingSystem</c>) AND reported by <see cref="Penetration"/>, so the two cannot disagree:
+        /// <b>(loaded ammo, this weapon) → (loaded ammo, generic <c>WeaponGuid 0</c>) → the mount's own
+        /// <see cref="WeaponMountDto.Penetration"/> (<c>CE-3071</c>) → 0 = unknown</b>. The pair is the ammo type's
+        /// <see cref="AmmoWeaponBallisticsDto"/> profiles (one per weapon, by part id); a profile whose
+        /// <see cref="AmmoWeaponBallisticsDto.PenetrationMm"/> is 0 states nothing and the lookup moves on.
+        /// </summary>
+        /// <returns>The value, the field it came from, and whether it came from the ammo × weapon pair.</returns>
+        public static (float Value, string Source, bool FromPair) MountPenetration(ITkbDatabase? db, WeaponMountDto mount)
+        {
+            if (db != null && mount.AmmoGuid != 0 && db.TryGetByType(unchecked((long)mount.AmmoGuid), out var ammo) && ammo != null)
+            {
+                AmmoWeaponBallisticsDto? generic = null; int genericPart = 0;
+                foreach (var (type, part, data) in ammo.GetAllDescriptors())
+                {
+                    if (type != typeof(AmmoWeaponBallisticsDto) || data is not AmmoWeaponBallisticsDto b || b.PenetrationMm <= 0f) continue;
+                    if (b.WeaponGuid != 0 && unchecked((ulong)b.WeaponGuid) == mount.WeaponGuid)
+                        return (b.PenetrationMm, $"{ammo.Name}: Gen.AmmoWeaponBallistics#{part}.PenetrationMm (this weapon)", true);
+                    if (b.WeaponGuid == 0 && generic == null) { generic = b; genericPart = part; }
+                }
+                if (generic != null)
+                    return (generic.PenetrationMm, $"{ammo.Name}: Gen.AmmoWeaponBallistics#{genericPart}.PenetrationMm (generic)", true);
+            }
+            return (mount.Penetration > 0f ? mount.Penetration : 0f, "WeaponSuiteDto.Mounts[].Penetration", false);
         }
 
         /// <summary><c>Weapon[i].Range</c> (m) — 0 = not declared.</summary>

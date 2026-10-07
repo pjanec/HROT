@@ -332,6 +332,94 @@ namespace Fdp.Toolkit.Terrain
             return new TraceResult(transmittance, crossed);
         }
 
+        /// <summary>⭐ §3d P2 — the thickness (m) a floor slab or stair ramp presents to a round, of the default material (concrete):
+        /// a walkable is a surface with no thickness of its own. 0.2 m of concrete = 300 mm RHA with the starter table.</summary>
+        public const float SlabThicknessMetres = 0.2f;
+
+        /// <summary>
+        /// One piece a FIRE trace crossed: where the round enters it (<see cref="T"/>, 0..1 along the segment), the length of its
+        /// path inside (m), and the ballistic resistance that path presents (mm RHA = the material's per-metre value × the path).
+        /// </summary>
+        public readonly record struct FireCrossing(float T, float PathMetres, float ResistanceMmRha, string Kind, string? Label,
+            string Material, string? Building, int Storey);
+
+        /// <summary>
+        /// ⭐⭐ Buildings §3d P2 (R-217) — the FIRE purpose of the one terrain query (§3a "one query, a solver per purpose"): every
+        /// solid piece the segment passes within its height, with the length of the path INSIDE it (so a wall crossed obliquely
+        /// resists more than its thickness — the same rule as armour), and every slab/ramp it passes through as
+        /// <see cref="SlabThicknessMetres"/> of the default material. A piece with no material is the default material
+        /// (concrete — a solid building stops any round). Ordered along the line. ⛔ The ground is not an occluder (flat ground;
+        /// a shot line never dips below it between two points above it). What a round DOES with this is the combat rule
+        /// (<c>TerrainPenetration</c>), not the terrain's.
+        /// </summary>
+        public IReadOnlyList<FireCrossing> QueryFire(Vector3 from, Vector3 to)
+        {
+            var list = new List<FireCrossing>();
+            QueryFire(from, to, list);
+            return list;
+        }
+
+        /// <inheritdoc cref="QueryFire(Vector3, Vector3)"/>
+        /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
+        public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into)
+        {
+            into.Clear();
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+            float length = Vector3.Distance(from, to);
+            if (length <= 0f) return;
+            float dz = to.Z - from.Z;
+            Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
+            float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
+
+            foreach (var prism in Prisms)
+            {
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                {
+                    // the part of [t0, t1] where the line is also within the piece's height
+                    float lo = t0, hi = t1;
+                    if (MathF.Abs(dz) < 1e-6f)
+                    {
+                        if (!(from.Z > prism.BaseZ && from.Z < prism.TopZ)) continue;
+                    }
+                    else
+                    {
+                        float ta = (prism.BaseZ - from.Z) / dz, tb = (prism.TopZ - from.Z) / dz;
+                        lo = MathF.Max(lo, MathF.Min(ta, tb));
+                        hi = MathF.Min(hi, MathF.Max(ta, tb));
+                    }
+                    if (hi <= lo) continue;
+                    var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
+                    string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
+                    float path = (hi - lo) * length;
+                    float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
+                    into.Add(new FireCrossing(lo, path, perMetre * path, panel != null ? "panel" : "prism", prism.Label,
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1));
+                }
+            }
+
+            foreach (var w in Walkables)
+            {
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    var p0 = w.Vertices[w.Triangles[t]]; var p1 = w.Vertices[w.Triangles[t + 1]]; var p2 = w.Vertices[w.Triangles[t + 2]];
+                    if (!PolygonMath.SegmentCrossesTriangle(from, to, p0, p1, p2)) continue;
+                    var n = Vector3.Cross(p1 - p0, p2 - p0);
+                    float denom = Vector3.Dot(n, to - from);
+                    float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom;
+                    into.Add(new FireCrossing(along, SlabThicknessMetres, fallbackPerMetre * SlabThicknessMetres,
+                        w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1));
+                    break;
+                }
+            }
+
+            into.Sort((x, y) => x.T.CompareTo(y.T));
+        }
+
         /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
         public TerrainSurfaceType SurfaceTypeAt(float x, float y)
         {

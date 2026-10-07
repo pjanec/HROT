@@ -79,5 +79,21 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>⭐ <c>CE-3071</c> — armour penetration of the fired mount's round, mm RHA (0 = unknown munition).</summary>
         public float Penetration;
+
+        /// <summary>
+        /// ⭐ Buildings §3d P2 (R-217) — what the round carries at the FAR end of the segment <c>BallisticsSystem</c> last submitted,
+        /// after the terrain it crossed (<see cref="TerrainPenetration"/>). ⚠ Held, not applied, until the NEXT pass: the segment's
+        /// raycast resolves next tick, and a unit struck BEFORE a wall on that segment must take the damage the round had before
+        /// the wall — <c>HitResolutionSystem</c> re-carries the round from the segment's start to the hit point with
+        /// <see cref="Damage"/>/<see cref="Penetration"/> as they still are.
+        /// </summary>
+        public float NextDamage;
+
+        /// <inheritdoc cref="NextDamage"/>
+        public float NextPenetration;
+
+        /// <summary>⭐ R-217 — 0 = nothing held · 1 = <see cref="NextDamage"/>/<see cref="NextPenetration"/> held · 2 = held AND the round
+        /// stopped in the terrain at the end of its last segment (the next pass destroys it).</summary>
+        public byte TerrainState;
     }
 }

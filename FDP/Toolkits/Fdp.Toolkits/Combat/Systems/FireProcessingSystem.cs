@@ -106,6 +106,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
                 var targetPos   = repo.GetComponent<SimTransform>(target).Position;
+                // ⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: from the shooter's eye to
+                //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
+                //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
+                //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
+                shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
+                targetPos.Z  += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, HitModel.LogicalStance(repo, target),
+                    Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Height(repo, target));
 
                 // Compute normalised direction from shooter toward target.
                 var delta     = targetPos - shooterPos;
@@ -159,7 +166,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
                     Damage           = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f),
-                    Penetration      = mount != null && mount.DamagePerHit > 0f ? mount.Penetration : 0f,
+                    Penetration      = mount != null && mount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, mount) : 0f,   // ⭐ R-217 P1 — the ammo × weapon pair first
                     SpawnTick        = currentTick,
                 });
 

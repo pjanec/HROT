@@ -449,7 +449,32 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.Equal(w.QuerySight(eye, to).Transmittance < TerrainWorld.SightThreshold, w.SegmentBlocked(eye, to));
         }
 
-        // ── the shipped terrains ─────────────────────────────────────────────────────────────────────────────
+        // ── ⭐ Stage 3, FIRE half (§3d P2, R-217) ───────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void Stage3Fire_QueryFire_ResistanceIsMaterialTimesThePathInside_ObliqueResistsMore_OverTheTopNothing_ASlabCounts()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "thickness": 0.2, "material": "concrete" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[40,10]] } },
+              { "type": "Feature", "properties": { "kind": "slab" }, "geometry": { "type": "Polygon", "coordinates": [[[0,20,3],[10,20,3],[10,30,3],[0,30,3],[0,20,3]]] } } ] }
+            """);
+            var straight = Assert.Single(w.QueryFire(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f)));
+            Assert.Equal("concrete", straight.Material);
+            Assert.Equal(0.2f, straight.PathMetres, 3);
+            Assert.Equal(300f, straight.ResistanceMmRha, 1);                              // 1500 mm/m × 0.2 m
+            Assert.Equal(9.9f / 15f, straight.T, 3);                                     // enters at y = 9.9
+
+            var oblique = Assert.Single(w.QueryFire(new Vector3(0, 0, 1.6f), new Vector3(20, 20, 1.6f)));
+            Assert.Equal(0.2f * MathF.Sqrt(2f), oblique.PathMetres, 3);                  // 45° — the path, not the thickness
+
+            Assert.Empty(w.QueryFire(new Vector3(5, 0, 2.5f), new Vector3(5, 15, 2.5f))); // over the 2 m wall
+
+            var slab = Assert.Single(w.QueryFire(new Vector3(5, 25, 5f), new Vector3(5, 25, 1f)));
+            Assert.Equal("slab", slab.Kind);
+            Assert.Equal(1500f * TerrainWorld.SlabThicknessMetres, slab.ResistanceMmRha, 1);
+            Assert.Equal(0.5f, slab.T, 3);
+        }
 
         private static string ShippedTerrain(string name)
         {

@@ -200,3 +200,13 @@ source of truth — entries POINT to them.
   items; backend did the materials colouring and building labels in `TerrainWorldGizmo`. If you would rather own the storey
   selector (it is map interaction), say so here; otherwise backend picks it up after Stage 3.
 - **DO (ui):** nothing required.
+
+### 2026-10-07 · backend → ui/behaviors · FYI: AQ85 hit chance and §3d penetration landed (CE-3096, CE-3098)
+
+- **What changed for everyone:** a shot now flies from the shooter's EYE to the middle of the target's silhouette (the sight
+  rule, logical stance) instead of feet to feet, and bullets meet the terrain — walls/fences/floors resist by the armour rule
+  (`R-217`, [`DESIGN_Building_Interiors.md`](../../DESIGN_Building_Interiors.md) §3h). A target you can see over a low wall you can
+  also hit over it; a target behind concrete you cannot.
+- **TKB:** `WeaponMountDto.AmmoGuid` and `AmmoWeaponBallisticsDto.PenetrationMm` exist; no catalog declares ammo types yet.
+- **Diagnostics:** `GET /terrain/query?purpose=fire&penetration=&damage=` (MCP `query_terrain`).
+- **DO (ui/behaviors):** nothing.

@@ -47,5 +47,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         [EditUnit("mils")]
         public float DispersionMils { get; init; }
+
+        /// <summary>
+        /// ⭐ Buildings §3d P1b (R-217) — the TKB GUID of the AMMUNITION type loaded in this mount (one of the weapon's supported
+        /// ammo). With it, the round's penetration comes from the launcher × ammo pair (<see cref="AmmoWeaponBallisticsDto"/>);
+        /// <b>0 = not declared</b> ⇒ this mount's own <see cref="Penetration"/> applies, as before. Ammo switching is later.
+        /// </summary>
+        [AmmoRef]
+        public ulong AmmoGuid { get; init; }
     }
 }

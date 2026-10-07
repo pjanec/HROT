@@ -145,20 +145,31 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         /// <summary>The height of the entity's eye above its Z for its current posture.</summary>
         public float EyeHeight(ISimulationView view, Entity e)
-        {
-            var mount = view.HasComponent<SensorMount>(e) ? view.GetComponentRO<SensorMount>(e) : DefaultMount;
-            return mount.For(_stance?.Invoke(view, e) ?? StanceId.Standing);
-        }
+            => EyeHeightFor(view, e, _stance?.Invoke(view, e) ?? StanceId.Standing);
 
         /// <summary>
         /// The point on the target the line aims at: half its collider height when it has one (a vehicle), else
         /// half its eye height for its posture (a prone soldier presents a prone silhouette).
         /// </summary>
         public float AimHeight(ISimulationView view, Entity e)
+            => AimHeightFor(view, e, _stance?.Invoke(view, e) ?? StanceId.Standing, _height?.Invoke(view, e) ?? 0f);
+
+        /// <summary>
+        /// ⭐ THE eye-height rule for <paramref name="stance"/> — the <see cref="SensorMount"/>, else <see cref="DefaultMount"/>.
+        /// ⭐ Buildings §3d P2 (R-217): the fire chain raises the shot's muzzle by the SAME rule (§3f — one profile for being seen
+        /// and being shot), so a target the shooter sees over a low wall is a target its round clears the wall to.
+        /// </summary>
+        public static float EyeHeightFor(ISimulationView view, Entity e, StanceId stance)
         {
-            float h = _height?.Invoke(view, e) ?? 0f;
-            return h > 0f ? h * 0.5f : EyeHeight(view, e) * 0.5f;
+            bool registered = view is not EntityRepository repo || repo.IsComponentTypeRegistered<SensorMount>();   // a combat-only world may not register it
+            var mount = registered && view.HasComponent<SensorMount>(e) ? view.GetComponentRO<SensorMount>(e) : DefaultMount;
+            return mount.For(stance);
         }
+
+        /// <summary>⭐ THE aim-point rule: half <paramref name="colliderHeight"/> when known (&gt; 0), else half the eye height for
+        /// <paramref name="stance"/>. Shared by sight (<see cref="AimHeight"/>) and fire (R-217).</summary>
+        public static float AimHeightFor(ISimulationView view, Entity e, StanceId stance, float colliderHeight)
+            => colliderHeight > 0f ? colliderHeight * 0.5f : EyeHeightFor(view, e, stance) * 0.5f;
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
         {

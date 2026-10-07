@@ -50,5 +50,16 @@ namespace Fdp.Toolkit.Tkb.Parameters
 
         /// <summary>The runtime muzzle-velocity rule: the mount's value when stated (&gt; 0), else <see cref="MuzzleVelocity"/>.</summary>
         public static float MuzzleVelocityOrFallback(float muzzleVelocity) => muzzleVelocity > 0f ? muzzleVelocity : MuzzleVelocity;
+
+        /// <summary>
+        /// ⭐ Buildings §3d P2 (R-217) — the penetration (mm RHA) a round of UNKNOWN penetration is assumed to carry when it meets
+        /// TERRAIN (a wall, a fence, a floor). ⛔ Not used against armour: an unknown round still ignores armour
+        /// (<c>ArmorModel.HitDamage</c>). Without it an unknown round would be stopped by chain-link (any resistance &gt; 0 defeats
+        /// a 0 mm round). The value is the light rifle round the built-in catalogs declare (5 mm).
+        /// </summary>
+        public const float UnknownRoundTerrainPenetrationMm = 5f;
+
+        /// <summary>The terrain penetration rule: the round's own value when known (&gt; 0), else <see cref="UnknownRoundTerrainPenetrationMm"/>.</summary>
+        public static float TerrainPenetrationOrFallback(float penetration) => penetration > 0f ? penetration : UnknownRoundTerrainPenetrationMm;
     }
 }

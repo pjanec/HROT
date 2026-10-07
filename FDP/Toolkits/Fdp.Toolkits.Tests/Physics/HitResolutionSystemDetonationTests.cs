@@ -98,6 +98,38 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0f, det.HitZ, precision: 4);
         }
 
+        // ── ⭐ Buildings §3d P2 (R-217): the walls crossed BEFORE the struck unit, on this segment ─────────────
+
+        /// <summary>A wooden fence (0.05 m, 3 mm RHA) at x = 5 on the segment (0,0,1.6) → (10,0,1.6). A unit struck at x = 4 (before it)
+        /// takes the round as it left the muzzle; one struck at x = 8 (beyond it) takes what got through: rifle 5 mm vs 3 mm passes
+        /// with chance 1 (full damage) but arrives with 2 mm; a 2.6 mm round passes with chance 0.17 ⇒ 17 % of its damage.</summary>
+        [Theory]
+        [InlineData(0.4f, 5f,   5f,   25f)]     // before the fence
+        [InlineData(0.8f, 5f,   2f,   25f)]     // beyond: chance 1, penetration − 3
+        [InlineData(0.8f, 2.6f, 1e-3f, 4.1667f)]  // beyond: 2.6/3 = 0.867 ⇒ chance (0.867 − 0.8)/0.4 = 0.1667 ⇒ 25 × 0.1667; spent, not unknown
+        public void R217_AStruckUnit_TakesTheRoundAsItArrived_FencesBeforeItCount_FencesBehindItDoNot(float t, float pen, float expectPen, float expectDamage)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2 }, "geometry": { "type": "LineString", "coordinates": [[5,-5],[5,5]] } } ] }
+            """));
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 25f, Penetration = pen });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(0, 0, 1.6f), End = new Vector3(10, 0, 1.6f), T = t,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(expectPen, det.Penetration, 3);
+            Assert.Equal(expectDamage, det.Damage, 2);
+        }
+
         // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
 
         /// <summary>

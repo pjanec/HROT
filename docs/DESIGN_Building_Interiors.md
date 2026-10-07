@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — blast/fragment exposure by wall height and posture, §3f; defaults/tests/diagnostics → DESIGN_Terrain_Combat_Tuning.md; §3g Stage 1 as built)
-build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d leans await approval
-current-answer: §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
+current-answer: §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -330,6 +330,8 @@ the three solvers (sight, fire, sound) and the navmesh read their per-surface nu
 
 ### Decisions
 
+🔒 **APPROVED `2026-10-07` (R-217)** — user: *"Penetration model approved"*. As built: §3h.
+
 | # | decision | ⭐ lean | rejected (one line each) |
 |---|---|---|---|
 | **P1** | where penetration lives | ⭐ 🔒 *(your model)* **on the launcher × ammo pair**: add `PenetrationMm` (RHA) to the existing `AmmoWeaponBallisticsDto` beside `MuzzleSpeed` and `Damage`. Lookup: (ammo, this weapon) → (ammo, generic `WeaponGuid 0`) → the mount's `Penetration` (today's `CE-3071` value, kept as the fallback) → unknown (0) | a field on the ammo alone — the same round from a longer barrel penetrates more · a "weapon class" default — does not exist |
@@ -417,6 +419,71 @@ code change, and the ground inside an enterable building is a floor by construct
 | rails | `TerrainWorldTests.Stage1_*` (10, incl. *test-town unchanged* and *bt-range loads*) · `TerrainReportTests` (4) |
 | ✅ **Stage 2 (B-1 walk inside) — needed NO code** | measured `2026-10-07`: because doorways are already gaps between panel pieces and floors/stairs are ordinary walkables, the existing `TerrainWorldMesh` + Recast bake gives walkable ground inside the house, carves the doorway, and a path from outside **enters by the door, climbs the stair ramp and ends on storey 2** (Z ≈ 3). Rail: `RecastNavmeshFactoryTests.Stage2_*` (asserts no waypoint between floors off the stairs and none crossing the wall outside the door). ⚠ needs the upper floor split around the stairwell (headroom). ⏭ moved to Stage 5: the doorway **convex volumes** (their only purpose is the door flags) and `GET /navigation/path` |
 
+## 3h. ✅ Penetration (§3d P1/P1b/P2) as built *(backend, `2026-10-07`, R-217)*
+
+```mermaid
+classDiagram
+    direction LR
+    class AmmoWeaponBallisticsDto { <<existing TKB, Gen.AmmoWeaponBallistics#part>> WeaponGuid (0 = generic); MuzzleSpeed; Damage; PenetrationMm NEW }
+    class WeaponMountDto { <<existing>> WeaponGuid; Penetration (CE-3071); DamagePerHit; DispersionMils; AmmoGuid NEW }
+    class ParameterResolver { <<existing>> MountPenetration(db, mount) NEW — pair → generic → mount → 0; Penetration(t, i, db) reports it }
+    class CombatTkb { <<existing>> PenetrationOf(world, mount) NEW }
+    class FireProcessingSystem { <<existing>> shot line eye → aim (R-217); bullet.Penetration = PenetrationOf }
+    class TerrainWorldLosStrategy { <<existing>> EyeHeightFor / AimHeightFor NEW static — the one height rule }
+    class TerrainWorld { <<existing>> QuerySight; QueryFire NEW → FireCrossing T, path, resistance }
+    class TerrainPenetration { <<NEW, Combat>> Carry(world, from, to, ref dmg, ref pen, out stopT); Cross(resistance, ...) }
+    class ArmorModel { <<existing>> PenetrationChance — the ONE ramp }
+    class BallisticsSystem { <<existing>> carries each segment; truncates the raycast at a stop; holds Next* }
+    class BallisticProjectile { <<existing>> Damage; Penetration; NextDamage NEW; NextPenetration NEW; TerrainState NEW }
+    class HitResolutionSystem { <<existing>> re-carries Start → hit point before DetonationNotification }
+    class TerrainReport { <<Hrot.Editor DebugApi>> /terrain/query?purpose=fire NEW }
+    WeaponMountDto --> AmmoWeaponBallisticsDto : AmmoGuid → ammo type's profiles
+    ParameterResolver --> WeaponMountDto
+    CombatTkb --> ParameterResolver
+    FireProcessingSystem --> CombatTkb
+    FireProcessingSystem --> TerrainWorldLosStrategy
+    BallisticsSystem --> TerrainPenetration
+    HitResolutionSystem --> TerrainPenetration
+    TerrainReport --> TerrainPenetration
+    TerrainPenetration --> TerrainWorld
+    TerrainPenetration --> ArmorModel
+    BallisticsSystem --> BallisticProjectile
+```
+*What it shows:* one penetration ramp (`ArmorModel.PenetrationChance`) serves armour, walls, the HTTP dry run and — through
+`ParameterResolver` — the reported value; the only new runtime type is the stateless `TerrainPenetration`.
+
+```mermaid
+sequenceDiagram
+    participant B as BallisticsSystem (PostSim, tick N)
+    participant T as TerrainPenetration
+    participant R as RaycastSolverSystem (Input, N+1)
+    participant H as HitResolutionSystem (Input, N+1)
+    participant B2 as BallisticsSystem (PostSim, N+1)
+    B->>T: Carry(prev → pos, Damage, Penetration)
+    T-->>B: far-end damage and pen, stopped at t?
+    B->>B: hold Next* and TerrainState (1 held, 2 stopped)
+    B->>R: RaycastRequest(prev → pos, or → the stop point)
+    R->>H: RaycastResult(T)
+    H->>T: Carry(prev → hit point, Damage, Penetration)
+    H->>H: DetonationNotification(damage, pen as they ARRIVED)
+    B2->>B2: TearDown → destroy · state 2 → destroy · state 1 → apply Next*
+```
+*What it shows:* the far-end values are HELD for a tick because the segment's raycast resolves a tick later — a unit
+struck in front of a fence must take the round as it was before the fence; prose would hide that ordering.
+
+| item | as built — and the deviations, argued |
+|---|---|
+| P1 | `AmmoWeaponBallisticsDto.PenetrationMm`; `ParameterResolver.MountPenetration(db, mount)`: (ammo, this weapon) → (ammo, generic) → `WeaponMountDto.Penetration` → 0. A profile with `PenetrationMm` 0 states nothing. `FireProcessingSystem` reads it through `CombatTkb.PenetrationOf`; `GET /tkb/resolve` reports it with the source (`<ammo>: Gen.AmmoWeaponBallistics#1.PenetrationMm (this weapon)`). ⚠ the pair's `Damage` is NOT read yet — only penetration was approved; `DamagePerHit` stays on the mount |
+| P1b | `WeaponMountDto.AmmoGuid` (`[AmmoRef]`, 0 = not declared ⇒ the mount's own value). ⏭ no built-in catalog declares ammo types yet, so every shipped weapon still resolves to its mount value — **no re-pin** |
+| P2 | `TerrainWorld.QueryFire` (the Fire purpose of the one query): per piece the path INSIDE it, clipped to its height (a 45° crossing resists √2 × the thickness); no material ⇒ the default (concrete — a solid building stops any round); a slab/ramp = `SlabThicknessMetres` 0.2 of the default material (300 mm RHA); the ground is not an occluder. `TerrainPenetration.Cross`: chance = `PenetrationChance(round, resistance)`, damage × chance, a known round's penetration − resistance; chance ≤ 0.001 ⇒ stopped |
+| ⚠ unknown round | a round with penetration 0 meets terrain as `EngineFallbacks.UnknownRoundTerrainPenetrationMm` = 5 (the catalogs' rifle) and STAYS unknown after (still ignores armour). ⛔ without it chain-link would stop it (any resistance > 0 defeats 0 mm) |
+| ⚠ spent round | a known round reduced below 0 keeps 0.001 mm, never 0 — 0 would make it an unknown round that ignores armour |
+| ⚠ **the shot line** *(prerequisite, AQ85 §D first half)* | ⛔ before, a shot flew FEET to FEET — through terrain every low wall and window sill would have stopped a round aimed over it. ⭐ It now flies from the shooter's eye to the middle of the target's silhouette for the LOGICAL stance, by the SAME rule sight uses (`TerrainWorldLosStrategy.EyeHeightFor/AimHeightFor`, §3f "one profile for being seen and being shot"). The ENTITY hit test stays a 2-D circle — body profiles are Stage 4 |
+| timing | `BallisticsSystem` holds the far-end values (`NextDamage/NextPenetration`, `TerrainState`) and applies them at the start of its next pass; a stopped round's raycast ends at the wall face and the round is destroyed next pass. `HitResolutionSystem` re-carries the round from the segment's start to the hit point |
+| diagnostics | `GET /terrain/query?purpose=fire&penetration=&damage=` — each crossing with path, resistance, chance, passes; `stopped`, `arrivingDamage` |
+| tuning note | with the starter table a rifle (5 mm) passes chain-link, metal sheet and ONE wooden fence (3 mm at 0.05 m), and is stopped by a second fence, a hedge (16 mm at 0.8 m), brick and concrete — placeholder values (§3c), tune in `materials.json` |
+| rails | `TerrainWorldTests.Stage3Fire_*` · `BallisticsSystemTests.R217_*` (5) · `HitResolutionSystemDetonationTests.R217_*` (3) · `ParameterResolverTests.R217_*` · `FireProcessingSystemTests.R217_*` (+ three fire rails re-stated for the eye → aim line) · `TerrainReportTests` (fire) |
+
 ## 4. Change map — what each consumer must do
 
 ```mermaid
@@ -453,7 +520,7 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 | **path planning** | query filter excludes closed/locked doors; waypoints on door polygons become `TraversalKind.Door`; check `FindNearestPoly` extents against storey height | S–M |
 | **movement** | none for floors (slabs already work); stairs authored as ramps ≤ 60° for infantry; vehicles are kept out by doorway width (< 2 × 1.8 m radius) | — |
 | **sight** | `TerrainWorldLosStrategy`/`TerrainLosService` threshold transmittance; eye heights unchanged (stance runtime is `CE-3010`) | S |
-| **fire** | bullets trace terrain (AQ85 §D) — through openings, stopped by walls; penetration later | M |
+| **fire** | ✅ §3h — bullets trace terrain through openings, walls resist by the armour rule (R-217) | M |
 | **hearing** | attenuation per crossed wall/floor | S |
 | **cover / EQS** | `InsideSolid` → solid prisms only; cover points per storey along panels (inner side too); **window firing positions** (inside, facing out); stance from the opening's sill, not the building height | M |
 | **doors** | TKB `Door` type; spawn from the world file at load (terrain-object keys mapped to runtime ids, §3b; not persisted as scenario entities — their state is, §3b); replicated `DoorState`; open/close action | M |
@@ -510,9 +577,9 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 
 | change | status |
 |---|---|
-| **penetration on the launcher × ammo pair**: `PenetrationMm` on the existing (unused) `AmmoWeaponBallisticsDto`; lookup pair → generic → mount `Penetration` (`CE-3071`) → unknown | ⭐ |
-| a mount's **loaded ammo** (`AmmoGuid`); ammo switching later | ⭐ |
-| **bullets trace the terrain** (today they pass through buildings): one rule for armour and walls — `ArmorModel.PenetrationChance` per panel, chances multiply, penetration reduced by what is crossed; expected value, no dice | ⭐ (B-2, with AQ85 §D) |
+| **penetration on the launcher × ammo pair**: `PenetrationMm` on the existing `AmmoWeaponBallisticsDto`; lookup pair → generic → mount `Penetration` (`CE-3071`) → unknown | ✅ built (§3h, R-217) |
+| a mount's **loaded ammo** (`AmmoGuid`); ammo switching later | ✅ built (§3h) |
+| **bullets trace the terrain**: one rule for armour and walls — `ArmorModel.PenetrationChance` per piece, chances multiply, penetration reduced by what is crossed; expected value, no dice | ✅ built (§3h, R-217) |
 | penetration vs range table per pair (kinetic decays, shaped charge not) | 📋 later |
 | **warheads**: `WarheadDto` on the ammo's TKB type, identified by its **DIS type**; detonation carries only the munition identity; **area effect** (fragments straight, stopped per penetration; blast attenuated by walls); indirect fire impacts along its arc (mortar hits the roof) | 📋 `CE-1032` (design owed) |
 | door **Destroyed** by damage | ✅ (`DoorState`) |

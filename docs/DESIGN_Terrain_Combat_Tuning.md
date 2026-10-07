@@ -229,7 +229,7 @@ recomputes, so it cannot disagree with what happened.
 |---|---|---|
 | `GET /tkb/resolve?type=&weapon=&ammo=&material=` | every parameter with value + provenance | any node |
 | `GET /terrain/levels?x=&y=` | `SurfacesAt` levels with kind (ground/slab/roof) | any node with terrain |
-| `GET /terrain/query?from=&to=&purpose=&ammo=` | a dry-run trace: each crossed occluder (material, thickness, transmittance, resistance, chance, remaining penetration), totals | any node with terrain |
+| `GET /terrain/query?from=&to=&purpose=&ammo=` | a dry-run trace: each crossed occluder (material, thickness, transmittance, resistance, chance, remaining penetration), totals. ✅ **as built:** `purpose=sight` (Stage 1) and `purpose=fire&penetration=&damage=` (R-217 — path, resistance, chance, passes, `stopped`, `arrivingDamage`); ⚠ the round is given by its numbers, not an `ammo=` type — no catalog declares ammo types yet | any node with terrain |
 | `GET /combat/shots?last=&shooter=&target=` | shot records (above) — typed ring buffer, not the shared 500-event one | SimHost / Editor |
 | `GET /combat/detonations?last=` | per affected entity: stance used, body points, exposure per point, shielding occluders, damage | SimHost / Editor |
 | `GET /perception/los?observer=&target=` | per body point: transmittance, occluder, stance and eye height used, threshold, verdict | SimHost / Editor |

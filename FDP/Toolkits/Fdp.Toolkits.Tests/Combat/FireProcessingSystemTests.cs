@@ -63,6 +63,34 @@ namespace Fdp.Toolkit.Combat.Tests
             return entity;
         }
 
+        private static void AssertNear(Vector3 expected, Vector3 actual, float tolerance = 1e-3f)
+            => Assert.True(Vector3.Distance(expected, actual) < tolerance, $"expected {expected}, got {actual}");
+
+        /// <summary>⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: eye height of the
+        /// shooter's LOGICAL stance to half the target's collider height (a vehicle), else half its eye height (a soldier).</summary>
+        [Fact]
+        public void R217_TheShot_FliesFromTheShootersEye_ToTheMiddleOfTheTargetsSilhouette()
+        {
+            _world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var shooter = SpawnShooter(new Vector3(0f, 0f, 3f));                                   // on an upper floor
+            _world.AddComponent(shooter, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone });
+            var vehicle = SpawnTarget(new Vector3(50f, 0f, 0f));
+            _world.AddComponent(vehicle, new PhysicsCollider { Radius = 2f, Height = 2.4f });
+
+            PublishIntent(shooter, vehicle);
+            _sys.Execute(_world, 0.016f);
+
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var eye = new Vector3(0f, 0f, 3f + Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightProne);
+                var dir = Vector3.Normalize(new Vector3(50f, 0f, 1.2f) - eye);
+                AssertNear(eye + dir * CombatConstants.MuzzleOffsetMeters, _world.GetComponent<SimTransform>(e).Position);
+                AssertNear(dir * 800f, _world.GetComponent<SimVelocity>(e).Linear, 1e-2f);
+                return;
+            }
+            Assert.Fail("No bullet entity found.");
+        }
+
         private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();
@@ -109,8 +137,11 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(1, bulletCount);
 
+            // ⭐ R-217 — the shot leaves from the shooter's EYE toward the middle of the target's silhouette (default standing soldier)
+            var eye = shooterPos + new Vector3(0f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding);
+            var aim = new Vector3(20f, 20f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding * 0.5f);
             var tf = _world.GetComponent<SimTransform>(bulletEntity);
-            Assert.Equal(shooterPos + new Vector3(CombatConstants.MuzzleOffsetMeters, 0f, 0f), tf.Position);
+            AssertNear(eye + Vector3.Normalize(aim - eye) * CombatConstants.MuzzleOffsetMeters, tf.Position);
 
             var proj = _world.GetComponent<BallisticProjectile>(bulletEntity);
             Assert.Equal(shooter, proj.Shooter);
@@ -129,7 +160,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
 
             foreach (var e in _world.Query().With<BallisticProjectile>().Build())
-                Assert.Equal(new Vector3(0.5f, 0f, 0f), _world.GetComponent<SimTransform>(e).Position);
+                AssertNear(new Vector3(0.5f, 0f, 1.7f * 0.75f), _world.GetComponent<SimTransform>(e).Position);   // half way, eye 1.7 → aim 0.85
         }
 
         /// <summary>
@@ -219,7 +250,7 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var e in q)
             {
                 var vel = _world.GetComponent<SimVelocity>(e);
-                Assert.Equal(new Vector3(muzzleVelocity, 0f, 0f), vel.Linear);
+                AssertNear(Vector3.Normalize(new Vector3(10f, 0f, 0.85f - 1.7f)) * muzzleVelocity, vel.Linear);   // ⭐ R-217 eye → aim
                 return;
             }
 

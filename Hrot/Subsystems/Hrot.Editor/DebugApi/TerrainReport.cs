@@ -54,6 +54,42 @@ namespace Hrot.Editor.DebugApi
             };
         }
 
+        /// <summary>
+        /// GET /terrain/query?purpose=fire&amp;penetration=&amp;damage= — ⭐ Buildings §3d P2 (R-217): a dry run of what a round does in
+        /// the terrain, step by step — the SAME <see cref="Fdp.Toolkit.Combat.TerrainPenetration.Cross"/> the bullets use, over the
+        /// SAME <see cref="TerrainWorld.QueryFire(Vector3, Vector3)"/> crossings. penetration 0 = an unknown round (the engine fallback
+        /// meets the terrain); damage 0 = the flat default.
+        /// </summary>
+        public static JsonNode QueryFire(EntityRepository? world, Vector3 from, Vector3 to, float penetration, float damage)
+        {
+            var t = Resident(world);
+            if (t == null) return NoTerrain();
+            float pen = penetration, dmg = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damage);
+            float length = Vector3.Distance(from, to);
+            var crossed = new JsonArray();
+            bool stopped = false; float? stopAlong = null;
+            foreach (var c in t.QueryFire(from, to))
+            {
+                float effective = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.TerrainPenetrationOrFallback(pen);
+                float chance = Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(effective, c.ResistanceMmRha);
+                bool passes = Fdp.Toolkit.Combat.TerrainPenetration.Cross(c.ResistanceMmRha, ref dmg, ref pen);
+                crossed.Add(new JsonObject
+                {
+                    ["along"] = c.T * length, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
+                    ["pathMetres"] = c.PathMetres, ["resistanceMmRha"] = c.ResistanceMmRha, ["roundPenetrationMm"] = effective,
+                    ["chance"] = chance, ["passes"] = passes, ["building"] = c.Building, ["storey"] = c.Storey,
+                });
+                if (!passes) { stopped = true; stopAlong = c.T * length; break; }
+            }
+            return new JsonObject
+            {
+                ["terrain"] = t.Name, ["purpose"] = "fire", ["penetration"] = penetration, ["length"] = length,
+                ["stopped"] = stopped, ["stopAlong"] = stopAlong,
+                ["arrivingDamage"] = stopped ? 0f : dmg, ["arrivingPenetration"] = stopped ? 0f : pen, ["crossed"] = crossed,
+                ["note"] = "A dry run of the rule the bullets use (R-217): each crossing passes with ArmorModel.PenetrationChance(round, resistance); damage × chance; a known round's penetration − resistance; a crossing it cannot pass stops it.",
+            };
+        }
+
         /// <summary>GET /doors — the doors the terrain defines (Stage 1: static definitions; door entities and live state land in Stage 5).</summary>
         public static JsonNode Doors(EntityRepository? world)
         {

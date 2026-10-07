@@ -62,6 +62,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.HasSingleton<global::CarKinem.Spatial.SpatialGridData>() && repo.Bus.IsRegistered<Events.NearMissEvent>()
                     ? repo.GetSingleton<global::CarKinem.Spatial.SpatialGridData>().Grid : null;
 
+            // ⭐ R-217 — the resident terrain the rounds fly through (immutable, swapped by reference); none ⇒ no terrain, as before.
+            var terrain = repo.HasSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>()
+                ? repo.GetSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+
             var query = repo.Query()
                 .With<BallisticProjectile>()
                 .With<SimTransform>()
@@ -78,6 +82,15 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
 
+                // ── 0. ⭐ R-217 — apply what the round carried out of its last segment (its raycast has resolved by now) ──
+                if (proj.TerrainState != 0)
+                {
+                    if (proj.TerrainState == 2) { repo.DestroyEntity(entity); continue; }   // it stopped in a wall
+                    proj.Damage = proj.NextDamage;
+                    proj.Penetration = proj.NextPenetration;
+                    proj.TerrainState = 0;
+                }
+
                 // ── 1. Lifetime check ────────────────────────────────────────────
                 // Unsigned subtraction handles tick-counter wrap correctly.
                 if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
@@ -89,17 +102,31 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ── 2. Submit swept-segment raycast via event bus ─────────────────
                 var tf = repo.GetComponent<SimTransform>(entity);
 
+                // ── 2a. ⭐⭐ Buildings §3d P2 (R-217) — the segment through the TERRAIN: walls, fences and floors resist by the armour
+                //   rule; a crossing the round cannot pass ENDS the segment there, so no unit beyond it is struck. What the round
+                //   carries out is HELD until the next pass (see BallisticProjectile.NextDamage).
+                var end = tf.Position;
+                if (terrain != null)
+                {
+                    float dmg = proj.Damage, pen = proj.Penetration;
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref dmg, ref pen, out float stopT);
+                    if (stopped) end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
+                    proj.NextDamage = dmg;
+                    proj.NextPenetration = pen;
+                    proj.TerrainState = stopped ? (byte)2 : (byte)1;
+                }
+
                 cmd.PublishEvent(new RaycastRequestEvent
                 {
                     Start        = proj.PreviousPosition,
-                    End          = tf.Position,
+                    End          = end,
                     RayId        = PhysicsConstants.PackBulletRayId(entity.Index),
                     LayerMask    = ~CombatConstants.BulletCollisionLayer,  // hit everything except other bullets
                     IgnoreEntity = proj.Shooter,
                 });
 
                 // ── 2b. ⭐ CE-3064 (R-206) — near misses along the same swept segment ──
-                if (nearMissGrid.HasValue) ReportNearMisses(repo, cmd, nearMissGrid.Value, ref proj, proj.PreviousPosition, tf.Position);
+                if (nearMissGrid.HasValue) ReportNearMisses(repo, cmd, nearMissGrid.Value, ref proj, proj.PreviousPosition, end);
 
                 // ── 3. Update PreviousPosition ───────────────────────────────────
                 // Record the bullet's current position so the next frame's raycast

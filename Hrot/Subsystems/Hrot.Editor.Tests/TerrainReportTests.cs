@@ -59,6 +59,29 @@ namespace Hrot.Editor.Tests
             Assert.Equal("H", (string?)wall["crossed"]![0]!["building"]);
         }
 
+        /// <summary>⭐ R-217 — <c>purpose=fire</c>: the window is a plain opening (the round arrives whole); the concrete wall stops a rifle
+        /// round and passes an anti-tank one — the same <c>TerrainPenetration.Cross</c> the bullets use.</summary>
+        [Fact]
+        public void QueryFire_TheWindowLetsTheRoundThrough_TheWallStopsARifle_NotAnAntiTankRound()
+        {
+            using var repo = Repo();
+            var window = TerrainReport.QueryFire(repo, new Vector3(22.1f, 10, 1.6f), new Vector3(22.1f, 24, 1.6f), penetration: 5f, damage: 25f);
+            Assert.False((bool)window["stopped"]!);
+            Assert.Equal(25f, (float)window["arrivingDamage"]!);
+
+            var rifle = TerrainReport.QueryFire(repo, new Vector3(23.5f, 10, 1.6f), new Vector3(23.5f, 24, 1.6f), penetration: 5f, damage: 25f);
+            Assert.True((bool)rifle["stopped"]!);
+            var wall = rifle["crossed"]![0]!;
+            Assert.Equal("concrete", (string?)wall["material"]);
+            Assert.False((bool)wall["passes"]!);
+            Assert.Equal(1500f * (float)wall["pathMetres"]!, (float)wall["resistanceMmRha"]!, 1);
+
+            var atgm = TerrainReport.QueryFire(repo, new Vector3(23.5f, 10, 1.6f), new Vector3(23.5f, 24, 1.6f), penetration: 800f, damage: 2000f);
+            Assert.False((bool)atgm["stopped"]!);
+            Assert.Equal(2000f, (float)atgm["arrivingDamage"]!);
+            Assert.True((float)atgm["arrivingPenetration"]! < 800f);
+        }
+
         [Fact]
         public void Doors_ListByKey_WithTheInitialState_AndNoRuntimeIdYet()
         {

@@ -703,10 +703,19 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/terrain/query", ctx =>
             {
                 var purpose = ctx.Query("purpose") ?? "sight";
-                if (purpose != "sight")
-                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — Stage 1 serves 'sight' (fire, sound, fragment, blast come with their solvers)."));
+                if (purpose != "sight" && purpose != "fire")
+                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — 'sight' and 'fire' are served (sound, fragment, blast come with their solvers)."));
                 if (!TryVec3(ctx.Query("from"), out var from) || !TryVec3(ctx.Query("to"), out var to))
                     return Task.FromResult(Fail(400, "Query 'from' and 'to' are required as 'x,y,z' (local metres)."));
+                if (purpose == "fire")
+                {
+                    float pen = 0f, dmg = 0f;
+                    if (ctx.Query("penetration") is string ps && !float.TryParse(ps, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out pen))
+                        return Task.FromResult(Fail(400, $"penetration '{ps}' is not a number (mm RHA)."));
+                    if (ctx.Query("damage") is string ds && !float.TryParse(ds, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out dmg))
+                        return Task.FromResult(Fail(400, $"damage '{ds}' is not a number."));
+                    return Task.FromResult(Ok(Service().QueryTerrainFire(from, to, pen, dmg)));
+                }
                 return Task.FromResult(Ok(Service().QueryTerrain(from, to)));
             }));
 

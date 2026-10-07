@@ -103,6 +103,12 @@ namespace Fdp.Toolkit.Physics.Systems
                         ref readonly var bp = ref repo.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity);
                         penetration = bp.Penetration;
                         damage      = bp.Damage;
+                        // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors crossed on THIS segment before the struck unit: the round
+                        //   is carried from the segment's start to the hit point (BallisticsSystem held the far-end values back, so
+                        //   bp is still what the round had at the start). A unit in FRONT of a fence takes the full round.
+                        if (repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                            && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is Fdp.Toolkit.Terrain.TerrainWorld terrain)
+                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, hit.Start, hitPos, ref damage, ref penetration, out _);
                     }
 
                     repo.Bus.Publish(new DetonationNotification
