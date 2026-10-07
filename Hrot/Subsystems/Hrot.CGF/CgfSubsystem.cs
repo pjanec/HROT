@@ -1700,7 +1700,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⛔ NOTHING here is a CGF-private implementation: same panels, same adapters, same window
             //    types the editor now registers through.
             _mapViewConfig     = new Hrot.Map.Common.Config.MapViewConfig();
-            _spawnerPanel      = new SpawnerPanel(Hrot.UI.Common.Panels.ScenarioSpawnerCatalog.Default);
+            // ⭐ CE-1017 S4 — TKB-built list + the grouped type picker (same as the editor's site).
+            _spawnerPanel      = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_context.TkbDb))
+            {
+                Tkb        = () => _context?.TkbDb,
+                OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+            };
             // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
             //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
             _missionPanel      = new MissionPanel(
@@ -2617,7 +2622,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _shellIconProvider = adapters.IconProvider;
 
         _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-        _shellPickers.SetServices(adapters.IconProvider, adapters.EditorTheme);
+        // ⭐ CE-1017 S5 — entity/<name> keys from the entity icon library, every other key from the silk atlas.
+        _shellPickers.SetServices(new Hrot.UI.Common.AddEntity.EntityIconLibrary(adapters.IconProvider), adapters.EditorTheme);
 
         _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 

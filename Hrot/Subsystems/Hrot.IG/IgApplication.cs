@@ -1024,6 +1024,13 @@ public class IgApplication : IDisposable
         _slaveTranslator     = _context.SlaveTranslator;
 
         _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
+        // ⭐ CE-1017 S4 — the Mini ExCon's type picker (entity icons from the shared library; drawn in DrawUI).
+        _igPickers = new NodeEditor.UI.Picker.PickerRegistry();
+        _igPickers.SetIcons(new Hrot.UI.Common.AddEntity.EntityIconLibrary());
+        _miniIosPanel.SetPicker(
+            () => _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                  ? _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
+            () => _igPickers is { } pickers ? pickers.OpenPicker : null);
         if (_networkEnabled)
             _miniIosPanel.SetGateway(_commandGateway);
 
@@ -1330,9 +1337,13 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
+    /// <summary>⭐ CE-1017 S4 — the Mini ExCon's type picker.</summary>
+    private NodeEditor.UI.Picker.PickerRegistry? _igPickers;
+
     public void DrawUI()
 
     {
+        _igPickers?.DrawFrame();   // ⛔ OpenPicker only queues (CE-1017 S4)
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
 

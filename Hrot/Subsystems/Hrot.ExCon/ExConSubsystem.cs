@@ -148,6 +148,9 @@ namespace Hrot.ExCon
         private const int TargetMapId = 0;
 
         private ExConMock?         _mock;
+        // ⭐ CE-1017 S4 — the TKB the spawner's type picker lists (the built-in default) and the picker itself.
+        private Fdp.Interfaces.ITkbDatabase? _tkb;
+        private NodeEditor.UI.Picker.PickerRegistry? _pickers;
         private bool             _headless;
         private DdsParticipant?  _participant;
         private List<IDisposable>? _ingressDisposables;
@@ -498,21 +501,24 @@ namespace Hrot.ExCon
             // or game-logic path. Time display is now handled by SlaveSyncController →
             // ClusterUiCache (injected above).
 
-            var tkbCatalog = new TkbCatalogEntry[]
+            // ⭐ CE-1017 S4 (ui lane, cross-lane edit) — the hand-written 9-entry list that stood here (two labels
+            //   spelled differently from the editor's, and Infantry_Officer, which has no template) is replaced by
+            //   the TKB-built catalog every host uses (docs/DESIGN_Add_Entity_Picker.md D7). ExCon holds no cluster
+            //   TKB of its own, so it reads the built-in default — the same one a node boots with. ⚠ A TKB file
+            //   loaded into the cluster later is not reflected here (recorded in the design).
+            _tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var tkbCatalog = Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkb);
+            if (!_headless)
             {
-                new(TkbEntityTypes.Tank_M1Abrams,      "M1 Abrams"),
-                new(TkbEntityTypes.IFV_Bradley,        "M2 Bradley IFV"),
-                new(TkbEntityTypes.Truck_HMMWV,        "HMMWV"),
-                new(TkbEntityTypes.Tank_T72,           "T-72"),
-                new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
-                new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
-                new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon (Empty)"),
-                new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad (Empty)"),
-                new(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto-Spawn)"),
-            };
+                _pickers = new NodeEditor.UI.Picker.PickerRegistry();
+                _pickers.SetIcons(new Hrot.UI.Common.AddEntity.EntityIconLibrary());
+            }
 
             // Conceptually, ORBAT panel should only create organizational units.
-            var orbatCatalog = tkbCatalog.Where(e => e.Name.Contains("Platoon") || e.Name.Contains("Squad")).ToArray();
+            // ⭐ CE-1017 — the units are the catalog's Units folder (composites), not a name match.
+            var orbatCatalog = Hrot.UI.Common.AddEntity.EntityTypeCatalog.Build(_tkb)
+                .Where(e => e.Category.StartsWith(Hrot.UI.Common.AddEntity.EntityTypeCatalog.UnitsFolder, StringComparison.Ordinal))
+                .Select(e => new TkbCatalogEntry(e.TkbType, e.Name)).ToArray();
 
             _mock = new ExConMock(
                 logic:            logic,
@@ -520,7 +526,11 @@ namespace Hrot.ExCon
                 orbatPanel:       new OrbatPanel(orbatCatalog),
                 missionPanel:     new MissionPanel(iosNodeId, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry()),
                 interactionPanel: interactionPanel,
-                spawnerPanel:     new SpawnerPanel(tkbCatalog),
+                spawnerPanel:     new SpawnerPanel(tkbCatalog)
+                {
+                    Tkb        = () => _tkb,
+                    OpenPicker = () => _pickers is { } pickers ? pickers.OpenPicker : null,
+                },
                 useDockSpace:     config.OwnWindow);
         }
 
@@ -580,6 +590,8 @@ namespace Hrot.ExCon
             if (_headless) return;
             // ExCon mock panels still rendered via DrawUI (not yet window-managed).
             _mock?.DrawUI();
+            // ⛔ OpenPicker only queues — the spawner's type picker draws here (CE-1017 S4).
+            _pickers?.DrawFrame();
         }
 
         /// <inheritdoc/>

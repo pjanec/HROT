@@ -172,18 +172,40 @@ public sealed class TheScenarioWindowsAreSharedTests
     // ══ ④ ONE SPAWNER CATALOG ════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐ <b>The spawner catalog is the shared list, not an inline literal.</b> 📐 It was declared twice —
-    /// 15 entries in <c>EditorSubsystem</c>, a near-duplicate 9 in <c>ExConSubsystem</c> — so a third copy
-    /// on CGF would have made three. ⚠ Scoped to the editor: ExCon's shorter list and two differently
-    /// spelled labels are a recorded FINDING, ⛔ not silently harmonised from another lane.
+    /// ⭐⭐ <b>The spawner catalog is built from the TKB, not a literal.</b> 📐 It was declared twice — 15 entries in
+    /// <c>EditorSubsystem</c>, a near-duplicate 9 in <c>ExConSubsystem</c> — and CE-061 made it one shared list.
+    /// ⭐ <c>CE-1017</c> S4 retires that list too: both hosts take <c>EntityTypeCatalog.SpawnerEntries(tkb)</c> and open
+    /// the grouped picker (docs/DESIGN_Add_Entity_Picker.md D7, S4).
     /// </summary>
     [Fact]
-    public void TheEditorTakesItsSpawnerCatalogFromTheSharedList()
+    public void TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb()
     {
-        var text = HostSource.Read("Hrot.Editor", "EditorSubsystem.cs");
+        foreach (var (project, file) in new[] { ("Hrot.Editor", "EditorSubsystem.cs"), ("Hrot.CGF", "CgfSubsystem.cs") })
+        {
+            var text = HostSource.Read(project, file);
+            Assert.Contains("EntityTypeCatalog.SpawnerEntries(", text);
+            Assert.Contains("OpenPicker = () => _shellPickers", text);
+            Assert.DoesNotContain("new TkbCatalogEntry[]", text);
+            Assert.DoesNotContain("ScenarioSpawnerCatalog.Default", text);
+        }
+    }
 
-        Assert.Contains("ScenarioSpawnerCatalog.Default", text);
-        Assert.DoesNotContain("new TkbCatalogEntry[]", text);
-        Assert.NotEmpty(ScenarioSpawnerCatalog.Default);
+    /// <summary>
+    /// ⭐ <c>CE-1017</c> S3 — the empty-map Add Entity submenu is offered on Editor, CGF and SimHost (🔒 user: "both cgf
+    /// and simhost and editor of course should"): each passes <c>MapInteractionContext.AddEntity</c> and hands the
+    /// pack's action to its <c>CanvasMenuUpdateSystem</c>. ⛔ A host that builds the map but forgets either half gets
+    /// no submenu and no error — this rail is the error.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor",  "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",     "CgfSubsystem.cs")]
+    [InlineData("Hrot.SimHost", "SimHostApp.cs")]
+    public void EveryWindowedMapHostOffersAddEntity(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.Contains("AddEntity = new Hrot.ScenarioEditor.Map.AddEntityServices(", text);
+        Assert.Matches(@"CanvasMenuUpdateSystem\(\w+\.AddEntity\)", text);
+        Assert.Contains(".DrawFrame()", text);   // the picker is drawn, or OpenPicker only queues
     }
 }

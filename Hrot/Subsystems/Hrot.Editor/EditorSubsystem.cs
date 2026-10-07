@@ -2588,12 +2588,15 @@ namespace Hrot.Editor
 
             if (!_headless)
             {
-                // ⭐⭐ CE-061 — the 15-entry literal that stood here is now the ONE shared list
-                //   (`ScenarioSpawnerCatalog.Default`, Hrot.Presentation), so CGF offers the same
-                //   spawner contents. ⚠ ExConSubsystem keeps a NEAR-duplicate 9-entry list with two
-                //   differently-spelled labels — recorded as a finding, ⛔ not silently harmonised:
-                //   that file is the backend lane's and the difference may be intent.
-                _spawnerPanel     = new SpawnerPanel(ScenarioSpawnerCatalog.Default);
+                // ⭐⭐ CE-1017 S4 — the type list is BUILT FROM THE TKB (EntityTypeCatalog, D7), replacing the
+                //   hand-written ScenarioSpawnerCatalog (CE-061's one list). With the shell picker the panel's
+                //   "Entity Type" opens the grouped Add Entity picker and a pick arms the tool; the list is the
+                //   fallback combo. Both resolve at call time: the pickers are built later.
+                _spawnerPanel     = new SpawnerPanel(Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkbDatabase))
+                {
+                    Tkb        = () => _tkbDatabase,
+                    OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                };
                 _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
@@ -4165,7 +4168,8 @@ namespace Hrot.Editor
             // picker (PickerRegistry.OpenPicker). Separate from adapterBundle.PickerRegistry
             // (which canvas windows already DrawFrame) to avoid double-DrawFrame.
             _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
-            _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
+            // ⭐ CE-1017 S5 — entity/<name> keys from the entity icon library, every other key from the silk atlas.
+            _shellPickers.SetServices(new Hrot.UI.Common.AddEntity.EntityIconLibrary(adapterBundle.IconProvider), adapterBundle.EditorTheme);
 
             // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
             _iconProvider = adapterBundle.IconProvider;

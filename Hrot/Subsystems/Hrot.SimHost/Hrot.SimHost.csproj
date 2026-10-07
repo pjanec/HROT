@@ -49,7 +49,9 @@
 
     <!-- Visualization / UI (graphical window support) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
     <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- ⭐ CE-2121 — the body-stance Muscle (AnimationMuscleModule over the fake backend). -->

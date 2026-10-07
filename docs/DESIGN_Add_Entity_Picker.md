@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0, S1, S2, S3 (Editor + CGF) as built, §5)
-build-state: BUILDING — S0, S1, S2, S3 (Editor + CGF) built; S3 on IG/SimHost, S4, S5 open. Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — S3 on Editor, CGF, SimHost)
+build-state: BUILT except S3 on IG (waits for IG's move onto the shared spawn adapter) and Stride mode 2 (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
@@ -398,7 +398,7 @@ graph TD
     classDef dead fill:#eee,stroke:#999,color:#777
 ```
 *What it shows:* which host runs which piece each frame. ExCon and IG have no `PickerRegistry` today — S4 adds one;
-ExCon's placement still happens on IG through its existing command. Grey boxes never get the picker.
+ExCon's placement still happens on IG through its existing command. Grey boxes are panels that stay as they are: SimHost's VehicleClass roamer panel (SimHost itself now gets the picker through the map menu — §5 S3 as built); the ReplayBrowser is read-only.
 
 #### S2 engine half — the birth-height path *(as built, backend `2026-10-07`)*
 
@@ -526,8 +526,8 @@ ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
 
 ```mermaid
 graph TD
-    subgraph Editor and CGF
-      CTX[MapInteractionContext.AddEntity<br/>Tkb, OpenPicker, Spawn, SuspendedReason]
+    subgraph hosts["Editor, CGF and SimHost"]
+      CTX[MapInteractionContext.AddEntity<br/>Tkb, OpenPicker, Spawn, SuspendedReason<br/>Editor, CGF, SimHost]
       PACK[MapInteractionPack.Build]
       AEA[AddEntityAction<br/>registered on mi.Actions 203-206]
       CMU[CanvasMenuUpdateSystem mi.AddEntity<br/>PostSimulation, each frame]
@@ -536,7 +536,6 @@ graph TD
       SSA[ScenarioSpawnAdapter]
     end
     IG[IG: MapCommandController, no shared adapter]:::dead
-    SH[SimHost: no spawn adapter, no picker]:::dead
     RB[ReplayBrowser: read-only]:::dead
     CTX --> PACK --> AEA
     PACK --> CMU
@@ -556,8 +555,29 @@ dead one (D9).
 | menu | `CanvasMenuUpdateSystem(AddEntityAction?)` puts `Add Entity ▸ Friendly… · Hostile… · Neutral… · ─ · Map Graphics…` before *Measurement Tool* while the action is available; greyed with *"suspended in Preview"* in its label (Editor, `IPreviewController.IsInPreviewMode`). CGF has no Preview state, so it never greys |
 | ⚠ deviation | the picker opens CENTRED, not at the mouse: the action handler runs in a system, outside the ImGui frame, and the menu event carries no screen position |
 | ⏳ IG | waits for IG to move onto the shared `ScenarioSpawnAdapter` (Authoring Surface §5b.2 ①) and gain a `PickerRegistry` (S4) |
-| ⏳ SimHost | has no spawn adapter and no picker — same follow-up |
+| ✅ SimHost *(added the same day, 🔒 user: "both cgf and simhost and editor of course should")* | 📐 it had neither a spawn adapter nor a picker. Now a windowed SimHost builds the SAME `ScenarioSpawnAdapter` (lazily, over its creation pack's `LocalRequests`, its map's `GlobalManager`/`Tools`, its JSON compiler and TKB singleton) and a `PickerRegistry` drawn in `OnDrawUI`; it passes both through `MapInteractionContext.AddEntity` and `StartPlacementMode`, so it also gained the Spawn tool. A headless SimHost builds neither ⇒ no submenu |
 | rails | `AddEntityActionTests` (8): hostile item → Tree picker → T-72 pick arms a hostile point tool; map graphics → area tool; cancel arms nothing; suspended opens nothing; menu shows / greys / omits / follows late availability |
+
+### ✅ S4 as built — the spawn panels call the picker *(ui, `2026-10-07`)*
+
+| host / panel | as built |
+|---|---|
+| `SpawnerPanel` (Editor, CGF, ExCon) | optional `Tkb` + `OpenPicker`: with them the "Entity Type" control is a button that opens the grouped picker for the panel's side, and a pick selects the type AND arms the tool (D4). Without them the flat combo stays. **Neutral** radio added (D6); the side radios now come first because the picker opens per side |
+| lists | `ScenarioSpawnerCatalog` (hand-written, 14) is **deleted**; Editor and CGF take `EntityTypeCatalog.SpawnerEntries(tkb)`; ExCon's own 9-entry literal (cross-lane edit, backend's file) is replaced the same way, and its ORBAT unit list is the catalog's `Units` folder |
+| ExCon TKB | ⚠ ExCon holds no cluster TKB, so it lists `HrotEnvironment.CreateTkb()` — the built-in default a node boots with. A TKB file loaded into the cluster later is NOT reflected in ExCon's picker |
+| IG Mini ExCon | `SetPicker(tkb, openPicker)` + a *Choose…* button beside the raw type number; the pick SETS the type (this panel spawns at coordinates — it arms no tool). ⚠ Bug fixed on the way: its Affiliation combo listed *Unknown/Friend/Hostile/Neutral* over `ForceId` (Neutral=0, Friend=1, Hostile=2), so "Unknown" was Neutral and "Neutral" wrote 3 |
+| ⏳ ExCon ORBAT *New Unit* | keeps its combo (now TKB-built); the picker there is not wired |
+| rails | `SpawnerPanelPickerTests` (3) · `MiniExConPanelPickerTests` (2) · `TheScenarioWindowsAreSharedTests.TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb` |
+
+### ✅ S5 as built — entity icons *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| art | 17 placeholder PNGs (64 px side-view silhouettes, light fill + dark outline) generated by `scripts/gen-entity-icons.py` into `Hrot/Engine/Hrot.Presentation/Assets/EntityIcons/`, embedded in `Hrot.Presentation`. A hand-made PNG with the same name replaces one |
+| names | the 7 built-in `IconName`s + fallbacks by tool (`_point`, `_area`, `_route`, `_zone`, `_fireline`) and by what a type IS when its TKB names no icon (`_person` = DIS Life Form, `_tank`/`_afv`/`_wheeled` = land categories 1/2/3·6·7·81, `_unit` = composite) — so the 5 urban types show pictures with no data change. Map graphics name their glyph in `PlacementToolRegistry` |
+| `EntityIconLibrary : IIconProvider` | serves `entity/<name>`: `<app>/Assets/EntityIcons/<name>.png` first (TKB authors add art without a rebuild), then the embedded PNG, then `_point`; uploads lazily through raylib, cached; texture id 0 (headless GL) ⇒ no icon, no crash; every other key goes to the host's provider (silk atlas) |
+| hosts | Editor and CGF: `EntityIconLibrary(silk)` on the shell pickers; SimHost, ExCon, IG: `PickerRegistry.SetIcons(EntityIconLibrary())` (new overload — those hosts have no editor theme or silk provider, so folders draw without icons) |
+| rails | `EntityIconLibraryTests` (6) — including *every icon key the built-in catalog asks for has embedded art*, which caught Fire Line asking for `_none` |
 
 **Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → click three times, right-click
 ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Russia › Tank ›

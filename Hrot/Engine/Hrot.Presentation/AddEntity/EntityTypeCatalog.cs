@@ -11,7 +11,8 @@ namespace Hrot.UI.Common.AddEntity;
 /// <param name="Name">Display name — the TKB master's <c>CustomName</c>, else the template name.</param>
 /// <param name="Category">The picker's folder path, <c>"/"</c>-separated (D2).</param>
 /// <param name="DisText">The DIS type in text form (<c>1.1.225.1.1.1.0</c>), or null for none.</param>
-/// <param name="IconName">The TKB visual's <c>IconName</c>, or null (S5 draws a fallback glyph).</param>
+/// <param name="IconName">The TKB visual's <c>IconName</c>; else a fallback glyph name chosen from the DIS type
+/// (<c>_person</c>, <c>_tank</c>, <c>_afv</c>, <c>_wheeled</c>, <c>_unit</c>); null ⇒ the tool's glyph.</param>
 /// <param name="Tool">The tool a pick arms (D4).</param>
 /// <param name="HasSide">True for a type placed as Friendly/Hostile/Neutral (D6).</param>
 /// <param name="DisabledReason">Why it cannot be picked, or null when it can.</param>
@@ -63,14 +64,14 @@ public static class EntityTypeCatalog
             string name = string.IsNullOrWhiteSpace(master.CustomName) ? t.Name : master.CustomName;
             string? dis = t.DisType.Value != 0 ? t.DisType.ToString() : null;
             string? icon = t.GetDescriptor<VisualDefinitionDto>()?.IconName;
-            icon = string.IsNullOrWhiteSpace(icon) ? null : icon;
+            icon = string.IsNullOrWhiteSpace(icon) ? FallbackIconName(t) : icon;
 
             list.Add(new EntityTypeEntry(t.TkbType, name, CategoryOf(t, names), dis, icon,
                                          PlacementToolKind.Point, HasSide: true));
         }
 
         foreach (var g in PlacementToolRegistry.Graphics)
-            list.Add(new EntityTypeEntry(g.TkbType, g.Name, MapGraphicsFolder, null, null, g.Tool,
+            list.Add(new EntityTypeEntry(g.TkbType, g.Name, MapGraphicsFolder, null, g.IconName, g.Tool,
                                          HasSide: false, g.DisabledReason));
 
         list.Sort((a, b) =>
@@ -113,6 +114,32 @@ public static class EntityTypeCatalog
                 IconKey: IconKeyOf(e),
                 IsEnabled: e.IsEnabled);
         }
+    }
+
+    /// <summary>⭐ S4 — the side-bearing, pickable types as the spawner panel's fallback list (used only when the host
+    /// has no picker). Replaces the hand-written <c>ScenarioSpawnerCatalog</c>.</summary>
+    public static IReadOnlyList<Hrot.UI.Common.Panels.TkbCatalogEntry> SpawnerEntries(ITkbDatabase? tkb)
+        => tkb is null
+            ? Array.Empty<Hrot.UI.Common.Panels.TkbCatalogEntry>()
+            : Build(tkb).Where(e => e.HasSide && e.IsEnabled)
+                        .Select(e => new Hrot.UI.Common.Panels.TkbCatalogEntry(e.TkbType, e.Name)).ToArray();
+
+    /// <summary>⭐ S5 — the glyph for a type whose TKB names no icon, from what the type IS (its DIS type, or being a
+    /// composite), so a TKB without art still shows a meaningful picture. Null ⇒ the tool's glyph.</summary>
+    public static string? FallbackIconName(TkbTemplate t)
+    {
+        if (t.GetDescriptor<TkbCompositionDef>() is not null) return "_unit";
+        var d = t.DisType;
+        if (d.Kind == 3) return "_person";                       // Life Form
+        if (d.Kind == 1 && d.Domain == 1)                        // Platform / Land
+            return d.Category switch
+            {
+                1     => "_tank",
+                2     => "_afv",
+                3 or 6 or 7 or 81 => "_wheeled",                 // utility vehicles, car
+                _     => null,
+            };
+        return null;
     }
 
     /// <summary>The icon key of an entry: <c>entity/&lt;IconName&gt;</c>, else a per-tool fallback

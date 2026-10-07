@@ -22,7 +22,8 @@ public enum PlacementToolKind
 
 /// <summary>One map graphic the picker lists under <c>Map Graphics</c>: a type with no TKB master, so the
 /// registry supplies its name, its tool and why it may be disabled.</summary>
-public sealed record MapGraphicInfo(long TkbType, string Name, PlacementToolKind Tool, string? DisabledReason = null);
+/// <param name="IconName">The glyph the entity icon library draws for it (S5).</param>
+public sealed record MapGraphicInfo(long TkbType, string Name, PlacementToolKind Tool, string IconName, string? DisabledReason = null);
 
 /// <summary>
 /// ⭐ <c>CE-1017</c> S1 — the small table that says which placement tool a TKB type arms and whether it has a side.
@@ -40,10 +41,10 @@ public static class PlacementToolRegistry
     /// <summary>The side-less map graphics, in the order the picker lists them.</summary>
     public static readonly IReadOnlyList<MapGraphicInfo> Graphics = new[]
     {
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Area,     "Area",         PlacementToolKind.Area),
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Route,    "Route",        PlacementToolKind.Route),
-        new MapGraphicInfo(TkbEntityTypes.TerrainZone,         "Terrain Zone", PlacementToolKind.Zone),
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_FireLine, "Fire Line",    PlacementToolKind.None,
+        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Area,     "Area",         PlacementToolKind.Area,  "_area"),
+        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Route,    "Route",        PlacementToolKind.Route, "_route"),
+        new MapGraphicInfo(TkbEntityTypes.TerrainZone,         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
+        new MapGraphicInfo(TkbEntityTypes.TacGraphic_FireLine, "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };
 
