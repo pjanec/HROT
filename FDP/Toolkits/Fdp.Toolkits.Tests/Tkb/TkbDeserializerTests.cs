@@ -166,6 +166,42 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.Equal(42, dto.MagazineCapacity);
         }
 
+        // ---- CE-1017 S0: the master's DIS type reaches the template ----
+
+        [Fact]
+        public void CE1017_ParseAndRegister_CopiesTheMastersDisType_IntoTheTemplate()
+        {
+            const string json = """
+                { "$guid": 7101, "TkbMaster": { "CustomName": "T-72", "DisType": "1.1.222.1.2" } }
+                """;
+            _deserializer.ParseAndRegister(MakeFile("T72", json), _db);
+
+            var dis = _db.GetByType(7101).DisType;
+            Assert.Equal((byte)1, dis.Kind);
+            Assert.Equal((byte)1, dis.Domain);
+            Assert.Equal((ushort)222, dis.Country);
+            Assert.Equal((byte)1, dis.Category);
+            Assert.Equal((byte)2, dis.Subcategory);
+            Assert.Equal("1.1.222.1.2.0.0", dis.ToString());
+        }
+
+        [Fact]
+        public void CE1017_ParseAndRegister_NoDisType_LeavesTheTemplateZero()
+        {
+            _deserializer.ParseAndRegister(MakeFile("M1_Abrams", AbramsJson), _db);
+            Assert.Equal(0UL, _db.GetByType(100).DisType.Value);
+        }
+
+        [Fact]
+        public void CE1017_ParseAndRegister_MalformedDisType_ThrowsTkbFormatException_NamingTheFile()
+        {
+            const string json = """
+                { "$guid": 7102, "TkbMaster": { "CustomName": "Bad", "DisType": "1.1.tank" } }
+                """;
+            var ex = Assert.Throws<TkbFormatException>(() => _deserializer.ParseAndRegister(MakeFile("BadDis", json), _db));
+            Assert.Contains("BadDis", ex.Message);
+        }
+
         // ---- Error handling ----
 
         [Fact]

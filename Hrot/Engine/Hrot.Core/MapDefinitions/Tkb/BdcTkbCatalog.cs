@@ -8,6 +8,11 @@ namespace Hrot.Map.Definitions.Tkb
 {
     public static class NedTkbCatalog
     {
+        /// <summary>⭐ CE-1017 S0 — SISO-REF-010 country codes used by the built-in types (names: <c>DisNameTable</c>).</summary>
+        public const ushort UnitedStates = 225;
+        /// <summary>⭐ CE-1017 S0 — SISO-REF-010 Russia.</summary>
+        public const ushort Russia = 222;
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -17,6 +22,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .DefineVehicle(TkbEntityTypes.Tank_M1Abrams, "M1 Abrams")
                 .WithVisual(TkbEntityTypes.Tank_M1Abrams, v =>
                 {
+                    v.IconName = "m1_abrams";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCIZ-------";
                     v.ModelPath = "models/m1_abrams.obj";
                     v.ColorHex = "#2E4057";
@@ -53,13 +59,14 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
                 .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
-                .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
+                .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1 });
             
             // Bradley IFV
             builder
                 .DefineVehicle(TkbEntityTypes.IFV_Bradley, "M2 Bradley IFV")
                 .WithVisual(TkbEntityTypes.IFV_Bradley, v =>
                 {
+                    v.IconName = "m2_bradley";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCI--------";
                     v.ModelPath = "models/bradley.obj";
                     v.ColorHex = "#2E4057";
@@ -87,13 +94,14 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithBehavior(TkbEntityTypes.IFV_Bradley)
-                .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Category = 2 });
+                .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
             // HMMWV
             builder
                 .DefineVehicle(TkbEntityTypes.Truck_HMMWV, "HMMWV")
                 .WithVisual(TkbEntityTypes.Truck_HMMWV, v =>
                 {
+                    v.IconName = "hmmwv";   // CE-1017 S0
                     v.SymbolCode = "SFGPUUS--------";
                     v.ModelPath = "models/hmmwv.obj";
                     v.ColorHex = "#3E5641";
@@ -112,13 +120,14 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
                 .WithBehavior(TkbEntityTypes.Truck_HMMWV)
-                .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Category = 3 });
+                .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
             
             // T-72 (OPFOR)
             builder
                 .DefineVehicle(TkbEntityTypes.Tank_T72, "T-72")
                 .WithVisual(TkbEntityTypes.Tank_T72, v =>
                 {
+                    v.IconName = "t72";   // CE-1017 S0
                     v.SymbolCode = "SHGPUCIZ-------"; // Hostile
                     v.ModelPath = "models/t72.obj";
                     v.ColorHex = "#8B0000";
@@ -146,13 +155,14 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
                 .WithBehavior(TkbEntityTypes.Tank_T72)
-                .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
+                .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
             
             // Infantry Rifleman
             builder
                 .DefineVehicle(TkbEntityTypes.Infantry_Rifleman, "Rifleman")
                 .WithVisual(TkbEntityTypes.Infantry_Rifleman, v =>
                 {
+                    v.IconName = "rifleman";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCI--------";
                     v.ModelPath = "models/soldier.obj";
                     v.ColorHex = "#556B2F";
@@ -177,13 +187,14 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
                 .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
-                .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
             
             // Tank Platoon (Composite)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon, "Tank Platoon")
                 .WithVisual(TkbEntityTypes.Unit_TankPlatoon, v =>
                 {
+                    v.IconName = "tank_platoon";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCIZ--H----"; // Platoon echelon
                     v.ColorHex = "#0000FF";
                     v.Scale = 1.5f;
@@ -196,13 +207,14 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false; // Manual creation
                 })
-                .WithDisType(TkbEntityTypes.Unit_TankPlatoon, new DISEntityType { Kind = 1, Domain = 1 });
+                .WithDisType(TkbEntityTypes.Unit_TankPlatoon, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
             
             // Infantry Squad (Composite)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad")
                 .WithVisual(TkbEntityTypes.Unit_InfantrySquad, v =>
                 {
+                    v.IconName = "infantry_squad";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCI---H----"; // Squad echelon
                     v.ColorHex = "#0000FF";
                     v.Scale = 1.2f;
@@ -215,13 +227,14 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
                 })
-                .WithDisType(TkbEntityTypes.Unit_InfantrySquad, new DISEntityType { Kind = 1, Domain = 1 });
+                .WithDisType(TkbEntityTypes.Unit_InfantrySquad, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
 
             // Tank Platoon (Auto-Spawning)
             builder
                 .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto Spawn)")
                 .WithVisual(TkbEntityTypes.Unit_TankPlatoon_Auto, v =>
                 {
+                    v.IconName = "tank_platoon";   // CE-1017 S0
                     v.SymbolCode = "SFGPUCIZ--H----"; // Platoon echelon
                     v.ColorHex = "#0000FF";
                     v.Scale = 1.5f;
@@ -234,7 +247,7 @@ namespace Hrot.Map.Definitions.Tkb
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = true; // The engine will now auto-spawn 4x M1 Abrams when this is created
                 })
-                .WithDisType(TkbEntityTypes.Unit_TankPlatoon_Auto, new DISEntityType { Kind = 1, Domain = 1 });
+                .WithDisType(TkbEntityTypes.Unit_TankPlatoon_Auto, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates });
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);

@@ -148,5 +148,59 @@ namespace Hrot.Map.Common.Tests
                     $"TKB type {tkbType} must carry a non-empty MIL-STD-2525 symbol code.");
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S0 — every built-in placeable type carries a DIS type WITH its country, the master descriptor's
+        /// text equals the template's DIS type, and every authored visual names its icon. 📄 docs/DESIGN_Add_Entity_Picker.md §5 S0.
+        /// </summary>
+        [Fact]
+        public void CE1017_BuiltInTypes_CarryDisWithCountry_MasterTextAgrees_AndAnIconName()
+        {
+            var db = new TkbDatabase();
+            NedTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+
+            (long Type, ushort Country)[] ned =
+            {
+                (TkbEntityTypes.Tank_M1Abrams, NedTkbCatalog.UnitedStates), (TkbEntityTypes.IFV_Bradley, NedTkbCatalog.UnitedStates),
+                (TkbEntityTypes.Truck_HMMWV, NedTkbCatalog.UnitedStates),   (TkbEntityTypes.Tank_T72, NedTkbCatalog.Russia),
+                (TkbEntityTypes.Infantry_Rifleman, NedTkbCatalog.UnitedStates), (TkbEntityTypes.Unit_TankPlatoon, NedTkbCatalog.UnitedStates),
+                (TkbEntityTypes.Unit_InfantrySquad, NedTkbCatalog.UnitedStates), (TkbEntityTypes.Unit_TankPlatoon_Auto, NedTkbCatalog.UnitedStates),
+            };
+            foreach (var (type, country) in ned)
+            {
+                var t = db.GetByType(type)!;
+                Assert.Equal(country, t.DisType.Country);
+                Assert.NotEqual((byte)0, t.DisType.Kind);
+                Assert.Equal(t.DisType.ToString(), t.GetDescriptor<TkbMasterDto>()!.DisType);
+                Assert.False(string.IsNullOrEmpty(t.GetDescriptor<VisualDefinitionDto>()!.IconName), $"TKB type {type} names no icon");
+                Assert.False(t.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
+            }
+
+            foreach (var type in new long[] { 1001, 1002, 2001, 2002, 2003 })   // the UrbanCombat five
+            {
+                var t = db.GetByType(type)!;
+                Assert.NotEqual((byte)0, t.DisType.Kind);
+                Assert.Equal((byte)1, t.DisType.Domain);
+                Assert.Equal(t.DisType.ToString(), t.GetDescriptor<TkbMasterDto>()!.DisType);
+            }
+
+            // the HMMWV's category is SISO "small wheeled utility vehicle", and the names table says so
+            var names = Hrot.Core.Tkb.DisNameTable.Default;
+            Assert.Equal(new[] { "Platform", "Land", "United States", "Small Wheeled Utility Vehicle" },
+                         names.Path(db.GetByType(TkbEntityTypes.Truck_HMMWV)!.DisType));
+            Assert.Equal(new[] { "Platform", "Land", "Russia", "Tank" }, names.Path(db.GetByType(TkbEntityTypes.Tank_T72)!.DisType));
+        }
+
+        /// <summary>⭐ <c>CE-1017</c> S0 — the names table: unknown numbers read "Category 7", a 0 level is skipped.</summary>
+        [Fact]
+        public void CE1017_DisNameTable_NamesKnownLevels_SkipsZero_AndNumbersTheUnknown()
+        {
+            var names = Hrot.Core.Tkb.DisNameTable.Default;
+            Assert.Equal(new[] { "Life Form", "Land" }, names.Path(new Fdp.Core.DISEntityType { Kind = 3, Domain = 1 }));
+            Assert.Equal(new[] { "Platform", "Land", "Country 999", "Category 77" },
+                         names.Path(new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 999, Category = 77 }));
+            Assert.Empty(names.Path(default));
+        }
     }
 }

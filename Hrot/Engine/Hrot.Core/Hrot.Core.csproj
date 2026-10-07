@@ -49,4 +49,8 @@
       <_Parameter1>Hrot.Network.NED</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <ItemGroup>
+    <!-- CE-1017 S0: the DIS entity type names the Add Entity picker groups by (DisNameTable). -->
+    <EmbeddedResource Include="Tkb\DisNames.json" LogicalName="Hrot.Core.Tkb.DisNames.json" />
+  </ItemGroup>
 </Project>

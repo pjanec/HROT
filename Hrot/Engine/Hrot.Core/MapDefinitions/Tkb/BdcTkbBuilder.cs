@@ -62,6 +62,10 @@ namespace Hrot.Map.Definitions.Tkb
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
             template.DisType = disType;
+            // ⭐ CE-1017 S0 — the master descriptor carries the same type as text (what a TKB JSON file authors), so the
+            //   template field and the descriptor can never disagree.
+            var master = template.GetDescriptor<TkbMasterDto>();
+            if (master != null) template.AddDescriptor(master with { DisType = disType.ToString() });
             return this;
         }
 
@@ -106,6 +110,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Scale        = visualDef.Scale,
                 ShowLabel    = visualDef.ShowLabel,
                 MapShapeName = visualDef.MapShapeName,
+                IconName     = visualDef.IconName,   // CE-1017 S0
             });
             // IgVisualDef.LayerName is deliberately NOT carried across: layer membership is
             // COMPUTED by MapLayerAssignmentSystem from the entity's DIS type and components,

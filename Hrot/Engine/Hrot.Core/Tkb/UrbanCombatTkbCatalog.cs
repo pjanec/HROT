@@ -102,7 +102,7 @@ namespace Hrot.Core.Tkb
             // CivilianPedestrian (1001)
             {
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
+                Master(t, "CivilianPedestrian", new DISEntityType { Kind = 3, Domain = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
@@ -114,7 +114,7 @@ namespace Hrot.Core.Tkb
             // CivilianCar (1002)
             {
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
+                Master(t, "CivilianCar", new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
@@ -125,7 +125,7 @@ namespace Hrot.Core.Tkb
             // MilitaryAPC (2001)
             {
                 var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
+                Master(t, "MilitaryAPC", new DISEntityType { Kind = 1, Domain = 1, Category = 2 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
@@ -137,7 +137,7 @@ namespace Hrot.Core.Tkb
             // InfantrySoldier (2002)
             {
                 var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
+                Master(t, "InfantrySoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
@@ -152,7 +152,7 @@ namespace Hrot.Core.Tkb
             // Insurgent (2003)
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
+                Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
@@ -163,6 +163,18 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
                 tkb.Register(t);
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S0 — the master descriptor and the template's DIS type, set together so they never disagree. ⛔ Before,
+        /// these five types carried NO DIS type: their entities were DIS 0, so the map's layer filters never matched them (they
+        /// fell into the always-visible fallback) and the Add Entity picker could not group them. Country 0 = generic (the
+        /// picker skips an unknown level); 81 = car, 2 = armoured fighting vehicle (SISO-REF-010 land categories).
+        /// </summary>
+        private static void Master(TkbTemplate t, string name, DISEntityType dis)
+        {
+            t.DisType = dis;
+            t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString() });
         }
 
         /// <summary>⭐ <c>CE-2106</c> — a type's sounds (movement always; shots and bursts when it has a weapon).</summary>

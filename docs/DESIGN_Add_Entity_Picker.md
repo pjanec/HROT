@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e)
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0 as built, §5)
 build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
@@ -416,6 +416,21 @@ ExCon's placement still happens on IG through its existing command. Grey boxes n
 | **S3 menu, every map host** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, installed by `MapInteractionPack` on Editor, CGF, IG (onto the shared adapter), SimHost; Stride mode 2 deferred → `CE-1030` | S1, S2 |
 | **S4 panels** | `SpawnerPanel`, ExCon ORBAT *New Unit*, IG `MiniExConPanel` call the picker; ExCon + IG get a `PickerRegistry`; retire both hand-written catalogs | S1 |
 | **S5 icons** | `EntityIconLibrary`, fallback glyphs, hand-made PNGs for the built-in types and graphics | S1 |
+
+### ✅ S0 as built *(backend, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| DIS text form | `DISEntityType.ToString()` / `TryParse` — `Kind.Domain.Country.Category.Subcategory.Specific.Extra`; fewer fields leave the rest 0 (`FDP/Engine/Fdp.Core/DISEntityType.cs`) |
+| loader | `TkbDeserializer.ParseAndRegister` copies a non-empty `TkbMaster.DisType` into `template.DisType`; a malformed string throws `TkbFormatException` naming the file (like a missing `$guid`) |
+| one value, two places | `BdcTkbBuilder.WithDisType` also writes the master's `DisType` text, so `template.DisType` and `TkbMasterDto.DisType` cannot disagree on built-in types |
+| built-in types | the **13 physical** types carry a country: 8 in `NedTkbCatalog` (T-72 = Russia 222, the rest United States 225) and the **5 urban** types (`UrbanCombatTkbCatalog`, which had DIS 0 before). Map graphics (Fire Line, Route, Area, Terrain Zone) stay DIS 0 — they group under *Map Graphics* (D-rev 2) |
+| ⚠ HMMWV category | **6** (small wheeled utility vehicle, SISO-REF-010), was 3 (armored utility vehicle — wrong) |
+| ⚠ side effect: map layers | the 5 urban types now have a non-zero DIS ⇒ `MapLayerRegistry` puts them in the **Ground** layer (and the car/APC in **Vehicles**) — before, DIS 0 kept them out of every DIS layer. Intended: they are land entities |
+| icons | `VisualDefinitionDto.IconName` / `IgVisualDef.IconName`, copied by `WithVisual`; built-in names `m1_abrams`, `m2_bradley`, `hmmwv`, `t72`, `rifleman`, `tank_platoon`, `infantry_squad` (S5 draws the PNGs) |
+| palette | `TkbMasterDto.HideFromPalette` (default false) |
+| names | `Hrot.Core.Tkb.DisNameTable` reads the embedded data file `Hrot/Engine/Hrot.Core/Tkb/DisNames.json`; `Path(dis)` = named `Kind › Domain › Country › Category`, 0 levels skipped, unknown numbers read `Category 7` |
+| rails | `TkbDeserializerTests.CE1017_*` (3) · `DisFilterTests.CE1017_DisText_*` · `BdcTkbBuilderVisualTests.CE1017_*` (2) |
 
 **Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → Shift+click twice, click
 once ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Tank ›

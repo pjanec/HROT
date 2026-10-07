@@ -1,0 +1,22 @@
+{
+  "$comment": "CE-1017 S0 - DIS entity type names for the Add Entity picker (docs/DESIGN_Add_Entity_Picker.md D2b). A SISO-REF-010 subset; entries marked HROT are this project's own names for levels SISO leaves generic. Extend this file, not code. An unknown number shows as 'Category 7' etc.; a 0 level is skipped.",
+  "kinds": {
+    "1": "Platform", "2": "Munition", "3": "Life Form", "4": "Environmental", "5": "Cultural Feature",
+    "6": "Supply", "7": "Radio", "8": "Expendable", "9": "Sensor/Emitter"
+  },
+  "domains": {
+    "1": { "1": "Land", "2": "Air", "3": "Surface", "4": "Subsurface", "5": "Space" },
+    "3": { "1": "Land", "2": "Air", "3": "Surface", "4": "Subsurface" }
+  },
+  "countries": {
+    "71": "France", "78": "Germany", "222": "Russia", "224": "United Kingdom", "225": "United States"
+  },
+  "categories": {
+    "1.1": {
+      "1": "Tank", "2": "Armored Fighting Vehicle", "3": "Armored Utility Vehicle", "4": "Self-Propelled Artillery",
+      "5": "Towed Artillery", "6": "Small Wheeled Utility Vehicle", "7": "Large Wheeled Utility Vehicle",
+      "8": "Small Tracked Utility Vehicle", "9": "Large Tracked Utility Vehicle", "10": "Mortar", "81": "Car"
+    },
+    "3.1": { "1": "Infantry (HROT)" }
+  }
+}
