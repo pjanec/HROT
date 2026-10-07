@@ -23,8 +23,10 @@ public sealed class RoleGroupOwnershipStrategyTests
     private static long D(EDescriptorType d) => (long)d;
     private static readonly long[] Brain = { D(EDescriptorType.dtEntityDamage), D(EDescriptorType.dtEntityMission),
         D(EDescriptorType.dtNavigationIntent), D(EDescriptorType.dtSensorConfig), D(EDescriptorType.dtEqsSensorConfig),
-        D(EDescriptorType.dtBrainIntent) };   // ⭐ CE-3048 — the AI intent is granted with the Brain
-    private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus) };
+        D(EDescriptorType.dtBrainIntent),     // ⭐ CE-3048 — the AI intent is granted with the Brain
+        D(EDescriptorType.dtStanceIntent) };  // ⭐ CE-2121 — the body-stance request
+    private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
+        D(EDescriptorType.dtStanceStatus) };  // ⭐ CE-2121 — the body's stance report
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 
     private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)

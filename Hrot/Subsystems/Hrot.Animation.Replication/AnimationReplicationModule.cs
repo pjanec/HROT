@@ -63,6 +63,33 @@ public sealed class AnimationReplicationModule
         AllTranslators = BuildTranslators(participant, entityMap, isBrain);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2121</c> — ONLY the body-stance pair for this node's role: the Brain sends <see cref="Hrot.MuscleCharacter.Animation.Components.StanceIntent"/>
+    /// and receives <see cref="Hrot.MuscleCharacter.Animation.Components.StanceStatus"/>; a Muscle node the reverse. ⛔ Not
+    /// <see cref="AllTranslators"/>: the montage / look-at topics belong to the rest of the pipeline (<c>CE-3010</c>) and their
+    /// components are not registered on any host. 📄 docs/DESIGN_Decision_Layer.md §3.3g slice ②.
+    /// </summary>
+    public static IReadOnlyList<INetworkTranslator> StanceTranslators(DdsParticipant participant, NetworkEntityMap entityMap, NodeRole role)
+        => (role & NodeRole.Brain) != 0
+            ? new INetworkTranslator[] { new StanceIntentEgressTranslator(participant, entityMap), new StanceStatusIngressTranslator(participant, entityMap) }
+            : new INetworkTranslator[] { new StanceIntentIngressTranslator(participant, entityMap), new StanceStatusEgressTranslator(participant, entityMap) };
+
+    /// <summary>⭐ <c>CE-2121</c> — registers <see cref="StanceTranslators"/> on <paramref name="kernel"/> the way every translator
+    /// pack does (one ingress and one egress system). No participant ⇒ nothing (offline hosts share one world).</summary>
+    public static void RegisterStanceOn(Fdp.ModuleHost.ModuleHostKernel kernel, DdsParticipant? participant, NetworkEntityMap entityMap, NodeRole role)
+    {
+        if (participant is null) return;
+        var all = StanceTranslators(participant, entityMap, role);
+        var ingress = new List<INetworkTranslator>(); var egress = new List<INetworkTranslator>();
+        foreach (var t in all)
+        {
+            if ((t.Direction & TranslatorDirection.Ingress) != 0) ingress.Add(t);
+            if ((t.Direction & TranslatorDirection.Egress)  != 0) egress.Add(t);
+        }
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem(ingress.ToArray()));
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Systems.CycloneEgressSystem(egress.ToArray()));
+    }
+
     private static IReadOnlyList<INetworkTranslator> BuildTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,

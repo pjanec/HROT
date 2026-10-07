@@ -73,6 +73,10 @@ public static class NedOwnershipGroupBinding
         // ⭐ CE-3048 — the AI intent carries the slot state it projects (task slot stays linked on the anchor). 📄 Sensors §7.7
         map.RegisterMapping((long)EDescriptorType.dtBrainIntent, GlobalComponentIds.SopState, GlobalComponentIds.Roe);
 
+        // ⭐ CE-2121 — body stance (was "dormant"): the Brain group's request and the Muscle group's report, so each crosses
+        //   the wire from the node that owns its GROUP (the Muscle never owns the entity's lifecycle). 📄 Decision Layer §3.3g.
+        map.RegisterMapping((long)EDescriptorType.dtStanceIntent, GlobalComponentIds.StanceIntent);
+
         // Perception group descriptor.
         map.RegisterMapping((long)EDescriptorType.dtEqsResult, GlobalComponentIds.EqsCognitiveBuffer);
 
@@ -92,6 +96,7 @@ public static class NedOwnershipGroupBinding
         // components, so without this OwnershipIngressSystem on the Brain would not clear NavigationStatus authority
         // when a Muscle takes dtNavigationStatus.
         map.RegisterMapping((long)EDescriptorType.dtNavigationStatus, NavigationContractsComponentIds.NavigationStatus);
+        map.RegisterMapping((long)EDescriptorType.dtStanceStatus, GlobalComponentIds.StanceStatus);   // ⭐ CE-2121 — the body's report
 
         map.BindGroups(HrotOwnershipGroups.Table, Anchors);
 

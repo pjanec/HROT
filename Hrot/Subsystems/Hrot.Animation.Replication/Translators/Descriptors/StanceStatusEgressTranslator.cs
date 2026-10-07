@@ -20,6 +20,10 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 {
     private const string TopicNameConst = "hrot/anim/StanceStatus";
 
+    /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceStatus</c> (105): the MuscleGround group's descriptor for <see cref="StanceStatus"/>
+    /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
+    public const long DescriptorOrdinal = 105;
+
     private readonly IAnimDdsWriter<DdsStanceStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (StanceTransitionPhase, StanceId, uint)> _lastPublished = new();
@@ -52,9 +56,12 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
             .With<NetworkIdentity>()
             .Build();
 
+        long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
         foreach (var entity in query)
         {
-            if (!view.HasAuthority(entity)) continue;
+            // ⭐ CE-2121 — the GROUP that owns the report (MuscleGround), not the entity's primary owner (the CGF) — with the primary
+            //   owner the body's stance never left SimHost. ⛔ SUPERSEDED: HasAuthority(entity).
+            if (!view.HasAuthority(entity, packedKey)) continue;
 
             ref readonly var status = ref view.GetComponentRO<StanceStatus>(entity);
 

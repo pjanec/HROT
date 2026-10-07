@@ -1095,6 +1095,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
         nodeFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(_context.Kernel);
         nodeFactory?.CreateSimHostPathfindingTranslators()?.RegisterOn(_context.Kernel);
+        // ⭐ CE-2121 slice ② — the Brain's half of the stance wire: its request out, the body's report in.
+        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
+            _context.Kernel, _context.Participant, _context.EntityMap, DefaultRole);
 
 
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
