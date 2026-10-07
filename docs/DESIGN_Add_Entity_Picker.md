@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-07 (rev 5 — level 0 is always the ground; Stride deferred as CE-1030, §2c)
-build-state: DESIGN — approved: D5 always-multi, D9 capability gating (2026-10-07); SpawnHeight shape per §2c (user-specified); open: §2c CE-1031 (ground inside buildings)
+build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
