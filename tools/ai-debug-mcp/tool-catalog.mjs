@@ -1832,7 +1832,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "resolve_entity_type_parameters",
     "group": "M (TKB) — Entity-type catalog",
-    "summary": "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0).",
+    "summary": "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0) — or, with ammo/weapon, the generated reference library's launcher × ammo pair (tuning T-1).",
     "http": {
       "method": "GET",
       "path": "/tkb/resolve"
@@ -1841,15 +1841,34 @@ export const TOOLS_CATALOG = [
       {
         "name": "type",
         "type": "number",
-        "required": true,
+        "required": false,
         "description": "TKB type ID (long)"
+      },
+      {
+        "name": "ammo",
+        "type": "string",
+        "required": false,
+        "description": "reference-library ammo name (e.g. '5.56x45 ball') — answers the generated pair instead of a type"
+      },
+      {
+        "name": "weapon",
+        "type": "string",
+        "required": false,
+        "description": "reference-library weapon name (e.g. 'M4_Carbine'); omitted or not firing this ammo ⇒ the ammo's generic profile"
+      },
+      {
+        "name": "library",
+        "type": "string",
+        "required": false,
+        "description": "any value with no type/ammo: list the whole reference library"
       }
     ],
-    "returns": "{ tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] }",
+    "returns": "type: { tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] } · ammo: { ammo, weapon, found, weaponMatched, muzzleSpeed, penetrationMm, penetrationFormula, damage, damageFormula, driving } · library=1: { ammo:[…], weapons:[…] }",
     "notes": [
       "The values are the ones the simulation uses: the translators and the fire chain call the same resolver rules.",
       "Generated = a builder derived it by formula (source names the formula and its inputs); EngineFallback = the type said nothing and an engine default applies.",
-      "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'."
+      "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'.",
+      "ReferenceByName = the generated reference library (tuning T-1): a mount's loaded ammo named by its TKB type's name, when the TKB states no penetration; the formula and its inputs are in source."
     ],
     "example": {
       "args": {
@@ -1857,7 +1876,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "see which of the M1's numbers are stated, derived or engine defaults"
     },
-    "hint": "Req: type (number — tkbType from list_entity_types). Example: resolve_entity_type_parameters({type:100})",
+    "hint": "Req: type (number — tkbType from list_entity_types), OR ammo (+ optional weapon), OR library=1. Example: resolve_entity_type_parameters({type:100}) · resolve_entity_type_parameters({ammo:'12.7x99 AP', weapon:'M2HB'})",
     "manualVerify": false
   },
 
