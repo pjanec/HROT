@@ -13,6 +13,7 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - ../../DESIGN_Building_Interiors.md — cover per storey and window firing positions (slice B-3)
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the behaviours that CONSUME §19.6's cover / retreat templates (CE-3031): TakeCoverBp, FallBackBp, the blueprint re-point.
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS perception on the sensor form (TKB sensor children, memory stage) and the cost-unit budget that will supersede §7.5–7.6.
   - docs/blueprints/Architect_Question_82_One_Sensor_Form.md — OPEN: proposes perception sensors reuse THIS sensor form (memory stage,

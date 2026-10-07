@@ -7,6 +7,7 @@ known-rot: none
 known-conflict: R-212 A2 ("expected damage, no random roll", docs/DESIGN_Utility_AI_Demo_Scenarios.md §9) — §3 A keeps its
   reason (no dice, rails stay exact) and applies it to HITS; it does not reopen damage.
 related-designs:
+  - ../DESIGN_Building_Interiors.md — the shared terrain Trace that §D bullets use (B4)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 — OWNS ammunition vs armour (R-212: ArmorModel drives the real damage AND the
     AI estimate; no dice). This question adds the term BEFORE it: does the round hit at all.
   - docs/designs/brain-split/BS-1-DESIGN.md §2.1 — OWNS where combat runs: the Brain orders, the Muscle spawns the bullet and

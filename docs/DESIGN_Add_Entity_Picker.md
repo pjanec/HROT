@@ -9,6 +9,7 @@ known-rot: none yet
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
+  - DESIGN_Building_Interiors.md — resolves CE-1031 (ground inside buildings); storeys become levels through SurfacesAt
   - designs/gizmos-1/canvas-context-menu-design.md — owns HOW the empty-map menu is built (JSON in
     CanvasContextMenuState, per-subsystem CanvasMenuUpdateSystem). This doc adds the "Add Entity" submenu.
   - DESIGN_Entity_Authoring_Surface.md — owns THE creation call (RequestEntityCreation) and §5b "the request is sent

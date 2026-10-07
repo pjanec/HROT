@@ -7,6 +7,7 @@ stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAc
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6)
   - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver).
   - docs/designs/brain-death/BD1-DESIGN.md — owns the Brain lifecycle; §1.1 is why MoveToExecutor.OnExit's STOP must reach the
     Muscle (the egress publishes a Mode None with an IntentId since CE-3026).
