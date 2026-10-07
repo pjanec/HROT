@@ -433,9 +433,9 @@ classDiagram
     class TerrainWorld { <<existing>> QuerySight; QueryFire NEW → FireCrossing T, path, resistance }
     class TerrainPenetration { <<NEW, Combat>> Carry(world, from, to, ref dmg, ref pen, out stopT); Cross(resistance, ...) }
     class ArmorModel { <<existing>> PenetrationChance — the ONE ramp }
-    class BallisticsSystem { <<existing>> carries each segment; truncates the raycast at a stop; holds Next* }
-    class BallisticProjectile { <<existing>> Damage; Penetration; NextDamage NEW; NextPenetration NEW; TerrainState NEW }
-    class HitResolutionSystem { <<existing>> re-carries Start → hit point before DetonationNotification }
+    class BallisticsSystem { <<existing>> carries the FRONT per segment; truncates at a stop; freezes + grace }
+    class BallisticProjectile { <<existing>> Damage; Penetration (muzzle values); Muzzle NEW; FrontDamage NEW; FrontPenetration NEW; StoppedTick NEW }
+    class HitResolutionSystem { <<existing>> carries MUZZLE → hit point before DetonationNotification }
     class TerrainReport { <<Hrot.Editor DebugApi>> /terrain/query?purpose=fire NEW }
     WeaponMountDto --> AmmoWeaponBallisticsDto : AmmoGuid → ammo type's profiles
     ParameterResolver --> WeaponMountDto
@@ -455,21 +455,22 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant B as BallisticsSystem (PostSim, tick N)
-    participant T as TerrainPenetration
-    participant R as RaycastSolverSystem (Input, N+1)
-    participant H as HitResolutionSystem (Input, N+1)
-    participant B2 as BallisticsSystem (PostSim, N+1)
-    B->>T: Carry(prev → pos, Damage, Penetration)
-    T-->>B: far-end damage and pen, stopped at t?
-    B->>B: hold Next* and TerrainState (1 held, 2 stopped)
-    B->>R: RaycastRequest(prev → pos, or → the stop point)
-    R->>H: RaycastResult(T)
-    H->>T: Carry(prev → hit point, Damage, Penetration)
+    participant K as kernel (BeforeSync playback + bus swap)
+    participant R as RaycastSolverSystem (Input, N+2)
+    participant H as HitResolutionSystem (Input, N+3)
+    participant B2 as BallisticsSystem (later ticks)
+    B->>B: carry the FRONT values through the segment, stop ⇒ freeze at the wall
+    B->>K: RaycastRequest(prev → pos, or → the stop point)
+    K->>R: played back after N+1 Input, readable from N+2
+    R->>K: RaycastResult
+    K->>H: readable from N+3
+    H->>H: carry the round MUZZLE → hit point from the muzzle values
     H->>H: DetonationNotification(damage, pen as they ARRIVED)
-    B2->>B2: TearDown → destroy · state 2 → destroy · state 1 → apply Next*
+    B2->>B2: stopped round kept 8 ticks (grace), then destroyed
 ```
-*What it shows:* the far-end values are HELD for a tick because the segment's raycast resolves a tick later — a unit
-struck in front of a fence must take the round as it was before the fence; prose would hide that ordering.
+*What it shows:* a segment's raycast resolves THREE ticks after the segment (measured, `ModuleHostKernel.cs` — Input
+`:511`, playback `:547`, swap `:553`, PostSimulation `:764`), so nothing may depend on "the next tick": the hit carries the
+round from its muzzle, and a stopped round waits out a grace before it goes.
 
 | item | as built — and the deviations, argued |
 |---|---|
@@ -479,7 +480,7 @@ struck in front of a fence must take the round as it was before the fence; prose
 | ⚠ unknown round | a round with penetration 0 meets terrain as `EngineFallbacks.UnknownRoundTerrainPenetrationMm` = 5 (the catalogs' rifle) and STAYS unknown after (still ignores armour). ⛔ without it chain-link would stop it (any resistance > 0 defeats 0 mm) |
 | ⚠ spent round | a known round reduced below 0 keeps 0.001 mm, never 0 — 0 would make it an unknown round that ignores armour |
 | ⚠ **the shot line** *(prerequisite, AQ85 §D first half)* | ⛔ before, a shot flew FEET to FEET — through terrain every low wall and window sill would have stopped a round aimed over it. ⭐ It now flies from the shooter's eye to the middle of the target's silhouette for the LOGICAL stance, by the SAME rule sight uses (`TerrainWorldLosStrategy.EyeHeightFor/AimHeightFor`, §3f "one profile for being seen and being shot"). The ENTITY hit test stays a 2-D circle — body profiles are Stage 4 |
-| timing | `BallisticsSystem` holds the far-end values (`NextDamage/NextPenetration`, `TerrainState`) and applies them at the start of its next pass; a stopped round's raycast ends at the wall face and the round is destroyed next pass. `HitResolutionSystem` re-carries the round from the segment's start to the hit point |
+| timing | ⭐ **corrected `2026-10-07` (CE-3101)** — the muzzle values stay on the bullet (`Damage`/`Penetration`) with its `Muzzle`; `BallisticsSystem` decides stops from separate FRONT values (`FrontDamage`/`FrontPenetration`), truncates the raycast at the wall, freezes the round there and keeps it `StoppedRoundGraceTicks` (8) before destroying it; `HitResolutionSystem` carries the round MUZZLE → hit point. ⛔ SUPERSEDED: *"holds the far-end values for a tick and applies them at the start of its next pass; a stopped round is destroyed next pass"* — a segment's raycast resolves THREE ticks later (sequence above), so that version double-counted a fence for a unit struck in front of it and destroyed a stopped round before a hit in front of the wall could resolve |
 | diagnostics | `GET /terrain/query?purpose=fire&penetration=&damage=` — each crossing with path, resistance, chance, passes; `stopped`, `arrivingDamage` |
 | tuning note | with the starter table a rifle (5 mm) passes chain-link, metal sheet and ONE wooden fence (3 mm at 0.05 m), and is stopped by a second fence, a hedge (16 mm at 0.8 m), brick and concrete — placeholder values (§3c), tune in `materials.json` |
 | rails | `TerrainWorldTests.Stage3Fire_*` · `BallisticsSystemTests.R217_*` (5) · `HitResolutionSystemDetonationTests.R217_*` (3) · `ParameterResolverTests.R217_*` · `FireProcessingSystemTests.R217_*` (+ three fire rails re-stated for the eye → aim line) · `TerrainReportTests` (fire) |

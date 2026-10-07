@@ -84,31 +84,24 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
                 var shot = shots?.Of(entity);
-                if (shot != null)   // ⭐ T-4 — its last segment resolved without a hit: its crossings stand
-                {
-                    shot.Crossings.AddRange(shot.Pending);
-                    shot.Pending.Clear();
-                }
 
-                // ── 0. ⭐ R-217 — apply what the round carried out of its last segment (its raycast has resolved by now) ──
-                if (proj.TerrainState != 0)
+                // ── 0. ⭐ R-217 — a round stopped by the terrain stays frozen at the wall for a grace period, so the raycasts of its
+                //   last segments (three ticks in flight) still resolve — a unit IN FRONT of the wall is still struck — then goes.
+                if (proj.StoppedTick != 0)
                 {
-                    if (proj.TerrainState == 2)   // it stopped in a wall
+                    if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
                     {
-                        if (shot != null) ShotLog.End(shot, ShotOutcome.StoppedByTerrain, currentTick, shot.PendingStop);
+                        if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj);
                         repo.DestroyEntity(entity);
-                        continue;
                     }
-                    proj.Damage = proj.NextDamage;
-                    proj.Penetration = proj.NextPenetration;
-                    proj.TerrainState = 0;
+                    continue;
                 }
 
                 // ── 1. Lifetime check ────────────────────────────────────────────
                 // Unsigned subtraction handles tick-counter wrap correctly.
                 if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
                 {
-                    if (shot != null) ShotLog.End(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position);
+                    if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj);
                     repo.DestroyEntity(entity);
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
@@ -117,18 +110,26 @@ namespace Fdp.Toolkit.Combat.Systems
                 var tf = repo.GetComponent<SimTransform>(entity);
 
                 // ── 2a. ⭐⭐ Buildings §3d P2 (R-217) — the segment through the TERRAIN: walls, fences and floors resist by the armour
-                //   rule; a crossing the round cannot pass ENDS the segment there, so no unit beyond it is struck. What the round
-                //   carries out is HELD until the next pass (see BallisticProjectile.NextDamage).
+                //   rule (the round's FRONT values, carried segment by segment); a crossing the round cannot pass ENDS the segment
+                //   there — no unit beyond it is struck — and freezes the round at the wall. The damage a unit takes is NOT decided
+                //   here: HitResolutionSystem carries the round from its muzzle to the unit, whenever the raycast resolves.
                 var end = tf.Position;
                 if (terrain != null)
                 {
-                    float dmg = proj.Damage, pen = proj.Penetration;
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref dmg, ref pen, out float stopT, shot?.Pending);
-                    if (stopped) end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
-                    if (shot != null) shot.PendingStop = stopped ? end : null;
-                    proj.NextDamage = dmg;
-                    proj.NextPenetration = pen;
-                    proj.TerrainState = stopped ? (byte)2 : (byte)1;
+                    if ((proj.TerrainFlags & 1) == 0)
+                    {
+                        proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
+                        proj.TerrainFlags |= 1;
+                    }
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT);
+                    if (stopped)
+                    {
+                        end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
+                        proj.StoppedTick = currentTick == 0 ? 1u : currentTick;
+                        ref var at = ref repo.GetComponentRW<SimTransform>(entity);
+                        at.Position = end;
+                        if (repo.HasComponent<SimVelocity>(entity)) repo.GetComponentRW<SimVelocity>(entity).Linear = System.Numerics.Vector3.Zero;
+                    }
                 }
 
                 cmd.PublishEvent(new RaycastRequestEvent
@@ -146,7 +147,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ── 3. Update PreviousPosition ───────────────────────────────────
                 // Record the bullet's current position so the next frame's raycast
                 // sweeps the correct segment (after LinearKinematicsSystem advances it).
-                proj.PreviousPosition = tf.Position;
+                proj.PreviousPosition = end;
             }
         }
 

@@ -81,19 +81,27 @@ namespace Fdp.Toolkit.Combat.Components
         public float Penetration;
 
         /// <summary>
-        /// ⭐ Buildings §3d P2 (R-217) — what the round carries at the FAR end of the segment <c>BallisticsSystem</c> last submitted,
-        /// after the terrain it crossed (<see cref="TerrainPenetration"/>). ⚠ Held, not applied, until the NEXT pass: the segment's
-        /// raycast resolves next tick, and a unit struck BEFORE a wall on that segment must take the damage the round had before
-        /// the wall — <c>HitResolutionSystem</c> re-carries the round from the segment's start to the hit point with
-        /// <see cref="Damage"/>/<see cref="Penetration"/> as they still are.
+        /// ⭐ Buildings §3d P2 (R-217) — where the round left the muzzle. <see cref="Damage"/>/<see cref="Penetration"/> stay the MUZZLE
+        /// values; whatever needs the round as it arrived somewhere carries it through the terrain from here
+        /// (<see cref="TerrainPenetration.Carry"/>) — exact however many ticks a segment's raycast takes to resolve (three: the
+        /// request is played back after the next tick's Input, solved in the one after, its result read in the third).
         /// </summary>
-        public float NextDamage;
+        public Vector3 Muzzle;
 
-        /// <inheritdoc cref="NextDamage"/>
-        public float NextPenetration;
+        /// <summary>⭐ R-217 — the round at its FLIGHT FRONT (after the terrain crossed so far): what <c>BallisticsSystem</c> decides a stop
+        /// from, segment by segment. Never read for damage — the hit re-carries from <see cref="Muzzle"/>.</summary>
+        public float FrontDamage;
 
-        /// <summary>⭐ R-217 — 0 = nothing held · 1 = <see cref="NextDamage"/>/<see cref="NextPenetration"/> held · 2 = held AND the round
-        /// stopped in the terrain at the end of its last segment (the next pass destroys it).</summary>
-        public byte TerrainState;
+        /// <inheritdoc cref="FrontDamage"/>
+        public float FrontPenetration;
+
+        /// <summary>⭐ R-217 — the tick the round stopped in the terrain (0 = flying). A stopped round is frozen at the wall and kept
+        /// <see cref="CombatConstants.StoppedRoundGraceTicks"/> ticks, so the raycasts of its last segments still resolve (a unit IN
+        /// FRONT of the wall is still hit), then destroyed.</summary>
+        public uint StoppedTick;
+
+        /// <summary>⭐ R-217 — bit 0: <see cref="Muzzle"/> and the front values are set (a round built without them — older tests,
+        /// examples — starts its front at its first segment and is carried from that segment's start).</summary>
+        public byte TerrainFlags;
     }
 }

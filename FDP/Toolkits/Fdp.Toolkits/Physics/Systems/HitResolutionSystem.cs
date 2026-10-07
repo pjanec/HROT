@@ -103,14 +103,18 @@ namespace Fdp.Toolkit.Physics.Systems
                         ref readonly var bp = ref repo.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity);
                         penetration = bp.Penetration;
                         damage      = bp.Damage;
-                        // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors crossed on THIS segment before the struck unit: the round
-                        //   is carried from the segment's start to the hit point (BallisticsSystem held the far-end values back, so
-                        //   bp is still what the round had at the start). A unit in FRONT of a fence takes the full round.
+                        // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors between the MUZZLE and the struck unit: the round is
+                        //   carried from where it was fired (its Damage/Penetration are the muzzle values), so this is exact however many
+                        //   ticks the segment's raycast took (three). A unit in FRONT of a fence takes the full round. A round built
+                        //   without a muzzle (older tests, examples) is carried from this segment's start.
                         var shot = Fdp.Toolkit.Combat.ShotLog.Peek(repo)?.Of(bulletEntity);   // ⭐ T-4
-                        shot?.Pending.Clear();   // this segment ends at the unit — its crossings beyond it never happened
                         if (repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
                             && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is Fdp.Toolkit.Terrain.TerrainWorld terrain)
-                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, hit.Start, hitPos, ref damage, ref penetration, out _, shot?.Crossings);
+                        {
+                            shot?.Crossings.Clear();
+                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, (bp.TerrainFlags & 1) != 0 ? bp.Muzzle : hit.Start, hitPos,
+                                ref damage, ref penetration, out _, shot?.Crossings);
+                        }
                         if (shot != null)
                         {
                             shot.HitEntity = hit.HitEntity;

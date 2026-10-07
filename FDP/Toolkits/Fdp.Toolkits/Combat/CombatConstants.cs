@@ -72,5 +72,9 @@ namespace Fdp.Toolkit.Combat
         /// At 60 Hz this is approximately 2 seconds.
         /// </summary>
         public const uint  BulletLifetimeTicks   = 120;
+
+        /// <summary>⭐ R-217 — how long a round stopped by the terrain is kept (frozen at the wall) before it is destroyed: long enough
+        /// for the raycasts of its last segments to resolve (they take three ticks), so a unit in front of the wall is still hit.</summary>
+        public const uint  StoppedRoundGraceTicks = 8;
     }
 }

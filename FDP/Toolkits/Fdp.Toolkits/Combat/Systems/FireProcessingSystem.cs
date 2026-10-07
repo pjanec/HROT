@@ -172,6 +172,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     Damage           = damage,
                     Penetration      = penetration,
                     SpawnTick        = currentTick,
+                    Muzzle           = muzzlePos,      // ⭐ R-217 — a hit carries the round from here, whenever it resolves
+                    FrontDamage      = damage,
+                    FrontPenetration = penetration,
+                    TerrainFlags     = 1,
                 });
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)

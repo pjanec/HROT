@@ -45,10 +45,6 @@ namespace Fdp.Toolkit.Combat
         public float ArrivingPenetration { get; internal set; }
         public List<ShotCrossing> Crossings { get; } = new();
 
-        /// <summary>The crossings of the segment whose raycast has not resolved yet — committed by the next ballistics pass,
-        /// dropped when that segment's raycast hits a unit first (the hit re-carries the round only up to the unit).</summary>
-        internal List<ShotCrossing> Pending { get; } = new();
-        internal Vector3? PendingStop { get; set; }
     }
 
     /// <summary>
@@ -105,6 +101,25 @@ namespace Fdp.Toolkit.Combat
         internal static void End(ShotRecord r, ShotOutcome outcome, uint tick, Vector3? at)
         {
             r.Outcome = outcome; r.EndTick = tick; r.EndPoint = at;
+        }
+
+        /// <summary>
+        /// Ends <paramref name="r"/> at <paramref name="at"/>, listing every terrain crossing from the muzzle to there — carried the same
+        /// way the hit is (from the muzzle, so it is exact whatever the raycast latency).
+        /// </summary>
+        internal static void EndCarried(ShotRecord r, ShotOutcome outcome, uint tick, Vector3 at, Fdp.Toolkit.Terrain.TerrainWorld? terrain,
+            in Components.BallisticProjectile proj)
+        {
+            if (terrain != null && (proj.TerrainFlags & 1) != 0)
+            {
+                float d = proj.Damage, p = proj.Penetration;
+                r.Crossings.Clear();
+                // a stopped round is frozen exactly AT the wall's face — carry a few centimetres on, so the crossing that stopped it is listed
+                var to = outcome == ShotOutcome.StoppedByTerrain && Vector3.DistanceSquared(at, proj.Muzzle) > 1e-6f
+                    ? at + Vector3.Normalize(at - proj.Muzzle) * 0.05f : at;
+                TerrainPenetration.Carry(terrain, proj.Muzzle, to, ref d, ref p, out _, r.Crossings);
+            }
+            End(r, outcome, tick, at);
         }
 
         private static (int, int) Key(Entity e) => (e.Index, e.Generation);

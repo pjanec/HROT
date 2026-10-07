@@ -71,25 +71,28 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         [Fact]
-        public void AStoppedRound_IsRecordedAsStoppedByTerrain_AtTheWall_WithTheCrossingThatStoppedIt()
+        public void AStoppedRound_IsRecordedAsStoppedByTerrain_AtTheWall_WithTheCrossingThatStoppedIt_AfterTheGrace()
         {
             var (_, shot) = Fire(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f));
             Ballistics();
-            Assert.Equal(ShotOutcome.InFlight, shot.Outcome);     // ⚠ held: the segment's raycast has not resolved
-            Assert.Empty(shot.Crossings);
+            Assert.Equal(ShotOutcome.InFlight, shot.Outcome);     // ⚠ kept for the grace: a unit in front of the wall may still be struck
+            _world.SetSingleton(new GlobalTime { FrameNumber = CombatConstants.StoppedRoundGraceTicks + 1, TimeScale = 1f });
             Ballistics();
             Assert.Equal(ShotOutcome.StoppedByTerrain, shot.Outcome);
-            var c = Assert.Single(shot.Crossings);
+            var c = Assert.Single(shot.Crossings);                 // carried from the muzzle to the wall
             Assert.Equal("concrete", c.Material);
             Assert.False(c.Passed);
             Assert.Equal(9.9f, shot.EndPoint!.Value.Y, 3);
         }
 
+        /// <summary>⭐ The latency case: the round has ALREADY been stopped at the wall (and frozen) when the raycast of its last segment
+        /// resolves with a unit in front of the wall — the unit is still struck, with the full round, and the wall is not listed.</summary>
         [Fact]
-        public void ARoundThatHitsAUnitInFrontOfTheWall_IsAHit_AndNeverListsTheWall()
+        public void ARoundThatHitsAUnitInFrontOfTheWall_IsAHit_WithTheFullRound_AndNeverListsTheWall()
         {
             var (bullet, shot) = Fire(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f));
             Ballistics();
+            Assert.NotEqual(0u, _world.GetComponent<BallisticProjectile>(bullet).StoppedTick);
             var unit = _world.CreateEntity();
             _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
             {
@@ -101,7 +104,11 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(ShotOutcome.Hit, shot.Outcome);
             Assert.Equal(unit, shot.HitEntity);
             Assert.Equal(25f, shot.ArrivingDamage);
+            Assert.Equal(5f, shot.ArrivingPenetration);
             Assert.Empty(shot.Crossings);                         // the wall is beyond the unit
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(25f, det.Damage);
         }
 
         [Fact]

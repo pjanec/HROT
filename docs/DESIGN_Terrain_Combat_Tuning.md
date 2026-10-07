@@ -296,20 +296,21 @@ sequenceDiagram
     participant H as HitResolutionSystem
     participant API as GET /combat/shots
     F->>L: Add(record: inputs — muzzle, aim, sigma, deflection, penetration + provenance, damage)
-    B->>L: segment crossings into Pending, PendingStop
-    H->>L: hit on that segment — drop Pending, re-carry to the unit, End(Hit, arriving damage)
-    B->>L: next pass — commit Pending, stopped ⇒ End(StoppedByTerrain), lifetime ⇒ End(Expired)
+    H->>L: hit (three ticks after its segment) — carry MUZZLE → unit, End(Hit, arriving damage, crossings)
+    B->>L: stopped round after its grace ⇒ carry MUZZLE → wall, End(StoppedByTerrain), lifetime ⇒ End(Expired)
     API->>L: Recent(last) — read, never recomputed
 ```
-*What it shows:* three systems each write the part of the record they decide, and a segment's crossings stay PENDING
-until its raycast resolves — so a round that hits a unit in front of a wall never lists the wall.
+*What it shows:* three systems each write the part of the record they decide, and every outcome's crossings are carried
+from the MUZZLE to where the round ended — exact whatever the raycast latency, so a round that hits a unit in front of a
+wall never lists the wall. ⛔ SUPERSEDED (`CE-3101`): a "pending crossings until the next pass" mechanism, which assumed a
+one-tick latency (the real one is three).
 
 | item | as built — and the deviations, argued |
 |---|---|
 | `ShotLog` (`Fdp.Toolkits/Combat/ShotLog.cs`) | a ring of 256 `ShotRecord`s per world, held beside the world (`ConditionalWeakTable`) — ⚠ not an ECS singleton: no system has to register one, a world that never fires costs nothing, and readers never create it (`Peek`) |
 | `GET /combat/shots?last=&shooter=&target=` (MCP `get_combat_shots`) | inputs (`penetrationSource` = the resolver's provenance + source, AQ85 σ/θ/ordinal), outcome `InFlight / Hit / StoppedByTerrain / Expired`, end point, unit hit with `arrivingDamage`/`arrivingPenetration`, every crossing with the round's chance through it |
 | `GET /perception/los?observer=&target=` (MCP `explain_line_of_sight`) | ⚠ **a dry run, not a ring buffer**: LOS is evaluated for every sensor pair every perception tick — a record per evaluation would be noise. ⭐ Instead `TerrainWorldLosStrategy.Explain` makes the SAME decision as `IsVisible` (rail: they agree) from the SAME composition (`ForLiveWorld`), with the evidence: eye/aim heights and stances, terrain crossings, the blocking entity. ⏭ per-body-point exposure → Stage 4 |
-| rails | `ShotLogTests` (4: ring + eviction; stopped at the wall; a hit in front of the wall never lists it; expired) · `FireProcessingSystemTests.T4_*` · `LosStrategyTests.T4_Explain_AgreesWithIsVisible_AndNamesTheReason` · `CombatReportTests` (2) |
+| rails | `ShotLogTests` (4: ring + eviction; stopped at the wall after the grace; a hit in front of the wall — after the round already froze there — is a full-damage hit that never lists it; expired) · `FireProcessingSystemTests.T4_*` · `LosStrategyTests.T4_Explain_AgreesWithIsVisible_AndNamesTheReason` · `CombatReportTests` (2) |
 | ⏭ not yet | `/combat/detonations` (with `CE-1032`) · the fire-trace and LOS-probe map layers (T-5) |
 
 ## 5. Map debug layers — each host shows what it has

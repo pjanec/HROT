@@ -254,21 +254,33 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         [Fact]
-        public void R217_AConcreteWall_EndsTheSegmentAtTheWall_AndTheRoundIsDestroyedOnTheNextPass()
+        public void R217_AConcreteWall_EndsTheSegmentAtTheWall_FreezesTheRound_AndRemovesItAfterTheGrace()
         {
             SeedTerrain();
             var round = SpawnRound(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f), damage: 25f, penetration: 5f);   // a rifle round
 
             var req = Assert.Single(RunAndReadEvents());
             Assert.Equal(9.9f, req.End.Y, 3);                      // ⭐ the raycast stops at the wall's face — no unit beyond it is struck
-            Assert.Equal(2, _world.GetComponent<BallisticProjectile>(round).TerrainState);
+            var p = _world.GetComponent<BallisticProjectile>(round);
+            Assert.NotEqual(0u, p.StoppedTick);
+            Assert.Equal(9.9f, _world.GetComponent<SimTransform>(round).Position.Y, 3);    // frozen at the wall
+            Assert.Equal(Vector3.Zero, _world.GetComponent<SimVelocity>(round).Linear);
+            Assert.Equal(25f, p.Damage);                           // the muzzle values are never rewritten
 
+            // ⭐ kept for the grace (its segments' raycasts take three ticks to resolve) — no further raycasts — then removed
+            for (uint t = 1; t < CombatConstants.StoppedRoundGraceTicks; t++)
+            {
+                SetCurrentTick(t);
+                Assert.Empty(RunAndReadEvents());
+                Assert.True(_world.IsAlive(round), $"removed at tick {t}, inside the grace");
+            }
+            SetCurrentTick(CombatConstants.StoppedRoundGraceTicks + 1);
             RunAndReadEvents();
             Assert.False(_world.IsAlive(round));
         }
 
         [Fact]
-        public void R217_AWoodenFence_PassesARifleRound_ReducedPenetration_HeldUntilTheNextPass_TheSecondFenceStopsIt()
+        public void R217_AWoodenFence_PassesARifleRound_TheFrontIsReduced_TheMuzzleValuesAreNot_TheSecondFenceStopsIt()
         {
             SeedTerrain();
             var round = SpawnRound(new Vector3(25, 15, 1.6f), new Vector3(25, 25, 1.6f), damage: 25f, penetration: 5f);
@@ -276,19 +288,20 @@ namespace Fdp.Toolkit.Combat.Tests
             var req = Assert.Single(RunAndReadEvents());
             Assert.Equal(25f, req.End.Y, 3);                       // passes: 5 mm vs 3 mm ⇒ chance 1
             var p = _world.GetComponent<BallisticProjectile>(round);
-            Assert.Equal(25f, p.Damage);                           // ⚠ held — the raycast for THIS segment resolves next tick
+            Assert.Equal(25f, p.Damage);                           // ⚠ the muzzle values: a hit carries from the muzzle, whenever it resolves
             Assert.Equal(5f, p.Penetration);
-            Assert.Equal(25f, p.NextDamage, 3);
-            Assert.Equal(2f, p.NextPenetration, 3);                // 5 − 3
+            Assert.Equal(new Vector3(25, 15, 1.6f), p.Muzzle);
+            Assert.Equal(25f, p.FrontDamage, 3);
+            Assert.Equal(2f, p.FrontPenetration, 3);               // 5 − 3
+            Assert.Equal(0u, p.StoppedTick);
 
             // next segment through the second fence: 2 mm vs 3 mm ⇒ pen/armour 0.67 < 0.8 ⇒ stopped
             ref var tf = ref _world.GetComponentRW<SimTransform>(round);
             tf.Position = new Vector3(25, 35, 1.6f);
+            SetCurrentTick(1);
             var req2 = Assert.Single(RunAndReadEvents());
-            p = _world.GetComponent<BallisticProjectile>(round);
-            Assert.Equal(2f, p.Penetration, 3);                    // applied at the start of this pass
             Assert.Equal(29.975f, req2.End.Y, 3);
-            Assert.Equal(2, p.TerrainState);
+            Assert.NotEqual(0u, _world.GetComponent<BallisticProjectile>(round).StoppedTick);
         }
 
         [Fact]
@@ -300,12 +313,12 @@ namespace Fdp.Toolkit.Combat.Tests
             var reqs = RunAndReadEvents();
             Assert.Equal(2, reqs.Length);
             var a = _world.GetComponent<BallisticProjectile>(through);
-            Assert.Equal(1, a.TerrainState);
-            Assert.Equal(25f, a.NextDamage, 3);                    // 5 mm (the unknown-round fallback) vs 0.025 mm ⇒ chance 1
-            Assert.Equal(0f, a.NextPenetration);                   // still unknown ⇒ still ignores armour
+            Assert.Equal(0u, a.StoppedTick);
+            Assert.Equal(25f, a.FrontDamage, 3);                   // 5 mm (the unknown-round fallback) vs 0.025 mm ⇒ chance 1
+            Assert.Equal(0f, a.FrontPenetration);                  // still unknown ⇒ still ignores armour
             var b = _world.GetComponent<BallisticProjectile>(over);
-            Assert.Equal(1, b.TerrainState);
-            Assert.Equal(5f, b.NextPenetration);
+            Assert.Equal(0u, b.StoppedTick);
+            Assert.Equal(5f, b.FrontPenetration);
         }
 
         [Fact]
@@ -332,7 +345,8 @@ namespace Fdp.Toolkit.Combat.Tests
             var round = SpawnRound(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f), damage: 25f, penetration: 5f);
             var req = Assert.Single(RunAndReadEvents());
             Assert.Equal(15f, req.End.Y);
-            Assert.Equal(0, _world.GetComponent<BallisticProjectile>(round).TerrainState);
+            Assert.Equal(0u, _world.GetComponent<BallisticProjectile>(round).StoppedTick);
+            Assert.Equal(0, _world.GetComponent<BallisticProjectile>(round).TerrainFlags);   // untouched without terrain
         }
     }
 }
