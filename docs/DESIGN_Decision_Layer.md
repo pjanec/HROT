@@ -902,6 +902,40 @@ Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3
 ⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
 TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
 
+### 3.3f `CE-3090` — the wounded unit on open ground: HoldProne, and Flee only when able *(behaviors, `2026-10-07`; build-state: BUILT)*
+
+> 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for
+> wounded one the hold-prone seems a better option."* · on the plan: *"otherwise approved"* · on prone: *"the effect is that the entity
+> should change its stance to 'prone' — the stance could be shown on the map as just another text indicator on the entity. we need the
+> stance support"* (§3.3g — proposed, awaiting approval).
+
+*Found live by the backend lane (U6, [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §11.1): at 10 HP on
+`basic-desert` TakeCover and Flee both read 0 (no cover, no hidden retreat) ⇒ the unit kept advancing.*
+
+```mermaid
+graph TD
+  W{"health"} -->|"healthy"| A["AdvanceAndAttack / Suppress<br/>(unchanged)"]
+  W -->|"≥ ½, outmatched,<br/>a HIDDEN retreat"| F["Flee (FallBack)"]
+  W -->|"wounded, cover"| C["TakeCover"]
+  W -->|"wounded, NO cover,<br/>a live threat"| P["HoldProne — NEW option 6<br/>stop · lie down (§3.3g) · return fire"]
+```
+
+*What the picture shows that prose hid:* the two wounded rows are ONE score with the cover term flipped — HoldProne is TakeCover's mirror
+(hurt × a live threat × **(1 − cover)** × outmatched), so the switch between them sits at a cover score of ½ and nothing in between is
+left without a defence. Flee is no longer a wounded option at all.
+
+| decision | why | rejected |
+|---|---|---|
+| a NEW option `Posture.HoldProne = 6` scored hurt^0.8 × `HaveLiveTarget` × (1 − cover) × outmatched^0.6 | mirrors TakeCover, so cover decides between them | folding it into `Hold` — Hold is a weighted SUM (the floor) and cannot require "hurt AND threatened AND no cover"; a hurt unit would stop with no enemy (against R-208 "advance without enemy") |
+| `Flee` gains `HealthFraction` Threshold (≥ 0.5) beside its InverseQuadratic | the user's rule: only a unit able to run flees; it still needs a HIDDEN retreat (`FindSafeRetreatPoint` — hidden AND away) ⇒ never across open ground | a retreat that needs no cover (my first lean) — ruled out by the user: an easy target |
+| `PostureNodes.HoldProne(EngageParams, EngageState)` = stop the move + fire at the top threat; deactivator stops the fire | a defence that returns fire; one node owns both channels (G9) | `Hold` + `Engage` in a Parallel (two writers of one run's channels, §3.3b) |
+| all three hosts get the branch: BTree `CombatPosture` (Sequence[IsOption(6) → HoldProne] before the Hold floor), HSM `CombatPostureHsm` (state + 10 transitions), blueprint `CombatPostureBp` (task `PostureHoldProne`, a one-leaf wrapper BTree like `PostureSuppress`) | one decision, three hosts kept in parity (§3.3c/§3.3d) | — |
+
+📐 **Scores at 10 HP, no cover, one armed enemy** (own strength 0.1 ⇒ ratio 0.91): HoldProne ≈ 0.89 · Advance 0.386 (measured) · Flee 0
+(below half health) · TakeCover 0. Superseded rails, re-homed: `NearDeath_With_Escape_Flees` → `CE3090_NearDeath_With_Escape_HoldsProne_InsteadOfFleeing`;
+`NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
+off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
+
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
 > 🔒 **User, `2026-10-04`:** *"Standing orders sound good."* (the name for what the corpus calls the DOCTRINE — rename

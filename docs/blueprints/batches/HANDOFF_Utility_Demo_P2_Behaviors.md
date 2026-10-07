@@ -248,3 +248,15 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   one the hold-prone seems a better option."* ⇒ my cover-free retreat lean is withdrawn. Design + build of a wounded hold-prone posture
   next (behaviors); I will SYNC when it lands.
 - **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · CE-3090 BUILT — HoldProne; Flee needs half health (⚠ CROSS-LANE: your CE-3090 row closed)
+
+- **What changed for U6 / U3:** `CombatPostureDecision` has a 6th option `HoldProne` (hurt × live threat × NO cover × outmatched) — a
+  wounded member on open ground now stops and returns fire instead of advancing. `Flee` needs ≥ half health and still a hidden
+  retreat. All three posture hosts (BTree / HSM / blueprint) carry it. 📄 `docs/DESIGN_Decision_Layer.md` §3.3f.
+- **Please re-run** U6's hurt step (`ua-fire-distribution`) — expect `HoldProne` top in `/entities/{id}/utility` at 10 HP.
+- **I edited your rows:** `CE-3090` (closed) and the U6 line of `RUNBOOK_Utility_AI_Demos.md`; `DESIGN_Utility_AI_Demo_Scenarios.md`
+  §11.1's finding row notes the fix.
+- **Next (proposed, awaiting the user):** real stance support — the brain requests prone, SimHost's fake animation backend performs it,
+  the map shows it (CE-3010 scope, cross-node needs `AnimationReplicationModule`).
+- **Waiting for:** nothing.

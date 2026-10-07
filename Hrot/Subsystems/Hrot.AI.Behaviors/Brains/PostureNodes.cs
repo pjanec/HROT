@@ -190,6 +190,18 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3090</c> — a WOUNDED unit with no cover: stays where it is and returns fire at its top threat (re-aims when it
+        /// changes). Running; a unit with no weapon channel still holds. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3f.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        {
+            StopMoving(world, self);
+            Fire(world, self, ref ws, p.CooldownSeconds);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3082</c> D1 — true when THIS advance arrived: its move was issued and the channel reports Success. The HSM
         /// host's finish (an HSM activity's status is discarded, so the posture HSM leaves Advance for its Final state on this
         /// guard). Reads the SAME working state <see cref="AdvanceAndAttack"/> writes. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3c.
@@ -220,6 +232,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Leaving the Suppress branch: the weapon stops.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage")]
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => StopFiring(world, self, ref ws);
+
+        /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]
+        public static void Deactivate_HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
         /// <summary>Leaving the advance: the move and the weapon stop.</summary>
