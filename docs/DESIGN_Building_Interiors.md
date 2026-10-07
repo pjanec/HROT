@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -516,6 +516,44 @@ classDiagram
 | acceptance | ⭐ rail: a standing observer sees a standing target over a 0.5 m wall and over a 1.2 m wall; a prone target behind the 0.5 m wall is not seen; `LogicalStance.Of` drives it with no stance reader passed |
 | ✅ as built | matches the diagram: `LogicalStance.Of` (beside `StanceIntent`, `Tkb/Domain/StanceComponents.cs`); `HitModel.LogicalStance` delegates to it; `TerrainWorldLosStrategy.ForLiveWorld` defaults its stance reader to it; `BodyProfile.Fractions` + `BodyPoints`; `IsVisible` = any point clear; `Explain` lists every `LosPoint`; `/perception/los` returns `points[]` with per-point verdicts (MCP regenerated). Rails: `LosStrategyTests.Stage4_*` (2) — standing behind a 0.5 m wall seen, prone not; only the head clears a 1.2 m wall; `ForLiveWorld` hides a target the tick its `StanceIntent` says prone. The earlier posture rails (`TerrainLos_*`) held unchanged |
 | ⏭ not in Stage 4 | per-point EXPOSURE for fragments/blast (`CE-1032`); the cluster SimHost reads Standing until the stance wire (`CE-2121` slice ②) carries `StanceIntent` |
+
+## 3j. Stage 5 (doors) — slices, and 5a as built *(backend, `2026-10-07`; decisions approved in §3a/§3b)*
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainDoorDef { <<existing, Stage 1>> Key; Panel; Opening; Initial; Center; SillZ }
+    class TerrainWorld { <<existing>> Doors; DoorLeaves NEW; DoorState(i) NEW; SetDoorState(i, s) NEW; DoorIndexOf(key) NEW }
+    class DoorLeaf { <<TerrainPrism, NEW — NOT in Prisms>> a 0.05 m door-wood piece across the doorway, sill → head }
+    class SegmentBlocked_QuerySight_QueryFire { <<existing queries>> + the leaves of doors that are Closed/Locked }
+    class TerrainWorldMesh { <<existing, unchanged>> reads Prisms only ⇒ baked with every door OPEN }
+    class DoorEntity { <<5b, NEW>> TKB Door; DoorState replicated; created once by the arbiter }
+    class DoorStateMirror { <<5b, NEW system>> DoorState entity → TerrainWorld.SetDoorState }
+    class NavDoorFlags { <<5c, NEW>> doorway convex volumes at bake; SetPolyFlags from DoorState; per-agent filter; Door waypoints; replan }
+    TerrainWorld *-- TerrainDoorDef
+    TerrainWorld *-- DoorLeaf : one per door
+    SegmentBlocked_QuerySight_QueryFire --> TerrainWorld
+    TerrainWorldMesh --> TerrainWorld : Prisms only
+    DoorEntity ..> DoorStateMirror
+    DoorStateMirror ..> TerrainWorld
+    DoorEntity ..> NavDoorFlags
+```
+*What it shows:* the door LEAF lives beside the prisms, never among them — so sight and fire see a shut door while the
+navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (5b) only has to write one byte per door.
+
+| slice | content | state |
+|---|---|---|
+| **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
+| **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, `TerrainObjectMap`) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ⏭ next |
+| **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, `SetPolyFlags` from `DoorState`, a custom `IDtQueryFilter` (DotRecast has no `SetAreaCost`), `TraversalKind.Door` waypoints carried through (today `PlanPath` drops them), replan on a door change (today only the frustration watchdog replans) | ⏭ |
+| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner; the behaviour nodes are the behaviors lane's | ⏭ |
+| **5e** | scenario `terrainObjects` section (save writes current door state; load applies it) + `TerrainObjectRef` — ⚠ the serializer reads only `Entities` and the distributed merge rebuilds only `{$meta, Header, Entities}`, so both need the section added | ⏭ |
+
+| 5a as built | |
+|---|---|
+| ⚠ deviation from the original Stage 1 behaviour | a doorway WAS a gap whatever its door's state; now a Closed/Locked door blocks sight and is a `door` crossing for fire (§3a: *"closed door = its panel"*). The Stage 1 rail `Stage1_SightPassesAWindowAndADoorway_ButNotTheWallBesideThem` was re-stated deliberately (the instance's front is locked ⇒ blocked; opened ⇒ clear). `test-town` has no doors — unchanged |
+| initial state | the terrain/instance `TerrainDoorDef.Initial` until the door entities (5b) mirror the replicated state |
+| rails | `TerrainWorldTests.Stage5_*` (closed blocks sight, is a door-wood crossing for fire; open / destroyed are gaps; locked blocks; no leaf in `Prisms`) |
 
 ## 4. Change map — what each consumer must do
 

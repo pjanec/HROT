@@ -355,7 +355,10 @@ namespace Fdp.Toolkit.Terrain.Tests
             // the front wall runs y = 100 (x 100..110); look from outside (y = 90) to inside (y = 104) at eye height 1.6
             Assert.False(w.SegmentBlocked(new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)));   // window 101.5..102.7
             Assert.True(w.SegmentBlocked(new Vector3(102.1f, 90, 0.5f), new Vector3(102.1f, 104, 0.5f)));    // under the sill
-            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));   // the doorway 104.5..105.5
+            // the doorway 104.5..105.5 — ⭐ Stage 5: a gap only while its door is OPEN (this instance's front is locked)
+            Assert.True(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));
+            w.SetDoorState(w.DoorIndexOf(w.Doors[0].Key), TerrainDoorState.Open);
+            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));
             Assert.True(w.SegmentBlocked(new Vector3(103.5f, 90, 1.6f), new Vector3(103.5f, 104, 1.6f)));    // solid wall
         }
 
@@ -474,6 +477,45 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal("slab", slab.Kind);
             Assert.Equal(1500f * TerrainWorld.SlabThicknessMetres, slab.ResistanceMmRha, 1);
             Assert.Equal(0.5f, slab.T, 3);
+        }
+
+        // ── ⭐ Stage 5 — a closed door is a panel for sight and fire; the navmesh never sees it ─────────────────
+
+        private const string OneDoorHouse = """
+        { "type": "FeatureCollection", "features": [ { "type": "Feature",
+            "properties": { "kind": "building", "label": "H", "doors": { "front": "closed" },
+              "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [10,0], "thickness": 0.3,
+                  "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] } ] } ] } },
+            "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+        """;
+
+        [Fact]
+        public void Stage5_AClosedDoorBlocksSight_AndIsADoorForFire_OpenOrDestroyedIsAGap_TheNavmeshNeverSeesIt()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            Assert.Equal(0, door);
+            var from = new Vector3(25f, 10f, 1.5f); var to = new Vector3(25f, 24f, 1.5f);   // straight through the doorway (24.5–25.5)
+
+            Assert.Equal(TerrainDoorState.Closed, w.DoorState(door));
+            Assert.True(w.SegmentBlocked(from, to));
+            var leaf = Assert.Single(w.QuerySight(from, to).Crossed);
+            Assert.Equal("door", leaf.Kind);
+            Assert.Equal("range/H/front", leaf.Label);
+            var fire = Assert.Single(w.QueryFire(from, to));
+            Assert.Equal(TerrainWorld.DoorMaterial, fire.Material);
+            Assert.Equal(60f * TerrainWorld.DoorLeafThickness, fire.ResistanceMmRha, 2);   // a wooden door — a rifle goes through
+
+            w.SetDoorState(door, TerrainDoorState.Open);
+            Assert.False(w.SegmentBlocked(from, to));
+            Assert.Empty(w.QueryFire(from, to));
+            w.SetDoorState(door, TerrainDoorState.Locked);
+            Assert.True(w.SegmentBlocked(from, to));
+            w.SetDoorState(door, TerrainDoorState.Destroyed);
+            Assert.False(w.SegmentBlocked(from, to));
+
+            Assert.DoesNotContain(w.Prisms, p => p.Label == "range/H/front");   // the navmesh (and SurfaceZ) read Prisms only
         }
 
         private static string ShippedTerrain(string name)

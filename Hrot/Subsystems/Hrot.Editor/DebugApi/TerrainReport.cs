@@ -96,12 +96,13 @@ namespace Hrot.Editor.DebugApi
             var t = Resident(world);
             if (t == null) return NoTerrain();
             var arr = new JsonArray();
-            foreach (var d in t.Doors.OrderBy(d => d.Key, System.StringComparer.Ordinal))
+            foreach (var (d, i) in t.Doors.Select((d, i) => (d, i)).OrderBy(x => x.d.Key, System.StringComparer.Ordinal))
             {
                 var panel = t.Panels[d.Panel];
                 arr.Add(new JsonObject
                 {
-                    ["key"] = d.Key, ["state"] = d.Initial.ToString(), ["source"] = "terrain (initial)",
+                    ["key"] = d.Key, ["state"] = t.DoorState(i).ToString(), ["initial"] = d.Initial.ToString(),
+                    ["source"] = "terrain (live — what sight and fire see; door entities come with Stage 5)",
                     ["x"] = d.Center.X, ["y"] = d.Center.Y, ["sillZ"] = d.SillZ,
                     ["building"] = panel.Building >= 0 ? t.Buildings[panel.Building].Label : null, ["storey"] = panel.Storey,
                     ["runtimeId"] = null,

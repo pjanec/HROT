@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Terrain
@@ -103,6 +104,78 @@ namespace Fdp.Toolkit.Terrain
         public IReadOnlyList<TerrainDoorDef> Doors { get; init; } = Array.Empty<TerrainDoorDef>();
         /// <summary>⭐ Stage 1 — the material library this world was parsed with (shared + terrain overrides).</summary>
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
+
+        // ── ⭐ Stage 5 (doors) — the door LEAVES and their live state ─────────────────────────────────────────────
+
+        /// <summary>The material a closed door leaf is (sight 0; a wooden door — a rifle round goes through).</summary>
+        public const string DoorMaterial = "door-wood";
+        /// <summary>A door leaf's thickness (m), centred in its wall.</summary>
+        public const float DoorLeafThickness = 0.05f;
+
+        /// <summary>
+        /// ⭐ Stage 5 (📄 docs/DESIGN_Building_Interiors.md §3a, §3j) — one closing leaf per door (index-aligned with <see cref="Doors"/>):
+        /// a thin piece across the doorway, from its sill to its head. ⛔ NOT in <see cref="Prisms"/> — the navmesh is baked with every
+        /// door OPEN (§3a), so nothing that reads prisms ever sees a leaf; the sight and fire queries add the leaves of doors that are
+        /// not open (<see cref="DoorState"/>).
+        /// </summary>
+        public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
+
+        /// <summary>The live state of door <paramref name="index"/> (initially the terrain's / instance's <see cref="TerrainDoorDef.Initial"/>).</summary>
+        public TerrainDoorState DoorState(int index) => (TerrainDoorState)Volatile.Read(ref DoorStateArray[index]);
+
+        /// <summary>
+        /// Sets door <paramref name="index"/>'s live state — written by the system that mirrors the replicated door entity's state
+        /// (Stage 5); read by sight/fire on any thread (a byte, written whole).
+        /// </summary>
+        public void SetDoorState(int index, TerrainDoorState state) => Volatile.Write(ref DoorStateArray[index], (byte)state);
+
+        /// <summary>The index of the door whose terrain-object key is <paramref name="key"/>, or −1.</summary>
+        public int DoorIndexOf(string key)
+        {
+            for (int i = 0; i < Doors.Count; i++) if (Doors[i].Key == key) return i;
+            return -1;
+        }
+
+        private byte[] DoorStateArray => _doorStates ??= InitialDoorStates();
+        private byte[]? _doorStates;
+        private byte[] InitialDoorStates()
+        {
+            var a = new byte[Doors.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = (byte)Doors[i].Initial;
+            return a;
+        }
+
+        /// <summary>A door blocks when it is closed or locked (an open or destroyed door is a gap).</summary>
+        private bool DoorBlocks(int index) => DoorState(index) is TerrainDoorState.Closed or TerrainDoorState.Locked;
+
+        private Lazy<IReadOnlyList<TerrainPrism>> _doorLeaves => _doorLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildDoorLeaves);
+        private Lazy<IReadOnlyList<TerrainPrism>>? _doorLeavesLazy;
+
+        private IReadOnlyList<TerrainPrism> BuildDoorLeaves()
+        {
+            var leaves = new List<TerrainPrism>(Doors.Count);
+            Materials.TryGet(DoorMaterial, out var material);
+            foreach (var d in Doors)
+            {
+                var panel = Panels[d.Panel];
+                var o = panel.Openings[d.Opening];
+                var dir = panel.B - panel.A;
+                float len = dir.Length();
+                dir = len > 0f ? dir / len : Vector2.UnitX;
+                var n = new Vector2(-dir.Y, dir.X) * (DoorLeafThickness * 0.5f);
+                var p0 = panel.A + dir * o.At;
+                var p1 = panel.A + dir * (o.At + o.Width);
+                var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
+                leaves.Add(new TerrainPrism
+                {
+                    Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = d.Key,
+                    Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
+                    Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
+                    Material = material, Panel = d.Panel, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                });
+            }
+            return leaves;
+        }
 
         /// <summary>
         /// ⭐ The Z an entity at (<paramref name="x"/>, <paramref name="y"/>) stands on — the ground, a roof or
@@ -239,8 +312,12 @@ namespace Fdp.Toolkit.Terrain
             var segMin = Vector2.Min(a, b);
             var segMax = Vector2.Max(a, b);
 
-            foreach (var prism in Prisms)
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
                 {
@@ -294,8 +371,12 @@ namespace Fdp.Toolkit.Terrain
             var segMax = Vector2.Max(a, b);
             float length = Vector3.Distance(from, to);
 
-            foreach (var prism in Prisms)
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
                 {
@@ -304,7 +385,7 @@ namespace Fdp.Toolkit.Terrain
                     if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
-                    crossed.Add(new Crossing(t0 * length, panel != null ? "panel" : "prism", prism.Label,
+                    crossed.Add(new Crossing(t0 * length, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, prism.Material?.SightTransmittance ?? 0f,
                         building, panel?.Storey ?? -1));
                     break;   // one entry per piece
@@ -374,8 +455,12 @@ namespace Fdp.Toolkit.Terrain
             Materials.TryGet(TerrainMaterialLibrary.DefaultMaterial, out var fallback);
             float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
 
-            foreach (var prism in Prisms)
+            // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
+            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            for (int pi = 0; pi < Prisms.Count + leaves.Count; pi++)
             {
+                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count)) continue;
+                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
                 {
@@ -396,7 +481,7 @@ namespace Fdp.Toolkit.Terrain
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
                     float path = (hi - lo) * length;
                     float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
-                    into.Add(new FireCrossing(lo, path, perMetre * path, panel != null ? "panel" : "prism", prism.Label,
+                    into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1));
                 }
             }

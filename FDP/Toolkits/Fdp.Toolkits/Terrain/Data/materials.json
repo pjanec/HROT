@@ -10,6 +10,7 @@
     "glass":             { "sight": 1.0,  "resistanceMmRhaPerM": 30,   "soundDb": 20, "blocksMovement": true },
     "steel-plate":       { "sight": 0.0,  "resistanceMmRhaPerM": 1000, "soundDb": 40, "blocksMovement": true },
     "sandbags":          { "sight": 0.0,  "resistanceMmRhaPerM": 100,  "soundDb": 30, "blocksMovement": true },
-    "earth-berm":        { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 40, "blocksMovement": true }
+    "earth-berm":        { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 40, "blocksMovement": true },
+    "door-wood":         { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 15, "blocksMovement": true }
   }
 }
