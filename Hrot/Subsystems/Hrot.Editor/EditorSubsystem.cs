@@ -339,19 +339,9 @@ namespace Hrot.Editor
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
         private FdpEventBus?           _orchestrationBus;
-        private ClusterMaster?                _clusterMaster;
-        private ReplaySeekProcessManager?     _seekProcessManager;
-        private ReplayProcessManager?         _replayProcessManager;
-        private AssetInventoryProcessManager?  _assetInventoryProcessManager;
-        private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
-        private StorageGatewayModule?          _storageGateway;
-        private StorageProcessManager?         _storageProcessManager;   // CE-277(c2): unified save merge in the editor too
-        private ClusterUiCache?                _uiCache;
-        private ClusterScenarioPanel?          _clusterPanel;
-        private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
+        private OrchestratorCore?             _orchestratorCore;   // ⭐ Q86 — the ONE core, shared with the cluster
+        private ClusterMaster?                _clusterMaster;      //   = _orchestratorCore.Master (kept for its readers)
         private IFileDialogService?            _fileDialogService;
-        private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
-        private DiagnosticLogMergeWorker?      _logMergeWorker;
 
         // ?? Selection state ???????????????????????????????????????????????????????
 
@@ -489,6 +479,12 @@ namespace Hrot.Editor
         /// <summary>⭐ The docked Asset Browser production built — 📌 <c>R-67</c>: a rail asks the
         /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
         internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
+
+        /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
+        internal MasterSyncController? TimeControllerForTest => _timeController;
+
+        /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
+        internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
@@ -1411,7 +1407,7 @@ namespace Hrot.Editor
             //    world with no cluster peer to arbitrate against, so it must service its own unowned
             //    requests. ⚠ This preserves the previous `isDefaultProcessor: true` exactly.
             //
-            // ⛔ ExtraTranslators is empty: this host's list was plain Base(), and add-only means an
+            // ⛔ SUPERSEDED (CE-2121): ExtraTranslators was empty — it now adds the animation translator. Was: this host's list was plain Base(), and add-only means an
             //    empty extra set reproduces it exactly. Per-component narrowing stays gate 2
             //    (IsComponentTypeRegistered), never the list — tkb-1/DESIGN.md §6.5b.
             //
@@ -1427,6 +1423,13 @@ namespace Hrot.Editor
 
                 // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
                 TranslatorPlacements = TranslatorPlacements is { Count: > 0 } ? TranslatorPlacements : null,
+
+                // ⭐ CE-2121 — the body stance, as on SimHost and CGF (Brain and Muscle share this one world). ⚠ The pack takes
+                //   extras OR placements, never both: an injected arm (Stride) that names placements keeps its own list.
+                ExtraTranslators = TranslatorPlacements is { Count: > 0 } ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+                {
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
 
                 IsBroadcastArbiter = true,
             });
@@ -2177,66 +2180,26 @@ namespace Hrot.Editor
             _editorLogic = app;
             _editorApp   = app;
 
-            // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
-            var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
-            _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
-
-            // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority, and this master resets it at
-            //    a scenario load exactly as the orchestrator's resets the DDS server.
-            //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
-            // ⭐ Same allocator instance the load handlers and NetworkSpawningSystem were given at :1123, so
-            //   authored and runtime ids come from one monotonic sequence that starts at 1000 after a load.
-            _clusterMaster.IdAuthority =
-                Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!);
-
-            // Register the seek aggregator and process manager so the clock snaps on seek
-            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
-
-            // Register replay manager and aggregator so duration payload flows through 2PC
-            _replayProcessManager = new ReplayProcessManager(_orchestrationBus!, _timeController);
-            _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
-
-            _storageGateway = new StorageGatewayModule();
-            // ⭐ CE-277(c2) — the editor runs the SAME save-completion pipeline as the cluster (no exception):
-            //   after its single-node SerializeLocal fan-out, StorageProcessManager pulls the node-staging
-            //   slice and ScenarioMergeCore writes the canonical scenario.json (merge of one slice = identity).
-            _storageProcessManager = new StorageProcessManager(
-                _orchestrationBus!, _storageGateway, ClusterConfiguration.Default.NasBasePath);
-            // The storage aggregator turns each node's FileManifestResult[] into the FileManifestEntry
-            // manifest StorageProcessManager consumes — orchestrator-registered on a cluster, needed here too.
-            _clusterMaster.RegisterAggregator(new StorageConsensusAggregator());
-            _assetInventoryProcessManager = new AssetInventoryProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot(),
-                EditorNodeId);
-            _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.ResolveStagingRoot());
-            // ⭐ CE-3021 — the editor's offline master answers publish / refresh too (silent-default rule).
-            var offlineMaster = _clusterMaster!;
-            offlineMaster.AssetSync = new Hrot.Orchestrator.AssetSyncService(
-                _storageGateway!, ClusterConfiguration.Default.NasBasePath, offlineMaster.ActiveNodeCapabilitySnapshot);
-            _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
-            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
+            // ⭐⭐ Q86 (R-215) — the editor runs the ONE orchestrator core, the same one the cluster's
+            //    OrchestratorSubsystem hosts; it replaced a hand-built copy that had drifted (no scenario-load
+            //    handler — the clock never reset on load —, no episodes, no live branch, diagnostics dumped into the
+            //    scenarios folder). 📄 docs/blueprints/Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md
+            //    ⭐ The CLOCK stays here: this node's kernel creates and advances it (pause/step stay immediate —
+            //    the editor has no followers); the core only asks, through _timeCommands.
             _fileDialogService = FileDialogServiceFactory.Create();
-            _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
-                _uiCache,
-                _orchestrationBus!,
-                _fileDialogService,
-                EditorBootstrap.ScenariosRoot);
-            var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
-            _clusterMaster.RegisterAggregator(diagnosticsAggregator);
-            _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
-                _orchestrationBus!,
-                _storageGateway,
-                EditorBootstrap.ScenariosRoot,
-                diagnosticsAggregator);
-            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
+            _orchestratorCore = new OrchestratorCore(new OrchestratorCoreOptions
+            {
+                Bus               = _orchestrationBus!,
+                Config            = ClusterConfiguration.LoadFromWorkingDirectory().ForOneNodeCluster(),
+                TimeCommands      = _timeCommands!,
+                TimeReads         = _timeController!,
+                StagingNodeId     = EditorNodeId,
+                // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
+                //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
+                IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
+                FileDialogService = _fileDialogService,
+            });
+            _clusterMaster = _orchestratorCore.Master;
             // Curated test scenarios: copy the git-committed set into the working NAS folder on start,
             // overwriting ONLY those names (non-curated scenarios are never touched, nothing is deleted).
             // No-op in a deployed build — there is no source tree to copy from. See
@@ -2740,17 +2703,10 @@ namespace Hrot.Editor
             // Swap the Control Plane bus so intents published by the UI this frame
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
-            _clusterMaster?.Tick();
-            _storageProcessManager?.Tick();   // CE-277(c2): pull + merge the scenario slice after the fan-out
-            _seekProcessManager?.Tick(); // Pump the seek Saga
-            _replayProcessManager?.Tick(); // Pump the replay manager for duration extraction
-            _assetInventoryProcessManager?.Tick();
-            _assetPrefetchProcessManager?.Tick();
-            _diagnosticsDumpProcessManager?.Tick();
-            _logMergeWorker?.Tick();
-            _uiCache?.Update();
+            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            _orchestratorCore?.UiCache.Update();
             _editorLogic?.Update();
-            _clusterPanel?.Update(deltaTime);
+            _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
             //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
@@ -5010,10 +4966,12 @@ namespace Hrot.Editor
 
             // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
-            if (_clusterPanel != null && _uiCache != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
-            if (_clusterDiagnosticsPanel != null)
-                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
+            if (_orchestratorCore != null)
+            {
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(
+                    _orchestratorCore.ScenarioPanel, _orchestratorCore.UiCache));
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_orchestratorCore.DiagnosticsPanel));
+            }
 
             // ?? Data Breakpoint Manager window (UBP-P10T3) ??? registered unconditionally ???????????
             // Registered before the headless guard so the window is available in headless mode (tests).
@@ -5255,19 +5213,10 @@ namespace Hrot.Editor
             _fdpRepoAdapter   = null;
             _selectionState   = null;
             // (Phase 5: _interactionTool was here; removed)
-            _clusterMaster?.Dispose();
-            _clusterMaster  = null;
-            _assetInventoryProcessManager = null;
-            _assetPrefetchProcessManager = null;
-            _diagnosticsDumpProcessManager = null;
-            _logMergeWorker?.Dispose();
-            _logMergeWorker = null;
-            _uiCache?.Dispose();
-            _uiCache        = null;
-            _clusterPanel = null;
-            _clusterDiagnosticsPanel = null;
+            _orchestratorCore?.Dispose();
+            _orchestratorCore = null;
+            _clusterMaster    = null;
             _fileDialogService = null;
-            _storageGateway = null;
         }
 
         // ?? Private helpers ???????????????????????????????????????????????????

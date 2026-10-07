@@ -71,7 +71,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 
@@ -116,7 +116,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 
@@ -158,6 +158,7 @@ public sealed class ReplaySeekProcessManagerTests
         bus.SwapBuffers();
         mgr.Tick(); // reads ClusterOpCompletedEvent, calls SnapAndPause
 
+        masterSyncBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(5000L, masterSync.GetCurrentState().TotalWallTicks);
     }
 
@@ -178,7 +179,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, masterSync);
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 
@@ -215,6 +216,7 @@ public sealed class ReplaySeekProcessManagerTests
         mgr.Tick();
 
         // Wall ticks must be unchanged -- SnapAndPause must NOT have been called.
+        masterSyncBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(initialWallTicks, masterSync.GetCurrentState().TotalWallTicks);
     }
 }

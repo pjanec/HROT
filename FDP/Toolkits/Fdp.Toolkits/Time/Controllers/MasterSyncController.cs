@@ -158,6 +158,9 @@ namespace Fdp.Toolkit.Time.Controllers
             foreach (var ev in _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>())
                 updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
 
+            // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
+            foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
+                SnapAndPause(ev.Position);
             foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
             foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())
@@ -476,27 +479,35 @@ namespace Fdp.Toolkit.Time.Controllers
         }
 
         /// <summary>
-        /// Atomically snaps the master clock to <paramref name="targetWallTicks"/> /
-        /// <paramref name="targetSimTime"/> and enters Deterministic (lockstep) mode.
-        /// Unlike <see cref="SwitchToDeterministic"/>, no future-barrier window is used --
-        /// the mode switch is instantaneous and the published <see cref="SwitchTimeModeEvent"/>
-        /// carries a <c>BarrierWallTicks</c> already in the past so slaves apply the snap
-        /// immediately via the instant-snap path in <c>SlaveSyncController</c>.
+        /// The ONE time discontinuity: jumps the clock to <paramref name="position"/> and pauses (Deterministic).
+        /// Every position field is applied — <see cref="GlobalTime.FrameNumber"/>, <see cref="GlobalTime.TotalTime"/>,
+        /// <see cref="GlobalTime.UnscaledTotalTime"/>, <see cref="GlobalTime.TotalWallTicks"/> — so nothing is left
+        /// from the old timeline. <see cref="GlobalTime.TimeScale"/> is NOT part of a position and is left alone: the
+        /// playback rate is its own control (<see cref="SetTimeScale"/>; the replay freeze/restore owns it around a branch).
+        /// <para>Unlike <see cref="SwitchToDeterministic"/>, no future-barrier window is used — the published
+        /// <see cref="SwitchTimeModeEvent"/> carries a <c>BarrierWallTicks</c> already in the past, so slaves snap
+        /// immediately via the instant-snap path in <c>SlaveSyncController</c>. The abrupt-reset interlock:
+        /// <c>docs/designs/cgf-1/mgmt-DESIGN.md</c> §5.6.4.</para>
+        /// <para>Callers say WHY (a seek, a live branch, a scenario load); the clock only knows WHERE.</para>
         /// </summary>
-        /// <param name="targetWallTicks">Wall-clock tick value to snap to.</param>
-        /// <param name="targetSimTime">Simulation time (seconds) to snap to.</param>
-        /// <param name="slaveNodeIds">Slave roster for ACK tracking during subsequent steps.</param>
-        public void SnapAndPause(long targetWallTicks, double targetSimTime, HashSet<int> slaveNodeIds)
+        /// <param name="position">The time position to jump to.</param>
+        /// <param name="slaveNodeIds">The slave roster that ACKs later steps; <see langword="null"/> keeps the current one.</param>
+        public void SnapAndPause(GlobalTime position, HashSet<int>? slaveNodeIds = null)
         {
-            _totalWallTicks    = targetWallTicks;
-            _totalTime         = targetSimTime;
+            _frameNumber       = position.FrameNumber;
+            _totalTime         = position.TotalTime;
+            _unscaledTotalTime = position.UnscaledTotalTime;
+            _totalWallTicks    = position.TotalWallTicks;
             _mode              = MasterMode.Stepping;
             _pendingAcks       = new HashSet<int>();
             _queuedStepDeltas.Clear();
+            _pendingBarrierWallTicks = -1;
 
-            _expectedSlaves.Clear();
             if (slaveNodeIds != null)
+            {
+                _expectedSlaves.Clear();
                 _expectedSlaves.UnionWith(slaveNodeIds);
+            }
 
             _eventBus.Publish(new SwitchTimeModeEvent
             {

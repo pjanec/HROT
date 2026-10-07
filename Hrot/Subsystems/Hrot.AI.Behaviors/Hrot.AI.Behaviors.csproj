@@ -72,6 +72,8 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Hrot.Core provides: TkbEntityTypes constants used by mapper implementations. -->
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- ⭐ CE-2121 — the Brain writes StanceIntent (HoldProne lies down). Depends on Fdp only: no cycle. -->
+    <ProjectReference Include="..\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
     <!-- FastBTree fluent builder (BTreeBuilder<TBlackboard, TContext>) for [BTreeDefinition] methods. -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
 

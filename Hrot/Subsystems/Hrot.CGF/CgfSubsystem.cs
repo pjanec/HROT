@@ -921,6 +921,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ExtraTranslators = new ITkbEntityTranslator[]
             {
                 new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto; it adds only the
+                //   types this node registered (StanceComponentRegistry). No production ITkbHotReloadEvents exists yet ⇒ null.
+                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
             },
 
             IsBroadcastArbiter = true,

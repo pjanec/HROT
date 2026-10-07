@@ -161,7 +161,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             });
 
             // ── Load ─────────────────────────────────────────────────────────────
-            var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+            var loadHandler = new GlobalContextClusterOpHandler(new FdpEventBus(), string.Empty);
             loadHandler.LocalTempRoot = tempRoot;
 
             var loadCmd = new NodeOpCommand
@@ -218,7 +218,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             });
 
             // ── Load — subscribe BEFORE Commit ────────────────────────────────────
-            var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+            var loadHandler = new GlobalContextClusterOpHandler(new FdpEventBus(), string.Empty);
             loadHandler.LocalTempRoot = tempRoot;
 
             long  capturedTicks   = 0;
@@ -266,7 +266,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
     [Fact]
     public void OnContextLoaded_DoesNotFire_WhenNoScenarioId()
     {
-        var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+        var loadHandler = new GlobalContextClusterOpHandler(new FdpEventBus(), string.Empty);
 
         bool eventFired = false;
         loadHandler.OnContextLoaded += (_, _) => eventFired = true;

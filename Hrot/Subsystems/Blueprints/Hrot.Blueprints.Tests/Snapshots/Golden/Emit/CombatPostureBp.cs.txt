@@ -240,10 +240,10 @@ public static class CombatPostureBp_AA8140FB_Bp
         float deltaTime,
         uint instanceVersion, int occurrenceKey)
     {
-        uint __t36 = __ex.Cursor.ResumeAt;
-        var __t37 = 0u;
-        var __t38 = (__t36 == __t37);
-        if (__t38)
+        uint __t43 = __ex.Cursor.ResumeAt;
+        var __t44 = 0u;
+        var __t45 = (__t43 == __t44);
+        if (__t45)
             goto __block_entry;
         else
             goto __block_cursor_dispatch_chain_1;
@@ -311,7 +311,7 @@ public static class CombatPostureBp_AA8140FB_Bp
         
         __block_branch_871d343c_true:
         global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_9912317df04c54d496cb2750f0a8770d, occurrenceKey);
-        __ex.Cursor.ResumeAt = 6;
+        __ex.Cursor.ResumeAt = 7;
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_871d343c_false:
@@ -348,7 +348,7 @@ public static class CombatPostureBp_AA8140FB_Bp
         
         __block_branch_41e5f114_true:
         global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_93664a294e5259d89238bd1c3b099dd0, occurrenceKey);
-        __ex.Cursor.ResumeAt = 7;
+        __ex.Cursor.ResumeAt = 8;
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_41e5f114_false:
@@ -375,13 +375,17 @@ public static class CombatPostureBp_AA8140FB_Bp
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_b02fe49b_false:
-        __ex.Cursor.ResumeAt = 5;
-        __ex.Cursor.InstanceVersion = instanceVersion;
-        return global::Fbt.NodeStatus.Running;
+        var __t25 = __bb.St.Winner;
+        var __t26 = 6;
+        var __t27 = __t25 == __t26;
+        if (__t27)
+            goto __block_branch_b6439dad_true;
+        else
+            goto __block_branch_b6439dad_false;
         
         __block_branch_65f2fa40_true:
         global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_6c810c3d5b64514c9a0a5fec1ccf2523, occurrenceKey);
-        __ex.Cursor.ResumeAt = 8;
+        __ex.Cursor.ResumeAt = 9;
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_65f2fa40_false:
@@ -394,13 +398,31 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_merge_3911eea8;
         
         __block_wait_running_3:
-        var __t26 = __bb.St.Winner;
-        var __t27 = 4;
-        var __t28 = __t26 != __t27;
-        if (__t28)
+        var __t28 = __bb.St.Winner;
+        var __t29 = 4;
+        var __t30 = __t28 != __t29;
+        if (__t30)
             goto __block_branch_cc77f481_true;
         else
             goto __block_branch_cc77f481_false;
+        
+        __block_branch_b6439dad_true:
+        __ex.Cursor.ResumeAt = 5;
+        __ex.Cursor.InstanceVersion = instanceVersion;
+        return global::Fbt.NodeStatus.Running;
+        
+        __block_branch_b6439dad_false:
+        __ex.Cursor.ResumeAt = 6;
+        __ex.Cursor.InstanceVersion = instanceVersion;
+        return global::Fbt.NodeStatus.Running;
+        
+        __block_branch_cc77f481_true:
+        global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_43a5e039a6fb577280ba61b0b4ee25fa, occurrenceKey);
+        __ex.Cursor.ResumeAt = 10;
+        return global::Fbt.NodeStatus.Running;
+        
+        __block_branch_cc77f481_false:
+        return global::Fbt.NodeStatus.Running;
         
         __block_wait_resume_4:
         goto __block_merge_3911eea8;
@@ -409,114 +431,147 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_merge_3911eea8;
         
         __block_wait_running_4:
-        var __t29 = __bb.St.Winner;
-        var __t30 = 5;
-        var __t31 = __t29 != __t30;
-        var __t32 = __bb.St.Winner;
-        var __t33 = 0;
-        var __t34 = __t32 != __t33;
-        var __t35 = __t31 && __t34;
+        var __t33 = __bb.St.Winner;
+        var __t34 = 6;
+        var __t35 = __t33 != __t34;
         if (__t35)
+            goto __block_branch_f3a8dfe6_true;
+        else
+            goto __block_branch_f3a8dfe6_false;
+        
+        __block_wait_resume_5:
+        goto __block_merge_3911eea8;
+        
+        __block_wait_fail_5:
+        goto __block_merge_3911eea8;
+        
+        __block_wait_running_5:
+        var __t36 = __bb.St.Winner;
+        var __t37 = 5;
+        var __t38 = __t36 != __t37;
+        var __t39 = __bb.St.Winner;
+        var __t40 = 0;
+        var __t41 = __t39 != __t40;
+        var __t42 = __t38 && __t41;
+        if (__t42)
             goto __block_branch_b9f5d6ad_true;
         else
             goto __block_branch_b9f5d6ad_false;
         
-        __block_branch_cc77f481_true:
-        global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_43a5e039a6fb577280ba61b0b4ee25fa, occurrenceKey);
-        __ex.Cursor.ResumeAt = 9;
+        __block_branch_f3a8dfe6_true:
+        global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_51cb638ec2324f3292c09ad47e94fb02, occurrenceKey);
+        __ex.Cursor.ResumeAt = 11;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_cc77f481_false:
+        __block_branch_f3a8dfe6_false:
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_b9f5d6ad_true:
         global::Fdp.Toolkit.Behavior.HostedSubtree.Reset(((global::Fdp.Core.EntityRepository)view), self, __RunSite_1bb032a0e49a55c78356a3ba6140b113, occurrenceKey);
-        __ex.Cursor.ResumeAt = 10;
+        __ex.Cursor.ResumeAt = 12;
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_b9f5d6ad_false:
         return global::Fbt.NodeStatus.Running;
         
         __block_cursor_dispatch_chain_1:
-        uint __t39 = __ex.Cursor.ResumeAt;
-        var __t40 = 1u;
-        var __t41 = (__t39 == __t40);
-        if (__t41)
+        uint __t46 = __ex.Cursor.ResumeAt;
+        var __t47 = 1u;
+        var __t48 = (__t46 == __t47);
+        if (__t48)
             goto __block_resume_1_action_check;
         else
             goto __block_cursor_dispatch_chain_2;
         
         __block_cursor_dispatch_chain_2:
-        uint __t42 = __ex.Cursor.ResumeAt;
-        var __t43 = 2u;
-        var __t44 = (__t42 == __t43);
-        if (__t44)
+        uint __t49 = __ex.Cursor.ResumeAt;
+        var __t50 = 2u;
+        var __t51 = (__t49 == __t50);
+        if (__t51)
             goto __block_resume_2_action_check;
         else
             goto __block_cursor_dispatch_chain_3;
         
         __block_cursor_dispatch_chain_3:
-        uint __t45 = __ex.Cursor.ResumeAt;
-        var __t46 = 3u;
-        var __t47 = (__t45 == __t46);
-        if (__t47)
+        uint __t52 = __ex.Cursor.ResumeAt;
+        var __t53 = 3u;
+        var __t54 = (__t52 == __t53);
+        if (__t54)
             goto __block_resume_3_action_check;
         else
             goto __block_cursor_dispatch_chain_4;
         
         __block_cursor_dispatch_chain_4:
-        uint __t48 = __ex.Cursor.ResumeAt;
-        var __t49 = 4u;
-        var __t50 = (__t48 == __t49);
-        if (__t50)
+        uint __t55 = __ex.Cursor.ResumeAt;
+        var __t56 = 4u;
+        var __t57 = (__t55 == __t56);
+        if (__t57)
             goto __block_resume_4_action_check;
         else
             goto __block_cursor_dispatch_chain_5;
         
         __block_cursor_dispatch_chain_5:
-        uint __t51 = __ex.Cursor.ResumeAt;
-        var __t52 = 5u;
-        var __t53 = (__t51 == __t52);
-        if (__t53)
+        uint __t58 = __ex.Cursor.ResumeAt;
+        var __t59 = 5u;
+        var __t60 = (__t58 == __t59);
+        if (__t60)
             goto __block_resume_5_action_check;
         else
             goto __block_cursor_dispatch_chain_6;
         
         __block_cursor_dispatch_chain_6:
-        uint __t54 = __ex.Cursor.ResumeAt;
-        var __t55 = 6u;
-        var __t56 = (__t54 == __t55);
-        if (__t56)
-            goto __block_resume_1_aborted;
+        uint __t61 = __ex.Cursor.ResumeAt;
+        var __t62 = 6u;
+        var __t63 = (__t61 == __t62);
+        if (__t63)
+            goto __block_resume_6_action_check;
         else
             goto __block_cursor_dispatch_chain_7;
         
         __block_cursor_dispatch_chain_7:
-        uint __t57 = __ex.Cursor.ResumeAt;
-        var __t58 = 7u;
-        var __t59 = (__t57 == __t58);
-        if (__t59)
-            goto __block_resume_2_aborted;
+        uint __t64 = __ex.Cursor.ResumeAt;
+        var __t65 = 7u;
+        var __t66 = (__t64 == __t65);
+        if (__t66)
+            goto __block_resume_1_aborted;
         else
             goto __block_cursor_dispatch_chain_8;
         
         __block_cursor_dispatch_chain_8:
-        uint __t60 = __ex.Cursor.ResumeAt;
-        var __t61 = 8u;
-        var __t62 = (__t60 == __t61);
-        if (__t62)
-            goto __block_resume_3_aborted;
+        uint __t67 = __ex.Cursor.ResumeAt;
+        var __t68 = 8u;
+        var __t69 = (__t67 == __t68);
+        if (__t69)
+            goto __block_resume_2_aborted;
         else
             goto __block_cursor_dispatch_chain_9;
         
         __block_cursor_dispatch_chain_9:
-        uint __t63 = __ex.Cursor.ResumeAt;
-        var __t64 = 9u;
-        var __t65 = (__t63 == __t64);
-        if (__t65)
+        uint __t70 = __ex.Cursor.ResumeAt;
+        var __t71 = 9u;
+        var __t72 = (__t70 == __t71);
+        if (__t72)
+            goto __block_resume_3_aborted;
+        else
+            goto __block_cursor_dispatch_chain_10;
+        
+        __block_cursor_dispatch_chain_10:
+        uint __t73 = __ex.Cursor.ResumeAt;
+        var __t74 = 10u;
+        var __t75 = (__t73 == __t74);
+        if (__t75)
             goto __block_resume_4_aborted;
         else
+            goto __block_cursor_dispatch_chain_11;
+        
+        __block_cursor_dispatch_chain_11:
+        uint __t76 = __ex.Cursor.ResumeAt;
+        var __t77 = 11u;
+        var __t78 = (__t76 == __t77);
+        if (__t78)
             goto __block_resume_5_aborted;
+        else
+            goto __block_resume_6_aborted;
         
         __block_resume_1_action_check:
         if (__ex.Cursor.InstanceVersion != instanceVersion)
@@ -524,10 +579,10 @@ public static class CombatPostureBp_AA8140FB_Bp
             __ex.Cursor.ResumeAt = 0;
             return global::Fbt.NodeStatus.Running;
         }
-        var __t66 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_9912317df04c54d496cb2750f0a8770d, __RunBind_9912317df04c54d496cb2750f0a8770d);
-        var __t67 = global::Fbt.NodeStatus.Running;
-        var __t68 = ((int)__t66 == (int)__t67);
-        if (__t68)
+        var __t79 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_9912317df04c54d496cb2750f0a8770d, __RunBind_9912317df04c54d496cb2750f0a8770d);
+        var __t80 = global::Fbt.NodeStatus.Running;
+        var __t81 = ((int)__t79 == (int)__t80);
+        if (__t81)
             goto __block_resume_1_ret_void;
         else
             goto __block_resume_1_not_running;
@@ -536,9 +591,9 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_wait_running_0;
         
         __block_resume_1_not_running:
-        var __t69 = global::Fbt.NodeStatus.Failure;
-        var __t70 = ((int)__t66 == (int)__t69);
-        if (__t70)
+        var __t82 = global::Fbt.NodeStatus.Failure;
+        var __t83 = ((int)__t79 == (int)__t82);
+        if (__t83)
             goto __block_resume_1_failure;
         else
             goto __block_resume_1_success;
@@ -557,10 +612,10 @@ public static class CombatPostureBp_AA8140FB_Bp
             __ex.Cursor.ResumeAt = 0;
             return global::Fbt.NodeStatus.Running;
         }
-        var __t71 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_93664a294e5259d89238bd1c3b099dd0);
-        var __t72 = global::Fbt.NodeStatus.Running;
-        var __t73 = ((int)__t71 == (int)__t72);
-        if (__t73)
+        var __t84 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_93664a294e5259d89238bd1c3b099dd0);
+        var __t85 = global::Fbt.NodeStatus.Running;
+        var __t86 = ((int)__t84 == (int)__t85);
+        if (__t86)
             goto __block_resume_2_ret_void;
         else
             goto __block_resume_2_not_running;
@@ -569,9 +624,9 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_wait_running_1;
         
         __block_resume_2_not_running:
-        var __t74 = global::Fbt.NodeStatus.Failure;
-        var __t75 = ((int)__t71 == (int)__t74);
-        if (__t75)
+        var __t87 = global::Fbt.NodeStatus.Failure;
+        var __t88 = ((int)__t84 == (int)__t87);
+        if (__t88)
             goto __block_resume_2_failure;
         else
             goto __block_resume_2_success;
@@ -590,10 +645,10 @@ public static class CombatPostureBp_AA8140FB_Bp
             __ex.Cursor.ResumeAt = 0;
             return global::Fbt.NodeStatus.Running;
         }
-        var __t76 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_6c810c3d5b64514c9a0a5fec1ccf2523);
-        var __t77 = global::Fbt.NodeStatus.Running;
-        var __t78 = ((int)__t76 == (int)__t77);
-        if (__t78)
+        var __t89 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_6c810c3d5b64514c9a0a5fec1ccf2523);
+        var __t90 = global::Fbt.NodeStatus.Running;
+        var __t91 = ((int)__t89 == (int)__t90);
+        if (__t91)
             goto __block_resume_3_ret_void;
         else
             goto __block_resume_3_not_running;
@@ -602,9 +657,9 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_wait_running_2;
         
         __block_resume_3_not_running:
-        var __t79 = global::Fbt.NodeStatus.Failure;
-        var __t80 = ((int)__t76 == (int)__t79);
-        if (__t80)
+        var __t92 = global::Fbt.NodeStatus.Failure;
+        var __t93 = ((int)__t89 == (int)__t92);
+        if (__t93)
             goto __block_resume_3_failure;
         else
             goto __block_resume_3_success;
@@ -623,10 +678,10 @@ public static class CombatPostureBp_AA8140FB_Bp
             __ex.Cursor.ResumeAt = 0;
             return global::Fbt.NodeStatus.Running;
         }
-        var __t81 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_43a5e039a6fb577280ba61b0b4ee25fa);
-        var __t82 = global::Fbt.NodeStatus.Running;
-        var __t83 = ((int)__t81 == (int)__t82);
-        if (__t83)
+        var __t94 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_43a5e039a6fb577280ba61b0b4ee25fa);
+        var __t95 = global::Fbt.NodeStatus.Running;
+        var __t96 = ((int)__t94 == (int)__t95);
+        if (__t96)
             goto __block_resume_4_ret_void;
         else
             goto __block_resume_4_not_running;
@@ -635,9 +690,9 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_wait_running_3;
         
         __block_resume_4_not_running:
-        var __t84 = global::Fbt.NodeStatus.Failure;
-        var __t85 = ((int)__t81 == (int)__t84);
-        if (__t85)
+        var __t97 = global::Fbt.NodeStatus.Failure;
+        var __t98 = ((int)__t94 == (int)__t97);
+        if (__t98)
             goto __block_resume_4_failure;
         else
             goto __block_resume_4_success;
@@ -656,10 +711,10 @@ public static class CombatPostureBp_AA8140FB_Bp
             __ex.Cursor.ResumeAt = 0;
             return global::Fbt.NodeStatus.Running;
         }
-        var __t86 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_1bb032a0e49a55c78356a3ba6140b113);
-        var __t87 = global::Fbt.NodeStatus.Running;
-        var __t88 = ((int)__t86 == (int)__t87);
-        if (__t88)
+        var __t99 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_51cb638ec2324f3292c09ad47e94fb02);
+        var __t100 = global::Fbt.NodeStatus.Running;
+        var __t101 = ((int)__t99 == (int)__t100);
+        if (__t101)
             goto __block_resume_5_ret_void;
         else
             goto __block_resume_5_not_running;
@@ -668,9 +723,9 @@ public static class CombatPostureBp_AA8140FB_Bp
         goto __block_wait_running_4;
         
         __block_resume_5_not_running:
-        var __t89 = global::Fbt.NodeStatus.Failure;
-        var __t90 = ((int)__t86 == (int)__t89);
-        if (__t90)
+        var __t102 = global::Fbt.NodeStatus.Failure;
+        var __t103 = ((int)__t99 == (int)__t102);
+        if (__t103)
             goto __block_resume_5_failure;
         else
             goto __block_resume_5_success;
@@ -682,6 +737,39 @@ public static class CombatPostureBp_AA8140FB_Bp
         __block_resume_5_success:
         __ex.Cursor.ResumeAt = 0;
         goto __block_wait_resume_4;
+        
+        __block_resume_6_action_check:
+        if (__ex.Cursor.InstanceVersion != instanceVersion)
+        {
+            __ex.Cursor.ResumeAt = 0;
+            return global::Fbt.NodeStatus.Running;
+        }
+        var __t104 = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint(ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), ((global::Fdp.Core.EntityRepository)view), self, deltaTime, instanceVersion, occurrenceKey, __RunSite_1bb032a0e49a55c78356a3ba6140b113);
+        var __t105 = global::Fbt.NodeStatus.Running;
+        var __t106 = ((int)__t104 == (int)__t105);
+        if (__t106)
+            goto __block_resume_6_ret_void;
+        else
+            goto __block_resume_6_not_running;
+        
+        __block_resume_6_ret_void:
+        goto __block_wait_running_5;
+        
+        __block_resume_6_not_running:
+        var __t107 = global::Fbt.NodeStatus.Failure;
+        var __t108 = ((int)__t104 == (int)__t107);
+        if (__t108)
+            goto __block_resume_6_failure;
+        else
+            goto __block_resume_6_success;
+        
+        __block_resume_6_failure:
+        __ex.Cursor.ResumeAt = 0;
+        goto __block_wait_fail_5;
+        
+        __block_resume_6_success:
+        __ex.Cursor.ResumeAt = 0;
+        goto __block_wait_resume_5;
         
         __block_resume_1_aborted:
         if (__ex.Cursor.InstanceVersion != instanceVersion)
@@ -728,11 +816,21 @@ public static class CombatPostureBp_AA8140FB_Bp
         __ex.Cursor.ResumeAt = 0;
         goto __block_wait_fail_4;
         
+        __block_resume_6_aborted:
+        if (__ex.Cursor.InstanceVersion != instanceVersion)
+        {
+            __ex.Cursor.ResumeAt = 0;
+            return global::Fbt.NodeStatus.Running;
+        }
+        __ex.Cursor.ResumeAt = 0;
+        goto __block_wait_fail_5;
+        
     }
     
     public static readonly int __RunSite_0b0830565348a354a065e3e8fc0c780f = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("0b083056-5348-a354-a065-e3e8fc0c780f"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("PostureSense"));
     public static readonly int __RunSite_1bb032a0e49a55c78356a3ba6140b113 = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("1bb032a0-e49a-55c7-8356-a3ba6140b113"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("PostureHold"));
     public static readonly int __RunSite_43a5e039a6fb577280ba61b0b4ee25fa = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("43a5e039-a6fb-5772-80ba-61b0b4ee25fa"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("FallBack"));
+    public static readonly int __RunSite_51cb638ec2324f3292c09ad47e94fb02 = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("51cb638e-c232-4f32-92c0-9ad47e94fb02"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("PostureHoldProne"));
     public static readonly int __RunSite_6c810c3d5b64514c9a0a5fec1ccf2523 = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("6c810c3d-5b64-514c-9a0a-5fec1ccf2523"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("PostureSuppress"));
     public static readonly int __RunSite_93664a294e5259d89238bd1c3b099dd0 = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("93664a29-4e52-59d8-9238-bd1c3b099dd0"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("TakeCover"));
     public static readonly int __RunSite_9912317df04c54d496cb2750f0a8770d = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor(new global::System.Guid("a3083000-0000-0000-0000-0000000000b5"), new global::System.Guid("9912317d-f04c-54d4-96cb-2750f0a8770d"), global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName("PostureAdvance"));
@@ -800,6 +898,7 @@ public static class BlueprintRegistrar_CombatPostureBp_AA8140FB_Bp
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_0b0830565348a354a065e3e8fc0c780f, "PostureSense"),
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_1bb032a0e49a55c78356a3ba6140b113, "PostureHold"),
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_43a5e039a6fb577280ba61b0b4ee25fa, "FallBack"),
+                global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_51cb638ec2324f3292c09ad47e94fb02, "PostureHoldProne"),
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_6c810c3d5b64514c9a0a5fec1ccf2523, "PostureSuppress"),
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_93664a294e5259d89238bd1c3b099dd0, "TakeCover"),
                 global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot(CombatPostureBp_AA8140FB_Bp.__RunSite_9912317df04c54d496cb2750f0a8770d, "PostureAdvance"),
@@ -808,6 +907,7 @@ public static class BlueprintRegistrar_CombatPostureBp_AA8140FB_Bp
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_0b0830565348a354a065e3e8fc0c780f, "PostureSense");
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_1bb032a0e49a55c78356a3ba6140b113, "PostureHold");
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_43a5e039a6fb577280ba61b0b4ee25fa, "FallBack");
+        global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_51cb638ec2324f3292c09ad47e94fb02, "PostureHoldProne");
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_6c810c3d5b64514c9a0a5fec1ccf2523, "PostureSuppress");
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_93664a294e5259d89238bd1c3b099dd0, "TakeCover");
         global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, CombatPostureBp_AA8140FB_Bp.__RunSite_9912317df04c54d496cb2750f0a8770d, "PostureAdvance");

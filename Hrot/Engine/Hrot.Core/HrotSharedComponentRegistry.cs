@@ -101,6 +101,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<AdvanceFrameIntent>();
         world.RegisterManagedEvent<FrameStepCompletedEvent>();
         world.RegisterManagedEvent<PauseTimeIntent>();
+        world.RegisterManagedEvent<SnapTimeIntent>();
         world.RegisterManagedEvent<ResumeTimeIntent>();
         world.RegisterManagedEvent<StepTimeIntent>();
         world.RegisterManagedEvent<SetTimeScaleIntent>();

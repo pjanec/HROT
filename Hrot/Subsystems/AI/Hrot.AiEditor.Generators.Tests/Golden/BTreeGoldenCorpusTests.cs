@@ -95,7 +95,7 @@ public sealed class BTreeGoldenCorpusTests
     /// </summary>
     [Fact]
     public void TheCorpusIsTheTwentyFiveShippedAssets()
-        => Assert.Equal(37, AiAssetCorpus.EnumerateFiles(Kind).Count);   // 33 → 37: CE-3083 G5 wrapper BTrees PostureAdvance/Hold/Sense/Suppress
+        => Assert.Equal(38, AiAssetCorpus.EnumerateFiles(Kind).Count);   // 33 → 37: CE-3083 G5 wrapper BTrees PostureAdvance/Hold/Sense/Suppress · 37 → 38: CE-3090 PostureHoldProne
 
     /// <summary>
     /// 🔴 <b>The gate can FAIL</b> — a new green gate proves nothing, so this shows a mutation moves it.

@@ -40,6 +40,8 @@ public static class SimHostComponentRegistry
         EmbarkationComponentRegistry.RegisterAll(world);
         BehaviorDiagnosticsComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
+        // ⭐ CE-2121 — the body-stance set (StanceIntent/StanceStatus + the backend registration pair); SimHost performs it.
+        Hrot.MuscleCharacter.Animation.Stance.StanceComponentRegistry.RegisterAll(world);
 
         MissionComponentRegistry.RegisterAll(world);
         PresentationComponentRegistry.RegisterAll(world);

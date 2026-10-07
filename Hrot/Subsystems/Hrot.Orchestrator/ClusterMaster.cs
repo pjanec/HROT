@@ -203,19 +203,6 @@ public sealed class ClusterMaster : IDisposable
     private int  _historyHead;
 
     // ── Time mode hint (CGF1-S0205) ──────────────────────────────────────
-    /// <summary>
-    /// Set when a <see cref="ClusterOpType.TransitionState"/> request heading toward
-    /// <see cref="ClusterState.LoadingLive"/> carries <c>"TimeMode": "Deterministic"</c>
-    /// in the transition intent's typed payload.
-    ///
-    /// <para>Consumers (e.g. <c>OrchestratorSubsystem</c>) should read this property
-    /// after <see cref="Tick"/> and trigger <c>DistributedTimeCoordinator.SwitchToDeterministic</c>
-    /// before the cluster enters <see cref="ClusterState.OperatingLive"/>.</para>
-    ///
-    /// <para>Reset to <c>null</c> when a <see cref="ClusterState.Idle"/> trajectory clears the
-    /// pending mode.</para>
-    /// </summary>
-    public string? PendingTimeMode { get; private set; }
 
     // ── The world's ONE id authority (HN-037) ────────────────────────────────
     /// <summary>
@@ -1144,10 +1131,11 @@ public sealed class ClusterMaster : IDisposable
         bool passesSimulationStart = trajectory.OfType<TransitionStep>()
             .Any(ts => ts.TargetState == ClusterState.LoadingLive || ts.TargetState == ClusterState.LoadingPreview);
 
-        if (passesSimulationStart && !string.IsNullOrWhiteSpace(intent.TimeMode))
-            PendingTimeMode = intent.TimeMode;
-        if (resolvedTarget == ClusterState.Idle)
-            PendingTimeMode = null;
+        // ⭐ Q86 §4-F (R-215) — a request that asks to start paused pauses the cluster through the SAME path as Stop
+        //   (PublishClusterPause), every time. ⛔ It used to set PendingTimeMode, which the orchestrator HOST turned into a
+        //   direct clock call — and only on a CHANGE of value, so a second start-paused load in a row did not pause.
+        if (passesSimulationStart && intent.TimeMode == "Deterministic")
+            PublishClusterPause();
 
         // ⭐⭐ CE-3068 — STOP PAUSES THE CLOCK. 🔒 User, `2026-10-05`: *"Stop should pause the clock, for sure."*
         //    📐 Measured before: after Live → Play → Stop the master clock kept running through Idle and into the

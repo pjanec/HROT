@@ -237,7 +237,7 @@ graph TD
   G1["No utility editor<br/>decisions are C#"]:::missing
   G2["No heat data on shipped units<br/>thermal never fires"]:::partial
   G3["BTree / BP sensor nodes have no heard-point pin<br/>only C# tactics aim at a sound"]:::partial
-  G4["Hurt unit on open ground: no defensive posture<br/>cover / retreat queries find nothing — CE-3090"]:::partial
+  G4["Hurt unit on open ground: HoldProne<br/>stop + return fire — CE-3090"]
   G5["BTree inspector can't bind a stateful node's<br/>working state — CE-2099"]:::partial
   G6["HSM canvas: regions, 'On re-entry' history, Add Transition<br/>only on the ui branch"]:::partial
   classDef partial fill:#fff3cd,stroke:#c90

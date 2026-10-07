@@ -255,6 +255,32 @@ namespace Hrot.SimHost.Tests
                 "the TakeCover child runs, with its own sensor");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3090</c> (🔒 user 2026-10-07, docs/DESIGN_Decision_Layer.md §3.3f) — a WOUNDED unit on OPEN GROUND (no cover, no
+        /// hidden retreat), outnumbered: every host picks HoldProne, stops moving and returns fire. ⛔ SUPERSEDED: TakeCover and Flee
+        /// both scored 0 and the unit kept advancing at 10 HP (U6, backend).
+        /// </summary>
+        [Theory]
+        [InlineData("CombatPosture")]
+        [InlineData("CombatPostureHsm")]
+        [InlineData("CombatPostureBp")]
+        public void CE3090_WoundedOnOpenGround_HoldsProne_StopsAndReturnsFire(string host)
+        {
+            var w = new World();
+            w.Arm(health01: 0.2f);
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());   // CE-2121: a body that can lie down
+            w.Contact(armed: true);
+            w.Contact(armed: true);                                    // outnumbered
+            w.Order(host, host == BpPosture ? BpObjective : Objective);
+            for (int i = 0; i < 8; i++) w.Tick();                      // the sensors answer nothing: open ground
+            Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.HoldProne, w.Winner(host));
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.Equal(host, w.TaskName);                            // the posture holds; the mission task does not end
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone,       // ⭐ CE-2121 — and asks the body to lie down
+                w.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(w.Unit).TargetStance);
+        }
+
         // ── ⭐ CE-3084 (G6) — the approach decision nested in the advance (docs/DESIGN_Decision_Layer.md §3.3e) ─────────────
 
         [Fact]
@@ -450,7 +476,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3082_TheHsmAndTheBTree_MakeTheSameDecisions_ForTheSameInputs()
         {
-            string[] leafOf = { "-", "Advance", "TakeCover", "Suppress", "FallBack", "Hold" };
+            string[] leafOf = { "-", "Advance", "TakeCover", "Suppress", "FallBack", "Hold", "HoldProne" };   // CE-3090: option 6
             var worlds = new[] { (w: new World(), name: "CombatPosture"), (w: new World(), name: HsmPosture) };
             foreach (var (w, name) in worlds)
             {

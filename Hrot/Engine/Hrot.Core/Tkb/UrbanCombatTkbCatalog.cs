@@ -241,7 +241,7 @@ namespace Hrot.Core.Tkb
                             new MontageNotifyRefDto { MarkerName = "Footstep_Left", TimeSeconds = 0.05f, PayloadByte = 0 },
                         } },
                 },
-                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone },   // ⭐ CE-2121: HoldProne (CE-3090) lies down
                 StanceTransitions = Array.Empty<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new[]

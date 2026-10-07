@@ -118,6 +118,20 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// ⭐ Q86 §4-B (R-215) — published by the orchestrator's scenario-load handler when a scenario's context is
+    /// restored. The cluster's network adapter writes it to the DDS <c>OrchestratorContextTopic</c> (the late-joiner
+    /// Context Plane, <c>docs/designs/mgmt-1/DESIGN.md</c> §1.2); a host with no network simply has no reader.
+    /// ⛔ The handler used to write that topic DIRECTLY — the one orchestrator piece that touched DDS (hexag-2 §1.4).
+    /// </summary>
+    [EventId(9063)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct OrchestratorContextChangedEvent
+    {
+        public string ScenarioId;
+        public string SceneId;
+    }
+
+    /// <summary>
     /// Published by <c>OrchestrationObserverTranslator</c> (DDS→bus) and by
     /// <c>ClusterMaster</c> (bus-mode) when the global cluster state transitions.
     /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.

@@ -340,13 +340,16 @@ def run_fire_distribution(c, timeout):
     #   a hurt member rightly kept advancing — nobody left to flee from, measured live 2026-10-06): its own posture turns defensive (the "veto", §10.3 — a consideration, not an order)
     hurt = riflemen[3]
     set_health(hurt, 10)
-    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee") and x, 30)
-    # ⚠ CE-3090 — REPORTED, not asserted: on open desert TakeCover and Flee are gated by EQS cover / safe-retreat answers that read
-    #   0 (no terrain to hide behind), so a hurt member keeps fighting (measured live 2026-10-06). The veto itself is railed
-    #   (StarterPackIntegrationTests.Wounded_Member_Vetoes_Assignment_And_Breaks_Off); U6 shows the distribution.
+    w = wait_for(lambda: (x := winner_of(hurt)[0]) in ("TakeCover", "Flee", "HoldProne") and x, 30)
+    # ⭐ CE-3090 FIXED (behaviors, 2026-10-07, docs/DESIGN_Decision_Layer.md §3.3f) — on open desert there is no cover and no hidden
+    #   retreat, so the wounded member HOLDS PRONE (stops, lies down, returns fire). ⛔ SUPERSEDED: reported, not asserted — TakeCover
+    #   and Flee both read 0 and it kept advancing. ⚠ Read the winner while the hostiles LIVE: once they die it rightly stands up.
     _, d = winner_of(hurt)
-    print(f"    Rifleman 4 at 10 HP: winner {w or (d and d.get('winner'))} — "
-          f"{'defensive' if w else 'no defensive option on open ground (CE-3090)'}; ranked {d and [(r.get('option'), r.get('score')) for r in d.get('ranked', [])]}")
+    c.ok(w == "HoldProne", f"a member at 10 HP on open ground breaks off: winner {w or (d and d.get('winner'))} (CE-3090: HoldProne); "
+                          f"ranked {d and [(r.get('option'), r.get('score')) for r in d.get('ranked', [])]}")
+    # ⭐ CE-2121 — and asks its body to lie down (StanceIntent on the Brain)
+    si = ((data(call("GET", f"/entities/{hurt}")) or {}).get("Components") or {}).get("StanceIntent") or {}
+    c.ok(si.get("TargetStance") == "Prone" or w != "HoldProne", f"the hurt member asked to lie down (StanceIntent {si})")
 
     # ④ each member SPENDS rounds (its posture fires at its top threat, which the assignment biases)
     def all_fired():

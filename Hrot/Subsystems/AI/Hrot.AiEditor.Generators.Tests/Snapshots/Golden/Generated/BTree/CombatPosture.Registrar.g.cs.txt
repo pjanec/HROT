@@ -52,14 +52,14 @@ public static class CombatPostureRegistrar
                     return global::Fdp.Toolkit.Utility.UtilityNodes.ChooseOption(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@8@1701996138",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@16@1701996138",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)16));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1701996138;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -74,28 +74,28 @@ public static class CombatPostureRegistrar
                     return global::Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@120@333075940",
+        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.ChooseOption@128@333075940",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Fdp.Toolkit.Utility.ChooseOptionParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)120));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)128));
                     // CE-437/CE-431: 'approachChoice' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.approachChoice;
                     return global::Fdp.Toolkit.Utility.UtilityNodes.ChooseOption(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@128@727345567",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@136@727345567",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)128));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)136));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 727345567;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -124,42 +124,42 @@ public static class CombatPostureRegistrar
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.IsOption@124@333075940",
+        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.IsOption@132@333075940",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Fdp.Toolkit.Utility.IsOptionParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)124));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)132));
                     // CE-437/CE-431: 'approachChoice' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.approachChoice;
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.IsOption@125@333075940",
+        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.IsOption@133@333075940",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Fdp.Toolkit.Utility.IsOptionParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)125));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)133));
                     // CE-437/CE-431: 'approachChoice' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.approachChoice;
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@144@1029342709",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@152@1029342709",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)144));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)152));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1029342709;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -174,14 +174,14 @@ public static class CombatPostureRegistrar
                     return global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@176@979009852",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@184@979009852",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)176));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)184));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 979009852;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -196,14 +196,14 @@ public static class CombatPostureRegistrar
                     return global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@1500664710",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@32@1500664710",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.AdvanceParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)24));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)32));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1500664710;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -232,14 +232,14 @@ public static class CombatPostureRegistrar
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@48@1920105185",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@56@1920105185",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)48));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)56));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1920105185;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -268,14 +268,14 @@ public static class CombatPostureRegistrar
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@80@1970438042",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@88@1970438042",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)80));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1970438042;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -304,14 +304,14 @@ public static class CombatPostureRegistrar
                     return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
                 }
             });
-        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@88@1953660423",
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@96@1953660423",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)96));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1953660423;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -326,6 +326,42 @@ public static class CombatPostureRegistrar
                     return global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
+        actionRegistry.Register("Fdp.Toolkit.Utility.UtilityNodes.IsOption@8@1507658132",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Fdp.Toolkit.Utility.IsOptionParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
+                    // CE-437/CE-431: 'choice' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.CombatPosture_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.choice;
+                    return (global::Fdp.Toolkit.Utility.UtilityNodes.IsOption(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure);
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne@88@1583428134",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1583428134;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1583428134 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1583428134");
+                        return Fbt.NodeStatus.Failure;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.EngageState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
 
         // CE-504: shared param-less node calls — keyed by bare FQN, no variable.
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.PostureNodes.Hold",
@@ -336,13 +372,13 @@ public static class CombatPostureRegistrar
             });
 
         // HAJSON-B / CE-504: deactivator hooks, one per binding — fired by the Interpreter on branch abort/exit.
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@8@1701996138",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.PostureSensors@16@1701996138",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)16));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1701996138;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -357,13 +393,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.PostureNodes.Deactivate_PostureSensors(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@128@727345567",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.ApproachSensors@136@727345567",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)128));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)136));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 727345567;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -378,13 +414,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.PostureNodes.Deactivate_ApproachSensors(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@144@1029342709",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank@152@1029342709",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)144));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)152));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1029342709;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -399,13 +435,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Deactivate_Flank(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@176@979009852",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition@184@979009852",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)176));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)184));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 979009852;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -420,13 +456,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Deactivate_FiringPosition(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@1500664710",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@32@1500664710",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.AdvanceParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)24));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)32));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1500664710;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -441,13 +477,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.PostureNodes.Deactivate_AdvanceAndAttack(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@48@1920105185",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover@56@1920105185",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)48));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)56));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1920105185;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -462,13 +498,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Deactivate_TakeCover(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@80@1970438042",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Engage@88@1970438042",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)80));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1970438042;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -483,13 +519,13 @@ public static class CombatPostureRegistrar
                     global::Hrot.AI.Behaviors.Brains.PostureNodes.Deactivate_Engage(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
-        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@88@1953660423",
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack@96@1953660423",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)96));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1953660423;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
@@ -502,6 +538,27 @@ public static class CombatPostureRegistrar
                     }
                     ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.EqsTacticsState>(__wsPtr);
                     global::Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Deactivate_FallBack(ref dto, ref ws, ctx.Self, ctx.World);
+                }
+            });
+        actionRegistry.RegisterDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne@88@1583428134",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.EngageParams>(
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)88));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
+                    const int __slotKey = 1583428134;
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
+                    {
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S3-G: stateful deactivator slot 1583428134 missing from the entity's occurrence store"
+                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1583428134");
+                        return;
+                    }
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.EngageState>(__wsPtr);
+                    global::Hrot.AI.Behaviors.Brains.PostureNodes.Deactivate_HoldProne(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
 
@@ -541,48 +598,52 @@ public static class CombatPostureRegistrar
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 7, __v);
                 }
                 {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>("{\"SearchRadius\":60,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>("{\"Option\":6}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __v);
                 }
                 {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>("{\"SearchRadius\":60,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 16, __v);
+                }
+                {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.AdvanceParams>("{\"Objective\":[0,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __v);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 32, __v);
                 }
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __v);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __v);
                 }
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EngageParams>("{\"CooldownSeconds\":1}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 88, __v);
                 }
                 {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":60,\"MinRepositionMetres\":5,\"Speed\":2.5,\"ArrivalRadius\":1,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 96, __v);
+                }
+                {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.ChooseOptionParams>("{\"Decision\":\"3c6f9e42-5d10-6f3a-ac23-approach00001\"}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 120, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>("{\"Option\":2}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 124, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>("{\"Option\":3}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 125, __v);
-                }
-                {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>("{\"SearchRadius\":40,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 128, __v);
                 }
                 {
-                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":1}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 144, __v);
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>("{\"Option\":2}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 132, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>("{\"Option\":3}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 133, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>("{\"SearchRadius\":40,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 136, __v);
                 }
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":1}", __paramJsonOpts);
-                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 176, __v);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 152, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>("{\"SearchRadius\":40,\"MinRepositionMetres\":5,\"Speed\":3,\"ArrivalRadius\":1.5,\"ScoreDeltaThreshold\":0.05,\"FactionFilter\":0,\"FireCooldownSeconds\":1,\"FireWhileMoving\":1}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 184, __v);
                 }
             }
             __bakeDefaults = __BakeDefaults;
@@ -634,70 +695,76 @@ public static class CombatPostureRegistrar
                                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 7, __o);
                                     break;
                                 }
+                                case "isHoldProne":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
+                                    break;
+                                }
                                 case "sensors":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 16, __o);
                                     break;
                                 }
                                 case "advance":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.AdvanceParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 32, __o);
                                     break;
                                 }
                                 case "cover":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 56, __o);
                                     break;
                                 }
                                 case "engage":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EngageParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 80, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 88, __o);
                                     break;
                                 }
                                 case "fallback":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 88, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 96, __o);
                                     break;
                                 }
                                 case "approach":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.ChooseOptionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 120, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 128, __o);
                                     break;
                                 }
                                 case "isFlank":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 124, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 132, __o);
                                     break;
                                 }
                                 case "isFiringPos":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Fdp.Toolkit.Utility.IsOptionParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 125, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 133, __o);
                                     break;
                                 }
                                 case "approachSensors":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.PostureSensorsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 128, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 136, __o);
                                     break;
                                 }
                                 case "flank":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 144, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 152, __o);
                                     break;
                                 }
                                 case "firing":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.EqsTacticsParams>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 176, __o);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 184, __o);
                                     break;
                                 }
                                 // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
@@ -715,7 +782,7 @@ public static class CombatPostureRegistrar
             Name         = "CombatPosture",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 5081509309286083595UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 8722887786810970081UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("choose", typeof(global::Fdp.Toolkit.Utility.ChooseOptionParams), 0),
@@ -723,17 +790,18 @@ public static class CombatPostureRegistrar
                 new("isCover", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 5),
                 new("isSuppress", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 6),
                 new("isFallBack", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 7),
-                new("sensors", typeof(global::Hrot.AI.Behaviors.Brains.PostureSensorsParams), 8),
-                new("advance", typeof(global::Hrot.AI.Behaviors.Brains.AdvanceParams), 24),
-                new("cover", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 48),
-                new("engage", typeof(global::Hrot.AI.Behaviors.Brains.EngageParams), 80),
-                new("fallback", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 88),
-                new("approach", typeof(global::Fdp.Toolkit.Utility.ChooseOptionParams), 120),
-                new("isFlank", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 124),
-                new("isFiringPos", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 125),
-                new("approachSensors", typeof(global::Hrot.AI.Behaviors.Brains.PostureSensorsParams), 128),
-                new("flank", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 144),
-                new("firing", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 176),
+                new("isHoldProne", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 8),
+                new("sensors", typeof(global::Hrot.AI.Behaviors.Brains.PostureSensorsParams), 16),
+                new("advance", typeof(global::Hrot.AI.Behaviors.Brains.AdvanceParams), 32),
+                new("cover", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 56),
+                new("engage", typeof(global::Hrot.AI.Behaviors.Brains.EngageParams), 88),
+                new("fallback", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 96),
+                new("approach", typeof(global::Fdp.Toolkit.Utility.ChooseOptionParams), 128),
+                new("isFlank", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 132),
+                new("isFiringPos", typeof(global::Fdp.Toolkit.Utility.IsOptionParams), 133),
+                new("approachSensors", typeof(global::Hrot.AI.Behaviors.Brains.PostureSensorsParams), 136),
+                new("flank", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 152),
+                new("firing", typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsParams), 184),
             },
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.CombatPosture_FdpToolkitBehaviorComponentsBrainBlackboard),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.CombatPosture_Block),
@@ -750,6 +818,7 @@ public static class CombatPostureRegistrar
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1920105185, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EqsTacticsState>(), unchecked(57788899u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EqsTacticsState>()), typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsState), "Take cover"),
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1970438042, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EngageState>(), unchecked(2246586702u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EngageState>()), typeof(global::Hrot.AI.Behaviors.Brains.EngageState), "Suppress"),
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1953660423, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EqsTacticsState>(), unchecked(57788899u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EqsTacticsState>()), typeof(global::Hrot.AI.Behaviors.Brains.EqsTacticsState), "Fall back"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1583428134, global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EngageState>(), unchecked(2246586702u ^ (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Hrot.AI.Behaviors.Brains.EngageState>()), typeof(global::Hrot.AI.Behaviors.Brains.EngageState), "Hold prone, return fire"),
             },
         });
     }

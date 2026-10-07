@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (dto.CanMove)     caps |= ActorCapabilities.CanMove;
             if (dto.CanShoot)    caps |= ActorCapabilities.CanShoot;
             if (dto.CanInteract) caps |= ActorCapabilities.CanInteract;
+            // ⭐ CE-2121 — a body with more than one stance in its animation definition can change stance; without this flag
+            //   StanceTransitionSystem acks every request and ignores it. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
+            var anim = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CharacterAnimationDefDto>();
+            if (anim != null && anim.SupportedStances.Count > 1) caps |= ActorCapabilities.CanChangeStance;
 
             if (repo.IsComponentTypeRegistered<ActorCapabilityState>() && !repo.HasComponent<ActorCapabilityState>(entity))
                 repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });

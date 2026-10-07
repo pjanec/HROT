@@ -435,6 +435,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐ CE-2119 — a target that dies DURING the engagement ends it AND stops the weapon. ⛔ Before: the node returned
+        /// Success but left <c>AimAndFire</c> in the channel, so (measured live, <c>hill-attack-close</c>) both shooters kept
+        /// <c>WeaponChannel.Status = Running</c> at a wreck for the rest of the scenario. The MaxRounds exit already cleared it.
+        /// <para>✅ Red before the fix: <c>ActiveAction</c> stayed <c>AimAndFire</c>.</para>
+        /// </summary>
+        [Fact]
+        public void CE2119_ATargetKilledMidEngagement_StopsTheWeapon()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var tank   = repo.CreateEntity();
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var netMap = new NetworkEntityMap();
+            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
+            netMap.Register(12L, target);
+            repo.AddComponent(tank, new WeaponChannel());
+            repo.AddComponent(tank, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10 });
+            var p   = new HullDownAttackParams { TargetNetworkId = 12L, LastObservedAmmo = -1 };
+            var ctx = new BTreeContext { Self = tank, World = repo };
+
+            Assert.Equal(NodeStatus.Running, HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World));
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, repo.GetComponent<WeaponChannel>(tank).ActiveAction);
+            repo.GetComponentRW<WeaponChannel>(tank).Status = NodeStatus.Running;
+
+            repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(target).Current = 0f;   // killed
+            Assert.Equal(NodeStatus.Success, HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World));
+            Assert.Equal((ushort)0, repo.GetComponent<WeaponChannel>(tank).ActiveAction);
+        }
+
         // ── Corrective-1: SC-HA008 — Action_ReverseToBaseline ────────────────────
 
         /// <summary>SC-HA008-4: Action_ReverseToBaseline writes destination matching
@@ -948,6 +980,55 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
             Playback(repo);
             Assert.True(repo.IsAlive(sensor));
+        }
+
+        /// <summary>
+        /// ⭐ CE-2118 — the staging dispatch must NOT reserve baseline slots. It spaces the tanks by ROSTER count, while a
+        /// wave's return slots are FIRING-LINE slots (<c>TotalSlots</c>, DESIGN §2.3); marking roster indices in the slot
+        /// mask reserved every slot of a 3-slot line, so each attacker fell to "closest regardless" and two attackers of
+        /// one wave were sent back to the SAME point. Measured live on <c>hill-attack-close</c>: both reversed to (528,474).
+        /// <para>✅ Red before the fix: both attackers' return slot = 1.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void CE2118_AfterStaging_TwoAttackersOfAWave_ReturnToDifferentBaselineSlots()
+        {
+            using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var subs = new Entity[4];
+            for (int i = 0; i < 4; i++)
+            {
+                subs[i] = repo.CreateEntity();
+                repo.AddComponent(subs[i], new NavigationStatus());
+            }
+            AddRoster(repo, commander, subs);
+
+            var p = new PlatoonHillAttackParams
+            {
+                // The live hill-attack-close shape: a ~60 m firing line (3 slots) in front of a ~150 m baseline, so every
+                // firing slot's NEAREST baseline slot is the middle one — only the reservation keeps two attackers apart.
+                StartX = 45f, StartY = 0f, EndX = 105f, EndY = 0f, TankSpacing = 20f,   // 3 firing-line slots
+                BaselineStartX = 0f, BaselineStartY = -80f,
+                BaselineEndX   = 150f, BaselineEndY  = -80f,
+            };
+            var ctx = new BTreeContext { Self = commander, World = repo };
+            try
+            {
+                HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
+                ref var s = ref GetHeavyState(repo, commander);
+                Assert.Equal(3, s.TotalSlots);
+                s.CachedEqsRequestId = -1;
+                HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
+
+                Assert.True(s.ActiveAttackerCount >= 2, "a 4-tank roster sends two attackers per wave");
+                var returns = new System.Collections.Generic.HashSet<byte>();
+                for (int i = 0; i < s.ActiveAttackerCount; i++)
+                    Assert.True(returns.Add(s.ReturnBaselineSlotIndex[i]), $"attacker {i} shares return slot {s.ReturnBaselineSlotIndex[i]}");
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
         }
 
         // ── TASK-HA012: SC-HA012-1 through SC-HA012-8 ────────────────────────────

@@ -1218,7 +1218,7 @@ namespace Hrot.Editor.DebugApi
         /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
         /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
         /// </summary>
-        public JsonNode LoadScenarioLive(string name)
+        public JsonNode LoadScenarioLive(string name, bool startPaused = true)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1229,8 +1229,12 @@ namespace Hrot.Editor.DebugApi
                 TargetState   = ClusterState.OperatingLive,
                 ScenarioId    = name,
                 ExerciseId    = Guid.NewGuid(),
+                // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
+                //   once the load is done. The default keeps the documented load → POST /sim/play flow.
+                TimeMode      = startPaused ? "Deterministic" : null,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
+                                    ["startPaused"] = startPaused,
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
         }
 

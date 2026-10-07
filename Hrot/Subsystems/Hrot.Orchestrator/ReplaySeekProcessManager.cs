@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Domain;
 
@@ -17,20 +18,20 @@ namespace Hrot.Orchestrator;
 /// On <see cref="SeekReplayIntent"/>: publishes <see cref="SlaveNodeSetUpdatedEvent"/>
 /// and <see cref="PauseTimeIntent"/> before <see cref="ClusterMaster"/> fans out the seek.
 /// On <see cref="ClusterOpCompletedEvent"/> with <see cref="ReplaySeekResult"/> payload:
-/// calls <see cref="MasterSyncController.SnapAndPause"/>.
+/// asks for the jump through <see cref="ITimeCommands.SnapTo"/>.
 /// </summary>
 public sealed class ReplaySeekProcessManager
 {
     private readonly FdpEventBus          _bus;
-    private readonly MasterSyncController _masterSync;
+    private readonly ITimeCommands        _time;   // Q86 §4-C: commands, never the clock itself
 
     // NodeId -> SubsystemName, maintained from NodeHeartbeatEvent.
     private readonly Dictionary<int, string> _nodeSubsystems = new();
 
-    public ReplaySeekProcessManager(FdpEventBus bus, MasterSyncController masterSync)
+    public ReplaySeekProcessManager(FdpEventBus bus, ITimeCommands time)
     {
         _bus        = bus        ?? throw new ArgumentNullException(nameof(bus));
-        _masterSync = masterSync ?? throw new ArgumentNullException(nameof(masterSync));
+        _time       = time       ?? throw new ArgumentNullException(nameof(time));
     }
 
     /// <summary>
@@ -64,11 +65,9 @@ public sealed class ReplaySeekProcessManager
         {
             if (ev.ResultPayload is ReplaySeekResult sr && sr.RestoredTime.TotalWallTicks != 0)
             {
-                var activeNodeIds = new HashSet<int>(_nodeSubsystems.Keys);
-                _masterSync.SnapAndPause(
-                    sr.RestoredTime.TotalWallTicks,
-                    sr.RestoredTime.TotalTime,
-                    activeNodeIds);
+                // The slave roster was set by this manager's own seek precondition (SlaveNodeSetUpdatedEvent +
+                // PauseTimeIntent, above); the snap keeps it.
+                _time.SnapTo(sr.RestoredTime);
             }
         }
     }

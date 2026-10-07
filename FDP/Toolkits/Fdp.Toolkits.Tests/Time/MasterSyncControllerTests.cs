@@ -1010,7 +1010,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 12345L, TotalTime = 99.5 }, new HashSet<int>());
 
             Assert.Equal(12345L, ctrl.GetCurrentState().TotalWallTicks);
         }
@@ -1025,7 +1025,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 12345L, TotalTime = 99.5 }, new HashSet<int>());
 
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
         }
@@ -1046,7 +1046,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Read<SwitchTimeModeEvent>();
 
             double targetSim = 77.25;
-            ctrl.SnapAndPause(9999L, targetSim, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 9999L, TotalTime = targetSim }, new HashSet<int>());
 
             bus.SwapBuffers();
             var events = bus.Read<SwitchTimeModeEvent>().ToArray();
@@ -1054,6 +1054,76 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Single(events);
             Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
             Assert.Equal(targetSim, events[0].SimTimeSnapshot, 6);
+        }
+
+        /// <summary>
+        /// ⭐ CE-122 — the jump applies the WHOLE position: frame number, sim time, unscaled time and wall ticks. ⛔ Before,
+        /// the snap took only wall ticks + sim time, so frame number and unscaled time kept the old timeline's values.
+        /// The time scale is a rate, not a position, and is left alone.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_AppliesTheWholePosition_AndLeavesTheTimeScale()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            ctrl.SetTimeScale(2f);
+            for (int i = 0; i < 10; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }
+            Assert.True(ctrl.GetCurrentState().FrameNumber > 0);
+
+            ctrl.SnapAndPause(new GlobalTime { FrameNumber = 7, TotalTime = 3.5, UnscaledTotalTime = 1.75, TotalWallTicks = 4242L, TimeScale = 9f });
+
+            var now = ctrl.GetCurrentState();
+            Assert.Equal(7, now.FrameNumber);
+            Assert.Equal(3.5, now.TotalTime, 6);
+            Assert.Equal(1.75, now.UnscaledTotalTime, 6);
+            Assert.Equal(4242L, now.TotalWallTicks);
+            Assert.Equal(2f, ctrl.GetTimeScale());
+        }
+
+        /// <summary>
+        /// ⭐ CE-122 — no roster given ⇒ the slave roster is KEPT (the next step still waits on both ACKs); a roster given
+        /// replaces it. ⛔ The live-branch caller used to pass an EMPTY set, so its steps stopped waiting for the slaves.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_KeepsTheSlaveRoster_UnlessANewOneIsGiven()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, slaves: new HashSet<int> { 2, 3 }, tickSource: () => ticks);
+
+            ctrl.SnapAndPause(new GlobalTime());
+            ctrl.Step(0.1f);
+            Assert.True(ctrl.IsAwaitingStepAcks, "the roster was kept — the step waits on the slaves");
+
+            ctrl.SnapAndPause(new GlobalTime(), new HashSet<int>());
+            ctrl.Step(0.1f);
+            Assert.False(ctrl.IsAwaitingStepAcks, "an empty roster was given — nobody to wait for");
+        }
+
+        /// <summary>
+        /// ⭐ Q86 §4-C — a snap REQUEST (<see cref="SnapTimeIntent"/>, what <c>ITimeCommands.SnapTo</c> publishes) is applied
+        /// by the clock's own Update, BEFORE a resume in the same frame: "jump to 0, then run" lands in that order.
+        /// </summary>
+        [Fact]
+        public void Q86C_ASnapRequest_IsAppliedBeforeAResumeInTheSameFrame()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            for (int i = 0; i < 5; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }
+            Assert.True(ctrl.GetCurrentState().TotalTime > 3.0);
+
+            var commands = new Fdp.Toolkit.Time.IntentTimeCommands(bus);
+            commands.SnapTo(new GlobalTime { TotalTime = 0.0, TotalWallTicks = ticks });
+            commands.Resume();
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.True(ctrl.GetCurrentState().TotalTime < 0.5, $"ran on from the snapped 0, not the old time ({ctrl.GetCurrentState().TotalTime})");
         }
 
         /// <summary>
@@ -1066,7 +1136,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus    = new FdpEventBus();
             var ctrl   = CreateController(bus, tickSource: () => ticks);
 
-            ctrl.SnapAndPause(500L, 10.0, new HashSet<int>());
+            ctrl.SnapAndPause(new GlobalTime { TotalWallTicks = 500L, TotalTime = 10.0 }, new HashSet<int>());
 
             ticks = 100L;
             ctrl.Update();

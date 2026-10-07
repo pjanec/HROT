@@ -126,6 +126,7 @@
         "c2073000-0000-0000-0000-000000000009",
         "c2073000-0000-0000-0000-000000000012",
         "c2073000-0000-0000-0000-000000000015",
+        "c3090000-0000-0000-0000-000000000001",
         "c2073000-0000-0000-0000-000000000018"
       ],
       "DisplayLabel": "Run the winner",
@@ -473,6 +474,59 @@
       }
     },
     {
+      "kind": "Sequence",
+      "VisualId": "c3090000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c3090000-0000-0000-0000-000000000002",
+        "c3090000-0000-0000-0000-000000000003"
+      ],
+      "DisplayLabel": "Hold prone",
+      "EditorMetadata": {
+        "X": 1540,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "VisualId": "c3090000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "is hold prone",
+      "EditorMetadata": {
+        "X": 1480,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
+      },
+      "VisualId": "c3090000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Hold prone, return fire",
+      "EditorMetadata": {
+        "X": 1600,
+        "Y": 520,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
       "kind": "Action",
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.Hold"
@@ -481,7 +535,7 @@
       "ChildVisualIds": [],
       "DisplayLabel": "Hold",
       "EditorMetadata": {
-        "X": 1540,
+        "X": 1800,
         "Y": 400,
         "Comment": "The floor: stops any move the posture issued.",
         "Collapsed": false,
@@ -612,6 +666,16 @@
         },
         "DefaultValueJson": "{\"Option\":4}",
         "Comment": "Flee (fall back) = option 4."
+      },
+      {
+        "Name": "isHoldProne",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":6}",
+        "Comment": "Hold prone = option 6 (CE-3090: wounded, no cover)."
       },
       {
         "Name": "sensors",

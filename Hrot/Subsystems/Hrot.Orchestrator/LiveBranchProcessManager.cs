@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using HrotClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
@@ -22,7 +23,7 @@ public sealed class LiveBranchProcessManager
 {
     private readonly FdpEventBus          _bus;
     private readonly ReplayMasterModule   _replayMasterModule;
-    private readonly MasterSyncController _masterSync;
+    private readonly ITimeCommands        _time;   // Q86 §4-C: commands, never the clock itself
 
     // Last known DSM state, updated each tick from ClusterStateTransitionedEvent.
     private HrotClusterState _lastKnownDsmState;
@@ -30,11 +31,11 @@ public sealed class LiveBranchProcessManager
     public LiveBranchProcessManager(
         FdpEventBus          bus,
         ReplayMasterModule   replayMasterModule,
-        MasterSyncController masterSync)
+        ITimeCommands        time)
     {
         _bus                = bus                ?? throw new ArgumentNullException(nameof(bus));
         _replayMasterModule = replayMasterModule ?? throw new ArgumentNullException(nameof(replayMasterModule));
-        _masterSync         = masterSync         ?? throw new ArgumentNullException(nameof(masterSync));
+        _time               = time               ?? throw new ArgumentNullException(nameof(time));
     }
 
     /// <summary>
@@ -68,11 +69,9 @@ public sealed class LiveBranchProcessManager
             if (ev.ResultPayload is LiveBranchResult lbr && lbr.HistoricalTime.TotalWallTicks != 0)
             {
                 _replayMasterModule.RestoreTime();
-                // TODO: wire active node IDs (TASK-T001 follow-up)
-                _masterSync.SnapAndPause(
-                    lbr.HistoricalTime.TotalWallTicks,
-                    lbr.HistoricalTime.TotalTime,
-                    new HashSet<int>());
+                // The slave roster is KEPT (null): this used to pass an EMPTY set (a TASK-T001 TODO), so after a
+                // branch a cluster step stopped waiting for the slaves' ACKs.
+                _time.SnapTo(lbr.HistoricalTime);
             }
         }
     }

@@ -115,7 +115,8 @@
         "30820000-0000-0000-0000-000000000006",
         "30820000-0000-0000-0000-000000000007",
         "30820000-0000-0000-0000-000000000008",
-        "30820000-0000-0000-0000-000000000009"
+        "30820000-0000-0000-0000-000000000009",
+        "30820000-0000-0000-0000-00000000000b"
       ],
       "ParentStableId": "30820000-0000-0000-0000-000000000001",
       "IsInitial": true,
@@ -258,6 +259,32 @@
         "ExpressionTargetField": "fallback",
         "WorkingStateTargetField": "fallbackWs",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EqsTacticsState"
+      }
+    },
+    {
+      "StableId": "30820000-0000-0000-0000-00000000000b",
+      "Name": "HoldProne",
+      "ChildStableIds": [],
+      "ParentStableId": "30820000-0000-0000-0000-000000000004",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 1200,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "CE-3090 — wounded, no cover: stay, lie down, return fire.",
+      "IsCollapsed": false,
+      "ColorOverride": null,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne",
+        "ExpressionTargetField": "engage",
+        "WorkingStateTargetField": "holdProneWs",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.EngageState"
       }
     },
     {
@@ -681,6 +708,186 @@
       "Comment": null
     },
     {
+      "VisualId": "30820000-0000-0000-0001-000000000031",
+      "SourceStableId": "30820000-0000-0000-0000-000000000005",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000032",
+      "SourceStableId": "30820000-0000-0000-0000-00000000000b",
+      "TargetStableId": "30820000-0000-0000-0000-000000000005",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHold",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000033",
+      "SourceStableId": "30820000-0000-0000-0000-000000000006",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000034",
+      "SourceStableId": "30820000-0000-0000-0000-00000000000b",
+      "TargetStableId": "30820000-0000-0000-0000-000000000006",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isAdvance",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000035",
+      "SourceStableId": "30820000-0000-0000-0000-000000000007",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000036",
+      "SourceStableId": "30820000-0000-0000-0000-00000000000b",
+      "TargetStableId": "30820000-0000-0000-0000-000000000007",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isCover",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000037",
+      "SourceStableId": "30820000-0000-0000-0000-000000000008",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000038",
+      "SourceStableId": "30820000-0000-0000-0000-00000000000b",
+      "TargetStableId": "30820000-0000-0000-0000-000000000008",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isSuppress",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-000000000039",
+      "SourceStableId": "30820000-0000-0000-0000-000000000009",
+      "TargetStableId": "30820000-0000-0000-0000-00000000000b",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isHoldProne",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "30820000-0000-0000-0001-00000000003a",
+      "SourceStableId": "30820000-0000-0000-0000-00000000000b",
+      "TargetStableId": "30820000-0000-0000-0000-000000000009",
+      "EventName": null,
+      "Guard": {
+        "MethodFqn": "Fdp.Toolkit.Utility.UtilityNodes.IsOption",
+        "ExpressionTargetField": "isFallBack",
+        "WorkingStateTargetField": "choice",
+        "WorkingStateTypeId": "Fdp.Toolkit.Utility.UtilityChoice"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "IsPolled": true,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
       "VisualId": "30820000-0000-0000-0001-000000000015",
       "SourceStableId": "30820000-0000-0000-0000-000000000006",
       "TargetStableId": "30820000-0000-0000-0000-00000000000a",
@@ -776,6 +983,16 @@
         },
         "DefaultValueJson": "{\"Option\":4}",
         "Comment": "Flee (fall back) = option 4."
+      },
+      {
+        "Name": "isHoldProne",
+        "Type": {
+          "TypeId": "Fdp.Toolkit.Utility.IsOptionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Option\":6}",
+        "Comment": "Hold prone = option 6 (CE-3090)."
       },
       {
         "Name": "isHold",
@@ -882,6 +1099,18 @@
         },
         "DefaultValueJson": null,
         "Comment": "Engage's working state. (D3: an HSM binds each node's WS explicitly.)",
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "holdProneWs",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.EngageState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "HoldProne's fire state (CE-3090).",
         "Role": "State",
         "Scope": "Behavior"
       },

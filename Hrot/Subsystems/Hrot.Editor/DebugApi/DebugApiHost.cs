@@ -1541,6 +1541,7 @@ namespace Hrot.Editor.DebugApi
                 return Fail(400, "name is required.");
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
+            bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
 
             // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
             //   the edge the readiness check needs to see.
@@ -1549,7 +1550,7 @@ namespace Hrot.Editor.DebugApi
 
             var requested = await _jobQueue.RunOnMainThread(() =>
                 target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
-                    ? Service().LoadScenarioLive(name!)
+                    ? Service().LoadScenarioLive(name!, startPaused)
                     : Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
 
             // ⭐⭐ CE-295 — from Live or Edit the shared sequence asked for Idle first; the load itself goes out once the
