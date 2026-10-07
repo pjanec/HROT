@@ -1,33 +1,44 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07
-build-state: DESIGN (leans awaiting user approval — §2)
-current-answer: §2 decisions · §3 diagrams · §5 slices
-stale-below: nothing
+updated: 2026-10-07 (rev 2 — user rulings folded in)
+build-state: DESIGN → READY-TO-BUILD once §2 rev-2 leans are approved
+current-answer: §2 decisions (rev 2) · §3 diagrams · §5 slices
+stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
+  submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
-known-conflict: canvas-context-menu-design.md §5.6 — a canvas menu action carries no position; this design adds the
-  clicked point (§2 D4) without changing the action shape.
+known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
+  arms a placement tool, so the menu action needs no position.
 related-designs:
   - designs/gizmos-1/canvas-context-menu-design.md — owns HOW the empty-map menu is built (JSON in
-    CanvasContextMenuState, per-subsystem CanvasMenuUpdateSystem). This doc adds one item and the clicked point.
+    CanvasContextMenuState, per-subsystem CanvasMenuUpdateSystem). This doc adds the "Add Entity" submenu.
   - DESIGN_Entity_Authoring_Surface.md — owns THE creation call (RequestEntityCreation) and §5b "the request is sent
-    per host". This doc only chooses the type and the point, then calls it.
+    per host". This doc chooses the type and arms the tool; the tool's drop calls it.
   - DESIGN_Entity_Creation_Unification.md — owns the creation pipeline every host runs (EntityCreationPack).
-  - designs/main-toolbar-1/ASSET-PICKER-UX-DESIGN.md — owns the rule "adopt NodeEdit's PickerWindow (Tree layout), build
-    no parallel picker" and DEC-14/15 (icons by IconKey; open with OpenPicker). This doc reuses both.
-  - designs/tkb-1/DESIGN.md — owns the TKB schema; this doc adds ONE field (VisualDefinitionDto.IconName, §2 D3).
-  - UX/UX_Feature_Tool_Model.md — owns the placement tool (EntityPlacementGizmo, "Spawn" armed with no target); D5
-    keeps it for repeated placement.
-  - UX/UX_Issues.md#uxi-12 — "Spawn UI ×4"; this picker is the shared type chooser that issue needs (slice S4).
+  - designs/main-toolbar-1/ASSET-PICKER-UX-DESIGN.md — owns "adopt NodeEdit's PickerWindow (Tree layout), build no
+    parallel picker" and DEC-14/15 (icons by IconKey; open with OpenPicker). Reused.
+  - designs/tkb-1/DESIGN.md — owns the TKB schema; this doc adds VisualDefinitionDto.IconName and
+    TkbMasterDto.HideFromPalette.
+  - UX/UX_Feature_Tool_Model.md — owns the placement tools (EntityPlacementGizmo; area/route/zone PointSequenceGizmo).
+    This doc makes every pick arm one of them and adds Shift multi-placement, terrain snap and north heading.
+  - UX/UX_Issues.md#uxi-12 — "Spawn UI ×4"; the spawn panels STAY and call this picker (slice S4).
+  - blueprints/Blueprint_Issues_Tracker.md CE-1024 — the named geopoint; a "Map Graphics" point type when it exists.
 -->
 
-# Add Entity — the map's "create here" picker *(CE-1017)*
+# Add Entity — one grouped type picker, always followed by a placement tool *(CE-1017)*
 
 > 🔒 **User, `2026-10-06/07`:** *"Empty map context menu now shows just 'Measurement Tool'. It should show 'Add Entity'
 > which should open the generic picker filled with entity types, grouped by hierarchical entity category using DIS
 > Entity Type categorization (Kind → Country → Category etc.)"* · *"This should feel intuitive to the user. Good
 > grouping, incremental filter, ideally also entity 3D model icon (TKB defines icon name, assumes some new icon library
 > dedicated for entities)."*
+>
+> 🔒 **Rulings, `2026-10-07`:** *"hand-made PNGs first, snap to terrain. Facing North. No unknown side. Existing spawn
+> panels should not go away. They just should call the new grouping picker instead of showing plain selector popup.
+> Grouping should include special area entities and map symbol entities. Some entity kinds like the areas need their
+> own placement tool started when that kind of entity selected (independently on clicked point). Likely unifying that to
+> always call a placement tool instead of immediately placing the entity? The placement tool could then easily allow for
+> multi-placement if shift is pressed when click placing. Some of those entities like areas also do not have any concept
+> of hostile or friendly or neutral, so they might need extra submenu."*
 
 ## 1. What exists — the measured basis
 
@@ -57,125 +68,163 @@ related-designs:
 | no icon field, no entity icon library | ✅ `VisualDefinitionDto{SymbolCode, ModelPath, ColorHex, Scale, ShowLabel, MapShapeName}`; no thumbnail code anywhere | ⛔ only `tkb-design-ideas.md` L1299 (a model browser *idea*) |
 | creation ends in one call | ✅ `EntityCreation.RequestEntityCreation` (`EntityCreation.cs:183`) — today **only the debug API** calls it; `ScenarioSpawnAdapter` builds `EntityCreationRequest` itself | ✅ `DESIGN_Entity_Authoring_Surface.md` (one method; §5b per-host send) |
 | the spawner already asks for force | ✅ `SpawnerPanel` Friend/Hostile radio → `{Affiliation}` JSON; `eForceIdentifier {UNKNOWN, FRIENDLY, OPPOSING, NEUTRAL}` | ⛔ no design rule on default force |
+| **rev 2** — placement faces EAST today, not north | ✅ `EntityPlacementGizmo.cs:217` `Rotation = Quaternion.Identity`; `SimTransform` (`SimComponents.cs:25-27`): *"yaw: 0=X axis direction (east), +90=Y axis direction (north)"* ⇒ north = yaw +90° about Z | ⛔ searched, none found |
+| **rev 2** — placement does not snap to terrain | ✅ `EntityPlacementGizmo.cs:216` `Position = (x, y, 0f)`; `TerrainWorld.SurfaceZ(x, y, zHint)` exists (`TerrainWorld.cs:98`) and the loaded terrain is an ECS managed singleton (`TerrainResidency.cs:256`) — no Hrot production caller of `SurfaceZ` yet | ✅ `DESIGN_Terrain_World.md` (the surface query) |
+| **rev 2** — Shift+click does nothing today | ✅ `EntityPlacementGizmo.OnMouseEvent` tests `button == MapMouseButton.Left` exactly, and a Shift click carries `MapMouseButton.ShiftMask` (`MapMouseButton.cs:12`) ⇒ no match; `autoPopOnPlace` removes the tool after one drop (`:157`) | ⛔ searched, none found |
+| **rev 2** — areas, routes and zones have their own tools | ✅ `ScenarioSpawnAdapter.StartAreaAuthoringMode` / `StartRouteAuthoringMode` / `StartZoneAuthoringMode` → `PointSequenceGizmo` (`ScenarioSpawnAdapter.cs:29-30,279`); `AreaAuthoringArm`. **`TacGraphic_FireLine` (8801) has no template and no tool** | ✅ `ISpawnController` doc (zone = same mechanism as area, `TkbType` is the discriminator) |
+| **rev 2** — the spawn panels that choose a TKB type | ✅ `SpawnerPanel` combo (Editor, CGF, ExCon) · ExCon ORBAT "Unit Type" combo (`OrbatPanel.cs:355,370`) · IG `MiniExConPanel` typed numeric "TKB Type" field (`:85-128`). `SimHostSpawnPanel` picks a `VehicleClass`, **not** a TKB type ⇒ out of scope | ✅ `UXI-12` (four spawn UIs) |
 
-## 2. Decisions *(each with a lean — reply "approved" or name the one to change)*
+## 2. Decisions — rev 2 *(user rulings applied; leans marked ⭐ await "approved")*
 
-| # | decision | ⭐ lean | rejected (one line each) |
+| # | decision | ⭐ lean / 🔒 ruling | rejected (one line each) |
 |---|---|---|---|
-| **D1** | which picker | ⭐ **`PickerWindow`, Tree layout**, opened at the mouse; `Hrot.Presentation` gains a reference to `NodeEditor.UI`; the host's ONE `PickerRegistry` is reused | a new popup — rule D1 of the asset picker forbids it · a host-side `IEntityTypePicker` seam — adds an interface only because a project reference is missing |
-| **D2** | grouping | ⭐ **`Category` path from DIS names, skipping unknown (0) levels**: `Platform / Land / Tank`, `Lifeform / Land / Infantry`; composite units go under a top-level **`Units`** folder (detected by their composition, since their DIS is just Kind 1/Domain 1); a type with no DisType falls back to its `CategoryPath`, then `Other`. **Single-child folder chains fold into one row** (`Platform › Land` when Land is the only domain) — a generic `PickerTreeBuilder` option | raw DIS order with every level — today every country is 0, so the tree would be *"Country 0"* five levels deep · group by `CategoryPath` only — empty for the code-built types |
-| **D2b** | DIS names | ⭐ a small **data table** (SISO-REF-010 subset: kinds incl. HROT's extended kinds, domains per kind, the countries we use, land/air/sea platform + lifeform categories); an unknown number shows as `Category 7`, never hides the type | names in code `switch`es — rots silently |
-| **D3** | icons | ⭐ new field **`VisualDefinitionDto.IconName`**; new **`EntityIconLibrary`** loads `Assets/EntityIcons/<IconName>.png` (64×64, transparent) into one atlas at startup and answers `IIconProvider` keys `entity/<IconName>`; fallback chain **IconName → a generic glyph per DIS kind/domain** (tank, wheeled, person, aircraft, ship) **→ none** | derive from `ModelPath` at runtime — needs an offscreen 3D renderer in every host · 2525 symbols — `MilStd2525Renderer` is a placeholder, and symbols are not what the user asked for |
-| **D3b** | 3D thumbnails | ⭐ **offline**: a later tool renders each `ModelPath` to `<IconName>.png` (Stride); v1 ships hand-made/placeholder PNGs for the built-in types | live render in the picker — cost and a renderer dependency for a 16 px icon |
-| **D3c** | where the big icon shows | ⭐ **Tree layout gains an optional preview pane** (generic): 64 px icon + name + DIS string + description; the row keeps a line-height icon | rows at 64 px — 5 visible rows, defeats browsing |
-| **D4** | where the entity lands | ⭐ **at the right-clicked point, immediately** (heading 0), then it is **selected**. The point: `SelectionInteractionSystem` already receives the empty-space right-click with `worldPos`; it records it in **`CanvasContextMenuState.AnchorWorld`** when it consumes that event; the Add Entity handler reads it | arm the placement tool after picking — the user already said *where* |
-| **D5** | placing several | ⭐ **Shift+Enter / Shift+double-click** on the picked type arms the existing placement tool (`StartPlacementMode`) instead — click to drop, Esc ends | a "count" field — the user places, not counts |
-| **D6** | force (side) | ⭐ the menu item is a **submenu: `Add Entity ▸ Friendly… / Hostile… / Neutral…`**; the picker title says which; the force goes in the creation request as today's `{Affiliation}` | a toggle inside the picker — `PickerWindow` has no header controls · a TKB default force — a T-72 is not hostile in every exercise |
-| **D7** | which types are listed | ⭐ **built from the TKB** (`ITkbDatabase` templates) — a template is listed when it carries a `TkbMasterDto` (so tactical graphics and terrain zones, which have their own tools, drop out), minus an explicit opt-out **`TkbMasterDto.HideFromPalette`** (sensor children, internal parts). Replaces `ScenarioSpawnerCatalog.Default` | keep the hand-written lists — they already disagree (14 vs 9) and list `Infantry_Officer`, which has **no template** |
-| **D8** | search | ⭐ the picker's fuzzy match over `Category/Name` + **keywords = DIS numbers, DIS names, `CustomName`, model name** — typing *"tank"*, *"usa"* or *"1.1.225"* all work; Recent shows first (already built) | substring on name only (today's SpawnerPanel) |
-| **D9** | which hosts | ⭐ **Editor and CGF first** (both run `ScenarioSpawnAdapter` and already own a `PickerRegistry`); IG and ExCon in S4 with UXI-12; SimHost and ReplayBrowser never (no TKB spawn / read-only) | all hosts at once — IG creation is commanded by ExCon (`CMD_PLACE_ENTITY`), a different send path (§5b) |
-| **D10** | creation call | ⭐ **`EntityCreation.RequestEntityCreation`** (its first UI caller), owner per host as §5b rules | another hand-built `EntityCreationRequest` — the fifth path |
+| **D1** | which picker | ⭐ **`PickerWindow`, Tree layout**, opened at the mouse; `Hrot.Presentation` references `NodeEditor.UI` (it depends only on `NodeEditor.Core` + ImGui.NET — no cycle); each host runs ONE `PickerRegistry` | a new popup — the asset-picker rule forbids it · a host-side picker interface — exists only to dodge a project reference |
+| **D2** | grouping | ⭐ `Category` = **DIS names, unknown (0) levels skipped**, single-child chains **folded** into one row (generic `PickerTreeBuilder` option); composite units under **`Units`**; 🔒 **map graphics included** under **`Map Graphics`** — `Area`, `Route`, `Terrain Zone`, `Fire Line` (shown **disabled**, *"no placement tool yet"*), and point symbols (`Points`, e.g. the named geopoint `CE-1024`); no DIS ⇒ `CategoryPath` ⇒ `Other` | raw DIS levels — every country is 0 today, so the tree would read *"Country 0"* |
+| **D2b** | DIS names | ⭐ a data table (SISO-REF-010 subset + HROT's extended kinds); unknown numbers show as `Category 7` | names in code `switch`es — rot silently |
+| **D3** | icons | 🔒 **hand-made PNGs first**: `VisualDefinitionDto.IconName` → `Assets/EntityIcons/<IconName>.png` (64×64) packed by **`EntityIconLibrary`** into one atlas, `IIconProvider` keys `entity/<IconName>`; fallback **IconName → generic glyph per DIS kind/domain or graphic kind → none** | runtime 3D render — a renderer in every host for a 16 px icon · 2525 symbols — the renderer is a placeholder |
+| **D3c** | big icon | ⭐ Tree layout gains an optional **preview pane** (64 px icon, name, DIS string, description); rows keep a line-height icon | 64 px rows — five visible rows |
+| **D4** | what a pick does | 🔒 **always arms a placement tool — never creates directly**, independent of the clicked point. The tool comes from the type's **`PlacementTool`**: `Point` (`EntityPlacementGizmo`) by default; `Area`, `Route`, `Zone` (the existing `PointSequenceGizmo` tools) for those graphics — a small **`PlacementToolRegistry`** keyed by TKB type in `Hrot.Presentation` | create at the right-clicked point (rev 1) — areas cannot be created that way, and two behaviours confuse · a TKB field for the tool — tools are editor UI, the TKB is shared sim data |
+| **D5** | multi-placement | 🔒 **Shift+click drops and keeps the tool armed**; a plain click drops and ends it; Esc or right-click ends. ⭐ The ghost shows the type's icon + name (today a numeric `tkbType` label). Area/route/zone tools keep their current finish-then-end behaviour in v1 | a "count" field — the user places, not counts |
+| **D6** | sides | 🔒 **no Unknown.** ⭐ Menu: **`Add Entity ▸ Friendly… · Hostile… · Neutral… · ─ · Map Graphics…`**. The three side items open the picker filtered to side-bearing types and pass the side to the tool; **`Map Graphics…`** opens it filtered to side-less types. `HasSide` comes from `PlacementToolRegistry` (graphics and point symbols: false; everything else: true) | a side toggle in the picker — `PickerWindow` has no header controls · one picker with a per-row side question — a second dialog after every pick |
+| **D6b** | landing pose | 🔒 **snap to terrain, face north**: `Z = TerrainWorld.SurfaceZ(x, y, zHint: 0)` when the terrain singleton exists (ground under decks; lowest surface inside a footprint), else 0; `Rotation` = yaw **+90°** about Z (the transform's yaw 0 is EAST). Applies to every point placement, the spawn panels' included | `Quaternion.Identity` — measured to face east |
+| **D7** | which types | ⭐ **built from the TKB**: templates carrying a `TkbMasterDto`, minus **`TkbMasterDto.HideFromPalette`** (sensor children, internal parts), **plus** the `PlacementToolRegistry` graphics (they carry no master). Replaces the two hand-written catalogs | keep the hand-written lists — they disagree (14 vs 9) and list `Infantry_Officer`, which has no template |
+| **D8** | search | ⭐ fuzzy match over `Category/Name` + keywords (DIS numbers and names, `CustomName`, model name); Recent first | name substring (today's panel) |
+| **D9** | where the picker is used | 🔒 **the spawn panels stay and call this picker** instead of their combos: `SpawnerPanel` (Editor, CGF, ExCon — its side radio gains *Neutral*, its Draw Area/Route/Zone buttons stay), ExCon ORBAT *New Unit* (opened rooted at `Units`), IG `MiniExConPanel` (replaces the typed number). ⭐ The map menu ships on **Editor + CGF** first; ExCon and IG gain a `PickerRegistry` for their panels. `SimHostSpawnPanel` picks a `VehicleClass`, not a TKB type — unchanged | retire the panels (rev 1) — overruled |
+| **D10** | the create call | ⭐ the point tool's drop goes through `ScenarioSpawnAdapter` → **`EntityCreation.RequestEntityCreation`** (its first UI caller); ExCon's send path (`CMD_PLACE_ENTITY` → IG) is unchanged, per `DESIGN_Entity_Authoring_Surface.md` §5b | a fifth hand-built `EntityCreationRequest` |
 
 ## 3. Diagrams
 
 ```mermaid
 classDiagram
     direction LR
-    class CanvasMenuUpdateSystem { <<Hrot.Presentation, existing>> writes MenuJson; + Add Entity submenu (ids 201-203) }
-    class CanvasContextMenuState { <<Hrot.Core, existing>> +string MenuJson; +Vector3? AnchorWorld NEW }
-    class SelectionInteractionSystem { <<existing>> on empty-space right-click: AnchorWorld = worldPos NEW }
-    class AddEntityAction { <<Hrot.Presentation, NEW>> handles 201-203: open picker, then create }
-    class EntityTypeCatalog { <<Hrot.Presentation, NEW>> TKB templates to PickerEntry list }
-    class DisNameTable { <<Hrot.Core, NEW, data>> kind/domain/country/category names }
-    class EntityIconLibrary { <<Hrot.Presentation, NEW>> IIconProvider entity/IconName; PNG atlas }
-    class PickerRegistry { <<NodeEditor.UI, existing>> OpenPicker(PickerRequest) }
-    class PickerTreeBuilder { <<NodeEditor.UI, existing>> + fold single-child chains NEW }
-    class TreeLayout { <<NodeEditor.UI, existing>> + preview pane NEW }
-    class ITkbDatabase { <<Fdp.Toolkits, existing>> }
-    class VisualDefinitionDto { <<existing>> + IconName NEW }
-    class TkbMasterDto { <<existing>> + HideFromPalette NEW }
+    class CanvasMenuUpdateSystem { <<Hrot.Presentation, existing>> + Add Entity submenu (4 items) }
+    class AddEntityAction { <<Hrot.Presentation, NEW>> side or graphics: open picker, arm tool }
+    class SpawnerPanel { <<existing>> combo replaced by picker NEW }
+    class OrbatPanel_ExCon { <<existing>> unit combo replaced by picker NEW }
+    class MiniExConPanel_IG { <<existing>> type number replaced by picker NEW }
+    class EntityTypeCatalog { <<Hrot.Presentation, NEW>> TKB + graphics to PickerEntry; filter by HasSide }
+    class PlacementToolRegistry { <<Hrot.Presentation, NEW>> tkbType to Point/Area/Route/Zone, HasSide }
+    class DisNameTable { <<Hrot.Core, NEW, data>> }
+    class EntityIconLibrary { <<Hrot.Presentation, NEW>> IIconProvider entity/IconName }
+    class PickerRegistry { <<NodeEditor.UI, existing>> OpenPicker }
+    class PickerTreeBuilder { <<existing>> + fold single-child chains NEW }
+    class TreeLayout { <<existing>> + preview pane NEW }
+    class ISpawnController { <<existing>> StartPlacementMode / Area / Route / Zone }
+    class EntityPlacementGizmo { <<existing>> + Shift keeps armed, terrain Z, north, icon ghost NEW }
+    class PointSequenceGizmo { <<existing>> area/route/zone tools }
     class EntityCreation { <<Hrot.Common, existing>> RequestEntityCreation }
-    class ISpawnController { <<existing>> StartPlacementMode for Shift-pick }
-    CanvasMenuUpdateSystem --> CanvasContextMenuState
-    SelectionInteractionSystem --> CanvasContextMenuState
-    AddEntityAction --> CanvasContextMenuState : reads AnchorWorld
-    AddEntityAction --> EntityTypeCatalog
+    class ITkbDatabase { <<existing>> }
+    class TerrainWorld { <<Fdp.Toolkits, existing>> SurfaceZ }
+    CanvasMenuUpdateSystem --> AddEntityAction
     AddEntityAction --> PickerRegistry
-    AddEntityAction --> EntityCreation
-    AddEntityAction --> ISpawnController
+    SpawnerPanel --> PickerRegistry
+    OrbatPanel_ExCon --> PickerRegistry
+    MiniExConPanel_IG --> PickerRegistry
+    AddEntityAction --> EntityTypeCatalog
+    SpawnerPanel --> EntityTypeCatalog
     EntityTypeCatalog --> ITkbDatabase
+    EntityTypeCatalog --> PlacementToolRegistry
     EntityTypeCatalog --> DisNameTable
-    EntityTypeCatalog ..> VisualDefinitionDto
-    EntityTypeCatalog ..> TkbMasterDto
+    AddEntityAction --> PlacementToolRegistry : which tool
+    AddEntityAction --> ISpawnController : arm
+    SpawnerPanel --> ISpawnController : arm
+    ISpawnController --> EntityPlacementGizmo
+    ISpawnController --> PointSequenceGizmo
+    EntityPlacementGizmo --> TerrainWorld
+    EntityPlacementGizmo --> EntityCreation : on drop
     PickerRegistry --> PickerTreeBuilder
     PickerRegistry --> TreeLayout
     TreeLayout ..> EntityIconLibrary : IIconProvider
 ```
-*What it shows:* three new classes and four small extensions; every other box already exists. The catalog is the one
-place TKB data becomes picker rows — the same catalog later feeds `SpawnerPanel` (S4).
+*What it shows:* every entry point — the map menu and the three panels — ends in the same two calls: the picker, then
+`ISpawnController` to arm the tool the type needs. Nothing creates an entity except the tool's drop.
 
 ```mermaid
 sequenceDiagram
     actor U as Operator
-    participant G as DebugGizmoLayer
-    participant S as SelectionInteractionSystem
-    participant M as CanvasContextMenuState
+    participant M as Map menu
     participant A as AddEntityAction
     participant P as PickerWindow
+    participant R as PlacementToolRegistry
+    participant S as ISpawnController
+    participant T as EntityPlacementGizmo
     participant C as EntityCreation
-    U->>G: right-click empty map
-    G->>S: Started(Right, worldPos)
-    S->>M: AnchorWorld = worldPos (and clear selection, as today)
-    G-->>U: menu: Measurement Tool, Add Entity
-    U->>A: Add Entity > Hostile...
-    A->>P: OpenPicker(Tree, entries from EntityTypeCatalog, at mouse)
+    U->>M: right-click empty map, Add Entity > Hostile...
+    M->>A: action 202 (Hostile)
+    A->>P: OpenPicker(Tree, side-bearing types, at mouse)
     U->>P: types "t72", Enter
-    P-->>A: picked T-72
-    A->>C: RequestEntityCreation(T-72, at AnchorWorld, Affiliation=Hostile)
-    C-->>U: entity appears, selected
+    P-->>A: T-72
+    A->>R: tool for T-72?
+    R-->>A: Point
+    A->>S: StartPlacementMode(T-72, side Hostile)
+    S->>T: arm (ghost: icon + name)
+    U->>T: Shift+click
+    T->>C: RequestEntityCreation(T-72, ground Z, facing north)
+    Note over T: stays armed
+    U->>T: click
+    T->>C: RequestEntityCreation(...)
+    Note over T: ends
 ```
-*What it shows:* the point is captured by the system that ALREADY handles that right-click — no new input path.
+*What it shows:* the clicked point plays no part; the tool owns placement. A `Map Graphics…` pick of *Area* takes the
+same path to `StartAreaAuthoringMode` instead.
 
 ```mermaid
 graph TD
     subgraph Editor and CGF
-      CMU[CanvasMenuUpdateSystem<br/>registered by each host, every frame]
-      SIS[SelectionInteractionSystem<br/>MapInteractionPack, every frame]
-      REG[PickerRegistry.DrawFrame<br/>AiEditorAdapterBundle, every frame]
-      ACT[AddEntityAction<br/>GlobalActionRegistry, on menu pick]
+      CMU[CanvasMenuUpdateSystem<br/>each frame]
+      SP[SpawnerPanel<br/>window, each frame]
+      REG[PickerRegistry.DrawFrame<br/>AiEditorAdapterBundle, each frame]
+      SSA[ScenarioSpawnAdapter<br/>arms tools]
     end
-    subgraph IG ExCon
-      IGM[CanvasMenuUpdateSystem IG / ExCon ContextMenuLogic]
-      NOP[no PickerRegistry today]
+    subgraph ExCon
+      XSP[SpawnerPanel + ORBAT New Unit]
+      XREG[PickerRegistry NEW in S4]
+      XCMD[CMD_PLACE_ENTITY to IG]
     end
-    SH[SimHost: menu, no TKB spawn]:::dead
+    subgraph IG
+      MINI[MiniExConPanel]
+      IREG[PickerRegistry NEW in S4]
+      MCC[MapCommandController places]
+    end
+    SH[SimHostSpawnPanel: VehicleClass, unchanged]:::dead
     RB[ReplayBrowser: read-only]:::dead
-    CMU --> ACT
-    SIS --> ACT
-    ACT --> REG
-    IGM -.S4.-> NOP
+    CMU --> REG
+    SP --> REG
+    REG --> SSA
+    XSP --> XREG --> XCMD --> MCC
+    MINI --> IREG --> MCC
     classDef dead fill:#eee,stroke:#999,color:#777
 ```
-*What it shows:* who runs each piece every frame. IG and ExCon have the menu but no `PickerRegistry` — they join in S4;
-SimHost and ReplayBrowser (grey) never get the item.
+*What it shows:* which host runs which piece each frame. ExCon and IG have no `PickerRegistry` today — S4 adds one;
+ExCon's placement still happens on IG through its existing command. Grey boxes never get the picker.
 
-## 4. Open questions *(beyond the leans)*
+## 4. Open questions
 
-1. **D3b thumbnails** — do you want the offline render tool now (S5), or are hand-made PNGs fine to start?
-2. **D6** — is *Unknown* needed as a fourth force in the submenu?
-3. **D4** — should a ground entity snap to the terrain height at the point (yes, via the existing terrain query), and
-   should heading default to north or to the camera's up?
+1. **"Map symbol entities"** — ⭐ my reading: point symbols placed on the map with no side (the named geopoint `CE-1024`,
+   and any future point graphic). Measured: **no such TKB type exists yet** (only Fire Line, Route, Area, Terrain Zone).
+   Is that what you meant, or do you mean something already on the map today?
+2. **Shift for area/route/zone tools** — ⭐ lean: not in v1 (they finish on a closing click); add later if wanted.
 
 ## 5. Slices
 
 | slice | content | depends |
 |---|---|---|
-| **S0 data** | fill DisType (incl. country) on the 15 built-in templates; JSON loader copies `TkbMaster.DisType`; add `IconName`, `HideFromPalette`; `DisNameTable` | — |
-| **S1 picker** | `EntityTypeCatalog` + D2 fold + D3c preview pane + D8 keywords; `Hrot.Presentation` → `NodeEditor.UI` | S0 |
-| **S2 menu** | Add Entity submenu, `AnchorWorld`, `AddEntityAction` → `RequestEntityCreation`, select new entity, Shift = placement tool; Editor + CGF | S1 |
-| **S3 icons** | `EntityIconLibrary` + fallback glyphs + PNGs for the built-in types | S1 |
-| **S4 one spawn chooser** | `SpawnerPanel` uses the same picker + catalog; retire `ScenarioSpawnerCatalog.Default` and ExCon's array; IG/ExCon get the menu (UXI-12) | S2 |
-| **S5 thumbnails** | offline tool: render `ModelPath` → `EntityIcons/<IconName>.png` | S3 |
+| **S0 data** | DisType (with country) on the 15 built-in templates; JSON loader copies `TkbMaster.DisType`; `IconName`, `HideFromPalette`; `DisNameTable` | — |
+| **S1 picker** | `EntityTypeCatalog` + `PlacementToolRegistry`; fold + preview pane + keywords; `Hrot.Presentation` → `NodeEditor.UI` | S0 |
+| **S2 tool** | `EntityPlacementGizmo`: Shift keeps armed, terrain Z, north, icon+name ghost; drop → `RequestEntityCreation` | — |
+| **S3 menu** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, `AddEntityAction`; Editor + CGF | S1, S2 |
+| **S4 panels** | `SpawnerPanel`, ExCon ORBAT *New Unit*, IG `MiniExConPanel` call the picker; ExCon + IG get a `PickerRegistry`; retire both hand-written catalogs | S1 |
+| **S5 icons** | `EntityIconLibrary`, fallback glyphs, hand-made PNGs for the built-in types and graphics | S1 |
 
-Acceptance (S2): right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter ⇒ a hostile T-72 exists at the
-clicked point, selected, and Delete removes it; the picker shows `Platform › Land › Tank › T-72` with an icon.
+**Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → Shift+click twice, click
+once ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Tank ›
+T-72` with an icon. *Map Graphics… → Area* ⇒ the area tool is armed, no side asked.
+
+## ⛔ HISTORY — rev 1 leans, SUPERSEDED `2026-10-07` by the user's rulings
+
+- rev-1 D4 *"create at the right-clicked point, immediately"* (with `CanvasContextMenuState.AnchorWorld` recorded by
+  `SelectionInteractionSystem`) → replaced by D4 rev 2 (always a placement tool).
+- rev-1 D5 *"Shift+Enter arms the placement tool"* → replaced by D5 rev 2 (Shift+click keeps the tool armed).
+- rev-1 D6 *"Add Entity ▸ Friendly/Hostile/Neutral"* → extended by `Map Graphics…`; no Unknown.
+- rev-1 D9 / S4 *"retire `ScenarioSpawnerCatalog` and move the spawn panels onto the picker (UXI-12)"* — the panels are
+  NOT retired; only their combos are replaced.
