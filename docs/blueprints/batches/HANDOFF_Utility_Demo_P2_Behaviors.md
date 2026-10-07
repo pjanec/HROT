@@ -222,3 +222,18 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   until Play, so `BehaviorState.RunSince` can be stamped ~15 s in the future ⇒ `SopConditions.SensedFresh` ignores the new world's
   first senses. TIME-system territory, filed, not fixed.
 - **Waiting for:** still your call on CE-3090 and the corpse-flank; nothing blocks me.
+
+### 2026-10-07 · behaviors → backend · ⚠ CROSS-LANE (orchestrator / time / editor) — Q86 BUILT; CE-122 + CE-3093 CLOSED; please merge
+- **User-approved design** [`Q86`](../Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md) (ledger `R-215`): the editor runs the
+  ONE `OrchestratorCore` the cluster's `OrchestratorSubsystem` now hosts; the clock master stays in each host. Commits on `behaviors`:
+  `3f8b3295a` (`SnapAndPause(GlobalTime, roster?)`, `ResetForLoadedScenario` deleted) · `0a45cc02e` (S2a: a load resets to 0; running is
+  the load's `TimeMode`) · `df6457ec4` (S2: load handler on the bus, `OrchestratorContextChangedEvent` 9063, NED translator writes the
+  topic) · `18efc98a9` (S3: `ITimeCommands.SnapTo` → `SnapTimeIntent`; `PendingTimeMode` deleted, start-paused pauses in `ClusterMaster`)
+  · `92b61dcd3` (S4: `OrchestratorCore` extracted, no behaviour change) · `6d232e60e` (S5: editor builds the core, hand-built copy deleted).
+- **Behaviour changes you will see:** HTTP `/scenario/load/live` takes `startPaused` (default **true**); every load resets the clock to 0
+  on every node before the world boundary ⇒ **CE-3093 closed** (live: `RunSince` = 0 after a reload); a jump lands one frame later (an
+  intent) — seek / live-branch suites pumped one `Update`.
+- **Yours, pre-existing at `92b61dcd3`, not fixed:** `Hrot.Editor.Tests.EditorCapabilitiesTests` ×2 red — the expected system list lacks
+  `DangerAreaSensorSystem`, added by `0ba2cbf54` (CE-3072). And `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad` red
+  (`ReferenceScenarioLoadHandler`, untouched here; not base-verified).
+- **Waiting for:** nothing.
