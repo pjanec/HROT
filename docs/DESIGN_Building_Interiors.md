@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 2 — templates, generic building, per-purpose solvers, door mechanics; §3a)
+updated: 2026-10-07 (rev 3 — terrain-object ids and door saving, §3b; rev-2 "deterministic network id" RETRACTED)
 build-state: DESIGN (leans in §3a await the user)
-current-answer: §3a (rev 2) wins over §3 where they differ · §4 change map · §6 slices
+current-answer: §3b (rev 3) wins over §3a (rev 2), which wins over §3 · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -140,7 +140,7 @@ the template carries every wall, door and window in its own local coordinates. T
 | **Inner walls are just walls** in the storey's list — no outer/inner distinction in the data; a room is whatever the walls enclose | |
 | **🔒 Solid is the special case**: a template (or inline building) with `"solid": true` and no storeys is today's prism; today's `{"kind":"building","height":12}` polygon still parses as exactly that | `test-town` keeps working unchanged |
 | **Inline variant** for a one-off: the same template JSON inside the instance's `properties` | no side file for a unique building |
-| **Door ids are instance-qualified at load**: `"Block D/front"` | stable across loads → a stable door entity id |
+| **Door ids are instance-qualified at load**: `"Block D/front"` | a stable **terrain-object key**, NOT a network id — §3b translates it to a runtime network id |
 | ⛔ dropped: rev-1 B7 facade rules | explicit openings are clearer; a template is written once, so the cost of explicitness is paid once |
 
 Example — a template and an instance:
@@ -210,7 +210,7 @@ sequenceDiagram
 
 | ⭐ lean | |
 |---|---|
-| **Door = an entity** (TKB `Door`), created ONCE in the cluster at terrain load by the arbiter, with a **deterministic network id** from terrain name + qualified door id (`DESIGN_Deterministic_Network_Ids.md`) | every node can address the same door; its state replicates |
+| **Door = an entity** (TKB `Door`), created ONCE in the cluster at load by the arbiter, ⛔ ~~with a deterministic network id from terrain name + qualified door id~~ **RETRACTED rev 3** — no such scheme exists; its runtime id comes from the one allocator, through the key map of §3b | every node can address the same door; its state replicates |
 | **`DoorState`**: Open / Closed / Locked / Destroyed; initial value from the template, overridable per instance, overridable per scenario | |
 | **Actions**: `OpenDoor`, `CloseDoor`, `Lock`/`Unlock`, `Breach` — behaviour actions executed by the door's owner; the actor needs to be adjacent; opening takes animation time | |
 | **Path filter per agent**: Locked → excluded (unless the agent can breach: high cost + `Breach` waypoint); Closed → passable at a cost with a `TraversalKind.Door` waypoint for agents that can open doors; excluded for vehicles/animals | |
@@ -223,6 +223,43 @@ sequenceDiagram
 
 🔒 **Out of scope now**; part of the programme later — Stride will build its terrain from this file (AQ81 T8). Slice
 B-7 is parked.
+
+## 3b. Rev 3 — terrain-object ids and saving door state *(user, `2026-10-07`)*
+
+> 🔒 **User:** *"network ids are dynamic so the 'fixed' ones from the terrain need to be translated to real runtime
+> network id same as scenario entity network ids. those fixed terrain-provided ids must never collide with scenario
+> entity ids."* · approved: window = plain opening (v1); the scenario author sets a door's initial state.
+
+### Claim table — how ids work today *(measured)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a scenario has no stable entity id | ✅ the file key is `Guid.NewGuid()` per save (`ScenarioSerializer.cs:164-176`); the entity's last runtime id is saved in `NetworkIdentity` and used only as the "old id" at the next load | ✅ `DESIGN_Distributed_Scenario_Persistence.md` §4b I2 *"the DOM key is `Guid.NewGuid()` generated per save, not the network id"* |
+| runtime ids are re-allocated at every load and references remapped | ✅ `StagingEntityExtractor.cs:243-262` `oldToNewMap[oldId] = idAllocator.AllocateId()` → `EntityCreationRequest.PreAllocatedNetworkId`; every component remapped through `EntityRef` (`RemapComponentNetworkIds`, `:406-438`) | ✅ `DESIGN_Entity_Reference.md` D3/D4 *"ONE type plan, two appliers"* |
+| ONE id authority, one sequence, no namespaces | ✅ the authority resets to 1000 at every world reset; CGF allocates authored ids | ✅ `DESIGN_Deterministic_Network_Ids.md` §11b/§11e *"One id authority per world … no reserved band to police"* |
+| ⇒ rev 2's "deterministic network id from the door key" does not exist | ⛔ no hashed/name-derived id anywhere | ⛔ the ids doc has none — **rev 2 cited a scheme the cited doc does not contain** |
+| Save writes CURRENT state, in Edit and Live alike | ✅ `ScenarioSerializer.cs:178-190` walks live components; save-in-Live proven (`POST /scenario/save` in `--mode all`) | ✅ Persistence §1 *"save an entity iff you are its non-transient primary owner"* |
+| a checkpoint is a binary snapshot, and cannot be restored yet | ✅ `ReferenceCheckpointHandler` → `.fdp` per node; *"Restore Checkpoint is NOT here"* (`ScenarioMenuCommands.cs:231-233`) | ✅ `DESIGN_Cgf_Scenario_Session_Slice.md:183` (restore deferred) |
+
+### Decisions
+
+| # | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| **K1** | 🔒 a door's runtime network id comes from **the same single allocator** as every entity — so it can never collide with any runtime id, by construction | a reserved numeric band for terrain objects — the ids design rules *"no reserved band"* and would need policing |
+| **K2** | 🔒 what the terrain provides is a **terrain-object key**, a STRING: `"<terrain>/<building>/<doorId>"` (e.g. `"test-town/Block D/front"`). It is never a number, so it cannot be mistaken for a scenario entity's saved id (which is numeric) | numeric terrain ids — two number spaces in one reference field would collide exactly as the user warns |
+| **K3** | at load, the **arbiter creates the door entities in key order** right after the scenario's own allocation step, and keeps a **`TerrainObjectMap: key → runtime id`** beside `oldToNewMap` (same `OnRemap` channel) | creating doors on every node — one door would become N entities |
+| **K4** | a scenario reference to a door (a behaviour param *"open this door"*, a door-state entry) stores the **key**, not a number: a `TerrainObjectRef` beside `EntityRef`, resolved through `TerrainObjectMap` by the same remap pass | storing the door's runtime number — meaningless at the next load |
+| **K5** | door ENTITIES are not saved (the terrain recreates them); door STATE is: the scenario gets a `terrainObjects` section keyed by K2 — `{ "test-town/Block D/front": { "door": "Locked" } }` | saving door entities — they would be created twice (terrain + scenario) |
+
+### Saving door state — what I meant, corrected
+
+⛔ **Rev 2 said *"runtime changes saved only by checkpoints"*. That was WRONG for this codebase and is retracted:** I
+assumed a split between an authored initial state and a runtime state; measured, **Save writes the CURRENT state of
+every entity, in Edit and Live alike**, and a checkpoint is a separate binary snapshot that cannot be restored yet.
+⇒ **Doors follow the same rule as everything else:** whatever state a door has when the scenario is saved is written
+into `terrainObjects` (K5), and that becomes its initial state at the next load. In Edit mode that is exactly *"the
+scenario author sets the initial state"*; a save during Live captures the door as it is then, like it captures every
+moved vehicle.
 
 ## 4. Change map — what each consumer must do
 
@@ -263,7 +300,7 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 | **fire** | bullets trace terrain (AQ85 §D) — through openings, stopped by walls; penetration later | M |
 | **hearing** | attenuation per crossed wall/floor | S |
 | **cover / EQS** | `InsideSolid` → solid prisms only; cover points per storey along panels (inner side too); **window firing positions** (inside, facing out); stance from the opening's sill, not the building height | M |
-| **doors** | TKB `Door` type; spawn from the world file at load (stable ids, not persisted as scenario entities); replicated `DoorState`; open/close action | M |
+| **doors** | TKB `Door` type; spawn from the world file at load (terrain-object keys mapped to runtime ids, §3b; not persisted as scenario entities — their state is, §3b); replicated `DoorState`; open/close action | M |
 | **2D map** | storey selector; draw panels + openings of the selected storey | M |
 | **Stride** | generate walls/floors/stairs geometry + colliders from `TerrainWorld`; its navmesh from the same mesh | L |
 | **behaviours** | room entry (Squad §8.6) gets geometry: stack at a door, enter by sectors; "occupy building / window" EQS templates | M (after the above) |
@@ -275,7 +312,7 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 1. **B3 glass** — 🔒 **APPROVED `2026-10-07`: a window is a plain opening for both sight and fire in v1** (glass and
    penetration later).
 2. **B5 door persistence** — 🔒 **APPROVED `2026-10-07`: the scenario author sets a door's initial state.** What happens
-   to a door changed at runtime when the scenario is saved — §3b.
+   to a door changed at runtime when the scenario is saved — §3b (the scenario saves its CURRENT state, like every entity).
 3. **B9** — is generating Stride geometry from the world file in scope now, or after the sim side works?
 
 ## 6. Slices
@@ -287,7 +324,7 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 | **B-2 see and shoot** | `Trace` with transmittance; sight through windows/doorways; bullets vs terrain (with AQ85 §D) | B-0 |
 | **B-3 tactics** | cover per storey, window firing positions, interior EQS sampling | B-2 |
 | **B-4 map** | storey selector, panels + openings on the 2D map | B-0 |
-| **B-5 doors** | door entities (arbiter, deterministic ids), `DoorState`, doorway convex volumes at bake, `SetPolyFlags` + per-agent filter, `OpenDoor`/`Close`/`Lock`/`Breach` actions, replan on change | B-1 |
+| **B-5 doors** | door entities (arbiter, terrain-object keys → runtime ids via `TerrainObjectMap`, `TerrainObjectRef`, scenario `terrainObjects` state), `DoorState`, doorway convex volumes at bake, `SetPolyFlags` + per-agent filter, `OpenDoor`/`Close`/`Lock`/`Breach` actions, replan on change | B-1 |
 | **B-6 sound** | sound solver: v1 straight with per-wall attenuation; v2 room/portal propagation | B-2 |
 | **B-7 Stride** | ⛔ **parked** (🔒 out of scope now) — geometry + colliders + navmesh from `TerrainWorld` | B-1 |
 | **B-8 room entry** | Squad §8.6 on real geometry | B-1, B-3, B-5 |
