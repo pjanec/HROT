@@ -272,10 +272,10 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 
 ## 5. Open questions
 
-1. **B3 glass** — should a window stop bullets by default (glass value for fire 0.5, sight 1.0), or is every window an
-   opening for both until penetration exists? ⭐ lean: opening for both in v1.
-2. **B5 door persistence** — is a door's state part of the scenario (a scenario author locks a door) or runtime only?
-   ⭐ lean: authored initial state in the scenario, runtime changes saved by checkpoints only.
+1. **B3 glass** — 🔒 **APPROVED `2026-10-07`: a window is a plain opening for both sight and fire in v1** (glass and
+   penetration later).
+2. **B5 door persistence** — 🔒 **APPROVED `2026-10-07`: the scenario author sets a door's initial state.** What happens
+   to a door changed at runtime when the scenario is saved — §3b.
 3. **B9** — is generating Stride geometry from the world file in scope now, or after the sim side works?
 
 ## 6. Slices
