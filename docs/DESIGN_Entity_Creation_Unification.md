@@ -97,6 +97,7 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - DESIGN_Add_Entity_Picker.md — the map "Add Entity" picker; creates through this pipeline
   - DESIGN_Ownership_Groups_And_Grants.md — owns WHICH components a created entity grants to which role (push-only groups) and S2b, which made `NetworkAdapters` the pack's one network input
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage

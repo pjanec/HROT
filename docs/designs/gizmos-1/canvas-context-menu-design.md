@@ -9,6 +9,7 @@ known-rot: ⚠ The ENTITY menu projects items nothing handles. 📐 Measured 202
   disables "Move Here" with a tooltip for a DEGRADED unit, which is what a deliberately unavailable item
   looks like ⇒ the healthy one is meant to work.
 related-designs:
+  - ../../DESIGN_Add_Entity_Picker.md — adds the "Add Entity" item to the empty-map menu and the clicked point (CanvasContextMenuState.AnchorWorld) that §5.6 lacks
   - ../brain-death/BD1-DESIGN.md — owns the ROUTING RULE behind "Move Here" (brain-active ⇒ mission,
     brain-dead ⇒ direct muscle command). Its §2 put that rule on the raw right-click gesture THIS design
     now owns, so the rule is currently unhomed — see its known-rot.
