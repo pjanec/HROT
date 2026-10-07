@@ -1978,7 +1978,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "query_terrain",
     "group": "N — World / coordinates",
-    "summary": "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight).",
+    "summary": "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and, per purpose, its transmittance (sight) or ballistic resistance and the round's chance through it (fire).",
     "http": {
       "method": "GET",
       "path": "/terrain/query"
@@ -2000,13 +2000,26 @@ export const TOOLS_CATALOG = [
         "name": "purpose",
         "type": "string",
         "required": false,
-        "description": "sight (fire/sound/fragment/blast arrive with their solvers)"
+        "description": "sight (default) or fire (sound/fragment/blast arrive with their solvers)"
+      },
+      {
+        "name": "penetration",
+        "type": "number",
+        "required": false,
+        "description": "fire: the round's penetration, mm RHA (0 = unknown round — the engine fallback meets the terrain)"
+      },
+      {
+        "name": "damage",
+        "type": "number",
+        "required": false,
+        "description": "fire: the round's damage (0 = the flat default)"
       }
     ],
-    "returns": "{ terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }",
+    "returns": "sight: { terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note } · fire: { terrain, purpose, penetration, length, stopped, stopAlong, arrivingDamage, arrivingPenetration, crossed:[{along, kind, label, material, pathMetres, resistanceMmRha, roundPenetrationMm, chance, passes, building, storey}], note }",
     "notes": [
       "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
-      "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees."
+      "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees.",
+      "fire (R-217): resistance = material mm RHA/m × the path inside the piece; chance = ArmorModel.PenetrationChance(round, resistance); damage multiplies by each chance; a crossing the round cannot pass stops it — exactly what bullets do."
     ],
     "example": {
       "args": {
@@ -2015,7 +2028,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "check whether a window lets a soldier outside see into a room"
     },
-    "hint": "Req: from, to ('x,y,z' local metres). Optional: purpose (sight). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6'})",
+    "hint": "Req: from, to ('x,y,z' local metres). Optional: purpose (sight|fire), penetration (mm RHA, fire), damage (fire). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6', purpose:'fire', penetration:'5'})",
     "manualVerify": false
   },
 
