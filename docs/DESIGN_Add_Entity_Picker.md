@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 5 — level 0 is always the ground; Stride deferred as CE-1030, §2c)
+updated: 2026-10-07 (rev 6 — SpawnHeight wire encoding, §2d)
 build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
-current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5); the later section wins where they differ · §3 diagrams · §5 slices
+current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
@@ -229,6 +229,28 @@ the ghost shows a warning *"inside a solid building — will settle on the roof"
 
 🔒 Left out for now; recorded as **`CE-1030`** (the Stride node gains the pack: gizmo registry first — `CE-253`/`CE-254`
 — then canvas menu, picker, icons; confirm its TKB load).
+
+## 2d. Rev 6 — how the spawn request encodes the height request *(user asked, `2026-10-07`)*
+
+> 🔒 **User:** *"how the entity spawn encodes the height request?"*
+
+### Claim table *(measured)*
+
+| claim | code — how it IS | design |
+|---|---|---|
+| the request crosses the wire as descriptors + JSON + a flags word | ✅ `CreateEntityRequestDescriptorBuilder.Build` sends `dtEntityMaster`, `dtWorldPos` (the anchor `SimTransform` as lat/lon/**alt**), overlay/route descriptors, `InitialAttributesJson`; every other `InitialComponents` entry is DROPPED (`:43-143`); `Flags` (Int64) has ONE bit used — `Transient = 1L<<0` (`NedEntityCreationRequestEgress.cs:36`) | ⛔ none on height |
+| attribute records exist on the wire but nothing uses them at creation | ✅ `CreateEntityRequest.InitialAttributeRecords` read/written only by tests; records are the UPDATE path (`UpdateEntityAttributeRequestSystem.cs:240`) and their interpreter writes components | ⛔ |
+| a request field consumed at creation is the established pattern | ✅ `PreAllocatedNetworkId` / `IsTransient` are request fields, never carried components (`StagingEntityExtractor.cs:258,378`; `NetworkSpawningSystem.cs:196`) | ✅ |
+| the resolution point exists | ✅ `CreateEntityRequestSystem.ProcessPendingRequest`: after the transform is extracted (`:264-272`), before `SpawnEntityCommand` is published (`:324`), only on the node servicing the request (`:183`); TKB children inherit the parent transform (`:455`) | ✅ §2b (creating node resolves) |
+
+### Decision
+
+| ⭐ lean | rejected (one line each) |
+|---|---|
+| **In-process: a request field** `EntityCreationRequest.SpawnHeight? { Mode, Level }` — never a component, so nothing to strip | a component — the descriptor builder drops it on the wire, and it would linger on the entity |
+| **On the wire: two fields in the existing `Flags` word** — bits 1-2 = `Mode` (0 = absent/`Absolute`, 1 = `OnLevel`, 2 = `AboveLevel`), bits 8-15 = `Level` as a signed byte (−128…+127). **The `AboveLevel` height needs no field**: it IS the sent Z (`dtWorldPos` altitude), which `OnLevel` ignores | an attribute record — both ends unbuilt and the record model is for component attributes · a JSON key — JSON routes land on components and need a strip step |
+| **Resolved in `CreateEntityRequestSystem`** (injected `Func<TerrainWorld?>`, like `TerrainWorldSource.Live`) — replaces the transform's Z before publish; children inherit it; no terrain ⇒ the sent Z stays | resolving in `NetworkSpawningSystem` — too late, and it runs on every receiver |
+| Old senders leave the bits 0 ⇒ `Absolute` ⇒ today's behaviour, unchanged | |
 
 ## 3. Diagrams
 

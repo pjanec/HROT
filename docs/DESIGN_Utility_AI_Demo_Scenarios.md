@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - DESIGN_Terrain_Combat_Tuning.md — premise tables + the same two-forms rule for building/combat demos
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance (does the round hit at all), the term BEFORE §9's armour model; proposes the same one-function-for-shot-and-AI shape (R-212 A1).
   - docs/DESIGN_Decision_Layer.md — OWNS the utility step (ChooseOption / IsOption / RankCandidates, §3.3) and CombatPosture (§3.3b); this document only DEMONSTRATES them and lists what is missing to do so.
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS the scoring engine, inputs, the starter decisions (§11.4), the trace (§9) and group fire coordination (§10).

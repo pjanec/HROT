@@ -11,6 +11,8 @@ design-basis: 🔒 user 2026-08-23 ("replaybrowser is no exception… same full 
   Architect_Question_52 §0 (the rule) and §6 (the as-built schema half).
 known-conflict: none. ⭐ This IMPLEMENTS UXI-23's gizmo half; ⛔ it does not build the rest of
   MapInteractionPack (actions, selection, rubber-band, layer control) — §6.
+related-designs:
+  - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
 

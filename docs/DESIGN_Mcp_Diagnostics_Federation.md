@@ -20,6 +20,8 @@ design-basis: Hrot.ClusterRunner/Program.cs (the per-node DebugApiHost — edito
 known-conflict: none. ⚠ The MCP authoring/create sessions own DebugApiService.Authoring.cs + the generated
   catalog; a diagnostics slice adds its own routes and MUST coordinate the ONE catalog regen if it runs
   concurrently with an authoring slice.
+related-designs:
+  - DESIGN_Terrain_Combat_Tuning.md §4 — new terrain/combat/perception routes and MCP tools
 -->
 # DESIGN — **MCP diagnostics + the per-node federation** *(logs · architecture · cluster-wide)*
 
