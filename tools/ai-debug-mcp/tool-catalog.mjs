@@ -2006,7 +2006,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }",
     "notes": [
       "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
-      "Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value."
+      "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees."
     ],
     "example": {
       "args": {

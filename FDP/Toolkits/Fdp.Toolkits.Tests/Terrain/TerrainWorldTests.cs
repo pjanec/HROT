@@ -426,6 +426,29 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(1.5f, down.Crossed[0].Along, 3);
         }
 
+        [Fact]
+        public void Stage3_SegmentBlocked_IsSightTransmittanceBelowHalf_ChainLinkSeesThrough_FiveDoNot_AHedgeDoesNot()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[20,10]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,20],[20,20]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,30],[20,30]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,40],[20,40]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,50],[20,50]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "hedge", "thickness": 0.8 }, "geometry": { "type": "LineString", "coordinates": [[30,10],[50,10]] } } ] }
+            """);
+            var eye = new Vector3(10, 0, 1.6f);
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 15, 1.6f)));        // one chain-link: 0.85
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 35, 1.6f)));        // three: 0.61
+            Assert.False(w.SegmentBlocked(eye, new Vector3(10, 45, 1.6f)));        // four: 0.85⁴ = 0.522 ≥ 0.5
+            Assert.True(w.SegmentBlocked(eye, new Vector3(10, 55, 1.6f)));         // five: 0.44
+            Assert.True(w.SegmentBlocked(new Vector3(40, 0, 1.6f), new Vector3(40, 15, 1.6f)));   // hedge 0.3
+            // ⭐ the route and perception agree, by construction
+            foreach (var to in new[] { new Vector3(10, 15, 1.6f), new Vector3(10, 35, 1.6f), new Vector3(10, 45, 1.6f), new Vector3(10, 55, 1.6f) })
+                Assert.Equal(w.QuerySight(eye, to).Transmittance < TerrainWorld.SightThreshold, w.SegmentBlocked(eye, to));
+        }
+
         // ── the shipped terrains ─────────────────────────────────────────────────────────────────────────────
 
         private static string ShippedTerrain(string name)

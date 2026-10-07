@@ -389,7 +389,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: The same levels Add Entity's SpawnHeight resolves (TerrainWorld.SurfacesAt): surfaces within 0.3 m of the ground merge into level 0..
   Example: `get_terrain_levels({"x":102,"y":104})` — list the floors a unit could be placed on inside a building.
 - **`query_terrain`** — Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight). Req `from` (string), Req `to` (string), `purpose?` (string). Returns { terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }
-  Notes: Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.; Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value..
+  Notes: Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.; Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees..
   Example: `query_terrain({"from":"102,90,1.6","to":"102,104,1.6"})` — check whether a window lets a soldier outside see into a room.
 - **`geo_to_local`** — Convert geographic coordinates to local ENU {x,y,z}. Req `lat` (number), Req `lon` (number), Req `alt` (number), `headingDeg?` (number). Returns { x, y, z, rotation? } — optional rotation if headingDeg was provided.
   Notes: Optional headingDeg → adds rotation quaternion to response..

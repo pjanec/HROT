@@ -1976,7 +1976,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
-                "Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value.",
+                "Perception uses the same rule (TerrainWorld.SegmentBlocked = transmittance < 0.5), so this answer is what a sensor sees.",
             },
             ExampleArgsJson: "{\"from\":\"102,90,1.6\",\"to\":\"102,104,1.6\"}",
             ExampleGist: "check whether a window lets a soldier outside see into a room"),

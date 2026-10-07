@@ -50,7 +50,7 @@ namespace Hrot.Editor.DebugApi
                 ["terrain"] = t.Name, ["purpose"] = "sight", ["transmittance"] = q.Transmittance,
                 ["seesThrough"] = q.Transmittance >= TerrainWorld.SightThreshold, ["threshold"] = TerrainWorld.SightThreshold,
                 ["length"] = Vector3.Distance(from, to), ["crossed"] = crossed,
-                ["note"] = "Stage 1: a dry run. Perception still uses SegmentBlocked (any solid piece blocks) until Stage 3 switches it to this transmittance.",
+                ["note"] = "A dry run of the rule perception uses: SegmentBlocked = transmittance < threshold (buildings Stage 3, sight).",
             };
         }
 

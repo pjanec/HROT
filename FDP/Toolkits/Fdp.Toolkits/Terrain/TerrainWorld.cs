@@ -221,11 +221,16 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>
         /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
-        /// terrain: a prism it passes through within the prism's height, a slab/ramp it crosses, or the ground
-        /// it dips under. Dynamic obstacles (entities) are not part of the world — the LOS strategy adds them.
+        /// terrain: its SIGHT TRANSMITTANCE is below <see cref="SightThreshold"/> — the product of the materials of the
+        /// solid pieces it passes within their height (concrete/brick 0, chain-link 0.85, hedge 0.3, §3c M3), with any
+        /// slab/ramp it crosses opaque. Dynamic obstacles (entities) are not part of the world — the LOS strategy adds them.
+        /// <para>⭐ Buildings programme Stage 3 (sight half): the SAME rule <see cref="QuerySight"/> reports, so
+        /// <c>GET /terrain/query</c> and perception agree. A prism with no material reads as opaque (concrete), so every
+        /// world built before materials behaves exactly as before.</para>
         /// </summary>
         public bool SegmentBlocked(Vector3 from, Vector3 to)
         {
+            float transmittance = 1f;
             // Under the ground at either end means a malformed query, not an occluder — ignore; a line that
             // dips below the flat ground between two points above it is impossible, so no ground test needed
             // until a heightfield exists.
@@ -241,7 +246,12 @@ namespace Fdp.Toolkit.Terrain
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
-                    if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ) return true;
+                    if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)
+                    {
+                        transmittance *= prism.Material?.SightTransmittance ?? 0f;
+                        if (transmittance < SightThreshold) return true;
+                        break;   // one crossing per piece — as QuerySight counts it
+                    }
                 }
             }
 
