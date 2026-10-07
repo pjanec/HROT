@@ -2213,6 +2213,14 @@ namespace Hrot.Editor.DebugApi
         public JsonNode QueryTerrainFire(System.Numerics.Vector3 from, System.Numerics.Vector3 to, float penetration, float damage)
             => TerrainReport.QueryFire(_world, from, to, penetration, damage);
 
+        /// <summary>GET /combat/shots — ⭐ tuning T-4: the last rounds fired on this node, as the combat systems recorded them.</summary>
+        public JsonNode GetShots(int last, long? shooter, long? target)
+            => CombatReport.Shots(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last, shooter, target);
+
+        /// <summary>GET /perception/los — ⭐ tuning T-4: why one unit does (not) see another, as this node's perception decides it.</summary>
+        public JsonNode ExplainLos(long observer, long target)
+            => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
+
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
         public JsonNode GetDoors() => TerrainReport.Doors(_world);
 

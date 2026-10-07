@@ -106,9 +106,19 @@ namespace Fdp.Toolkit.Physics.Systems
                         // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors crossed on THIS segment before the struck unit: the round
                         //   is carried from the segment's start to the hit point (BallisticsSystem held the far-end values back, so
                         //   bp is still what the round had at the start). A unit in FRONT of a fence takes the full round.
+                        var shot = Fdp.Toolkit.Combat.ShotLog.Peek(repo)?.Of(bulletEntity);   // ⭐ T-4
+                        shot?.Pending.Clear();   // this segment ends at the unit — its crossings beyond it never happened
                         if (repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
                             && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is Fdp.Toolkit.Terrain.TerrainWorld terrain)
-                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, hit.Start, hitPos, ref damage, ref penetration, out _);
+                            Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, hit.Start, hitPos, ref damage, ref penetration, out _, shot?.Crossings);
+                        if (shot != null)
+                        {
+                            shot.HitEntity = hit.HitEntity;
+                            shot.ArrivingDamage = damage;
+                            shot.ArrivingPenetration = penetration;
+                            Fdp.Toolkit.Combat.ShotLog.End(shot, Fdp.Toolkit.Combat.ShotOutcome.Hit,
+                                repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u, hitPos);
+                        }
                     }
 
                     repo.Bus.Publish(new DetonationNotification

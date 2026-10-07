@@ -171,6 +171,44 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         public static float AimHeightFor(ISimulationView view, Entity e, StanceId stance, float colliderHeight)
             => colliderHeight > 0f ? colliderHeight * 0.5f : EyeHeightFor(view, e, stance) * 0.5f;
 
+        /// <summary>⭐ Tuning T-4 — why a line of sight is (not) clear: the points used, the terrain crossings and any entity in the way.</summary>
+        public sealed record LosExplanation(bool Visible, Vector3 Eye, Vector3 Aim, StanceId ObserverStance, StanceId TargetStance,
+            float EyeHeight, float AimHeight, TerrainWorld.TraceResult? Terrain, Entity? BlockingEntity, string Verdict);
+
+        /// <summary>
+        /// ⭐ Tuning T-4 (<c>GET /perception/los</c>) — the SAME decision as <see cref="IsVisible"/>, with its evidence. Call
+        /// <see cref="BeginBatch"/> first. The terrain part is <see cref="TerrainWorld.QuerySight"/>, which agrees with
+        /// <see cref="TerrainWorld.SegmentBlocked"/> by construction (rail <c>TerrainWorldTests.Stage3_*</c>).
+        /// </summary>
+        public LosExplanation Explain(ISimulationView view, Entity observer, Entity target)
+        {
+            var eye = view.GetComponentRO<SimTransform>(observer).Position;
+            var aim = view.GetComponentRO<SimTransform>(target).Position;
+            var so = _stance?.Invoke(view, observer) ?? StanceId.Standing;
+            var st = _stance?.Invoke(view, target) ?? StanceId.Standing;
+            float eh = EyeHeight(view, observer), ah = AimHeight(view, target);
+            eye.Z += eh; aim.Z += ah;
+            TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim);
+            if (trace is { } t && t.Transmittance < TerrainWorld.SightThreshold)
+                return new(false, eye, aim, so, st, eh, ah, trace, null, $"blocked by terrain: transmittance {t.Transmittance:0.###} < {TerrainWorld.SightThreshold}");
+            var a = new Vector2(eye.X, eye.Y);
+            var b = new Vector2(aim.X, aim.Y);
+            _index.Query(a, b, _near);
+            foreach (int k in _near)
+            {
+                var (e, p, r, h) = _colliders[k];
+                if (e.Index == observer.Index || e.Index == target.Index) continue;
+                if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
+                if (h <= 0f) return new(false, eye, aim, so, st, eh, ah, trace, e, "blocked by an entity of unknown height");
+                float z0 = eye.Z + ((aim.Z - eye.Z) * t0);
+                float z1 = eye.Z + ((aim.Z - eye.Z) * t1);
+                if (MathF.Min(z0, z1) < p.Z + h && MathF.Max(z0, z1) > p.Z)
+                    return new(false, eye, aim, so, st, eh, ah, trace, e, "blocked by an entity within its height");
+            }
+            return new(true, eye, aim, so, st, eh, ah, trace, null,
+                trace == null ? "clear (no terrain resident)" : $"clear: transmittance {trace.Value.Transmittance:0.###} ≥ {TerrainWorld.SightThreshold}");
+        }
+
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
         {
             var eye = view.GetComponentRO<SimTransform>(observer).Position;

@@ -1988,6 +1988,47 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"from\":\"102,90,1.6\",\"to\":\"102,104,1.6\"}",
             ExampleGist: "check whether a window lets a soldier outside see into a room"),
 
+        [("GET", "/perception/los")] = new RouteDoc(
+            Tool:    "explain_line_of_sight",
+            Group:   "K — AI behavior traces",
+            Summary: "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",
+            Returns: "{ observer, target, visible, verdict, eye, aim, eyeHeight, aimHeight, observerStance, targetStance, terrainTransmittance, threshold, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity, note }",
+            Hint:    "Req: observer, target (network ids). Example: explain_line_of_sight({observer:1001, target:1002})",
+            Params: new RouteParam[]
+            {
+                new("observer", "number", true, "the seeing unit's network id"),
+                new("target", "number", true, "the seen unit's network id"),
+            },
+            Notes: new[]
+            {
+                "A dry run of the SAME strategy perception composes (TerrainWorldLosStrategy.ForLiveWorld) — it cannot disagree with it.",
+                "Answers where perception runs with the entities resident (SimHost, Editor); 404 when either unit is not on this node.",
+                "Stances read Standing until a host composes a stance reader (CE-3010 / buildings Stage 4).",
+            },
+            ExampleArgsJson: "{\"observer\":1001,\"target\":1002}",
+            ExampleGist: "find out which wall hides the enemy from the rifleman"),
+
+        [("GET", "/combat/shots")] = new RouteDoc(
+            Tool:    "get_combat_shots",
+            Group:   "K — AI behavior traces",
+            Summary: "The last rounds fired on this node — the inputs each was fired with (penetration and its provenance, AQ85 sigma/deflection) and why it ended (hit, stopped by a wall, expired), with every terrain crossing (tuning T-4).",
+            Returns: "{ count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first",
+            Hint:    "Optional: last (default 20), shooter, target (network ids). Example: get_combat_shots({last:10, shooter:1001})",
+            Params: new RouteParam[]
+            {
+                new("last", "number", false, "how many records (newest first; default 20, ring of 256)"),
+                new("shooter", "number", false, "only rounds fired by this network id"),
+                new("target", "number", false, "only rounds fired at this network id"),
+            },
+            Notes: new[]
+            {
+                "Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.",
+                "Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.",
+                "A round that hit a unit lists only the crossings before the unit; arrivingDamage is what the damage step received.",
+            },
+            ExampleArgsJson: "{\"last\":10}",
+            ExampleGist: "find out why a rifleman's rounds never hurt the target behind the wall"),
+
         [("GET", "/doors")] = new RouteDoc(
             Tool:    "list_doors",
             Group:   "N — World / coordinates",

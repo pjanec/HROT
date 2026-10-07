@@ -724,6 +724,24 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/doors", _ => Task.FromResult(Ok(Service().GetDoors()))));
 
+            // ⭐ Tuning T-4 — line of sight with its evidence (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/perception/los", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("observer"), out var obs) || !long.TryParse(ctx.Query("target"), out var tgt))
+                    return Task.FromResult(Fail(400, "Query 'observer' and 'target' (network ids) are required."));
+                var node = Service().ExplainLos(obs, tgt);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
+            // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/combat/shots", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 20;
+                long? shooter = long.TryParse(ctx.Query("shooter"), out var sh) ? sh : null;
+                long? target = long.TryParse(ctx.Query("target"), out var tg) ? tg : null;
+                return Task.FromResult(Ok(Service().GetShots(last, shooter, target)));
+            }));
+
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>
                 Task.FromResult(Ok(Service().GetWorldInfo()))));

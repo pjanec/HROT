@@ -91,6 +91,23 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Fail("No bullet entity found.");
         }
 
+        /// <summary>⭐ T-4 — the fire chain writes the round's record with the inputs it fired with.</summary>
+        [Fact]
+        public void T4_EveryRound_IsRecordedInTheShotLog_WithItsInputs()
+        {
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+            var shot = Assert.Single(ShotLog.Peek(_world)!.Recent(10));
+            Assert.Equal(shooter, shot.Shooter);
+            Assert.Equal(target, shot.Target);
+            Assert.Equal(ShotOutcome.InFlight, shot.Outcome);
+            Assert.Equal(CombatConstants.DefaultBulletDamage, shot.Damage);
+            Assert.Contains("unknown munition", shot.PenetrationSource);
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) Assert.Equal(e, shot.Bullet);
+        }
+
         private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();

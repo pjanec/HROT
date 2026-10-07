@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07
-current-answer: §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -286,6 +286,32 @@ recomputes, so it cannot disagree with what happened.
 ⭐ Each becomes an MCP tool by the existing flow (`RouteDoc` → `gen-catalog.mjs` → handler → `generate-skill.mjs`); the
 two route docs that never got tools (`get_entity_weapons`, squad) are fixed in the same pass.
 
+## 4a. ✅ T-4 (shot records + line-of-sight explanation) as built *(backend, `2026-10-07`)*
+
+```mermaid
+sequenceDiagram
+    participant F as FireProcessingSystem
+    participant L as ShotLog (per world, ring 256)
+    participant B as BallisticsSystem
+    participant H as HitResolutionSystem
+    participant API as GET /combat/shots
+    F->>L: Add(record: inputs — muzzle, aim, sigma, deflection, penetration + provenance, damage)
+    B->>L: segment crossings into Pending, PendingStop
+    H->>L: hit on that segment — drop Pending, re-carry to the unit, End(Hit, arriving damage)
+    B->>L: next pass — commit Pending, stopped ⇒ End(StoppedByTerrain), lifetime ⇒ End(Expired)
+    API->>L: Recent(last) — read, never recomputed
+```
+*What it shows:* three systems each write the part of the record they decide, and a segment's crossings stay PENDING
+until its raycast resolves — so a round that hits a unit in front of a wall never lists the wall.
+
+| item | as built — and the deviations, argued |
+|---|---|
+| `ShotLog` (`Fdp.Toolkits/Combat/ShotLog.cs`) | a ring of 256 `ShotRecord`s per world, held beside the world (`ConditionalWeakTable`) — ⚠ not an ECS singleton: no system has to register one, a world that never fires costs nothing, and readers never create it (`Peek`) |
+| `GET /combat/shots?last=&shooter=&target=` (MCP `get_combat_shots`) | inputs (`penetrationSource` = the resolver's provenance + source, AQ85 σ/θ/ordinal), outcome `InFlight / Hit / StoppedByTerrain / Expired`, end point, unit hit with `arrivingDamage`/`arrivingPenetration`, every crossing with the round's chance through it |
+| `GET /perception/los?observer=&target=` (MCP `explain_line_of_sight`) | ⚠ **a dry run, not a ring buffer**: LOS is evaluated for every sensor pair every perception tick — a record per evaluation would be noise. ⭐ Instead `TerrainWorldLosStrategy.Explain` makes the SAME decision as `IsVisible` (rail: they agree) from the SAME composition (`ForLiveWorld`), with the evidence: eye/aim heights and stances, terrain crossings, the blocking entity. ⏭ per-body-point exposure → Stage 4 |
+| rails | `ShotLogTests` (4: ring + eviction; stopped at the wall; a hit in front of the wall never lists it; expired) · `FireProcessingSystemTests.T4_*` · `LosStrategyTests.T4_Explain_AgreesWithIsVisible_AndNamesTheReason` · `CombatReportTests` (2) |
+| ⏭ not yet | `/combat/detonations` (with `CE-1032`) · the fire-trace and LOS-probe map layers (T-5) |
+
 ## 5. Map debug layers — each host shows what it has
 
 | layer *(toggle under View ▸ Debug Layers)* | draws | data lives on |
@@ -318,6 +344,6 @@ two route docs that never got tools (`get_entity_weapons`, squad) are fixed in t
 | **T-1 library** | ✅ §2b — the generator (§2a) + coefficients file + driving parameters for the reference library of §2 (body profiles → Stage 4) |
 | **T-2 premises** | ✅ §2b — `DemoPremisesTests` + the premise table format |
 | **T-3 routes** | `/tkb/resolve`, `/terrain/levels`, `/terrain/query`, `/doors` + MCP tools |
-| **T-4 records** | shot / detonation / LOS ring buffers + their routes (with the building slices B-2, B-5, CE-1032) |
+| **T-4 records** | ✅ §4a shots + LOS explanation; ⏭ detonations with `CE-1032` |
 | **T-5 layers** | the debug layers, `LayerControlGizmo` on every host |
 | **T-6 demos** | `bt-range` terrain + the demo set, one per building/combat slice as it lands |

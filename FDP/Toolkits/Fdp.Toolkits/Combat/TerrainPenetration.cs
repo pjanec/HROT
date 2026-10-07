@@ -34,14 +34,20 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         /// <param name="stopT">Where the round stopped (0..1 along the segment) when the result is true; 1 otherwise.</param>
         /// <returns>True when a crossing stopped the round.</returns>
-        public static bool Carry(TerrainWorld world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT)
+        /// <param name="log">⭐ T-4 — when given, each crossing is appended (what, where, the round's chance through it) for the shot log.</param>
+        public static bool Carry(TerrainWorld world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
+            List<ShotCrossing>? log = null)
         {
             stopT = 1f;
             var crossings = t_crossings ??= new List<TerrainWorld.FireCrossing>();
             world.QueryFire(from, to, crossings);
             foreach (var c in crossings)
             {
-                if (!Cross(c.ResistanceMmRha, ref damage, ref penetration))
+                float roundPen = EngineFallbacks.TerrainPenetrationOrFallback(penetration);
+                bool passed = Cross(c.ResistanceMmRha, ref damage, ref penetration);
+                log?.Add(new ShotCrossing(c.Kind, c.Label, c.Material, c.ResistanceMmRha, roundPen,
+                    ArmorModel.PenetrationChance(roundPen, c.ResistanceMmRha), passed, Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f))));
+                if (!passed)
                 {
                     stopT = Math.Clamp(c.T, 0f, 1f);
                     return true;

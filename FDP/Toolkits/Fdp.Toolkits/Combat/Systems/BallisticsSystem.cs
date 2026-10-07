@@ -66,6 +66,8 @@ namespace Fdp.Toolkit.Combat.Systems
             var terrain = repo.HasSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>()
                 ? repo.GetSingletonManaged<global::Fdp.Toolkit.Terrain.TerrainWorld>() : null;
 
+            var shots = ShotLog.Peek(repo);   // ⭐ T-4 — rounds fired through FireProcessingSystem have a record
+
             var query = repo.Query()
                 .With<BallisticProjectile>()
                 .With<SimTransform>()
@@ -81,11 +83,22 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
 
                 ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
+                var shot = shots?.Of(entity);
+                if (shot != null)   // ⭐ T-4 — its last segment resolved without a hit: its crossings stand
+                {
+                    shot.Crossings.AddRange(shot.Pending);
+                    shot.Pending.Clear();
+                }
 
                 // ── 0. ⭐ R-217 — apply what the round carried out of its last segment (its raycast has resolved by now) ──
                 if (proj.TerrainState != 0)
                 {
-                    if (proj.TerrainState == 2) { repo.DestroyEntity(entity); continue; }   // it stopped in a wall
+                    if (proj.TerrainState == 2)   // it stopped in a wall
+                    {
+                        if (shot != null) ShotLog.End(shot, ShotOutcome.StoppedByTerrain, currentTick, shot.PendingStop);
+                        repo.DestroyEntity(entity);
+                        continue;
+                    }
                     proj.Damage = proj.NextDamage;
                     proj.Penetration = proj.NextPenetration;
                     proj.TerrainState = 0;
@@ -95,6 +108,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Unsigned subtraction handles tick-counter wrap correctly.
                 if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
                 {
+                    if (shot != null) ShotLog.End(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position);
                     repo.DestroyEntity(entity);
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
@@ -109,8 +123,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (terrain != null)
                 {
                     float dmg = proj.Damage, pen = proj.Penetration;
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref dmg, ref pen, out float stopT);
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref dmg, ref pen, out float stopT, shot?.Pending);
                     if (stopped) end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
+                    if (shot != null) shot.PendingStop = stopped ? end : null;
                     proj.NextDamage = dmg;
                     proj.NextPenetration = pen;
                     proj.TerrainState = stopped ? (byte)2 : (byte)1;

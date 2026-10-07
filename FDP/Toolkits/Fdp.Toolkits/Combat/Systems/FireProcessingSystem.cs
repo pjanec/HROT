@@ -129,9 +129,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   The muzzle offset below stays on the aim line; only the flight direction turns.
                 var firedMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
                 float sigma = HitModel.Sigma(repo, shooter, firedMount, HitModel.Now(repo));
-                var flight = sigma > 0f
-                    ? HitModel.Rotate(direction, HitModel.Deflection(sigma, HitModel.NextOrdinal(repo, shooter)))
-                    : direction;
+                uint ordinal = sigma > 0f ? HitModel.NextOrdinal(repo, shooter) : 0u;
+                float theta = sigma > 0f ? HitModel.Deflection(sigma, ordinal) : 0f;
+                var flight = sigma > 0f ? HitModel.Rotate(direction, theta) : direction;
                 var velocity  = flight * muzzle;
 
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
@@ -161,13 +161,25 @@ namespace Fdp.Toolkit.Combat.Systems
                 //    request's WeaponIndex), so the hit knows what struck. No TKB numbers ⇒ an unknown munition: damage stays
                 //    the flat default and penetration 0 (ArmorModel.HitDamage).
                 var mount = firedMount;
+                var (penetration, penetrationSource) = mount != null && mount.DamagePerHit > 0f
+                    ? CombatTkb.PenetrationWithSourceOf(repo, mount)                     // ⭐ R-217 P1 — the ammo × weapon pair first
+                    : (0f, "unknown munition (no DamagePerHit) — ignores armour");
+                float damage = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f);
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
-                    Damage           = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f),
-                    Penetration      = mount != null && mount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, mount) : 0f,   // ⭐ R-217 P1 — the ammo × weapon pair first
+                    Damage           = damage,
+                    Penetration      = penetration,
                     SpawnTick        = currentTick,
+                });
+
+                // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
+                ShotLog.For(repo).Add(new ShotRecord
+                {
+                    Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
+                    Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
+                    Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.

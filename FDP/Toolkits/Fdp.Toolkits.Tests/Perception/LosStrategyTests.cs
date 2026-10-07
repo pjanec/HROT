@@ -152,6 +152,39 @@ namespace Fdp.Toolkit.Perception.Tests
             }
         }
 
+        /// <summary>⭐ Tuning T-4 (<c>GET /perception/los</c>) — <c>Explain</c> makes the SAME decision as <c>IsVisible</c>, and says why.</summary>
+        [Fact]
+        public void T4_Explain_AgreesWithIsVisible_AndNamesTheReason()
+        {
+            var wall = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            foreach (var (obsStance, tgtStance, expect, reason) in new[]
+            {
+                (StanceId.Standing, StanceId.Prone, true, "clear"),
+                (StanceId.Prone, StanceId.Prone, false, "terrain"),
+            })
+            {
+                var (world, obs, tgt) = TwoSoldiers(20f);
+                var strategy = Strategy(wall, obsStance, tgtStance, obs);
+                strategy.BeginBatch(world);
+                var x = strategy.Explain(world, obs, tgt);
+                Assert.Equal(expect, x.Visible);
+                Assert.Equal(strategy.IsVisible(world, obs, tgt), x.Visible);
+                Assert.Contains(reason, x.Verdict);
+                Assert.Equal(obsStance, x.ObserverStance);
+                Assert.Equal(strategy.EyeHeight(world, obs), x.Eye.Z, 3);
+            }
+
+            var (w, o, t) = TwoSoldiers(20f);
+            var car = w.CreateEntity();
+            w.AddComponent(car, new SimTransform { Position = new Vector3(10f, 0f, 0f) });
+            w.AddComponent(car, new PhysicsCollider { Radius = 2f, Height = 2.5f });
+            var s = Strategy(null);
+            s.BeginBatch(w);
+            var blocked = s.Explain(w, o, t);
+            Assert.False(blocked.Visible);
+            Assert.Equal(car, blocked.BlockingEntity);
+        }
+
         [Fact]
         public void PerceptionTkbTranslator_ProjectsPostureEyeHeights_IntoASensorMount()
         {
