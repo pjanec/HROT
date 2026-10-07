@@ -2022,15 +2022,16 @@ export const TOOLS_CATALOG = [
   {
     "name": "list_doors",
     "group": "N — World / coordinates",
-    "summary": "The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5).",
+    "summary": "The doors the resident terrain defines, by terrain-object key, with their live state (what sight and fire see) and the door entity that stands for each (buildings Stage 5b).",
     "http": {
       "method": "GET",
       "path": "/doors"
     },
     "params": [],
-    "returns": "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }",
+    "returns": "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, initial, source, x, y, sillZ, building, storey, runtimeId, entityState}] }",
     "notes": [
-      "key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist)."
+      "key = '<terrain>/<building>/<doorId>', a string — never a network id. runtimeId is the door ENTITY's network id (created by the scenario load), null before it exists.",
+      "state = the terrain's live state; entityState = the door entity's replicated DoorState. They differ only for the frame before the mirror runs."
     ],
     "example": {
       "args": {},

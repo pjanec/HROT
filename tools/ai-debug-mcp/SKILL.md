@@ -388,8 +388,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_entity_type({"tkbType":1001})` — inspect TKB descriptor for type 1001.
 
 ### Group N — World / coordinates
-- **`list_doors`** — The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5). No params. Returns { terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }
-  Notes: key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist)..
+- **`list_doors`** — The doors the resident terrain defines, by terrain-object key, with their live state (what sight and fire see) and the door entity that stands for each (buildings Stage 5b). No params. Returns { terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, initial, source, x, y, sillZ, building, storey, runtimeId, entityState}] }
+  Notes: key = '<terrain>/<building>/<doorId>', a string — never a network id. runtimeId is the door ENTITY's network id (created by the scenario load), null before it exists.; state = the terrain's live state; entityState = the door entity's replicated DoorState. They differ only for the frame before the mirror runs..
   Example: `list_doors({})` — see which doors of the range are locked.
 - **`get_terrain_levels`** — The terrain levels at a point — ground = level 0, storeys/slabs/roofs above, basements below (buildings Stage 1). Req `x` (number), Req `y` (number). Returns { terrain, x, y, levels:[{level, z, kind:ground|above|below}] } — or { terrain:null } when no terrain is resident
   Notes: The same levels Add Entity's SpawnHeight resolves (TerrainWorld.SurfacesAt): surfaces within 0.3 m of the ground merge into level 0..
