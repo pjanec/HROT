@@ -207,35 +207,28 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
         _clusterMaster.RegisterAggregator(diagnosticsAggregator);
 
-        // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
-        // MasterSyncController is seeded with the scenario's saved timeline on every load.
-        // In headless mode (_networkFactory?.Participant == null) no DDS writer is available;
-        // skip creation and leave _globalContextProcessManager null.
-        var participant = _networkFactory?.Participant;
-        GlobalContextClusterOpHandler? contextHandler = null;
-        if (participant != null)
+        // CGF1-S0307: the global-context handler — a scenario load restores the context and jumps the clock.
+        // ⭐ Q86 §4-B: built UNCONDITIONALLY. It publishes on the bus only (the translator owns DDS), so a headless
+        //   orchestrator gets the same load behaviour as a networked one — there is no "no-DDS mode".
+        var contextHandler = new GlobalContextClusterOpHandler(_bus!, string.Empty);
+        contextHandler.LocalTempRoot = isolatedTempRoot;
+        contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
         {
-            contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
-            contextHandler.LocalTempRoot = isolatedTempRoot;
-            contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
+            if (_masterSync == null) return;
+            // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the whole cluster to the loaded time and holds it while the
+            //   world is rebuilt (was SeedState: this master only, silently). Whether it then runs is the load's
+            //   property — GlobalContextProcessManager resumes at OperatingLive unless it asked to start paused (Q86 §4-G).
+            _masterSync.SnapAndPause(new GlobalTime
             {
-                if (_masterSync != null)
-                {
-                    // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the whole cluster to the loaded time, paused (was
-                    //   SeedState: this master only, silently). 🔒 User: "Scenario load should reset the clock to zero and paused."
-                    _masterSync.SnapAndPause(new GlobalTime
-                    {
-                        TotalWallTicks    = startTicks,
-                        TotalTime         = simTimeSeconds,
-                        UnscaledTotalTime = simTimeSeconds,
-                    });
-                    FdpLog<OrchestratorSubsystem>.Info(
-                        "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0}) and paused cluster-wide",
-                        startTicks, simTimeSeconds);
-                }
-            };
-            _globalContextProcessManager = new GlobalContextProcessManager(_bus!, contextHandler);
-        }
+                TotalWallTicks    = startTicks,
+                TotalTime         = simTimeSeconds,
+                UnscaledTotalTime = simTimeSeconds,
+            });
+            FdpLog<OrchestratorSubsystem>.Info(
+                "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0}) cluster-wide",
+                startTicks, simTimeSeconds);
+        };
+        _globalContextProcessManager = new GlobalContextProcessManager(_bus!, contextHandler);
 
         // TASK-S002: Wire the storage process manager (TASK-P001: shim removed).
         _storageProcessManager = new StorageProcessManager(

@@ -99,7 +99,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired    = false;
@@ -137,7 +137,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;
@@ -169,7 +169,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         SetupScenarioFiles(scenarioId);
         using var participant = new DdsParticipant(15);
         var bus = new FdpEventBus();
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty) { LocalTempRoot = _tempDir };
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty) { LocalTempRoot = _tempDir };
         var gcpm = new GlobalContextProcessManager(bus, handler);
 
         bus.PublishManaged(new TransitionStateIntent
@@ -190,6 +190,33 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         }
         bus.SwapBuffers();
         return bus.ReadManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>().Count;
+    }
+
+    /// <summary>
+    /// ⭐ Q86 §4-B — the handler publishes the restored context on the BUS (the translator writes the DDS topic), and
+    /// the scenario id is the SCENARIO's. ⛔ It used to write the topic directly, with the scene id in ScenarioId.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void Q86B_ALoad_PublishesTheContextOnTheBus_WithTheScenarioId()
+    {
+        const string scenarioId = "q86b_ctx";
+        SetupScenarioFiles(scenarioId);
+        var bus = new FdpEventBus();
+        var gcpm = new GlobalContextProcessManager(bus, new GlobalContextClusterOpHandler(bus, string.Empty) { LocalTempRoot = _tempDir });
+
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
+        });
+        bus.SwapBuffers();
+        gcpm.Tick();
+        bus.SwapBuffers();
+
+        var ctx = Assert.Single(bus.ReadManaged<OrchestratorContextChangedEvent>());
+        Assert.Equal(scenarioId, ctx.ScenarioId);
+        Assert.Equal("scene_" + scenarioId, ctx.SceneId);
     }
 
     [Fact(Timeout = 10_000)]
@@ -246,7 +273,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
+        var handler = new GlobalContextClusterOpHandler(bus, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;

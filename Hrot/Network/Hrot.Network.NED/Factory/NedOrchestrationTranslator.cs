@@ -29,6 +29,8 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsWriter<ClusterStateTopic>                       _stateWriter;
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
+    // ⭐ Q86 §4-B — the Context Plane (mgmt-1 §1.2): written from the bus event, never by the handler itself.
+    private readonly DdsWriter<OrchestratorContextTopic>               _contextWriter;
     private readonly DdsParticipant                                    _participant;
     private bool _disposed;
 
@@ -43,6 +45,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
         _stateWriter         = new DdsWriter<ClusterStateTopic>(_participant);
+        _contextWriter       = new DdsWriter<OrchestratorContextTopic>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
             _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
@@ -81,6 +84,10 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
 
         _clusterOpTranslator.Tick();
         _nodeOpTranslator.Tick();
+
+        // Context bridge: bus OrchestratorContextChangedEvent -> DDS OrchestratorContextTopic (Q86 §4-B).
+        foreach (var ctx in _bus.ReadManaged<OrchestratorContextChangedEvent>())
+            _contextWriter.Write(new OrchestratorContextTopic { ScenarioId = ctx.ScenarioId ?? string.Empty });
     }
 
     private static string[] DeserializeTokens(string? json)
@@ -103,6 +110,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _nodeOpStatusReader.Dispose();
         _inventoryWriter.Dispose();
         _stateWriter.Dispose();
+        _contextWriter.Dispose();
         foreach (var w in _commandWriters.Values)
             w.Dispose();
         _commandWriters.Clear();
