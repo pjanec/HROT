@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 2 — user rulings folded in)
+updated: 2026-10-07 (rev 3 — ground placement under discussion, §2a)
 build-state: DESIGN → READY-TO-BUILD once §2 rev-2 leans are approved
-current-answer: §2 decisions (rev 2) · §3 diagrams · §5 slices
+current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
@@ -21,6 +21,9 @@ related-designs:
   - UX/UX_Feature_Tool_Model.md — owns the placement tools (EntityPlacementGizmo; area/route/zone PointSequenceGizmo).
     This doc makes every pick arm one of them and adds Shift multi-placement, terrain snap and north heading.
   - UX/UX_Issues.md#uxi-12 — "Spawn UI ×4"; the spawn panels STAY and call this picker (slice S4).
+  - DESIGN_Terrain_World.md §7 W8 — owns "no ground clamp; the movement model sets Z = SurfaceZ(x, y, zHint = current Z)"
+    (user ruling). §2a here only chooses an entity's BIRTH Z / level; it adds no clamp step.
+  - DESIGN_Node_Roles_And_Policies.md — owns the role list (Map2D = IG only) and R-138/R-140; §2a D9 gates on capabilities.
   - blueprints/Blueprint_Issues_Tracker.md CE-1024 — the named geopoint; a "Map Graphics" point type when it exists.
 -->
 
@@ -91,6 +94,46 @@ related-designs:
 | **D8** | search | ⭐ fuzzy match over `Category/Name` + keywords (DIS numbers and names, `CustomName`, model name); Recent first | name substring (today's panel) |
 | **D9** | where the picker is used | 🔒 **the spawn panels stay and call this picker** instead of their combos: `SpawnerPanel` (Editor, CGF, ExCon — its side radio gains *Neutral*, its Draw Area/Route/Zone buttons stay), ExCon ORBAT *New Unit* (opened rooted at `Units`), IG `MiniExConPanel` (replaces the typed number). ⭐ The map menu ships on **Editor + CGF** first; ExCon and IG gain a `PickerRegistry` for their panels. `SimHostSpawnPanel` picks a `VehicleClass`, not a TKB type — unchanged | retire the panels (rev 1) — overruled |
 | **D10** | the create call | ⭐ the point tool's drop goes through `ScenarioSpawnAdapter` → **`EntityCreation.RequestEntityCreation`** (its first UI caller); ExCon's send path (`CMD_PLACE_ENTITY` → IG) is unchanged, per `DESIGN_Entity_Authoring_Surface.md` §5b | a fifth hand-built `EntityCreationRequest` |
+
+## 2a. Rev 3 — rulings of `2026-10-07` (2nd round) and the ground-placement discussion
+
+> 🔒 **User:** *"if we press Shift during placement it needs to change the symbol … Alternatively we could keep the
+> placement mode of the usual single-click-to-place entities always in multi-placement with right/ESC to cancel"* ·
+> *"How the snap to terrain works in case of multi-story buildings and multi-level grounds? lean: highest surface for
+> now, later … 'move to height level' … The ground-clamping is likely not done on the issuer side … but as part of entity
+> spawn process on the node owning the entity … the spawn request should somehow also contain the request for
+> ground-clamping (… the height level index …) and ignoring the height coordinate provided"* · *"Add Entity menu should
+> be available on any Map2d role host which has enough information available"* · *"By map symbol entities I meant any
+> kind of tactical graphics (overlays) that are drawn by the map. named GeoPoint is similar kind."* · *"Areas, routes and
+> zones should not support multi-placement mode, only 'physical' entities (platform) should."*
+
+### Claim table — ground placement *(measured `2026-10-07`)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| nothing clamps at spawn | ✅ `CreateEntityRequestSystem.cs:260-266` takes the `SimTransform` as given; SimHost spawners hard-code Z=0 (`SimHostScenarioManager.cs:105,154,…`) | ✅ `DESIGN_Terrain_World.md` W8 *"no ground clamp … spawns at Z=0 settle on the first movement tick"* |
+| the movement model is the only runtime Z writer, and it keeps the CURRENT level | ✅ `CarKinematicsSystem.cs:303-310` `z = SurfaceZ(x, y, tf.Position.Z)`; `SurfaceZ` takes the highest surface ≤ `zHint + 0.6 m`, else the lowest (`TerrainWorld.cs:90-130`) | ✅ W8 + user ruling (Terrain_World §7): *"entity movement model clamps them to ground height or on top of building or to building floor"* |
+| ⇒ the birth Z SELECTS the level the entity then keeps | ✅ follows from the two rows above (zHint = current Z) | ⛔ no doc says it — this is the gap |
+| entities without a movement model never settle | ✅ only `CarKinematicsSystem` writes Z; `LinearKinematics` was not built | ⚠ W8 lists `LinearKinematicsSystem` as intended |
+| no "levels at (x,y)" API | ✅ the per-candidate loop is private inside `SurfaceZ`; inputs public (`Prisms`, `Walkables`, `GroundZ`) | ⛔ searched, none found |
+| the request has room for a level intent | ✅ `EntityCreationRequest.InitialComponents` / `InitialAttributesJson`; wire `CreateEntityRequest.Flags` uses bit 0 only (`GenericMessages.cs:158-193`); ⛔ no field today | ⛔ searched, none found |
+| every ECS map host has terrain | ✅ `RoleLoadRequirements.UniversalParts = {KnowledgeBase, Terrain}` (`:39`) — Editor, CGF, IG, SimHost load it; ExCon (not ECS) does not, and places through an IG (`CMD_PLACE_ENTITY`) | ✅ Terrain_World W3 *"the world becomes a universal load part"* |
+| `Map2D` is IG's role only | ✅ `NodeRole.Map2D` passed only by `IgApplication.cs:1034`/`IgNodeBootstrapper`; Editor, CGF, SimHost draw a map without it | ✅ `DESIGN_Node_Roles_And_Policies.md:112` *"presentation only, no simulation logic"*; `DESIGN_Stride_Node_Modes.md` §6.3 *"the 2-D map is a surface, not a node role"* |
+
+### Rev-3 decisions
+
+| # | decision | ⭐ lean / 🔒 ruling | rejected (one line each) |
+|---|---|---|---|
+| **D2 (amended)** | map graphics | 🔒 **"map symbol entities" = every tactical graphic (overlay) the map draws** + the named GeoPoint; all side-less, all under `Map Graphics` | point symbols only (rev 2's reading) |
+| **D5 (rev 3)** | multi-placement | 🔒 **physical entities only; areas, routes, zones single.** ⭐ **Always multi** for physical entities: each click places, **right-click / Esc ends**; a cursor hint reads *"click: place · right-click/Esc: done"* | Shift-to-continue + a "+" badge — a modifier the user must discover and hold; always-multi costs at most one Esc |
+| **D6b (rev 3)** | birth height | ⭐ **the request carries a LEVEL INTENT and the CREATING node resolves it** (your proposal): an optional `SurfacePlacement { Level = Top \| Index n (0 = lowest) }` rides in the request; the node that runs `CreateEntityRequestSystem` for it resolves `Z` from its own `TerrainWorld` and **ignores the sent Z**; with no terrain it keeps the sent Z. Default for Add Entity: **`Top`** (highest surface — your lean). New **`TerrainWorld.SurfacesAt(x, y)`** → ordered levels (ground, slabs, roofs) shared by the resolver, the ghost preview and later "move to level" | issuer resolves Z — works for today's map hosts (all have terrain), but not for issuers without terrain (MCP/debug API lat-lon spawns, `CreateEntityCommand` whose `Altitude` has no reference, hand-written scenarios) and it splits the level vocabulary from "move to level", which MUST run on the owner · a continuous clamp step — contradicts W8 (a second writer of `Position`) |
+| **D6c** | "move to level" (later) | ⭐ an owner-routed entity command `MoveToSurfaceLevel(n)` using `SurfacesAt`, offered in the entity's Details as a list *"Ground 0.0 m · Deck 1 3.2 m · Roof 9.6 m"*; the movement model then keeps it there (zHint = new Z) | a free Z field — the user wants floors, not metres |
+| **D9 (rev 3)** | which hosts | ⭐ **gate on CAPABILITY, not the `Map2D` bit** (only IG holds it): offer Add Entity where the host has TKB + terrain + the creation pack + the shared spawn adapter + a `PickerRegistry` — **Editor, CGF, Stride mode 1 now**; **IG** after it moves onto the shared adapter (Authoring Surface §5b.2 ①); **SimHost, Stride mode 2** after they get adapter + picker. Greyed with a reason in Preview (*"authoring is suspended"*, `ScenarioEditorState.OperatingPreview` — preview creations vanish on rewind) and while loading/saving. ExCon keeps its remote route through an IG | the literal `Map2D` role — would offer it on IG only and not on Editor/CGF |
+
+⚠ **Two things this needs from the cluster, stated so they are not assumed:** an owner-0 request needs an arbiter
+(CGF or Editor) in the cluster; a host without one should create with `owner = self`. And the wire slot for
+`SurfacePlacement` is not chosen yet — `InitialComponents` needs a descriptor translator to cross the wire,
+`InitialAttributesJson` does not; ⭐ lean **an attribute record**, measured in S2.
 
 ## 3. Diagrams
 
