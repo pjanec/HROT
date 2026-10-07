@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 3 — ground placement under discussion, §2a)
-build-state: DESIGN → READY-TO-BUILD once §2 rev-2 leans are approved
-current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) · §3 diagrams · §5 slices
+updated: 2026-10-07 (rev 4 — level scheme + all map hosts at once, §2b)
+build-state: DESIGN — approved: D5 always-multi, D9 capability gating (2026-10-07); awaiting: §2b SpawnHeight shape
+current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4, wins where they differ) · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
@@ -125,15 +125,75 @@ related-designs:
 | # | decision | ⭐ lean / 🔒 ruling | rejected (one line each) |
 |---|---|---|---|
 | **D2 (amended)** | map graphics | 🔒 **"map symbol entities" = every tactical graphic (overlay) the map draws** + the named GeoPoint; all side-less, all under `Map Graphics` | point symbols only (rev 2's reading) |
-| **D5 (rev 3)** | multi-placement | 🔒 **physical entities only; areas, routes, zones single.** ⭐ **Always multi** for physical entities: each click places, **right-click / Esc ends**; a cursor hint reads *"click: place · right-click/Esc: done"* | Shift-to-continue + a "+" badge — a modifier the user must discover and hold; always-multi costs at most one Esc |
+| **D5 (rev 3)** | multi-placement | 🔒 **physical entities only; areas, routes, zones single.** 🔒 **APPROVED `2026-10-07`: always multi** for physical entities: each click places, **right-click / Esc ends**; a cursor hint reads *"click: place · right-click/Esc: done"* | Shift-to-continue + a "+" badge — a modifier the user must discover and hold; always-multi costs at most one Esc |
 | **D6b (rev 3)** | birth height | ⭐ **the request carries a LEVEL INTENT and the CREATING node resolves it** (your proposal): an optional `SurfacePlacement { Level = Top \| Index n (0 = lowest) }` rides in the request; the node that runs `CreateEntityRequestSystem` for it resolves `Z` from its own `TerrainWorld` and **ignores the sent Z**; with no terrain it keeps the sent Z. Default for Add Entity: **`Top`** (highest surface — your lean). New **`TerrainWorld.SurfacesAt(x, y)`** → ordered levels (ground, slabs, roofs) shared by the resolver, the ghost preview and later "move to level" | issuer resolves Z — works for today's map hosts (all have terrain), but not for issuers without terrain (MCP/debug API lat-lon spawns, `CreateEntityCommand` whose `Altitude` has no reference, hand-written scenarios) and it splits the level vocabulary from "move to level", which MUST run on the owner · a continuous clamp step — contradicts W8 (a second writer of `Position`) |
 | **D6c** | "move to level" (later) | ⭐ an owner-routed entity command `MoveToSurfaceLevel(n)` using `SurfacesAt`, offered in the entity's Details as a list *"Ground 0.0 m · Deck 1 3.2 m · Roof 9.6 m"*; the movement model then keeps it there (zHint = new Z) | a free Z field — the user wants floors, not metres |
-| **D9 (rev 3)** | which hosts | ⭐ **gate on CAPABILITY, not the `Map2D` bit** (only IG holds it): offer Add Entity where the host has TKB + terrain + the creation pack + the shared spawn adapter + a `PickerRegistry` — **Editor, CGF, Stride mode 1 now**; **IG** after it moves onto the shared adapter (Authoring Surface §5b.2 ①); **SimHost, Stride mode 2** after they get adapter + picker. Greyed with a reason in Preview (*"authoring is suspended"*, `ScenarioEditorState.OperatingPreview` — preview creations vanish on rewind) and while loading/saving. ExCon keeps its remote route through an IG | the literal `Map2D` role — would offer it on IG only and not on Editor/CGF |
+| **D9 (rev 3)** | which hosts | 🔒 **APPROVED `2026-10-07`: gate on CAPABILITY, not the `Map2D` bit** (only IG holds it): offer Add Entity where the host has TKB + terrain + the creation pack + the shared spawn adapter + a `PickerRegistry` — **Editor, CGF, Stride mode 1 now**; **IG** after it moves onto the shared adapter (Authoring Surface §5b.2 ①); **SimHost, Stride mode 2** after they get adapter + picker. Greyed with a reason in Preview (*"authoring is suspended"*, `ScenarioEditorState.OperatingPreview` — preview creations vanish on rewind) and while loading/saving. ExCon keeps its remote route through an IG | the literal `Map2D` role — would offer it on IG only and not on Editor/CGF |
 
 ⚠ **Two things this needs from the cluster, stated so they are not assumed:** an owner-0 request needs an arbiter
 (CGF or Editor) in the cluster; a host without one should create with `owner = self`. And the wire slot for
 `SurfacePlacement` is not chosen yet — `InitialComponents` needs a descriptor translator to cross the wire,
 `InitialAttributesJson` does not; ⭐ lean **an attribute record**, measured in S2.
+
+## 2b. Rev 4 — the level scheme, and every map host at once *(user, `2026-10-07`, 3rd round)*
+
+> 🔒 **User:** *"specify the desired 'height level' as int 0=ground floor (good default, same as usual ground clamps),
+> -1 = first underground, +1 = first above ground floor, whatever above existing floors is the 'put highest as
+> possible', similarly also in underground direction … some special values for using given z-coordinate and let the
+> motion model clamp and also for 'treat z-coordinate as height above the specified level'"* · *"SimHost/Stride needs
+> the creation pipeline and the tools and the picker sooner, not later — there should be nothing preventing it, we
+> should be unifying and sharing to high extents."*
+
+📐 **What the terrain model allows** (`TerrainWorld.cs`): the ground is ONE flat plane `GroundZ`; `TerrainWalkable`
+slabs and ramps carry their own Z, **above or below** `GroundZ`; a `TerrainPrism` (building, wall) is **solid** — its
+roof is walkable, its interior is not, and the ground is not a surface inside its footprint (`SurfaceZ` skips
+`GroundZ` when `insideSolid`); `Floors` is a label only in v1.
+
+### D6b rev 4 — `SpawnHeight { Mode, Level }` *(supersedes rev 3's Top/Index)*
+
+| field | values | meaning |
+|---|---|---|
+| `Level` *(int, default **0**)* | `0` | the **ground floor** at (x, y): the lowest surface at or above `GroundZ − StepHeight` — `GroundZ` in the open; inside a solid footprint that is the roof (the only surface there) |
+| | `+n` | the n-th surface ABOVE the ground floor; past the top ⇒ the **highest** |
+| | `−n` | the n-th surface BELOW the ground floor (basement slab, tunnel floor); past the bottom ⇒ the **lowest** |
+| `Mode` | ⭐ **`OnLevel`** *(Add Entity's default)* | `Z = level surface`; the sent Z is **ignored** |
+| | **`AboveLevel`** | `Z = level surface + sent Z` (a helicopter 50 m above the ground floor, a drone above a roof) |
+| | **`Absolute`** *(when the field is absent — today's behaviour)* | the sent Z is used as is; the motion model clamps per W8 |
+
+⭐ **Explicit `Mode` + `Level`, not magic `Level` values** — a reserved int (say `int.MinValue` for "absolute") reads
+like a real level in logs and every reader must know the sentinel. ⭐ Surfaces closer than 0.3 m merge into one level
+(a ramp foot meeting the ground is not a second level).
+
+⚠ **`AboveLevel` only survives for entities whose motion model does not ground-clamp** — a car's `SurfaceZ(x, y,
+zHint = current Z)` drops it back to the highest surface ≤ its Z + 0.6 m, i.e. the ground. That is W8 working as
+ruled, not a defect; it is the mode for air platforms.
+
+**One function serves everything:** `TerrainWorld.SurfacesAt(x, y) → float[]` (ascending, merged) plus
+`ResolveLevel(x, y, level)` — used by the creating node, by the placement ghost (so the preview stands where the
+entity will), and later by *"Move to level"* (D6c), whose list labels levels the same way (`0 Ground 0.0 m · +1 Deck
+3.2 m · +2 Roof 9.6 m · −1 Basement −3.0 m`).
+
+### D9 rev 4 — every ECS map host in the same slices *(supersedes rev 3's staging; capability gating APPROVED)*
+
+🔒 **No host is "later".** Measured: `MapInteractionPack.Build` is ALREADY called by **five** hosts (Editor
+`EditorSubsystem.cs:1928`, CGF `CgfSubsystem.cs:1374`, IG `IgApplication.cs:806`, SimHost `SimHostApp.cs:404`,
+ReplayBrowser `ReplayBrowserSubsystem.cs:191`). ⭐ **Lean: Add Entity is installed BY that pack** — the menu item, the
+shared spawn adapter (`ScenarioSpawnAdapter`), the picker host (`PickerRegistry` drawn each frame) and the entity
+icon library — so a host gets all of it by the call it already makes. A host that lacks the creation pipeline
+(ReplayBrowser) gets no item, by capability, not by a host check.
+
+| host | what it must gain | note |
+|---|---|---|
+| Editor, CGF | nothing new beyond the pack | already have adapter, picker, creation pack |
+| **IG** | the shared adapter replaces `MapCommandController`'s own placement gizmo | already ruled: `DESIGN_Entity_Authoring_Surface.md` §5b.2 ① |
+| **SimHost** | adapter + picker + icons, via the pack | has creation pack, terrain, TKB, canvas menu |
+| **Stride mode 2** | ⚠ the pack itself: it reuses `SimHostVisualization` but has **no gizmo registry** (`StrideNodeShell.cs:751`, `CE-253`/`CE-254`), **no** `CanvasMenuUpdateSystem`, and its TKB load is **unconfirmed** | ⇒ S0 measures Stride's TKB load; the gizmo registry is a prerequisite shared with `CE-253/254` |
+| Stride mode 1 | nothing (hosts the Editor) | |
+| ExCon | unchanged — places through an IG (`CMD_PLACE_ENTITY`) | not an ECS host |
+| ReplayBrowser | no item (no creation pipeline; read-only) | |
+
+⚠ An owner-0 request needs an arbiter (CGF or Editor) in the cluster; IG, SimHost and Stride are not arbiters ⇒ when
+none is present the host creates with `owner = self` (R-138: every node can create).
 
 ## 3. Diagrams
 
@@ -254,8 +314,8 @@ ExCon's placement still happens on IG through its existing command. Grey boxes n
 |---|---|---|
 | **S0 data** | DisType (with country) on the 15 built-in templates; JSON loader copies `TkbMaster.DisType`; `IconName`, `HideFromPalette`; `DisNameTable` | — |
 | **S1 picker** | `EntityTypeCatalog` + `PlacementToolRegistry`; fold + preview pane + keywords; `Hrot.Presentation` → `NodeEditor.UI` | S0 |
-| **S2 tool** | `EntityPlacementGizmo`: Shift keeps armed, terrain Z, north, icon+name ghost; drop → `RequestEntityCreation` | — |
-| **S3 menu** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, `AddEntityAction`; Editor + CGF | S1, S2 |
+| **S2 tool + level** | `EntityPlacementGizmo`: always-multi for physical types (right-click/Esc ends), north, icon+name ghost at the resolved level; `TerrainWorld.SurfacesAt`/`ResolveLevel`; `SpawnHeight` in the request, resolved by the creating node; drop → `RequestEntityCreation` | — |
+| **S3 menu, every map host** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, installed by `MapInteractionPack` on Editor, CGF, IG (onto the shared adapter), SimHost; Stride mode 2 once its gizmo registry exists (`CE-253/254`) | S1, S2 |
 | **S4 panels** | `SpawnerPanel`, ExCon ORBAT *New Unit*, IG `MiniExConPanel` call the picker; ExCon + IG get a `PickerRegistry`; retire both hand-written catalogs | S1 |
 | **S5 icons** | `EntityIconLibrary`, fallback glyphs, hand-made PNGs for the built-in types and graphics | S1 |
 
