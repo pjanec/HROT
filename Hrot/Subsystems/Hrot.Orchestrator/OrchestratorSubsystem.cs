@@ -221,13 +221,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             {
                 if (_masterSync != null)
                 {
-                    // ⭐ CE-122 / CE-3093 — reset AND pause the whole cluster (was SeedState: the master only, silently).
-                    _masterSync.ResetForLoadedScenario(new GlobalTime
+                    // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the whole cluster to the loaded time, paused (was
+                    //   SeedState: this master only, silently). 🔒 User: "Scenario load should reset the clock to zero and paused."
+                    _masterSync.SnapAndPause(new GlobalTime
                     {
                         TotalWallTicks    = startTicks,
                         TotalTime         = simTimeSeconds,
                         UnscaledTotalTime = simTimeSeconds,
-                        TimeScale         = _masterSync.GetTimeScale(),
                     });
                     FdpLog<OrchestratorSubsystem>.Info(
                         "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0}) and paused cluster-wide",

@@ -476,27 +476,35 @@ namespace Fdp.Toolkit.Time.Controllers
         }
 
         /// <summary>
-        /// Atomically snaps the master clock to <paramref name="targetWallTicks"/> /
-        /// <paramref name="targetSimTime"/> and enters Deterministic (lockstep) mode.
-        /// Unlike <see cref="SwitchToDeterministic"/>, no future-barrier window is used --
-        /// the mode switch is instantaneous and the published <see cref="SwitchTimeModeEvent"/>
-        /// carries a <c>BarrierWallTicks</c> already in the past so slaves apply the snap
-        /// immediately via the instant-snap path in <c>SlaveSyncController</c>.
+        /// The ONE time discontinuity: jumps the clock to <paramref name="position"/> and pauses (Deterministic).
+        /// Every position field is applied — <see cref="GlobalTime.FrameNumber"/>, <see cref="GlobalTime.TotalTime"/>,
+        /// <see cref="GlobalTime.UnscaledTotalTime"/>, <see cref="GlobalTime.TotalWallTicks"/> — so nothing is left
+        /// from the old timeline. <see cref="GlobalTime.TimeScale"/> is NOT part of a position and is left alone: the
+        /// playback rate is its own control (<see cref="SetTimeScale"/>; the replay freeze/restore owns it around a branch).
+        /// <para>Unlike <see cref="SwitchToDeterministic"/>, no future-barrier window is used — the published
+        /// <see cref="SwitchTimeModeEvent"/> carries a <c>BarrierWallTicks</c> already in the past, so slaves snap
+        /// immediately via the instant-snap path in <c>SlaveSyncController</c>. The abrupt-reset interlock:
+        /// <c>docs/designs/cgf-1/mgmt-DESIGN.md</c> §5.6.4.</para>
+        /// <para>Callers say WHY (a seek, a live branch, a scenario load); the clock only knows WHERE.</para>
         /// </summary>
-        /// <param name="targetWallTicks">Wall-clock tick value to snap to.</param>
-        /// <param name="targetSimTime">Simulation time (seconds) to snap to.</param>
-        /// <param name="slaveNodeIds">Slave roster for ACK tracking during subsequent steps.</param>
-        public void SnapAndPause(long targetWallTicks, double targetSimTime, HashSet<int> slaveNodeIds)
+        /// <param name="position">The time position to jump to.</param>
+        /// <param name="slaveNodeIds">The slave roster that ACKs later steps; <see langword="null"/> keeps the current one.</param>
+        public void SnapAndPause(GlobalTime position, HashSet<int>? slaveNodeIds = null)
         {
-            _totalWallTicks    = targetWallTicks;
-            _totalTime         = targetSimTime;
+            _frameNumber       = position.FrameNumber;
+            _totalTime         = position.TotalTime;
+            _unscaledTotalTime = position.UnscaledTotalTime;
+            _totalWallTicks    = position.TotalWallTicks;
             _mode              = MasterMode.Stepping;
             _pendingAcks       = new HashSet<int>();
             _queuedStepDeltas.Clear();
+            _pendingBarrierWallTicks = -1;
 
-            _expectedSlaves.Clear();
             if (slaveNodeIds != null)
+            {
+                _expectedSlaves.Clear();
                 _expectedSlaves.UnionWith(slaveNodeIds);
+            }
 
             _eventBus.Publish(new SwitchTimeModeEvent
             {
@@ -508,20 +516,6 @@ namespace Fdp.Toolkit.Time.Controllers
             });
 
             _lastTickSample = _getTick();
-        }
-
-        /// <summary>
-        /// ⭐ <c>CE-122</c> / <c>CE-3093</c> — a scenario LOAD: the clock restarts at the loaded scenario's saved time (0 for a fresh
-        /// one) and the cluster is PAUSED (🔒 user, <c>2026-10-06</c>: "Scenario load should reset the clock to zero and paused").
-        /// <see cref="SeedState"/> alone re-anchored only this master — no event, so every slave kept the last world's time until
-        /// Play. This is the abrupt-reset interlock (<c>docs/designs/cgf-1/mgmt-DESIGN.md</c> §5.6.4): seed, then the
-        /// <see cref="SnapAndPause"/> broadcast every slave snaps to. The slave roster is kept.
-        /// </summary>
-        public void ResetForLoadedScenario(GlobalTime state)
-        {
-            SeedState(state);
-            _unscaledTotalTime = state.UnscaledTotalTime;
-            SnapAndPause(state.TotalWallTicks, state.TotalTime, new HashSet<int>(_expectedSlaves));
         }
 
         // ── Private helpers ──────────────────────────────────────────────────

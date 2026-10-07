@@ -3,7 +3,8 @@ state: HISTORICAL
 updated: 2026-08-21
 current-answer: the Pull Model for the replay time plane, as IMPLEMENTED intent.
 stale-below: nothing.
-known-rot: none found.
+known-rot: 2026-10-07 — `SnapAndPause(long, double, HashSet<int>)` (§ step 5) is now `SnapAndPause(GlobalTime, HashSet<int>?)`:
+  it applies the whole position and a null roster keeps the current one. See DESIGN_Time_Architecture.md §12a.
 superseded-by: nothing. ../../blueprints/DESIGN_Time_Architecture.md §12 maps the replay clock onto
   the current architecture and states there is NO third time authority.
 known-conflict: none.

@@ -68,11 +68,9 @@ public sealed class LiveBranchProcessManager
             if (ev.ResultPayload is LiveBranchResult lbr && lbr.HistoricalTime.TotalWallTicks != 0)
             {
                 _replayMasterModule.RestoreTime();
-                // TODO: wire active node IDs (TASK-T001 follow-up)
-                _masterSync.SnapAndPause(
-                    lbr.HistoricalTime.TotalWallTicks,
-                    lbr.HistoricalTime.TotalTime,
-                    new HashSet<int>());
+                // The slave roster is KEPT (null): this used to pass an EMPTY set (a TASK-T001 TODO), so after a
+                // branch a cluster step stopped waiting for the slaves' ACKs.
+                _masterSync.SnapAndPause(lbr.HistoricalTime);
             }
         }
     }

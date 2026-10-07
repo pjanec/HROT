@@ -65,10 +65,7 @@ public sealed class ReplaySeekProcessManager
             if (ev.ResultPayload is ReplaySeekResult sr && sr.RestoredTime.TotalWallTicks != 0)
             {
                 var activeNodeIds = new HashSet<int>(_nodeSubsystems.Keys);
-                _masterSync.SnapAndPause(
-                    sr.RestoredTime.TotalWallTicks,
-                    sr.RestoredTime.TotalTime,
-                    activeNodeIds);
+                _masterSync.SnapAndPause(sr.RestoredTime, activeNodeIds);
             }
         }
     }

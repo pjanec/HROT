@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-08-22
+updated: 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -986,6 +986,23 @@ sequenceDiagram
 ### ⛔ `CE-497` — a seek is RELATIVE on the wire and absolute in the playback *(`2026-10-01`)*
 
 ⭐ `ReferenceReplayLoadHandler` (`NodeReplaySeek`) converts the cluster's RELATIVE target (0 = recording start) to an absolute wall tick: `ActiveRecordingStartWallTicks + relative`. ⛔⛔ "Seek to the end" is `long.MaxValue` — the handler's own default and what scripts send — and the plain add **overflowed negative**, so `PlaybackController.SeekToWallClockTicks` clamped it to **frame 0**: a seek to the end restored the FIRST frame. 📐 Measured by `ClusterOpE2eScriptTests.RecordAndReplaySeek` (target −8 584 107 341 263 421 530, an empty world). ⭐ The add now **saturates** at `long.MaxValue`, which the playback already reads as "the last frame". 🧪 `ReferenceHandlerTests.ReplaySeek_*` (red-proved).
+
+### ⭐ §12a — AS-BUILT `2026-10-07`: **`SnapAndPause` is the ONE time discontinuity** *(CE-122, behaviors lane, cross-lane)*
+
+🔒 **User, `2026-10-07`:** *"Why a time api should know for what reason it is called?"* · *"The time API should be
+consistent and do stuff correctly, not avoid something just because no one is using it at this time."*
+
+| | before | ⭐ as built |
+|---|---|---|
+| signature | `SnapAndPause(long wallTicks, double simTime, HashSet<int> roster)` | `SnapAndPause(GlobalTime position, HashSet<int>? roster = null)` |
+| what it sets | wall ticks + sim time only — ⛔ frame number and unscaled time kept the OLD timeline | ⭐ the whole POSITION: frame number, sim time, unscaled time, wall ticks. ⚠ `TimeScale` is a RATE, not a position — left alone (`SetTimeScale`; the replay freeze/restore owns it around a branch) |
+| slave roster | always replaced — the live-branch caller passed an EMPTY set *(a `TASK-T001` TODO)*, so post-branch steps stopped waiting for ACKs | `null` KEEPS the current roster; a roster given replaces it |
+| callers | seek (`ReplaySeekProcessManager`), live branch (`LiveBranchProcessManager`), and a use-case wrapper `ResetForLoadedScenario` | ⭐ the same three callers, each saying WHY in its own code: seek, live branch, and the orchestrator's scenario load (`OrchestratorSubsystem` `OnContextLoaded`). ⛔ `ResetForLoadedScenario` DELETED — the clock knows WHERE, never WHY |
+
+⭐ The scenario load now jumps the WHOLE cluster to the loaded time, paused (`CE-122`) — ⛔ it was `SeedState`, which
+re-anchored the master only and told no slave. Rails: `MasterSyncControllerTests.SnapAndPause_AppliesTheWholePosition_AndLeavesTheTimeScale`,
+`…_KeepsTheSlaveRoster_UnlessANewOneIsGiven`. ⚠ The editor still lacks the orchestrator's load handler — owned by the
+editor/orchestrator unification question, not this section.
 
 ### ⚠ Two consequences worth writing down
 
