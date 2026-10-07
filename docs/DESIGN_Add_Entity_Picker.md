@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 6 — SpawnHeight wire encoding, §2d)
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e)
 build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
-current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6); the later section wins where they differ · §3 diagrams · §5 slices
+current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
@@ -247,10 +247,51 @@ the ghost shows a warning *"inside a solid building — will settle on the roof"
 
 | ⭐ lean | rejected (one line each) |
 |---|---|
-| **In-process: a request field** `EntityCreationRequest.SpawnHeight? { Mode, Level }` — never a component, so nothing to strip | a component — the descriptor builder drops it on the wire, and it would linger on the entity |
+| ⛔ *superseded by §2e* — **In-process: a request field** `EntityCreationRequest.SpawnHeight? { Mode, Level }` — never a component, so nothing to strip | a component — the descriptor builder drops it on the wire, and it would linger on the entity |
 | **On the wire: two fields in the existing `Flags` word** — bits 1-2 = `Mode` (0 = absent/`Absolute`, 1 = `OnLevel`, 2 = `AboveLevel`), bits 8-15 = `Level` as a signed byte (−128…+127). **The `AboveLevel` height needs no field**: it IS the sent Z (`dtWorldPos` altitude), which `OnLevel` ignores | an attribute record — both ends unbuilt and the record model is for component attributes · a JSON key — JSON routes land on components and need a strip step |
 | **Resolved in `CreateEntityRequestSystem`** (injected `Func<TerrainWorld?>`, like `TerrainWorldSource.Live`) — replaces the transform's Z before publish; children inherit it; no terrain ⇒ the sent Z stays | resolving in `NetworkSpawningSystem` — too late, and it runs on every receiver |
 | Old senders leave the bits 0 ⇒ `Absolute` ⇒ today's behaviour, unchanged | |
+
+## 2e. Rev 7 — explicit fields on the wire, and the in-process shapes *(user, `2026-10-07`)*
+
+> 🔒 **User:** *"CreateEntityRequest is not limited in size so much, we can specify the level number and the flags (byte
+> sized enum) as separate fields for clarity. what the in-process fdp bus event would look like?"*
+
+📐 **Measured — creation has TWO in-process stages, and many callers skip the first:**
+`EntityCreationRequest` (a queued request object, `EntityLifecycleInterfaces.cs:26`, not a bus event) → serviced by
+`CreateEntityRequestSystem` (local, or forwarded on the DDS topic `CreateEntityRequest`) → it publishes the FDP bus
+event **`SpawnEntityCommand`** (managed struct, `NetworkSpawning/Events/SpawnEntityCommand.cs:19`), consumed by
+`NetworkSpawningSystem` (`:99`), which sets `InitialTransform` (`:201`). **Eleven** production sites publish
+`SpawnEntityCommand` DIRECTLY (`SimHostScenarioManager` ×6, `CgfSubsystem.cs:647`, `MiniExConPanelState.cs:123`,
+`AreaAuthoringArm.cs:129`, `EntityPlacementGizmo.cs:208`, `ScenarioSpawnAdapter.cs:419`) and never pass
+`CreateEntityRequestSystem`.
+
+⇒ ⛔ **§2d's resolution point (in `CreateEntityRequestSystem`) is SUPERSEDED** — it would miss every direct publisher.
+⭐ **Resolve in `NetworkSpawningSystem`, from a field on the bus event**, so every path gets it.
+
+```csharp
+// shared value type (Fdp.Core or Fdp.Toolkits.NetworkSpawning) — the one vocabulary
+public enum SpawnHeightMode : byte { Absolute = 0, OnLevel = 1, AboveLevel = 2 }
+public readonly record struct SpawnHeight(SpawnHeightMode Mode, short Level);  // Level 0 = ground, +n above, -n below
+
+// ① the queued request (in-process) — EntityCreationRequest gains
+public SpawnHeight? SpawnHeight { get; init; }          // null = Absolute (today)
+
+// ② the DDS topic "CreateEntityRequest" (GenericMessages.cs:158) gains two explicit fields
+public byte  SpawnHeightMode;   // SpawnHeightMode; 0 = Absolute = today's behaviour
+public short SpawnLevel;        // used when SpawnHeightMode != Absolute
+
+// ③ the FDP bus event SpawnEntityCommand gains
+public SpawnHeight? SpawnHeight;   // set only by the CREATOR; replica/ghost ingress never sets it
+```
+
+| ⭐ lean | rejected (one line each) |
+|---|---|
+| **Explicit fields** on the topic (`byte SpawnHeightMode`, `short SpawnLevel`) — readable in `ddsmonitor`, no bit packing (🔒 user) | bits in `Flags` (rev 6) — superseded |
+| the "above level" height stays the sent Z (`dtWorldPos` altitude / `InitialTransform.Z`) | a third field for the offset — the Z is already there and otherwise unused in that mode |
+| **`CreateEntityRequestSystem` copies** the request's `SpawnHeight` into the `SpawnEntityCommand` it publishes (parent AND TKB children, so children resolve to the same level at their own x,y) | |
+| **`NetworkSpawningSystem` resolves** when `SpawnHeight` is set: `Z = TerrainWorld.ResolveLevel(x, y, Level)` (+ sent Z for `AboveLevel`) before writing `SimTransform`; no terrain singleton ⇒ the sent Z. Direct publishers (the placement gizmo, SimHost scenario manager, …) set the field themselves | resolving in `CreateEntityRequestSystem` (rev 6) — eleven direct publishers bypass it |
+| ⚠ to verify while building: no replica/ghost ingress path sets the field (it is creator-only by construction — the wire field travels only on the request topic, never on replication descriptors) | |
 
 ## 3. Diagrams
 

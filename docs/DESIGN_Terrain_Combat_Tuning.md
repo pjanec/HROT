@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07
+updated: 2026-10-07 (rev 2 — generated defaults, §2a)
 build-state: DESIGN (leans await the user)
-current-answer: §2 defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -83,6 +83,48 @@ provenance is what makes a badly tuned value diagnosable (§4).
 | **Every resolved value carries its provenance** (`Explicit` / `ReferenceByDis:<entry>` / `ReferenceByName:<entry>` / `EngineFallback`) | values without a source — "why does this round do 25 damage?" has no answer |
 | **Breadth from day one**, covering every test and demo planned in §3: rifle 5.56 ball, 7.62 ball (MG), 12.7 HMG (ball + AP), 25 mm APDS + HEI, 30 mm APFSDS + HE, 120 mm APFSDS + HEAT, 125 mm APFSDS + HE-frag, RPG-7 HEAT, TOW, hand grenade (frag), 40 mm HEDP, 60/81/120 mm mortar HE; materials of §3c + sandbags, earth berm, steel plate; body profiles for infantry (3 stances), wheeled, tracked | a minimal set grown per test — every new demo would re-tune shared numbers under the other demos |
 | the existing `NedTkbCatalog`/`UrbanCombatTkbCatalog` numbers become library entries (same values), so current rails do not move | |
+
+## 2a. Rev 2 — generate the defaults from a few driving parameters *(user, `2026-10-07`)*
+
+> 🔒 **User:** *"any chance of generating the default TKB params from some small number of driving parameters?"*
+
+⭐ **Yes — and it is the better way to keep many types consistent while tuning.** A **generator** turns 2-5 physical
+driving parameters per entry into every derived number, with a documented formula family per quantity. Tuning then
+moves a handful of coefficients, and every type moves together instead of drifting one number at a time.
+
+```mermaid
+classDiagram
+    direction LR
+    class DrivingParams { <<authored, small>> per ammo: calibre mm, type, projectile mass g, muzzle velocity; per material: class, density, thickness; per warhead: explosive kg TNT, casing kg; per body: height }
+    class Coefficients { <<one tuning file>> DeMarre-style k per projectile type; HEAT factor; RHA factor per material class; mass-law constants; scaled-distance thresholds }
+    class Generator { <<NEW, at load>> formulas per quantity }
+    class ReferenceLibrary { <<§2>> generated entries }
+    class ParameterResolver { <<§2>> Explicit, Generated, EngineFallback }
+    DrivingParams --> Generator
+    Coefficients --> Generator
+    Generator --> ReferenceLibrary : derived numbers, provenance Generated(formula, inputs)
+    ReferenceLibrary --> ParameterResolver
+```
+*What it shows:* authors write driving parameters, tuners touch only the coefficients file, and an explicit number in
+the TKB still wins — the resolver records which one applied.
+
+| quantity | driving parameters | formula family *(coefficients in one tuning file)* |
+|---|---|---|
+| kinetic penetration (ball, AP, APDS, APFSDS) | calibre, projectile mass, muzzle velocity, type | DeMarre-style: `pen ∝ k_type · (m · v²)^a / d^b`; decays with range from a drag coefficient per type |
+| shaped-charge penetration (HEAT, RPG, ATGM) | calibre (cone diameter) | `pen ≈ f_HEAT · calibre` (a factor of 5-7 cone diameters); independent of velocity and range |
+| damage per hit | projectile kinetic energy, or explosive mass | `∝ energy` for kinetic, `∝ explosive` for HE |
+| blast radius | explosive mass (kg TNT-equivalent) | Hopkinson-Cranz scaled distance `R = Z · W^(1/3)`, with `Z` thresholds for lethal / injury |
+| fragment radius + fragment penetration | casing mass, explosive mass | Gurney velocity → fragment energy → small-arms-like penetration |
+| material ballistic resistance | material class, density, thickness | `thickness · RHA-equivalence factor(class)` |
+| material sound attenuation | surface density (density × thickness) | mass law `TL ≈ 20·log10(m″·f) − 47 dB` at a reference frequency |
+| material sight | class (opaque / mesh / foliage / glass) | per-class value |
+| body profile per stance | height | sample points as ratios of height per stance |
+
+| ⭐ lean | rejected (one line each) |
+|---|---|
+| the generator runs **at load**, producing the §2 library; **explicit TKB numbers override** any generated value; provenance `Generated(formula, inputs)` shows on `/tkb/resolve` | a one-off offline script — the generated table would drift from the formulas the moment someone hand-edits it |
+| **premise tests (§3) check the GENERATED outputs** — a coefficient change that breaks a demo fails there, naming the coefficient | testing the coefficients directly — the premise is about the outcome |
+| formulas are deliberately simple engineering approximations, good enough for training-sim defaults; real data always overrides | high-fidelity ballistics — out of scope, and real data is the answer where fidelity matters |
 
 ## 3. Tests and demos that survive tuning
 
@@ -185,7 +227,7 @@ two route docs that never got tools (`get_entity_weapons`, squad) are fixed in t
 | slice | content |
 |---|---|
 | **T-0 resolver** | `ParameterResolver` + provenance + engine fallbacks gathered into one file; existing catalogs as library entries (no number moves) |
-| **T-1 library** | the full reference library of §2 |
+| **T-1 library** | the generator (§2a) + coefficients file + driving parameters for the full reference library of §2 |
 | **T-2 premises** | `DemoPremisesTests` + the premise table format |
 | **T-3 routes** | `/tkb/resolve`, `/terrain/levels`, `/terrain/query`, `/doors` + MCP tools |
 | **T-4 records** | shot / detonation / LOS ring buffers + their routes (with the building slices B-2, B-5, CE-1032) |
