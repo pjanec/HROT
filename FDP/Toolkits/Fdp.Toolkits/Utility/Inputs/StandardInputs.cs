@@ -410,6 +410,21 @@ namespace Fdp.Toolkit.Utility
 
             float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;
             if (maxHealth <= 0f) maxHealth = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context)?.MaxHealth ?? 0f;
+
+            // ⭐⭐ AQ85 F (R-216) — × the chance the round HITS, from the SAME HitModel the shot uses (σ of this unit firing this
+            //   mount; the target's collider circle; the range). σ = 0 (no DispersionMils) ⇒ 1, so every type that has not opted in
+            //   scores exactly as before. ⚠ On the Brain the shooter carries no UnderFire (Muscle-local), so the estimate omits
+            //   suppression — the moving and stance factors apply.
+            var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, ctx.Self);
+            float sigma = Fdp.Toolkit.Combat.HitModel.Sigma(repo, owner, mount, Fdp.Toolkit.Combat.HitModel.Now(repo));
+            if (sigma > 0f && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
+            {
+                float radius = repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context)
+                    ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context).Radius
+                    : Fdp.Toolkit.Combat.HitModel.DefaultTargetRadius;
+                damage *= Fdp.Toolkit.Combat.HitModel.HitChance(sigma, Vector3.Distance(from, to), radius);
+            }
+
             float result = maxHealth > 0f ? Math.Clamp(damage / maxHealth, 0f, 1f) : (damage > 0f ? 1f : 0f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;

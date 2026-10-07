@@ -664,5 +664,13 @@
         /// (<c>CE-3092</c>). Stamped from the TKB only on types that opt in; absent = only death stops the unit. 334 is free by a
         /// census of every <c>*Ids*.cs</c> and literal <c>[ComponentId(334)]</c> on backend, behaviors and ui, <c>2026-10-06</c>.</summary>
         public const int MobilityKill = 334;
+
+        /// <summary><c>ShotOrdinal</c> — how many rounds a unit has fired, the index of the fixed deflection sequence (<c>AQ85</c> A,
+        /// R-216). Muscle-local. 335/336 free by a census of backend, behaviors and ui, <c>2026-10-07</c>.</summary>
+        public const int ShotOrdinal = 335;
+
+        /// <summary><c>UnderFire</c> — when a unit was last hit or nearly missed (<c>AQ85</c> E, R-216): suppression spoils its aim.
+        /// Muscle-local.</summary>
+        public const int UnderFire = 336;
     }
 }

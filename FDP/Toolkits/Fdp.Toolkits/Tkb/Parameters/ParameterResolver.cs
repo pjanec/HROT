@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Tkb.Parameters
         public const string DamagePerHit   = "DamagePerHit";
         public const string Penetration    = "Penetration";
         public const string Range          = "Range";
+        public const string DispersionMils = "DispersionMils";
     }
 
     /// <summary>
@@ -78,6 +79,7 @@ namespace Fdp.Toolkit.Tkb.Parameters
                     list.Add(DamagePerHit(template, i));
                     list.Add(Penetration(template, i));
                     list.Add(MountRange(template, i));
+                    list.Add(Dispersion(template, i));
                 }
             return list;
         }
@@ -197,6 +199,17 @@ namespace Fdp.Toolkit.Tkb.Parameters
             return m.Range > 0f
                 ? Stated(t, name, m.Range, $"WeaponSuiteDto.Mounts[{mount}].Range")
                 : new(name, 0f, ParameterProvenance.EngineFallback, "0 = not declared");
+        }
+
+        /// <summary><c>Weapon[i].DispersionMils</c> — ⭐ AQ85 C: 0 = exact aim (every round flies at the target).</summary>
+        public static ResolvedParameter Dispersion(TkbTemplate t, int mount)
+        {
+            var name = ParameterNames.Mount(mount, ParameterNames.DispersionMils);
+            var m = Mount(t, mount);
+            if (m == null) return NotApplicable(name, "no such mount");
+            return m.DispersionMils > 0f
+                ? Stated(t, name, m.DispersionMils, $"WeaponSuiteDto.Mounts[{mount}].DispersionMils")
+                : new(name, 0f, ParameterProvenance.EngineFallback, "0 = exact aim (AQ85: a type opts in)");
         }
 
         private static WeaponMountDto? Mount(TkbTemplate t, int i)

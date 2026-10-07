@@ -40,5 +40,12 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ <c>CE-3071</c> — damage of one penetrating hit; 0 = unknown munition (the flat default applies).</summary>
         public float DamagePerHit { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>AQ85</c> C (R-216) — the weapon's aim dispersion, mils (the half-width of a uniform spread). <b>0 = exact aim</b> (every
+        /// round flies at the target, as before); a type opts in. Scaled by the shooter's state in <c>HitModel.Sigma</c>.
+        /// </summary>
+        [EditUnit("mils")]
+        public float DispersionMils { get; init; }
     }
 }

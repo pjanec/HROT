@@ -82,6 +82,8 @@ namespace Fdp.Toolkit.Physics.Systems
                         BulletEntity = bulletEntity,
                         HitT         = hit.T,
                     });
+                    // ⭐ AQ85 E (R-216) — a hit suppresses the unit struck (its own aim is spoiled for a while).
+                    Fdp.Toolkit.Combat.HitModel.StampUnderFire(repo, hit.HitEntity, Fdp.Toolkit.Combat.HitModel.Now(repo));
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
                     // The shooter entity is hit.IgnoreEntity (set to the bullet's Shooter by

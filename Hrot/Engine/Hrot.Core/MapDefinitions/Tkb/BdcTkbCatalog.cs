@@ -9,6 +9,8 @@ namespace Hrot.Map.Definitions.Tkb
     public static class NedTkbCatalog
     {
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 country codes used by the built-in types (names: <c>DisNameTable</c>).</summary>
+        /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion, mils (same as UrbanCombat's).</summary>
+        public const float RifleDispersionMils = 6f;
         public const ushort UnitedStates = 225;
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 Russia.</summary>
         public const ushort Russia = 222;
@@ -182,7 +184,8 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(TkbEntityTypes.Infantry_Rifleman, c =>
                 {
                     c.ArmorFront = 5; // Body armor
-                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25 });
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+                        DispersionMils = RifleDispersionMils });   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)

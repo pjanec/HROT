@@ -137,6 +137,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (System.Numerics.Vector2.DistanceSquared(p, closest) > CombatConstants.NearMissRadius * CombatConstants.NearMissRadius) continue;
                 float z = start.Z + (end.Z - start.Z) * t;
                 cmd.PublishEvent(new Events.NearMissEvent { Unit = unit, X = closest.X, Y = closest.Y, Z = z });
+                HitModel.StampUnderFire(repo, unit, HitModel.Now(repo));   // ⭐ AQ85 E — a near miss suppresses (spoils its aim)
                 proj.LastNearMiss = unit;
             }
         }

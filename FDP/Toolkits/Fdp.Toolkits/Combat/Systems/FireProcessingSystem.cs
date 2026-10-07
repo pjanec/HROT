@@ -117,7 +117,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 float muzzle = weapon.MuzzleVelocity;
                 if (evt.WeaponIndex > 0 && CombatTkb.MountOf(repo, shooter, evt.WeaponIndex) is { MuzzleVelocity: > 0f } fired)
                     muzzle = fired.MuzzleVelocity;
-                var velocity  = direction * muzzle;
+                // ⭐⭐ AQ85 A–C (R-216) — the shot's DEFLECTION: θ = σ · d(k), σ from the fired mount's dispersion × the shooter's
+                //   state (moving, under fire, logical stance), k its shot count. σ = 0 (no DispersionMils) ⇒ exact aim, as before.
+                //   The muzzle offset below stays on the aim line; only the flight direction turns.
+                var firedMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                float sigma = HitModel.Sigma(repo, shooter, firedMount, HitModel.Now(repo));
+                var flight = sigma > 0f
+                    ? HitModel.Rotate(direction, HitModel.Deflection(sigma, HitModel.NextOrdinal(repo, shooter)))
+                    : direction;
+                var velocity  = flight * muzzle;
 
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
@@ -145,7 +153,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //    ⭐ CE-3071 — the bullet carries the FIRED mount's munition from the TKB (by the shooter's type and the
                 //    request's WeaponIndex), so the hit knows what struck. No TKB numbers ⇒ an unknown munition: damage stays
                 //    the flat default and penetration 0 (ArmorModel.HitDamage).
-                var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                var mount = firedMount;
                 repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,

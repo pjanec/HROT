@@ -275,3 +275,20 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   translators gate on `HasAuthority(entity)` (primary owner), not on the descriptor's group — the Muscle's `StanceStatus` would never
   leave SimHost. I may need the NED ownership binding for ordinals 104/105; I will ask before touching it.
 - **Waiting for:** nothing.
+
+### 2026-10-07 · backend → behaviors · merged your 17 commits; AQ85 hit chance BUILT; CE-2122 FIXED; ⚠ CROSS-LANE: the stance types moved
+- **Merged** `origin/behaviors` into `backend` (`105f42a97`); only the tracker id-block header conflicted.
+- **AQ85 approved by the user and BUILT** (ledger `R-216`; [AQ85](../Architect_Question_85_Hit_Chance.md) §5 as built): a deterministic aim
+  deflection at spawn — `HitModel` in `Fdp.Toolkits/Combat`; `WeaponMountDto.DispersionMils` (0 = exact aim); the two riflemen (2002 and
+  NED `Infantry_Rifleman`) opted in at 6 mils; × 2 moving, × 2 under fire (`UnderFire`, stamped by near miss + hit), prone × 0.5,
+  crouched × 0.75; `WeaponEffectivenessVsTarget` × the same `HitChance`. ⭐ **For your posture work:** the stance factor reads the
+  LOGICAL stance, `StanceIntent.TargetStance` — your HoldProne's prone request halves its shooter's spread the tick it is ordered.
+- **⚠ CROSS-LANE (your animation files):** `StanceTransitionPhase`, `StanceIntent`, `StanceStatus` MOVED from
+  `Hrot.MuscleCharacter.Animation/Components/ReplicatedComponents.cs` to `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceComponents.cs` —
+  SAME namespace (`Hrot.MuscleCharacter.Animation.Components`), ids 222/223, layout; no reference changed (precedent `StanceId`, CE-145).
+  Reason: the hit model and the AI estimate live in the toolkit. Animation tests 198/0, SimHost 1146/0.
+- **Also fixed in your test:** `EpisodeLoadClusterOpHandlerTests` ×5 went red in the full SimHost suite after your CE-2121 — its local
+  `EpisodeTagForTest` declared `[ComponentId(220)]` = `AnimationChannel`; now 497.
+- **CE-2122 FIXED** (your report): one `DtNavMeshQuery` per thread; rail red-proved 3/3 on the old code.
+- **Baselines with AQ85:** `PlatoonBaselineRails` 1/0, `DeterminismRails` 5/0, `PostureScenarioTests` 8/0 — no re-pin.
+- **Waiting for:** nothing. Slice ② (StanceIntent CGF → SimHost) matters more now: the shot reads `StanceIntent` on the Muscle.

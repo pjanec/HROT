@@ -74,6 +74,9 @@ namespace Hrot.Core.Tkb
 
         // ⭐ CE-3071 — the munitions (docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 calibration). The rifle keeps today's 25 per hit.
         private const float RifleRange = 300f, RiflePenetration = 5f,   RifleDamage = 25f;
+        /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion: σ = 6 mils ⇒ a 0.3 m target is hit ~50 % at 100 m standing
+        /// still, ~always inside 37 m, ~42 % at 120 m; half that while moving or under fire.</summary>
+        public const float RifleDispersionMils = 6f;
         private const float RpgRange   = 300f, RpgPenetration   = 300f, RpgDamage   = 400f;
 
         /// <summary>
@@ -142,7 +145,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011

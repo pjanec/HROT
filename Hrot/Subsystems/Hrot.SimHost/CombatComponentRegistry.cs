@@ -40,6 +40,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();
 
             // ── Perception pipeline events ────────────────────────────────────
