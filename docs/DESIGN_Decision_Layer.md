@@ -936,7 +936,7 @@ left without a defence. Flee is no longer a wounded option at all.
 `NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
 off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
 
-### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILDING; approved)*
+### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: slice ① BUILT, slice ② next; approved)*
 
 > 🔒 **User, `2026-10-07`:** *"the effect is that the entity should change its stance to 'prone' — the stance could be shown on the
 > map as just another text indicator on the entity. we need the stance support, and we could add some fake implementation of the
@@ -1054,6 +1054,20 @@ sequenceDiagram
 | one `INodeCapability` (`AnimationMuscle`, MuscleGround) declared in SimHost's plan and the editor's default plan | the composition pattern every optional role piece uses (`NodeCapability.cs:110`); module-only ⇒ the editor's system-list rail is unchanged | wiring by hand in each host |
 | the soldier TKB gains `Prone`; `BehaviorTkbTranslator` grants `CanChangeStance` when the animation def lists more than one stance | otherwise the transition system acks and ignores (`StanceTransitionSystem.cs:51-56`) | a flag set per scenario |
 | Fake's unused `Hrot.SimHost` project reference is removed | it would make SimHost → Fake a cycle; only a doc comment used it | — |
+
+⭐ **AS-BUILT slice ① (`2026-10-07`)** — built as drawn, plus one fix the rail found:
+
+| as built | why |
+|---|---|
+| `AnimationStateReporterSystem` reports stance completion in its OWN pass (`CharacterAnimationDefRuntime` + `StanceStatus` + `StanceIntent`) | it sat inside the montage pass, whose query demands an `AnimationChannel` — a stance-only body stayed `Transitioning` for ever (measured by `BodyStanceTests`) |
+| `StanceComponentRegistry` also registers the six events the module publishes | production enforces explicit event registration |
+| the editor sets `ExtraTranslators` only when it has no `TranslatorPlacements` | the pack takes one or the other; Stride's injected arm keeps its own list |
+| the gizmo line sits 14 px BELOW the entity | the editor label stacks above it (`EntityEditorLabelGizmo`) |
+
+Rails: `BodyStanceTests` (3: the soldier may change stance and starts standing; prone over the blend time with the map line `→ Prone` then
+`Prone`, and up again; no stance ⇒ the request is refused) · `TacticsTreesTests.CE3090_*` ×3 hosts now also assert the prone request ·
+`Phase3SystemTests` module order (9 systems). ⚠ `AnimationIntegrationScenarios.Locomotion_DrivesFootstepEventsAtCorrectCadence` is red
+on the base too (pre-existing, unrelated).
 
 **Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the

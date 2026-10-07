@@ -1407,7 +1407,7 @@ namespace Hrot.Editor
             //    world with no cluster peer to arbitrate against, so it must service its own unowned
             //    requests. ⚠ This preserves the previous `isDefaultProcessor: true` exactly.
             //
-            // ⛔ ExtraTranslators is empty: this host's list was plain Base(), and add-only means an
+            // ⛔ SUPERSEDED (CE-2121): ExtraTranslators was empty — it now adds the animation translator. Was: this host's list was plain Base(), and add-only means an
             //    empty extra set reproduces it exactly. Per-component narrowing stays gate 2
             //    (IsComponentTypeRegistered), never the list — tkb-1/DESIGN.md §6.5b.
             //
@@ -1423,6 +1423,13 @@ namespace Hrot.Editor
 
                 // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
                 TranslatorPlacements = TranslatorPlacements is { Count: > 0 } ? TranslatorPlacements : null,
+
+                // ⭐ CE-2121 — the body stance, as on SimHost and CGF (Brain and Muscle share this one world). ⚠ The pack takes
+                //   extras OR placements, never both: an injected arm (Stride) that names placements keeps its own list.
+                ExtraTranslators = TranslatorPlacements is { Count: > 0 } ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+                {
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
 
                 IsBroadcastArbiter = true,
             });

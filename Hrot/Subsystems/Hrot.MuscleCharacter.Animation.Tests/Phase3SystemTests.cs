@@ -807,7 +807,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         }
 
         [Fact]
-        public void AnimationMuscleModule_RegistersAllEightSystems_InCorrectOrder()
+        public void AnimationMuscleModule_RegistersAllEightSystems_InCorrectOrder()   // nine since CE-2121 (name kept: a rename is a Roslyn rename)
         {
             var (_, backend, cache) = CreateFixture();
             var module = new AnimationMuscleModule(backend, cache);
@@ -815,7 +815,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
 
             module.RegisterSystems(registry);
 
-            Assert.Equal(8, registry.Systems.Count);
+            Assert.Equal(9, registry.Systems.Count);   // ⭐ CE-2121: + StanceTransitionSystem, after the bridge
 
             // Verify order matches DD-1 §17
             Assert.IsType<AnimationCapabilityChangeReactorSystem>(registry.Systems[0]);
@@ -823,9 +823,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             Assert.IsType<LookAtDispatcherSystem>(registry.Systems[2]);
             Assert.IsType<MontageQueueAdvanceSystem>(registry.Systems[3]);
             Assert.IsType<AnimationRuntimeBridgeSystem>(registry.Systems[4]);
-            Assert.IsType<NotifyEventEmitterSystem>(registry.Systems[5]);
-            Assert.IsType<AnimationStateReporterSystem>(registry.Systems[6]);
-            Assert.IsType<AnimationBackendCleanupSystem>(registry.Systems[7]);
+            Assert.IsType<StanceTransitionSystem>(registry.Systems[5]);
+            Assert.IsType<NotifyEventEmitterSystem>(registry.Systems[6]);
+            Assert.IsType<AnimationStateReporterSystem>(registry.Systems[7]);
+            Assert.IsType<AnimationBackendCleanupSystem>(registry.Systems[8]);
         }
 
         // ─── Integration tests ────────────────────────────────────────────────

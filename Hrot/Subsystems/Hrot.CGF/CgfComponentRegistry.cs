@@ -29,6 +29,8 @@ public static class CgfComponentRegistry
 
         KinematicComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
+        // ⭐ CE-2121 — the body-stance set; the Brain writes StanceIntent (HoldProne) and reads StanceStatus.
+        Hrot.MuscleCharacter.Animation.Stance.StanceComponentRegistry.RegisterAll(world);
         // ⭐ CE-3089 (G7) — weapon MOUNT children (mount ≥ 1) on the Brain, where ammo is spent and the weapon is chosen;
         //   registering it turns on CombatTkbTranslator's child branch. Local parts, never on the wire (Q79 F-6), not saved
         //   (CE-3045). ⛔ Not in the shared CombatComponentRegistry: SimHost resolves a shot from the TKB by index and needs

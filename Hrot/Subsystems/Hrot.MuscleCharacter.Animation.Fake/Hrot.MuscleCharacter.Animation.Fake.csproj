@@ -18,7 +18,6 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
-    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
   </ItemGroup>
 
 </Project>

@@ -329,7 +329,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
             //    a Brain+Muscle node register it ONCE instead of twice.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability());
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
+            // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability());
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //
@@ -507,6 +509,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             ExtraTranslators = new ITkbEntityTranslator[]
             {
                 new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto; it adds only the
+                //   types this node registered (StanceComponentRegistry). No production ITkbHotReloadEvents exists yet ⇒ null.
+                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
             },
 
             // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.

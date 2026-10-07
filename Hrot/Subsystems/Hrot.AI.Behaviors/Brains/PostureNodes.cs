@@ -11,6 +11,8 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -190,13 +192,15 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
-        /// ⭐ <c>CE-3090</c> — a WOUNDED unit with no cover: stays where it is and returns fire at its top threat (re-aims when it
-        /// changes). Running; a unit with no weapon channel still holds. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3f.
+        /// ⭐ <c>CE-3090</c> — a WOUNDED unit with no cover: stays where it is, lies down (<c>CE-2121</c> — the body performs it, the
+        /// node does not wait) and returns fire at its top threat (re-aims when it changes). Running; a unit with no weapon channel
+        /// or no stance still holds. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §3.3f, §3.3g.
         /// </summary>
         [SharedAiAction]
         public static NodeStatus HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
         {
             StopMoving(world, self);
+            StanceRequest.Set(world, self, StanceId.Prone, GoProneSeconds);
             Fire(world, self, ref ws, p.CooldownSeconds);
             return NodeStatus.Running;
         }
@@ -234,10 +238,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
-        /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops.</summary>
+        /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]
         public static void Deactivate_HoldProne(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
-            => StopFiring(world, self, ref ws);
+        {
+            StopFiring(world, self, ref ws);
+            StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-2121</c> — first-cut body timings (the fake backend uses them as the transition time).</summary>
+        public const float GoProneSeconds = 1.0f, GetUpSeconds = 0.8f;
 
         /// <summary>Leaving the advance: the move and the weapon stop.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack")]
