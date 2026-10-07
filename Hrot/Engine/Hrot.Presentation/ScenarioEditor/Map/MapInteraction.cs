@@ -44,8 +44,10 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand,
             Hrot.Common.Interactions.GlobalActionRegistry actions,
             Hrot.Common.Systems.GlobalActionDispatchSystem actionDispatch,
-            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl)
+            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl,
+            Hrot.UI.Common.AddEntity.AddEntityAction? addEntity = null)
         {
+            AddEntity              = addEntity;
             Actions                = actions;
             ActionDispatch         = actionDispatch;
             LayerControl           = layerControl;
@@ -86,6 +88,11 @@ namespace Hrot.ScenarioEditor.Map
         /// needs the schema — a host's renderer registers it via <see cref="MapInteractionPack.RegisterGizmoSchemas"/>.
         /// </summary>
         public Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl { get; }
+
+        /// <summary>⭐ <c>CE-1017</c> S3 — the empty-map Add Entity action, already registered on <see cref="Actions"/>;
+        /// null when the host passed no <c>MapInteractionContext.AddEntity</c>. Hand it to the host's
+        /// <c>CanvasMenuUpdateSystem</c>.</summary>
+        public Hrot.UI.Common.AddEntity.AddEntityAction? AddEntity { get; }
 
         // ══ UXI-11 — the SELECTION. 📄 UX_Feature_Selection.md §2.7 / §2.7.10 ═══════════════
 

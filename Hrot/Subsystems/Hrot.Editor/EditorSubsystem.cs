@@ -1954,6 +1954,14 @@ namespace Hrot.Editor
                     //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
                     //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
                     StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
+                    // ⭐ CE-1017 S3 — the empty-map Add Entity submenu (docs/DESIGN_Add_Entity_Picker.md D9).
+                    //   All three resolve at call time: the pickers and the spawn adapter are built later.
+                    AddEntity = new Hrot.ScenarioEditor.Map.AddEntityServices(
+                        Tkb:     () => _tkbDatabase,
+                        OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                        Spawn:   () => _spawnAdapter,
+                        SuspendedReason: () => _previewController?.IsInPreviewMode == true
+                            ? "suspended in Preview" : null),
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
@@ -2163,7 +2171,7 @@ namespace Hrot.Editor
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(_editorMapInteraction.AddEntity));
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();

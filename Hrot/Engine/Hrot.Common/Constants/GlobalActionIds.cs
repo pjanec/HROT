@@ -40,6 +40,13 @@ namespace Hrot.Common.Constants
         public const int PlaceEntity   = 201;
         public const int PlaceObstacle = 202;
 
+        // --- Add Entity (CE-1017 S3, docs/DESIGN_Add_Entity_Picker.md D6) ---
+        // The empty-map menu's "Add Entity" submenu: each opens the type picker, then arms the picked type's tool.
+        public const int AddEntityFriendly = 203;
+        public const int AddEntityHostile  = 204;
+        public const int AddEntityNeutral  = 205;
+        public const int AddMapGraphic     = 206;
+
         // --- Layer control ---
         public const int OpenLayerControl = 250;
 

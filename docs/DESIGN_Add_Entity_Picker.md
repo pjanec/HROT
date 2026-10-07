@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0 as built, §5)
-build-state: READY-TO-BUILD — approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0, S1, S2, S3 (Editor + CGF) as built, §5)
+build-state: BUILDING — S0, S1, S2, S3 (Editor + CGF) built; S3 on IG/SimHost, S4, S5 open. Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
-known-rot: none yet
+known-rot: the §3 sequence diagram and the §5 S3 acceptance said Shift+click — rev 4 (always-multi) replaced that; both now say click / right-click. Fixed in place.
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
@@ -20,7 +20,7 @@ related-designs:
   - designs/tkb-1/DESIGN.md — owns the TKB schema; this doc adds VisualDefinitionDto.IconName and
     TkbMasterDto.HideFromPalette.
   - UX/UX_Feature_Tool_Model.md — owns the placement tools (EntityPlacementGizmo; area/route/zone PointSequenceGizmo).
-    This doc makes every pick arm one of them and adds Shift multi-placement, terrain snap and north heading.
+    This doc makes every pick arm one of them and adds always-multi placement (right-click/Esc ends), the ground level and north heading.
   - UX/UX_Issues.md#uxi-12 — "Spawn UI ×4"; the spawn panels STAY and call this picker (slice S4).
   - DESIGN_Terrain_World.md §7 W8 — owns "no ground clamp; the movement model sets Z = SurfaceZ(x, y, zHint = current Z)"
     (user ruling). §2a here only chooses an entity's BIRTH Z / level; it adds no clamp step.
@@ -311,7 +311,7 @@ classDiagram
     class PickerTreeBuilder { <<existing>> + fold single-child chains NEW }
     class TreeLayout { <<existing>> + preview pane NEW }
     class ISpawnController { <<existing>> StartPlacementMode / Area / Route / Zone }
-    class EntityPlacementGizmo { <<existing>> + Shift keeps armed, terrain Z, north, icon ghost NEW }
+    class EntityPlacementGizmo { <<existing>> + always-multi, OnGround, north, named ghost NEW }
     class PointSequenceGizmo { <<existing>> area/route/zone tools }
     class EntityCreation { <<Hrot.Common, existing>> RequestEntityCreation }
     class ITkbDatabase { <<existing>> }
@@ -359,11 +359,12 @@ sequenceDiagram
     R-->>A: Point
     A->>S: StartPlacementMode(T-72, side Hostile)
     S->>T: arm (ghost: icon + name)
-    U->>T: Shift+click
-    T->>C: RequestEntityCreation(T-72, ground Z, facing north)
-    Note over T: stays armed
+    U->>T: click
+    T->>C: RequestEntityCreation(T-72, OnGround, facing north)
+    Note over T: stays armed (always-multi)
     U->>T: click
     T->>C: RequestEntityCreation(...)
+    U->>T: right-click or Esc
     Note over T: ends
 ```
 *What it shows:* the clicked point plays no part; the tool owns placement. A `Map Graphics…` pick of *Area* takes the
@@ -498,8 +499,68 @@ ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
 | rails | `TerrainWorldTests.CE1017_*` (2) · `SpawnSystemTests.CE1017_*` (3) · `CreateEntityRequestSystemTests.CE1017_*` (2) · `NedEntityCreationRequestEgressRails.CE1017_*` (wire round trip) · `SpawnEntityCommandEgressTranslatorTests.CE1017_*` · ⭐ integration: `Hrot.SimHost.Integration.Tests` `EntityCreationFlowTests.CE1017_*` (the real SimHost pipeline over a deck; 📌 its first version, inside a SOLID building, showed §2c live — level 0 resolved to the ground and the tank's motion model lifted it to the roof within five ticks) |
 | ⚠ until `CE-1031` | inside a solid building footprint, level 0 places on the ground and a ground vehicle's motion model then lifts it to the roof (§2c) — unchanged here |
 
-**Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → Shift+click twice, click
-once ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Tank ›
+### ✅ S2 UI half as built *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| always-multi | `ScenarioSpawnAdapter.ArmPlacement` arms `EntityPlacementGizmo` with `autoPopOnPlace: false` — every click places, right-click/Esc ends; the ghost shows *"click: place · right-click/Esc: done"* |
+| modifiers | Shift/Ctrl/Alt are masked off a click, so a modified click places like a plain one (rev 4: no Shift mode) |
+| heading | `EntityPlacementGizmo.FacingNorth` = yaw +90° (Identity faces east) on every command |
+| level | every command carries `SpawnHeight.OnGround`; the adapter copies it into `EntityCreationRequest` |
+| ghost label | the TKB template's name (`displayName`), not the type number |
+| ⚠ deviation | the ghost does NOT call `ResolveLevel` — the 2D map draws no Z, so it would change nothing visible. The 3D ghost belongs to Stride mode 2 (`CE-1030`). IG's own `MapCommandController` still arms with `autoPopOnPlace: true` until IG moves onto the shared adapter (S3, below) |
+| rails | `EntityPlacementGizmoTests.CE1017_*` (4) |
+
+### ✅ S1 as built *(ui, `2026-10-07`)*
+
+| item | as built |
+|---|---|
+| picker | `PickerRequest.FoldSingleChildFolders` (a folder whose only content is one sub-folder merges into one row `A › B`, keeping the deepest `FullPath`) and `PickerRequest.ShowPreview` (pane under the Tree: 64 px icon by `IconKey`, name, category, description). Both default off; `TreeLayout` now keys folders by the builder's `FullPath` |
+| catalog | `Hrot.UI.Common.AddEntity.EntityTypeCatalog.Build(ITkbDatabase)` — D7 + D2 exactly; composites under `Units/<country>` (decided while building: the DIS path of a unit stops at the country, so `Units` alone would mix nations). Description = `DIS <text>` or the disabled reason |
+| tools | `PlacementToolRegistry` — Area / Route / Terrain Zone; Fire Line listed DISABLED (*"No placement tool yet."*); `Arm(spawn, type, side)` is the one mapping onto `ISpawnController`, side as `{"Affiliation":"FORCE_…"}` (the shape `SpawnerPanel` and the ghost already read) |
+| icons | key `entity/<IconName>`, else `entity/_point` / `_area` / `_route` / `_zone` — S5 serves them |
+| reference | `Hrot.Presentation` → `NodeEditor.UI` (same ImGui.NET 1.91.6.1 as every host) |
+| rails | `EntityTypeCatalogTests` (10) · `PickerTreeBuilderTests.CE1017_Fold_*` (2) |
+
+### ✅ S3 as built — Editor and CGF *(ui, `2026-10-07`)*
+
+```mermaid
+graph TD
+    subgraph Editor and CGF
+      CTX[MapInteractionContext.AddEntity<br/>Tkb, OpenPicker, Spawn, SuspendedReason]
+      PACK[MapInteractionPack.Build]
+      AEA[AddEntityAction<br/>registered on mi.Actions 203-206]
+      CMU[CanvasMenuUpdateSystem mi.AddEntity<br/>PostSimulation, each frame]
+      DSP[GlobalActionDispatchSystem<br/>each frame]
+      PK[shell PickerRegistry.DrawFrame<br/>each ImGui frame]
+      SSA[ScenarioSpawnAdapter]
+    end
+    IG[IG: MapCommandController, no shared adapter]:::dead
+    SH[SimHost: no spawn adapter, no picker]:::dead
+    RB[ReplayBrowser: read-only]:::dead
+    CTX --> PACK --> AEA
+    PACK --> CMU
+    DSP -->|action 203-206| AEA
+    AEA -->|OpenPicker| PK
+    PK -->|pick| AEA
+    AEA -->|PlacementToolRegistry.Arm| SSA
+    classDef dead fill:#eee,stroke:#999,color:#777
+```
+*What it shows:* the submenu exists only where all three dependencies resolve, and they resolve at CALL time (both hosts
+build the pickers and the adapter after the map). Grey hosts pass no `AddEntity`, so their menu has no item rather than a
+dead one (D9).
+
+| item | as built |
+|---|---|
+| ids | `GlobalActionIds.AddEntityFriendly/Hostile/Neutral = 203/204/205`, `AddMapGraphic = 206` |
+| menu | `CanvasMenuUpdateSystem(AddEntityAction?)` puts `Add Entity ▸ Friendly… · Hostile… · Neutral… · ─ · Map Graphics…` before *Measurement Tool* while the action is available; greyed with *"suspended in Preview"* in its label (Editor, `IPreviewController.IsInPreviewMode`). CGF has no Preview state, so it never greys |
+| ⚠ deviation | the picker opens CENTRED, not at the mouse: the action handler runs in a system, outside the ImGui frame, and the menu event carries no screen position |
+| ⏳ IG | waits for IG to move onto the shared `ScenarioSpawnAdapter` (Authoring Surface §5b.2 ①) and gain a `PickerRegistry` (S4) |
+| ⏳ SimHost | has no spawn adapter and no picker — same follow-up |
+| rails | `AddEntityActionTests` (8): hostile item → Tree picker → T-72 pick arms a hostile point tool; map graphics → area tool; cancel arms nothing; suspended opens nothing; menu shows / greys / omits / follows late availability |
+
+**Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → click three times, right-click
+⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Russia › Tank ›
 T-72` with an icon. *Map Graphics… → Area* ⇒ the area tool is armed, no side asked.
 
 ## ⛔ HISTORY — rev 1 leans, SUPERSEDED `2026-10-07` by the user's rulings

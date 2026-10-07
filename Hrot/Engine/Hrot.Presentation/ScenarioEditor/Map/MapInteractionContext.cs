@@ -261,5 +261,26 @@ namespace Hrot.ScenarioEditor.Map
         /// 🔒 Silent-default rule — a host that HOLDS a hub passes it.
         /// </summary>
         public Fdp.Toolkit.Diagnostics.Gizmos.IGizmoUiStatePublisher? GizmoUiPublisher { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S3 — what the empty-map <c>Add Entity</c> submenu needs. A host that can author
+        /// entities (a TKB, a picker registry, the shared spawn adapter) passes it and the pack builds and
+        /// registers the one <see cref="Hrot.UI.Common.AddEntity.AddEntityAction"/>; null ⇒ the host offers no
+        /// Add Entity (capability-gated, docs/DESIGN_Add_Entity_Picker.md D9). Each dependency is resolved at
+        /// CALL time — hosts build their spawn adapter after the map.
+        /// 🔒 Silent-default rule — a host that HOLDS all three passes them.
+        /// </summary>
+        public AddEntityServices? AddEntity { get; init; }
     }
+
+    /// <summary>The <see cref="MapInteractionContext.AddEntity"/> dependencies, each resolved at call time.</summary>
+    /// <param name="Tkb">The host's TKB.</param>
+    /// <param name="OpenPicker">The host's <c>PickerRegistry.OpenPicker</c> (a registry the host draws each frame), or null.</param>
+    /// <param name="Spawn">The host's spawn controller (the shared <c>ScenarioSpawnAdapter</c>).</param>
+    /// <param name="SuspendedReason">Why authoring is suspended now (Preview, loading), or null.</param>
+    public sealed record AddEntityServices(
+        Func<Fdp.Interfaces.ITkbDatabase?> Tkb,
+        Func<Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>?> OpenPicker,
+        Func<Hrot.UI.Common.Facades.ISpawnController?> Spawn,
+        Func<string?>? SuspendedReason = null);
 }

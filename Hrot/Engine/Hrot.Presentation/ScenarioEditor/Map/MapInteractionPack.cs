@@ -261,11 +261,21 @@ namespace Hrot.ScenarioEditor.Map
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
 
+            // ⭐ CE-1017 S3 — the empty-map "Add Entity" submenu, built here so every map host that can author
+            //   gets the same one (D9: offered on capability). The host hands mi.AddEntity to its
+            //   CanvasMenuUpdateSystem, which shows the submenu only while the action is available.
+            Hrot.UI.Common.AddEntity.AddEntityAction? addEntity = null;
+            if (ctx.AddEntity is { } ae)
+            {
+                addEntity = new Hrot.UI.Common.AddEntity.AddEntityAction(ae.Tkb, ae.OpenPicker, ae.Spawn, ae.SuspendedReason);
+                addEntity.RegisterOn(actions);
+            }
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand, actions, actionDispatch, layerControl);
+                rubberBand, actions, actionDispatch, layerControl, addEntity);
         }
 
         /// <summary>

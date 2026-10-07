@@ -1393,6 +1393,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐⭐⭐ UXI-07 step 4a — the ARM BODY, ⛔ never the public API (that now calls
                 //   Activate(Spawn), which invokes this delegate — naming the API closes the cycle).
                 StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
+                // ⭐ CE-1017 S3 — the empty-map Add Entity submenu (docs/DESIGN_Add_Entity_Picker.md D9). Resolved
+                //   at call time: a headless node has no pickers and no spawn adapter ⇒ the submenu is not offered.
+                //   No SuspendedReason: CGF has no Preview state (its world ticks from boot — see isSimUpSignal).
+                AddEntity = new Hrot.ScenarioEditor.Map.AddEntityServices(
+                    Tkb:     () => _context?.TkbDb,
+                    OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
+                    Spawn:   () => _spawnAdapter),
             });
 
         _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;
@@ -1455,7 +1462,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(_cgfMapInteraction.AddEntity));
         // ⭐⭐⭐ UXI-23 S1 — CGF showed entities only because the SCENARIO FILE authors
         //    MapDisplayComponent; nothing on this host ever recomputed the layer mask, so an
         //    entity spawned at runtime (or one whose layer membership changed) kept a stale or
