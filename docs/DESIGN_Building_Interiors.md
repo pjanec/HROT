@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 3 — terrain-object ids and door saving, §3b; rev-2 "deterministic network id" RETRACTED)
-build-state: DESIGN (leans in §3a await the user)
-current-answer: §3b (rev 3) wins over §3a (rev 2), which wins over §3 · §4 change map · §6 slices
+updated: 2026-10-07 (rev 4 — leans approved; fences and materials, §3c)
+build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c (materials) leans await approval
+current-answer: §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -261,6 +261,52 @@ into `terrainObjects` (K5), and that becomes its initial state at the next load.
 scenario author sets the initial state"*; a save during Live captures the door as it is then, like it captures every
 moved vehicle.
 
+## 3c. Rev 4 — fences and materials *(user, `2026-10-07`)*
+
+> 🔒 **User:** *"approved the building design's other leans (templates in side files, one query with a solver per
+> purpose, doors as entities with navmesh flags). we need to have also fences — different resistance to bullet
+> penetration, different params of visibility blocking."*
+
+📐 **Measured:** the world file already has `wall` (a LineString with `height`, `thickness`, `baseZ`; `test-town` has a
+0.5 m *Low Wall* and a 3 m *High Wall*); **no penetration value exists anywhere** — no ammo or weapon penetration field,
+no terrain resistance (`ArmorModel` is vehicle facing only).
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWallPanel { <<rev 2>> segment; thickness; BaseZ..TopZ; Openings[]; + material NEW }
+    class TerrainMaterial { <<NEW, data>> name; sightTransmittance 0..1; ballisticResistanceMm per metre; soundAttenuationDb; blocksMovement }
+    class MaterialLibrary { <<NEW, side file>> Recipes/Terrain/materials.json + terrain override }
+    class AmmoBallistics { <<NEW TKB field>> penetrationMm }
+    TerrainWallPanel --> TerrainMaterial : by name
+    MaterialLibrary *-- TerrainMaterial
+    TerrainMaterial ..> AmmoBallistics : fire solver compares
+```
+*What it shows:* a fence is not a new primitive — it is a wall panel with a material; the material is the one place
+the three solvers (sight, fire, sound) and the navmesh read their per-surface numbers from.
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| **M1** | what a fence is | ⭐ **a wall panel with a material** — the existing `wall` feature (and template walls) gains `"material"`; `fence` is accepted as an alias of `wall` whose default material is `fence-wood` | a separate `fence` primitive — a second shape every consumer must learn, for the same geometry |
+| **M2** | where materials live | ⭐ a **material library side file** (`Recipes/Terrain/materials.json`, overridable in the terrain folder — the same lookup as building templates); panels name a material; unknown name fails the load loudly | numbers on every feature — the same fence typed 40 times |
+| **M3** | sight | ⭐ `sightTransmittance` 0..1 per material, **multiplied** along the line; perception sees through when the product ≥ a threshold (⭐ 0.5) in v1; later the product scales detection range | thickness-dependent sight — a fence's see-through-ness is its pattern, not its depth |
+| **M4** | bullets | ⭐ `ballisticResistanceMm` = mild-steel-equivalent mm **per metre of thickness**; a panel's resistance = that × its thickness; the round passes when its `penetrationMm` ≥ the sum of what it has crossed so far, else it stops there. Ammo gets a **new TKB `penetrationMm`**, with a default per weapon class until data exists. Partial (deflection, energy loss) is later | a pass probability per material — a 5.56 and a 12.7 would go through a wooden fence equally |
+| **M5** | sound | ⭐ `soundAttenuationDb` per material, summed along the path (the sound solver of §3a) | |
+| **M6** | movement | ⭐ `blocksMovement` (default true): a blocking panel goes into the navmesh like any wall — a 1 m fence is higher than the infantry climb (0.4 m), so it blocks walking; vaulting and vehicles breaking through fences are later | fences never in the navmesh — units would walk through them |
+| **M7** | defaults for existing content | ⭐ a wall with no material is `concrete`; `test-town` is unchanged in behaviour | |
+
+**Starter material table** *(values are placeholders to tune, not data)*:
+
+| material | sight | ballistic resistance (mm steel-eq per m) | sound (dB) | typical thickness |
+|---|---:|---:|---:|---:|
+| `concrete` | 0.0 | 1500 | 40 | 0.2–0.4 m |
+| `brick` | 0.0 | 1000 | 35 | 0.25 m |
+| `fence-wood` (solid planks) | 0.0 | 60 | 10 | 0.03 m |
+| `fence-chainlink` | 0.85 | 5 | 0 | 0.005 m |
+| `fence-metal-sheet` | 0.0 | 200 | 15 | 0.002 m |
+| `hedge` | 0.3 | 20 | 5 | 0.8 m |
+| `glass` *(windows later; v1 windows are openings)* | 1.0 | 30 | 20 | 0.01 m |
+
 ## 4. Change map — what each consumer must do
 
 ```mermaid
@@ -321,7 +367,7 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 |---|---|---|
 | **B-0 model** | building templates (side files) + instances, solid as the special case, `TerrainBuilding` + panels/openings, `SurfaceZ` fix, `SurfacesAt`; one two-storey building with inner walls in `test-town` | — |
 | **B-1 walk inside** | navmesh with doorways, floors, stairs; path into an upper storey (static open doors) | B-0 |
-| **B-2 see and shoot** | `Trace` with transmittance; sight through windows/doorways; bullets vs terrain (with AQ85 §D) | B-0 |
+| **B-2 see and shoot** | `Trace` with transmittance; material library + fences (`wall` + `material`); sight through windows/doorways/fences; bullets vs terrain with material resistance and ammo `penetrationMm` (with AQ85 §D) | B-0 |
 | **B-3 tactics** | cover per storey, window firing positions, interior EQS sampling | B-2 |
 | **B-4 map** | storey selector, panels + openings on the 2D map | B-0 |
 | **B-5 doors** | door entities (arbiter, terrain-object keys → runtime ids via `TerrainObjectMap`, `TerrainObjectRef`, scenario `terrainObjects` state), `DoorState`, doorway convex volumes at bake, `SetPolyFlags` + per-agent filter, `OpenDoor`/`Close`/`Lock`/`Breach` actions, replan on change | B-1 |
