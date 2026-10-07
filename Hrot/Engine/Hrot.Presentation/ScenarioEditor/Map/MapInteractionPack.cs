@@ -245,11 +245,65 @@ namespace Hrot.ScenarioEditor.Map
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
                 ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
 
+            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, built here so ALL map hosts get them (user, 2026-10-07:
+            //    "the layer on/off control is built today only on Editor, SimHost and the replay browser —
+            //    pls unify and share, as usual"). 📐 Measured: Editor, SimHost and ReplayBrowser each built a
+            //    GlobalActionRegistry + GlobalActionDispatchSystem + LayerControlGizmo by hand (three copies);
+            //    CGF and IG built none, so a map-menu action did nothing on them. ⛔ Construct only — the
+            //    host schedules ActionDispatch, as it schedules the selection systems.
+            var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
+            var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
+            long layerControlId = GlobalGizmoManager.NewId();
+            var layerControl = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
+                layerControlId, bus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
+                ctx.GizmoUiPublisher);
+            globalManager.Register(layerControlId, layerControl);
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand);
+                rubberBand, actions, actionDispatch, layerControl);
+        }
+
+        /// <summary>
+        /// ⭐ Registers the schemas of the panels the pack's gizmos open (today: the layer control) with a
+        /// host renderer's schema registry — one call instead of a hand-written block per host.
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐ THE map renderer layer, built the same way on every host (user, 2026-10-07: "unify and share, as
+        /// usual"). 📐 Five hosts built it by hand with different arguments: SimHost and CGF passed no panel
+        /// schemas (the layer-control panel could not draw there), and CGF passed no shape library and no
+        /// world (so a picked anchor could not resolve to an entity). 🔒 Silent-default rule: every input the
+        /// renderer can use is passed here.
+        /// </summary>
+        public static Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer BuildRenderLayer(
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus bus,
+            Fdp.Toolkit.Vis2D.Components.MapCamera? camera,
+            Func<EntityRepository?> worldProvider,
+            int layerBitIndex = 31)
+        {
+            var schemas = new GizmoMap.Presentation.GizmoSchemaRegistry();
+            RegisterGizmoSchemas(schemas);
+            return new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
+                layerBitIndex, buffer, bus,
+                camera: camera,
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                schemaRegistry: schemas,
+                worldProvider: worldProvider);
+        }
+
+        public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)
+        {
+            if (registry is null) throw new ArgumentNullException(nameof(registry));
+            var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            using var session = editService.Open(
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
+                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            registry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, session.Document);
         }
     }
 }

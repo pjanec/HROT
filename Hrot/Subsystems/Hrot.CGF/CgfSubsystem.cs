@@ -1424,15 +1424,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
         // UXI-23 S2b: the group and its three members come from the pack; CGF schedules them below.
-        var cgfGizmoGroup = _cgfMapInteraction.GizmoGroup;
         _cgfGizmoController = _cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,
-            interactionSystems: new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
-            {
-                cgfGizmoGroup,
-            },
+            // ⭐ InteractionSystems = the action dispatcher + the group: CGF now RUNS map-menu actions
+            //   (it had no dispatcher, so e.g. View ▸ Tactical Map Layers… did nothing here).
+            interactionSystems: _cgfMapInteraction.InteractionSystems,
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
         // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
@@ -1450,7 +1448,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(
                 _cgfMapInteraction.SelectionInteraction));
 
-        foreach (string problem in _cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
+        foreach (string problem in _cgfMapInteraction.Unserviceable(_cgfMapInteraction.InteractionSystems))
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
@@ -1726,8 +1724,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ The camera was RIGHT THERE — built at :1550 and given its offset at :1551, two lines up.
             //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
             //      must PASS it. Every other host does.
-            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
-                31, _cgfGizmoBuffer, _cgfInteractionBus!, camera: _canvas.Camera);
+            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
+                _cgfGizmoBuffer, _cgfInteractionBus!, _canvas.Camera, () => _context.World);
             _canvas.AddLayer(_cgfGizmoLayer);
             _canvas.DrawBuffer = _cgfGizmoBuffer;
 

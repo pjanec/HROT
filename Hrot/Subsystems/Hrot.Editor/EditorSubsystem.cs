@@ -1929,6 +1929,7 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
                     //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
@@ -1977,14 +1978,8 @@ namespace Hrot.Editor
             _editorDataDrivenGizmoSystem = _editorMapInteraction.DataDrivenSystem;
             _globalGizmoManager          = _editorMapInteraction.GlobalManager;
             _editorToolController        = _editorMapInteraction.Tools;
-            var actionRegistry = new GlobalActionRegistry();
-            long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
+            // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+            var actionRegistry = _editorMapInteraction.Actions;
             // ⭐⭐⭐ UXI-07 step 3 — the D′ DUPLICATE IS GONE. Rotate / EditOverlay / EditRoute carried a
             //    VERBATIM copy of ToolActivationDrainSystem's three arms (guards, netId lookup, toggle,
             //    EntityWriteRouter and all). ⇒ they now do exactly what Measure and PlaceEntity below
@@ -2153,19 +2148,14 @@ namespace Hrot.Editor
             // 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1; the third instance of the shape S-3
             //    fixed inbound and S-6 outbound.
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
-            var gizmoGroup   = _editorMapInteraction.GizmoGroup;
             _gizmoController = _editorMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
-            foreach (string problem in _editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+            foreach (string problem in _editorMapInteraction.Unserviceable(_editorMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
-                interactionSystems: new IEcsModuleSystem[]
-                {
-                    new GlobalActionDispatchSystem(actionRegistry, interactionBus),
-                    gizmoGroup,
-                },
+                interactionSystems: _editorMapInteraction.InteractionSystems,
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
@@ -2605,30 +2595,12 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer ? renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-                var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-                using var layerControlSchemaSession = layerControlEditService.Open(
-                    new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
-                    {
-                        Entities = true,
-                        Perception = true,
-                        AiHelpers = true
-                    },
-                    typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-                schemaRegistry.Register(
-                    Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-                    layerControlSchemaSession.Document);
+
                 // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
                 //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
                 //   which was stored nowhere. See DebugGizmoLayer._world.
-                _gizmoLayer = new DebugGizmoLayer(
-                    31,
-                    _gizmoBuffer!,
-                    interactionBus,
-                    camera: _canvas!.Camera,
-                    shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                    schemaRegistry: schemaRegistry,
-                    worldProvider: () => _world);
+                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
+                    _gizmoBuffer!, interactionBus, _canvas!.Camera, () => _world);
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 

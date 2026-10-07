@@ -254,5 +254,12 @@ namespace Hrot.ScenarioEditor.Map
         /// <c>LayerControlGizmo</c>, <c>EntityDragGizmoDefinition</c>.</para>
         /// </summary>
         public Action<MapInteractionRegistries>? ContributeExtras { get; init; }
+
+        /// <summary>
+        /// The host's gizmo UI-state publisher (its <c>GizmoUiStateHub</c>), handed to the layer control
+        /// panel the pack builds. Optional: a host without one gets a panel that still draws locally.
+        /// 🔒 Silent-default rule — a host that HOLDS a hub passes it.
+        /// </summary>
+        public Fdp.Toolkit.Diagnostics.Gizmos.IGizmoUiStatePublisher? GizmoUiPublisher { get; init; }
     }
 }

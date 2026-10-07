@@ -405,6 +405,7 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
+                        GizmoUiPublisher = _gizmoUiHub,
                         // ⭐ UXI-11 — the shared predicate, no longer hand-written here. ⛔ Still an
                         //   explicit CHOICE: `null` means "handles on everything", which IG wants.
                         IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
@@ -435,18 +436,8 @@ namespace Hrot.SimHost
                 foreach (var selectionSystem in mapInteraction.SelectionSystemsInOrder)
                     ctx.Kernel.RegisterGlobalSystem(selectionSystem);
                 // Register the global action registry and wire operator action handlers.
-                var actionRegistry = new GlobalActionRegistry();
-                long layerControlId = GlobalGizmoManager.NewId();
-                var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
-                    layerControlId,
-                    _interactionBus,
-                    new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                    _gizmoUiHub);
-                _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-                actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
-                {
-                    _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-                });
+                // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+                var actionRegistry = mapInteraction.Actions;
                 // ⭐⭐⭐ UXI-07 step 3b — SimHost drives the SHARED tool, through the SHARED arbiter.
                 // 🔴 This handler used to carry a verbatim copy of the Rotate arm (guard, DeactivateGizmo,
                 //    EntityRotatorGizmo, EntityWriteRouter) — one of FIVE `D′` instances measured
@@ -495,23 +486,18 @@ namespace Hrot.SimHost
                 }
                 // UXI-23 S2b: the group, its three members and the gate come from the pack. This host's
                 // remaining job is to SCHEDULE them, which it does immediately below.
-                var gizmoGroup   = mapInteraction.GizmoGroup;
                 _gizmoController = mapInteraction.Gate;
                 ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                     _interactionBus,
                     contextIngress: new ContextActionIngressSystem(ctx.EntityMap!, _interactionBus),
-                    interactionSystems: new IEcsModuleSystem[]
-                    {
-                        new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
-                        gizmoGroup,
-                    },
+                    interactionSystems: mapInteraction.InteractionSystems,
                     gizmoIngress: gizmoIngress,
                     gizmoEgress:  gizmoEgress));
                 // ⭐⭐ UXI-23 S3: the map REPORTS what this host did not schedule, rather than going
                 // silently blank. ⚠ Scoped honestly (§3.2e): this catches a MISSING system, not CE-123 —
                 // that was a system present, scheduled and enabled, and told to draw nothing.
                 // MapSelfCheckSystem (last in the group) is what catches that.
-                foreach (string problem in mapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                foreach (string problem in mapInteraction.Unserviceable(mapInteraction.InteractionSystems))
                     FdpLog<SimHostApp>.Info("[Map] {0}", problem);
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
                 // Build the compiler using the same geographic transform as the network factory.

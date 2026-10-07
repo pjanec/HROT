@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-07 (rev 2 — generated defaults, §2a)
-build-state: DESIGN (leans await the user)
+build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07
 current-answer: §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
@@ -218,7 +218,7 @@ two route docs that never got tools (`get_entity_weapons`, squad) are fixed in t
 | ⭐ lean | rejected (one line each) |
 |---|---|
 | layers are **gizmos that draw only when their data exists** (uniform membership) — no host checks; the Editor shows all because it holds all data | per-host layer lists — would drift from where the data really is |
-| **`LayerControlGizmo` gains these layer bits and is built on every map host** (today not on CGF and IG) | |
+| **`LayerControlGizmo` gains these layer bits and is built on every map host** — ✅ **DONE `2026-10-07`**: `MapInteractionPack` now builds the action registry, its dispatcher and the layer control for all five map hosts, and `BuildRenderLayer` builds the renderer the same way everywhere (🔒 user: *"pls unify and share, as usual"*) | |
 | fire/blast/hearing layers **read the same ring buffers** the routes serve, so the map and the API agree | |
 | probes (LOS, levels) are **interactive tools**: click two points or an entity | |
 

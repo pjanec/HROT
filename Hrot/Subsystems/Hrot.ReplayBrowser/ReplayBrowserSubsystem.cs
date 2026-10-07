@@ -192,6 +192,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _activeRepo!,
+                    GizmoUiPublisher = _gizmoUiHub,
                     // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
                     IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
                     // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver: _inspectorState
@@ -227,7 +228,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
             // scheduling the group, so it declares exactly those three. §3.2e.
             foreach (string problem in mapInteraction.Unserviceable(
-                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem }))
+                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch }))
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
@@ -241,18 +242,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _selectionNotifications = mapInteraction.SelectionNotifications;
 
             // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var actionRegistry = new Hrot.Common.Interactions.GlobalActionRegistry();
-            long layerControlId = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
-            var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
-                layerControlId, _interactionBus, editService, _gizmoUiHub);
-
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-
-            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
+            // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+            var actionRegistry = mapInteraction.Actions;
 
             actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
             {
@@ -264,26 +255,18 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 }
             });
 
-            _actionDispatchSystem = new Hrot.Common.Systems.GlobalActionDispatchSystem(actionRegistry, _interactionBus);
+            _actionDispatchSystem = mapInteraction.ActionDispatch;
             // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
             //    switch, and the system's own param doc gives that as the reason it takes a Func.
             _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
 
-            var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-            using var layerControlSchemaSession = editService.Open(
-                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
-                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-            schemaRegistry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
 
             // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
             //   network id to an Entity, against the NetworkEntityMap this module now maintains
             //   (EnsureNetworkEntityMap). ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
-            _gizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
-                31, _gizmoBuffer, _interactionBus, camera: _canvas.Camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry: schemaRegistry,
-                worldProvider: () => _activeRepo);
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
+                _gizmoBuffer, _interactionBus, _canvas.Camera, () => _activeRepo);
 
             _canvas.AddLayer(_gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;

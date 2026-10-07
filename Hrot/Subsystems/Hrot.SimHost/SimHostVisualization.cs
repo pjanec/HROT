@@ -340,13 +340,8 @@ namespace Hrot.SimHost
             // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
             //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
-            _gizmoLayer = new DebugGizmoLayer(
-                31,
-                _gizmoBuffer,
-                interactionBus ?? repo.Bus,
-                camera: _map.Camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                worldProvider: () => _repo);
+            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
+                _gizmoBuffer, interactionBus ?? repo.Bus, _map.Camera, () => _repo);
             _map.AddLayer(_gizmoLayer);
             _map.DrawBuffer = _gizmoBuffer;
             _interactionBus = interactionBus;

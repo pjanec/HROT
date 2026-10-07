@@ -957,34 +957,12 @@ public class IgApplication : IDisposable
             //    follows it back down when another tool displaces Measure (the dead-toggle fix, §4.9c).
             _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(
                 _globalGizmoManager, _gizmoSettingsRegistry, _igToolController);
-            var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-            var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-            using var layerControlSchemaSession = layerControlEditService.Open(
-                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
-                {
-                    Entities = true,
-                    Perception = true,
-                    AiHelpers = true
-                },
-                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-            schemaRegistry.Register(
-                Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-                layerControlSchemaSession.Document);
             // ⭐ R3 (DESIGN_Gizmo_Renderer_Seam.md §6) — no world is passed. The layer's old
             //   `view` parameter was stored nowhere; EntityLocal resolves through SpatialAnchor
             //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
             //   two constructors collapsed into one.
-            var gizmoLayer = new DebugGizmoLayer(
-                31,
-                _gizmoBuffer!,
-                _interactionBus,
-                camera: _canvas.Camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry: schemaRegistry,
-                // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
-                //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view`
-                //   parameter, which was stored nowhere. See DebugGizmoLayer._world.
-                worldProvider: () => _world);
+            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.BuildRenderLayer(
+                _gizmoBuffer!, _interactionBus, _canvas.Camera, () => _world);
             _gizmoLayer = gizmoLayer;
             _canvas.AddLayer(gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;
@@ -1011,18 +989,15 @@ public class IgApplication : IDisposable
                     ctx.Kernel.RegisterGlobalSystem(publisherSystem);
             }
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
-            var gizmoGroup   = igMapInteraction.GizmoGroup;
             _gizmoController = igMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
-            foreach (string problem in igMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+            foreach (string problem in igMapInteraction.Unserviceable(igMapInteraction.InteractionSystems))
                 Fdp.Core.Logging.FdpLog<IgApplication>.Info("[Map] {0}", problem);
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
                 contextIngress: null,
-                interactionSystems: new IEcsModuleSystem[]
-                {
-                    gizmoGroup,
-                },
+                // ⭐ the action dispatcher + the group: IG now RUNS map-menu actions (it had no dispatcher).
+                interactionSystems: igMapInteraction.InteractionSystems,
                 gizmoIngress: gizmoIngress,
                 gizmoEgress:  gizmoEgress));
             ctx.Kernel.RegisterGlobalSystem(

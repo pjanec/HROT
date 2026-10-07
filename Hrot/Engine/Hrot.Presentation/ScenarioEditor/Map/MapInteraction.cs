@@ -41,8 +41,14 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.ScenarioEditor.Systems.SelectionInteractionSystem selectionInteraction,
             Hrot.ScenarioEditor.Systems.SelectionRequestSystem selectionRequests,
             Hrot.ScenarioEditor.Systems.SelectionNotificationSystem selectionNotifications,
-            Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand)
+            Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand,
+            Hrot.Common.Interactions.GlobalActionRegistry actions,
+            Hrot.Common.Systems.GlobalActionDispatchSystem actionDispatch,
+            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo layerControl)
         {
+            Actions                = actions;
+            ActionDispatch         = actionDispatch;
+            LayerControl           = layerControl;
             RubberBand             = rubberBand;
             Selection              = selection;
             SelectionInteraction   = selectionInteraction;
@@ -61,6 +67,25 @@ namespace Hrot.ScenarioEditor.Map
             Gate              = gate;
             SelfCheck         = selfCheck;
         }
+
+        // ══ Map actions and the layer control — built here so ALL map hosts have them ══════════
+
+        /// <summary>
+        /// ⭐⭐ <b>The map's action registry</b> — what a menu item's action id runs. The pack registers
+        /// the shared actions (<c>OpenLayerControl</c>); the host adds its own. 📐 Before this, Editor,
+        /// SimHost and ReplayBrowser each built one by hand and CGF and IG had none, so a map-menu action
+        /// did nothing there.
+        /// </summary>
+        public Hrot.Common.Interactions.GlobalActionRegistry Actions { get; }
+
+        /// <summary>The system that runs <see cref="Actions"/>; ⚠ the HOST schedules it (the pack only constructs).</summary>
+        public Hrot.Common.Systems.GlobalActionDispatchSystem ActionDispatch { get; }
+
+        /// <summary>
+        /// The "View ▸ Tactical Map Layers…" control, registered with <see cref="GlobalManager"/>. Its panel
+        /// needs the schema — a host's renderer registers it via <see cref="MapInteractionPack.RegisterGizmoSchemas"/>.
+        /// </summary>
+        public Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl { get; }
 
         // ══ UXI-11 — the SELECTION. 📄 UX_Feature_Selection.md §2.7 / §2.7.10 ═══════════════
 
@@ -188,7 +213,16 @@ namespace Hrot.ScenarioEditor.Map
             typeof(GlobalGizmoManager),
             typeof(DataDrivenGizmoSystem),
             typeof(StatelessGizmoSystem),
+            typeof(Hrot.Common.Systems.GlobalActionDispatchSystem),
         };
+
+        /// <summary>
+        /// ⭐ What a host schedules for map INTERACTION, in order: the action dispatcher, then the gizmo
+        /// group (the order every host used). Pass it to the interaction module AND to
+        /// <see cref="Unserviceable"/>, so the two cannot disagree.
+        /// </summary>
+        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, GizmoGroup };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host
@@ -252,6 +286,8 @@ namespace Hrot.ScenarioEditor.Map
                 ? "no drag handles or vertex editing appear on any entity"
              : system == typeof(GlobalGizmoManager)
                 ? "screen-space gizmos (placement, picker, layer control) never draw"
+             : system == typeof(Hrot.Common.Systems.GlobalActionDispatchSystem)
+                ? "map menu actions (layer control, centre on entity, rotate…) do nothing"
              : "part of the map will be silently absent";
     }
 }
