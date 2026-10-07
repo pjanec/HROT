@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -484,6 +484,38 @@ round from its muzzle, and a stopped round waits out a grace before it goes.
 | diagnostics | `GET /terrain/query?purpose=fire&penetration=&damage=` — each crossing with path, resistance, chance, passes; `stopped`, `arrivingDamage` |
 | tuning note | with the starter table a rifle (5 mm) passes chain-link, metal sheet and ONE wooden fence (3 mm at 0.05 m), and is stopped by a second fence, a hedge (16 mm at 0.8 m), brick and concrete — placeholder values (§3c), tune in `materials.json` |
 | rails | `TerrainWorldTests.Stage3Fire_*` · `BallisticsSystemTests.R217_*` (5) · `HitResolutionSystemDetonationTests.R217_*` (3) · `ParameterResolverTests.R217_*` · `FireProcessingSystemTests.R217_*` (+ three fire rails re-stated for the eye → aim line) · `TerrainReportTests` (fire) |
+
+## 3i. ✅ Stage 4 (posture) — designed, then built as drawn *(backend, `2026-10-07`; leans approved in §3f)*
+
+```mermaid
+classDiagram
+    direction LR
+    class StanceIntent { <<existing, Fdp.Toolkits Tkb.Domain>> TargetStance — written by the brain (HoldProne, CE-3090) }
+    class LogicalStance { <<NEW static, beside StanceIntent>> Of(view, entity) — TargetStance, else Standing }
+    class HitModel { <<existing>> LogicalStance → reads LogicalStance.Of }
+    class BodyProfile { <<NEW, Perception.LineOfSight>> Points(view, entity, stance, colliderHeight) — heights above Z }
+    class TerrainWorldLosStrategy { <<existing>> ForLiveWorld: stance reader = LogicalStance.Of NEW; IsVisible: eye → ANY body point NEW; Explain: per point NEW }
+    class EqsModule { <<existing, SimHost>> ForLiveWorld(world) — unchanged call }
+    class FireProcessingSystem { <<existing>> aims at the mid-silhouette (AimHeightFor) — unchanged }
+    LogicalStance --> StanceIntent
+    HitModel --> LogicalStance
+    TerrainWorldLosStrategy --> LogicalStance
+    TerrainWorldLosStrategy --> BodyProfile
+    EqsModule --> TerrainWorldLosStrategy
+```
+*What it shows:* one stance rule (`LogicalStance.Of`) feeds sight and fire, and the only production composition
+(`EqsModule` → `ForLiveWorld`) picks it up with no call-site change.
+
+| item | decision *(§3f, approved)* |
+|---|---|
+| stance read | the LOGICAL stance — `StanceIntent.TargetStance`, else Standing. ⚠ On a SimHost in a cluster it arrives only with the behaviors lane's stance wire (`CE-2121` slice ②); in the editor (one world) it is there now. Until ②, the cluster reads Standing exactly as today |
+| body points | per stance, as fractions of that stance's eye height (`EyeHeightFor`): standing 0.12/0.53/0.94 (≈ 0.2/0.9/1.6 m), crouched 0.18/0.55/0.91 (≈ 0.2/0.6/1.0), prone 0.43/0.86 (≈ 0.15/0.3); a target with a collider height (a vehicle): 0.25/0.5/0.85 of it |
+| sight | eye → each body point; the target is SEEN when ANY point's line is clear (terrain transmittance ≥ 0.5 and no collider within its height). ⭐ a standing man behind a 1.2 m wall is now seen (his head is above it); a prone man behind a 0.5 m wall is not |
+| fire | unchanged — the round still aims at the mid-silhouette (`AimHeightFor`); per-point EXPOSURE for fragments is `CE-1032` |
+| diagnostics | `/perception/los` lists every point with its own verdict |
+| acceptance | ⭐ rail: a standing observer sees a standing target over a 0.5 m wall and over a 1.2 m wall; a prone target behind the 0.5 m wall is not seen; `LogicalStance.Of` drives it with no stance reader passed |
+| ✅ as built | matches the diagram: `LogicalStance.Of` (beside `StanceIntent`, `Tkb/Domain/StanceComponents.cs`); `HitModel.LogicalStance` delegates to it; `TerrainWorldLosStrategy.ForLiveWorld` defaults its stance reader to it; `BodyProfile.Fractions` + `BodyPoints`; `IsVisible` = any point clear; `Explain` lists every `LosPoint`; `/perception/los` returns `points[]` with per-point verdicts (MCP regenerated). Rails: `LosStrategyTests.Stage4_*` (2) — standing behind a 0.5 m wall seen, prone not; only the head clears a 1.2 m wall; `ForLiveWorld` hides a target the tick its `StanceIntent` says prone. The earlier posture rails (`TerrainLos_*`) held unchanged |
+| ⏭ not in Stage 4 | per-point EXPOSURE for fragments/blast (`CE-1032`); the cluster SimHost reads Standing until the stance wire (`CE-2121` slice ②) carries `StanceIntent` |
 
 ## 4. Change map — what each consumer must do
 

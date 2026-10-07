@@ -65,22 +65,31 @@ namespace Hrot.Editor.DebugApi
             var strategy = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world);
             strategy.BeginBatch(world);
             var x = strategy.Explain(world, o, t);
-            var crossed = new JsonArray();
-            if (x.Terrain is { } tr)
-                foreach (var c in tr.Crossed)
-                    crossed.Add(new JsonObject
-                    {
-                        ["along"] = c.Along, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
-                        ["transmittance"] = c.Transmittance, ["building"] = c.Building, ["storey"] = c.Storey,
-                    });
+            var points = new JsonArray();
+            foreach (var pt in x.Points)
+            {
+                var crossed = new JsonArray();
+                if (pt.Terrain is { } tr)
+                    foreach (var c in tr.Crossed)
+                        crossed.Add(new JsonObject
+                        {
+                            ["along"] = c.Along, ["kind"] = c.Kind, ["label"] = c.Label, ["material"] = c.Material,
+                            ["transmittance"] = c.Transmittance, ["building"] = c.Building, ["storey"] = c.Storey,
+                        });
+                points.Add(new JsonObject
+                {
+                    ["height"] = pt.Height, ["aim"] = V(pt.Aim), ["clear"] = pt.Clear, ["verdict"] = pt.Verdict,
+                    ["terrainTransmittance"] = pt.Terrain?.Transmittance, ["crossed"] = crossed,
+                    ["blockingEntity"] = pt.BlockingEntity is { } b ? (map.TryGetNetworkId(b, out var bid) ? bid : (long?)null) : null,
+                });
+            }
             return new JsonObject
             {
                 ["observer"] = observer, ["target"] = target, ["visible"] = x.Visible, ["verdict"] = x.Verdict,
-                ["eye"] = V(x.Eye), ["aim"] = V(x.Aim), ["eyeHeight"] = x.EyeHeight, ["aimHeight"] = x.AimHeight,
+                ["eye"] = V(x.Eye), ["eyeHeight"] = x.EyeHeight,
                 ["observerStance"] = x.ObserverStance.ToString(), ["targetStance"] = x.TargetStance.ToString(),
-                ["terrainTransmittance"] = x.Terrain?.Transmittance, ["threshold"] = Fdp.Toolkit.Terrain.TerrainWorld.SightThreshold,
-                ["crossed"] = crossed, ["blockingEntity"] = x.BlockingEntity is { } b ? (map.TryGetNetworkId(b, out var bid) ? bid : (long?)null) : null,
-                ["note"] = "One line, eye → mid-silhouette, as perception composes it on this node. ⚠ The stance reader is not composed on any host yet (CE-3010 / buildings Stage 4), so stances read Standing; per-body-point exposure arrives with Stage 4.",
+                ["threshold"] = Fdp.Toolkit.Terrain.TerrainWorld.SightThreshold, ["points"] = points,
+                ["note"] = "The target is SEEN when ANY body point's line is clear (buildings Stage 4). Stances are the LOGICAL stance (the brain's StanceIntent); on a cluster SimHost it arrives with the stance wire (CE-2121 slice 2) — until then Standing.",
             };
         }
 

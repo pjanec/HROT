@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -127,7 +128,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 TerrainWorldSource.Live(world),   // CE-3018 — the one live source, shared with the perception grid
                 PhysicsColliderReaders.Radius,
                 PhysicsColliderReaders.Height,
-                stanceReader);
+                stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of);   // ⭐ Stage 4 — the logical stance (§3f)
 
         public void BeginBatch(ISimulationView view)
         {
@@ -171,9 +172,18 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         public static float AimHeightFor(ISimulationView view, Entity e, StanceId stance, float colliderHeight)
             => colliderHeight > 0f ? colliderHeight * 0.5f : EyeHeightFor(view, e, stance) * 0.5f;
 
-        /// <summary>⭐ Tuning T-4 — why a line of sight is (not) clear: the points used, the terrain crossings and any entity in the way.</summary>
-        public sealed record LosExplanation(bool Visible, Vector3 Eye, Vector3 Aim, StanceId ObserverStance, StanceId TargetStance,
-            float EyeHeight, float AimHeight, TerrainWorld.TraceResult? Terrain, Entity? BlockingEntity, string Verdict);
+        /// <summary>One body point the sight line was tested against, and its verdict.</summary>
+        public readonly record struct LosPoint(float Height, Vector3 Aim, bool Clear, TerrainWorld.TraceResult? Terrain, Entity? BlockingEntity, string Verdict);
+
+        /// <summary>⭐ Tuning T-4 / Stage 4 — why a line of sight is (not) clear: the eye, the stances, and every body point's own verdict.</summary>
+        public sealed record LosExplanation(bool Visible, Vector3 Eye, StanceId ObserverStance, StanceId TargetStance, float EyeHeight,
+            IReadOnlyList<LosPoint> Points, string Verdict)
+        {
+            /// <summary>The first clear point, else the first point (what a single-line reader expects).</summary>
+            public Vector3 Aim => (Points.FirstOrDefault(p => p.Clear) is { Height: > 0f } c ? c : Points[0]).Aim;
+            public TerrainWorld.TraceResult? Terrain => (Points.FirstOrDefault(p => p.Clear) is { Height: > 0f } c ? c : Points[0]).Terrain;
+            public Entity? BlockingEntity => Visible ? null : Points[0].BlockingEntity;
+        }
 
         /// <summary>
         /// ⭐ Tuning T-4 (<c>GET /perception/los</c>) — the SAME decision as <see cref="IsVisible"/>, with its evidence. Call
@@ -183,41 +193,65 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         public LosExplanation Explain(ISimulationView view, Entity observer, Entity target)
         {
             var eye = view.GetComponentRO<SimTransform>(observer).Position;
-            var aim = view.GetComponentRO<SimTransform>(target).Position;
             var so = _stance?.Invoke(view, observer) ?? StanceId.Standing;
             var st = _stance?.Invoke(view, target) ?? StanceId.Standing;
-            float eh = EyeHeight(view, observer), ah = AimHeight(view, target);
-            eye.Z += eh; aim.Z += ah;
-            TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim);
-            if (trace is { } t && t.Transmittance < TerrainWorld.SightThreshold)
-                return new(false, eye, aim, so, st, eh, ah, trace, null, $"blocked by terrain: transmittance {t.Transmittance:0.###} < {TerrainWorld.SightThreshold}");
-            var a = new Vector2(eye.X, eye.Y);
-            var b = new Vector2(aim.X, aim.Y);
-            _index.Query(a, b, _near);
-            foreach (int k in _near)
+            float eh = EyeHeight(view, observer);
+            eye.Z += eh;
+            var points = new List<LosPoint>();
+            foreach (var aim in BodyPoints(view, target, st))
             {
-                var (e, p, r, h) = _colliders[k];
-                if (e.Index == observer.Index || e.Index == target.Index) continue;
-                if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
-                if (h <= 0f) return new(false, eye, aim, so, st, eh, ah, trace, e, "blocked by an entity of unknown height");
-                float z0 = eye.Z + ((aim.Z - eye.Z) * t0);
-                float z1 = eye.Z + ((aim.Z - eye.Z) * t1);
-                if (MathF.Min(z0, z1) < p.Z + h && MathF.Max(z0, z1) > p.Z)
-                    return new(false, eye, aim, so, st, eh, ah, trace, e, "blocked by an entity within its height");
+                TerrainWorld.TraceResult? trace = _world?.QuerySight(eye, aim);
+                float height = aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z;
+                if (trace is { } t && t.Transmittance < TerrainWorld.SightThreshold)
+                {
+                    points.Add(new(height, aim, false, trace, null, $"blocked by terrain: transmittance {t.Transmittance:0.###} < {TerrainWorld.SightThreshold}"));
+                    continue;
+                }
+                var blocker = BlockingCollider(eye, aim, observer, target, out bool unknownHeight);
+                points.Add(blocker is { } b
+                    ? new(height, aim, false, trace, b, unknownHeight ? "blocked by an entity of unknown height" : "blocked by an entity within its height")
+                    : new(height, aim, true, trace, null, trace == null ? "clear (no terrain resident)" : $"clear: transmittance {trace.Value.Transmittance:0.###} ≥ {TerrainWorld.SightThreshold}"));
             }
-            return new(true, eye, aim, so, st, eh, ah, trace, null,
-                trace == null ? "clear (no terrain resident)" : $"clear: transmittance {trace.Value.Transmittance:0.###} ≥ {TerrainWorld.SightThreshold}");
+            bool visible = points.Any(p => p.Clear);
+            return new(visible, eye, so, st, eh, points,
+                visible ? $"seen: {points.Count(p => p.Clear)} of {points.Count} body points clear" : $"not seen: all {points.Count} body points blocked");
+        }
+
+        /// <summary>
+        /// ⭐ Buildings Stage 4 (§3f, W5) — the target's BODY POINTS for its stance, as world positions: fractions of that stance's eye
+        /// height (standing ≈ 0.2/0.9/1.6 m, crouched ≈ 0.2/0.6/1.0, prone ≈ 0.15/0.3), or of its collider height for a vehicle. The
+        /// SAME profile for being seen as for being shot at (fire aims at the mid-silhouette, <see cref="AimHeightFor"/>).
+        /// </summary>
+        public IEnumerable<Vector3> BodyPoints(ISimulationView view, Entity target, StanceId stance)
+        {
+            var basePos = view.GetComponentRO<SimTransform>(target).Position;
+            float collider = _height?.Invoke(view, target) ?? 0f;
+            float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
+            foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
+                yield return basePos with { Z = basePos.Z + f * scale };
         }
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
         {
             var eye = view.GetComponentRO<SimTransform>(observer).Position;
-            var aim = view.GetComponentRO<SimTransform>(target).Position;
             eye.Z += EyeHeight(view, observer);
-            aim.Z += AimHeight(view, target);
+            var basePos = view.GetComponentRO<SimTransform>(target).Position;
+            var stance = _stance?.Invoke(view, target) ?? StanceId.Standing;
+            float collider = _height?.Invoke(view, target) ?? 0f;
+            float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
+            // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen)
+            foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
+            {
+                var aim = basePos with { Z = basePos.Z + f * scale };
+                if (_world != null && _world.SegmentBlocked(eye, aim)) continue;
+                if (BlockingCollider(eye, aim, observer, target, out _) == null) return true;
+            }
+            return false;
+        }
 
-            if (_world != null && _world.SegmentBlocked(eye, aim)) return false;
-
+        private Entity? BlockingCollider(Vector3 eye, Vector3 aim, Entity observer, Entity target, out bool unknownHeight)
+        {
+            unknownHeight = false;
             var a = new Vector2(eye.X, eye.Y);
             var b = new Vector2(aim.X, aim.Y);
             _index.Query(a, b, _near);
@@ -226,13 +260,29 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 var (e, p, r, h) = _colliders[k];
                 if (e.Index == observer.Index || e.Index == target.Index) continue;
                 if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
-                if (h <= 0f) return false;                       // unknown height — blocks, as before
+                if (h <= 0f) { unknownHeight = true; return e; }   // unknown height — blocks, as before
                 float z0 = eye.Z + ((aim.Z - eye.Z) * t0);
                 float z1 = eye.Z + ((aim.Z - eye.Z) * t1);
-                if (MathF.Min(z0, z1) < p.Z + h && MathF.Max(z0, z1) > p.Z) return false;
+                if (MathF.Min(z0, z1) < p.Z + h && MathF.Max(z0, z1) > p.Z) return e;
             }
-            return true;
+            return null;
         }
+    }
+
+    /// <summary>
+    /// ⭐ Buildings Stage 4 (§3f) — the body profile: the heights, as fractions, a target is sampled at for its stance. Soldiers scale
+    /// by their eye height for the stance; a target with a collider height (a vehicle) by that height.
+    /// </summary>
+    public static class BodyProfile
+    {
+        private static readonly float[] s_standing = { 0.12f, 0.53f, 0.94f };   // ≈ 0.2 / 0.9 / 1.6 m at a 1.7 m eye
+        private static readonly float[] s_crouched = { 0.18f, 0.55f, 0.91f };   // ≈ 0.2 / 0.6 / 1.0 m at 1.1 m
+        private static readonly float[] s_prone    = { 0.43f, 0.86f };          // ≈ 0.15 / 0.3 m at 0.35 m
+        private static readonly float[] s_hull     = { 0.25f, 0.5f, 0.85f };    // a vehicle's collider height
+
+        /// <summary>The fractions for <paramref name="stance"/> (or the hull, for a target with a collider height).</summary>
+        public static IReadOnlyList<float> Fractions(StanceId stance, bool hull)
+            => hull ? s_hull : stance switch { StanceId.Prone => s_prone, StanceId.Crouched => s_crouched, _ => s_standing };
     }
 
     internal static class LosGeometry

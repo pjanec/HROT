@@ -25,6 +25,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Entities { get; set; } = true;
         public bool Perception { get; set; } = true;
         public bool AiHelpers { get; set; } = true;
+        /// <summary>⭐ Tuning T-5 — the fire traces (FireTraceGizmo, layer 3).</summary>
+        public bool FireTraces { get; set; } = true;
 
         // Returns the 256-bit layer visibility mask derived from the DTO flags.
         public LayerMask256 ToMask()
@@ -33,7 +35,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Entities) mask.SetBit(0);
             if (Perception) mask.SetBit(1);
             if (AiHelpers) mask.SetBit(2);
-            for (int i = 3; i < 256; i++) mask.SetBit(i);
+            if (FireTraces) mask.SetBit(3);
+            for (int i = 4; i < 256; i++) mask.SetBit(i);
             return mask;
         }
     }

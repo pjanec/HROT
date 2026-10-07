@@ -69,4 +69,20 @@ namespace Hrot.MuscleCharacter.Animation.Components
         /// <summary>Version observed by Muscle (ack counter to Brain's StanceIntent.Version).</summary>
         public uint AckVersion;
     }
+
+    /// <summary>
+    /// ⭐⭐ Buildings §3f / Stage 4 — THE stance rule every reader shares: a unit's LOGICAL stance is what its brain ordered
+    /// (<see cref="StanceIntent.TargetStance"/>), in the tick it is ordered — an animation, where one runs, only shows it and never
+    /// gates it (🔒 approved, §3f). No intent ⇒ Standing. Read by the hit model (σ), the fire chain (shot heights) and perception
+    /// (eye heights, the target's body points), so the three cannot disagree.
+    /// </summary>
+    public static class LogicalStance
+    {
+        /// <summary>The logical stance of <paramref name="e"/>; Standing when the type is not registered in that world or the unit has none.</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId Of(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<StanceIntent>()) return Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+            return view.HasComponent<StanceIntent>(e) ? view.GetComponentRO<StanceIntent>(e).TargetStance : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+        }
+    }
 }

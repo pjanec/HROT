@@ -210,3 +210,12 @@ source of truth — entries POINT to them.
 - **TKB:** `WeaponMountDto.AmmoGuid` and `AmmoWeaponBallisticsDto.PenetrationMm` exist; no catalog declares ammo types yet.
 - **Diagnostics:** `GET /terrain/query?purpose=fire&penetration=&damage=` (MCP `query_terrain`).
 - **DO (ui/behaviors):** nothing.
+
+### 2026-10-07 · backend → behaviors · FYI: perception now reads `StanceIntent` (buildings Stage 4, CE-3102)
+
+- **What changed:** `TerrainWorldLosStrategy.ForLiveWorld` reads the LOGICAL stance (`LogicalStance.Of` = `StanceIntent.TargetStance`, else Standing) for
+  eye heights and the target's body points; a target is seen when ANY body point is. A unit your brain orders prone behind a low wall is hidden from
+  that tick (editor today).
+- **Why it matters to you:** on a cluster SimHost, `StanceIntent` arrives only with your **`CE-2121` slice ② (the stance wire)** — once that lands,
+  posture changes sight and fire on SimHost with no further backend change. Nothing to do on your side beyond what ② already plans.
+- **Also landed (FYI):** `CE-3101` — bullets now carry from the MUZZLE (the raycast latency is three ticks, not one); shot records `GET /combat/shots`.

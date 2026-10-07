@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Numerics;
 using Fdp.Toolkit.Perception.Components;
@@ -160,7 +161,7 @@ namespace Fdp.Toolkit.Perception.Tests
             foreach (var (obsStance, tgtStance, expect, reason) in new[]
             {
                 (StanceId.Standing, StanceId.Prone, true, "clear"),
-                (StanceId.Prone, StanceId.Prone, false, "terrain"),
+                (StanceId.Prone, StanceId.Prone, false, "blocked by terrain"),
             })
             {
                 var (world, obs, tgt) = TwoSoldiers(20f);
@@ -169,7 +170,8 @@ namespace Fdp.Toolkit.Perception.Tests
                 var x = strategy.Explain(world, obs, tgt);
                 Assert.Equal(expect, x.Visible);
                 Assert.Equal(strategy.IsVisible(world, obs, tgt), x.Visible);
-                Assert.Contains(reason, x.Verdict);
+                Assert.Contains(expect ? "seen:" : "not seen", x.Verdict);
+                Assert.Contains(x.Points, p => p.Verdict.Contains(reason));
                 Assert.Equal(obsStance, x.ObserverStance);
                 Assert.Equal(strategy.EyeHeight(world, obs), x.Eye.Z, 3);
             }
@@ -183,6 +185,40 @@ namespace Fdp.Toolkit.Perception.Tests
             var blocked = s.Explain(w, o, t);
             Assert.False(blocked.Visible);
             Assert.Equal(car, blocked.BlockingEntity);
+        }
+
+        /// <summary>⭐ Buildings Stage 4 (§3f, §3i) — the target is SEEN when ANY of its body points is: right behind a 0.5 m wall a
+        /// standing target is seen and a prone one is not; a standing man's head shows over a 1.2 m wall (one mid-point would not).</summary>
+        [Fact]
+        public void Stage4_BodyPoints_StandingBehindALowWallIsSeen_ProneIsNot_AHeadShowsOverAChestHighWall()
+        {
+            var low = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            var (w1, o1, t1) = TwoSoldiers(11f);
+            Assert.Equal(1, VisibleCount(w1, Strategy(low, StanceId.Standing, StanceId.Standing, o1), o1, t1));
+            var (w2, o2, t2) = TwoSoldiers(11f);
+            Assert.Equal(0, VisibleCount(w2, Strategy(low, StanceId.Standing, StanceId.Prone, o2), o2, t2));
+
+            var chest = TerrainWorldParser.Parse(HalfMetreWallAt10.Replace("\"height\":0.5", "\"height\":1.2"));
+            var (w3, o3, t3) = TwoSoldiers(11f);
+            var s3 = Strategy(chest, StanceId.Standing, StanceId.Standing, o3);
+            Assert.Equal(1, VisibleCount(w3, s3, o3, t3));
+            var x = s3.Explain(w3, o3, t3);
+            Assert.Equal(new[] { false, false, true }, x.Points.Select(p => p.Clear));   // only the head (≈ 1.6 m) clears it
+        }
+
+        /// <summary>⭐ Stage 4 — the production composition reads the LOGICAL stance with no reader passed: the brain's StanceIntent.</summary>
+        [Fact]
+        public void Stage4_ForLiveWorld_ReadsTheLogicalStance_TheBrainsStanceIntent()
+        {
+            var low = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            var (world, obs, tgt) = TwoSoldiers(11f);
+            world.RegisterManagedComponent<TerrainWorld>();
+            world.SetSingletonManaged(low);
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            var live = TerrainWorldLosStrategy.ForLiveWorld(world);
+            Assert.True(Sees(world, live, obs, tgt));                     // no intent ⇒ Standing
+            world.AddComponent(tgt, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Prone });
+            Assert.False(Sees(world, live, obs, tgt));                    // ordered prone ⇒ hidden behind the wall, in that tick
         }
 
         [Fact]

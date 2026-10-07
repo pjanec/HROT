@@ -61,13 +61,15 @@ namespace Hrot.Editor.Tests
 
             var hidden = CombatReport.Los(world, map, 1, 2);
             Assert.False((bool)hidden["visible"]!);
-            Assert.Contains("terrain", (string?)hidden["verdict"]);
-            Assert.Equal("W", (string?)hidden["crossed"]![0]!["label"]);
+            Assert.Contains("not seen", (string?)hidden["verdict"]);
+            var firstPoint = hidden["points"]![0]!;
+            Assert.Contains("terrain", (string?)firstPoint["verdict"]);
+            Assert.Equal("W", (string?)firstPoint["crossed"]![0]!["label"]);
             Assert.Equal(1.7f, (float)hidden["eyeHeight"]!, 3);
 
             var clear = CombatReport.Los(world, map, 1, 3);
             Assert.True((bool)clear["visible"]!);
-            Assert.Empty((JsonArray)clear["crossed"]!);
+            Assert.Equal(3, ((JsonArray)clear["points"]!).Count);   // a standing soldier's three body points
 
             Assert.NotNull(CombatReport.Los(world, map, 1, 99)["error"]);
         }

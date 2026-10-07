@@ -59,10 +59,7 @@ namespace Fdp.Toolkit.Combat
         };
 
         /// <summary>The unit's LOGICAL stance: what its brain ordered (<see cref="StanceIntent"/>); standing when none.</summary>
-        public static StanceId LogicalStance(EntityRepository repo, Entity e)
-            => repo.IsComponentTypeRegistered<StanceIntent>() && repo.HasComponent<StanceIntent>(e)
-                ? repo.GetComponentRO<StanceIntent>(e).TargetStance
-                : StanceId.Standing;
+        public static StanceId LogicalStance(EntityRepository repo, Entity e) => Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(repo, e);
 
         /// <summary><c>d(k) = 2·frac(k·φ⁻¹) − 1</c> ∈ [−1, 1): a low-discrepancy sequence, so any run of shots covers the spread evenly.</summary>
         public static float Sequence(uint k)

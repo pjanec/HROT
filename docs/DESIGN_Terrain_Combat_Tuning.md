@@ -324,7 +324,7 @@ one-tick latency (the real one is three).
 | **Navmesh** | polygons per layer (infantry/vehicle); doorway polygons coloured by their flags | navigation node: SimHost, Editor |
 | **Paths** | selected entity's path with Door steps | SimHost, Editor |
 | **LOS probe** | from the selected entity to a clicked point/entity: segments coloured by transmittance, body points as dots | SimHost, Editor (CGF: its perceived result only) |
-| **Fire traces** | last N shots: muzzle → stop point, colour = remaining penetration, a mark where and by what it stopped | SimHost, Editor |
+| **Fire traces** | ✅ **built (T-5, `FireTraceGizmo`, layer bit 3 `FireTraces`)**: the last 64 records of the `ShotLog` — muzzle → end, coloured by OUTCOME (hit red · stopped orange · expired grey · in flight yellow, dashed), a dot at the end, green dots for crossings passed, an orange cross where the terrain stopped it. ⚠ coloured by outcome, not remaining penetration — the outcome is what a tuner looks for first; the numbers are one `get_combat_shots` away | SimHost, Editor |
 | **Blast / fragments** | radius rings; affected entities with exposure % and the shielding panel | SimHost, Editor |
 | **Hearing** | sound events with attenuated radius; who heard | SimHost, Editor |
 | **Cover & firing positions** | EQS cover points per storey, window positions, chosen point | wherever EQS answers live (SimHost / Editor) |
@@ -346,5 +346,5 @@ one-tick latency (the real one is three).
 | **T-2 premises** | ✅ §2b — `DemoPremisesTests` + the premise table format |
 | **T-3 routes** | `/tkb/resolve`, `/terrain/levels`, `/terrain/query`, `/doors` + MCP tools |
 | **T-4 records** | ✅ §4a shots + LOS explanation; ⏭ detonations with `CE-1032` |
-| **T-5 layers** | the debug layers, `LayerControlGizmo` on every host |
+| **T-5 layers** | 🟡 fire traces ✅ (§5); ⏭ LOS probe (interactive tool), provenance badges, storeys/levels probe, doors, navmesh, paths, blast, hearing, cover |
 | **T-6 demos** | `bt-range` terrain + the demo set, one per building/combat slice as it lands |

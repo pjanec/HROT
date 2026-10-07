@@ -1992,7 +1992,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "explain_line_of_sight",
             Group:   "K — AI behavior traces",
             Summary: "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",
-            Returns: "{ observer, target, visible, verdict, eye, aim, eyeHeight, aimHeight, observerStance, targetStance, terrainTransmittance, threshold, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity, note }",
+            Returns: "{ observer, target, visible, verdict, eye, eyeHeight, observerStance, targetStance, threshold, points:[{height, aim, clear, verdict, terrainTransmittance, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity}], note }",
             Hint:    "Req: observer, target (network ids). Example: explain_line_of_sight({observer:1001, target:1002})",
             Params: new RouteParam[]
             {
@@ -2003,7 +2003,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "A dry run of the SAME strategy perception composes (TerrainWorldLosStrategy.ForLiveWorld) — it cannot disagree with it.",
                 "Answers where perception runs with the entities resident (SimHost, Editor); 404 when either unit is not on this node.",
-                "Stances read Standing until a host composes a stance reader (CE-3010 / buildings Stage 4).",
+                "Stage 4: the target is SEEN when ANY body point (per its logical stance) has a clear line; every point is listed with its own verdict.",
             },
             ExampleArgsJson: "{\"observer\":1001,\"target\":1002}",
             ExampleGist: "find out which wall hides the enemy from the rifleman"),

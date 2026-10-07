@@ -1506,6 +1506,50 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_combat_shots",
+    "group": "K — AI behavior traces",
+    "summary": "The last rounds fired on this node — the inputs each was fired with (penetration and its provenance, AQ85 sigma/deflection) and why it ended (hit, stopped by a wall, expired), with every terrain crossing (tuning T-4).",
+    "http": {
+      "method": "GET",
+      "path": "/combat/shots"
+    },
+    "params": [
+      {
+        "name": "last",
+        "type": "number",
+        "required": false,
+        "description": "how many records (newest first; default 20, ring of 256)"
+      },
+      {
+        "name": "shooter",
+        "type": "number",
+        "required": false,
+        "description": "only rounds fired by this network id"
+      },
+      {
+        "name": "target",
+        "type": "number",
+        "required": false,
+        "description": "only rounds fired at this network id"
+      }
+    ],
+    "returns": "{ count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first",
+    "notes": [
+      "Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.",
+      "Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.",
+      "A round that hit a unit lists only the crossings before the unit; arrivingDamage is what the damage step received."
+    ],
+    "example": {
+      "args": {
+        "last": 10
+      },
+      "gist": "find out why a rifleman's rounds never hurt the target behind the wall"
+    },
+    "hint": "Optional: last (default 20), shooter, target (network ids). Example: get_combat_shots({last:10, shooter:1001})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_sensors",
     "group": "K — AI behavior traces",
     "summary": "Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072).",
@@ -1668,6 +1712,45 @@ export const TOOLS_CATALOG = [
       "gist": "see which weapon a unit would fire at a target, and why"
     },
     "hint": "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "explain_line_of_sight",
+    "group": "K — AI behavior traces",
+    "summary": "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",
+    "http": {
+      "method": "GET",
+      "path": "/perception/los"
+    },
+    "params": [
+      {
+        "name": "observer",
+        "type": "number",
+        "required": true,
+        "description": "the seeing unit's network id"
+      },
+      {
+        "name": "target",
+        "type": "number",
+        "required": true,
+        "description": "the seen unit's network id"
+      }
+    ],
+    "returns": "{ observer, target, visible, verdict, eye, eyeHeight, observerStance, targetStance, threshold, points:[{height, aim, clear, verdict, terrainTransmittance, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity}], note }",
+    "notes": [
+      "A dry run of the SAME strategy perception composes (TerrainWorldLosStrategy.ForLiveWorld) — it cannot disagree with it.",
+      "Answers where perception runs with the entities resident (SimHost, Editor); 404 when either unit is not on this node.",
+      "Stage 4: the target is SEEN when ANY body point (per its logical stance) has a clear line; every point is listed with its own verdict."
+    ],
+    "example": {
+      "args": {
+        "observer": 1001,
+        "target": 1002
+      },
+      "gist": "find out which wall hides the enemy from the rifleman"
+    },
+    "hint": "Req: observer, target (network ids). Example: explain_line_of_sight({observer:1001, target:1002})",
     "manualVerify": false
   },
 
