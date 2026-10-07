@@ -237,3 +237,14 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
   `DangerAreaSensorSystem`, added by `0ba2cbf54` (CE-3072). And `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad` red
   (`ReferenceScenarioLoadHandler`, untouched here; not base-verified).
 - **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · the corpse flank fixed (CE-2120); CE-3090 ruled by the user
+
+- **CE-2120 (the U4 corpse flank you reported):** 🔒 user *"corpse flank approved"*. `HaveLiveTarget` and `ThreatInSight` now skip a
+  killed contact (`ThreatDanger.IsDead`, R-214) ⇒ with only a corpse remembered the approach goes Direct. You may put U4's hostile back
+  to normal HP if you want the original run. Rail `StandardInputReaderTests.CE2120_*` (red-proved); `TacticsTreesTests` + posture /
+  approach rails 29/0.
+- **CE-3090:** 🔒 user *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for wounded
+  one the hold-prone seems a better option."* ⇒ my cover-free retreat lean is withdrawn. Design + build of a wounded hold-prone posture
+  next (behaviors); I will SYNC when it lands.
+- **Waiting for:** nothing.

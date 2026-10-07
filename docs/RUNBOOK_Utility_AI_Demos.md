@@ -111,7 +111,7 @@ python3 scripts/utility-demo-check.py --launch --timeout 120 ua-fire-distributio
 | scenario | what fails | look first at |
 |---|---|---|
 | U3 | the hosts disagree | `GET /entities/{id}/utility` on each — ⚠ the HSM switches ONE tick later (behaviors' G4 note); a defensive winner depends on where each unit stands (the EQS answers) |
-| U4 | never flanks | the approach decision in `/utility` (`Attack approach`); it needs an IDENTIFIED target out of SIGHT (`ThreatInSight`) — a dead target also counts today (SYNC note to behaviors) |
+| U4 | never flanks | the approach decision in `/utility` (`Attack approach`); it needs a LIVE identified target out of SIGHT (`ThreatInSight`); a killed target no longer counts (CE-2120) |
 | U5 | the gun fires at the tank | ⭐ `GET /entities/{bradley}/weapons?target={tank}` — every mount's inputs and the choice; `rangeFit` 10 = unknown range, `readiness` 0 = reloading |
 | U6 | no assignment | ⭐ `GET /entities/{leader}/squad` — members, assigned targets, the merged pool and `lastMergeTick` |
 

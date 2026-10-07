@@ -895,6 +895,7 @@ approach adds no order input); the decision is `AttackApproachDecision` (asset `
 | F1 `ThreatInSight` instead of `FindThreatsInView` / `HasLineOfSight` | the table above |
 | F3 the approach scored in the OUTER parallel | Fbt refuses a nested Parallel |
 | ⭐ **CE-2117 (kernel)** — a switch beneath a running Parallel never ran the abandoned leaf's deactivator | found by rail ⑥, then measured on the SHIPPED tree: the advance kept firing after TakeCover took over (§3.3b's claimed parity with the HSM was only true for the HSM). Fixed in `Fbt.Interpreter`: `NodeIndexStack` is now the tick's running set ([deactivator design](designs/ai-btree-deactivator-1/DESIGN.md) addendum) |
+| ⭐ **CE-2120** — a KILLED contact counts as neither a live target (`HaveLiveTarget`) nor a threat in sight (`ThreatInSight`) | 🔒 user `2026-10-07` *"corpse flank approved"*: on U4 the hostile died in 5 s and the approach chose Flank against the corpse (Flank 1.08, Health 0). The memory keeps the corpse (fresh, tracked), so both inputs now skip `ThreatDanger.IsDead` (R-214 — one predicate for every threat reader) |
 | ⚠ after a flank / firing-position ARRIVAL with the target still out of sight, the approach re-picks the manoeuvre and it moves again | the position queries filter on sight of the target, so arrival normally brings it into view and Direct wins; perception lag can cost a re-flank — accepted, watch U4 |
 
 Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3084_*` (4: registered with option names · ⭐ out of sight
