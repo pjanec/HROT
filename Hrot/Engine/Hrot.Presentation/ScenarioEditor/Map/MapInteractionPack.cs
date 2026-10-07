@@ -176,6 +176,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
             //    construction: "all map subsystems share the FULL tool set … never set membership."
             //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoringRef = null;
             var tools = new Hrot.ScenarioEditor.Tools.ToolController(
                 () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
 
@@ -184,7 +185,10 @@ namespace Hrot.ScenarioEditor.Map
                 world:               () => ctx.World,
                 gizmos:              () => dataDriven,
                 globalGizmos:        () => globalManager,
-                startPlacementMode:  ctx.StartPlacementMode,
+                // ⭐ CE-1017 — a host that passes EntityAuthoring gets the Spawn tool from the SAME shared adapter;
+                //   resolved at call time (the authoring surface is built below, its adapter on first use).
+                startPlacementMode:  ctx.StartPlacementMode
+                                     ?? (ctx.EntityAuthoring is null ? null : () => authoringRef?.Spawn?.ArmPlacement()),
                 reportUnserviceable: ctx.ReportUnserviceableTool,
                 measureUnits:        ctx.MeasureUnits);
 
@@ -261,21 +265,23 @@ namespace Hrot.ScenarioEditor.Map
             actions.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
 
-            // ⭐ CE-1017 S3 — the empty-map "Add Entity" submenu, built here so every map host that can author
-            //   gets the same one (D9: offered on capability). The host hands mi.AddEntity to its
-            //   CanvasMenuUpdateSystem, which shows the submenu only while the action is available.
-            Hrot.UI.Common.AddEntity.AddEntityAction? addEntity = null;
-            if (ctx.AddEntity is { } ae)
+            // ⭐ CE-1017 — ONE entity-authoring surface per map, built here for every host that can author (Editor,
+            //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
+            //   schedules mi.CanvasMenu and draws mi.EntityAuthoring.DrawFrame().
+            Hrot.UI.Common.AddEntity.EntityAuthoring? authoring = null;
+            if (ctx.EntityAuthoring is { } inputs)
             {
-                addEntity = new Hrot.UI.Common.AddEntity.AddEntityAction(ae.Tkb, ae.OpenPicker, ae.Spawn, ae.SuspendedReason);
-                addEntity.RegisterOn(actions);
+                authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
+                authoring.AddEntity.RegisterOn(actions);
+                authoringRef = authoring;
             }
+            var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
-                rubberBand, actions, actionDispatch, layerControl, addEntity);
+                rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu);
         }
 
         /// <summary>

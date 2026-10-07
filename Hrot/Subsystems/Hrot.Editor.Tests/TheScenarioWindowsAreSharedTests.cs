@@ -78,7 +78,8 @@ public sealed class TheScenarioWindowsAreSharedTests
         var text = HostSource.Read(project, file);
         if (!text.Contains("SpawnerPanelWindow(", StringComparison.Ordinal)) return;
 
-        Assert.Contains("ScenarioSpawnAdapter(",     text);
+        // ⭐ CE-1017 — the spawn adapter comes from the map pack's EntityAuthoring (one construction site).
+        Assert.Contains("EntityAuthoring?.Spawn",    text);
         Assert.Contains("ScenarioMissionService(",   text);
         Assert.Contains("ScenarioMapConfigAdapter(", text);
         Assert.Contains("ScenarioOrbatAdapter(",     text);
@@ -191,21 +192,26 @@ public sealed class TheScenarioWindowsAreSharedTests
     }
 
     /// <summary>
-    /// ⭐ <c>CE-1017</c> S3 — the empty-map Add Entity submenu is offered on Editor, CGF and SimHost (🔒 user: "both cgf
-    /// and simhost and editor of course should"): each passes <c>MapInteractionContext.AddEntity</c> and hands the
-    /// pack's action to its <c>CanvasMenuUpdateSystem</c>. ⛔ A host that builds the map but forgets either half gets
-    /// no submenu and no error — this rail is the error.
+    /// ⭐ <c>CE-1017</c> — ONE entity-authoring wiring on every windowed map host (🔒 user: "Do we share unified code
+    /// across simhost and cgf and ig and editor? We should."): each passes <c>MapInteractionContext.EntityAuthoring</c>,
+    /// schedules the PACK's canvas menu and draws a picker — and none hand-builds a spawn adapter, a canvas menu system
+    /// or an entity-icon picker of its own. ⛔ A host that forgets a half gets no submenu and no error — this rail is
+    /// the error.
     /// </summary>
     [Theory]
     [InlineData("Hrot.Editor",  "EditorSubsystem.cs")]
     [InlineData("Hrot.CGF",     "CgfSubsystem.cs")]
     [InlineData("Hrot.SimHost", "SimHostApp.cs")]
-    public void EveryWindowedMapHostOffersAddEntity(string project, string file)
+    [InlineData("Hrot.IG",      "IgApplication.cs")]
+    public void EveryWindowedMapHostUsesTheOneEntityAuthoringWiring(string project, string file)
     {
         var text = HostSource.Read(project, file);
 
-        Assert.Contains("AddEntity = new Hrot.ScenarioEditor.Map.AddEntityServices(", text);
-        Assert.Matches(@"CanvasMenuUpdateSystem\(\w+\.AddEntity\)", text);
+        Assert.Contains("EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(", text);
+        Assert.Matches(@"RegisterGlobalSystem\(\w+\.CanvasMenu\)", text);
         Assert.Contains(".DrawFrame()", text);   // the picker is drawn, or OpenPicker only queues
+        Assert.DoesNotContain("new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(", text);
+        Assert.DoesNotContain("ScenarioSpawnAdapter(", text);
+        Assert.DoesNotContain("new Hrot.UI.Common.AddEntity.EntityIconLibrary(", text);
     }
 }

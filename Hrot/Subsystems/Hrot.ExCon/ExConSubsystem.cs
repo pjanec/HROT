@@ -510,8 +510,7 @@ namespace Hrot.ExCon
             var tkbCatalog = Hrot.UI.Common.AddEntity.EntityTypeCatalog.SpawnerEntries(_tkb);
             if (!_headless)
             {
-                _pickers = new NodeEditor.UI.Picker.PickerRegistry();
-                _pickers.SetIcons(new Hrot.UI.Common.AddEntity.EntityIconLibrary());
+                _pickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers();   // the ONE picker factory
             }
 
             // Conceptually, ORBAT panel should only create organizational units.

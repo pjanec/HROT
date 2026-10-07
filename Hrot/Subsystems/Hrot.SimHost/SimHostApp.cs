@@ -109,12 +109,6 @@ namespace Hrot.SimHost
         /// ⭐ UXI-11 — the shared map pack, kept so the visualization takes its selection from the
         ///    same instance this root scheduled. ⛔ Two instances would be two selections.
         private Hrot.ScenarioEditor.Map.MapInteraction? _mapInteraction;
-
-        // ⭐ CE-1017 — entity authoring on the SimHost map: the shared spawn adapter (the same type Editor and CGF use)
-        //   and a picker registry for the Add Entity picker. Both exist only with a window (_headless false); the
-        //   adapter is built lazily on first use because the creation pack's request queue appears after the map.
-        private Hrot.UI.Common.Adapters.ScenarioSpawnAdapter? _spawnAdapter;
-        private NodeEditor.UI.Picker.PickerRegistry? _pickers;
         // ── Gizmo systems (GZ032) ───────────────────────────────────────
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
@@ -420,15 +414,14 @@ namespace Hrot.SimHost
                         Inspector = () => _vis?.FdpInspectorState,
                         // GZH-003: headless-first — enable only when a terminal connects.
                         StartEnabled = false,
-                        // ⭐ CE-1017 — the Spawn tool and the empty-map Add Entity submenu, through the SAME
-                        //   shared adapter Editor and CGF use. Resolved at call time; a headless node has no
-                        //   pickers, so it offers no Add Entity (docs/DESIGN_Add_Entity_Picker.md D9).
-                        StartPlacementMode = () => SpawnAdapter()?.ArmPlacement(),
-                        AddEntity = new Hrot.ScenarioEditor.Map.AddEntityServices(
-                            Tkb:        () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
-                                              ? w.GetSingletonManaged<ITkbDatabase>() : null,
-                            OpenPicker: () => _pickers is { } pickers ? pickers.OpenPicker : null,
-                            Spawn:      () => SpawnAdapter()),
+                        // ⭐ CE-1017 — the ENTITY-AUTHORING surface from the PACK, the same for Editor, CGF, SimHost and
+                        //   IG: the shared spawn adapter (also the Spawn tool), the Add Entity picker + submenu, the
+                        //   canvas menu. Windowed only: a headless node offers no submenu.
+                        EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
+                            Tkb:          () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
+                                                ? w.GetSingletonManaged<ITkbDatabase>() : null,
+                            Requests:     () => EntityCreation?.LocalRequests,
+                            GeoTransform: () => _geoTransform),
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                             regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
@@ -533,7 +526,7 @@ namespace Hrot.SimHost
                     ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, ctx.EventBus));
                 ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
                 // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(mapInteraction.AddEntity));
+                ctx.Kernel.RegisterGlobalSystem(mapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
                 // ⭐⭐⭐ UXI-23 S1 — stamps MapDisplayComponent.LayerMask so the shared entity gizmos
                 //    can layer-cull. 🔒 Ruling ③: the PACK owns construction, the HOST decides
                 //    scheduling — this is the host's half. The same shared system IG schedules via
@@ -579,11 +572,6 @@ namespace Hrot.SimHost
             // -- 12. Visualization ---------------------------------------------------------
             if (!_headless)
             {
-                // ⭐ CE-1017 — the Add Entity picker. Entity icons from the shared library; this host has no silk
-                //   atlas provider, so folders draw without icons (the default theme stays).
-                _pickers = new NodeEditor.UI.Picker.PickerRegistry();
-                _pickers.SetIcons(new Hrot.UI.Common.AddEntity.EntityIconLibrary());
-
                 var roadNetwork = _bootstrapper!.RoadNetwork ?? new CarKinem.Road.RoadNetworkBlob();
                 var configuredFactory = _networkFactory?.ConfigureForNode(_context, _role, _behaviorRegistry);
                 _vis = new SimHostVisualization();
@@ -667,22 +655,8 @@ namespace Hrot.SimHost
         protected override void OnDrawUI()
         {
             _vis?.DrawUI();
-            // ⛔ OpenPicker only queues — without this the Add Entity picker never shows.
-            _pickers?.DrawFrame();
-        }
-
-        /// <summary>⭐ CE-1017 — the shared spawn adapter, built on first use (a windowed node only: it is the
-        /// authoring surface behind the Spawn tool and Add Entity). Null until the map, the creation pack and the
-        /// window exist.</summary>
-        private Hrot.UI.Common.Adapters.ScenarioSpawnAdapter? SpawnAdapter()
-        {
-            if (_spawnAdapter != null || _headless || _world == null || _mapInteraction == null) return _spawnAdapter;
-            var requests = EntityCreation?.LocalRequests;
-            if (requests == null) return null;
-            ITkbDatabase? tkb = _world.HasSingletonManaged<ITkbDatabase>() ? _world.GetSingletonManaged<ITkbDatabase>() : null;
-            _spawnAdapter = new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(
-                _world.Bus, _jsonAttributeCompiler, tkb, requests, _mapInteraction.GlobalManager, _mapInteraction.Tools);
-            return _spawnAdapter;
+            // ⛔ OpenPicker only queues — the map pack's Add Entity picker draws here (CE-1017).
+            _mapInteraction?.EntityAuthoring?.DrawFrame();
         }
 
         protected override void OnUnload()

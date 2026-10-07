@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — S3 on Editor, CGF, SimHost)
-build-state: BUILT except S3 on IG (waits for IG's move onto the shared spawn adapter) and Stride mode 2 (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
+updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — ONE entity-authoring wiring on Editor, CGF, SimHost, IG)
+build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
@@ -554,9 +554,73 @@ dead one (D9).
 | ids | `GlobalActionIds.AddEntityFriendly/Hostile/Neutral = 203/204/205`, `AddMapGraphic = 206` |
 | menu | `CanvasMenuUpdateSystem(AddEntityAction?)` puts `Add Entity ▸ Friendly… · Hostile… · Neutral… · ─ · Map Graphics…` before *Measurement Tool* while the action is available; greyed with *"suspended in Preview"* in its label (Editor, `IPreviewController.IsInPreviewMode`). CGF has no Preview state, so it never greys |
 | ⚠ deviation | the picker opens CENTRED, not at the mouse: the action handler runs in a system, outside the ImGui frame, and the menu event carries no screen position |
-| ⏳ IG | waits for IG to move onto the shared `ScenarioSpawnAdapter` (Authoring Surface §5b.2 ①) and gain a `PickerRegistry` (S4) |
+| ✅ IG | ⛔ SUPERSEDED the same day — IG is on the shared surface; see "One wiring" below |
 | ✅ SimHost *(added the same day, 🔒 user: "both cgf and simhost and editor of course should")* | 📐 it had neither a spawn adapter nor a picker. Now a windowed SimHost builds the SAME `ScenarioSpawnAdapter` (lazily, over its creation pack's `LocalRequests`, its map's `GlobalManager`/`Tools`, its JSON compiler and TKB singleton) and a `PickerRegistry` drawn in `OnDrawUI`; it passes both through `MapInteractionContext.AddEntity` and `StartPlacementMode`, so it also gained the Spawn tool. A headless SimHost builds neither ⇒ no submenu |
 | rails | `AddEntityActionTests` (8): hostile item → Tree picker → T-72 pick arms a hostile point tool; map graphics → area tool; cancel arms nothing; suspended opens nothing; menu shows / greys / omits / follows late availability |
+
+### ✅ One wiring — `EntityAuthoring`, built by the map pack for every host *(ui, `2026-10-07`)*
+
+> 🔒 **User:** *"Do we share unified code across simhost and cgf and ig and editor? We should."*
+> 📐 **Measured before:** the LOGIC was shared (catalog, tool registry, action, icons, adapter type) but the WIRING was
+> copied per host — **3** hand-built `ScenarioSpawnAdapter`s, **5** picker registries with two different icon setups,
+> **4** `CanvasMenuUpdateSystem` registrations, **3** Add Entity service blocks — and **IG on none of them**.
+
+```mermaid
+classDiagram
+    direction LR
+    class MapInteractionContext { <<existing>> + EntityAuthoring : EntityAuthoringInputs? }
+    class EntityAuthoringInputs { <<NEW>> Tkb, Requests, GeoTransform; SuspendedReason, HostPickers }
+    class MapInteractionPack { <<existing>> Build() }
+    class MapInteraction { <<existing>> + EntityAuthoring?, + CanvasMenu }
+    class EntityAuthoring { <<NEW, Hrot.Presentation>> Spawn (lazy), Pickers, AddEntity, CanvasMenu, DrawFrame(), CreatePickers() }
+    class ScenarioSpawnAdapter { <<existing>> }
+    class AddEntityAction { <<existing>> }
+    class CanvasMenuUpdateSystem { <<existing>> }
+    class PickerRegistry { <<NodeEditor.UI>> }
+    class EntityIconLibrary { <<existing>> }
+    MapInteractionContext --> EntityAuthoringInputs
+    MapInteractionPack --> MapInteraction : builds
+    MapInteractionPack --> EntityAuthoring : builds when inputs given
+    MapInteraction --> EntityAuthoring
+    EntityAuthoring --> ScenarioSpawnAdapter : one per map
+    EntityAuthoring --> AddEntityAction
+    EntityAuthoring --> CanvasMenuUpdateSystem
+    EntityAuthoring --> PickerRegistry : own, or the host shell
+    PickerRegistry ..> EntityIconLibrary : CreatePickers
+```
+*What it shows:* everything entity authoring needs is constructed in ONE place from three host inputs; a host's whole
+share is the inputs, scheduling `mi.CanvasMenu`, and drawing `mi.EntityAuthoring.DrawFrame()` (or its own shell registry).
+
+```mermaid
+graph TD
+    subgraph every["Editor, CGF, SimHost, IG (windowed)"]
+      IN[EntityAuthoringInputs<br/>Tkb, Requests = creation pack LocalRequests, GeoTransform]
+      PACK[MapInteractionPack.Build]
+      EA[EntityAuthoring]
+      MENU[mi.CanvasMenu<br/>host schedules, PostSimulation]
+      DRAW[picker DrawFrame<br/>host's ImGui frame]
+      SPAWN[Spawn tool + Add Entity + spawner panels]
+    end
+    HL[headless node: EntityAuthoring null<br/>Measure-only menu, Spawn reports unserviceable]:::dead
+    RB[ReplayBrowser: read-only, no inputs]:::dead
+    IGR[IG MapCommandController: ExCon remote CMD_PLACE_ENTITY + acks only]
+    IN --> PACK --> EA
+    EA --> MENU
+    EA --> DRAW
+    EA --> SPAWN
+    classDef dead fill:#eee,stroke:#999,color:#777
+```
+*What it shows:* the four map hosts run the same objects; what stays host-specific is only IG's remote-command service
+(acking ExCon's requests), which is protocol, not authoring.
+
+| item | as built |
+|---|---|
+| IG | joins through the shared adapter. 📐 Equivalent requests: the adapter enqueues onto the SAME `LocalRequests` with `OwnerAppInstanceId = 0` (untargeted) — exactly what `IgEntityCreationRequests.FromSpawnCommand` writes. IG's toolbar Spawn tool, never serviced on IG, now arms too. IG's Mini ExCon opens its picker in the map's registry |
+| Editor, CGF | `_spawnAdapter = mi.EntityAuthoring.Spawn`; their shell registry (asset pickers live there) is adopted through `HostPickers` and built with `EntityAuthoring.CreatePickers(silk, theme)` |
+| SimHost | the hand wiring added earlier the same day is gone; the pack's own registry, drawn in `OnDrawUI` |
+| pickers | `EntityAuthoring.CreatePickers(hostIcons?, theme?)` is the one factory (ExCon too) |
+| headless | every host passes `null` when headless — no submenu, Spawn reports unserviceable, as before |
+| rails | `EntityAuthoringPackTests` (5) · `TheScenarioWindowsAreSharedTests.EveryWindowedMapHostUsesTheOneEntityAuthoringWiring` (Editor, CGF, SimHost, IG — and none hand-builds an adapter, canvas menu or icon picker) |
 
 ### ✅ S4 as built — the spawn panels call the picker *(ui, `2026-10-07`)*
 
