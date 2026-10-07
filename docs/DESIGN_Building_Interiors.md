@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 5 — materials approved; penetration source + explosive effects, §3d; rev-4 "no penetration exists" RETRACTED)
+updated: 2026-10-07 (rev 6 — warhead from the ammo DIS type, §3e; programme summary, §7)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d leans await approval
-current-answer: §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §7 programme summary · §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -338,6 +338,17 @@ the three solvers (sight, fire, sound) and the navmesh read their per-surface nu
 | **E2** | what buildings must provide for E1 | ⭐ **two more purposes on the ONE query now**: `Fragment` (straight; fragments stopped by walls per their small penetration vs material resistance) and `Blast` (attenuated by walls like sound; v2 through openings room-to-room); and an **indirect round's impact point** comes from a terrain trace along its arc — so a mortar round hits the ROOF and occupants are protected by the floor slabs above them | designing the query for direct fire only — E1 would reopen it |
 | **E3** | damage to the building itself | ⭐ v1: a door can be **Destroyed** (already a `DoorState`); wall breaching = changing geometry at runtime → later | breachable walls now — a runtime navmesh and trace change |
 
+## 3e. Rev 6 — the warhead is denoted by the ammo's DIS type *(user, `2026-10-07`)*
+
+> 🔒 **User:** *"note the ammo DIS type could already denote the warhead, not as extra runtime data."*
+
+| ⭐ lean *(supersedes §3d E1's "warhead … on the ammo" wording)* | |
+|---|---|
+| **Warhead parameters are TKB data of the munition type**, keyed by the ammo's DIS entity type (kind 2 = munition): `WarheadDto` (kind, blast/fragment radius, fragment penetration, fuze) lives on the ammo's TKB template — static, never sent per shot | the ammo IS a TKB type with a DIS type; the receiver looks it up |
+| **A detonation carries only the munition's identity** (its DIS / TKB type) plus the point and the struck entity; every node resolves the effect from its own TKB | per-detonation warhead fields — redundant data on the wire, and two sources that can disagree |
+| For external DIS interop, the standard burst descriptor's Warhead/Fuze enums are **derived** from the same TKB entry on egress | |
+| ⚠ prerequisite: a mount must know its loaded ammo (§3d P1b) — the ammo type is what the shot, and later the detonation, carries | |
+
 ## 4. Change map — what each consumer must do
 
 ```mermaid
@@ -405,3 +416,68 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 | **B-6 sound** | sound solver: v1 straight with per-wall attenuation; v2 room/portal propagation | B-2 |
 | **B-7 Stride** | ⛔ **parked** (🔒 out of scope now) — geometry + colliders + navmesh from `TerrainWorld` | B-1 |
 | **B-8 room entry** | Squad §8.6 on real geometry | B-1, B-3, B-5 |
+
+## 7. Programme summary — every change, terrain and beyond *(`2026-10-07`)*
+
+*Owner lanes in brackets. ✅ approved · ⭐ lean awaiting approval · 📋 filed only.*
+
+### Terrain *(backend — `DESIGN_Terrain_World.md` owns the model)*
+
+| change | status |
+|---|---|
+| building **templates** in side files (`*.building.json`, local coords, storeys, outer AND inner walls, openings on their wall, stairs) + **instances** in the world file; **solid = special case** (today's buildings unchanged) | ✅ |
+| one new primitive **`TerrainWallPanel`** (segment, thickness, height, openings: door/window/gap with sill/head) + **materials** library (sight, ballistic resistance mm RHA/m, sound dB, blocks movement); `fence` = wall + material | ✅ |
+| `SurfaceZ`: ground no longer skipped inside enterable buildings; new **`SurfacesAt`/`ResolveLevel`** (levels: 0 ground, ±n) — shared with Add Entity | ✅ |
+| **one propagation query**, a solver per purpose: Sight, Fire, Sound, Fragment, Blast — transmittance + crossed occluders | ✅ (purposes Fragment/Blast ⭐) |
+| **navmesh**: thick panels with doorways carved, storey floors, stairs as ramps; each doorway its own polygons (convex volume) | ✅ |
+| **doors**: entities created once by the arbiter at load; string **terrain-object key** → runtime id from the one allocator (`TerrainObjectMap`); `DoorState` replicated; scenario stores door state by key (`terrainObjects`) | ✅ |
+| **path filter**: `SetPolyFlags` on doorway polygons from `DoorState`; per-agent filter (closed passable with a Door step for agents that can open; locked excluded unless breaching); replan on change | ✅ |
+| cover / EQS: interior sampling, cover per storey on both wall sides, **window firing positions**, stance from the opening's sill | ⭐ (B-3) |
+| 2D map: **storey selector**, panels + openings drawn | ⭐ (B-4) |
+| a two-storey test building with inner walls, doors, windows, fences in `test-town` | ✅ (B-0) |
+| Stride builds its world from this file | 📋 later (parked) |
+| breachable walls (runtime geometry change) | 📋 later |
+
+### Weapons, penetration, damage *(backend — combat; AQ85 owns hit chance)*
+
+| change | status |
+|---|---|
+| **penetration on the launcher × ammo pair**: `PenetrationMm` on the existing (unused) `AmmoWeaponBallisticsDto`; lookup pair → generic → mount `Penetration` (`CE-3071`) → unknown | ⭐ |
+| a mount's **loaded ammo** (`AmmoGuid`); ammo switching later | ⭐ |
+| **bullets trace the terrain** (today they pass through buildings): one rule for armour and walls — `ArmorModel.PenetrationChance` per panel, chances multiply, penetration reduced by what is crossed; expected value, no dice | ⭐ (B-2, with AQ85 §D) |
+| penetration vs range table per pair (kinetic decays, shaped charge not) | 📋 later |
+| **warheads**: `WarheadDto` on the ammo's TKB type, identified by its **DIS type**; detonation carries only the munition identity; **area effect** (fragments straight, stopped per penetration; blast attenuated by walls); indirect fire impacts along its arc (mortar hits the roof) | 📋 `CE-1032` (design owed) |
+| door **Destroyed** by damage | ✅ (`DoorState`) |
+
+### Perception — sight, hearing, stance, sensors *(backend)*
+
+| change | status |
+|---|---|
+| sight: `ILosStrategy`/`ILosService` consume **transmittance** (see through when ≥ 0.5 in v1; later scales detection range) — windows, doorways, chain-link, hedges | ✅ (B-2) |
+| hearing: today **distance only** → per-wall/floor attenuation (v1 straight, v2 room-to-room through openings) | ✅ (B-6) |
+| **stance**: eye height per stance exists (`SensorMount`), but no host runs the stance runtime, so everyone reads as Standing (`CE-3010`) — prone behind a low wall, crouch at a window sill only matter once that is composed | 📋 `CE-3010` (existing) |
+| entity colliders as occluders unchanged; the target's silhouette height follows its stance (W5) once `CE-3010` lands | 📋 |
+
+### Movement and navigation *(backend)*
+
+| change | status |
+|---|---|
+| movement model: **no change** (floors are slabs; Z follows the current floor, W8) | ✅ |
+| `TraversalKind.Door` waypoints from doorway polygons; `OpenDoor`/`CloseDoor`/`Lock`/`Unlock`/`Breach` actions (adjacent, animation time) | ✅ (B-5) |
+| vehicles kept out by doorway width; fence vaulting and vehicles breaking fences | ✅ / 📋 later |
+
+### Editor / UI *(ui)*
+
+| change | status |
+|---|---|
+| **Add Entity** picker (TKB-built, DIS grouping, icons, always-multi placement, terrain levels, `SpawnHeight`) — `DESIGN_Add_Entity_Picker.md` | ✅ ready to build |
+| "Move to level" in the entity's Details | ⭐ (D6c) |
+| Add Entity on Stride mode 2 | 📋 `CE-1030` |
+| storey selector on the map | ⭐ (B-4) |
+
+### Behaviours *(behaviors)*
+
+| change | status |
+|---|---|
+| squad stack-and-room-entry on real rooms and doors (Squad §8.6) | 📋 B-8 |
+| EQS templates: occupy building / window positions | ⭐ (B-3) |
