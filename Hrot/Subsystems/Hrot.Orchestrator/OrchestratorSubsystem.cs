@@ -104,8 +104,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     public void Initialize(SubsystemConfig config)
     {
-        _config = ClusterConfiguration.LoadFrom(
-            System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
+        _config = ClusterConfiguration.LoadFromWorkingDirectory();
 
         // HEXAG2-S008: Use INetworkFactory to create the participant.
         // Parameterless constructor (headless/test mode) leaves _networkFactory null;
