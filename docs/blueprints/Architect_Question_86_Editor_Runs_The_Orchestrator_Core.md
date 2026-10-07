@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-07
-build-state: DESIGN — leans below await the user's approval; nothing in §5's slices S2+ is built.
+build-state: BUILDING — ✅ APPROVED by the user 2026-10-07 ("Approves. Record it and build it."), ledger R-215.
+  Slices per §5; each records its as-built there.
 current-answer: §3 (the three diagrams) and §4 (sub-questions A–G with leans; F rewritten and G added 2026-10-07 after the
   user's load ruling). §1 is the measured INVENTORY.
 stale-below: nothing.
@@ -37,6 +38,8 @@ related-designs:
 > *"Interface expresses the api clearly so i am a bit reluctant to start inferring the intended api from bus events."* ·
 > *"Every load does not need to end up paused, this should be a propeety of the load, the load must reswmet the simclock to
 > zero, this is what i meant."*
+
+✅ **APPROVED `2026-10-07`** — 🔒 User: *"Looks ok."* · *"Approves. Record it and build it."* All leans A–G stand. Ledger `R-215`.
 
 📌 **How this came up:** `CE-122` *(a scenario load does not reset the clock to zero and pause)*. The cluster half is fixed
 (`d6bdc1d6b`, then `SnapAndPause` made complete — `DESIGN_Time_Architecture.md` §12a). ⛔ **The editor half could not be
