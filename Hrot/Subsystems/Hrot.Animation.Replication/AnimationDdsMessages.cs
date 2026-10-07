@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CycloneDDS.Schema;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication;
@@ -57,9 +58,16 @@ internal struct DdsLookAtChannelStatus
 
 // ── Descriptor topics ─────────────────────────────────────────────────────────
 
+// ⭐ CE-2121 slice ② — the first animation topics put on REAL DDS: [DdsTopic] + the CycloneDDS generator. ⛔ Before, these structs
+//   had no generated serialiser (only the loopback tests' fake writers used them) and the first live DdsWriter threw
+//   "does not have a public static GetDescriptorOps()" at boot. The other animation topics stay test-only (CE-3010).
+[DdsTopic("hrot/anim/StanceIntent")]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsStanceIntent
+public partial struct DdsStanceIntent
 {
+    [DdsKey]
     public long EntityId;
     public byte TargetStance;     // StanceId cast to byte
     public byte Pad1;
@@ -68,9 +76,13 @@ internal struct DdsStanceIntent
     public uint Version;
 }
 
+[DdsTopic("hrot/anim/StanceStatus")]
+[DdsIdlFile("hrot-anim-msgs")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
-internal struct DdsStanceStatus
+public partial struct DdsStanceStatus
 {
+    [DdsKey]
     public long EntityId;
     public byte CurrentStance;    // StanceId cast to byte
     public byte Phase;            // StanceTransitionPhase cast to byte
