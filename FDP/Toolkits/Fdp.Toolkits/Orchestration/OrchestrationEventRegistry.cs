@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.Orchestration
 
             // Time Control Intents (Domain)
             bus.RegisterManaged<PauseTimeIntent>();
+            bus.RegisterManaged<SnapTimeIntent>();
             bus.RegisterManaged<ResumeTimeIntent>();
             bus.RegisterManaged<StepTimeIntent>();
             bus.RegisterManaged<SetTimeScaleIntent>();

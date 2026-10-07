@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Time
         /// <inheritdoc />
         public void Resume() => _bus.PublishManaged(new ResumeTimeIntent());
 
+        public void SnapTo(Fdp.Core.GlobalTime position) => _bus.PublishManaged(new SnapTimeIntent { Position = position });
+
         /// <inheritdoc />
         public void StepOneTick() =>
             _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = _fixedStepSeconds });

@@ -158,6 +158,9 @@ namespace Fdp.Toolkit.Time.Controllers
             foreach (var ev in _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>())
                 updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
 
+            // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
+            foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
+                SnapAndPause(ev.Position);
             foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
             foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())

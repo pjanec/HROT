@@ -52,7 +52,7 @@ public sealed class LiveBranchProcessManagerTests
         var masterSync    = MakeMasterSync(masterSyncBus);
         masterSyncBus.SwapBuffers();
 
-        var mgr = new LiveBranchProcessManager(bus, replayModule, masterSync);
+        var mgr = new LiveBranchProcessManager(bus, replayModule, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         // Simulate state: cluster is in OperatingReplay.
         bus.PublishManaged(new ClusterStateTransitionedEvent
@@ -90,7 +90,7 @@ public sealed class LiveBranchProcessManagerTests
         var masterSync    = MakeMasterSync(masterSyncBus);
         masterSyncBus.SwapBuffers();
 
-        var mgr = new LiveBranchProcessManager(bus, replayModule, masterSync);
+        var mgr = new LiveBranchProcessManager(bus, replayModule, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         bus.PublishManaged(new ClusterOpCompletedEvent
         {
@@ -107,6 +107,7 @@ public sealed class LiveBranchProcessManagerTests
 
         Assert.Equal(1, restore[0]);
         // SnapAndPause snaps the master clock to 42 ticks.
+        masterSyncBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(42L, masterSync.GetCurrentState().TotalWallTicks);
     }
 
@@ -125,7 +126,7 @@ public sealed class LiveBranchProcessManagerTests
         var masterSync    = MakeMasterSync(masterSyncBus);
         masterSyncBus.SwapBuffers();
 
-        var mgr = new LiveBranchProcessManager(bus, replayModule, masterSync);
+        var mgr = new LiveBranchProcessManager(bus, replayModule, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
 
         // Simulate state: cluster is in OperatingLive (NOT OperatingReplay).
         bus.PublishManaged(new ClusterStateTransitionedEvent

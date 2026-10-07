@@ -2200,7 +2200,7 @@ namespace Hrot.Editor
                 Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!);
 
             // Register the seek aggregator and process manager so the clock snaps on seek
-            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
+            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeCommands!);
             _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
 
             // Register replay manager and aggregator so duration payload flows through 2PC

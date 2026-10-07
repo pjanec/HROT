@@ -59,7 +59,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
     private MasterSyncController?          _masterSync;
-    private string?                        _lastProcessedTimeMode;
+    private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;   // Q86 §4-C: the core commands the clock through this
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
     internal FdpEventBus? TimeBusForTest => _bus;
@@ -182,6 +182,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _bus, new HashSet<int>(), TimeConfig.Default, startPaused: true);
         
         
+        _timeCommands     = new Fdp.Toolkit.Time.IntentTimeCommands(_bus);   // Q86 §4-C
         _bus.SwapBuffers();
         _timeTranslators  = _networkFactory?.CreateMasterTimeTranslators(_bus, config.NodeId)
                             ?? new NullMasterTimeTranslators();
@@ -214,11 +215,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         contextHandler.LocalTempRoot = isolatedTempRoot;
         contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
         {
-            if (_masterSync == null) return;
             // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the whole cluster to the loaded time and holds it while the
             //   world is rebuilt (was SeedState: this master only, silently). Whether it then runs is the load's
             //   property — GlobalContextProcessManager resumes at OperatingLive unless it asked to start paused (Q86 §4-G).
-            _masterSync.SnapAndPause(new GlobalTime
+            _timeCommands!.SnapTo(new GlobalTime
             {
                 TotalWallTicks    = startTicks,
                 TotalTime         = simTimeSeconds,
@@ -253,11 +253,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         var replayMasterModule = new ReplayMasterModule(
             scale => _masterSync!.SetTimeScale(scale),
             () => _masterSync!.GetTimeScale());
-        _liveBranchProcessManager = new LiveBranchProcessManager(_bus, replayMasterModule, _masterSync);
+        _liveBranchProcessManager = new LiveBranchProcessManager(_bus, replayMasterModule, _timeCommands!);
 
         // TASK-T002: Wire the seek process manager (SnapAndPause + precondition events).
         // Must tick BEFORE ClusterMaster.Tick() so precondition events arrive before the seek fan-out.
-        _seekProcessManager = new ReplaySeekProcessManager(_bus, _masterSync!);
+        _seekProcessManager = new ReplaySeekProcessManager(_bus, _timeCommands!);
 
         // TASK-P002: Wire the asset prefetch process manager.
         // Must tick BEFORE ClusterMaster.Tick() so ExecutePrefetchIntent is consumed and
@@ -326,22 +326,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _mergeWorker?.Tick();
         _clusterSlave?.Tick();
 
-        // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
-        var pendingMode = _clusterMaster?.PendingTimeMode;
-        if (pendingMode != _lastProcessedTimeMode)
-        {
-            if (pendingMode == "Deterministic" && _masterSync != null && _clusterMaster != null)
-            {
-                // Exclude ExCon: it has no simulation kernel and never sends FrameAck.
-                var slaveIds = _clusterMaster.NodeRoster.ActiveNodes
-                    .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-                    .Select(kv => kv.Key)
-                    .ToHashSet();
-                _masterSync.SwitchToDeterministic(slaveIds);
-            }
-            _lastProcessedTimeMode = pendingMode;
-        }
-
         // Phase 4: Local observation.
         // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest state.
         _uiCache?.Update();
@@ -402,7 +386,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _fileDialogService = null;
         _masterSync?.Dispose();
         _masterSync = null;
-        _lastProcessedTimeMode = null;
+        _timeCommands = null;
         _networkFactory = null;
     }
 

@@ -31,5 +31,11 @@ namespace Fdp.Toolkit.Time
 
         /// <summary>Requests a new speed multiplier. Independent of whether time is advancing.</summary>
         void SetTimeScale(float scale);
+
+        /// <summary>
+        /// Requests that simulation time JUMP to <paramref name="position"/> and pause — the one discontinuity (a replay
+        /// seek, a live branch, a scenario load). The caller knows why; the clock only knows where.
+        /// </summary>
+        void SnapTo(Fdp.Core.GlobalTime position);
     }
 }

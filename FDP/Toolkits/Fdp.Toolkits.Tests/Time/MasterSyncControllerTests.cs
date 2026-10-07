@@ -1103,6 +1103,30 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
+        /// ⭐ Q86 §4-C — a snap REQUEST (<see cref="SnapTimeIntent"/>, what <c>ITimeCommands.SnapTo</c> publishes) is applied
+        /// by the clock's own Update, BEFORE a resume in the same frame: "jump to 0, then run" lands in that order.
+        /// </summary>
+        [Fact]
+        public void Q86C_ASnapRequest_IsAppliedBeforeAResumeInTheSameFrame()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            for (int i = 0; i < 5; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }
+            Assert.True(ctrl.GetCurrentState().TotalTime > 3.0);
+
+            var commands = new Fdp.Toolkit.Time.IntentTimeCommands(bus);
+            commands.SnapTo(new GlobalTime { TotalTime = 0.0, TotalWallTicks = ticks });
+            commands.Resume();
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.True(ctrl.GetCurrentState().TotalTime < 0.5, $"ran on from the snapped 0, not the old time ({ctrl.GetCurrentState().TotalTime})");
+        }
+
+        /// <summary>
         /// T14d — After SnapAndPause, calling Update() keeps the controller in Stepping mode.
         /// </summary>
         [Fact]

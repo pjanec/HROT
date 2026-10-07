@@ -147,7 +147,8 @@ public sealed class OrchestratorSubsystemBusTests
                 ScenarioId    = "q86b_" + Guid.NewGuid().ToString("N"),   // no saved context ⇒ the fresh-scenario path: t = 0
                 TimeMode      = GlobalContextProcessManager.StartPausedTimeMode,
             });
-            subsystem.Update(0.016f);
+            subsystem.Update(0.016f);   // the load handler asks for the jump (S3: a SnapTimeIntent)…
+            subsystem.Update(0.016f);   // …which the clock applies on its next Update — one frame, by design (Q86 §4-C)
 
             Assert.Equal(0.0, subsystem.TestHook_CurrentSimTime, 3);
         }

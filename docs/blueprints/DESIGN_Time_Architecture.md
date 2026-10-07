@@ -999,6 +999,8 @@ consistent and do stuff correctly, not avoid something just because no one is us
 | slave roster | always replaced — the live-branch caller passed an EMPTY set *(a `TASK-T001` TODO)*, so post-branch steps stopped waiting for ACKs | `null` KEEPS the current roster; a roster given replaces it |
 | callers | seek (`ReplaySeekProcessManager`), live branch (`LiveBranchProcessManager`), and a use-case wrapper `ResetForLoadedScenario` | ⭐ the same three callers, each saying WHY in its own code: seek, live branch, and the orchestrator's scenario load (`OrchestratorSubsystem` `OnContextLoaded`). ⛔ `ResetForLoadedScenario` DELETED — the clock knows WHERE, never WHY |
 
+⭐ **`2026-10-07` (Q86 S3):** callers outside the clock no longer call it — they ask: `ITimeCommands.SnapTo(GlobalTime)` publishes a `SnapTimeIntent`, which `MasterSyncController.Update` applies FIRST (before pause/resume), one frame after the request. Seek, live branch and the scenario load all go this way.
+
 ⭐ The scenario load now jumps the WHOLE cluster to the loaded time, paused (`CE-122`) — ⛔ it was `SeedState`, which
 re-anchored the master only and told no slave. Rails: `MasterSyncControllerTests.SnapAndPause_AppliesTheWholePosition_AndLeavesTheTimeScale`,
 `…_KeepsTheSlaveRoster_UnlessANewOneIsGiven`. ⚠ The editor still lacks the orchestrator's load handler — owned by the
