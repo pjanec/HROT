@@ -399,6 +399,60 @@ graph TD
 *What it shows:* which host runs which piece each frame. ExCon and IG have no `PickerRegistry` today — S4 adds one;
 ExCon's placement still happens on IG through its existing command. Grey boxes never get the picker.
 
+#### S2 engine half — the birth-height path *(as built, backend `2026-10-07`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class SpawnHeight { <<Fdp.Toolkits NetworkSpawning, NEW>> Mode, Level; Apply(levelZ, sentZ); FromWire(mode, level) }
+    class SpawnHeightMode { <<enum, NEW>> Absolute=0, OnLevel=1, AboveLevel=2 }
+    class EntityCreation { <<Hrot.Common, existing>> RequestEntityCreation(+ spawnHeight NEW) }
+    class EntityCreationRequest { <<Hrot.Core, existing>> + SpawnHeight? NEW }
+    class CreateEntityRequest_topic { <<NED wire, existing>> + byte SpawnHeightMode, short SpawnLevel NEW }
+    class NedEntityCreationRequestEgress { <<existing>> writes the two fields NEW }
+    class SpawnEntityCommandEgressTranslator { <<existing>> writes the two fields NEW }
+    class NedCgfEntityLifecycleAdapters { <<ingress, existing>> FromWire NEW }
+    class CreateEntityRequestSystem { <<Hrot.Common, existing>> copies to parent + TKB children NEW }
+    class SpawnEntityCommand { <<bus event, existing>> + SpawnHeight? NEW }
+    class NetworkSpawningSystem { <<Fdp.Toolkits, existing>> step 8b resolves NEW }
+    class TerrainWorld { <<Fdp.Toolkits, existing>> + SurfacesAt, ResolveLevel NEW }
+    SpawnHeight --> SpawnHeightMode
+    EntityCreation --> EntityCreationRequest : enqueue
+    EntityCreationRequest --> NedEntityCreationRequestEgress : addressed elsewhere
+    NedEntityCreationRequestEgress --> CreateEntityRequest_topic
+    SpawnEntityCommandEgressTranslator --> CreateEntityRequest_topic
+    CreateEntityRequest_topic --> NedCgfEntityLifecycleAdapters
+    NedCgfEntityLifecycleAdapters --> EntityCreationRequest
+    EntityCreationRequest --> CreateEntityRequestSystem : serviced locally
+    CreateEntityRequestSystem --> SpawnEntityCommand : publish
+    SpawnEntityCommand --> NetworkSpawningSystem
+    NetworkSpawningSystem --> TerrainWorld : ResolveLevel
+```
+*What it shows:* there is ONE resolution point (`NetworkSpawningSystem`, after every component override, so a transform
+carried in `InitialComponents` is resolved too) and every route reaches it, including the eleven direct
+`SpawnEntityCommand` publishers, which set the field themselves. `TerrainWorld.ResolveLevel` is the same call the
+placement ghost uses (S2 UI half). Every other `CreateEntityRequest` writer (IG adapter, ExCon writers, translation
+helper) leaves the fields 0 = `Absolute` = today.
+
+```mermaid
+sequenceDiagram
+    participant T as Placement tool (ui, S2)
+    participant C as EntityCreation
+    participant Q as CreateEntityRequestSystem
+    participant N as NetworkSpawningSystem
+    participant W as TerrainWorld
+    T->>C: RequestEntityCreation(type, (x,y,z), spawnHeight: OnLevel 0)
+    C->>Q: EntityCreationRequest { SpawnHeight }
+    Q->>N: SpawnEntityCommand { InitialTransform, SpawnHeight } (parent, then each child)
+    N->>N: apply template, transform, InitialComponents
+    N->>W: ResolveLevel(x, y, 0)
+    W-->>N: GroundZ (levels ascending, merged within 0.3 m)
+    N->>N: Z = SpawnHeight.Apply(levelZ, sentZ), then SetComponent(SimTransform)
+    Note over N: no TerrainWorld singleton, the sent Z stands
+```
+*What it shows:* the resolution happens on the CREATING node only; replicas take the owner's replicated Z, because no
+ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
+
 ## 4. Open questions
 
 1. **"Map symbol entities"** — ⭐ my reading: point symbols placed on the map with no side (the named geopoint `CE-1024`,
@@ -431,6 +485,18 @@ ExCon's placement still happens on IG through its existing command. Grey boxes n
 | palette | `TkbMasterDto.HideFromPalette` (default false) |
 | names | `Hrot.Core.Tkb.DisNameTable` reads the embedded data file `Hrot/Engine/Hrot.Core/Tkb/DisNames.json`; `Path(dis)` = named `Kind › Domain › Country › Category`, 0 levels skipped, unknown numbers read `Category 7` |
 | rails | `TkbDeserializerTests.CE1017_*` (3) · `DisFilterTests.CE1017_DisText_*` · `BdcTkbBuilderVisualTests.CE1017_*` (2) |
+
+### ✅ S2 engine half as built *(backend, `2026-10-07`)* — the UI half (the tool, the ghost) is the ui lane's
+
+| item | as built |
+|---|---|
+| shapes | exactly §2e: `SpawnHeightMode`/`SpawnHeight` in `Fdp.Toolkit.NetworkSpawning` (`FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/SpawnHeight.cs`), `EntityCreationRequest.SpawnHeight`, `SpawnEntityCommand.SpawnHeight`, topic fields `SpawnHeightMode`/`SpawnLevel` (appended last) |
+| the call the tool makes | `EntityCreation.RequestEntityCreation(…, spawnHeight: SpawnHeight.OnGround)` — a new LAST optional parameter, so no caller changes |
+| levels | `TerrainWorld.SurfacesAt(x, y, out groundIndex)` / `ResolveLevel(x, y, level)`: ground is ALWAYS present and ALWAYS level 0; prism roofs and slab/ramp heights at (x, y) add levels; within `LevelMergeDistance` (0.3 m) of the ground ⇒ merged into level 0; any other close cluster stands at its **highest** member (decided while building — the design said only "merge"; the higher surface never puts an entity inside the thicker one) |
+| resolution | `NetworkSpawningSystem` step 8b, AFTER `InitialTransform` and `InitialComponents`; only when the mode is not `Absolute`, the entity has a `SimTransform` and a `TerrainWorld` singleton is resident |
+| ✅ §2e's "to verify" | no replica/ghost ingress sets the field: its only writers are `CreateEntityRequestSystem` (copying the request, both publish sites) and future direct creators. `NedCgfEntityLifecycleAdapters` is the topic's ONLY reader |
+| rails | `TerrainWorldTests.CE1017_*` (2) · `SpawnSystemTests.CE1017_*` (3) · `CreateEntityRequestSystemTests.CE1017_*` (2) · `NedEntityCreationRequestEgressRails.CE1017_*` (wire round trip) · `SpawnEntityCommandEgressTranslatorTests.CE1017_*` · ⭐ integration: `Hrot.SimHost.Integration.Tests` `EntityCreationFlowTests.CE1017_*` (the real SimHost pipeline over a deck; 📌 its first version, inside a SOLID building, showed §2c live — level 0 resolved to the ground and the tank's motion model lifted it to the roof within five ticks) |
+| ⚠ until `CE-1031` | inside a solid building footprint, level 0 places on the ground and a ground vehicle's motion model then lifts it to the roof (§2c) — unchanged here |
 
 **Acceptance (S3):** right-click empty map → *Add Entity ▸ Hostile…* → type `t7` → Enter → Shift+click twice, click
 once ⇒ three hostile T-72s on the ground, facing north, the tool ended; the picker showed `Platform › Land › Tank ›

@@ -132,6 +132,15 @@ public sealed class EntityCreationRequest
     /// still legitimately want peers to ACK it.</para>
     /// </summary>
     public bool IsTransient { get; init; }
+
+    /// <summary>
+    /// ⭐ <c>CE-1017</c> S2 — the birth-height request (level 0 = ground, +n / −n; on or above the level). <c>null</c> ⇒
+    /// <c>Absolute</c>: the sent Z stands, as for every existing caller. Copied by <c>CreateEntityRequestSystem</c> into the
+    /// <c>SpawnEntityCommand</c> of the parent AND each TKB child; resolved by <c>NetworkSpawningSystem</c>.
+    /// Crosses the wire as <c>CreateEntityRequest.SpawnHeightMode</c> / <c>SpawnLevel</c>.
+    /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e.
+    /// </summary>
+    public Fdp.Toolkit.NetworkSpawning.SpawnHeight? SpawnHeight { get; init; }
 }
 
 /// <summary>

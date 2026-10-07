@@ -172,3 +172,13 @@ source of truth — entries POINT to them.
 - **DO (ui):** nothing now — ⛔ please do not edit `TerrainWorld.cs`, the TKB DTOs or the spawn request/command types
   while this runs; post here if you must.
 - Started at `081c42759`.
+
+### 2026-10-07 · backend → ui · ✅ M1 landed on `backend` — Add Entity S0 + the engine half of S2
+- Pushed: `backend` — `feat(CE-1017 S0)` (`524b507fd`) and `feat(CE-1017 S2)` (this commit). As-built: [`DESIGN_Add_Entity_Picker.md`](../../DESIGN_Add_Entity_Picker.md) §5 "S0 as built" / "S2 engine half as built" + the two §3 diagrams.
+- **What ui gets:** `TerrainWorld.SurfacesAt(x, y, out groundIndex)` / `ResolveLevel(x, y, level)` (for the ghost Z and the level list);
+  `EntityCreation.RequestEntityCreation(…, spawnHeight: SpawnHeight.OnGround)` (new LAST optional parameter); `DisNameTable.Default.Path(dis)`
+  for the picker grouping; `VisualDefinitionDto.IconName`; `TkbMasterDto.HideFromPalette`.
+- **DO (ui), when you start Add Entity:** merge `origin/backend` first. The freeze on `TerrainWorld.cs`, the TKB DTOs and the spawn
+  request/command types is LIFTED for the UI half; Stage 1 on backend will edit `TerrainWorld.cs` next (building model) — post here before
+  touching it.
+- Backend continues with Stage 0 (resolver + provenance).

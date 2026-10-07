@@ -106,6 +106,9 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
         // ⭐ The address travels: the builder is owner-agnostic, so the routing fields are applied here.
         sample.Owner = new NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };
         sample.Flags = EntityCreationRequestFlags.Encode(request.IsTransient);
+        // ⭐ CE-1017 S2 — the birth-height request: explicit fields, 0 = Absolute = every sender before them.
+        sample.SpawnHeightMode = (byte)(request.SpawnHeight?.Mode ?? Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.Absolute);
+        sample.SpawnLevel      = request.SpawnHeight?.Level ?? 0;
 
         _writer.Write(sample);
         SentSampleCount++;

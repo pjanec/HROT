@@ -180,6 +180,9 @@ namespace Hrot.Common.EntityCreation
         /// is minted. ⭐ Either way the value actually used is RETURNED.</param>
         /// <param name="reliableInitTimeout">The creator's reliable-init abort timeout (<c>CE-292</c>); <c>null</c> ⇒ the
         /// gateway default. Meaningful only with a waiting <paramref name="initType"/>. (<c>CE-515</c> ③)</param>
+        /// <param name="spawnHeight">⭐ <c>CE-1017</c> S2 — the birth height as a terrain LEVEL (0 = ground, +n / −n; on or
+        /// above it), resolved on the creating node by <c>NetworkSpawningSystem</c>. <c>null</c> ⇒ <paramref name="transform"/>'s
+        /// Z stands. 📄 <c>docs/DESIGN_Add_Entity_Picker.md</c> §2e.</param>
         public Guid RequestEntityCreation(
             long                   tkbType,
             Fdp.Core.SimTransform? transform             = null,
@@ -191,7 +194,8 @@ namespace Hrot.Common.EntityCreation
             bool                   isTransient           = false,
             ulong                  disType               = 0,
             Guid                   requestId             = default,
-            TimeSpan?              reliableInitTimeout   = null)
+            TimeSpan?              reliableInitTimeout   = null,
+            Fdp.Toolkit.NetworkSpawning.SpawnHeight? spawnHeight = null)
         {
             // ⭐ Mint only when the caller did not name its own request. An author that must be told the
             //   outcome supplies one; one that does not care ignores the return value.
@@ -215,6 +219,7 @@ namespace Hrot.Common.EntityCreation
                 InitType              = initType,
                 ReliableInitTimeout   = reliableInitTimeout,   // CE-515 ③
                 IsTransient           = isTransient,
+                SpawnHeight           = spawnHeight,           // CE-1017 S2
                 // ⛔ PreAllocatedNetworkId and ChildComponentOverrides are NOT exposed: one producer
                 //   each, and that producer is the scenario extractor — a TRANSLATOR (§3).
             });

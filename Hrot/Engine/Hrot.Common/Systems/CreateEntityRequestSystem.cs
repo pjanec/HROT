@@ -336,6 +336,7 @@ namespace Hrot.Common.Systems
                         // ⭐⭐ D2 — the throwaway flag rides the ORDER so every receiver derives
                         //   ScenarioIgnoreTag locally at spawn. See EntityCreationRequest.IsTransient.
                         IsTransient       = pending.Request.IsTransient,
+                        SpawnHeight       = pending.Request.SpawnHeight,   // CE-1017 S2 — resolved by NetworkSpawningSystem
                         InitialTransform  = initialTransform,
                         InitialVelocity   = initialVelocity,
                         InitialComponents = fallbackComponents,
@@ -452,6 +453,7 @@ namespace Hrot.Common.Systems
                                 // ⭐ D2 — children INHERIT the parent's transience: a sketch's
                                 //   auto-spawned TKB children are part of the same sketch.
                                 IsTransient       = pending.Request.IsTransient,
+                                SpawnHeight       = pending.Request.SpawnHeight,   // CE-1017 S2 — each child resolves the same level at its own x,y
                                 InitialTransform  = initialTransform, 
                                 InitialVelocity   = initialVelocity,
                                 InitialComponents = childComponents.Count > 0 ? childComponents : null,

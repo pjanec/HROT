@@ -405,5 +405,67 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             Assert.True(networkMap.TryGetEntity(95L, out var entity));
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  ⭐ CE-1017 S2 — the birth-height request (docs/DESIGN_Add_Entity_Picker.md §2e)
+        // ─────────────────────────────────────────────────────────────────────
+
+        // A 12 m building at (40..90, 40..90) on flat ground at Z 0.
+        private const string LevelWorld = """
+        {
+          "type": "FeatureCollection",
+          "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+          "features": [
+            { "type": "Feature", "properties": { "kind": "building", "height": 12, "floors": 3 },
+              "geometry": { "type": "Polygon", "coordinates": [[[40,40],[90,40],[90,90],[40,90],[40,40]]] } }
+          ]
+        }
+        """;
+
+        /// <summary>Spawns one entity at (x, y, sentZ) with <paramref name="height"/> and returns its born Z.</summary>
+        private static float BornZ(float x, float y, float sentZ, SpawnHeight? height, bool withTerrain = true)
+        {
+            var repo = CreateWorld();
+            repo.RegisterComponent<SimTransform>();
+            if (withTerrain) repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(LevelWorld));
+            var tkb = CreateTkb();
+            var map = new NetworkEntityMap();
+            var system = CreateSystem(repo, map, new StubIdAllocator(), tkb, CreateElm(tkb));
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId        = 7001L,
+                TkbType          = DefaultTkbType,
+                OwnerNodeId      = LocalNodeId,
+                InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
+                SpawnHeight      = height,
+            });
+            Assert.True(map.TryGetEntity(7001L, out var e));
+            return repo.GetComponent<SimTransform>(e).Position.Z;
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_OnLevel_ReplacesTheSentZ_Level0IsTheGroundEvenInsideABuilding()
+        {
+            Assert.Equal(0f,  BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 0)));   // 🔒 rev 5: ground, not the roof
+            Assert.Equal(12f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 1)));   // the roof is an explicit +1
+            Assert.Equal(12f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, 9)));   // past the top ⇒ the highest
+            Assert.Equal(0f,  BornZ(10, 10, 50f, new SpawnHeight(SpawnHeightMode.OnLevel, -1)));  // past the bottom ⇒ the lowest
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_AboveLevel_AddsTheSentZ_ParachutistAndSubmarine()
+        {
+            Assert.Equal(800f, BornZ(10, 10, 800f, new SpawnHeight(SpawnHeightMode.AboveLevel, 0)));
+            Assert.Equal(-50f, BornZ(10, 10, -50f, new SpawnHeight(SpawnHeightMode.AboveLevel, 0)));
+            Assert.Equal(15f,  BornZ(60, 60, 3f,   new SpawnHeight(SpawnHeightMode.AboveLevel, 1)));   // 3 m above the roof
+        }
+
+        [Fact]
+        public void CE1017_SpawnHeight_AbsentAbsoluteOrNoTerrain_KeepsTheSentZ()
+        {
+            Assert.Equal(50f, BornZ(60, 60, 50f, null));                                                   // every caller before CE-1017
+            Assert.Equal(50f, BornZ(60, 60, 50f, new SpawnHeight(SpawnHeightMode.Absolute, 1)));
+            Assert.Equal(50f, BornZ(60, 60, 50f, SpawnHeight.OnGround, withTerrain: false));               // no terrain resident
+        }
     }
 }

@@ -190,6 +190,17 @@ namespace Hrot.NED.Messages
         /// </summary>
         [DdsManaged]
         public List<AttributeRecord>? InitialAttributeRecords;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the birth-height mode (<c>Fdp.Toolkit.NetworkSpawning.SpawnHeightMode</c>):
+        /// 0 = Absolute (the <c>dtWorldPos</c> altitude stands — every sender before this field), 1 = OnLevel
+        /// (altitude ignored), 2 = AboveLevel (altitude is the height above the level).
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e — explicit fields rather than bits in <see cref="Flags"/> (user).
+        /// </summary>
+        public byte SpawnHeightMode;
+
+        /// <summary>⭐ <c>CE-1017</c> S2 — the terrain level when <see cref="SpawnHeightMode"/> ≠ 0: 0 = ground, +n above, −n below.</summary>
+        public short SpawnLevel;
     }
 
     // Request to delete an entity; issued by non-owning nodes.

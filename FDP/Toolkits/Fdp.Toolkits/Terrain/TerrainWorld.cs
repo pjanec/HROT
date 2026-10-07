@@ -129,6 +129,80 @@ namespace Fdp.Toolkit.Terrain
             return float.IsPositiveInfinity(lowest) ? GroundZ : lowest;
         }
 
+        /// <summary>Surfaces closer than this merge into one LEVEL (a ramp foot meeting the ground is not a second level).</summary>
+        public const float LevelMergeDistance = 0.3f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the LEVELS at (<paramref name="x"/>, <paramref name="y"/>): every surface there, ascending,
+        /// merged within <see cref="LevelMergeDistance"/>. 🔒 Level 0 is ALWAYS <see cref="GroundZ"/> — in the open AND inside
+        /// a building footprint (the roof is an explicit +n); <paramref name="groundIndex"/> is its index in the result, so
+        /// level <c>n</c> is <c>result[groundIndex + n]</c>. A surface within the merge distance of the ground merges INTO
+        /// level 0; any other cluster stands at its HIGHEST member (so an entity never lands inside the thicker one).
+        /// 📄 docs/DESIGN_Add_Entity_Picker.md §2b–§2c (D6b rev 4/5).
+        /// </summary>
+        public float[] SurfacesAt(float x, float y, out int groundIndex)
+        {
+            var p = new Vector2(x, y);
+            var below = new List<float>();
+            var above = new List<float>();
+            void Add(float z)
+            {
+                if (z < GroundZ - LevelMergeDistance) below.Add(z);
+                else if (z > GroundZ + LevelMergeDistance) above.Add(z);
+                // else: merges into the ground level
+            }
+
+            foreach (var prism in Prisms)
+                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) Add(prism.TopZ);
+
+            foreach (var w in Walkables)
+            {
+                if (!InBox(p, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    float? z = PolygonMath.HeightOnTriangle(x, y,
+                        w.Vertices[w.Triangles[t]], w.Vertices[w.Triangles[t + 1]], w.Vertices[w.Triangles[t + 2]]);
+                    if (z.HasValue) { Add(z.Value); break; }
+                }
+            }
+
+            var levels = new List<float>(below.Count + above.Count + 1);
+            MergeAscending(below, levels);
+            groundIndex = levels.Count;
+            levels.Add(GroundZ);
+            MergeAscending(above, levels);
+            return levels.ToArray();
+        }
+
+        /// <inheritdoc cref="SurfacesAt(float, float, out int)"/>
+        public float[] SurfacesAt(float x, float y) => SurfacesAt(x, y, out _);
+
+        /// <summary>
+        /// ⭐ <c>CE-1017</c> S2 — the Z of <paramref name="level"/> at (<paramref name="x"/>, <paramref name="y"/>): 0 = the
+        /// ground, +n = the n-th level above, −n = the n-th below; past the top ⇒ the HIGHEST, past the bottom ⇒ the LOWEST.
+        /// The one function the creating node, the placement ghost and "move to level" share.
+        /// </summary>
+        public float ResolveLevel(float x, float y, int level)
+        {
+            var levels = SurfacesAt(x, y, out int ground);
+            long i = (long)ground + level;
+            if (i < 0) i = 0;
+            if (i >= levels.Length) i = levels.Length - 1;
+            return levels[i];
+        }
+
+        private static void MergeAscending(List<float> zs, List<float> into)
+        {
+            zs.Sort();
+            int start = 0;
+            for (int i = 1; i <= zs.Count; i++)
+            {
+                if (i < zs.Count && zs[i] - zs[start] <= LevelMergeDistance) continue;
+                if (i > start) into.Add(zs[i - 1]);   // the cluster's highest member
+                start = i;
+            }
+        }
+
         /// <summary>
         /// ⭐ True when the straight sight line <paramref name="from"/>→<paramref name="to"/> is blocked by the
         /// terrain: a prism it passes through within the prism's height, a slab/ramp it crosses, or the ground

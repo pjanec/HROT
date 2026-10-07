@@ -241,5 +241,53 @@ namespace Fdp.Toolkit.Terrain.Tests
                 if (Directory.Exists(b)) Directory.Delete(b, true);
             }
         }
+
+        // ── ⭐ CE-1017 S2 — terrain LEVELS (docs/DESIGN_Add_Entity_Picker.md §2b–§2c) ─────────────────────
+
+        [Fact]
+        public void CE1017_SurfacesAt_GroundIsLevel0_EvenInsideABuilding_RoofAndDeckAbove_RampFootMerges()
+        {
+            var w = Parse();
+            Assert.Equal(new[] { 0f }, w.SurfacesAt(10, 10, out int g0));            // open ground
+            Assert.Equal(0, g0);
+            Assert.Equal(new[] { 0f, 12f }, w.SurfacesAt(60, 60, out int g1));       // 🔒 rev 5: ground stays level 0 inside
+            Assert.Equal(0, g1);
+            Assert.Equal(new[] { 0f, 3f }, w.SurfacesAt(120, 20));                   // under/on the garage deck
+            Assert.Equal(new[] { 0f }, w.SurfacesAt(90.5f, 5));                      // ramp foot (z 0.15) merges into the ground
+
+            Assert.Equal(0f,  w.ResolveLevel(60, 60, 0));
+            Assert.Equal(12f, w.ResolveLevel(60, 60, 1));
+            Assert.Equal(12f, w.ResolveLevel(60, 60, 99));                           // past the top ⇒ the highest
+            Assert.Equal(0f,  w.ResolveLevel(60, 60, -3));                           // past the bottom ⇒ the lowest
+        }
+
+        [Fact]
+        public void CE1017_SurfacesAt_BasementIsMinus1_CloseSurfacesMergeToTheHigher()
+        {
+            // three slabs over one square: a basement at -3, a deck at 3 and a second skin at 3.2 (within 0.3 m ⇒ one level)
+            var w = TerrainWorldParser.Parse("""
+            {
+              "type": "FeatureCollection",
+              "hrot": { "schemaVersion": 1, "bounds": [0, 0, 20, 20], "groundZ": 0 },
+              "features": [
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,-3],[10,0,-3],[10,10,-3],[0,10,-3],[0,0,-3]]] } },
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,3],[10,0,3],[10,10,3],[0,10,3],[0,0,3]]] } },
+                { "type": "Feature", "properties": { "kind": "slab" },
+                  "geometry": { "type": "Polygon", "coordinates": [[[0,0,3.2],[10,0,3.2],[10,10,3.2],[0,10,3.2],[0,0,3.2]]] } }
+              ]
+            }
+            """);
+            var levels = w.SurfacesAt(5, 5, out int ground);
+            Assert.Equal(1, ground);
+            Assert.Equal(3, levels.Length);
+            Assert.Equal(-3f, levels[0]);
+            Assert.Equal(0f, levels[1]);
+            Assert.Equal(3.2f, levels[2], 3);
+            Assert.Equal(-3f, w.ResolveLevel(5, 5, -1));
+            Assert.Equal(-3f, w.ResolveLevel(5, 5, -7));
+            Assert.Equal(3.2f, w.ResolveLevel(5, 5, 1), 3);
+        }
     }
 }

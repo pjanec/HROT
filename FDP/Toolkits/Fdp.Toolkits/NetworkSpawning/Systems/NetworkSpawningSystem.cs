@@ -208,6 +208,21 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);
 
+            // 8b. ⭐ CE-1017 S2 — the birth-height request: replace the sent Z with the requested terrain level, AFTER every
+            //   override so it wins over a transform carried in InitialComponents too. No terrain resident ⇒ the sent Z
+            //   stands. 📄 docs/DESIGN_Add_Entity_Picker.md §2e (resolved here, not in CreateEntityRequestSystem: eleven
+            //   direct publishers bypass that system).
+            if (cmd.SpawnHeight is { Mode: not SpawnHeightMode.Absolute } height
+                && world.HasComponent<SimTransform>(entity)
+                && world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                && world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } terrain)
+            {
+                var xf = world.GetComponent<SimTransform>(entity);
+                float levelZ = terrain.ResolveLevel(xf.Position.X, xf.Position.Y, height.Level);
+                xf.Position.Z = height.Apply(levelZ, xf.Position.Z);
+                world.SetComponent(entity, xf);
+            }
+
             bool isLocalAuthority = cmd.OwnerNodeId == _localNodeId;
             if (isLocalAuthority)
             {
