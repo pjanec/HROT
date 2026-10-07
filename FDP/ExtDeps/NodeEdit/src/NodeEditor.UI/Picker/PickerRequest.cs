@@ -48,4 +48,12 @@ public sealed class PickerRequest
 
     /// <summary>Optional category tree for Wide/Tree layouts. Null = built from Category strings.</summary>
     public CategoryNode? CategoryRoot { get; init; }
+
+    /// <summary>Tree layout: merge a folder whose only content is one sub-folder into a single row
+    /// ("Platform › Land › Tank"). Default off, so existing pickers are unchanged.</summary>
+    public bool FoldSingleChildFolders { get; init; }
+
+    /// <summary>Tree layout: show a preview pane under the tree for the focused entry — a large icon
+    /// (its <see cref="PickerEntry.IconKey"/>), the name, the category and the description.</summary>
+    public bool ShowPreview { get; init; }
 }

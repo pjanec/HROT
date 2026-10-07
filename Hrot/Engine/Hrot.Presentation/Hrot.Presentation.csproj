@@ -33,6 +33,8 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <!-- CE-1017 S1: the Add Entity picker (PickerRegistry / PickerEntry) — docs/DESIGN_Add_Entity_Picker.md D3 -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <!-- GZ057/GZ058: source generator for [GizmoProjector] attribute -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

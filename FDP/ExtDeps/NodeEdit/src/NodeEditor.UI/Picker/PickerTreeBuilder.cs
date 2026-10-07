@@ -18,7 +18,8 @@ internal static class PickerTreeBuilder
     /// each item supplies its filtered index, Category (nullable), and Name.
     /// Folders are created only for categories that actually contain leaves (so empty/filtered-out
     /// folders are absent). Uncategorized entries become leaves directly under the root.</summary>
-    public static Node Build(IReadOnlyList<(int FilteredIndex, string? Category, string Name)> items)
+    public static Node Build(IReadOnlyList<(int FilteredIndex, string? Category, string Name)> items,
+                             bool foldSingleChildFolders = false)
     {
         var root = new Node { Name = "" };
 
@@ -89,7 +90,33 @@ internal static class PickerTreeBuilder
         // Sort folders at every level (OrdinalIgnoreCase).
         SortFoldersRecursive(root);
 
+        if (foldSingleChildFolders)
+            FoldRecursive(root);
+
         return root;
+    }
+
+    /// <summary>Separator shown between the segments of a folded folder row ("Platform › Land").</summary>
+    public const string FoldSeparator = " › ";
+
+    /// <summary>CE-1017: a folder whose only content is one sub-folder merges with it into ONE row
+    /// (e.g. "Platform › Land › Russia" when nothing else sits on that chain), so a sparse catalog is
+    /// not a ladder of one-item folders. The merged row keeps the DEEPEST folder's
+    /// <see cref="Node.FullPath"/>, so reveal and open-state keys still name a real category.</summary>
+    private static void FoldRecursive(Node node)
+    {
+        for (int i = 0; i < node.Folders.Count; i++)
+        {
+            var folder = node.Folders[i];
+            while (folder.Leaves.Count == 0 && folder.Folders.Count == 1)
+            {
+                var only = folder.Folders[0];
+                only.Name = folder.Name + FoldSeparator + only.Name;
+                folder = only;
+            }
+            node.Folders[i] = folder;
+            FoldRecursive(folder);
+        }
     }
 
     private static void SortFoldersRecursive(Node node)
