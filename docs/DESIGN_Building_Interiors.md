@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07
-build-state: DESIGN (target state + change map; leans in §3 await the user)
-current-answer: §3 decisions · §4 change map · §6 slices
-stale-below: nothing
+updated: 2026-10-07 (rev 2 — templates, generic building, per-purpose solvers, door mechanics; §3a)
+build-state: DESIGN (leans in §3a await the user)
+current-answer: §3a (rev 2) wins over §3 where they differ · §4 change map · §6 slices
+stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
@@ -97,6 +97,133 @@ parse-time macro, not a runtime type.
 | **B8** | 2D map | ⭐ a **storey selector** on the map (and "follow the selected entity's storey"): walls and openings of that storey drawn, other storeys faint, roofs off when inside | draw all storeys at once — unreadable |
 | **B9** | Stride 3D | ⭐ **in this programme**: Stride generates building geometry and colliders from the same `TerrainWorld` (AQ81 T8) — otherwise the 3D view shows solid blocks while the sim walks inside | keep Stride's hand-made scene — the two worlds disagree exactly where interiors matter |
 
+## 3a. Rev 2 — the user's answers *(`2026-10-07`)*
+
+> 🔒 **User:** *"Stride will later build its terrain from our file, part of programme, but out of scope now. What kind
+> of shortcut in terrain file you mean? Position of doors and windows — will they be in the terrain, how? Special side
+> file for building templates? We need buildings with inner walls as well. Solid building is just special case of a
+> generic building. One query for all, but possibly different solver implementation (sound does not travel just
+> straight). Door opening action needed. How the closed door will block the pathfinding? Can closed doors be treated as
+> obstacle while navmesh is always for all doors opened?"*
+
+### The building file model — templates in a side file, instances in the terrain *(supersedes B1, B7)*
+
+```mermaid
+classDiagram
+    direction LR
+    class BuildingTemplate { <<side file, NEW>> name; storeys[]; roof; solid? }
+    class Storey { height; walls[]; floor? ; stairs[] }
+    class Wall { from xy; to xy; thickness; openings[] }
+    class Opening { kind Door/Window/Gap; at m along wall; width; sillZ; headZ; doorId? ; initial Open/Closed/Locked }
+    class Stairs { from xy; to xy; width; fromStorey; toStorey }
+    class BuildingInstance { <<terrain world file feature>> template; position; rotation; baseZ; label; door overrides }
+    class TerrainBuilding { <<runtime, NEW>> instance + template, world coordinates; storeyZ[] }
+    BuildingTemplate *-- Storey
+    Storey *-- Wall
+    Storey *-- Stairs
+    Wall *-- Opening
+    BuildingInstance --> BuildingTemplate : by name
+    BuildingInstance ..> TerrainBuilding : parsed and placed
+    TerrainBuilding ..> TerrainWallPanel : walls, outer AND inner
+    TerrainBuilding ..> TerrainWalkable : floor slab per storey, stairs as ramps, roof
+    TerrainBuilding ..> TerrainDoor : one per doorId
+```
+*What it shows:* the "shortcut" is the **instance**: one line in the terrain file names a template and where it stands;
+the template carries every wall, door and window in its own local coordinates. The runtime keeps the building
+(for room/portal queries) and also its expanded primitives (for every existing consumer).
+
+| ⭐ lean | |
+|---|---|
+| **Template = a side file** `<name>.building.json`, looked up like terrains: the terrain's own `buildings/` folder first, then the shared `Recipes/Buildings/` library | a house type used 20 times is described once |
+| **Template coordinates are local** (metres, origin at the template's anchor); the instance gives `position`, `rotation`, `baseZ` | moving or rotating a building moves its doors and windows with it |
+| **Doors and windows live on their wall**: `at` = metres along the wall from its `from` end, `width`, `sillZ`/`headZ` above that storey's floor; a door may carry a `doorId` and an initial state | a wall knows its openings; no separate geometry to keep aligned |
+| **Inner walls are just walls** in the storey's list — no outer/inner distinction in the data; a room is whatever the walls enclose | |
+| **🔒 Solid is the special case**: a template (or inline building) with `"solid": true` and no storeys is today's prism; today's `{"kind":"building","height":12}` polygon still parses as exactly that | `test-town` keeps working unchanged |
+| **Inline variant** for a one-off: the same template JSON inside the instance's `properties` | no side file for a unique building |
+| **Door ids are instance-qualified at load**: `"Block D/front"` | stable across loads → a stable door entity id |
+| ⛔ dropped: rev-1 B7 facade rules | explicit openings are clearer; a template is written once, so the cost of explicitness is paid once |
+
+Example — a template and an instance:
+
+```jsonc
+// Recipes/Buildings/house-2f.building.json
+{ "name": "house-2f",
+  "storeys": [
+    { "height": 3.0,
+      "walls": [
+        { "from": [0,0],  "to": [10,0], "thickness": 0.3,
+          "openings": [ { "kind": "door",   "at": 4.5, "width": 1.0, "sillZ": 0.0, "headZ": 2.1, "doorId": "front", "initial": "closed" },
+                        { "kind": "window", "at": 1.5, "width": 1.2, "sillZ": 0.9, "headZ": 2.1 } ] },
+        { "from": [10,0], "to": [10,8], "thickness": 0.3 },
+        { "from": [10,8], "to": [0,8],  "thickness": 0.3 },
+        { "from": [0,8],  "to": [0,0],  "thickness": 0.3 },
+        { "from": [5,0],  "to": [5,8],  "thickness": 0.15,
+          "openings": [ { "kind": "door", "at": 6.0, "width": 0.9, "sillZ": 0.0, "headZ": 2.1, "doorId": "hall" } ] } ],
+      "stairs": [ { "from": [8,1], "to": [8,6], "width": 1.0, "toStorey": 1 } ] },
+    { "height": 3.0, "walls": [ "…" ] } ],
+  "roof": "flat" }
+```
+```jsonc
+// test-town.world.geojson — one feature
+{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [150, 120] },
+  "properties": { "kind": "building", "template": "house-2f", "rotation": 90, "baseZ": 0, "label": "Block D",
+                  "doors": { "front": "locked" } } }
+```
+
+### One query, a solver per purpose *(supersedes B3/B4 wording)*
+
+| ⭐ lean | |
+|---|---|
+| **One API**: `ITerrainPropagation.Query(from, to, Purpose) → { transmittance 0..1, path length, crossed[] }` | callers ask one question; the answer's meaning is per purpose |
+| **Sight solver**: straight trace; openings 1.0; closed door = its panel; window glass per opening | straight is right for light |
+| **Fire solver**: straight trace; walls stop; openings pass; penetration later (AQ85 §D) | |
+| **Sound solver**: ⭐ v1 straight trace with attenuation per crossed wall/floor (less through openings); ⭐ v2 **portal propagation** — shortest route from room to room **through openings** (rooms derived from the walls at load), attenuated by distance and by each closed door | sound bends around corners and through doors; the room/portal graph is why the runtime keeps `TerrainBuilding`, not just flattened panels |
+
+### Doors — state, action, and how a closed door blocks paths *(supersedes B5/B6)*
+
+🔒 **Yes: the navmesh is always baked with every door OPEN, and a closed door acts as an obstacle at runtime — no
+rebake.** Measured: the referenced DotRecast (2026.1.3) has `RcConvexVolume`/`MarkConvexPolyArea` (bake), and
+`DtNavMesh.SetPolyFlags` + `DtQueryDefaultFilter.SetIncludeFlags/SetExcludeFlags` (runtime); no TileCache package is
+referenced.
+
+```mermaid
+sequenceDiagram
+    participant L as Terrain load
+    participant B as Navmesh bake
+    participant D as Door entity
+    participant N as Navigation node
+    participant A as Agent brain
+    L->>B: walls with all doorways open + one convex volume per doorway
+    B->>B: MarkConvexPolyArea: each doorway becomes its own polygons, area = Door
+    B-->>N: navmesh + doorId to polygon refs
+    D-->>N: DoorState Closed (replicated)
+    N->>N: SetPolyFlags(door polys, Closed)
+    A->>N: plan path
+    N->>N: filter: Locked excluded, Closed passable with cost if agent can open doors, else excluded
+    N-->>A: path with a Door waypoint
+    A->>D: OpenDoor action at the waypoint (animation time)
+    D-->>N: DoorState Open, SetPolyFlags(Open)
+    N->>N: a path crossing a door that just closed or locked is replanned
+```
+*What it shows:* the door is geometry at bake time (its own polygons) and a flag at run time; the same replicated
+`DoorState` drives the path filter, the sight/fire trace (closed = opaque panel) and the sound solver.
+
+| ⭐ lean | |
+|---|---|
+| **Door = an entity** (TKB `Door`), created ONCE in the cluster at terrain load by the arbiter, with a **deterministic network id** from terrain name + qualified door id (`DESIGN_Deterministic_Network_Ids.md`) | every node can address the same door; its state replicates |
+| **`DoorState`**: Open / Closed / Locked / Destroyed; initial value from the template, overridable per instance, overridable per scenario | |
+| **Actions**: `OpenDoor`, `CloseDoor`, `Lock`/`Unlock`, `Breach` — behaviour actions executed by the door's owner; the actor needs to be adjacent; opening takes animation time | |
+| **Path filter per agent**: Locked → excluded (unless the agent can breach: high cost + `Breach` waypoint); Closed → passable at a cost with a `TraversalKind.Door` waypoint for agents that can open doors; excluded for vehicles/animals | |
+| **Every navigation node applies the same flags** from the replicated `DoorState`, so all nodes plan alike | |
+| ⛔ rejected: TileCache obstacles | needs a tiled navmesh + the TileCache package, rebuilds tiles, and gives a wall, not a door with semantics |
+| ⛔ rejected: rebake per door change | seconds per change |
+| ⛔ rejected: off-mesh link per door | Recast already carves the doorway; a link is a second representation |
+
+### Stride *(supersedes B9)*
+
+🔒 **Out of scope now**; part of the programme later — Stride will build its terrain from this file (AQ81 T8). Slice
+B-7 is parked.
+
 ## 4. Change map — what each consumer must do
 
 ```mermaid
@@ -155,12 +282,12 @@ two genuinely new runtime pieces are the transmittance trace and the door entiti
 
 | slice | content | depends |
 |---|---|---|
-| **B-0 model** | format + parser macro, `TerrainWallPanel`/openings, `SurfaceZ` fix, `SurfacesAt`; one enterable building in `test-town` | — |
+| **B-0 model** | building templates (side files) + instances, solid as the special case, `TerrainBuilding` + panels/openings, `SurfaceZ` fix, `SurfacesAt`; one two-storey building with inner walls in `test-town` | — |
 | **B-1 walk inside** | navmesh with doorways, floors, stairs; path into an upper storey (static open doors) | B-0 |
 | **B-2 see and shoot** | `Trace` with transmittance; sight through windows/doorways; bullets vs terrain (with AQ85 §D) | B-0 |
 | **B-3 tactics** | cover per storey, window firing positions, interior EQS sampling | B-2 |
 | **B-4 map** | storey selector, panels + openings on the 2D map | B-0 |
-| **B-5 doors** | door entities, `DoorState`, navmesh door area + filter, `TraversalKind.Door` | B-1 |
-| **B-6 sound** | hearing attenuation | B-2 |
-| **B-7 Stride** | geometry + colliders + navmesh from `TerrainWorld` | B-1 |
+| **B-5 doors** | door entities (arbiter, deterministic ids), `DoorState`, doorway convex volumes at bake, `SetPolyFlags` + per-agent filter, `OpenDoor`/`Close`/`Lock`/`Breach` actions, replan on change | B-1 |
+| **B-6 sound** | sound solver: v1 straight with per-wall attenuation; v2 room/portal propagation | B-2 |
+| **B-7 Stride** | ⛔ **parked** (🔒 out of scope now) — geometry + colliders + navmesh from `TerrainWorld` | B-1 |
 | **B-8 room entry** | Squad §8.6 on real geometry | B-1, B-3, B-5 |
