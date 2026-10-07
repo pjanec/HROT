@@ -341,7 +341,10 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
             if (!CombatLife.IsAlive(world, targetEntity))   // CE-466: knocked out (Health <= 0) or gone
+            {
+                ClearWeaponActionIfActive(self, world);       // ⭐ CE-2119: and stop firing at the wreck (was left Running)
                 return NodeStatus.Success;
+            }
 
             if (world.HasComponent<LocomotionChannel>(self))
             {
