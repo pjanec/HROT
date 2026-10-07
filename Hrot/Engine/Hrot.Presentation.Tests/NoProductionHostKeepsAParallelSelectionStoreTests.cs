@@ -531,6 +531,42 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
             }
         }
 
+        // ⭐ Since the map unification every host builds its layer through ONE shared factory,
+        //   MapInteractionPack.BuildRenderLayer(buffer, bus, camera, world) — the constructor scan above
+        //   then sees only the factory itself. So each factory call site counts as a construction too,
+        //   and offends when its camera argument (the third) is a literal null.
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                var text = File.ReadAllText(file);
+                const string call = "MapInteractionPack.BuildRenderLayer(";
+                int idx = text.IndexOf(call, StringComparison.Ordinal);
+                while (idx >= 0)
+                {
+                    int open = idx + call.Length - 1, depth = 0, end = open;
+                    for (; end < text.Length; end++)
+                    {
+                        if (text[end] == '(') depth++;
+                        else if (text[end] == ')') { depth--; if (depth == 0) break; }
+                    }
+                    if (end >= text.Length) break;
+                    var args = text.Substring(open + 1, end - open - 1).Split(',');
+                    sites++;
+                    if (args.Length < 3 || args[2].Trim() is "null" or "default")
+                    {
+                        int line = 1;
+                        for (int i = 0; i < idx; i++) if (text[i] == '\n') line++;
+                        offenders.Add($"{Path.GetRelativePath(root, file)}:{line}");
+                    }
+                    idx = text.IndexOf(call, end, StringComparison.Ordinal);
+                }
+            }
+        }
+
         // ⚠ Anti-vacuity: if the scan matches nothing the assertion below is meaningless.
         Assert.True(sites >= 3,
             $"expected to find production DebugGizmoLayer constructions; found {sites}");

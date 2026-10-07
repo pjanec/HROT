@@ -241,7 +241,8 @@ namespace Hrot.UI.Common.Adapters
                             TkbType               = cmd.TkbType,
                             DisType               = cmd.DisType,
                             InitialComponents     = cmd.InitialComponents,
-                            InitialAttributesJson = cmd.InitialAttributesJson
+                            InitialAttributesJson = cmd.InitialAttributesJson,
+                            SpawnHeight           = cmd.SpawnHeight,   // CE-1017 S2 — the creator resolves the level
                         });
                     }
                     else
@@ -251,8 +252,12 @@ namespace Hrot.UI.Common.Adapters
                 },
                 tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,
-                autoPopOnPlace:        true,
-                onRemove:              () => _globalGizmoManager!.Unregister(id));
+                // ⭐ CE-1017 S2 (D5 rev 3, approved): ALWAYS MULTI for physical entities — each click places,
+                //   right-click / Esc ends. (Areas, routes and zones keep their own single-shot tools.)
+                autoPopOnPlace:        false,
+                onRemove:              () => _globalGizmoManager!.Unregister(id),
+                displayName:           _tkbDb != null && _tkbDb.TryGetByType(tkbType, out var shown)
+                                            && !string.IsNullOrWhiteSpace(shown.Name) ? shown.Name : null);
             _globalGizmoManager!.Register(id, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
         }
