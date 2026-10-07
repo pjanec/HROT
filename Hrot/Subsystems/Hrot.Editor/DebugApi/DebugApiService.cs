@@ -2199,6 +2199,15 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public JsonNode GetWorldInfo() => WorldInfoReport.Build(_world, GeoTransform.Origin);
 
+        /// <summary>GET /terrain/levels — ⭐ buildings Stage 1: the terrain levels at a point (ground = 0).</summary>
+        public JsonNode GetTerrainLevels(float x, float y) => TerrainReport.Levels(_world, x, y);
+
+        /// <summary>GET /terrain/query — ⭐ buildings Stage 1: a sight trace with every crossed occluder (dry run).</summary>
+        public JsonNode QueryTerrain(System.Numerics.Vector3 from, System.Numerics.Vector3 to) => TerrainReport.Query(_world, from, to);
+
+        /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
+        public JsonNode GetDoors() => TerrainReport.Doors(_world);
+
         /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
         public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)
         {

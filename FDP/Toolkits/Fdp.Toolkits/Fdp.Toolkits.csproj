@@ -91,6 +91,11 @@
 
 
   <ItemGroup>
+    <!-- Buildings programme Stage 1 — the shared terrain material library (data, not code). -->
+    <EmbeddedResource Include="Terrain\Data\materials.json" LogicalName="Fdp.Toolkit.Terrain.materials.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- ⭐⭐ CE-2032 — the ONE compound action-key spelling ({fqn}@{offset}[@{slotKey}]), linked like its Hrot users
          (Hrot.AiEditor.Persistence, Hrot.Blueprints.Compiler): the runtime SharedNodeBinder REGISTERS under the very name the
          emit cores BAKE, so the two must not be spelled twice. User ruling 2026-09-28: "must be shared". -->

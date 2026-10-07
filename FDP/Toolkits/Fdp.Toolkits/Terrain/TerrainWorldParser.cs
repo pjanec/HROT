@@ -37,8 +37,17 @@ namespace Fdp.Toolkit.Terrain
         public static TerrainWorld Parse(string geojson) => Parse(geojson, name: null);
 
         /// <summary>Parses <paramref name="geojson"/> and stamps the terrain's catalog <paramref name="name"/> on it.</summary>
-        public static TerrainWorld Parse(string geojson, string? name)
+        public static TerrainWorld Parse(string geojson, string? name) => Parse(geojson, name, assets: null);
+
+        /// <summary>
+        /// ⭐ Stage 1 — as above, with the side files a world may reference: building templates and the material library
+        /// (<see cref="TerrainAssets.ForFolder"/> for a terrain folder). <c>null</c> ⇒ the shared materials and no templates
+        /// (a world that places a template then fails loudly, naming it).
+        /// </summary>
+        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets)
         {
+            assets ??= TerrainAssets.None;
+            var materials = assets.Materials;
             if (string.IsNullOrWhiteSpace(geojson))
                 throw new ArgumentException("Terrain world file is empty.", nameof(geojson));
 
@@ -61,8 +70,9 @@ namespace Fdp.Toolkit.Terrain
 
             float groundZ = meta?["groundZ"] is JsonNode gz ? ReadFloat(gz, "hrot.groundZ") : 0f;
 
-            var prisms = new List<TerrainPrism>();
-            var walkables = new List<TerrainWalkable>();
+            var sink = new TerrainBuildingExpander.Sink();
+            var prisms = sink.Prisms;
+            var walkables = sink.Walkables;
             var surfaces = new List<TerrainSurface>();
 
             if (obj["features"] is not JsonArray features)
@@ -87,27 +97,68 @@ namespace Fdp.Toolkit.Terrain
 
                 switch (kind)
                 {
+                    case "building" when geomType == "Point":
+                    {
+                        // ⭐ Stage 1 — an INSTANCE of a building template (§3a): the template by name (side file) or inline.
+                        var pos = ReadPositions(new JsonArray(geometry["coordinates"]?.DeepClone()), where);
+                        string? templateName = (string?)props["template"];
+                        JsonObject template = props["building"] is JsonObject inline
+                            ? inline
+                            : templateName != null
+                                ? assets.LoadTemplate(templateName, where)
+                                : throw new ArgumentException($"Terrain world {where}: a Point building needs 'template' or an inline 'building'.");
+                        var overrides = new Dictionary<string, TerrainDoorState>(StringComparer.Ordinal);
+                        if (props["doors"] is JsonObject doors)
+                            foreach (var (id, st) in doors)
+                                overrides[id] = TerrainBuildingExpander.ParseDoorState((string?)st, $"{where}.doors.{id}");
+                        var placement = new TerrainBuildingExpander.Placement(
+                            new Vector2(pos[0].X, pos[0].Y),
+                            props["rotation"] is JsonNode rot ? ReadFloat(rot, where + ".rotation") : 0f,
+                            props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : groundZ,
+                            label ?? templateName ?? $"building-{sink.Buildings.Count}",
+                            props["building"] is JsonObject ? null : templateName,
+                            overrides);
+                        TerrainBuildingExpander.Expand(template, placement, groundZ, materials, name, sink, where);
+                        break;
+                    }
                     case "building":
                     {
+                        // the solid special case — today's polygon building, unchanged
                         float baseZ = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : groundZ;
                         float height = RequireFloat(props, "height", where);
                         int floors = props["floors"]?.GetValue<int>() ?? 0;
+                        var material = materials.Get((string?)props["material"] ?? TerrainMaterialLibrary.DefaultMaterial, where);
                         foreach (var ring in OuterRings(geometry, geomType, where))
-                            prisms.Add(MakePrism(TerrainPrismKind.Building, Flatten(ring), baseZ, baseZ + height, floors, label, where));
+                        {
+                            var pr = MakePrism(TerrainPrismKind.Building, Flatten(ring), baseZ, baseZ + height, floors, label, where);
+                            prisms.Add(new TerrainPrism
+                            {
+                                Kind = pr.Kind, Footprint = pr.Footprint, BaseZ = pr.BaseZ, TopZ = pr.TopZ, Floors = pr.Floors,
+                                Label = pr.Label, Triangles = pr.Triangles, Min = pr.Min, Max = pr.Max, Material = material,
+                            });
+                        }
                         break;
                     }
                     case "wall":
+                    case "fence":
                     {
+                        // ⭐ Stage 1 — a wall is a panel per segment (§3c M1: a fence is a wall whose default material is fence-wood);
+                        //   its prisms are exactly the old thin prisms, now carrying a material.
                         if (geomType != "LineString")
-                            throw new ArgumentException($"Terrain world {where}: a wall must be a LineString (got '{geomType}').");
+                            throw new ArgumentException($"Terrain world {where}: a {kind} must be a LineString (got '{geomType}').");
                         float baseZ = props["baseZ"] is JsonNode b ? ReadFloat(b, where + ".baseZ") : groundZ;
                         float height = RequireFloat(props, "height", where);
-                        float thickness = props["thickness"] is JsonNode th ? ReadFloat(th, where + ".thickness") : 0.3f;
+                        float thickness = props["thickness"] is JsonNode th ? ReadFloat(th, where + ".thickness")
+                            : kind == "fence" ? 0.05f : 0.3f;
+                        var material = materials.Get((string?)props["material"]
+                            ?? (kind == "fence" ? TerrainMaterialLibrary.DefaultFenceMaterial : TerrainMaterialLibrary.DefaultMaterial), where);
                         var line = ReadPositions(geometry["coordinates"], where);
+                        var openings = props["openings"] as JsonArray;
+                        if (openings != null && line.Count != 2)
+                            throw new ArgumentException($"Terrain world {where}: openings need a single-segment {kind} (got {line.Count - 1} segments).");
                         for (int i = 0; i + 1 < line.Count; i++)
-                            prisms.Add(MakePrism(TerrainPrismKind.Wall,
-                                WallQuad(new Vector2(line[i].X, line[i].Y), new Vector2(line[i + 1].X, line[i + 1].Y), thickness),
-                                baseZ, baseZ + height, 0, label, where));
+                            TerrainBuildingExpander.AddPanel(sink, new Vector2(line[i].X, line[i].Y), new Vector2(line[i + 1].X, line[i + 1].Y),
+                                thickness, baseZ, baseZ + height, material, openings, -1, -1, label, name, null, where);
                         break;
                     }
                     case "slab":
@@ -145,7 +196,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     default:
                         throw new ArgumentException(
-                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, slab, ramp, surface).");
+                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, slab, ramp, surface).");
                 }
             }
 
@@ -176,10 +227,22 @@ namespace Fdp.Toolkit.Terrain
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
+                Panels = sink.Panels,
+                Buildings = sink.Buildings,
+                Doors = sink.Doors,
+                Materials = materials,
             };
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────
+
+        internal static TerrainPrism MakePrismForExpander(TerrainPrismKind kind, Vector2[] footprint, float baseZ, float topZ,
+            int floors, string? label, string where) => MakePrism(kind, footprint, baseZ, topZ, floors, label, where);
+
+        internal static TerrainWalkable MakeWalkableForExpander(TerrainWalkableKind kind, List<Vector3> ring, float? flatZ, string where)
+            => MakeWalkable(kind, ring, flatZ, where);
+
+        internal static Vector2[] WallQuadForExpander(Vector2 a, Vector2 b, float thickness) => WallQuad(a, b, thickness);
 
         private static TerrainPrism MakePrism(TerrainPrismKind kind, Vector2[] footprint, float baseZ, float topZ,
             int floors, string? label, string where)

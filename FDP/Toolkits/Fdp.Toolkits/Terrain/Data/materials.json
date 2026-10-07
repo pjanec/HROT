@@ -1,0 +1,12 @@
+{
+  "$comment": "Buildings programme Stage 1 — the shared terrain MATERIAL library (docs/DESIGN_Building_Interiors.md §3c, the starter table; values are placeholders to tune). A terrain folder's own materials.json overrides entries by name. sight = transmittance 0..1 (multiplied along a line); resistanceMmRhaPerM = ballistic resistance per metre of thickness (§3d P2); soundDb = attenuation per crossing; blocksMovement = goes into the navmesh.",
+  "materials": {
+    "concrete":          { "sight": 0.0,  "resistanceMmRhaPerM": 1500, "soundDb": 40, "blocksMovement": true },
+    "brick":             { "sight": 0.0,  "resistanceMmRhaPerM": 1000, "soundDb": 35, "blocksMovement": true },
+    "fence-wood":        { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 10, "blocksMovement": true },
+    "fence-chainlink":   { "sight": 0.85, "resistanceMmRhaPerM": 5,    "soundDb": 0,  "blocksMovement": true },
+    "fence-metal-sheet": { "sight": 0.0,  "resistanceMmRhaPerM": 200,  "soundDb": 15, "blocksMovement": true },
+    "hedge":             { "sight": 0.3,  "resistanceMmRhaPerM": 20,   "soundDb": 5,  "blocksMovement": true },
+    "glass":             { "sight": 1.0,  "resistanceMmRhaPerM": 30,   "soundDb": 20, "blocksMovement": true }
+  }
+}

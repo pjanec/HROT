@@ -33,6 +33,11 @@ namespace Fdp.Toolkit.Terrain
         public Vector2 Min { get; init; }
         public Vector2 Max { get; init; }
         public float Height => TopZ - BaseZ;
+        /// <summary>⭐ Stage 1 — what it is made of (§3c); null only for a prism built in code without one (read as concrete).</summary>
+        public TerrainMaterial? Material { get; init; }
+        /// <summary>⭐ Stage 1 — the <see cref="TerrainWallPanel"/> this prism is a piece of (index into
+        /// <see cref="TerrainWorld.Panels"/>), −1 for a solid building/wall that is not a panel.</summary>
+        public int Panel { get; init; } = -1;
     }
 
     /// <summary>
@@ -87,6 +92,17 @@ namespace Fdp.Toolkit.Terrain
         public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
+
+        /// <summary>⭐ Stage 1 — every wall/fence panel with its openings and material; each is ALSO expanded into
+        /// <see cref="Prisms"/> (its solid pieces), so consumers that only know prisms see doorways and windows as gaps.
+        /// 📄 docs/DESIGN_Building_Interiors.md §2, §3a, §3c.</summary>
+        public IReadOnlyList<TerrainWallPanel> Panels { get; init; } = Array.Empty<TerrainWallPanel>();
+        /// <summary>⭐ Stage 1 — the placed buildings (template, position, storey floors).</summary>
+        public IReadOnlyList<TerrainBuilding> Buildings { get; init; } = Array.Empty<TerrainBuilding>();
+        /// <summary>⭐ Stage 1 — the doors the terrain defines, by terrain-object key (§3b); door ENTITIES come with Stage 5.</summary>
+        public IReadOnlyList<TerrainDoorDef> Doors { get; init; } = Array.Empty<TerrainDoorDef>();
+        /// <summary>⭐ Stage 1 — the material library this world was parsed with (shared + terrain overrides).</summary>
+        public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
         /// <summary>
         /// ⭐ The Z an entity at (<paramref name="x"/>, <paramref name="y"/>) stands on — the ground, a roof or
@@ -240,6 +256,70 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
             return false;
+        }
+
+        /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
+        public const float SightThreshold = 0.5f;
+
+        /// <summary>One occluder a trace crossed.</summary>
+        public readonly record struct Crossing(float Along, string Kind, string? Label, string? Material, float Transmittance,
+            string? Building, int Storey);
+
+        /// <summary>A trace's answer: the product of the crossed transmittances, and the crossings in order along the line.</summary>
+        public readonly record struct TraceResult(float Transmittance, IReadOnlyList<Crossing> Crossed);
+
+        /// <summary>
+        /// ⭐ Buildings programme Stage 1 — the SIGHT trace with its evidence (📄 docs/DESIGN_Building_Interiors.md §3a "one
+        /// query, a solver per purpose", §3c M3): every solid piece the line passes within its height, at its material's
+        /// sight transmittance; every slab/ramp it crosses, opaque. Transmittance multiplies along the line.
+        /// <para>⚠ Stage 1 serves it for diagnostics (<c>GET /terrain/query</c>); perception still asks
+        /// <see cref="SegmentBlocked"/> until Stage 3 makes that <c>QuerySight(...) &lt; threshold</c>.</para>
+        /// </summary>
+        public TraceResult QuerySight(Vector3 from, Vector3 to)
+        {
+            var crossed = new List<Crossing>();
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            var segMin = Vector2.Min(a, b);
+            var segMax = Vector2.Max(a, b);
+            float length = Vector3.Distance(from, to);
+
+            foreach (var prism in Prisms)
+            {
+                if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
+                foreach (var (t0, t1) in PolygonMath.InsideIntervals(prism.Footprint, a, b))
+                {
+                    float z0 = from.Z + ((to.Z - from.Z) * t0);
+                    float z1 = from.Z + ((to.Z - from.Z) * t1);
+                    if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
+                    var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
+                    string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
+                    crossed.Add(new Crossing(t0 * length, panel != null ? "panel" : "prism", prism.Label,
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, prism.Material?.SightTransmittance ?? 0f,
+                        building, panel?.Storey ?? -1));
+                    break;   // one entry per piece
+                }
+            }
+
+            foreach (var w in Walkables)
+            {
+                if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
+                for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
+                {
+                    var p0 = w.Vertices[w.Triangles[t]]; var p1 = w.Vertices[w.Triangles[t + 1]]; var p2 = w.Vertices[w.Triangles[t + 2]];
+                    if (!PolygonMath.SegmentCrossesTriangle(from, to, p0, p1, p2)) continue;
+                    var n = Vector3.Cross(p1 - p0, p2 - p0);
+                    float denom = Vector3.Dot(n, to - from);
+                    float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom * length;
+                    crossed.Add(new Crossing(along, w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, null, 0f, null, -1));
+                    break;
+                }
+            }
+
+            crossed.Sort((x, y) => x.Along.CompareTo(y.Along));
+            float transmittance = 1f;
+            foreach (var c in crossed) transmittance *= c.Transmittance;
+            return new TraceResult(transmittance, crossed);
         }
 
         /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>

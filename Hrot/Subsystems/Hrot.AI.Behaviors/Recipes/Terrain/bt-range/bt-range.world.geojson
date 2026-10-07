@@ -1,0 +1,273 @@
+{
+ "type": "FeatureCollection",
+ "hrot": {
+  "schemaVersion": 1,
+  "bounds": [
+   0,
+   0,
+   200,
+   200
+  ],
+  "groundZ": 0,
+  "description": "Buildings programme range (Stage 1 skeleton): one panel of each material, a fence row, a 0.5 m low wall, two two-storey houses with inner walls, stairs, windows and doors (House A front locked, hall open), and a solid block. Local metres, X east, Y north, Z up."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 2.0,
+    "label": "concrete panel",
+    "material": "concrete",
+    "thickness": 0.3
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      10,
+      40
+     ],
+     [
+      18,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 2.0,
+    "label": "brick panel",
+    "material": "brick",
+    "thickness": 0.25
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      25,
+      40
+     ],
+     [
+      33,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "fence",
+    "height": 2.0,
+    "label": "fence-wood panel",
+    "material": "fence-wood",
+    "thickness": 0.03
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      40,
+      40
+     ],
+     [
+      48,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "fence",
+    "height": 2.0,
+    "label": "fence-chainlink panel",
+    "material": "fence-chainlink",
+    "thickness": 0.01
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      55,
+      40
+     ],
+     [
+      63,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "fence",
+    "height": 2.0,
+    "label": "fence-metal-sheet panel",
+    "material": "fence-metal-sheet",
+    "thickness": 0.01
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      70,
+      40
+     ],
+     [
+      78,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 2.0,
+    "label": "hedge panel",
+    "material": "hedge",
+    "thickness": 0.8
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      85,
+      40
+     ],
+     [
+      93,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "fence",
+    "height": 1.2,
+    "label": "Fence Row"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      10,
+      70
+     ],
+     [
+      40,
+      70
+     ],
+     [
+      70,
+      70
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 0.5,
+    "thickness": 0.4,
+    "label": "Low Wall"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      100,
+      40
+     ],
+     [
+      120,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "House A",
+    "baseZ": 0,
+    "rotation": 0,
+    "doors": {
+     "front": "locked"
+    }
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     100,
+     100
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "House B",
+    "rotation": 90
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     160,
+     100
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "height": 9,
+    "floors": 3,
+    "label": "Solid Block"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       100,
+       150
+      ],
+      [
+       120,
+       150
+      ],
+      [
+       120,
+       170
+      ],
+      [
+       100,
+       170
+      ],
+      [
+       100,
+       150
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

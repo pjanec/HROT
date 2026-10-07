@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — blast/fragment exposure by wall height and posture, §3f; defaults/tests/diagnostics → DESIGN_Terrain_Combat_Tuning.md)
+updated: 2026-10-07 (rev 7 — blast/fragment exposure by wall height and posture, §3f; defaults/tests/diagnostics → DESIGN_Terrain_Combat_Tuning.md; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d leans await approval
-current-answer: §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: none yet
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -365,6 +365,56 @@ the three solvers (sight, fire, sound) and the navmesh read their per-surface nu
 | **The same body profile is the LOS target silhouette** (W5: *"the target's silhouette height follows its stance"*) — one profile for being seen, being shot and being hit by fragments | a separate profile per effect — they would disagree |
 | ⚠ **Dependency — stance is never set today** (`CE-3010`: no host composes the animation pipeline, every entity reads as Standing). ⭐ Lean: a **logical stance** written by behaviours/scenario when no animation backend runs, so posture matters for perception and damage without animation; the animated path keeps writing it when present | waiting for `CE-3010` — every prone/crouch premise in the demos would be untestable until then |
 | 🔒 **APPROVED `2026-10-07`, with the user's reading:** *"logical-stance approved if what you mean is that brain does not wait for go-prone animation to finish"* — ⭐ **yes, exactly that**: when the brain orders a stance, the LOGICAL stance (what perception, fire and fragments read) changes in that tick; an animation, where one runs, only shows it and never gates it. A short configurable "settling" delay can be added later if needed — v1 has none | gating the logical stance on the animation's end — the brain would wait on presentation, and headless hosts (no animation) would never change stance |
+
+## 3g. ✅ Stage 1 (B-0 model) as built *(backend, `2026-10-07`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWorldParser { <<existing>> Parse(json, name, TerrainAssets) — building Point = instance; wall/fence = panels NEW }
+    class TerrainAssets { <<NEW>> ForFolder(terrainFolder): templates buildings/ then Recipes/Buildings; materials shared + folder override }
+    class TerrainMaterialLibrary { <<NEW>> Shared (embedded materials.json); WithOverrides; Get(name) fails loudly }
+    class TerrainMaterial { <<NEW record>> sight; resistanceMmRhaPerM; soundDb; blocksMovement }
+    class TerrainBuildingExpander { <<NEW, internal>> Expand(template, placement); AddPanel(...) }
+    class TerrainWorld { <<existing>> + Panels; Buildings; Doors; Materials; QuerySight NEW }
+    class TerrainPrism { <<existing>> + Material; Panel NEW }
+    class TerrainWallPanel { <<NEW>> A, B, thickness, BaseZ..TopZ, Material, Openings, Building, Storey }
+    class TerrainOpening { <<NEW>> Door/Window/Gap; At; Width; SillZ; HeadZ (absolute); DoorKey? }
+    class TerrainBuilding { <<NEW>> Label; Template; Position; Rotation; StoreyZ incl. roof; Footprint; Solid }
+    class TerrainDoorDef { <<NEW>> Key terrain/building/doorId; Panel; Opening; Initial }
+    class TerrainReport { <<Hrot.Editor DebugApi, NEW>> /terrain/levels · /terrain/query · /doors }
+    TerrainWorldParser --> TerrainAssets
+    TerrainWorldParser --> TerrainBuildingExpander
+    TerrainAssets --> TerrainMaterialLibrary
+    TerrainMaterialLibrary *-- TerrainMaterial
+    TerrainBuildingExpander ..> TerrainWallPanel : one per wall
+    TerrainBuildingExpander ..> TerrainPrism : the panel's solid PIECES
+    TerrainBuildingExpander ..> TerrainBuilding
+    TerrainBuildingExpander ..> TerrainDoorDef
+    TerrainWallPanel *-- TerrainOpening
+    TerrainWorld o-- TerrainWallPanel
+    TerrainWorld o-- TerrainPrism
+    TerrainWorld o-- TerrainBuilding
+    TerrainWorld o-- TerrainDoorDef
+    TerrainPrism --> TerrainMaterial
+    TerrainReport --> TerrainWorld
+```
+*What it shows:* a panel is kept for its metadata AND expanded into ordinary thin prisms around its openings — so every
+existing consumer (`SurfaceZ`, `SegmentBlocked`, the navmesh, cover, the map) sees doorways and windows as gaps with no
+code change, and the ground inside an enterable building is a floor by construction (nothing solid covers it): the
+`CE-1031` fix needed no `insideSolid` change.
+
+| item | as built — and the deviations, argued |
+|---|---|
+| format | `building` + **Point** geometry = an instance: `template` (side file) or inline `building`, `rotation` (degrees CCW, engine yaw), `baseZ`, `label`, `doors {id: state}`; `building` + Polygon = today's solid prism (unchanged); `fence` = `wall` with default material `fence-wood` and thickness 0.05 m; any single-segment `wall`/`fence` may carry `openings` |
+| template | `footprint` (optional — default = bounding box of the ground storey's walls), `material` (default for its walls), `storeys[{height, walls, floor?, stairs?}]`, `roof: flat|none`, or `"solid": true` + `footprint` + `height`. A storey's `floor` is ONE ring or a LIST of rings (default: the footprint) — ⚠ the author leaves the stairwell open by splitting the floor (as `bt-range`'s `house-2f` does); Stage 2's navmesh needs that headroom |
+| openings | defaults: door sill 0 / head 2.1, window 0.9 / 2.1, gap full height; must fit the wall and not overlap — else the load fails naming the wall; a door with `doorId` becomes a `TerrainDoorDef`, initial = `initial` (default **open**) overridden by the instance's `doors` |
+| ⚠ materials home | the shared library is an **embedded data file** in `Fdp.Toolkits` (`Terrain/Data/materials.json`, §3c's starter table) instead of a loose `Recipes/Terrain/materials.json` — always present on every host and in tests; a terrain folder's own `materials.json` overrides by name, as designed |
+| sight | `TerrainWorld.QuerySight(from, to)` → product of crossed materials' transmittance + each crossing (panel/prism/slab/ramp, material, building, storey). ⚠ **Diagnostics only in Stage 1** (`/terrain/query`); perception still asks `SegmentBlocked` (any solid piece blocks) until Stage 3 |
+| routes | `GET /terrain/levels?x=&y=`, `GET /terrain/query?from=x,y,z&to=x,y,z&purpose=sight`, `GET /doors` (static definitions; `runtimeId` null until Stage 5) + RouteDocs |
+| map layers | ✅ wall pieces coloured by material, fences/hedges dashed, enterable buildings labelled `<label> <n>F`. ⏭ the **storey selector** (B-4) and the interactive **levels probe** are NOT built — the probe's data is `/terrain/levels`; both are map-tool work for the ui lane or a later backend pass |
+| content | `Recipes/Terrain/bt-range/` — one panel per material, a fence row, a 0.5 m low wall, two `house-2f` instances (House A: front **locked**, hall open; House B rotated 90°), a solid block; `test-town` unchanged |
+| rails | `TerrainWorldTests.Stage1_*` (10, incl. *test-town unchanged* and *bt-range loads*) · `TerrainReportTests` (4) |
 
 ## 4. Change map — what each consumer must do
 

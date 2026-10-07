@@ -382,6 +382,15 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_entity_type({"tkbType":1001})` — inspect TKB descriptor for type 1001.
 
 ### Group N — World / coordinates
+- **`list_doors`** — The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5). No params. Returns { terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }
+  Notes: key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist)..
+  Example: `list_doors({})` — see which doors of the range are locked.
+- **`get_terrain_levels`** — The terrain levels at a point — ground = level 0, storeys/slabs/roofs above, basements below (buildings Stage 1). Req `x` (number), Req `y` (number). Returns { terrain, x, y, levels:[{level, z, kind:ground|above|below}] } — or { terrain:null } when no terrain is resident
+  Notes: The same levels Add Entity's SpawnHeight resolves (TerrainWorld.SurfacesAt): surfaces within 0.3 m of the ground merge into level 0..
+  Example: `get_terrain_levels({"x":102,"y":104})` — list the floors a unit could be placed on inside a building.
+- **`query_terrain`** — Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight). Req `from` (string), Req `to` (string), `purpose?` (string). Returns { terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }
+  Notes: Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.; Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value..
+  Example: `query_terrain({"from":"102,90,1.6","to":"102,104,1.6"})` — check whether a window lets a soldier outside see into a room.
 - **`geo_to_local`** — Convert geographic coordinates to local ENU {x,y,z}. Req `lat` (number), Req `lon` (number), Req `alt` (number), `headingDeg?` (number). Returns { x, y, z, rotation? } — optional rotation if headingDeg was provided.
   Notes: Optional headingDeg → adds rotation quaternion to response..
   Example: `geo_to_local({"lat":50.0755,"lon":14.4378,"alt":200})` — convert Prague geo coords to local ECS metres.

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Terrain;
 using Xunit;
@@ -288,6 +289,180 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(-3f, w.ResolveLevel(5, 5, -1));
             Assert.Equal(-3f, w.ResolveLevel(5, 5, -7));
             Assert.Equal(3.2f, w.ResolveLevel(5, 5, 1), 3);
+        }
+
+        // ── ⭐ Buildings programme Stage 1 — templates, panels, openings, materials (docs/DESIGN_Building_Interiors.md §3a, §3c) ──
+
+        // A 10 x 8 m two-storey template: front wall with a door (closed) and a window, an inner wall with a door, stairs.
+        private const string House = """
+        { "name": "house", "material": "brick", "footprint": [[0,0],[10,0],[10,8],[0,8]],
+          "storeys": [
+            { "height": 3.0,
+              "walls": [
+                { "from": [0,0], "to": [10,0], "thickness": 0.3,
+                  "openings": [ { "kind": "door", "at": 4.5, "width": 1.0, "doorId": "front", "initial": "closed" },
+                                { "kind": "window", "at": 1.5, "width": 1.2 } ] },
+                { "from": [10,0], "to": [10,8] }, { "from": [10,8], "to": [0,8] }, { "from": [0,8], "to": [0,0] },
+                { "from": [5,0], "to": [5,8], "thickness": 0.15, "material": "concrete",
+                  "openings": [ { "kind": "door", "at": 6.0, "width": 0.9, "doorId": "hall" } ] } ],
+              "stairs": [ { "from": [8,1], "to": [8,6], "width": 1.0 } ] },
+            { "height": 3.0, "walls": [ { "from": [0,0], "to": [10,0] } ] } ] }
+        """;
+
+        private static TerrainWorld HouseWorld(string instanceProps = "\"template\": \"house\", \"label\": \"H\", \"doors\": { \"front\": \"locked\" }", float x = 100, float y = 100)
+            => TerrainWorldParser.Parse($$"""
+            { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 },
+              "features": [ { "type": "Feature", "properties": { "kind": "building", {{instanceProps}} },
+                              "geometry": { "type": "Point", "coordinates": [{{x}}, {{y}}] } } ] }
+            """, "range", new TerrainAssets { Templates = n => n == "house" ? House : null });
+
+        [Fact]
+        public void Stage1_Template_ExpandsIntoPanelsWithOpenings_DoorKeys_AndInstanceOverrides()
+        {
+            var w = HouseWorld();
+            var b = Assert.Single(w.Buildings);
+            Assert.Equal(new[] { 0f, 3f, 6f }, b.StoreyZ);
+            Assert.Equal(6, w.Panels.Count);                              // 5 ground-storey walls + 1 upper
+            var front = w.Panels[0];
+            Assert.Equal("brick", front.Material.Name);
+            Assert.Equal(new[] { 1.5f, 4.5f }, front.Openings.Select(o => o.At));   // sorted along the wall
+            var window = front.Openings[0];
+            Assert.Equal((0.9f, 2.1f), (window.SillZ, window.HeadZ));
+            Assert.Equal("concrete", w.Panels[4].Material.Name);          // per-wall material overrides the template's
+
+            Assert.Equal(new[] { "range/H/front", "range/H/hall" }, w.Doors.Select(d => d.Key).OrderBy(k => k));
+            Assert.Equal(TerrainDoorState.Locked, w.Doors.Single(d => d.Key == "range/H/front").Initial);   // instance override
+            Assert.Equal(TerrainDoorState.Open, w.Doors.Single(d => d.Key == "range/H/hall").Initial);      // default
+            Assert.All(w.Prisms, p => Assert.True(p.Panel >= 0));         // every prism is a panel piece
+        }
+
+        [Fact]
+        public void Stage1_InsideAnEnterableBuilding_TheGroundIsAFloor_StoreysAreLevels_StairsClimb()
+        {
+            var w = HouseWorld();
+            // inside the west room: ground, the upper floor, the roof (CE-1031 — the ground is no longer skipped)
+            Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));
+            Assert.Equal(0f, w.SurfaceZ(102, 104, zHint: 0f));
+            Assert.Equal(3f, w.SurfaceZ(102, 104, zHint: 3f));
+            // on the stairs, halfway up the 5 m run (8,1)→(8,6) from 0 to 3
+            Assert.Equal(1.5f, w.SurfaceZ(108, 103.5f, zHint: 1.2f), 2);
+        }
+
+        [Fact]
+        public void Stage1_SightPassesAWindowAndADoorway_ButNotTheWallBesideThem()
+        {
+            var w = HouseWorld();
+            // the front wall runs y = 100 (x 100..110); look from outside (y = 90) to inside (y = 104) at eye height 1.6
+            Assert.False(w.SegmentBlocked(new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)));   // window 101.5..102.7
+            Assert.True(w.SegmentBlocked(new Vector3(102.1f, 90, 0.5f), new Vector3(102.1f, 104, 0.5f)));    // under the sill
+            Assert.False(w.SegmentBlocked(new Vector3(104.8f, 90, 1.6f), new Vector3(104.8f, 104, 1.6f)));   // the doorway 104.5..105.5
+            Assert.True(w.SegmentBlocked(new Vector3(103.5f, 90, 1.6f), new Vector3(103.5f, 104, 1.6f)));    // solid wall
+        }
+
+        [Fact]
+        public void Stage1_RotationTurnsTheTemplateCounterClockwise()
+        {
+            var w = HouseWorld("\"template\": \"house\", \"label\": \"R\", \"rotation\": 90");
+            var front = w.Panels[0];                                      // local (0,0)→(10,0) turned 90° ⇒ (100,100)→(100,110)
+            Assert.Equal(100f, front.A.X, 3); Assert.Equal(100f, front.A.Y, 3);
+            Assert.Equal(100f, front.B.X, 3); Assert.Equal(110f, front.B.Y, 3);
+        }
+
+        [Theory]
+        [InlineData("\"template\": \"nope\"", "building template 'nope' was not found")]
+        [InlineData("\"building\": { \"material\": \"cheese\", \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0] } ] } ] }", "unknown material 'cheese'")]
+        [InlineData("\"building\": { \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0], \"openings\": [ { \"kind\": \"door\", \"at\": 4.5, \"width\": 1 } ] } ] } ] }", "does not fit")]
+        [InlineData("\"building\": { \"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [5,0], \"openings\": [ { \"kind\": \"door\", \"at\": 1, \"width\": 1 }, { \"kind\": \"window\", \"at\": 1.5, \"width\": 1 } ] } ] } ] }", "overlap")]
+        public void Stage1_BadBuildings_FailLoudly(string props, string expected)
+        {
+            var ex = Assert.Throws<ArgumentException>(() => HouseWorld(props));
+            Assert.Contains(expected, ex.Message);
+        }
+
+        [Fact]
+        public void Stage1_FenceIsAWallOfFenceWood_AndAMaterialIsNamedOnAnyWall()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 1.2 }, "geometry": { "type": "LineString", "coordinates": [[0,0],[10,0],[20,0]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "fence-chainlink" }, "geometry": { "type": "LineString", "coordinates": [[0,5],[10,5]] } } ] }
+            """);
+            Assert.Equal(3, w.Panels.Count);
+            Assert.Equal(new[] { "fence-wood", "fence-wood", "fence-chainlink" }, w.Panels.Select(p => p.Material.Name));
+            Assert.Equal(0.85f, w.Panels[2].Material.SightTransmittance);
+        }
+
+        [Fact]
+        public void Stage1_QuerySight_MultipliesMaterialTransmittance_AndNamesEachCrossing()
+        {
+            var w = TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink", "label": "Mesh 1" }, "geometry": { "type": "LineString", "coordinates": [[0,10],[20,10]] } },
+              { "type": "Feature", "properties": { "kind": "fence", "height": 2, "material": "fence-chainlink", "label": "Mesh 2" }, "geometry": { "type": "LineString", "coordinates": [[0,20],[20,20]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "height": 2, "material": "hedge", "thickness": 0.8, "label": "Hedge" }, "geometry": { "type": "LineString", "coordinates": [[30,10],[50,10]] } } ] }
+            """);
+            var two = w.QuerySight(new Vector3(10, 0, 1.5f), new Vector3(10, 30, 1.5f));
+            Assert.Equal(0.85f * 0.85f, two.Transmittance, 4);
+            Assert.Equal(new[] { "Mesh 1", "Mesh 2" }, two.Crossed.Select(c => c.Label));
+            Assert.True(two.Transmittance >= TerrainWorld.SightThreshold);
+
+            var hedge = w.QuerySight(new Vector3(40, 0, 1.5f), new Vector3(40, 30, 1.5f));
+            Assert.Equal(0.3f, hedge.Transmittance, 4);
+            Assert.Equal("hedge", Assert.Single(hedge.Crossed).Material);
+
+            var over = w.QuerySight(new Vector3(10, 0, 2.5f), new Vector3(10, 30, 2.5f));   // above the 2 m fences
+            Assert.Empty(over.Crossed);
+            Assert.Equal(1f, over.Transmittance);
+        }
+
+        [Fact]
+        public void Stage1_QuerySight_ThroughAHouseWindow_IsClear_ThroughItsFloor_IsOpaque()
+        {
+            var w = HouseWorld();
+            Assert.Equal(1f, w.QuerySight(new Vector3(102.1f, 90, 1.6f), new Vector3(102.1f, 104, 1.6f)).Transmittance);
+            var down = w.QuerySight(new Vector3(102, 104, 4.5f), new Vector3(102, 104, 1.0f));   // from storey 2 down through its floor
+            Assert.Equal(0f, down.Transmittance);
+            Assert.Equal("slab", Assert.Single(down.Crossed).Kind);
+            Assert.Equal(1.5f, down.Crossed[0].Along, 3);
+        }
+
+        // ── the shipped terrains ─────────────────────────────────────────────────────────────────────────────
+
+        private static string ShippedTerrain(string name)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors")))
+                dir = dir.Parent;
+            Assert.NotNull(dir);
+            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+        }
+
+        [Fact]
+        public void Stage1_TestTown_IsUnchanged_EveryWallConcrete_NoBuildingsOrDoors()
+        {
+            var folder = ShippedTerrain("test-town");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "test-town.world.geojson")), "test-town",
+                TerrainAssets.ForFolder(folder));
+            Assert.Empty(w.Buildings);
+            Assert.Empty(w.Doors);
+            Assert.All(w.Prisms, p => Assert.Equal("concrete", p.Material!.Name));
+            Assert.All(w.Prisms.Where(p => p.Kind == TerrainPrismKind.Building), p => Assert.Equal(-1, p.Panel));
+        }
+
+        [Fact]
+        public void Stage1_BtRange_Loads_TwoHouses_EachMaterial_AFenceRow_AndTheLockedFrontDoor()
+        {
+            var folder = ShippedTerrain("bt-range");
+            var w = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+                TerrainAssets.ForFolder(folder));
+            Assert.Equal(new[] { "House A", "House B" }, w.Buildings.Select(b => b.Label));   // the polygon block stays a plain prism
+            Assert.Contains(w.Prisms, p => p.Label == "Solid Block" && p.Kind == TerrainPrismKind.Building && p.Panel == -1);
+            foreach (var m in new[] { "concrete", "brick", "fence-wood", "fence-chainlink", "fence-metal-sheet", "hedge" })
+                Assert.Contains(w.Panels, p => p.Material.Name == m);
+            Assert.Equal(TerrainDoorState.Locked, w.Doors.Single(d => d.Key == "bt-range/House A/front").Initial);
+            Assert.Equal(TerrainDoorState.Open, w.Doors.Single(d => d.Key == "bt-range/House A/hall").Initial);
+            Assert.Equal(TerrainDoorState.Closed, w.Doors.Single(d => d.Key == "bt-range/House B/front").Initial);   // template default
+            Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));   // inside House A's west room
         }
     }
 }

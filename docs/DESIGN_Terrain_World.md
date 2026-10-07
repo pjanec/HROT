@@ -79,6 +79,8 @@ related-designs:
 | `surface` | Polygon | `road`/`open`/`forest`/`water`; cost + draw colour (water = unwalkable) | water only | `forest` partial — ⛔ v1: no | ✅ |
 | `slab` | Polygon with Z | walkable floor at that Z (T7 — format v1, built later) | under/over | ✅ (from below/above) | ✅ |
 | `ramp` | Polygon with per-vertex Z | sloped walkable link between levels | — | ✅ | ✅ |
+| ⭐ `building` *(Stage 1)* | **Point** + `template` or inline `building` | an ENTERABLE building instance — walls with openings, storey floors, stairs, roof (📄 `DESIGN_Building_Interiors.md` §3a, §3g) | walls ✅ | walls ✅ (openings pass) | floors, stairs, roof |
+| ⭐ `fence` *(Stage 1)* | LineString | a `wall` whose default material is `fence-wood`; any wall/fence takes `material` (§3c) | ✅ | per material | — |
 
 ⭐ Coordinates are the world's **local metres, X east / Y north / Z up** (FDP space). GeoJSON's lat/lon rule is
 deliberately not followed (user: *"small numbers over large ones"*).

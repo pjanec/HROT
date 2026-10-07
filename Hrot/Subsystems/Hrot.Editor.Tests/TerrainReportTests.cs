@@ -1,0 +1,80 @@
+using System.Linq;
+using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Core;
+using Fdp.Toolkit.Terrain;
+using Hrot.Editor.DebugApi;
+using Xunit;
+
+namespace Hrot.Editor.Tests
+{
+    /// <summary>
+    /// ⭐ Buildings programme Stage 1 — <c>GET /terrain/levels</c>, <c>/terrain/query</c>, <c>/doors</c> read the resident
+    /// <see cref="TerrainWorld"/> and report its own answers (📄 docs/DESIGN_Terrain_Combat_Tuning.md §4).
+    /// </summary>
+    public sealed class TerrainReportTests
+    {
+        private const string World = """
+        { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 100, 100], "groundZ": 0 },
+          "features": [ { "type": "Feature",
+            "properties": { "kind": "building", "label": "H", "doors": { "front": "locked" },
+              "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [10,0],
+                  "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" }, { "kind": "window", "at": 1.5, "width": 1.2 } ] } ] },
+                             { "height": 3, "walls": [] } ] } },
+            "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+        """;
+
+        private static EntityRepository Repo(bool withTerrain = true)
+        {
+            var repo = new EntityRepository();
+            if (withTerrain)
+            {
+                repo.RegisterManagedComponent<TerrainWorld>();
+                repo.SetSingletonManaged(TerrainWorldParser.Parse(World, "range"));
+            }
+            return repo;
+        }
+
+        [Fact]
+        public void Levels_ListTheGroundAsLevel0_AndEachFloorAbove()
+        {
+            using var repo = Repo();
+            var levels = (JsonArray)TerrainReport.Levels(repo, 22, 24)["levels"]!;
+            Assert.Equal(new[] { 0, 1, 2 }, levels.Select(l => (int)l!["level"]!));
+            Assert.Equal(new[] { 0f, 3f, 6f }, levels.Select(l => (float)l!["z"]!));
+            Assert.Equal("ground", (string?)levels[0]!["kind"]);
+        }
+
+        [Fact]
+        public void Query_ReportsTheWindowAsClear_AndTheWallAsOpaque_WithTheMaterial()
+        {
+            using var repo = Repo();
+            var window = TerrainReport.Query(repo, new Vector3(22.1f, 10, 1.6f), new Vector3(22.1f, 24, 1.6f));
+            Assert.Equal(1f, (float)window["transmittance"]!);
+            Assert.True((bool)window["seesThrough"]!);
+            var wall = TerrainReport.Query(repo, new Vector3(23.5f, 10, 1.6f), new Vector3(23.5f, 24, 1.6f));
+            Assert.Equal(0f, (float)wall["transmittance"]!);
+            Assert.Equal("concrete", (string?)wall["crossed"]![0]!["material"]);
+            Assert.Equal("H", (string?)wall["crossed"]![0]!["building"]);
+        }
+
+        [Fact]
+        public void Doors_ListByKey_WithTheInitialState_AndNoRuntimeIdYet()
+        {
+            using var repo = Repo();
+            var door = Assert.Single((JsonArray)TerrainReport.Doors(repo)["doors"]!)!;
+            Assert.Equal("range/H/front", (string?)door["key"]);
+            Assert.Equal("Locked", (string?)door["state"]);
+            Assert.Null(door["runtimeId"]);
+        }
+
+        [Fact]
+        public void NoResidentTerrain_SaysSo_RatherThanAnEmptyAnswer()
+        {
+            using var repo = Repo(withTerrain: false);
+            Assert.Null(TerrainReport.Levels(repo, 0, 0)["terrain"]);
+            Assert.Contains("no terrain", (string?)TerrainReport.Doors(repo)["note"]);
+        }
+    }
+}

@@ -183,7 +183,9 @@ public sealed class TerrainResidency
                 throw new FileNotFoundException(
                     $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
                   + $"at '{worldPath}'.", worldPath);
-            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName);
+            // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides).
+            staged.World = TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName,
+                TerrainAssets.ForFolder(Path.GetDirectoryName(definitionPath)!));
 
             // ⭐ W6 — the bake rides Prepare, whose contract is already "off-thread, no ECS mutation".
             if (_navmeshFactory != null)

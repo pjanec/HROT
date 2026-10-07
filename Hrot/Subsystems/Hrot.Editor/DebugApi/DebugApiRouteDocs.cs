@@ -1943,6 +1943,58 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"type\":100}",
             ExampleGist: "see which of the M1's numbers are stated, derived or engine defaults"),
 
+        [("GET", "/terrain/levels")] = new RouteDoc(
+            Tool:    "get_terrain_levels",
+            Group:   "N — World / coordinates",
+            Summary: "The terrain levels at a point — ground = level 0, storeys/slabs/roofs above, basements below (buildings Stage 1).",
+            Returns: "{ terrain, x, y, levels:[{level, z, kind:ground|above|below}] } — or { terrain:null } when no terrain is resident",
+            Hint:    "Req: x, y (local metres). Example: get_terrain_levels({x:102, y:104})",
+            Params: new RouteParam[]
+            {
+                new("x", "number", true, "Local X (m, east)"),
+                new("y", "number", true, "Local Y (m, north)"),
+            },
+            Notes: new[]
+            {
+                "The same levels Add Entity's SpawnHeight resolves (TerrainWorld.SurfacesAt): surfaces within 0.3 m of the ground merge into level 0.",
+            },
+            ExampleArgsJson: "{\"x\":102,\"y\":104}",
+            ExampleGist: "list the floors a unit could be placed on inside a building"),
+
+        [("GET", "/terrain/query")] = new RouteDoc(
+            Tool:    "query_terrain",
+            Group:   "N — World / coordinates",
+            Summary: "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight).",
+            Returns: "{ terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }",
+            Hint:    "Req: from, to ('x,y,z' local metres). Optional: purpose (sight). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6'})",
+            Params: new RouteParam[]
+            {
+                new("from", "string", true, "Start 'x,y,z' (local metres)"),
+                new("to", "string", true, "End 'x,y,z' (local metres)"),
+                new("purpose", "string", false, "sight (fire/sound/fragment/blast arrive with their solvers)"),
+            },
+            Notes: new[]
+            {
+                "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
+                "Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value.",
+            },
+            ExampleArgsJson: "{\"from\":\"102,90,1.6\",\"to\":\"102,104,1.6\"}",
+            ExampleGist: "check whether a window lets a soldier outside see into a room"),
+
+        [("GET", "/doors")] = new RouteDoc(
+            Tool:    "list_doors",
+            Group:   "N — World / coordinates",
+            Summary: "The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5).",
+            Returns: "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }",
+            Hint:    "No params. Example: list_doors({})",
+            Params: new RouteParam[] { },
+            Notes: new[]
+            {
+                "key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist).",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "see which doors of the range are locked"),
+
         [("POST", "/entities/{networkId}/focus")] = new RouteDoc(
             Tool:    "focus_entity",
             Group:   "O — Manual-assist (focus / annotations)",

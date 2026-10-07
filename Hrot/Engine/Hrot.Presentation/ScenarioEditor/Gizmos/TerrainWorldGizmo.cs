@@ -68,9 +68,12 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
 
         foreach (var p in world.Prisms)
         {
-            var fill = p.Kind == TerrainPrismKind.Wall ? WallFill : HeightColor(p.Height);
+            // ⭐ Stage 1 — a wall/fence piece is coloured by its MATERIAL (the "materials" layer of
+            //   DESIGN_Terrain_Combat_Tuning.md §5); fences are dashed. Openings are gaps because a panel's pieces leave them.
+            var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);
             FillPolygon(draw, p.Footprint, p.Triangles, fill);
-            Outline2(draw, p.Footprint, Outline, LineStyle.Solid);
+            bool fence = p.Material?.Name?.StartsWith("fence", StringComparison.Ordinal) == true || p.Material?.Name == "hedge";
+            Outline2(draw, p.Footprint, Outline, fence ? LineStyle.Dashed : LineStyle.Solid);
             if (p.Kind == TerrainPrismKind.Building)
             {
                 var c = Centroid(p.Footprint);
@@ -78,7 +81,27 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
                 draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32(label), LabelColor, layer: TerrainLayer);
             }
         }
+
+        // ⭐ Stage 1 — an enterable building is named once, with its storeys (its walls and floors are drawn above).
+        foreach (var b in world.Buildings)
+        {
+            if (b.Solid) continue;
+            var c = Centroid(b.Footprint);
+            draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{b.Label} {b.Storeys}F"), LabelColor, layer: TerrainLayer);
+        }
     }
+
+    /// <summary>⭐ Stage 1 — wall/fence fill by material (unknown or none = the old wall grey).</summary>
+    public static Rgba32 MaterialColor(string? material) => material switch
+    {
+        "brick"             => new Rgba32(160, 70, 50, 230),
+        "fence-wood"        => new Rgba32(170, 130, 80, 230),
+        "fence-chainlink"   => new Rgba32(170, 170, 170, 160),
+        "fence-metal-sheet" => new Rgba32(90, 110, 140, 230),
+        "hedge"             => new Rgba32(50, 130, 60, 200),
+        "glass"             => new Rgba32(140, 210, 230, 160),
+        _                   => WallFill,
+    };
 
     /// <summary>Building fill shaded by height: low = sand, mid = orange, tall = brick, tower = dark red.</summary>
     public static Rgba32 HeightColor(float height) => height switch

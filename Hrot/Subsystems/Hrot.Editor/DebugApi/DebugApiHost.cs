@@ -59,6 +59,19 @@ namespace Hrot.Editor.DebugApi
         /// call, not a serialisation tweak — 📌 <c>DebugApiSafeFloatConverters.cs</c> still has ZERO
         /// application sites, and that remains a real finding.</para>
         /// </summary>
+        /// <summary>Parses <c>"x,y,z"</c> (invariant culture) into a vector.</summary>
+        private static bool TryVec3(string? text, out System.Numerics.Vector3 v)
+        {
+            v = default;
+            var parts = text?.Split(',');
+            if (parts is not { Length: 3 }) return false;
+            var f = new float[3];
+            for (int i = 0; i < 3; i++)
+                if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f[i])) return false;
+            v = new System.Numerics.Vector3(f[0], f[1], f[2]);
+            return true;
+        }
+
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -677,6 +690,27 @@ namespace Hrot.Editor.DebugApi
                     ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
                     : Ok(node));
             }));
+
+            // ⭐ Buildings programme Stage 1 — terrain diagnostics (docs/DESIGN_Terrain_Combat_Tuning.md §4).
+            _routes.Add(new("GET", "/terrain/levels", ctx =>
+            {
+                if (!float.TryParse(ctx.Query("x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+                 || !float.TryParse(ctx.Query("y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y))
+                    return Task.FromResult(Fail(400, "Query 'x' and 'y' (local metres) are required."));
+                return Task.FromResult(Ok(Service().GetTerrainLevels(x, y)));
+            }));
+
+            _routes.Add(new("GET", "/terrain/query", ctx =>
+            {
+                var purpose = ctx.Query("purpose") ?? "sight";
+                if (purpose != "sight")
+                    return Task.FromResult(Fail(400, $"purpose '{purpose}' is not available yet — Stage 1 serves 'sight' (fire, sound, fragment, blast come with their solvers)."));
+                if (!TryVec3(ctx.Query("from"), out var from) || !TryVec3(ctx.Query("to"), out var to))
+                    return Task.FromResult(Fail(400, "Query 'from' and 'to' are required as 'x,y,z' (local metres)."));
+                return Task.FromResult(Ok(Service().QueryTerrain(from, to)));
+            }));
+
+            _routes.Add(new("GET", "/doors", _ => Task.FromResult(Ok(Service().GetDoors()))));
 
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>

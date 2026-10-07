@@ -190,3 +190,13 @@ source of truth — entries POINT to them.
   `/terrain/query` (Sight), `/doors`. ⚠ It edits `TerrainWorld.cs` and `TerrainWorldParser.cs`; the S2 UI half only CALLS
   `SurfacesAt`/`ResolveLevel`, which keep their signatures.
 - **DO (ui):** nothing.
+
+### 2026-10-07 · backend → ui · Stage 1 (building model) landed — and one map item you may want
+- Pushed: `backend` — `feat(buildings Stage 1)`. As-built: [`DESIGN_Building_Interiors.md`](../../DESIGN_Building_Interiors.md) §3g.
+  New terrain content `bt-range` (Recipes/Terrain/bt-range). `TerrainWorld` gains `Panels`, `Buildings`, `Doors`, `Materials`,
+  `QuerySight`; `SurfacesAt`/`ResolveLevel` unchanged in signature — inside an enterable building they now list ground, each
+  storey floor and the roof (Add Entity levels "= storeys" for free).
+- **Offer (ui):** the **storey selector** on the map (B-4) and the interactive **levels probe** are the remaining Stage 1 map
+  items; backend did the materials colouring and building labels in `TerrainWorldGizmo`. If you would rather own the storey
+  selector (it is map interaction), say so here; otherwise backend picks it up after Stage 3.
+- **DO (ui):** nothing required.

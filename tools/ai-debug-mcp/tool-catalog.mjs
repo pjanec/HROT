@@ -1918,6 +1918,108 @@ export const TOOLS_CATALOG = [
   // ── Group N — World / coordinates ───────────────────────────────────────────
 
   {
+    "name": "list_doors",
+    "group": "N — World / coordinates",
+    "summary": "The doors the resident terrain defines, by terrain-object key, with their state (buildings Stage 1: initial state; door entities in Stage 5).",
+    "http": {
+      "method": "GET",
+      "path": "/doors"
+    },
+    "params": [],
+    "returns": "{ terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, source, x, y, sillZ, building, storey, runtimeId}] }",
+    "notes": [
+      "key = '<terrain>/<building>/<doorId>', a string — never a network id (runtimeId is null until door entities exist)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see which doors of the range are locked"
+    },
+    "hint": "No params. Example: list_doors({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_terrain_levels",
+    "group": "N — World / coordinates",
+    "summary": "The terrain levels at a point — ground = level 0, storeys/slabs/roofs above, basements below (buildings Stage 1).",
+    "http": {
+      "method": "GET",
+      "path": "/terrain/levels"
+    },
+    "params": [
+      {
+        "name": "x",
+        "type": "number",
+        "required": true,
+        "description": "Local X (m, east)"
+      },
+      {
+        "name": "y",
+        "type": "number",
+        "required": true,
+        "description": "Local Y (m, north)"
+      }
+    ],
+    "returns": "{ terrain, x, y, levels:[{level, z, kind:ground|above|below}] } — or { terrain:null } when no terrain is resident",
+    "notes": [
+      "The same levels Add Entity's SpawnHeight resolves (TerrainWorld.SurfacesAt): surfaces within 0.3 m of the ground merge into level 0."
+    ],
+    "example": {
+      "args": {
+        "x": 102,
+        "y": 104
+      },
+      "gist": "list the floors a unit could be placed on inside a building"
+    },
+    "hint": "Req: x, y (local metres). Example: get_terrain_levels({x:102, y:104})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "query_terrain",
+    "group": "N — World / coordinates",
+    "summary": "Dry-run terrain trace between two points — every crossed wall/fence/floor with its material and transmittance (buildings Stage 1: purpose=sight).",
+    "http": {
+      "method": "GET",
+      "path": "/terrain/query"
+    },
+    "params": [
+      {
+        "name": "from",
+        "type": "string",
+        "required": true,
+        "description": "Start 'x,y,z' (local metres)"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": true,
+        "description": "End 'x,y,z' (local metres)"
+      },
+      {
+        "name": "purpose",
+        "type": "string",
+        "required": false,
+        "description": "sight (fire/sound/fragment/blast arrive with their solvers)"
+      }
+    ],
+    "returns": "{ terrain, purpose, transmittance, seesThrough, threshold, length, crossed:[{along, kind:panel|prism|slab|ramp, label, material, transmittance, building, storey}], note }",
+    "notes": [
+      "Transmittance multiplies along the line (chain-link 0.85, hedge 0.3, solid walls 0); seesThrough = transmittance >= 0.5.",
+      "Stage 1 reports only: perception still uses the yes/no SegmentBlocked until Stage 3 switches it to this value."
+    ],
+    "example": {
+      "args": {
+        "from": "102,90,1.6",
+        "to": "102,104,1.6"
+      },
+      "gist": "check whether a window lets a soldier outside see into a room"
+    },
+    "hint": "Req: from, to ('x,y,z' local metres). Optional: purpose (sight). Example: query_terrain({from:'102,90,1.6', to:'102,104,1.6'})",
+    "manualVerify": false
+  },
+
+  {
     "name": "geo_to_local",
     "group": "N — World / coordinates",
     "summary": "Convert geographic coordinates to local ENU {x,y,z}.",
