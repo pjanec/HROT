@@ -1069,6 +1069,11 @@ Rails: `BodyStanceTests` (3: the soldier may change stance and starts standing; 
 `Phase3SystemTests` module order (9 systems). ⚠ `AnimationIntegrationScenarios.Locomotion_DrivesFootstepEventsAtCorrectCadence` is red
 on the base too (pre-existing, unrelated).
 
+📐 **LIVE, `--mode all`, `2026-10-07`:** `ua-fire-distribution` (U6) PASS — Rifleman 4 at 10 HP: `HoldProne` 0.975 (Hold 0.18, Suppress
+0.13, Advance 0.02), CGF's `StanceIntent` = Prone. ⛔ SimHost's copy stays Standing (`Version 0`) — **the expected gap slice ② closes**:
+nothing carries `StanceIntent` across nodes yet. Both nodes carry the components (`CanChangeStance` granted). Once the hostiles die the
+member rightly stands up again (`Version 2`, Standing).
+
 **Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
 world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
 rest of the animation pipeline (montages, look-at), which stays out of scope here.

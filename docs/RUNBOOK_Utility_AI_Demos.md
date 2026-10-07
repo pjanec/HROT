@@ -51,7 +51,7 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 | `ua-three-hosts` (U3, CE-3082/3083) | test-town | ONE decision on THREE hosts: BTree `CombatPosture`, HSM `CombatPostureHsm`, blueprint `CombatPostureBp` — the same Health edits, the same choice | ✅ PASS, `2026-10-06` — identical winners on all three at every step |
 | `ua-attack-approach` (U4, CE-3084) | test-town | `AttackApproach` nested in the advance: out of sight of an identified hostile ⇒ Flank / FiringPosition, then fire from there | ✅ PASS, `2026-10-06` (run 1 found the hostile dying in 5 s — 1000 HP now) |
 | `ua-weapon-choice` (U5, CE-3089) | basic-desert | a Bradley fires the 25 mm at infantry and the TOW at a T-72 (`WeaponSelection` per shot) | ✅ PASS, `2026-10-06` (after four G7 defects, design §12 W6–W9) + the in-process twin |
-| `ua-fire-distribution` (U6, CE-3088) | basic-desert | a leader + 4 riflemen: fire spread over the targets, ≤ 2 per target, every member fires (`/entities/{id}/squad`) | ✅ PASS ×3 for the distribution, `2026-10-06`; ⚠ the hurt-member step was REPORTED — no defensive posture on open ground (`CE-3090`, fixed `2026-10-07`: HoldProne; re-run to confirm) |
+| `ua-fire-distribution` (U6, CE-3088) | basic-desert | a leader + 4 riflemen: fire spread over the targets, ≤ 2 per target, every member fires (`/entities/{id}/squad`) | ✅ PASS ×3 for the distribution, `2026-10-06`; ✅ the hurt-member step PASSES `2026-10-07` (behaviors): at 10 HP `HoldProne` 0.975 and `StanceIntent` Prone (`CE-3090`, `CE-2121`) |
 | U7 `ua-squad-maneuver` | basic-desert | squad maneuver | ⏳ waits for the CE-507 D2/D3 decisions (design §8 Q5) |
 
 ## 3. Per scenario

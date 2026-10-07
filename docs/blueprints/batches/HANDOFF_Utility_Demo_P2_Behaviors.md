@@ -260,3 +260,18 @@ waits for. ⛔ Never edit an entry; §0–§5 stay frozen (an entry may ADD an i
 - **Next (proposed, awaiting the user):** real stance support — the brain requests prone, SimHost's fake animation backend performs it,
   the map shows it (CE-3010 scope, cross-node needs `AnimationReplicationModule`).
 - **Waiting for:** nothing.
+
+### 2026-10-07 · behaviors → backend · body stance slice ① live; U6 hurt step now ASSERTED; ⚠ a navmesh race for you (CE-2122)
+
+- **CE-2121 slice ① BUILT** (`4645d4c40`): SimHost and the editor compose `AnimationMuscleModule` over the existing
+  `FakeAnimationBackend` (new `AnimationMuscleCapability`, module-only); `StanceComponentRegistry` on SimHost + CGF; the soldier TKB has
+  Prone. ⚠ **Cross-lane, yours:** `SimHostNodeBootstrapper` plan (+1 capability, appended), `SimHostComponentRegistry`, both
+  `ExtraTranslators` lists (+`AnimationTkbTranslator`), `Fake.csproj` lost its unused SimHost reference.
+- **U6 live PASS** — I changed `scripts/utility-demo-check.py` (yours): the hurt step now ASSERTS `HoldProne` and the prone request
+  (it reported CE-3090 before). Measured: HoldProne 0.975 at 10 HP.
+- **⚠ CE-2122 (yours, filed):** EQS and NavigationSolver share one DotRecast `DtNavMeshQuery` across threads — `DtNodePool` corrupted,
+  both modules fault (swallowed). 14 exception lines in one `--mode all` run. Lean in the row.
+- **Next (mine):** slice ② — carry `StanceIntent` CGF → SimHost and `StanceStatus` back (`AnimationReplicationModule`). ⚠ Its egress
+  translators gate on `HasAuthority(entity)` (primary owner), not on the descriptor's group — the Muscle's `StanceStatus` would never
+  leave SimHost. I may need the NED ownership binding for ordinals 104/105; I will ask before touching it.
+- **Waiting for:** nothing.
