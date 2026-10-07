@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 4 — level scheme + all map hosts at once, §2b)
-build-state: DESIGN — approved: D5 always-multi, D9 capability gating (2026-10-07); awaiting: §2b SpawnHeight shape
-current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4, wins where they differ) · §3 diagrams · §5 slices
+updated: 2026-10-07 (rev 5 — level 0 is always the ground; Stride deferred as CE-1030, §2c)
+build-state: DESIGN — approved: D5 always-multi, D9 capability gating (2026-10-07); SpawnHeight shape per §2c (user-specified); open: §2c CE-1031 (ground inside buildings)
+current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: none yet
@@ -195,6 +195,40 @@ icon library — so a host gets all of it by the call it already makes. A host t
 ⚠ An owner-0 request needs an arbiter (CGF or Editor) in the cluster; IG, SimHost and Stride are not arbiters ⇒ when
 none is present the host creates with `owner = self` (R-138: every node can create).
 
+## 2c. Rev 5 — level 0 is always the ground *(user, `2026-10-07`, 4th round)*
+
+> 🔒 **User:** *"can level 0 be always ground level; even inside a solid building (buildings are not usually solid in
+> real world) — if we want placing on the roof, we select that option explicitly. 'Above level' should be possible for
+> some rare cases like parachuter and similar multi-domain entities. Submarines can use negative height and level=0.
+> Stride can be left out for now, but pls record it as a task so we don't forget."*
+
+| field | rev 5 meaning *(supersedes §2b's level 0 row)* |
+|---|---|
+| `Level 0` | 🔒 **always the ground plane, `GroundZ`** — in the open AND inside a building footprint. The roof is an explicit `+n` |
+| `+n` / `−n` | the n-th surface above / below `GroundZ` (slabs, ramps, roofs; basement slabs, tunnel floors); past the end ⇒ highest / lowest; surfaces within 0.3 m of `GroundZ` merge into level 0 |
+| `AboveLevel` | 🔒 kept for the rare multi-domain cases — a parachutist (`AboveLevel`, level 0, +800 m), and 🔒 **submarines: level 0 with a NEGATIVE height** (`AboveLevel`, level 0, −50 m). It holds only while the entity's own motion model does not ground-clamp it (W8) |
+
+### ⚠ The consequence, measured — v1 buildings are SOLID in movement and navigation
+
+| claim | code | design |
+|---|---|---|
+| inside a footprint the ground is not a surface | ✅ `TerrainWorld.SurfaceZ`: `if (!insideSolid) Consider(GroundZ, …)` — and with every candidate above reach it returns the LOWEST, i.e. the **roof** | ✅ `TerrainPrism`: *"Storeys, for the label only in v1 (a prism is solid)"* |
+| ⇒ a ground vehicle placed at level 0 inside a building is **lifted onto the roof on its first movement tick** | ✅ `CarKinematicsSystem.cs:303-310` (`zHint = current Z = GroundZ`) | ✅ W8 — working as ruled for a solid prism |
+| the navmesh has no ground inside a building | ✅ `TerrainWorldMesh` adds roof + walls only; rail `Mesh_GroundSkipsBuildingsAndWater_ButKeepsTheGarageGroundFloor` | ✅ `DESIGN_Terrain_World.md` §2 (prism = solid) |
+
+⇒ **Placement can honour level 0 inside a building only if the terrain stops treating buildings as solid at ground
+level.** ⭐ **Lean: filed as `CE-1031`, not done here** — it changes movement (`SurfaceZ` keeps `GroundZ` inside a
+`Building` prism; walls stay solid), navigation (ground-floor polygons inside buildings, with doors to reach them) and
+the `Floors` label (storeys becoming real slabs). That is the terrain owner's design (`DESIGN_Terrain_World.md`,
+backend lane), and it is the same change "buildings are not usually solid in real world" asks for. **Until it lands**,
+Add Entity at level 0 inside a footprint places on the ground and the motion model lifts a ground vehicle to the roof;
+the ghost shows a warning *"inside a solid building — will settle on the roof"* so it is not a surprise.
+
+### Stride mode 2 — deferred, recorded
+
+🔒 Left out for now; recorded as **`CE-1030`** (the Stride node gains the pack: gizmo registry first — `CE-253`/`CE-254`
+— then canvas menu, picker, icons; confirm its TKB load).
+
 ## 3. Diagrams
 
 ```mermaid
@@ -315,7 +349,7 @@ ExCon's placement still happens on IG through its existing command. Grey boxes n
 | **S0 data** | DisType (with country) on the 15 built-in templates; JSON loader copies `TkbMaster.DisType`; `IconName`, `HideFromPalette`; `DisNameTable` | — |
 | **S1 picker** | `EntityTypeCatalog` + `PlacementToolRegistry`; fold + preview pane + keywords; `Hrot.Presentation` → `NodeEditor.UI` | S0 |
 | **S2 tool + level** | `EntityPlacementGizmo`: always-multi for physical types (right-click/Esc ends), north, icon+name ghost at the resolved level; `TerrainWorld.SurfacesAt`/`ResolveLevel`; `SpawnHeight` in the request, resolved by the creating node; drop → `RequestEntityCreation` | — |
-| **S3 menu, every map host** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, installed by `MapInteractionPack` on Editor, CGF, IG (onto the shared adapter), SimHost; Stride mode 2 once its gizmo registry exists (`CE-253/254`) | S1, S2 |
+| **S3 menu, every map host** | `Add Entity ▸ Friendly/Hostile/Neutral/Map Graphics`, installed by `MapInteractionPack` on Editor, CGF, IG (onto the shared adapter), SimHost; Stride mode 2 deferred → `CE-1030` | S1, S2 |
 | **S4 panels** | `SpawnerPanel`, ExCon ORBAT *New Unit*, IG `MiniExConPanel` call the picker; ExCon + IG get a `PickerRegistry`; retire both hand-written catalogs | S1 |
 | **S5 icons** | `EntityIconLibrary`, fallback glyphs, hand-made PNGs for the built-in types and graphics | S1 |
 

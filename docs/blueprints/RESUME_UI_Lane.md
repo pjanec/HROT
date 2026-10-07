@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-06
 current-answer: ⭐ 2026-10-06 (d) — USER'S WINDOWS CHECK RECORDED (no code): 15 reports → CE-1006…CE-1016
   (Blueprint_Issues_Tracker, ui area after CE-1005) + HSM-024…027 (Hsm_Issues_Tracker Area J). Confirmed WORKING:
-  HSM border-to-border arrows, "Add Transition", picker on empty drop. Then 8 more: CE-1017…CE-1023 (add-entity picker, planned-route debug gizmo, SOP marker, ORBAT select, dark walls, label gizmo twins, the two param editors) + BP-515 extended (Details tabs/stacked headers). Then CE-1024…CE-1029 (geopoint entity, preview-Stop rewind after load, menu order, menu icon gap, File menu redesign, navmesh disk cache) + CE-122 and UXI-27 re-reported. Next ui id: CE-1030; next HSM id: HSM-028.
+  HSM border-to-border arrows, "Add Transition", picker on empty drop. Then 8 more: CE-1017…CE-1023 (add-entity picker, planned-route debug gizmo, SOP marker, ORBAT select, dark walls, label gizmo twins, the two param editors) + BP-515 extended (Details tabs/stacked headers). Then CE-1024…CE-1029 (geopoint entity, preview-Stop rewind after load, menu order, menu icon gap, File menu redesign, navmesh disk cache) + CE-122 and UXI-27 re-reported. Then CE-1017 DESIGNED (DESIGN_Add_Entity_Picker.md rev 5; approved: always-multi, capability gating, level scheme per §2c) + CE-1030 (Stride mode 2 deferred) + CE-1031 (buildings solid at ground level). Next ui id: CE-1032; next HSM id: HSM-028.
   Session (c) below is still the latest BUILD state.
   ⭐⭐⭐ SESSION 2026-10-06 (c) — HSM-020 BUILT (user cleared touching ExtDeps "as long as it stays
   generic"). FastHSM's output-lane arbitration had every part except a SETTER: StateBuilder now has
