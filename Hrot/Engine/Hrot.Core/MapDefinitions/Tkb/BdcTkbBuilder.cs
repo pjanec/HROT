@@ -12,6 +12,7 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Tkb.Parameters;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 
@@ -169,9 +170,15 @@ namespace Hrot.Map.Definitions.Tkb
             // Typed DTO consumed by CombatTkbTranslator.
             // Derive max health from armor: ArmorFront * 5 gives roughly 500 HP for a 100 mm armour.
             // Entities without armour default to 100 HP.
+            // ⭐ Stage 0 — the formulas live in EngineFallbacks and every derived number is RECORDED, so /tkb/resolve
+            //   reports it as Generated(formula, inputs) rather than as if an author had stated it.
+            var generated = new TkbGeneratedValuesDto();
+            generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
+                ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
+                : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
             template.AddDescriptor(new CombatPlatformDefDto
             {
-                MaxHealth  = combatDef.ArmorFront > 0f ? combatDef.ArmorFront * 5f : 100f,
+                MaxHealth  = EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
                 ArmorFront = combatDef.ArmorFront,
                 ArmorSide  = combatDef.ArmorSide,
                 ArmorRear  = combatDef.ArmorRear,
@@ -192,10 +199,13 @@ namespace Hrot.Map.Definitions.Tkb
                 var suite = new WeaponSuiteDto();
                 foreach (var wm in combatDef.Weapons)
                 {
+                    generated.Formulas[ParameterNames.Mount(suite.Mounts.Count, ParameterNames.MuzzleVelocity)] = wm.Range > 0f
+                        ? $"range × {EngineFallbacks.MuzzleVelocityPerRangeMetre} (range = {wm.Range})"
+                        : $"no range ⇒ {EngineFallbacks.MuzzleVelocity}";
                     suite.Mounts.Add(new WeaponMountDto
                     {
                         InitialAmmunition = wm.Ammunition,
-                        MuzzleVelocity    = wm.Range > 0f ? wm.Range * 0.5f : 800f,
+                        MuzzleVelocity    = EngineFallbacks.MuzzleVelocityFromRange(wm.Range),
                         // ⭐ CE-3071 (A4) — each mount keeps its OWN range and munition (the TOW is not the 25 mm).
                         Range             = wm.Range,
                         Penetration       = wm.Penetration,
@@ -215,6 +225,8 @@ namespace Hrot.Map.Definitions.Tkb
                     FieldOfViewDegrees = 360f,
                 });
             }
+
+            template.AddDescriptor(generated);   // ⭐ Stage 0 — provenance of the derived numbers above
 
             // ECS components (PerceptionReceptor, WeaponState, Health, PhysicsCollider)
             // will be stamped by translators in Phase 6.

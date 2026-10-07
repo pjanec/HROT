@@ -2079,6 +2079,39 @@ namespace Hrot.Editor.DebugApi
             return arr;
         }
 
+        /// <summary>
+        /// GET /tkb/resolve?type= — ⭐ buildings programme Stage 0: every combat/perception parameter of the type with its
+        /// value and PROVENANCE (Explicit · Generated(formula) · EngineFallback · NotApplicable), from the same
+        /// <see cref="Fdp.Toolkit.Tkb.Parameters.ParameterResolver"/> rules the translators and the fire chain use.
+        /// 📄 docs/DESIGN_Terrain_Combat_Tuning.md §2, §4.
+        /// </summary>
+        public JsonNode? ResolveTkbParameters(long tkbType)
+        {
+            if (!_tkbDb.TryGetByType(tkbType, out var t))
+                return null;
+            var arr = new JsonArray();
+            int fallbacks = 0;
+            foreach (var p in Fdp.Toolkit.Tkb.Parameters.ParameterResolver.ResolveAll(t))
+            {
+                if (p.Provenance == Fdp.Toolkit.Tkb.Parameters.ParameterProvenance.EngineFallback) fallbacks++;
+                arr.Add(new JsonObject
+                {
+                    ["name"]       = p.Name,
+                    ["value"]      = p.Value is float v ? JsonValue.Create(v) : null,
+                    ["provenance"] = p.Provenance.ToString(),
+                    ["source"]     = p.Source,
+                });
+            }
+            return new JsonObject
+            {
+                ["tkbType"]         = t.TkbType,
+                ["name"]            = t.Name,
+                ["disType"]         = t.DisType.ToString(),
+                ["engineFallbacks"] = fallbacks,
+                ["parameters"]      = arr,
+            };
+        }
+
         /// <summary>GET /tkb/types/{tkbType} — full descriptor for one TKB type.</summary>
         public JsonNode? GetTkbType(long tkbType)
         {

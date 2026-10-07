@@ -1924,6 +1924,25 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"tkbType\":1001}",
             ExampleGist: "inspect TKB descriptor for type 1001"),
 
+        [("GET", "/tkb/resolve")] = new RouteDoc(
+            Tool:    "resolve_entity_type_parameters",
+            Group:   "M (TKB) — Entity-type catalog",
+            Summary: "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0).",
+            Returns: "{ tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] }",
+            Hint:    "Req: type (number — tkbType from list_entity_types). Example: resolve_entity_type_parameters({type:100})",
+            Params: new RouteParam[]
+            {
+                new("type", "number", true, "TKB type ID (long)"),
+            },
+            Notes: new[]
+            {
+                "The values are the ones the simulation uses: the translators and the fire chain call the same resolver rules.",
+                "Generated = a builder derived it by formula (source names the formula and its inputs); EngineFallback = the type said nothing and an engine default applies.",
+                "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'.",
+            },
+            ExampleArgsJson: "{\"type\":100}",
+            ExampleGist: "see which of the M1's numbers are stated, derived or engine defaults"),
+
         [("POST", "/entities/{networkId}/focus")] = new RouteDoc(
             Tool:    "focus_entity",
             Group:   "O — Manual-assist (focus / annotations)",

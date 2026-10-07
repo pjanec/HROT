@@ -64,8 +64,8 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static float HitDamage(float penetration, float damagePerHit, float armour)
         {
-            if (penetration <= 0f) return damagePerHit > 0f ? damagePerHit : CombatConstants.DefaultBulletDamage;
-            return ExpectedDamage(penetration, damagePerHit > 0f ? damagePerHit : CombatConstants.DefaultBulletDamage, armour);
+            if (penetration <= 0f) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damagePerHit);
+            return ExpectedDamage(penetration, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(damagePerHit), armour);
         }
     }
 

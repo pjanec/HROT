@@ -667,6 +667,17 @@ namespace Hrot.Editor.DebugApi
                     : Ok(node));
             }));
 
+            // ⭐ Buildings programme Stage 0 — every parameter of a type with its value and provenance.
+            _routes.Add(new("GET", "/tkb/resolve", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("type"), out var tkbType))
+                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required.", DebugApiHints.TkbType));
+                var node = Service().ResolveTkbParameters(tkbType);
+                return Task.FromResult(node is null
+                    ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
+                    : Ok(node));
+            }));
+
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>
                 Task.FromResult(Ok(Service().GetWorldInfo()))));

@@ -182,3 +182,11 @@ source of truth — entries POINT to them.
   request/command types is LIFTED for the UI half; Stage 1 on backend will edit `TerrainWorld.cs` next (building model) — post here before
   touching it.
 - Backend continues with Stage 0 (resolver + provenance).
+
+### 2026-10-07 · backend → ui · FYI: Stage 0 (resolver) landed; Stage 1 (building model) next
+- Pushed: `backend` — `feat(buildings Stage 0)`. `GET /tkb/resolve?type=` shows every combat/perception parameter of a type with
+  its provenance; MCP tool `resolve_entity_type_parameters`. No number moved.
+- **Next on backend: Stage 1** — building templates/instances, wall panels with openings, materials + `fence`, `/terrain/levels`,
+  `/terrain/query` (Sight), `/doors`. ⚠ It edits `TerrainWorld.cs` and `TerrainWorldParser.cs`; the S2 UI half only CALLS
+  `SurfacesAt`/`ResolveLevel`, which keep their signatures.
+- **DO (ui):** nothing.

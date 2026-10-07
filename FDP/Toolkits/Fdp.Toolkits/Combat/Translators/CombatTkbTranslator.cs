@@ -21,8 +21,7 @@ namespace Fdp.Toolkit.Combat.Translators
     /// </summary>
     public sealed class CombatTkbTranslator : ITkbEntityTranslator
     {
-        private const float DefaultColliderRadius  = 2.5f;
-        private const float DefaultMuzzleVelocity  = 800f;
+        // ⭐ Stage 0 — the defaults live in EngineFallbacks; ParameterResolver reports the same rules (no number moved).
         private const byte  CombatCollisionLayer   = 2;
 
         public IEnumerable<Type> GetConsumedDescriptors()
@@ -76,7 +75,7 @@ namespace Fdp.Toolkit.Combat.Translators
                     {
                         repo.AddComponent(entity, new PhysicsCollider
                         {
-                            Radius         = DefaultColliderRadius,
+                            Radius         = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ColliderRadius,
                             CollisionLayer = CombatCollisionLayer,
                             Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                         });
@@ -95,9 +94,7 @@ namespace Fdp.Toolkit.Combat.Translators
                     {
                         Ammo           = primary.InitialAmmunition,
                         MaxAmmo        = primary.InitialAmmunition,
-                        MuzzleVelocity = primary.MuzzleVelocity > 0f
-                            ? primary.MuzzleVelocity
-                            : DefaultMuzzleVelocity
+                        MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(primary.MuzzleVelocity)
                     });
 
                 // Additional mounts (index 1+): each gets a child entity.
@@ -120,7 +117,7 @@ namespace Fdp.Toolkit.Combat.Translators
                         {
                             Ammo           = mount.InitialAmmunition,
                             MaxAmmo        = mount.InitialAmmunition,
-                            MuzzleVelocity = mount.MuzzleVelocity > 0f ? mount.MuzzleVelocity : DefaultMuzzleVelocity
+                            MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
                         });
                         repo.AddComponent(child, new WeaponMountInfo
                         {

@@ -47,8 +47,9 @@ namespace Fdp.Toolkit.Combat
 
         // ── Bullet / projectile constants ─────────────────────────────────────
 
-        /// <summary>Damage applied per bullet hit (sourced from BallisticProjectile.Damage on spawn).</summary>
-        public const float DefaultBulletDamage  = 25f;
+        /// <summary>Damage applied per bullet hit when the mount states none — ⭐ Stage 0: an alias of
+        /// <see cref="Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.BulletDamage"/>, the one home of the engine defaults.</summary>
+        public const float DefaultBulletDamage  = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.BulletDamage;
 
         /// <summary>Radius of the bounding-circle collider added to each bullet entity (metres).</summary>
         public const float BulletColliderRadius  = 0.1f;

@@ -1538,6 +1538,38 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_entity_squad",
+    "group": "K — AI behavior traces",
+    "summary": "A squad as its commander sees it — members with their assigned fire targets, and the merged contact pool (CE-3087).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/squad"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}] } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
+    "notes": [
+      "The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.",
+      "An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).",
+      "Heard contacts (no identity) appear in the pool with heard:true and are never assigned."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read which target each squad member is assigned and what the squad knows"
+    },
+    "hint": "Req: networkId (number) of a commander or a member. Read on the Brain perspective (Scenario on a cluster). Example: get_entity_squad({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_trace",
     "group": "K — AI behavior traces",
     "summary": "Extract AI behavior trace for an entity.",
@@ -1598,6 +1630,44 @@ export const TOOLS_CATALOG = [
       "gist": "read which posture a unit chose and the scores behind it"
     },
     "hint": "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_weapons",
+    "group": "K — AI behavior traces",
+    "summary": "A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/weapons"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "target",
+        "type": "number",
+        "required": false,
+        "description": "Network id of a target to score the mounts against (query)"
+      }
+    ],
+    "returns": "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }",
+    "notes": [
+      "choice is the mount the AimAndFire executor fires on Mount=Auto (the posture's fire step): 0 = the owner's primary.",
+      "rangeFit is distance / mount range (≈ 1 inside the range in the decision's curve); 10 = unknown."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "target": 1002
+      },
+      "gist": "see which weapon a unit would fire at a target, and why"
+    },
+    "hint": "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
     "manualVerify": false
   },
 
@@ -1758,6 +1828,38 @@ export const TOOLS_CATALOG = [
   },
 
   // ── Group M (TKB) — Entity-type catalog ─────────────────────────────────────
+
+  {
+    "name": "resolve_entity_type_parameters",
+    "group": "M (TKB) — Entity-type catalog",
+    "summary": "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0).",
+    "http": {
+      "method": "GET",
+      "path": "/tkb/resolve"
+    },
+    "params": [
+      {
+        "name": "type",
+        "type": "number",
+        "required": true,
+        "description": "TKB type ID (long)"
+      }
+    ],
+    "returns": "{ tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] }",
+    "notes": [
+      "The values are the ones the simulation uses: the translators and the fire chain call the same resolver rules.",
+      "Generated = a builder derived it by formula (source names the formula and its inputs); EngineFallback = the type said nothing and an engine default applies.",
+      "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'."
+    ],
+    "example": {
+      "args": {
+        "type": 100
+      },
+      "gist": "see which of the M1's numbers are stated, derived or engine defaults"
+    },
+    "hint": "Req: type (number — tkbType from list_entity_types). Example: resolve_entity_type_parameters({type:100})",
+    "manualVerify": false
+  },
 
   {
     "name": "list_entity_types",

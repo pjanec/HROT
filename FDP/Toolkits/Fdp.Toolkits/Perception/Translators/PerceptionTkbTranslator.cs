@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Perception.Translators
             if ((dto.EyeHeightStanding > 0f || dto.EyeHeightCrouched > 0f || dto.EyeHeightProne > 0f)
                 && repo.IsComponentTypeRegistered<SensorMount>() && !repo.HasComponent<SensorMount>(entity))
             {
-                float standing = dto.EyeHeightStanding > 0f ? dto.EyeHeightStanding : 1.7f;
+                float standing = dto.EyeHeightStanding > 0f ? dto.EyeHeightStanding : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
                 repo.AddComponent(entity, new SensorMount
                 {
                     Standing = standing,

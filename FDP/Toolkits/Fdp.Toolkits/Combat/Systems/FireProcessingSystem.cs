@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
-                    Damage           = mount != null && mount.DamagePerHit > 0f ? mount.DamagePerHit : CombatConstants.DefaultBulletDamage,
+                    Damage           = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(mount?.DamagePerHit ?? 0f),
                     Penetration      = mount != null && mount.DamagePerHit > 0f ? mount.Penetration : 0f,
                     SpawnTick        = currentTick,
                 });

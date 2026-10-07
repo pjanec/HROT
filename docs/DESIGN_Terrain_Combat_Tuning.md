@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 2 — generated defaults, §2a)
+updated: 2026-10-07 (rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07
 current-answer: §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
@@ -125,6 +125,47 @@ the TKB still wins — the resolver records which one applied.
 | the generator runs **at load**, producing the §2 library; **explicit TKB numbers override** any generated value; provenance `Generated(formula, inputs)` shows on `/tkb/resolve` | a one-off offline script — the generated table would drift from the formulas the moment someone hand-edits it |
 | **premise tests (§3) check the GENERATED outputs** — a coefficient change that breaks a demo fails there, naming the coefficient | testing the coefficients directly — the premise is about the outcome |
 | formulas are deliberately simple engineering approximations, good enough for training-sim defaults; real data always overrides | high-fidelity ballistics — out of scope, and real data is the answer where fidelity matters |
+
+### ✅ Stage 0 (T-0) as built *(backend, `2026-10-07`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class ParameterResolver { <<Fdp.Toolkits Tkb.Parameters, NEW>> ResolveAll(template); MaxHealth; Armour; ColliderRadius; EyeHeight; MuzzleVelocity; DamagePerHit; Penetration; MountRange }
+    class ResolvedParameter { <<NEW>> Name; Value?; Provenance; Source }
+    class ParameterProvenance { <<enum, NEW>> Explicit; Generated; ReferenceByDis; ReferenceByName; EngineFallback; NotApplicable }
+    class EngineFallbacks { <<NEW, the one file>> 25 dmg; 800 m/s; 2.5 m; 100 HP; ×5 per mm; ×0.5 per m; eyes 1.7/1.1/0.35; rule functions }
+    class TkbGeneratedValuesDto { <<Tkb.Domain, NEW>> Formulas: name → formula with inputs }
+    class NedTkbBuilder { <<Hrot.Core, existing>> WithCombat records its formulas NEW }
+    class CombatTkbTranslator { <<existing>> uses EngineFallbacks rules }
+    class PerceptionTkbTranslator { <<existing>> uses EngineFallbacks }
+    class TerrainWorldLosStrategy { <<existing>> DefaultMount from EngineFallbacks }
+    class FireProcessingSystem { <<existing>> DamageOrFallback }
+    class ArmorModel { <<existing>> DamageOrFallback }
+    class DebugApiService { <<Hrot.Editor, existing>> ResolveTkbParameters NEW → GET /tkb/resolve }
+    ParameterResolver ..> ResolvedParameter
+    ResolvedParameter --> ParameterProvenance
+    ParameterResolver --> EngineFallbacks
+    ParameterResolver --> TkbGeneratedValuesDto : Stated ⇒ Generated when recorded
+    NedTkbBuilder --> TkbGeneratedValuesDto : writes
+    NedTkbBuilder --> EngineFallbacks : HealthFromArmour, MuzzleVelocityFromRange
+    CombatTkbTranslator --> EngineFallbacks
+    PerceptionTkbTranslator --> EngineFallbacks
+    TerrainWorldLosStrategy --> EngineFallbacks
+    FireProcessingSystem --> EngineFallbacks
+    ArmorModel --> EngineFallbacks
+    DebugApiService --> ParameterResolver
+```
+*What it shows:* the runtime readers and the resolver share ONE rule set (`EngineFallbacks`), so `/tkb/resolve` cannot
+report a value the simulation does not use — and a builder-derived number is visibly `Generated`, not posing as authored.
+
+| item | as built |
+|---|---|
+| no number moved | every constant kept its value: 25 / 800 / 2.5 / 100 / ×5 / ×0.5 / 1.7·1.1·0.35; `CombatConstants.DefaultBulletDamage` is now an alias of `EngineFallbacks.BulletDamage` |
+| provenance found while building | the NED builder DERIVES two numbers the old claim table listed only as constants: **health = front armour × 5** and **muzzle velocity = range × 0.5** — recorded per template in `TkbGeneratedValuesDto` and reported as `Generated` with the formula and its inputs (e.g. M1: `armourFront × 5 (armourFront = 600)` = 3000) |
+| `GET /tkb/resolve?type=` | `{tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance, source}]}`; RouteDoc tool `resolve_entity_type_parameters` |
+| ⚠ **DEVIATION — the Reference Library is NOT in Stage 0** | §2's chain step *"Reference Library entry by DIS / by name"* and the handoff's *"catalog numbers become library entries"* moved to **Stage 3**, with the §2a generator. Why: ① a DIS-keyed library entry would start giving combat components to FILE-loaded types that have none today (S0 made their DIS non-zero) — a behaviour change Stage 0 must not make; ② §2a makes the library a GENERATOR output, so a hand-entered library now would be replaced there. The provenance values `ReferenceByDis` / `ReferenceByName` exist and are reserved for it |
+| rails | `Fdp.Toolkits.Tests` `ParameterResolverTests` (5, incl. *the translator stamps exactly what the resolver reports*) · `Hrot.Core.Tests` `NedTkbBuilderCombatTests.Stage0_*` (2: M1 and rifleman values unchanged + provenance) |
 
 ## 3. Tests and demos that survive tuning
 

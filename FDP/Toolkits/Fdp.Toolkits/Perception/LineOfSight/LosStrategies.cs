@@ -84,7 +84,12 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     {
         /// <summary>Eye heights when the entity carries no <see cref="SensorMount"/> — a standing, crouched and
         /// prone soldier.</summary>
-        public static readonly SensorMount DefaultMount = new() { Standing = 1.7f, Crouched = 1.1f, Prone = 0.35f };
+        public static readonly SensorMount DefaultMount = new()
+        {
+            Standing = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding,   // ⭐ Stage 0 — one home for the defaults
+            Crouched = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched,
+            Prone    = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightProne,
+        };
 
         private readonly Func<TerrainWorld?> _worldSource;
         private readonly Func<ISimulationView, Entity, float>? _radius;
