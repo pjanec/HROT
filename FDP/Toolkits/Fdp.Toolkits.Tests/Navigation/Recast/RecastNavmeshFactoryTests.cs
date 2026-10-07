@@ -75,4 +75,48 @@ public sealed class RecastNavmeshFactoryTests
         node.Publish(null);                                         // terrain unload
         Assert.False(node.HasBakedMesh);
     }
+
+    // ── ⭐ Buildings programme Stage 2 — walk inside (docs/DESIGN_Building_Interiors.md §6 B-1) ──────────────────
+
+    // A 10 x 8 m two-storey house at (20,20): a door in the south wall, stairs (8,1)→(8,6) to storey 2, the upper floor
+    // split around the stairwell so the stairs have headroom.
+    private const string HouseWorld = """
+        {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+          {"type":"Feature","properties":{"kind":"building","label":"H","building":{
+             "footprint":[[0,0],[10,0],[10,8],[0,8]],
+             "storeys":[
+               {"height":3,"walls":[
+                  {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.5,"width":1.2}]},
+                  {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}],
+                "stairs":[{"from":[8,1],"to":[8,6],"width":1.2}]},
+               {"height":3,"floor":[ [[0,0],[7.3,0],[7.3,8],[0,8]], [[8.7,0],[10,0],[10,8],[8.7,8]],
+                                     [[7.3,0],[8.7,0],[8.7,1],[7.3,1]], [[7.3,6],[8.7,6],[8.7,8],[7.3,8]] ],
+                "walls":[{"from":[0,0],"to":[10,0]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+           "geometry":{"type":"Point","coordinates":[20,20]}}]}
+        """;
+
+    [Fact]
+    public void Stage2_InsideTheHouse_TheGroundIsWalkable_AndAPathFromOutsideReachesTheUpperStoreyByTheStairs()
+    {
+        var nav = Bake(HouseWorld);
+        Assert.True(nav.IsWalkable(new Vector3(22, 24, 0)), "the ground floor inside an enterable building must be walkable");
+
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[128];
+        var upstairs = new Vector3(22, 24, 3);
+        int n = nav.PlanPath(new Vector3(25, 10, 0), upstairs, wps, (uint)NavLayerMask.Infantry);
+        Assert.True(n >= 2, $"no path to the upper storey ({n} waypoints)");
+        var last = wps[n - 1].Position;
+        Assert.InRange(last.Z, 2.6f, 3.4f);                                       // it ENDS on storey 2, not under it
+        Assert.InRange(last.X, 21f, 23f);
+        for (int i = 0; i < n; i++)
+        {
+            var p = wps[i].Position;
+            // between floors only ON the stair ramp (x 27.4..28.6, y 21..26) — never floating elsewhere
+            if (p.Z > 0.4f && p.Z < 2.6f)
+                Assert.True(p.X > 27f && p.X < 29f && p.Y > 20.5f && p.Y < 26.5f, $"waypoint {i} {p} is between floors off the stairs");
+            // through the south wall (y = 20) only at the doorway (x 24.5..25.7)
+            if (MathF.Abs(p.Y - 20f) < 0.15f && p.Z < 2.6f)
+                Assert.True(p.X > 24.3f && p.X < 25.9f, $"waypoint {i} {p} crosses the south wall outside the door");
+        }
+    }
 }
