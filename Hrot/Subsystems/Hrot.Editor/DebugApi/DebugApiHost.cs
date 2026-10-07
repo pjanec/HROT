@@ -683,8 +683,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ Buildings programme Stage 0 — every parameter of a type with its value and provenance.
             _routes.Add(new("GET", "/tkb/resolve", ctx =>
             {
+                // ⭐ tuning T-1 — no type: the generated reference library (a pair with ammo=&weapon=, or the whole library)
+                if (ctx.Query("type") is null && (ctx.Query("ammo") is not null || ctx.Query("library") is not null))
+                    return Task.FromResult(Ok(ReferenceReport.Resolve(ctx.Query("ammo"), ctx.Query("weapon"))));
                 if (!long.TryParse(ctx.Query("type"), out var tkbType))
-                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required.", DebugApiHints.TkbType));
+                    return Task.FromResult(Fail(400, "Query 'type' (TKB type id) is required — or 'ammo' (and 'weapon') for the reference library, or 'library=1' to list it.", DebugApiHints.TkbType));
                 var node = Service().ResolveTkbParameters(tkbType);
                 return Task.FromResult(node is null
                     ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)

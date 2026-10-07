@@ -1,0 +1,25 @@
+{
+  "$comment": "Buildings programme Stage 3 / tuning T-1 — THE one tuning file of the reference-library generator (docs/DESIGN_Terrain_Combat_Tuning.md §2a). Every generated number comes from an ammo's driving parameters (ammo.json) and a weapon's (weapons.json) through these coefficients; tuning moves THESE and every type moves together. Deliberately simple engineering approximations — real TKB data always overrides.",
+  "kineticPenetration": {
+    "$comment": "pen (mm RHA) = k[type] · v (m/s) · sqrt(mass kg) — a DeMarre-style momentum form; v = the ammo's nominal velocity × the weapon's velocityFactor",
+    "k": { "ball": 0.10, "ap": 0.14, "apds": 0.12, "apfsds": 0.185 }
+  },
+  "shapedChargePenetration": {
+    "$comment": "pen (mm RHA) = coneFactor · calibre (mm), independent of velocity and range; an ammo may state its own coneFactor (an older warhead design)",
+    "coneFactor": { "heat": 5.3, "hedp": 1.9 }
+  },
+  "highExplosivePenetration": {
+    "$comment": "the DIRECT penetration of an HE / fragmentation round on impact (its area effect is CE-1032): pen = factor · calibre",
+    "factor": { "he": 0.2, "frag": 0.0 }
+  },
+  "damage": {
+    "$comment": "kinetic: damage = perSqrtJoule · sqrt(½ m v²) (5.56 ball ⇒ ~25, the flat default); explosive types: damage = perKgExplosive · explosive kg",
+    "perSqrtJoule": 0.6,
+    "perKgExplosive": 600
+  },
+  "blast": {
+    "$comment": "Hopkinson–Cranz scaled distance: R = Z · W^(1/3), W = explosive kg TNT-equivalent; generated for CE-1032 (warheads), not read by the simulation yet",
+    "zLethal": 2.0,
+    "zInjury": 6.0
+  }
+}

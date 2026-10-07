@@ -1,0 +1,24 @@
+{
+  "$comment": "Reference-library driving parameters per AMMUNITION, matched by the ammo TKB type's NAME. type: ball | ap | apds | apfsds (kinetic) · heat | hedp (shaped charge) · he | frag. calibreMm, massG (the projectile / penetrator), velocity (nominal m/s), explosiveKg (TNT-equivalent; explosive types). Placeholder approximations for development — real TKB data overrides.",
+  "ammo": {
+    "5.56x45 ball":    { "type": "ball",   "calibreMm": 5.56, "massG": 4.0,   "velocity": 930 },
+    "7.62x51 ball":    { "type": "ball",   "calibreMm": 7.62, "massG": 9.5,   "velocity": 840 },
+    "12.7x99 ball":    { "type": "ball",   "calibreMm": 12.7, "massG": 42,    "velocity": 890 },
+    "12.7x99 AP":      { "type": "ap",     "calibreMm": 12.7, "massG": 46,    "velocity": 890 },
+    "25mm APDS":       { "type": "apds",   "calibreMm": 25,   "massG": 134,   "velocity": 1345 },
+    "25mm HEI":        { "type": "he",     "calibreMm": 25,   "massG": 185,   "velocity": 1100, "explosiveKg": 0.03 },
+    "30mm APFSDS":     { "type": "apfsds", "calibreMm": 30,   "massG": 230,   "velocity": 1405 },
+    "30mm HE":         { "type": "he",     "calibreMm": 30,   "massG": 360,   "velocity": 1080, "explosiveKg": 0.05 },
+    "120mm APFSDS":    { "type": "apfsds", "calibreMm": 120,  "massG": 4600,  "velocity": 1650 },
+    "120mm HEAT":      { "type": "heat",   "calibreMm": 120,  "massG": 13500, "velocity": 1140, "explosiveKg": 1.6 },
+    "125mm APFSDS":    { "type": "apfsds", "calibreMm": 125,  "massG": 4850,  "velocity": 1700 },
+    "125mm HE-frag":   { "type": "he",     "calibreMm": 125,  "massG": 23000, "velocity": 850,  "explosiveKg": 3.4 },
+    "PG-7V HEAT":      { "type": "heat",   "calibreMm": 85,   "massG": 2200,  "velocity": 300,  "explosiveKg": 0.73, "coneFactor": 3.5 },
+    "TOW-2 HEAT":      { "type": "heat",   "calibreMm": 152,  "massG": 21500, "velocity": 280,  "explosiveKg": 3.1 },
+    "40mm HEDP":       { "type": "hedp",   "calibreMm": 40,   "massG": 230,   "velocity": 76,   "explosiveKg": 0.045 },
+    "M67 grenade":     { "type": "frag",   "calibreMm": 64,   "massG": 400,   "velocity": 15,   "explosiveKg": 0.24 },
+    "60mm mortar HE":  { "type": "he",     "calibreMm": 60,   "massG": 1700,  "velocity": 210,  "explosiveKg": 0.4 },
+    "81mm mortar HE":  { "type": "he",     "calibreMm": 81,   "massG": 4200,  "velocity": 260,  "explosiveKg": 0.95 },
+    "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0 }
+  }
+}

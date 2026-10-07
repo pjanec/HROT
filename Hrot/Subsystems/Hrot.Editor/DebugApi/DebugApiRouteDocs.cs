@@ -1927,18 +1927,22 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/tkb/resolve")] = new RouteDoc(
             Tool:    "resolve_entity_type_parameters",
             Group:   "M (TKB) — Entity-type catalog",
-            Summary: "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0).",
-            Returns: "{ tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] }",
-            Hint:    "Req: type (number — tkbType from list_entity_types). Example: resolve_entity_type_parameters({type:100})",
+            Summary: "Every combat/perception parameter of a TKB type with its value and where it came from (buildings Stage 0) — or, with ammo/weapon, the generated reference library's launcher × ammo pair (tuning T-1).",
+            Returns: "type: { tkbType, name, disType, engineFallbacks, parameters:[{name, value, provenance:Explicit|Generated|ReferenceByDis|ReferenceByName|EngineFallback|NotApplicable, source}] } · ammo: { ammo, weapon, found, weaponMatched, muzzleSpeed, penetrationMm, penetrationFormula, damage, damageFormula, driving } · library=1: { ammo:[…], weapons:[…] }",
+            Hint:    "Req: type (number — tkbType from list_entity_types), OR ammo (+ optional weapon), OR library=1. Example: resolve_entity_type_parameters({type:100}) · resolve_entity_type_parameters({ammo:'12.7x99 AP', weapon:'M2HB'})",
             Params: new RouteParam[]
             {
-                new("type", "number", true, "TKB type ID (long)"),
+                new("type", "number", false, "TKB type ID (long)"),
+                new("ammo", "string", false, "reference-library ammo name (e.g. '5.56x45 ball') — answers the generated pair instead of a type"),
+                new("weapon", "string", false, "reference-library weapon name (e.g. 'M4_Carbine'); omitted or not firing this ammo ⇒ the ammo's generic profile"),
+                new("library", "string", false, "any value with no type/ammo: list the whole reference library"),
             },
             Notes: new[]
             {
                 "The values are the ones the simulation uses: the translators and the fire chain call the same resolver rules.",
                 "Generated = a builder derived it by formula (source names the formula and its inputs); EngineFallback = the type said nothing and an engine default applies.",
                 "engineFallbacks counts the parameters on engine defaults — the place to look when a type behaves 'generically'.",
+                "ReferenceByName = the generated reference library (tuning T-1): a mount's loaded ammo named by its TKB type's name, when the TKB states no penetration; the formula and its inputs are in source.",
             },
             ExampleArgsJson: "{\"type\":100}",
             ExampleGist: "see which of the M1's numbers are stated, derived or engine defaults"),

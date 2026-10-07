@@ -153,6 +153,52 @@
   {
    "type": "Feature",
    "properties": {
+    "kind": "wall",
+    "height": 2.0,
+    "label": "steel-plate panel",
+    "material": "steel-plate",
+    "thickness": 0.012
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      130,
+      40
+     ],
+     [
+      138,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 1.2,
+    "label": "sandbag wall",
+    "material": "sandbags",
+    "thickness": 0.5
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      145,
+      40
+     ],
+     [
+      153,
+      40
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
     "kind": "fence",
     "height": 1.2,
     "label": "Fence Row"

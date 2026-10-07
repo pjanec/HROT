@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-07 (rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07
-current-answer: §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -167,6 +167,53 @@ report a value the simulation does not use — and a builder-derived number is v
 | ⚠ **DEVIATION — the Reference Library is NOT in Stage 0** | §2's chain step *"Reference Library entry by DIS / by name"* and the handoff's *"catalog numbers become library entries"* moved to **Stage 3**, with the §2a generator. Why: ① a DIS-keyed library entry would start giving combat components to FILE-loaded types that have none today (S0 made their DIS non-zero) — a behaviour change Stage 0 must not make; ② §2a makes the library a GENERATOR output, so a hand-entered library now would be replaced there. The provenance values `ReferenceByDis` / `ReferenceByName` exist and are reserved for it |
 | rails | `Fdp.Toolkits.Tests` `ParameterResolverTests` (5, incl. *the translator stamps exactly what the resolver reports*) · `Hrot.Core.Tests` `NedTkbBuilderCombatTests.Stage0_*` (2: M1 and rifleman values unchanged + provenance) |
 
+## 2b. ✅ T-1 (generated reference library) and T-2 (premise table) as built *(backend, `2026-10-07`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class AmmoJson { <<embedded data, NEW>> per ammo: type, calibreMm, massG, velocity, explosiveKg, coneFactor? }
+    class WeaponsJson { <<embedded data, NEW>> per weapon: velocityFactor, ammo[] }
+    class CoefficientsJson { <<embedded data, NEW — the one tuning file>> k per kinetic type; coneFactor; HE factor; damage; blast Z }
+    class ReferenceLibrary { <<Fdp.Toolkits Tkb.Reference, NEW>> Shared; Generate(ammo, weapons, coeff); TryGetPair(ammo, weapon) }
+    class RefPair { <<NEW>> MuzzleSpeed; PenetrationMm; Damage; formulas with inputs }
+    class RefAmmo { <<NEW>> driving params; Generic pair; blast radii }
+    class ParameterResolver { <<existing>> MountPenetration: TKB pair → generic → mount → library (ReferenceByName) → 0 }
+    class ReferenceReport { <<Hrot.Editor DebugApi, NEW>> /tkb/resolve?ammo=&weapon= · ?library=1 }
+    class PremisesJson { <<Recipes/Terrain/bt-range, NEW>> demos → rounds + premise rows }
+    class DemoPremisesTests { <<Hrot.Core.Tests, NEW>> one theory row per premise, margins }
+    class TerrainWorld { <<existing>> QuerySight; QueryFire }
+    AmmoJson --> ReferenceLibrary
+    WeaponsJson --> ReferenceLibrary
+    CoefficientsJson --> ReferenceLibrary
+    ReferenceLibrary *-- RefAmmo
+    ReferenceLibrary *-- RefPair
+    ParameterResolver --> ReferenceLibrary : after explicit TKB data
+    ReferenceReport --> ReferenceLibrary
+    DemoPremisesTests --> PremisesJson
+    DemoPremisesTests --> ParameterResolver : catalog rounds
+    DemoPremisesTests --> ReferenceLibrary : library rounds
+    DemoPremisesTests --> TerrainWorld : bt-range geometry
+```
+*What it shows:* the library is a resolver STEP fed by three small data files, never TKB content; and the premise table
+checks the same three sources a scenario would use — catalog, library and the real terrain — so it fails exactly when a
+demo would.
+
+| item | as built — and the deviations, argued |
+|---|---|
+| ⚠ **the library is NOT TKB templates** | ⛔ registering generated ammo/weapon types into the TKB was measured unsafe: a file-loaded TKB `Clear()`s the database (`KnowledgeBaseLoadStep.cs:110`), and `HrotEnvironmentTests` pins every catalog template as a SPAWNABLE entity type (SimTransform birth-critical). ⭐ So the library is engine data like the terrain materials — embedded (`Fdp.Toolkits/Tkb/Reference/Data/{ammo,weapons,coefficients}.json`), present on every node — and a **resolver step**, exactly §2's diagram (`ParameterResolver → ReferenceLibrary`) |
+| ⚠ embedded, not `Recipes/Reference/` | the same deviation as the materials (Building §3g): always present on every host and in tests; per-folder override is a later step |
+| matching | **by NAME** — the mount's ammo TKB type's name (via `AmmoGuid`) and the weapon type's name (via `WeaponGuid`); a weapon that does not fire that ammo ⇒ the ammo's generic profile (nominal velocity). ⏭ by DIS: deferred — no shipped ammo carries a DIS munition type to match, and inventing DIS codes would be worse than none |
+| chain | TKB pair → TKB generic → the mount's own `Penetration` → **library pair (`ReferenceByName`, source = the formula with its inputs)** → 0. ⭐ the built-in catalogs name no ammo types, so nothing they resolve moved — **no re-pin** |
+| formulas (`coefficients.json`) | kinetic `pen = k[type] · v · √m` (ball 0.10, ap 0.14, apds 0.12, apfsds 0.185) · shaped charge `coneFactor · calibre` (heat 5.3, hedp 1.9; an ammo may state its own — PG-7V 3.5) · HE `factor · calibre` · damage `0.6 · √(½ m v²)` kinetic (5.56 ⇒ ~25, the flat default) or `600 · kg explosive` · blast `R = Z · W^⅓` (Z 2 lethal / 6 injury — generated for `CE-1032`, read by nothing yet) |
+| calibration | the generated numbers sit within 15 % of every number the catalogs STATE (5.56 → 5.9 vs 5 · 25 mm APDS 59 vs 60 · 120 mm APFSDS 655 vs 650 · PG-7V 298 vs 300 · TOW-2 806 vs 800) — pinned loosely in `ReferenceLibraryTests` as calibration points of the COEFFICIENTS, not as demo outcomes |
+| breadth | 19 ammo (5.56/7.62/12.7 ball, 12.7 AP, 25 mm APDS+HEI, 30 mm APFSDS+HE, 120 mm APFSDS+HEAT, 125 mm APFSDS+HE-frag, PG-7V, TOW-2, 40 mm HEDP, M67, 60/81/120 mm mortar HE) · 16 weapons · materials + `steel-plate`, `sandbags`, `earth-berm`. ⏭ body profiles — Stage 4 |
+| T-2 premise table | `Recipes/Terrain/bt-range/premises.json`: per demo, its rounds (`{tkbType, mount}` = what that catalog unit fires · `{ammo, weapon}` = a library pair · `{penetrationMm}`) and rows (`fire`/`sight` TRACES through the real `bt-range` geometry, `expect` stops/passes/seesThrough/blocks). `DemoPremisesTests` (Hrot.Core.Tests) — one theory row per premise; every fire crossing must sit ≤ 0.7 or ≥ 1.3 (the 0.8–1.2 ramp ± 25 % of its width), sight ≥ 0.6 or ≤ 0.4. A failure prints the demo, the row, the round with its provenance and every crossing |
+| ⚠ **`bt-weapon-pair` re-framed** | ⛔ *"the same 12.7 from an HMG penetrates, from a short barrel not"* cannot hold its OWN margins: a shorter barrel costs ~15 % penetration, and straddling the ramp with margin needs a factor ≥ 1.86 (1.3 / 0.7). ⭐ Now: **two launcher × ammo pairs against one 12 mm steel plate** — the M4's 5.56 ball (ratio 0.48) stops, the M2HB's 12.7 AP (2.2) defeats it. The barrel effect is still built and pinned (`ReferenceLibraryTests`), just not a demo |
+| `bt-range` additions | a 12 mm `steel-plate` panel (130–138, 40) and a 1.2 m `sandbags` wall (145–153, 40) |
+| demos with premises | `bt-wall-vs-fence` (4) · `bt-weapon-pair` (2) · `bt-window` (4) · `bt-cover` (3, NEW: sandbags stop a rifle; a hedge hides but a 12.7 AP goes through) — red-proved by flipping one row |
+| diagnostics | `GET /tkb/resolve?ammo=&weapon=` (the pair with formulas and driving params) · `?library=1` (the whole library) |
+
 ## 3. Tests and demos that survive tuning
 
 The fragility the user names is real (`CE-3071` already re-pinned two rails). ⭐ **The cure is to make each demo's
@@ -195,7 +242,7 @@ not layer 3 after five minutes with an opaque "target still alive".
 | demo | success condition | premise rows (examples) |
 |---|---|---|
 | `bt-wall-vs-fence` | rifleman fires 30 rounds at a target behind brick → target health unchanged; behind chain-link → health drops | 5.56 vs brick ≤ 0.6 ratio; vs chain-link ≥ 2.0 |
-| `bt-weapon-pair` | same 12.7 ammo from HMG penetrates the wooden fence ×2, from a short-barrel variant does not | pair A ratio ≥ 1.3, pair B ≤ 0.6 |
+| `bt-weapon-pair` | ⚠ *re-framed in §2b:* the 12 mm steel plate stops the M4's 5.56 ball and is defeated by the M2HB's 12.7 AP ~~same 12.7 ammo from HMG penetrates the wooden fence ×2, from a short-barrel variant does not~~ | pair A ratio ≥ 1.3, pair B ≤ 0.7 |
 | `bt-window` | observer sees the target through the window, not through the wall beside it; fires through the window and hits | opening transmittance 1.0; brick sight 0.0 |
 | `bt-storeys` | rifleman reaches the 2nd storey by the stairs: Z within 0.3 m of storey 2 | stair slope ≤ 60°, storey clearance ≥ 1.8 m |
 | `bt-doors` | locked front door → path uses the back door; after `OpenDoor` the next path uses the front; closed door blocks sight | — (state, not tuning) |
@@ -268,8 +315,8 @@ two route docs that never got tools (`get_entity_weapons`, squad) are fixed in t
 | slice | content |
 |---|---|
 | **T-0 resolver** | `ParameterResolver` + provenance + engine fallbacks gathered into one file; existing catalogs as library entries (no number moves) |
-| **T-1 library** | the generator (§2a) + coefficients file + driving parameters for the full reference library of §2 |
-| **T-2 premises** | `DemoPremisesTests` + the premise table format |
+| **T-1 library** | ✅ §2b — the generator (§2a) + coefficients file + driving parameters for the reference library of §2 (body profiles → Stage 4) |
+| **T-2 premises** | ✅ §2b — `DemoPremisesTests` + the premise table format |
 | **T-3 routes** | `/tkb/resolve`, `/terrain/levels`, `/terrain/query`, `/doors` + MCP tools |
 | **T-4 records** | shot / detonation / LOS ring buffers + their routes (with the building slices B-2, B-5, CE-1032) |
 | **T-5 layers** | the debug layers, `LayerControlGizmo` on every host |

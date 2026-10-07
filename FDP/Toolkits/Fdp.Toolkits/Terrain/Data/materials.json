@@ -7,6 +7,9 @@
     "fence-chainlink":   { "sight": 0.85, "resistanceMmRhaPerM": 5,    "soundDb": 0,  "blocksMovement": true },
     "fence-metal-sheet": { "sight": 0.0,  "resistanceMmRhaPerM": 200,  "soundDb": 15, "blocksMovement": true },
     "hedge":             { "sight": 0.3,  "resistanceMmRhaPerM": 20,   "soundDb": 5,  "blocksMovement": true },
-    "glass":             { "sight": 1.0,  "resistanceMmRhaPerM": 30,   "soundDb": 20, "blocksMovement": true }
+    "glass":             { "sight": 1.0,  "resistanceMmRhaPerM": 30,   "soundDb": 20, "blocksMovement": true },
+    "steel-plate":       { "sight": 0.0,  "resistanceMmRhaPerM": 1000, "soundDb": 40, "blocksMovement": true },
+    "sandbags":          { "sight": 0.0,  "resistanceMmRhaPerM": 100,  "soundDb": 30, "blocksMovement": true },
+    "earth-berm":        { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 40, "blocksMovement": true }
   }
 }
