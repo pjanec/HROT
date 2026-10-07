@@ -907,7 +907,7 @@ TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecyc
 > 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for
 > wounded one the hold-prone seems a better option."* · on the plan: *"otherwise approved"* · on prone: *"the effect is that the entity
 > should change its stance to 'prone' — the stance could be shown on the map as just another text indicator on the entity. we need the
-> stance support"* (§3.3g — proposed, awaiting approval).
+> stance support"* (§3.3g — approved, building).
 
 *Found live by the backend lane (U6, [`DESIGN_Utility_AI_Demo_Scenarios.md`](DESIGN_Utility_AI_Demo_Scenarios.md) §11.1): at 10 HP on
 `basic-desert` TakeCover and Flee both read 0 (no cover, no hidden retreat) ⇒ the unit kept advancing.*
@@ -935,6 +935,129 @@ left without a defence. Flee is no longer a wounded option at all.
 (below half health) · TakeCover 0. Superseded rails, re-homed: `NearDeath_With_Escape_Flees` → `CE3090_NearDeath_With_Escape_HoldsProne_InsteadOfFleeing`;
 `NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
 off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
+
+### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILDING; approved)*
+
+> 🔒 **User, `2026-10-07`:** *"the effect is that the entity should change its stance to 'prone' — the stance could be shown on the
+> map as just another text indicator on the entity. we need the stance support, and we could add some fake implementation of the
+> animation system to SimHost (standing in place of real 3d renderer)"* · on the leans: *"leans approved"*.
+
+**INVENTORY** *(codebase-memory `search_graph` via the CLI + grep, `2026-10-07`; `check_index_coverage` is not reachable from the CLI)*:
+`search_graph .*FakeAnim.* label=Class` = 6 (`FakeAnimationBackend`, `FakeAnimBackendState`, its snapshot JSON and inspector window) — ⭐ the
+fake backend EXISTS and simulates stance as a timer (`FakeAnimationBackend.cs:249-261, 392-410`), referenced by test projects only.
+`StanceIntent` / `StanceStatus` (`ReplicatedComponents.cs:143-179`, ids 222/223, owners Brain / Muscle `HrotOwnershipGroups.cs:56,75`),
+`StanceTransitionSystem` (not in `AnimationMuscleModule`), `AnimationStateReporterSystem` (completion), `AnimationTkbTranslator` (adds them
+only when the types are registered), `AnimationReplicationModule` (the wire, test-only). ⛔ searched: no production host composes any of it
+(`CE-3010`); no AI node writes `StanceIntent`; the soldier TKB (2002/2003, `UrbanCombatTkbCatalog.cs:232`) lists Standing + Crouched only;
+`BehaviorTkbTranslator.cs:65-68` never grants `CanChangeStance` (so a request would be acked and ignored).
+
+```mermaid
+classDiagram
+  class PostureNodes {
+    <<existing, grows>>
+    +HoldProne() requests Prone
+    +Deactivate_HoldProne() requests Standing
+  }
+  class StanceRequest {
+    <<NEW>>
+    +Set(world, self, stance, blend) bumps Version on change only
+  }
+  class StanceIntent {
+    <<existing, Brain-owned>>
+    TargetStance
+    BlendTime
+    Version
+  }
+  class StanceStatus {
+    <<existing, Muscle-owned>>
+    CurrentStance
+    Phase
+    AckVersion
+  }
+  class StanceComponentRegistry {
+    <<NEW>>
+    +RegisterAll(world) called by SimHost and CGF registries
+  }
+  class AnimationTkbTranslator {
+    <<existing>>
+    adds both from CharacterAnimationDefDto
+  }
+  class AnimationMuscleCapability {
+    <<NEW INodeCapability MuscleGround>>
+    registers AnimationMuscleModule over FakeAnimationBackend
+  }
+  class AnimationMuscleModule {
+    <<existing, grows>>
+    +StanceTransitionSystem after the bridge
+  }
+  class FakeAnimationBackend {
+    <<existing>>
+    stance timer = BlendTime
+  }
+  class StanceGizmo {
+    <<NEW GizmoProjector of StanceStatus>>
+    Prone, or arrow Prone while moving; nothing when Standing
+  }
+  PostureNodes ..> StanceRequest
+  StanceRequest ..> StanceIntent : writes
+  AnimationTkbTranslator ..> StanceIntent
+  AnimationTkbTranslator ..> StanceStatus
+  AnimationMuscleCapability --> AnimationMuscleModule
+  AnimationMuscleModule --> FakeAnimationBackend
+  AnimationMuscleModule ..> StanceStatus : StanceTransitionSystem + AnimationStateReporterSystem
+  StanceGizmo ..> StanceStatus : reads
+```
+
+*What the picture shows that prose hid:* the brain writes ONE component and never reads the body's; the map reads ONLY the body's. Every
+other box already existed — the new code is a request helper, a registry, a capability, a gizmo and one line in the module.
+
+```mermaid
+graph TD
+  subgraph "editor (one world, offline)"
+    EB["Brain: CgfLogicPack → PostureNodes.HoldProne"] -->|"StanceIntent (local)"| EM["MuscleGround: AnimationMuscleModule + FakeAnimationBackend"]
+  end
+  subgraph "cluster"
+    CB["CGF (Brain)"] -->|"StanceIntent → hrot/anim/StanceIntent (slice ②)"| SM["SimHost (MuscleGround): AnimationMuscleModule + Fake"]
+    SM -->|"StanceStatus → hrot/anim/StanceStatus (slice ②)"| CB
+  end
+  REG["SimHostNodeBootstrapper plan · EditorCapabilities.BuildDefault"] -->|"registers AnimationMuscleCapability"| EM
+  REG --> SM
+  G["StanceGizmo (auto-discovered, every map host)"] -.->|reads StanceStatus| EM
+```
+
+*What the picture shows that prose hid:* until slice ② the cluster's SimHost never SEES the CGF's request — slice ① works in the editor
+(one world) and in SimHost only for a request written locally. The Stride editor's injected arm is left on its own capabilities.
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (HoldProne)
+  participant I as StanceIntent
+  participant T as StanceTransitionSystem
+  participant F as FakeAnimationBackend
+  participant R as AnimationStateReporterSystem
+  participant S as StanceStatus
+  B->>I: Prone, blend 1.0 s, Version+1 (only if not already Prone)
+  T->>I: Version ≠ AckVersion?
+  T->>F: RequestStanceChange(Prone, 1.0)
+  T->>S: AckVersion, Phase = Transitioning
+  F-->>F: timer
+  R->>F: GetCurrentStance == Prone?
+  R->>S: CurrentStance = Prone, Phase = Idle (+ StanceChangedEvent)
+  Note over B: leaving HoldProne ⇒ deactivator writes Standing
+```
+
+| decision | why | rejected |
+|---|---|---|
+| the brain does NOT wait for the transition | lying down and returning fire are one decision; the AI's view of itself is its last request | waiting on `StanceStatus` — latency for nothing |
+| the map reads `StanceStatus` (the body), never the request | it must not show prone before the body is down or when the body refused | the request — it lies during the transition |
+| the Muscle is the WHOLE `AnimationMuscleModule` + `StanceTransitionSystem`, backed by the existing fake | the module is the designed unit (DD-1 §17); its other systems match nothing until a montage is requested | a stance-only system set — a second composition of the same module |
+| one `INodeCapability` (`AnimationMuscle`, MuscleGround) declared in SimHost's plan and the editor's default plan | the composition pattern every optional role piece uses (`NodeCapability.cs:110`); module-only ⇒ the editor's system-list rail is unchanged | wiring by hand in each host |
+| the soldier TKB gains `Prone`; `BehaviorTkbTranslator` grants `CanChangeStance` when the animation def lists more than one stance | otherwise the transition system acks and ignores (`StanceTransitionSystem.cs:51-56`) | a flag set per scenario |
+| Fake's unused `Hrot.SimHost` project reference is removed | it would make SimHost → Fake a cycle; only a doc comment used it | — |
+
+**Slices:** ① single world — registry, capability, module line, TKB + capability flag, the brain's request, the gizmo, rails (editor-shaped
+world). ② the wire — `AnimationReplicationModule` on CGF (Brain) and SimHost (Muscle), live on `--mode all`. Owned by `CE-3010` for the
+rest of the animation pipeline (montages, look-at), which stays out of scope here.
 
 ## 4. Standing orders and drills — reacting without embedding it in every behaviour *(PROPOSAL, under discussion)*
 
