@@ -1,7 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-06
-current-answer: ⭐ 2026-10-06 (d) — USER'S WINDOWS CHECK RECORDED (no code): 15 reports → CE-1006…CE-1016
+current-answer: ⭐ 2026-10-07 — THE BUILDINGS/COMBAT PROGRAMME IS HANDED OFF to backend (batches/HANDOFF_Buildings_Combat_Programme.md;
+  designs DESIGN_Building_Interiors.md + DESIGN_Terrain_Combat_Tuning.md, all approved). ui FOCUS = Add Entity
+  (DESIGN_Add_Entity_Picker.md, READY-TO-BUILD): S0 TKB data, S2 SurfacesAt/ResolveLevel + SpawnHeight + placement tool —
+  ⭐ commit S2 as `feat(CE-1017 S2)`: backend waits on it (merge point M1) before touching TerrainWorld.cs. Also built
+  today: MapInteractionPack owns the action dispatcher, layer control and renderer for all map hosts.
+  ⭐ 2026-10-06 (d) — USER'S WINDOWS CHECK RECORDED (no code): 15 reports → CE-1006…CE-1016
   (Blueprint_Issues_Tracker, ui area after CE-1005) + HSM-024…027 (Hsm_Issues_Tracker Area J). Confirmed WORKING:
   HSM border-to-border arrows, "Add Transition", picker on empty drop. Then 8 more: CE-1017…CE-1023 (add-entity picker, planned-route debug gizmo, SOP marker, ORBAT select, dark walls, label gizmo twins, the two param editors) + BP-515 extended (Details tabs/stacked headers). Then CE-1024…CE-1029 (geopoint entity, preview-Stop rewind after load, menu order, menu icon gap, File menu redesign, navmesh disk cache) + CE-122 and UXI-27 re-reported. Then CE-1017 DESIGNED (DESIGN_Add_Entity_Picker.md rev 5; approved: always-multi, capability gating, level scheme per §2c) + CE-1030 (Stride mode 2 deferred) + CE-1031 (buildings solid at ground level). Next ui id: CE-1032; next HSM id: HSM-028.
   Session (c) below is still the latest BUILD state.
