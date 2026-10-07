@@ -1057,6 +1057,38 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-122 / CE-3093 — a scenario load resets the RUNNING clock to the loaded time (0 here), pauses it, and TELLS the
+        /// slaves: one Deterministic <see cref="SwitchTimeModeEvent"/> carrying SimTimeSnapshot 0. The slave roster survives
+        /// (the next step still waits on both ACKs). ⛔ Before: <c>SeedState</c> only — no event, so the slaves kept the last
+        /// world's time until Play (measured live: 205 s after the load).
+        /// </summary>
+        [Fact]
+        public void CE122_ResetForLoadedScenario_ResetsPausesAndTellsTheSlaves_KeepingTheRoster()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, slaves: new HashSet<int> { 2, 3 }, tickSource: () => ticks);
+            ctrl.SwitchToContinuous();
+            for (int i = 0; i < 10; i++) { ticks += TimeSpan.TicksPerSecond; ctrl.Update(); }   // running: ~10 s
+            Assert.True(ctrl.GetCurrentState().TotalTime > 5.0);
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();
+
+            ctrl.ResetForLoadedScenario(new GlobalTime { TotalWallTicks = 0, TotalTime = 0.0, UnscaledTotalTime = 0.0, TimeScale = 1f });
+
+            Assert.Equal(0.0, ctrl.GetCurrentState().TotalTime, 6);
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+            bus.SwapBuffers();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
+            Assert.Single(events);
+            Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
+            Assert.Equal(0.0, events[0].SimTimeSnapshot, 6);
+
+            ctrl.Step(0.1f);
+            Assert.True(ctrl.IsAwaitingStepAcks, "the slave roster was kept — the step waits on their ACKs");
+        }
+
+        /// <summary>
         /// T14d — After SnapAndPause, calling Update() keeps the controller in Stepping mode.
         /// </summary>
         [Fact]

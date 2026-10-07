@@ -221,7 +221,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             {
                 if (_masterSync != null)
                 {
-                    _masterSync.SeedState(new GlobalTime
+                    // ⭐ CE-122 / CE-3093 — reset AND pause the whole cluster (was SeedState: the master only, silently).
+                    _masterSync.ResetForLoadedScenario(new GlobalTime
                     {
                         TotalWallTicks    = startTicks,
                         TotalTime         = simTimeSeconds,
@@ -229,7 +230,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
                         TimeScale         = _masterSync.GetTimeScale(),
                     });
                     FdpLog<OrchestratorSubsystem>.Info(
-                        "[Orchestrator] Seeded MasterSyncController: WallTicks={0}, SimTime={1:F1}s",
+                        "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0}) and paused cluster-wide",
                         startTicks, simTimeSeconds);
                 }
             };

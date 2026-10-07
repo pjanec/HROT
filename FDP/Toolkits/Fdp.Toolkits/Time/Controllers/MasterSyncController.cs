@@ -510,6 +510,20 @@ namespace Fdp.Toolkit.Time.Controllers
             _lastTickSample = _getTick();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-122</c> / <c>CE-3093</c> — a scenario LOAD: the clock restarts at the loaded scenario's saved time (0 for a fresh
+        /// one) and the cluster is PAUSED (🔒 user, <c>2026-10-06</c>: "Scenario load should reset the clock to zero and paused").
+        /// <see cref="SeedState"/> alone re-anchored only this master — no event, so every slave kept the last world's time until
+        /// Play. This is the abrupt-reset interlock (<c>docs/designs/cgf-1/mgmt-DESIGN.md</c> §5.6.4): seed, then the
+        /// <see cref="SnapAndPause"/> broadcast every slave snaps to. The slave roster is kept.
+        /// </summary>
+        public void ResetForLoadedScenario(GlobalTime state)
+        {
+            SeedState(state);
+            _unscaledTotalTime = state.UnscaledTotalTime;
+            SnapAndPause(state.TotalWallTicks, state.TotalTime, new HashSet<int>(_expectedSlaves));
+        }
+
         // ── Private helpers ──────────────────────────────────────────────────
 
         private GlobalTime UpdateContinuous(
