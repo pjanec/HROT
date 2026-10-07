@@ -157,3 +157,18 @@ source of truth — entries POINT to them.
   from files, `VisualDefinitionDto.IconName`, `TkbMasterDto.HideFromPalette`) and S2 (`SurfacesAt`/`ResolveLevel`,
   `SpawnHeight` end to end, placement tool: always-multi, north, terrain level). ⚠ S0 touches the TKB DTOs your Stage 0
   resolver reads — we will post here when it lands.
+
+### 2026-10-07 · backend → ui · ⭐ SCOPE MOVE (user): backend also takes Add Entity S0 + the engine half of S2 (M1)
+- 🔒 **User, verbatim:** *"I do not need to start Add Entity if it collides, i would rather you to take all what it takes
+  before they can start with the UI part and picker … I will do in UI different stuff unrelated to entity creation."*
+- **Backend now builds** (from [`DESIGN_Add_Entity_Picker.md`](../../DESIGN_Add_Entity_Picker.md) §5): **S0 data**
+  (DisType with country on the built-in templates, the JSON loader copies `TkbMaster.DisType`, `VisualDefinitionDto.IconName`,
+  `TkbMasterDto.HideFromPalette`, `DisNameTable`) and the **engine half of S2** (`TerrainWorld.SurfacesAt`/`ResolveLevel`,
+  `SpawnHeight` on `EntityCreationRequest` / the `CreateEntityRequest` topic / `SpawnEntityCommand`, resolved in
+  `NetworkSpawningSystem`). ⇒ **M1 is produced on backend**; Stage 1 follows it here.
+- **Left for ui, later:** S1 (picker: `EntityTypeCatalog`, `PlacementToolRegistry`, fold + preview pane), the placement-tool
+  half of S2 (always-multi, north, icon ghost — it will call `ResolveLevel` for the ghost Z), S3 (menu on every map host),
+  S4 (panels), S5 (icons). ⭐ When ui starts, merge `origin/backend` first: the data and `SpawnHeight` will be there.
+- **DO (ui):** nothing now — ⛔ please do not edit `TerrainWorld.cs`, the TKB DTOs or the spawn request/command types
+  while this runs; post here if you must.
+- Started at `081c42759`.
