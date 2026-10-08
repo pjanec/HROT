@@ -360,7 +360,26 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(0f, w.SurfaceZ(104.8f, 100f, zHint: 0f));     // in the front doorway (104.5..105.5), under its lintel
             Assert.Equal(0f, w.SurfaceZ(105f, 106.4f, zHint: 0f));     // in the hall doorway in the inner wall
             Assert.Equal(3f, w.SurfaceZ(102f, 104f, zHint: 3f));       // already on the upper floor: stays there
-            Assert.True(w.SurfaceZ(103.5f, 100f, zHint: 0f) >= 3f, "inside a FULL-HEIGHT wall piece the ground is still taken away");
+            // ⛔ SUPERSEDED (CE-3111 live, 2026-10-08): "inside a FULL-HEIGHT wall piece the ground is still taken away" — see below.
+            Assert.Equal(0f, w.SurfaceZ(103.5f, 100f, zHint: 0f));
+        }
+
+        /// <summary>
+        /// ⭐ CE-3111 (live, bt-doors with real 0.9 m doors) — a WALL PANEL never takes the ground away: an agent whose centre clips a
+        /// door's jamb by a few centimetres (a mover turning through a narrow doorway) stays on the ground. 🔴 It took the ground away,
+        /// the wall's top (3 m) became the only surface, and from then on the agent's Z hint kept it on the UPPER FLOOR's slab across
+        /// the whole storey (probe: z 3.0 at (106.4, 107.5), the east room, right after the back door) — some runs never reached the
+        /// back door's reach. The same rule as the ground mesh (<c>TerrainWorldMesh</c>: a panel is thin and keeps its ground). A SOLID
+        /// building still takes it (the roof rail above).
+        /// </summary>
+        [Fact]
+        public void CE3111_InsideAWallPanel_TheGroundStays_TheAgentNeverJumpsOntoTheUpperFloor()
+        {
+            var w = HouseWorld();
+            Assert.Equal(0f, w.SurfaceZ(103.5f, 100f, zHint: 0f));          // in the front wall beside the doorway
+            Assert.Equal(0f, w.SurfaceZ(104.45f, 100.02f, zHint: 0f));      // clipping the doorway's west jamb by 5 cm
+            Assert.Equal(0f, w.SurfaceZ(105.02f, 104f, zHint: 0f));         // in the inner wall (x 105)
+            Assert.Equal(3f, w.SurfaceZ(102f, 104f, zHint: 3f));            // an agent already upstairs stays upstairs
         }
 
         [Fact]

@@ -199,7 +199,11 @@ namespace Fdp.Toolkit.Terrain
                 // ⭐ Buildings 5d-2 (live, bt-doors) — a piece that STARTS above reach (a door's lintel at 2.1 m, a window's head)
                 //   is OVERHEAD: you stand under it, so it does not take the ground away. ⛔ It did, and an agent walking through a
                 //   doorway under an upper floor came out at that floor's height (3 m).
-                if (prism.BaseZ <= reach) insideSolid = true;
+                // ⭐ CE-3111 (live, bt-doors with real 0.9 m doors) — a WALL PANEL (Panel ≥ 0) never takes the ground away: it is thin,
+                //   nobody stands inside it, and a mover turning through a narrow doorway clips a jamb by centimetres. ⛔ It did: the
+                //   wall's top (3 m) became the only surface, and the agent's Z hint then held it on the upper floor's slab. The same
+                //   rule as the ground mesh (TerrainWorldMesh: a panel keeps its ground). Its top is still a candidate surface.
+                if (prism.BaseZ <= reach && prism.Panel < 0) insideSolid = true;
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 

@@ -464,7 +464,13 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
 - **Why an OVERHEAD piece does not take the ground away** *(`SurfaceZ`, as built `2026-10-08`)*: a prism counts as solid
   under you only when it starts within step reach (`BaseZ ≤ zHint + StepHeight`). ⛔ A door's lintel (2.1–3 m) used to count,
   removed the ground, and an agent walking through a doorway under an upper floor came out at 3 m (`bt-doors` live run). Its top
-  is still a candidate surface; a full-height wall still takes the ground. Rail `TerrainWorldTests.Stage5d2_UnderADoorwaysLintel_*`.
+  is still a candidate surface. Rail `TerrainWorldTests.Stage5d2_UnderADoorwaysLintel_*`.
+- **Why a WALL PANEL never takes the ground away** *(`SurfaceZ`, `CE-3111`, as built `2026-10-08`)*: only a SOLID prism
+  (`Panel < 0` — a building block) removes the ground under a point inside it. ⛔ SUPERSEDED: *"a full-height wall still takes
+  the ground"* — with real 0.9 m doors a mover turning through a doorway clips a jamb by centimetres; the wall's top (3 m) became
+  the only surface, and the agent's Z hint then held it on the upper floor's slab across the whole storey (probe on the
+  `bt-doors` live run: z 3.0 in the east room). The same rule as the ground mesh below. Rail
+  `TerrainWorldTests.CE3111_InsideAWallPanel_TheGroundStays_*`.
 - **Why the ground grid skips only SOLID prisms** *(`TerrainWorldMesh`, as built `2026-10-08`)*: the ground is a grid of cells
   (2 m on a 200 m world), and a cell is dropped when its CENTRE lies in a prism — so the hollow inside of a solid block never
   bakes as floor. ⛔ It used to apply to WALL PANELS too (building walls, fences, free walls: `Panel ≥ 0`), and a 0.15 m inner
