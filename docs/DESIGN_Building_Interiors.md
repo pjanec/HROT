@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-08 (5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1, 5d-3, 5d-4 replan, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -548,7 +548,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
 | **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
 | **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, a door-aware `IDtQueryFilter` reading the live state (⚠ not `SetPolyFlags` — N1), `TraversalKind.Door` on `PlanPath` waypoints | ✅ built (below); carrying `Door` through the trajectory pool + replanning moved to **5d** (N4) |
-| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner | 🟡 5d-1 built (below): commands, rules, transport, executors; 5d-2…4 next |
+| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner | 🟡 5d-1, 5d-3, 5d-4 replan built (below): commands, rules, transport, executors, the mover crossing doors; 5d-2 + `bt-doors` next |
 | **5e** | scenario `TerrainObjects` section (save writes current door state; load applies it) — the serializer, the distributed merge and the load step each carry it | ✅ built (below); ⚠ `TerrainObjectRef` moved to **5d**, which has its first consumer |
 
 | 5a as built | |
@@ -702,8 +702,8 @@ sequenceDiagram
 | **N3** the cost of a closed door | ⭐ `ClosedDoorPenaltyMetres = 10` added when entering a closed door's poly — a detour shorter than ~10 m wins | no penalty — a closed door would look free · a multiplier — a doorway poly is short, so it would barely register |
 | **N4** door waypoints and replanning | ⭐ `PlanPath` marks `Traversal = Door` now; **carrying it through the trajectory pool, and replanning on a door change, move to 5d** with their consumer (the door action) | carrying it now — three hops (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`) for a value nothing reads until 5d |
 
-⚠ **Interim, until 5d:** an infantry agent may plan through a CLOSED door and, with no door action yet, walk the doorway as if it
-were open. ⭐ Strictly better than before 5c, when every door — locked too — was an open gap to the planner.
+⛔ ~~**Interim, until 5d:** an infantry agent may plan through a CLOSED door and, with no door action yet, walk the doorway as if it
+were open.~~ **SUPERSEDED `2026-10-08` by 5d-3** — a path-following agent now stops at a closed door and opens it (§3j "5d-3 / 5d-4 as built"); only a DtCrowd-driven agent still walks the doorway as before.
 
 | 5c as built *(backend, `2026-10-07`)* | |
 |---|---|
@@ -773,7 +773,7 @@ navmesh judges the caller's table through a per-thread working filter instead of
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
 |---|---|
 
-### 5d — door commands *(backend, `2026-10-08`; slices 5d-1 built, 5d-2…5d-4 next)*
+### 5d — door commands *(backend, `2026-10-08`; slices 5d-1, 5d-3, 5d-4 replan built; 5d-2 and `bt-doors` next)*
 
 | claim | code — how it IS | design — how it was MEANT |
 |---|---|---|
@@ -835,11 +835,11 @@ graph TD
     STP[SharedTranslatorPack - every networked host] --> EG[Interaction egress + ingress - R-221]
     STP --> DSE[EntityDoorState egress + ingress]
     REG[HrotSharedComponentRegistry - every host] --> EV[DoorCommandEvent registered]
-    SIM[SimHost - Muscle] -.->|5d-3 raises commands at a door waypoint; applies none| EG
+    SIM[SimHost - Muscle] -->|5d-3 raises commands at a door waypoint; applies none| EG
 ```
 *What it shows that prose hid:* only the Brain tier applies commands (it is where doors are created and owned). A SimHost raises a
 command (5d-3, the mover at a door waypoint) but never applies one, so its commands always travel through the translators, even in
-`--mode all`, where each host keeps its own world. The dashed edge is not built yet.
+`--mode all`, where each host keeps its own world. The SimHost edge was dashed (not built) until 5d-3; it is built now.
 
 | decision | ⭐ as built | rejected (one line each) |
 |---|---|---|
@@ -855,10 +855,98 @@ command (5d-3, the mover at a door waypoint) but never applies one, so its comma
 |---|---|---|
 | **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators (⛔ the door-only topic and translators were REPLACED `2026-10-08` by [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) slice I-1: a door command now crosses on the ONE `EntityInteractionRequest` topic as the union case `Door`; the event, rules, executor and `DoorCommandSystem` are unchanged), `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
 | **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ⏭ |
-| **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`, the `CoarseWaypoints` wire); the mover stops at a closed door, raises Open, waits, goes on | ⏭ |
-| **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ⏭ |
+| **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`); the mover stops at a closed door, raises Open, waits, goes on | ✅ built (below) — ⚠ the `CoarseWaypoints` wire NOT carried: solver and mover are one node (below) |
+| **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ✅ replan built (below) · ⏭ `bt-doors` scenario + live run |
 
 | rails | `DoorCommandTests` (the rules table, owner-only applier, the executor's time/one-command/answer, failure cases, the verb list) · `EntityDoorStateTranslatorTests.Stage5d_ACommandRaisedOnAReplica_IsAppliedByTheOwner_AndTheNewStateComesBack` (the wire) |
+|---|---|
+
+### 5d-3 / 5d-4 as built — the mover crosses doors *(backend, `2026-10-08`; plan approved, hold mechanism approved: *"Approved, go with IsBlocked"*)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the planner and the mover run on ONE node | ✅ `PathfindingSolverSystem` (`NavigationSolverModule`) and `CarKinematicsSystem` (`GroundKinematicsModule`) are both SimHost modules; the trajectory pool is shared in-process | ✅ `DESIGN_Navigation_v2` — the Muscle owns solve + move |
+| a "stop here, keep the path" flag already existed, unread | ✅ `NavState.IsBlocked` — written only by `VehicleCommandSystem` (reset to 0 on a new command), read by nothing before this slice (grep over `FDP/ Hrot/ Stride/`) | ✅ `FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md:145` *"1 = obstacle ahead"* — designed, never built |
+| the frustration watchdog would read a hold as being stuck | ✅ `NavigationExecutionSystem` counts no-progress ticks and replans or fails | ⛔ searched `docs/`+`.dev/`: no rule for a deliberate stop — a hold is not frustration, so it is excluded |
+| the only replan request lived inside the watchdog | ✅ was inline in `NavigationExecutionSystem` | ✅ R-218 P3 — *"replan on a stale route"*; one implementation (ruling 9) ⇒ extracted, not copied |
+
+```mermaid
+classDiagram
+    direction LR
+    class TrajectoryWaypoint { <<+ field>> Traversal : byte (TraversalKind) }
+    class TrajectoryPoolManager { <<+ param>> RegisterTrajectoryWithKey(positions, key, traversals?) }
+    class PathfindingSolverSystem { <<existing>> passes the PlanPath marks to the pool }
+    class EngineBackedPathRegistry { <<existing>> reads Traversal back }
+    class NavState { <<existing component>> IsBlocked : byte (now read) }
+    class CarKinematicsSystem { <<existing>> IsBlocked ⇒ target speed 0, standing below HeldStopSpeed }
+    class NavigationExecutionSystem { <<existing>> skips a held agent · CanReplan · RequestReplan · FailBlocked (public, shared) }
+    class DoorPassageSystem { <<NEW, mover node>> NextDoorAhead · Hold/Unhold · one Open · CannotPass }
+    class DoorCommandEvent { <<5d-1>> }
+    class DoorStates { <<R-219>> reader's own view }
+    PathfindingSolverSystem ..> TrajectoryPoolManager : positions + marks
+    TrajectoryPoolManager --> TrajectoryWaypoint
+    EngineBackedPathRegistry ..> TrajectoryWaypoint
+    DoorPassageSystem ..> TrajectoryWaypoint : reads Door marks
+    DoorPassageSystem --> NavState : writes IsBlocked
+    DoorPassageSystem ..> DoorCommandEvent : raises Open once
+    DoorPassageSystem ..> NavigationExecutionSystem : RequestReplan / FailBlocked
+    CarKinematicsSystem ..> NavState : reads IsBlocked
+    NavigationExecutionSystem ..> NavState : reads IsBlocked
+```
+*What it shows that prose hid:* one new class. Everything else is an existing type gaining a field, a parameter or a reader, and the
+replan has ONE implementation that both the watchdog and the door passage call.
+
+```mermaid
+sequenceDiagram
+    participant P as DoorPassageSystem (mover node)
+    participant K as CarKinematicsSystem
+    participant W as NavigationExecutionSystem
+    participant O as door owner (DoorCommandSystem)
+    P->>P: next Door mark within 4 m ahead → terrain door (≤ 1.5 m from its centre)
+    alt Closed and in reach (2 m)
+        P->>K: NavState.IsBlocked = 1
+        K->>K: target speed 0 · path + progress kept
+        W->>W: held ⇒ not frustration
+        P->>P: spend ActionSeconds(Open)
+        P->>O: DoorCommandEvent{Open} (interaction transport, R-221)
+        O-->>P: DoorState = Open (replicated)
+        P->>K: IsBlocked = 0 · drives on
+    else Locked (or no answer in 3 s)
+        P->>W: CanReplan? RequestReplan : FailBlocked (once per door, 2 s quiet)
+        W-->>P: new path, routed round the locked door (the planner's door filter)
+    end
+```
+
+```mermaid
+graph TD
+    GKM[GroundKinematicsModule - SimHost] --> NES[NavigationExecutionSystem]
+    GKM --> DPS[DoorPassageSystem - NEW, after NES]
+    GKM --> CKS[CarKinematicsSystem]
+    NSM[NavigationSolverModule - SimHost] --> PSS[PathfindingSolverSystem]
+    PSS -->|same process: trajectory pool| DPS
+    DPS -->|DoorCommandEvent| EG[Interaction egress - SharedTranslatorPack]
+    EG -->|EntityInteractionRequest| DCS[DoorCommandSystem - CgfLogicPack, door owner]
+    CREP[DtCrowd hosts]:::dead -.->|no door marks: not covered| DPS
+    classDef dead stroke:#c00,stroke-dasharray:4
+```
+*What it shows that prose hid:* the 5d-1 dashed edge "SimHost raises commands" is now built — `GroundKinematicsModule` ticks
+`DoorPassageSystem` every frame on the node that moves the agent. The red edge is the one host family it does not reach: a DtCrowd-driven
+agent never gets `CustomTrajectory` marks, so it ignores doors (as before).
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| how the agent stops | ⭐ `NavState.IsBlocked` — the designed, unread "obstacle ahead" flag: target speed 0, path and progress kept; cut to 0 below `HeldStopSpeed` (0.05 m/s) because the speed controller is proportional and only decays | a new hold component: a second flag for what `IsBlocked` was designed to say · clearing the path: the agent would have to replan after every door |
+| where the door is read | ⭐ the mover node's own `DoorState` (R-219), via a cached `TerrainObjects.Find` per door key | the planner's door filter: it answers "may I plan through", not "is it open NOW" |
+| which door a mark is | ⭐ a mark within 1.5 m (and the reach height) of a terrain door's centre | carrying the door index on the waypoint: a second field for a lookup that is cheap and exact on the terrain |
+| how far ahead | ⭐ 4 m look-ahead; the hold starts only inside the 2 m reach | holding at the first sight of the mark: the agent would stop short of the door and be out of reach |
+| a locked door | ⭐ the shared `RequestReplan` (counts against `ReplanCount`, publishes `PathReplannedEvent`), or `FailBlocked` when the intent allows none; once per door, then 2 s quiet | walking into it until the watchdog fires: seconds of pushing a wall, then a generic failure |
+| no answer from the owner | ⭐ after 3 s (the executor's timeout), treated as a door it cannot pass ⇒ the locked path | wait forever: a lost owner would freeze the agent |
+| the `CoarseWaypoints` wire | ⭐ not carried — the solver and the mover are one process | three more hops for a value nothing across the wire reads (N4's reason, unchanged) |
+
+⚠ **Known limits:** when no route avoids the locked door, the planner returns a PARTIAL path (the agent goes as near as it can and the
+watchdog ends the move) · a DtCrowd host ignores doors.
+
+| rails | `DoorPassageSystemTests` ×4 (a closed door holds, opens once after the action time, releases when Open · out of reach / open never holds · locked replans once · locked with no replan allowed fails) · `NavigationExecutionSystemTests.Stage5d_AHoldAtADoor_IsNotFrustration` · `CarKinematicsSystemTests.Stage5d_IsBlocked_StopsOnThePath_KeepsIt_AndDrivesOnWhenCleared` · `EngineBackedPathRegistryTests.Stage5d_TheDoorMark_SurvivesThePoolAndTheRegistry` · `GroundKinematicsModuleTests` (5 systems, `DoorPassageSystem` at [4]) |
 |---|---|
 
 ### 5e — door state is saved in the scenario *(backend, `2026-10-08`, K5)*

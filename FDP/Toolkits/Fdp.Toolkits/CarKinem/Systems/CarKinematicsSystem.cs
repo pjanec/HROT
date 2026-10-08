@@ -23,6 +23,9 @@ namespace CarKinem.Systems
     // [UpdateAfter(typeof(FormationTargetSystem))] -- ordering maintained by array position in GroundKinematicsModule.
     public class CarKinematicsSystem : IEcsModuleSystem
     {
+        /// <summary>⭐ 5d-3 — below this speed (m/s) a held entity (<see cref="NavState.IsBlocked"/>) is standing.</summary>
+        public const float HeldStopSpeed = 0.05f;
+
         private readonly TrajectoryPoolManager _trajectoryPool;
         
         public CarKinematicsSystem(TrajectoryPoolManager trajectoryPool)
@@ -222,6 +225,11 @@ namespace CarKinem.Systems
                     break;
             }
             
+            // ⭐ Buildings 5d-3 — NavState.IsBlocked, "obstacle ahead" (📄 FDP.Toolkit.CarKinem.md, designed and until now never
+            //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
+            //   Set today only by the door passage system while a door ahead is being opened.
+            if (nav.IsBlocked != 0) targetSpeed = 0f;
+
             // Calculate desired velocity
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
@@ -285,7 +293,14 @@ namespace CarKinem.Systems
             {
                 state.Speed = 0f;
             }
-            
+
+            // ⭐ 5d-3 — the speed controller is proportional, so a held entity's speed only DECAYS towards 0 and it creeps on;
+            //   held means standing, so the last crawl is cut.
+            if (nav.IsBlocked != 0 && MathF.Abs(state.Speed) < HeldStopSpeed)
+            {
+                state.Speed = 0f;
+            }
+
             // Update progress (for trajectory/road modes)
             if (nav.Mode == KinematicsMode.CustomTrajectory)
             {

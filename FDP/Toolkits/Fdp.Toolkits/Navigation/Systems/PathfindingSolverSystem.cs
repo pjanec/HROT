@@ -405,17 +405,19 @@ namespace Fdp.Toolkit.Navigation.Systems
             // INavmeshProvider speaks the engine's Z-up space (R-182 / W7): req.Start/End go in as they are and the
             // NavWaypoints come back as Sim (Z-up) waypoints unchanged — NO swizzle here (CE-3011). Arc length is XY.
             var positions = new Vector3[count];
+            byte[]? traversals = null;   // ⭐ 5d-3 — the planner's door marks travel with the path (N4); none ⇒ no array
             float totalDist = 0f;
             for (int k = 0; k < count; k++)
             {
                 positions[k] = span[k].Position;
+                if (span[k].Traversal != TraversalKind.Walk) (traversals ??= new byte[count])[k] = (byte)span[k].Traversal;
                 if (k > 0)
                     totalDist += Vector2.Distance(
                         new Vector2(positions[k - 1].X, positions[k - 1].Y),
                         new Vector2(positions[k].X, positions[k].Y));
             }
 
-            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle);
+            _trajectoryPool.RegisterTrajectoryWithKey(positions, handle, traversals);
 
             return new PathfindingResultEvent
             {

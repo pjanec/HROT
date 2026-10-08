@@ -142,7 +142,7 @@ public struct NavState
     public float LastSteerCmd;         // Steering command smoothing
     public byte ReverseAllowed;        // 1 = allow reverse (not implemented)
     public byte HasArrived;            // 1 = within arrival radius
-    public byte IsBlocked;             // 1 = obstacle ahead
+    public byte IsBlocked;             // 1 = obstacle ahead: brake to a stop, keep the path (read since 2026-10-08)
 }
 ```
 
@@ -749,7 +749,7 @@ public class SpatialHashGrid
 
 **Future Implementation**: The toolkit has stubs for RVO-based collision avoidance in `Avoidance/RVOAvoidance.cs`. RVO allows multiple agents to cooperatively avoid collisions by selecting velocities outside each other's velocity obstacles.
 
-**Current Status**: Basic obstacle detection via `NavState.IsBlocked` flag. Vehicles slow down when obstacles detected ahead via spatial hash queries.
+**Current Status**: ⛔ ~~Basic obstacle detection via `NavState.IsBlocked` flag. Vehicles slow down when obstacles detected ahead via spatial hash queries.~~ *(known-rot, measured `2026-10-08`: nothing read `IsBlocked`; the spatial-hash avoidance is `ApplyCollisionAvoidance`, which never set it.)* Since Buildings 5d-3 `CarKinematicsSystem` reads `IsBlocked` as a HOLD: target speed 0, path and progress kept, drives on when it clears; the frustration watchdog ignores a held agent. Its one writer today is `DoorPassageSystem` (a closed door being opened) — 📄 `docs/DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
 
 ---
 

@@ -138,7 +138,8 @@ namespace Hrot.SimHost.Tests
             //    CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability, declared
             //    once per plan, so the NODE still runs exactly one of each.
             //    ⇒ sim = 9 - 2 = 7.
-            Assert.Equal(7, pack.SimulationSystems.Count);
+            // ⭐ Buildings 5d-3 (2026-10-08) — +1: DoorPassageSystem in GroundKinematicsModule (stops at a closed door, opens it) ⇒ 8.
+            Assert.Equal(8, pack.SimulationSystems.Count);
 
             // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a
             //    count somebody would re-baseline.

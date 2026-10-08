@@ -136,7 +136,8 @@ namespace CarKinem.Trajectory
         public void RegisterTrajectoryWithKey(Vector2[] positions, int key)
             => RegisterTrajectoryWithKey(Lift(positions), key);
 
-        public void RegisterTrajectoryWithKey(Vector3[] positions, int key)
+        /// <param name="traversals">⭐ 5d-3 — per waypoint, how it is passed (<c>TraversalKind</c> as a byte); null = all Walk.</param>
+        public void RegisterTrajectoryWithKey(Vector3[] positions, int key, byte[]? traversals = null)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
@@ -165,6 +166,7 @@ namespace CarKinem.Trajectory
                         Tangent            = GetTangent(posXY, null, i, TrajectoryInterpolation.Linear),
                         DesiredSpeed       = 10.0f,
                         CumulativeDistance = cumulativeDistance,
+                        Traversal          = traversals != null && i < traversals.Length ? traversals[i] : (byte)0,
                     };
                 }
 

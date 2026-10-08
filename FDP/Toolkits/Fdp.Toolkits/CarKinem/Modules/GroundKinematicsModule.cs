@@ -91,6 +91,8 @@ namespace Fdp.Toolkit.CarKinem.Modules
                 new FormationTargetSystem(FormationTemplates, TrajectoryPool),
                 new VehicleCommandSystem(),
                 new NavigationExecutionSystem(),
+                // ⭐ Buildings 5d-3 — stops at a closed door on the path, opens it, walks on; replans round a locked one
+                new DoorPassageSystem(TrajectoryPool),
             };
             PostSimulationSystems = new IEcsModuleSystem[]
             {

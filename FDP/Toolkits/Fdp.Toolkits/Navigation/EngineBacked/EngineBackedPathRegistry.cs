@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                     {
                         // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
                         Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
-                        Traversal = TraversalKind.Walk,
+                        Traversal = (TraversalKind)tw.Traversal,   // ⭐ 5d-3 — the planner's mark (was forced to Walk)
                         Surface   = SurfaceType.Generic,
                     };
                 }
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 {
                     // Sim and NavWaypoint are both engine space (Z-up) — no swizzle (W7 / CE-3011).
                     Position  = new Vector3(tw.Position.X, tw.Position.Y, tw.Position.Z),
-                    Traversal = TraversalKind.Walk,
+                    Traversal = (TraversalKind)tw.Traversal,   // ⭐ 5d-3 — the planner's mark (was forced to Walk)
                     Surface   = SurfaceType.Generic,
                 };
             }

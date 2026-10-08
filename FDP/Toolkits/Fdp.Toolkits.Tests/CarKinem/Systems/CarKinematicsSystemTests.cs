@@ -491,5 +491,38 @@ namespace CarKinem.Tests.Systems
             pool.Dispose();
             repo.Dispose();
         }
+
+        /// <summary>
+        /// ⭐ Buildings 5d-3 — <see cref="NavState.IsBlocked"/> ("obstacle ahead", designed in FDP.Toolkit.CarKinem.md and never read before):
+        /// the mover brakes to a stop where it is, KEEPS its path and progress, and drives on along the same path when it clears.
+        /// </summary>
+        [Fact]
+        public void Stage5d_IsBlocked_StopsOnThePath_KeepsIt_AndDrivesOnWhenCleared()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            void Run(float seconds) { for (int i = 0; i < (int)(seconds * 60); i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); } }
+
+            Run(3f);
+            float before = repo.GetComponent<NavState>(e).ProgressS;
+            Assert.True(before > 2f, $"should have started along the path ({before:F2} m)");
+
+            var nav = repo.GetComponent<NavState>(e); nav.IsBlocked = 1; repo.SetComponent(e, nav);
+            Run(2f);
+            float braked = repo.GetComponent<NavState>(e).ProgressS;
+            Run(3f);
+            var held = repo.GetComponent<NavState>(e);
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed < 0.05f, "a held agent stands still");
+            Assert.Equal(braked, held.ProgressS, 2);                                    // no progress while held
+            Assert.Equal(7, held.TrajectoryId);                                          // the path is kept
+            Assert.Equal(KinematicsMode.CustomTrajectory, held.Mode);
+
+            held.IsBlocked = 0; repo.SetComponent(e, held);
+            Run(3f);
+            Assert.True(repo.GetComponent<NavState>(e).ProgressS > braked + 2f, "drives on along the same path");
+            pool.Dispose();
+            repo.Dispose();
+        }
     }
 }
