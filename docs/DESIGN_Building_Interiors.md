@@ -1033,6 +1033,13 @@ command crosses through 5d-1's transport, and the answer comes back as the repli
 | the approach point | ⭐ 1 m off the doorway centre along the wall's normal, on the actor's side (the terrain's door definition gives the wall) | the door centre: the agent would walk into the leaf |
 | the test behaviour | ⭐ `DoorLocksmith`, a curated C# tree in `Hrot.AI.Behaviors` with a `[BehaviorContract]` DTO and a typed resolver (R-223) | a JSON recipe: string `MethodFqn` references and editor noise for a behaviour no human edits |
 
+⚠ **Found by the first live run, fixed:** the Locksmith reached the door and the door action failed at once — the built-in
+UrbanCombat humans (1001/2002/2003) carried no `CanInteract`, and `InteractionDispatcherSystem` fails every interaction-channel
+action without it (the BDC builder sets it; the hand-written catalog did not). ⇒ the three human templates now carry
+`CanInteract = true`; rail `BdcTkbBuilderVisualTests.CE3112_BuiltInHumans_ArePedestrians_ThatCanInteract` pins both flags
+(with the `Pedestrian` class of R-222). ⚠ The in-process rail could not see it: it drives the executor directly, past the
+dispatcher's capability gate.
+
 | rails | `DoorCommandTests.Stage5d2_*` ×3 (the reference is the key in JSON, resolves, refuses an over-long key · OperateDoor puts the verb on the channel and reports the executor's answer once · MoveToDoor aims at the actor's side and succeeds in reach) · live: `bt-doors`' Locksmith unlocks and opens the front and walks in through it |
 |---|---|
 
