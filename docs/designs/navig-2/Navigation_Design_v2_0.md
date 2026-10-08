@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-08 (§14 P2 spike: mixed cell-size tiles join, CE-3111 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -1294,6 +1294,21 @@ graph TD
 | **P1** | the provider's per-layer state becomes ONE immutable `NavmeshSnapshot` behind a `Volatile` field; every query reads it once; `Rebake` builds a new one and swaps | ✅ built `2026-10-08` | the seam every later change goes through; closes the race `Rebake`'s own comment admitted — 📐 **red-proved**: the rail `P1_RebakeWhileOtherThreadsQuery_NeverSeesAHalfSwappedMesh_AndTheVersionMoves` against the pre-P1 provider gives 1493 bad answers in one run (queries seeing no mesh, *"Collection was modified"*); green with P1 |
 | **P2** | tiled bake (`DtNavMeshParams`, ~32 m tiles; `AddTile`/`RemoveTile` are in the shipped DotRecast) + a tile rebuilder producing a new snapshot | with **CE-1029** (slow terrain load) | the same change gives parallel bake and a disk cache; a single-tile mesh today (`RecastNavmeshBaker.cs:281`) means any geometry change is a whole-map rebake |
 | **P3** | replan when the navmesh version moved under a path (regional versions when P2 has regions) | with **Building Interiors 5d** | a door change needs it too; the stamps already ride every path |
+
+⭐ **P2 spike — measured `2026-10-08` (CE-3111, user: *"Approved, start with the spike"*).** Real doors (0.8–0.9 m) bake only
+at 0.15 m cells (CE-3111's table); 0.15 m everywhere costs 2–3.5× the bake. The question was whether ONE Detour navmesh may
+hold tiles of DIFFERENT cell sizes. 📐 Rail `TiledBakeSpikeTests.CE3111_Spike_TilesOfDifferentCellSizes_JoinIntoOneNavmesh_AndPathsCrossTheBorders`
+(a 10 × 8 m room with one 0.9 m door; 12 m tiles; tiled `RcConfig` + `RcBuilder.BuildTile` + `DtNavMesh.AddTile`):
+
+| bake | tiles | through the 0.9 m door | open path across a coarse→fine border (12 m straight) |
+|---|---|---|---|
+| all 0.3 m | 25 | ⛔ none | — |
+| all 0.15 m | 25 | ✅ 15.0 m | — |
+| **mixed** — 0.15 m where the tile overlaps a building footprint | **4 fine + 21 coarse** | ✅ **15.0 m** | ✅ **12.00 m** — no detour |
+
+⇒ ⭐ **yes**: the tile's WORLD size is fixed (`DtNavMeshParams.tileWidth`), its cell count is not (`tileCells = tileMetres / cs`);
+Detour links tiles by their portal edges, so a fine tile and a coarse tile join. The fine set is chosen per tile from the
+terrain (building footprints) — no new authoring. ⏭ Not yet measured: the cost on the shipped terrains, and the disk cache.
 
 | rejected | the one fact |
 |---|---|
