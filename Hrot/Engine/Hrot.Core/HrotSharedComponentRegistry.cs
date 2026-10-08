@@ -74,6 +74,11 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐⭐ The transient-spawn tag (R-140 D2): NetworkSpawningSystem.ProcessSpawn stamps it on EVERY node that materialises a
+        //   transient entity — a door entity (5b, transient: the terrain recreates it), an IG sketch. 🔴 It was registered by no
+        //   host, only by the rails (each registers it itself), so the first door spawned in a cluster threw "ScenarioIgnoreTag is
+        //   not registered" in CGF's kernel and killed the process (found by the bt-doors live run, 2026-10-08).
+        world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();

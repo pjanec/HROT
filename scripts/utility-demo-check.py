@@ -25,7 +25,10 @@ def call(method, path, body=None):
     req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"})
     try:
         with OPENER.open(req, timeout=60) as r:
-            return json.loads(r.read())
+            raw = r.read()
+            if not raw:   # the host died while answering (the headers were already sent) — see the cluster log
+                return {"http": r.status, "body": "(empty reply — did the cluster process exit? see its log)"}
+            return json.loads(raw)
     except urllib.error.HTTPError as e:
         return {"http": e.code, "body": e.read().decode()[:400]}
     except (urllib.error.URLError, ConnectionError, TimeoutError) as e:   # nothing listening (yet)
