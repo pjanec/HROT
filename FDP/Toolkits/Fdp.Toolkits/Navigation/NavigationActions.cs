@@ -74,6 +74,13 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Force a specific backend (0 = Auto, 1 = NavMesh, 2 = RoadGraph, 3 = Volumetric).</summary>
         public byte BackendForce;
+
+        /// <summary>⭐ CE-3128 — the order's road use, packed in <see cref="Flags"/> bits 5–7 (the struct is at its 32-byte limit).</summary>
+        public RoadUse RoadUse
+        {
+            readonly get => NavigationConstants.RoadUseOf(Flags);
+            set => Flags = NavigationConstants.WithRoadUse(Flags, value);
+        }
     }
 
     /// <summary>
@@ -185,6 +192,9 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>When 1, populates <c>NavigationPathDetailsBuffer</c> with full waypoint data.</summary>
         public byte IncludeFullPathDetails;
+
+        /// <summary>⭐ CE-3128 — the order's road use (fills a padding byte; the struct stays 32 bytes).</summary>
+        public RoadUse RoadUse;
 
         // 2 bytes of explicit padding to reach 32 bytes total.
         private byte _pad0;

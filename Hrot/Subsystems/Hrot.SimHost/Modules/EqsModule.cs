@@ -68,6 +68,8 @@ namespace Hrot.SimHost.Modules
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             var module = new EqsModule(null, Fdp.Toolkit.Terrain.TerrainWorldSource.Live(world));
+            // ⭐ CE-3128 — the road graph the danger sensor plans and classifies on, read live like the terrain.
+            module.Solver.RoadSource = CarKinem.Road.RoadNetworkSource.Live(world);
             var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(world);
             var sight = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world);
             Fdp.Toolkit.Perception.Sensors.VisualPerception.Register(registry, module.PerceptionGrid, sight);

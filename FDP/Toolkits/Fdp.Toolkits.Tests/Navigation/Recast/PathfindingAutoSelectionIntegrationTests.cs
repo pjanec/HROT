@@ -31,9 +31,9 @@ namespace Fdp.Toolkit.Navigation.Recast.Tests;
 /// <para>
 /// Scenarios:
 /// <list type="bullet">
-///   <item>T5-SC1: Both endpoints within <c>RoadRadiusThresholdSq</c> of road nodes → NavRoadGraph.</item>
+///   <item>⛔ T5-SC1 / T5-SC3 (the distance heuristic) SUPERSEDED by CE-3128 (R-230): the road is taken on COST per the
+///   actor's <see cref="RoadUse"/> — <c>CE3128_*</c> below.</item>
 ///   <item>T5-SC2: Both endpoints far from all road nodes, navmesh available → Navmesh.</item>
-///   <item>T5-SC3: One endpoint near a road node, the other far away → Hybrid.</item>
 ///   <item>T5-SC4: <see cref="ZoneEnvironmentData"/> singleton is present in ECS after
 ///               materialization via <see cref="RoadNetworkBuilder"/>.</item>
 /// </list>
@@ -109,7 +109,7 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
     /// </summary>
     private PathfindingResultEvent RunSolver(
         PathfindingSolverSystem solver,
-        Vector3 start, Vector3 end)
+        Vector3 start, Vector3 end, RoadUse roadUse = RoadUse.Unspecified)
     {
         long requestId = ((long)_world.GlobalVersion << 16) | (long)start.GetHashCode();
         _world.Bus.Publish(new PathfindingRequestEvent
@@ -118,6 +118,7 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
             Start        = start,
             End          = end,
             BackendForce = NavigationBackend.Auto,
+            RoadUse      = roadUse,
         });
 
         _world.Bus.SwapBuffers();
@@ -132,31 +133,47 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
         return events[0];
     }
 
-    // ── T5-SC1: Both endpoints near road nodes → NavRoadGraph ────────────────
+    // ── CE-3128 (R-230): the road is taken on COST, per the actor's RoadUse ──────
+
+    /// <summary>A road along y = 0 from x −90 to x 90, inside the baked flat ground.</summary>
+    private static RoadNetworkBlob BuildInMeshRoad()
+    {
+        var builder = new RoadNetworkBuilder();
+        builder.AddNode(new Vector2(-90f, 0f));
+        builder.AddNode(new Vector2(90f, 0f));
+        builder.AddSegment(new Vector2(-90f, 0f), new Vector2(180f, 0f), new Vector2(90f, 0f), new Vector2(180f, 0f),
+            laneWidth: 5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+        return builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+    }
 
     /// <summary>
-    /// With both <see cref="DotRecastNavmeshProvider"/> and <see cref="ZoneEnvironmentData"/>
-    /// singletons present, endpoints within the road-radius threshold select NavRoadGraph.
-    ///
-    /// Confirms §10.3 Auto selection: "endpoints within <c>RoadRadiusThresholdSq</c> of
-    /// road nodes → RoadGraph".
+    /// ⭐ CE-3128 — with a REAL navmesh and a road 10 m off the line: walking direct costs 160 m; via the road 10 + 160 + 10.
+    /// Neutral (×1) walks direct; Prefer (×0.5: 10 + 80 + 10 = 100) splices through the road (Hybrid). ⛔ Supersedes T5-SC1
+    /// ("both ends near a road node ⇒ NavRoadGraph"), the geometry heuristic R-230 retired.
     /// </summary>
     [Fact]
-    public void AutoSelect_BothNearRoadNode_WithNavmeshAndRoadGraph_ReturnsNavRoadGraph()
+    public void CE3128_RealNavmesh_NeutralWalksDirect_PreferSplicesThroughTheRoad()
     {
-        // Arrange: road nodes at (0,0) and (100,0) in FDP XY.
-        var roadNet  = BuildTwoNodeRoadNetwork();
-        var navmesh  = new DotRecastNavmeshProvider(SharedNavMeshes);
-        var solver   = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
-
-        // Materialize ZoneEnvironmentData (as ZoneManagerService.LoadZones would).
+        var roadNet = BuildInMeshRoad();
+        var navmesh = new DotRecastNavmeshProvider(SharedNavMeshes);
+        var solver  = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
         InjectZoneEnvironmentData(roadNet);
 
-        // Endpoints on/near the road nodes (within 500 m threshold).
-        var result = RunSolver(solver, new Vector3(0f, 0f, 0f), new Vector3(100f, 0f, 0f));
+        var neutral = RunSolver(solver, new Vector3(-80f, -10f, 0f), new Vector3(80f, -10f, 0f), RoadUse.Neutral);
+        Assert.True(neutral.IsReachable);
+        Assert.Equal(NavigationBackend.Navmesh, neutral.PrimaryBackend);
 
-        Assert.Equal(NavigationBackend.NavRoadGraph, result.PrimaryBackend);
-        Assert.True(result.IsReachable, "Road path between the two nodes must be reachable.");
+        var prefer = RunSolver(solver, new Vector3(-80f, -10f, 0f), new Vector3(80f, -10f, 0f), RoadUse.Prefer);
+        Assert.True(prefer.IsReachable);
+        Assert.Equal(NavigationBackend.Hybrid, prefer.PrimaryBackend);
+        Assert.True(_pool.TryGetTrajectory(prefer.RouteHandle, out var route));
+        bool alongTheRoad = false;
+        for (int i = 0; i < route.Waypoints.Length; i++)
+        {
+            var p = route.Waypoints[i].Position;
+            if (MathF.Abs(p.Y) < 0.5f && p.X > -50f && p.X < 50f) alongTheRoad = true;
+        }
+        Assert.True(alongTheRoad, "a Prefer route must run along the road (y = 0) between the access and egress legs");
 
         roadNet.Dispose();
     }
@@ -189,31 +206,24 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
         roadNet.Dispose();
     }
 
-    // ── T5-SC3: Mixed endpoints → Hybrid ─────────────────────────────────────
+    // ── CE-3128: Never ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// With both singletons present, one endpoint near a road node and one far away
-    /// selects Hybrid.
-    ///
-    /// Confirms §10.3: "mixed → spliced Hybrid".
+    /// ⭐ CE-3128 — a sneaking unit (<see cref="RoadUse.Never"/>) walks the navmesh even when both ends lie ON the road. ⛔
+    /// Supersedes T5-SC3 ("one end near a road node ⇒ Hybrid"), the geometry heuristic R-230 retired.
     /// </summary>
     [Fact]
-    public void AutoSelect_MixedEndpoints_WithNavmeshAndRoadGraph_ReturnsHybrid()
+    public void CE3128_RealNavmesh_Never_KeepsOffTheRoad_EvenFromTheRoad()
     {
-        var roadNet = BuildTwoNodeRoadNetwork();
+        var roadNet = BuildInMeshRoad();
         var navmesh = new DotRecastNavmeshProvider(SharedNavMeshes);
         var solver  = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
-
         InjectZoneEnvironmentData(roadNet);
 
-        // Start near road node (0,0); end far off-road.
-        var result = RunSolver(
-            solver,
-            new Vector3(0f, 0f, 0f),        // near road node 0
-            new Vector3(2000f, 2000f, 0f)); // far from all road nodes
+        var result = RunSolver(solver, new Vector3(-80f, 0f, 0f), new Vector3(80f, 0f, 0f), RoadUse.Never);
 
-        Assert.Equal(NavigationBackend.Hybrid, result.PrimaryBackend);
-
+        Assert.True(result.IsReachable);
+        Assert.Equal(NavigationBackend.Navmesh, result.PrimaryBackend);
         roadNet.Dispose();
     }
 

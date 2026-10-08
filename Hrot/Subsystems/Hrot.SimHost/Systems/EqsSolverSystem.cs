@@ -52,6 +52,16 @@ namespace Hrot.SimHost.Systems
         private uint _currentTick;
         private EntityRepository _currentRepo = null!;
 
+        /// <summary>⭐ CE-3128 — this solver thread's route planner (the same one the path solver runs; reused buffers, R-220).</summary>
+        private readonly Fdp.Toolkit.Navigation.RoutePlanner _routePlanner = new();
+
+        /// <summary>
+        /// ⭐ CE-3128 (Nav v2 §5.2a D7) — the node's road graph carrier, read live (this system runs on a snapshot with no
+        /// singletons): the danger sensor plans the unit's route and finds its crossings on it. Set by
+        /// <c>EqsModule.ForTerrainHost</c>; null ⇒ the danger sensor answers "none" (a host with no terrain has no roads).
+        /// </summary>
+        public Func<CarKinem.Road.RoadNetworkHolder?>? RoadSource { get; set; }
+
         /// <summary>
         /// ⭐ Work units one solver tick may spend (<see cref="EqsCost"/>). 📐 Sized for VISION since <c>CE-3038</c> (it rides in
         /// this budget now): a 500 m all-round visual sensor costs ~280 units, so 150 000 solves EVERY sensor of ~500 units
@@ -383,7 +393,8 @@ namespace Hrot.SimHost.Systems
         private void SolveDangerArea(Entity entity, long parentNetworkId, int localChildIndex, in EqsSensor sensor)
         {
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
-            int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas);
+            int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas,
+                _routePlanner, RoadSource?.Invoke());
             var answer = new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
             {
                 ParentNetworkId = parentNetworkId,

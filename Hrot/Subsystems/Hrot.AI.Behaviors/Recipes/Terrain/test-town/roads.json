@@ -1,0 +1,162 @@
+{
+  "$meta": {
+    "docType": "Fdp.RoadNetwork",
+    "schemaVersion": 1
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "position": {
+        "x": 0,
+        "y": 200
+      }
+    },
+    {
+      "id": 1,
+      "position": {
+        "x": 200,
+        "y": 200
+      }
+    },
+    {
+      "id": 2,
+      "position": {
+        "x": 400,
+        "y": 200
+      }
+    },
+    {
+      "id": 3,
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "position": {
+        "x": 200,
+        "y": 400
+      }
+    }
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "startNodeId": 0,
+      "endNodeId": 1,
+      "controlPoints": {
+        "p0": {
+          "x": 0,
+          "y": 200
+        },
+        "t0": {
+          "x": 200,
+          "y": 0
+        },
+        "p1": {
+          "x": 200,
+          "y": 200
+        },
+        "t1": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 5.0,
+      "laneCount": 4
+    },
+    {
+      "id": 1,
+      "startNodeId": 1,
+      "endNodeId": 2,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 200
+        },
+        "t0": {
+          "x": 200,
+          "y": 0
+        },
+        "p1": {
+          "x": 400,
+          "y": 200
+        },
+        "t1": {
+          "x": 200,
+          "y": 0
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 5.0,
+      "laneCount": 4
+    },
+    {
+      "id": 2,
+      "startNodeId": 3,
+      "endNodeId": 1,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 0
+        },
+        "t0": {
+          "x": 0,
+          "y": 200
+        },
+        "p1": {
+          "x": 200,
+          "y": 200
+        },
+        "t1": {
+          "x": 0,
+          "y": 200
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 5.0,
+      "laneCount": 4
+    },
+    {
+      "id": 3,
+      "startNodeId": 1,
+      "endNodeId": 4,
+      "controlPoints": {
+        "p0": {
+          "x": 200,
+          "y": 200
+        },
+        "t0": {
+          "x": 0,
+          "y": 200
+        },
+        "p1": {
+          "x": 200,
+          "y": 400
+        },
+        "t1": {
+          "x": 0,
+          "y": 200
+        }
+      },
+      "speedLimit": 13.9,
+      "laneWidth": 5.0,
+      "laneCount": 4
+    }
+  ],
+  "metadata": {
+    "worldBounds": {
+      "min": {
+        "x": 0,
+        "y": 0
+      },
+      "max": {
+        "x": 400,
+        "y": 400
+      }
+    },
+    "gridCellSize": 10.0
+  }
+}

@@ -671,7 +671,7 @@ multi-modal backend selection [inside the solver]:
 
 **Scale-out topology only:** when the `NavigationSolverModule` is on its own node, the `PathRequestEgressTranslator` and `PathResponseIngressTranslator` bridge the request/response across DDS. The wire format is `PathRequestBatch` / `PathResponseBatch` with `[DdsManaged] List<NavWaypoint>` for variable-length result data.
 
-### 5.2a The road network as a chosen layer — `CE-3128` *(DESIGN `2026-10-08`, backend; `build-state: DESIGN` — awaiting the user)*
+### 5.2a The road network as a chosen layer — `CE-3128` *(DESIGN `2026-10-08`, backend; ✅ D1–D9 APPROVED by the user `2026-10-08` — "Leans ok."; `build-state: BUILT` — as-built below the build slices)*
 
 > 🔒 **R-230** (above) rules the WHAT: two parallel layers; the actor chooses road use per use case; "prefer" = navmesh → road →
 > navmesh. 🔒 **R-231**, user `2026-10-08`: *"4 and 5 approved, write the CE-3128 design"* — ④ the danger-along-route sensor
@@ -811,6 +811,24 @@ wins only when walking direct is genuinely longer, so `ua-danger-crossing`'s wal
 
 ⚠ **Not decided here, filed with the build:** exposing `RoadUse` in the AUTHORED move nodes and blueprint blocks is the behaviors
 lane's surface (`Hrot.AI.Behaviors`) — the engine default makes it optional for the common case.
+
+#### As-built *(`2026-10-08`)* — three deviations, each argued
+
+| # | as built | ⚠ deviation from the decision above, and why |
+|---|---|---|
+| ① D1 | `RoadUse { Unspecified, Never, Neutral, Prefer, StronglyPrefer }` rides in **bits 5–7 of `Flags`** on `MoveToParams` and `NavigationIntent` (properties over the byte; `NavigationConstants.FlagShiftRoadUse`), as a field on `PlanRouteParams` (a pad byte) and on `PathfindingRequestEvent` (its former `_pad1`) | ⚠ not a new field on the params, the intent or the wire: `MoveToParams` is AT its 32-byte channel limit, and `Flags` already rides params → intent → wire → ingress unchanged — **no struct or IDL change**. ⚠ The default member is `Unspecified`, not `Default`/`Auto`: the enum is generated into IDL, where `default` is a keyword and enum members share one scope with `NavigationBackend.Auto` (both measured as idlc errors) |
+| ② D1 | the default is keyed on the locomotion CLASS (`VehicleParams.Class != Pedestrian`, else a bare `VehicleState`) — `PathRequests.IsVehicle` | ⚠ not "has `VehicleState`": SimHost infantry carries `VehicleState` too (CarKinem moves it — `NavLayerSelection`'s own finding), so that test would have made every soldier prefer roads |
+| ③ D7 | `TerrainResidency` publishes its `RoadNetworkHolder` as a managed WORLD SINGLETON (`GlobalComponentIds.RoadNetworkHolder = 343`, `NoScenario | NoReplay`); `RoadNetworkSource.Live(world)` reads it; `EqsModule.ForTerrainHost` hands that source to `EqsSolverSystem.RoadSource` | ⚠ not a constructor dependency threaded through the host capabilities: the composition path (`EqsInfrastructureCapability`) holds no holder, and the singleton is the same "has data" shape as `TerrainWorldSource.Live` |
+
+Also as built: `RoadGraphRouter` (nearest access by arc-length projection over all segments; two-way Dijkstra from virtual
+entry/exit points; Hermite legs) and `RoutePlanner` (cost choice; a zero-length access leg costs 0, because a real navmesh reports
+no path between coincident points). **With no navmesh the road graph remains the only planner** (as before), so a `Never` order
+there is unreachable. `DdsPathRequest` (the scale-out solver node's wire) still carries only `MobilityProfile` — it already
+dropped `BackendForce` and the layer; `RoadUse` joins that known gap (`CE-3129`). Rails: `PathfindingSolverBackendSelectionTests`
+`CE3128_*` (the actor's choice, two-way, mid-segment entry, curve, the replan carrying the order, the default by class),
+`PathfindingAutoSelectionIntegrationTests` `CE3128_*` (a real Recast mesh), `DangerAlongRouteClassifierTests` /
+`DangerAreaSensorSystemTests` on the graph, `TerrainWorldTests.CE3128_SurfaceRoad_IsRetired…`,
+`TerrainDefinitionTests.CE3128_ShippedTerrains_DeclareALoadableRoadGraph`.
 
 ### 5.3 Response materialization
 

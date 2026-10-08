@@ -15,41 +15,6 @@
   {
    "type": "Feature",
    "properties": {
-    "kind": "surface",
-    "surface": "road",
-    "label": "Track"
-   },
-   "geometry": {
-    "type": "Polygon",
-    "coordinates": [
-     [
-      [
-       0,
-       290
-      ],
-      [
-       600,
-       290
-      ],
-      [
-       600,
-       300
-      ],
-      [
-       0,
-       300
-      ],
-      [
-       0,
-       290
-      ]
-     ]
-    ]
-   }
-  },
-  {
-   "type": "Feature",
-   "properties": {
     "kind": "building",
     "height": 4,
     "label": "Rock 1"

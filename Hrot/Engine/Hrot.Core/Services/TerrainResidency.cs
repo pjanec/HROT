@@ -280,6 +280,7 @@ public sealed class TerrainResidency
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             staged.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
 
+        PublishHolder(world);   // ⭐ CE-3128 — background readers lease the graph through the world (RoadNetworkSource)
         if (staged.HasRoadNetwork)
         {
             // ⛔ The previous blob is NOT disposed here — the holder retires it and frees it once its last
@@ -339,6 +340,7 @@ public sealed class TerrainResidency
     {
         // An empty blob retires the live one through the holder's normal generation swap.
         _roadNetworkHolder.Publish(default);
+        PublishHolder(world);
 
         if (world != null && world.HasSingleton<ZoneEnvironmentData>())
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = default });
@@ -356,6 +358,14 @@ public sealed class TerrainResidency
         _lastLoadedTimestamp   = default;
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
+    }
+
+    /// <summary>⭐ <c>CE-3128</c> — the node's road graph carrier as a world singleton (idempotent).</summary>
+    private void PublishHolder(EntityRepository? world)
+    {
+        if (world == null) return;
+        if (world.HasSingletonManaged<RoadNetworkHolder>() && ReferenceEquals(world.GetSingletonManaged<RoadNetworkHolder>(), _roadNetworkHolder)) return;
+        world.SetSingletonManaged(_roadNetworkHolder);
     }
 
     /// <summary>

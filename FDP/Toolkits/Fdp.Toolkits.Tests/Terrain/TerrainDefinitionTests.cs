@@ -237,4 +237,28 @@ public sealed class TerrainDefinitionTests
         Assert.True(System.Numerics.Vector3.Distance(back, local) < 0.05f, $"{back}");
         Assert.Equal(52.52, t.Origin.lat, 9);
     }
+
+    /// <summary>
+    /// ⭐ CE-3128 (R-231) — the shipped terrains that have roads declare them as a road GRAPH that loads, with the widths of the
+    /// polygons they replace: test-town's two 20 m streets meeting at one junction, basic-desert's 10 m track.
+    /// </summary>
+    [Theory]
+    [InlineData("test-town", 5, 4, 20f)]
+    [InlineData("basic-desert", 3, 2, 10f)]
+    public void CE3128_ShippedTerrains_DeclareALoadableRoadGraph(string terrain, int nodes, int segments, float width)
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
+            dir = System.IO.Path.GetDirectoryName(dir)!;
+        var folder = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", terrain);
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
+        var road = Assert.Single(d.RoadNetworks);
+        using var blob = global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(folder, road));
+        Assert.Equal(nodes, blob.Nodes.Length);
+        Assert.Equal(segments, blob.Segments.Length);
+        for (int i = 0; i < blob.Segments.Length; i++)
+            Assert.Equal(width, blob.Segments[i].LaneWidth * blob.Segments[i].LaneCount, 3);
+        // ⛔ and no road polygon remains in the world file (R-231: the graph IS the road)
+        Assert.DoesNotContain("\"surface\": \"road\"", System.IO.File.ReadAllText(System.IO.Path.Combine(folder, d.World)));
+    }
 }

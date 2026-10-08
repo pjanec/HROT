@@ -26,7 +26,6 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
     /// <summary>The debug layer terrain draws on — the bottom of the painter's order.</summary>
     public const byte TerrainLayer = 0;
 
-    private static readonly Rgba32 RoadFill    = new(120, 120, 120, 150);
     private static readonly Rgba32 ForestFill  = new(40, 110, 50, 110);
     private static readonly Rgba32 WaterFill   = new(50, 110, 200, 150);
     private static readonly Rgba32 SlabFill    = new(90, 150, 220, 90);
@@ -47,7 +46,6 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
             if (s.Type == TerrainSurfaceType.Open) continue;
             var fill = s.Type switch
             {
-                TerrainSurfaceType.Road   => RoadFill,
                 TerrainSurfaceType.Forest => ForestFill,
                 _                         => WaterFill,
             };

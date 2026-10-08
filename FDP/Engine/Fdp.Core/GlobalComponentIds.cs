@@ -693,5 +693,9 @@
 
         /// <summary><c>PathTrace</c> — a mover's planned path as a polyline (<c>CE-3117</c>).</summary>
         public const int PathTrace = 342;
+
+        /// <summary><c>RoadNetworkHolder</c> — the node's road graph carrier as a managed world singleton, so a background
+        /// reader can LEASE the graph (<c>CE-3128</c>: the danger sensor's route and classifier).</summary>
+        public const int RoadNetworkHolder = 343;
     }
 }

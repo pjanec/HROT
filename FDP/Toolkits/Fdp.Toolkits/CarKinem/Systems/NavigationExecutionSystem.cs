@@ -267,15 +267,11 @@ namespace CarKinem.Systems
             status.Result = NavResult.InProgress;
             repo.SetComponent(entity, status);
 
-            repo.Bus.Publish(new PathfindingRequestEvent
-            {
-                RequestId   = (long)entity.Index << 32 | (uint)status.ReplanCount,
-                Start       = from,
-                End         = intent.FinalDestination, // real destination Z (Sim Z-up, P3D-302)
-                RouteHandle = intent.RouteHandle,
-                // ⭐ CE-3025 follow-up — the replan planned on "all layers" too, i.e. the infantry mesh.
-                NavLayerMask = (int)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0),
-            });
+            // ⭐ CE-3128 — the same request the first plan made (PathRequests.FromIntent): the order's backend, layer and road
+            //   use. ⛔ Before, this was built by hand and dropped BackendForce and the intent's layer mask (it passed 0 — the
+            //   entity's own layer, CE-3025 — which FromIntent still yields when the intent asks for none).
+            repo.Bus.Publish(Fdp.Toolkit.Navigation.PathRequests.FromIntent(repo, entity, in intent, from,
+                (long)entity.Index << 32 | (uint)status.ReplanCount));
 
             repo.Bus.Publish(new PathReplannedEvent
             {

@@ -13,7 +13,8 @@ namespace Fdp.Toolkit.Terrain
     public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
 
     /// <summary>The ground cover of a flat surface area.</summary>
-    public enum TerrainSurfaceType : byte { Open = 0, Road = 1, Forest = 2, Water = 3 }
+    /// <summary>A ground surface's type. ⛔ <c>Road = 1</c> retired with CE-3128 (R-231): roads are the terrain's road graph.</summary>
+    public enum TerrainSurfaceType : byte { Open = 0, Forest = 2, Water = 3 }
 
     /// <summary>
     /// A SOLID extruded polygon — a building or a wall: blocks movement and sight from <see cref="BaseZ"/>
@@ -57,7 +58,7 @@ namespace Fdp.Toolkit.Terrain
         public float MaxZ { get; init; }
     }
 
-    /// <summary>A flat ground-cover area at ground level (road, open, forest, water).</summary>
+    /// <summary>A flat ground-cover area at ground level (open, forest, water — roads are the road graph, CE-3128).</summary>
     public sealed class TerrainSurface
     {
         public TerrainSurfaceType Type { get; init; }

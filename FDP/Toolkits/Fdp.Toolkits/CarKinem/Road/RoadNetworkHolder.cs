@@ -43,6 +43,8 @@ namespace CarKinem.Road
     /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4 (as-built) — this is the "two things this did NOT
     ///    solve" ① that batch ① deferred and batch ② closes.
     /// </summary>
+    [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.RoadNetworkHolder)]
+    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario | Fdp.Core.DataPolicy.NoReplay)]
     public sealed class RoadNetworkHolder : IDisposable
     {
         // internal, not private: the public Lease's internal constructor takes one, and C# requires the
@@ -173,6 +175,21 @@ namespace CarKinem.Road
 
             /// <inheritdoc/>
             public void Dispose() => _holder?.Release(_gen);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3128</c> — the ONE live read of a node's road graph carrier for code on a background view (no singletons there):
+    /// the world's <see cref="RoadNetworkHolder"/> singleton, published by the terrain commit. The reader must LEASE the graph
+    /// (<see cref="RoadNetworkHolder.Borrow"/>) for as long as it walks it. Mirrors <c>TerrainWorldSource.Live</c>.
+    /// </summary>
+    public static class RoadNetworkSource
+    {
+        /// <summary>A reader of <paramref name="world"/>'s <see cref="RoadNetworkHolder"/> singleton (null when none was published).</summary>
+        public static Func<RoadNetworkHolder?> Live(Fdp.Core.EntityRepository world)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return () => world.HasSingletonManaged<RoadNetworkHolder>() ? world.GetSingletonManaged<RoadNetworkHolder>() : null;
         }
     }
 }

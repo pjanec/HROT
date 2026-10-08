@@ -697,5 +697,18 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(TerrainDoorState.Closed, w.Doors.Single(d => d.Key == "bt-range/House B/front").Initial);   // template default
             Assert.Equal(new[] { 0f, 3f, 6f }, w.SurfacesAt(102, 104));   // inside House A's west room
         }
-    }
+    
+        /// <summary>⭐ CE-3128 (R-231) — a road POLYGON is refused, naming where roads live now: the terrain's road network.</summary>
+        [Fact]
+        public void CE3128_SurfaceRoad_IsRetired_AndTheErrorNamesTheRoadNetwork()
+        {
+            var json = """
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"kind":"surface","surface":"road"},
+                   "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+                """;
+            var ex = Assert.Throws<ArgumentException>(() => TerrainWorldParser.Parse(json));
+            Assert.Contains("roadNetworks", ex.Message);
+        }
+}
 }
