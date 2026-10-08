@@ -74,6 +74,7 @@ namespace Fdp.Toolkit.Combat.Systems
             TerrainWorld? terrain, DoorStates? doors)
         {
             var burst = new Vector3(evt.HitX, evt.HitY, evt.HitZ);
+            var struck = evt.Target.IsNull ? ColliderOcclusion.Nobody : evt.Target;   // ⚠ never skip "index 0" for a terrain burst
             float reach = MathF.Max(w.FragmentRadiusM, w.BlastInjuryRadiusM);
             var log = DetonationLog.For(repo);
             var record = new DetonationRecord
@@ -108,7 +109,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     var p = _points[i];
                     if (terrain != null) terrain.QueryFire(burst, p, _crossings, doors); else _crossings.Clear();
                     float ft = fragFall > 0f ? AreaEffect.FragmentTransmission(_crossings, w.FragmentPenetrationMm) : 0f;
-                    if (ft > 0f && _occlusion.Blocking(burst, p, e, evt.Target, out _) is { } blocker)
+                    if (ft > 0f && _occlusion.Blocking(burst, p, e, struck, out _) is { } blocker)
                     {
                         ft = 0f;
                         shieldedBy ??= $"entity #{blocker.Index}";
@@ -122,7 +123,7 @@ namespace Fdp.Toolkit.Combat.Systems
                             Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(p.X, p.Y)));
                 }
                 exposure /= _points.Count;
-                if (blastFall > 0f && _occlusion.Shadow(burst, _points[^1], e, evt.Target, _points[^1].Z, tf.Position.Z,
+                if (blastFall > 0f && _occlusion.Shadow(burst, _points[^1], e, struck, _points[^1].Z, tf.Position.Z,
                         AreaEffect.ShadowFactor, out float colliderShadow))
                     shadow = MathF.Min(shadow, colliderShadow);
 

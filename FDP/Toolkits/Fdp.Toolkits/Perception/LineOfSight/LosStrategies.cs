@@ -261,8 +261,15 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
         private readonly List<int> _near = new();
 
-        /// <summary>⚠ A null skip skips nothing — a terrain burst has no struck entity, and index 0 is a real entity.</summary>
-        private static bool Skips(Entity e, Entity skip) => !skip.IsNull && e.Index == skip.Index;
+        /// <summary>
+        /// A skip argument that matches no collider — a terrain burst has no struck entity. ⛔ Not <see cref="Entity.Null"/>: index 0 is a
+        /// real entity, and a handle a background solver rebuilds from an id can carry generation 0 (<see cref="Entity.IsNull"/>), so
+        /// neither "index 0" nor "IsNull" may mean "nobody" (📌 the second silently blinded every visual sensor, CE-1032).
+        /// </summary>
+        public static readonly Entity Nobody = new(-1, 0);
+
+        /// <summary>The skip is by INDEX — as the sight test always compared (a rebuilt handle's generation is not reliable).</summary>
+        private static bool Skips(Entity e, Entity skip) => e.Index == skip.Index;
 
         /// <summary>Colliders gathered by the last <see cref="Build"/>.</summary>
         public int Count => _colliders.Count;

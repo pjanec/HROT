@@ -246,6 +246,24 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1.8f, PhysicsColliderReaders.Height(world, tgt));                         // still a 1.8 m blocker
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1032</c> — the observer and the target never block their OWN line, however their handles are spelled: a
+        /// background solver may hand the strategy a handle rebuilt from an id with generation 0 (<see cref="Entity.IsNull"/> true).
+        /// 📌 A skip rule that treated such a handle as "nobody" made every soldier's 1.8 m collider hide its own eye — every
+        /// visual sensor went blind on the live cluster while <c>GET /perception/los</c> (real handles) still said clear.
+        /// </summary>
+        [Fact]
+        public void CE1032_TheObserverAndTargetNeverBlockTheirOwnLine_EvenThroughAGenerationZeroHandle()
+        {
+            var (world, obs, tgt) = TwoSoldiers(20f);
+            world.AddComponent(obs, new PhysicsCollider { Radius = 0.3f, Height = 1.8f });
+            world.AddComponent(tgt, new PhysicsCollider { Radius = 0.3f, Height = 1.8f });
+            var s = Strategy(null);
+            s.BeginBatch(world);
+            Assert.True(s.IsVisible(world, obs, tgt));
+            Assert.True(s.IsVisible(world, new Entity(obs.Index, 0), new Entity(tgt.Index, 0)));   // rebuilt from an id
+        }
+
         [Fact]
         public void PerceptionTkbTranslator_ProjectsPostureEyeHeights_IntoASensorMount()
         {
