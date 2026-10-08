@@ -1341,7 +1341,9 @@ terrain (building footprints) — no new authoring. (Measured on the shipped ter
 12 m tiles: 0.8 / 1.5 / 4.9 s; 30 m: 0.4 / 2.1 / 3.8 s — 24 m is the best of the three overall. ⇒ the tiled bake is FASTER than
 the single tile even with fine interiors (parallel), and a reload bakes nothing. Rails: `RecastNavmeshFactoryTests` —
 `CE3111_RealWidthDoors_…`, `CE1029_ASecondLoad_BakesNoTile_…`, `R218P2_Rebake_BakesOnlyTheTilesAChangeTouched_…`; House A's
-doors are real 0.9 m again (`Stage5d_BtRangeHouseA_…`, bt-doors live).
+doors are real 0.9 m again (`Stage5d_BtRangeHouseA_…`). ⚠ bt-doors live passes 4/6 (6/6 before): the route changed and the
+mover's drift off its path runs through the wall — `CE-3115` (Building Interiors §3j). The straight path now takes a vertex only
+where the AREA changes (`AREA_CROSSINGS`; ⛔ SUPERSEDED `ALL_CROSSINGS`: the fine tiles cut a corner into 10 cm segments).
 ⚠ Not done: the disk folder is never pruned (each changed tile leaves its old file) — `CE-3114`.
 
 | rejected | the one fact |

@@ -398,7 +398,11 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
                 straightBuf.AsSpan(),
                 out int straightCount,
                 MaxStraight,
-                DtStraightPathOptions.DT_STRAIGHTPATH_ALL_CROSSINGS);
+                // ⭐ CE-3111 (live) — a vertex where the AREA changes (a doorway's own area, 5c), not at every polygon edge: the
+                //   fine tiles over a building cut a corner into 10 cm segments, and the mover's tangent-following overshot them
+                //   (bt-doors: the Visitor ran 1.4 m inside the house wall and passed the back door's mark out of reach).
+                //   ⛔ SUPERSEDED: DT_STRAIGHTPATH_ALL_CROSSINGS (5c), which the door mark never needed.
+                DtStraightPathOptions.DT_STRAIGHTPATH_AREA_CROSSINGS);
 
             if (straightStatus.Failed() || straightCount == 0) continue;
 

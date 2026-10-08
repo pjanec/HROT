@@ -205,7 +205,7 @@ public sealed class RecastNavmeshFactoryTests
         void RawPath(DotRecast.Detour.IDtQueryFilter f)
         {
             raw.FindPath(sRef, eRef, s, e, f, polys, out int n, 256);
-            raw.FindStraightPath(s, e, polys.AsSpan(0, n), n, straight, out _, 256, DotRecast.Detour.DtStraightPathOptions.DT_STRAIGHTPATH_ALL_CROSSINGS);
+            raw.FindStraightPath(s, e, polys.AsSpan(0, n), n, straight, out _, 256, DotRecast.Detour.DtStraightPathOptions.DT_STRAIGHTPATH_AREA_CROSSINGS);
         }
         var doorFilter = new DoorAwareQueryFilter(NavDoorways.DoorPolys(mesh!, NavDoorways.For(world)), closed, canOpenDoors: true);   // the same search ours runs
 
