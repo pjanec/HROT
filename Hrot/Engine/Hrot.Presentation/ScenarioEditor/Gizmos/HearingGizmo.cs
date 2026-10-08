@@ -11,7 +11,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 
 /// <summary>
 /// ⭐ <c>CE-3117</c> — the <b>hearing</b> debug layer (📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a). Two halves, both from recorded
-/// components, for EVERY entity (a global gizmo: SimHost draws per-entity gizmos only for the selected one):
+/// components, for EVERY entity (one global gizmo walks both halves; it needs the emitters and the listeners together):
 /// <list type="bullet">
 ///   <item>every <see cref="AcousticEmitter"/>: a shot or a detonation sends ONE ring expanding from where it happened to its audible
 ///     range over the <see cref="SoundEmissionSystem.SoundLingerSeconds"/> it lasts; a moving entity sends a ring every

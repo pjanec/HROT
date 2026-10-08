@@ -368,7 +368,7 @@ network translator — they exist only on the node whose module fills them.
 | a dirty chunk is written whole (64 KB, then LZ4) | `NativeChunkTable.cs:402-407`, `AsyncRecorder.cs:102` | — ⇒ a trace written every frame costs ≈ one compressed chunk per frame; acceptable while firing |
 | `NoScenario` stays recorded | `DataPolicyAttribute.cs:14,41,48` | — |
 | a seek skips events, so an event-fed log would be EMPTY after a seek | `PlaybackSystem.cs:26,195` (`processEvents:false`) | — ⇒ the rejected alternative |
-| per-entity gizmos draw ONLY the selected entity on SimHost and in the Replay Browser | `SimHostApp.cs:411`, `ReplayBrowserSubsystem.cs:197` (`SelectedEntitiesOnly`); `StatelessGizmoSystem.cs:114,141` | `DESIGN_Uniform_Gizmo_Membership.md` §1 ⇒ every layer that must show ALL entities is a **global** gizmo |
+| ⛔ CORRECTED `2026-10-08`: ~~per-entity gizmos draw ONLY the selected entity on SimHost and in the Replay Browser~~ — the host's `SelectedEntitiesOnly` reaches only the DRAG HANDLES (`DataDrivenGizmoSystem`); map gizmos are never host-gated (`MapInteractionPack.cs:113-124`, CE-123) | — | `UX_Feature_Map_Parity.md` §3.9j.1 ⇒ a per-entity gizmo draws for EVERY matching entity; "selected only" needs a per-gizmo visibility policy (§3.2f) — proposed below |
 | the acoustic answer carries no source identity | `AcousticPerception.cs` `Hear` (`EntityId = 0L`) | R-207 ⇒ no "true source → estimate" line; the emitter rings show where the sound really was |
 | the look-ahead point is computed each tick and not stored | `CarKinematicsSystem.cs:175,440` (`PathLookahead`) | CE-3115 ⇒ the gizmo recomputes it with the same function |
 | the Replay Browser holds no `TerrainWorld` (`NoReplay`), so doors and walls cannot draw there | `TerrainWorld.cs:80`; grep of `ReplayBrowser` for `TerrainWorld` = 0 files | ⇒ `CE-3118` |
@@ -479,7 +479,7 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 | `HearingGizmo` | global | **7 Hearing** *(new)* | every `AcousticEmitter`: a shot or detonation ring expanding from the source to its audible range over the 0.5 s it lasts (radius = range × (1 − time left / 0.5)); a moving entity sends a ring every 1 s sized to its current range. Every listener's `HeardTraces` younger than 1 s: a dashed line to the estimate and its uncertainty circle, coloured by sound class |
 | `DangerAreaGizmo` | global | 2 AiHelpers | each box of every `DangerAreaCognitiveBuffer`: the oriented rectangle (half-extents, yaw) coloured by threat rating, kind as a label |
 | `DoorLeafGizmo` | global | **4 Doors** *(new)* | each door's leaf (from `DoorLeaves`): along the wall when closed, swung 90° on its hinge when open; grey closed · green open · purple locked · red ✕ destroyed |
-| `PlannedPathGizmo` | per entity (the selected one on SimHost) | **5 Paths** *(new)* | `PathTrace` polyline, door steps as markers, the progress point at `NavState.ProgressS` (by distance), the look-ahead point at `ProgressS + PathLookahead(params, speed)` |
+| `PlannedPathGizmo` | per entity (today: every mover — see *Per-gizmo scope* below) | **5 Paths** *(new)* | `PathTrace` polyline, door steps as markers, the progress point at `NavState.ProgressS` (by distance), the look-ahead point at `ProgressS + PathLookahead(params, speed)` |
 | `LineOfSightGizmo` | per entity | 1 Perception | heard (anonymous) slots: dashed line + uncertainty circle; sighted slots: solid line; both at the stored height |
 
 `LayerControlDto.ToMask()` keeps bits 8–255 always on (it kept 4–255).
@@ -504,7 +504,7 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 | ⚠ the mirror writes singletons with **`SetSingletonUnmanaged`**, never through the ref of `GetSingletonUnmanaged` | measured: that ref does not move the version (`EntityRepository.cs:1943`), and a delta frame records a singleton only when its version moved — the rail `CE3117_ABurst_ReachesARestoredWorld_ThroughAKeyframeAndADelta` pins it |
 | `HeardTraces` is written through the solver's command buffer at `SensorMemoryStage.Flush`, beside the `SoundContactEvent` | the flush may run on a background snapshot; the command buffer is its only write path |
 | `FireTraceGizmo` keeps its old rule (the last 64 shots, no fade) | unchanged behaviour; only its source moved to `ShotTraces` |
-| `DangerAreaGizmo` is **global** | the buffer sits on the sensor CHILD, which is never the selected entity |
+| `DangerAreaGizmo` is **global** | the buffer sits on the sensor CHILD, not on the unit, so one walk over the buffers is the simplest projector |
 | `SimHostTrajectoryLayer` lost its trajectory half and its pool parameter | the followed path is `PlannedPathGizmo`'s now; the layer keeps the authored route |
 
 **Rails** (feature suites first): `AreaEffectSystemTests` (rays folded into `W11_BehindAHalfMetreWall…` and `W11_AVehicleBetween…`; new
@@ -512,6 +512,16 @@ host check. The one dead edge is the Replay Browser's missing terrain, owned by 
 (heard trace folded in) · `GroundKinematicsModuleTests` (3 post-sim systems) · new `PathTraceSystemTests` (thinning keeps ends and door steps;
 rewritten only on change) · new `DebugTraceGizmoTests` (burst drawn for 1 s, sound ring at half range half-way, look-ahead at
 `PathLookahead`, door leaf geometry) · `LayerControlGizmoTests.CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits`.
+
+### ⏳ Per-gizmo scope — PROPOSED, awaiting the user *(`2026-10-08`)*
+
+🔒 **User:** *"Whethwr gizmo renders for selected entity or all - shoukdnt that be definable per gizmo in its attribute or something?"*
+
+| lean | rejected (one line each) |
+|---|---|
+| `[GizmoProjector(..., Scope = GizmoScope.Selected)]` — the gizmo declares its DEFAULT; `GizmoReflectionRegistrar` maps `Selected` to one shared `SelectedEntityVisibilityPolicy` (§3.2f's per-entity seam, `StatelessGizmoSystem.cs:156`) unless the host resolver returns a policy for that type, so a host can still override. Default `All` ⇒ no existing gizmo changes | a host-wide selection gate on map gizmos — that was CE-123 · resolver-only — every host would have to know which gizmos are selection-scoped · selection checks inside `Draw` — a second "should this entity draw?" (ruling 9) |
+
+Proposed scopes: `PlannedPathGizmo` → Selected; `LineOfSightGizmo`, heard estimates → All; the global gizmos have no per-entity scope.
 
 ### Follow-ups (own tasks)
 

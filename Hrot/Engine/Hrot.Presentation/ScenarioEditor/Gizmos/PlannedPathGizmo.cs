@@ -12,7 +12,8 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// RECORDED <see cref="PathTrace"/> — the polyline, every door step as a square, the progress point at
 /// <see cref="NavState.ProgressS"/> (by distance) and the look-ahead point the controller steers at,
 /// <c>ProgressS + CarKinematicsSystem.PathLookahead(params, speed)</c> — the same function, so the two cannot disagree. A per-entity
-/// gizmo: SimHost draws it for the SELECTED mover. Toggled by the <c>Paths</c> bit of the layer control.
+/// gizmo, drawn for EVERY mover today (the host selection gate reaches only the drag handles, CE-123); a per-gizmo "selected only"
+/// scope is proposed in docs/DESIGN_Terrain_Combat_Tuning.md §5a. Toggled by the <c>Paths</c> bit of the layer control.
 /// <para>⚠ The look-ahead is sampled on the polyline; a spline trajectory bends between its points, so on one the dot can sit a
 /// little off the curve the controller samples. Pedestrian and navmesh paths are linear.</para>
 /// </summary>
