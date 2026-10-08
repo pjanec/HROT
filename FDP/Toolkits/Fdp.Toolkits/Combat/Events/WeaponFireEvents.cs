@@ -37,6 +37,13 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>True when this event originated from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-8) — fire at <see cref="TargetPoint"/> instead of an entity (<see cref="Target"/> is
+        /// <see cref="Entity.Null"/>): a thrown grenade, a mortar. A warhead marked <c>Indirect</c> flies a gravity arc to it.</summary>
+        public bool AtPoint;
+
+        /// <summary>⭐ <c>CE-1032</c> — the aim point when <see cref="AtPoint"/>.</summary>
+        public System.Numerics.Vector3 TargetPoint;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────

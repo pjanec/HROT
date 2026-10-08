@@ -43,6 +43,13 @@ namespace Hrot.Editor.DebugApi
             ["name"] = a.Name, ["type"] = a.Type, ["calibreMm"] = a.CalibreMm, ["massG"] = a.MassG, ["velocity"] = a.Velocity,
             ["explosiveKg"] = a.ExplosiveKg, ["genericPenetrationMm"] = a.Generic.PenetrationMm, ["genericDamage"] = a.Generic.Damage,
             ["blastLethalRadiusM"] = a.BlastLethalRadiusM, ["blastInjuryRadiusM"] = a.BlastInjuryRadiusM,
+            ["warhead"] = a.Warhead is { } w ? new JsonObject       // ⭐ CE-1032 — what the area effect uses (ParameterResolver.Warhead)
+            {
+                ["kind"] = w.Dto.Kind.ToString(), ["fuze"] = w.Dto.Fuze.ToString(), ["fuzeDelayS"] = w.Dto.FuzeDelayS, ["indirect"] = w.Dto.Indirect,
+                ["blastLethalDamage"] = w.Dto.BlastLethalDamage, ["blastFormula"] = w.BlastFormula,
+                ["fragmentRadiusM"] = w.Dto.FragmentRadiusM, ["fragmentPenetrationMm"] = w.Dto.FragmentPenetrationMm,
+                ["fragmentDamage"] = w.Dto.FragmentDamage, ["fragmentFormula"] = w.FragmentFormula,
+            } : null,
         };
     }
 }

@@ -96,13 +96,18 @@ namespace Fdp.Toolkit.Physics.Systems
                     // ⭐ CE-3071 — carry the bullet's munition to the damage step (same assembly; the bullet is still alive
                     //   here — its TearDown is queued below).
                     float penetration = 0f, damage = 0f;
+                    long ammo = 0;   // ⭐ CE-1032 W-2 — the round's munition type, for the area effect
                     if (repo.IsAlive(bulletEntity)
                         && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()
                         && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
                     {
                         ref readonly var bp = ref repo.GetComponentRO<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity);
+                        // ⭐ CE-1032 — a warhead round that already burst (a terrain stop) is kept only so late raycasts resolve; it
+                        //   must not burst again on one of them.
+                        if ((bp.Warhead & Fdp.Toolkit.Combat.Components.WarheadRound.Spent) != 0) continue;
                         penetration = bp.Penetration;
                         damage      = bp.Damage;
+                        ammo        = bp.Ammo;
                         // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors between the MUZZLE and the struck unit: the round is
                         //   carried from where it was fired (its Damage/Penetration are the muzzle values), so this is exact however many
                         //   ticks the segment's raycast took (three). A unit in FRONT of a fence takes the full round. A round built
@@ -135,6 +140,7 @@ namespace Fdp.Toolkit.Physics.Systems
                         HitZ        = hitPos.Z,
                         Penetration = penetration,
                         Damage      = damage,
+                        Ammo        = ammo,
                     });
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered

@@ -18,8 +18,16 @@
     "perKgExplosive": 600
   },
   "blast": {
-    "$comment": "Hopkinson–Cranz scaled distance: R = Z · W^(1/3), W = explosive kg TNT-equivalent; generated for CE-1032 (warheads), not read by the simulation yet",
+    "$comment": "Hopkinson–Cranz scaled distance: R = Z · W^(1/3), W = explosive kg TNT-equivalent. Inside the lethal radius the blast does lethalDamage; it falls to 0 at the injury radius (CE-1032, docs/DESIGN_Building_Interiors.md §3k W-7′)",
     "zLethal": 2.0,
-    "zInjury": 6.0
+    "zInjury": 6.0,
+    "lethalDamage": 150
+  },
+  "fragments": {
+    "$comment": "CE-1032 W-6′ — Gurney fragment velocity v0 = sqrt2E · sqrt(β/(1+β/2)), β = explosive / casing kg (casing = mass − explosive); one fragment's penetration (mm RHA) = kPenetration · v0 · sqrt(fragmentMassG/1000); the reach (m) where fragment damage falls to 0 = radiusPerCbrtCasingKg · casing^(1/3); fragment damage at the burst = damage.perKgExplosive · explosive kg",
+    "sqrt2E": 2440,
+    "fragmentMassG": 0.5,
+    "kPenetration": 0.06,
+    "radiusPerCbrtCasingKg": 28
   }
 }

@@ -1506,6 +1506,38 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_combat_detonations",
+    "group": "K — AI behavior traces",
+    "summary": "The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6).",
+    "http": {
+      "method": "GET",
+      "path": "/combat/detonations"
+    },
+    "params": [
+      {
+        "name": "last",
+        "type": "number",
+        "required": false,
+        "description": "how many bursts (newest first; default 10, ring of 64)"
+      }
+    ],
+    "returns": "{ count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy}], doorsBreached:[key]}] } — newest first",
+    "notes": [
+      "Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).",
+      "fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.",
+      "The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event."
+    ],
+    "example": {
+      "args": {
+        "last": 3
+      },
+      "gist": "find out why the prone soldier behind the wall survived the grenade"
+    },
+    "hint": "Optional: last (default 10, ring of 64). Example: get_combat_detonations({last:3})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_combat_shots",
     "group": "K — AI behavior traces",
     "summary": "The last rounds fired on this node — the inputs each was fired with (penetration and its provenance, AQ85 sigma/deflection) and why it ended (hit, stopped by a wall, expired), with every terrain crossing (tuning T-4).",

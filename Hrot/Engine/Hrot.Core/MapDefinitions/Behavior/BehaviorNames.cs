@@ -23,5 +23,9 @@ namespace Hrot.Map.Definitions.Behavior
         public const string HullDownAttack = "HullDownAttack";
         /// <summary>⭐ Buildings 5d-2 — walk to a door, unlock it, open it, walk through (the curated door test behaviour, R-223).</summary>
         public const string DoorLocksmith = "DoorLocksmith";
+        /// <summary>⭐ Buildings Stage 6 (<c>CE-1032</c>, W-8) — fire a mount at a ground point (a thrown grenade, a mortar).</summary>
+        public const string FireAtPoint = "FireAtPoint";
+        /// <summary>⭐ <c>CE-1032</c> — a TEST behaviour: hold a posture (stand, crouch, lie) and do nothing else — a target for the warhead demos.</summary>
+        public const string HoldStance = "HoldStance";
     }
 }

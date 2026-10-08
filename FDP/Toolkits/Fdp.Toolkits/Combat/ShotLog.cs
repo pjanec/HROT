@@ -7,7 +7,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Combat
 {
     /// <summary>How a round ended (or that it is still flying).</summary>
-    public enum ShotOutcome : byte { InFlight, Hit, StoppedByTerrain, Expired }
+    public enum ShotOutcome : byte { InFlight, Hit, StoppedByTerrain, Expired, Detonated }   // ⭐ CE-1032 — a warhead burst off-target
 
     /// <summary>One terrain piece a round crossed: what, where, its resistance and the round's chance through it.</summary>
     public readonly record struct ShotCrossing(string Kind, string? Label, string Material, float ResistanceMmRha, float RoundPenetrationMm,

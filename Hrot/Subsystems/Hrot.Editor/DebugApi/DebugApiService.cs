@@ -2217,6 +2217,10 @@ namespace Hrot.Editor.DebugApi
         public JsonNode GetShots(int last, long? shooter, long? target)
             => CombatReport.Shots(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last, shooter, target);
 
+        /// <summary>GET /combat/detonations — ⭐ CE-1032 (W-10): the last warhead bursts on this node, as the area effect decided them.</summary>
+        public JsonNode GetDetonations(int last)
+            => CombatReport.Detonations(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last);
+
         /// <summary>GET /perception/los — ⭐ tuning T-4: why one unit does (not) see another, as this node's perception decides it.</summary>
         public JsonNode ExplainLos(long observer, long target)
             => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);

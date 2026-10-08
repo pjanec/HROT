@@ -103,5 +103,32 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ R-217 — bit 0: <see cref="Muzzle"/> and the front values are set (a round built without them — older tests,
         /// examples — starts its front at its first segment and is carried from that segment's start).</summary>
         public byte TerrainFlags;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the round (the fired mount's <c>AmmoGuid</c>; 0 = unknown).
+        /// The hit and the detonation carry it; the warhead numbers are looked up from it (<c>ParameterResolver.Warhead</c>), never
+        /// copied here.</summary>
+        public long Ammo;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — <see cref="WarheadRound"/> bits, set at firing from the round's warhead
+        /// (<c>ParameterResolver.Warhead</c>), so the flight never looks the warhead up.</summary>
+        public byte Warhead;
+
+        /// <summary>⭐ <c>CE-1032</c> (W-4) — seconds left on a time fuze (counts down from firing; 0 with no time fuze).</summary>
+        public float FuzeRemaining;
+    }
+
+    /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>
+    public static class WarheadRound
+    {
+        /// <summary>The round has an area effect: a terrain stop DETONATES it (W-3) instead of just ending it.</summary>
+        public const byte Area = 1;
+        /// <summary>The round flies a gravity arc (W-8).</summary>
+        public const byte Arc = 2;
+        /// <summary>Time fuze: a terrain stop LANDS it, and it bursts when the fuze runs out (W-4).</summary>
+        public const byte TimeFuze = 4;
+        /// <summary>Lying where it landed, waiting for its fuze.</summary>
+        public const byte Landed = 8;
+        /// <summary>Already burst: a late raycast of an earlier segment must not detonate it a second time.</summary>
+        public const byte Spent = 16;
     }
 }

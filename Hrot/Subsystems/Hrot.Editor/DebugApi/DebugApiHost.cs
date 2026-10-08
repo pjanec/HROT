@@ -742,6 +742,13 @@ namespace Hrot.Editor.DebugApi
                 return Task.FromResult(Ok(Service().GetShots(last, shooter, target)));
             }));
 
+            // ⭐ CE-1032 (W-10) — the warhead bursts the area effect assessed (docs/DESIGN_Building_Interiors.md §3k).
+            _routes.Add(new("GET", "/combat/detonations", ctx =>
+            {
+                int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 10;
+                return Task.FromResult(Ok(Service().GetDetonations(last)));
+            }));
+
             // Group N — world/coordinate info
             _routes.Add(new("GET", "/world/info", _ =>
                 Task.FromResult(Ok(Service().GetWorldInfo()))));

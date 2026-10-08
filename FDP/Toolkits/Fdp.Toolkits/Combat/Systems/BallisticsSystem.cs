@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
@@ -87,13 +88,26 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
                 var shot = shots?.Of(entity);
 
+                // ── ⭐ Stage 6 (CE-1032, W-4) — a warhead round lying where it landed waits for its time fuze, then bursts.
+                if ((proj.Warhead & WarheadRound.Landed) != 0)
+                {
+                    proj.FuzeRemaining -= deltaTime;
+                    if (proj.FuzeRemaining <= 0f)
+                    {
+                        Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        repo.DestroyEntity(entity);
+                    }
+                    continue;
+                }
+
                 // ── 0. ⭐ R-217 — a round stopped by the terrain stays frozen at the wall for a grace period, so the raycasts of its
                 //   last segments (three ticks in flight) still resolve — a unit IN FRONT of the wall is still struck — then goes.
                 if (proj.StoppedTick != 0)
                 {
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
                     {
-                        if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj, doors);
+                        if (shot != null && (proj.Warhead & WarheadRound.Spent) == 0)
+                            ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj, doors);
                         repo.DestroyEntity(entity);
                     }
                     continue;
@@ -101,7 +115,25 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // ── 1. Lifetime check ────────────────────────────────────────────
                 // Unsigned subtraction handles tick-counter wrap correctly.
-                if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
+                // ⭐ CE-1032 (W-4) — a time fuze running out in flight bursts the round where it is.
+                if ((proj.Warhead & WarheadRound.TimeFuze) != 0)
+                {
+                    proj.FuzeRemaining -= deltaTime;
+                    if (proj.FuzeRemaining <= 0f)
+                    {
+                        Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        repo.DestroyEntity(entity);
+                        continue;
+                    }
+                }
+
+                // ⭐ CE-1032 (W-8) — an arc round falls: gravity on its velocity (LinearKinematicsSystem integrates it).
+                if ((proj.Warhead & WarheadRound.Arc) != 0 && repo.HasComponent<SimVelocity>(entity))
+                    repo.GetComponentRW<SimVelocity>(entity).Linear.Z -= CombatConstants.Gravity * deltaTime;
+
+                uint lifetime = (proj.Warhead & (WarheadRound.Arc | WarheadRound.TimeFuze)) != 0
+                    ? CombatConstants.ArcRoundLifetimeTicks : CombatConstants.BulletLifetimeTicks;
+                if (currentTick - proj.SpawnTick >= lifetime)
                 {
                     if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj, doors);
                     repo.DestroyEntity(entity);
@@ -134,6 +166,42 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
 
+                // ── 2b′. ⭐⭐ Stage 6 (CE-1032, W-3/W-4) — a WARHEAD round that stops (on the terrain, or on the flat ground — which the
+                //   terrain query does not count) does not just end: on an impact fuze it BURSTS there, a little back along its flight
+                //   so the surface it struck stands between the burst and what is behind it (a roof over a room); on a time fuze it
+                //   LANDS and waits. Its last raycast still goes out (a unit in the way is struck first — a contact burst).
+                if ((proj.Warhead & WarheadRound.Area) != 0)
+                {
+                    float groundZ = terrain?.GroundZ ?? 0f;
+                    bool stoppedHere = proj.StoppedTick == (currentTick == 0 ? 1u : currentTick);
+                    if (!stoppedHere && end.Z < groundZ && proj.PreviousPosition.Z >= groundZ)
+                    {
+                        float t = (proj.PreviousPosition.Z - groundZ) / (proj.PreviousPosition.Z - end.Z);
+                        end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, end, t);
+                        proj.StoppedTick = currentTick == 0 ? 1u : currentTick;
+                        ref var at = ref repo.GetComponentRW<SimTransform>(entity);
+                        at.Position = end;
+                        if (repo.HasComponent<SimVelocity>(entity)) repo.GetComponentRW<SimVelocity>(entity).Linear = System.Numerics.Vector3.Zero;
+                        stoppedHere = true;
+                    }
+                    if (stoppedHere)
+                    {
+                        var back = proj.PreviousPosition - end;
+                        var burst = back.LengthSquared() > 1e-8f
+                            ? end + System.Numerics.Vector3.Normalize(back) * AreaEffect.BurstStandOffMetres : end;
+                        if ((proj.Warhead & WarheadRound.TimeFuze) != 0)
+                        {
+                            proj.Warhead |= WarheadRound.Landed;
+                            repo.GetComponentRW<SimTransform>(entity).Position = burst;
+                        }
+                        else
+                        {
+                            Detonate(repo, in proj, burst, shot, currentTick);
+                            proj.Warhead |= WarheadRound.Spent;
+                        }
+                    }
+                }
+
                 cmd.PublishEvent(new RaycastRequestEvent
                 {
                     Start        = proj.PreviousPosition,
@@ -151,6 +219,19 @@ namespace Fdp.Toolkit.Combat.Systems
                 // sweeps the correct segment (after LinearKinematicsSystem advances it).
                 proj.PreviousPosition = end;
             }
+        }
+
+        /// <summary>
+        /// ⭐ Stage 6 (<c>CE-1032</c>, W-3) — an off-target burst: a <see cref="DetonationNotification"/> with no target, carrying the
+        /// munition (the area effect reads its warhead from it, next frame's Simulation) — and the end of the shot's record.
+        /// </summary>
+        private static void Detonate(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 at, ShotRecord? shot, uint tick)
+        {
+            repo.Bus.Publish(new DetonationNotification
+            {
+                Shooter = proj.Shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Ammo = proj.Ammo,
+            });
+            if (shot != null) ShotLog.End(shot, ShotOutcome.Detonated, tick, at);
         }
 
         /// <summary>

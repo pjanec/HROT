@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-08 (§3k Stage 6 warheads designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-08 (§3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3k Stage 6 warheads (designed, READY-TO-BUILD) · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -511,7 +511,7 @@ classDiagram
 | item | decision *(§3f, approved)* |
 |---|---|
 | stance read | the LOGICAL stance — `StanceIntent.TargetStance`, else Standing. ⚠ On a SimHost in a cluster it arrives only with the behaviors lane's stance wire (`CE-2121` slice ②); in the editor (one world) it is there now. Until ②, the cluster reads Standing exactly as today |
-| body points | per stance, as fractions of that stance's eye height (`EyeHeightFor`): standing 0.12/0.53/0.94 (≈ 0.2/0.9/1.6 m), crouched 0.18/0.55/0.91 (≈ 0.2/0.6/1.0), prone 0.43/0.86 (≈ 0.15/0.3); a target with a collider height (a vehicle): 0.25/0.5/0.85 of it |
+| body points | per stance, as fractions of that stance's eye height (`EyeHeightFor`): standing 0.12/0.53/0.94 (≈ 0.2/0.9/1.6 m), crouched 0.18/0.55/0.91 (≈ 0.2/0.6/1.0), prone 0.43/0.86 (≈ 0.15/0.3); a target with a collider height (a vehicle): 0.25/0.5/0.85 of it · ⭐ `CE-3116`: the HULL height (`PhysicsColliderReaders.HullHeight`) — 0 for a person, whose 1.8 m capsule collider is not a hull |
 | sight | eye → each body point; the target is SEEN when ANY point's line is clear (terrain transmittance ≥ 0.5 and no collider within its height). ⭐ a standing man behind a 1.2 m wall is now seen (his head is above it); a prone man behind a 0.5 m wall is not |
 | fire | unchanged — the round still aims at the mid-silhouette (`AimHeightFor`); per-point EXPOSURE for fragments is `CE-1032` |
 | diagnostics | `/perception/los` lists every point with its own verdict |
@@ -1140,21 +1140,30 @@ sequenceDiagram
 classDiagram
     direction LR
     class WarheadDto { <<NEW TKB descriptor on the ammo type>> Kind · ExplosiveKg · BlastLethalRadiusM · BlastInjuryRadiusM · FragmentRadiusM · FragmentPenetrationMm · FragmentDamage · Fuze · FuzeDelayS · Indirect }
-    class ParameterResolver { <<existing>> Warhead(ammo) NEW: TKB → library by name → none }
-    class ReferenceLibrary { <<existing>> RefAmmo: explosiveKg, blast radii; NEW fragment radius/pen (Gurney) }
-    class WeaponFireIntent { <<existing>> Shooter · Target · NEW TargetPoint }
-    class BallisticProjectile { <<existing>> + Ammo NEW · + Arc NEW · + FuzeAt NEW }
+    class ParameterResolver { <<existing>> Warhead(db, ammoType) NEW: TKB → library by name → none }
+    class ReferenceLibrary { <<existing>> RefAmmo: explosiveKg, blast radii · NEW RefWarhead (Gurney fragments, fuze, indirect) }
+    class MunitionTkbCatalog { <<NEW>> M67 grenade 6001 · 81mm mortar HE 6002 — DIS kind 2, hidden from the palette }
+    class WeaponFireIntent { <<existing>> Shooter · Target · NEW AtPoint + TargetPoint }
+    class BallisticProjectile { <<existing>> + Ammo · + Warhead bits (Area, Arc, TimeFuze, Landed, Spent) · + FuzeRemaining NEW }
     class DetonationNotification { <<existing>> Target may be NONE · + Ammo NEW }
     class MunitionDetonation { <<existing wire>> + MunitionType NEW }
     class AreaEffectSystem { <<NEW, MuscleGround, Simulation>> per detonation with a warhead: candidates in radius → exposure → damage }
-    class TerrainWorld { <<existing>> QueryFire · NEW QueryFragment(into) · NEW BlastShadow }
-    class ColliderOcclusion { <<NEW shared, moved out of TerrainWorldLosStrategy>> Blocking(from, to, skip a, skip b) — 3-D cylinders }
-    class BodyProfile { <<existing, Stage 4>> points per stance }
+    class TerrainWorld { <<existing>> QueryFire(into) — THE fragment trace · FireCrossing.TopZ NEW }
+    class AreaEffect { <<NEW static>> FragmentTransmission · ClosedBarrierTransmission · TerrainShadow · ShadowFactor · falloffs }
+    class ColliderOcclusion { <<NEW shared, moved out of TerrainWorldLosStrategy>> Blocking(from, to, skip a, skip b) · Shadow — 3-D cylinders }
+    class BodyProfile { <<existing, Stage 4>> NEW Points(view, e, stance, hull) — the one body-point rule }
+    class PhysicsColliderReaders { <<existing>> NEW HullHeight — 0 for a person (CE-3116) }
+    class FireAtPointExecutor { <<NEW, WeaponChannel action 2>> ammo · cooldown · ROE → WeaponFireIntent(AtPoint) }
     class ArmorModel { <<existing>> PenetrationChance · HitDamage }
     class DamageAssessedEvent { <<existing>> }
     class DoorCommandEvent { <<existing>> Verb = Breach }
     class DetonationLog { <<NEW ring buffer>> per affected entity: stance, points, exposure, shielding, damage }
     class FireAtPoint { <<NEW shared action node>> mount · point }
+    FireAtPoint ..> FireAtPointExecutor : WeaponChannel
+    FireAtPointExecutor ..> WeaponFireIntent : AtPoint
+    ParameterResolver ..> MunitionTkbCatalog : the type by id
+    AreaEffectSystem ..> AreaEffect
+    AreaEffectSystem ..> PhysicsColliderReaders : HullHeight
     ParameterResolver ..> WarheadDto : reads
     ParameterResolver ..> ReferenceLibrary : fallback
     FireAtPoint ..> WeaponFireIntent : TargetPoint
@@ -1163,7 +1172,7 @@ classDiagram
     DetonationNotification ..> MunitionDetonation : egress (IG effect)
     AreaEffectSystem ..> DetonationNotification : consumes
     AreaEffectSystem ..> ParameterResolver : Warhead(Ammo)
-    AreaEffectSystem ..> TerrainWorld : per body point
+    AreaEffectSystem ..> TerrainWorld : QueryFire per body point
     AreaEffectSystem ..> ColliderOcclusion : per body point
     TerrainWorldLosStrategy ..> ColliderOcclusion : the same test
     AreaEffectSystem ..> BodyProfile
@@ -1194,16 +1203,17 @@ sequenceDiagram
     end
     K->>K: first contact = roof slab ⇒ impact fuze
     K-->>A: DetonationNotification(Target = none, Ammo) — read next frame
-    A->>A: Warhead(Ammo) · candidates within max radius (spatial grid)
-    loop each candidate, each body point of its stance
-        A->>T: QueryFragment(burst → point): crossings × PenetrationChance
-        A->>T: colliders on the line (ColliderOcclusion) · BlastShadow(burst → highest point)
+    A->>A: Warhead(Ammo) · candidates = every live Health entity within the max radius
+    loop each candidate, each body point of its stance (BodyProfile.Points)
+        A->>T: QueryFire(burst → point): fragments × PenetrationChance · closed barriers × exp(−R/100)
+        A->>A: colliders on the line (ColliderOcclusion) · shadow on the line to the highest point
     end
     A-->>O: DamageAssessedEvent per entity → EntityHitDamage
     A-->>D: DoorCommandEvent(Breach) for doors in the lethal radius
 ```
-*What it shows that prose hid:* no physics raycast anywhere — the candidates come from the spatial grid and the shielding from
-the terrain model, synchronously; the only frame boundary is the terrain stop (PostSimulation → next Simulation).
+*What it shows that prose hid:* no physics raycast anywhere — the candidates come from one query over the Health entities in reach
+and the shielding from the terrain model, synchronously; the only frame boundary is the terrain stop (PostSimulation → next
+Simulation).
 
 ### Modules — who registers it, who ticks it
 
@@ -1253,8 +1263,26 @@ Simulation; one from a terrain stop (PostSimulation) in the NEXT frame's — at 
 | breachable walls now | a runtime geometry change (R-218 P2 is ready, its caller is not) |
 | airburst now | needs height-of-burst sensing — v2 |
 
-⚠ **Prerequisite:** merge `behaviors` (`CE-2121` slice ② — the stance wire) so a prone target is prone on the cluster SimHost.
+⚠ **Prerequisite:** merge `behaviors` (`CE-2121` slice ② — the stance wire) so a prone target is prone on the cluster SimHost. ✅ merged `2026-10-08`.
 ⏭ Out of scope: WHEN the AI throws or calls fire (behaviors lane); the mechanics and the `FireAtPoint` node are here.
+
+### Stage 6 as built *(backend, `2026-10-08`)*
+
+The diagrams above are updated to the as-built classes and sequence. What changed from the decisions table, and why:
+
+| decision | as built | why |
+|---|---|---|
+| W-1 | `WarheadDto` (`Gen.Warhead`) · `ParameterResolver.Warhead(db, ammoType)` · `RefWarhead` generated for every explosive library ammo: blast `R = Z·W^⅓`, fragments by Gurney (`v₀ = √2E·√(β/(1+β/2))`, one fragment `k·v₀·√m`, reach `28·casing^⅓`, damage `600·W`); coefficients in `coefficients.json` `fragments` · `fuzeDelayS`/`indirect` in `ammo.json` · the munition types `MunitionTkbCatalog` (6001 M67, 6002 81 mm; DIS kind 2, `HideFromPalette`) · `ResolveAll` lists `Warhead.*` rows for a munition ⇒ `/tkb/resolve`; `/reference` shows the warhead | the catalog's units name no ammo; the warhead units do (`Grenadier` 2004, mount 1; `MortarTeam` 2005) |
+| W-2 | `BallisticProjectile.Ammo` · `DetonationNotification.Ammo` · wire `MunitionDetonation.MunitionType`; `HitEntityId 0` = a terrain burst (both translators) | — |
+| W-3/W-4 | `BallisticsSystem`: a round with an area warhead that stops on the terrain OR on the flat ground (which `QueryFire` does not count) bursts `BurstStandOffMetres` (0.1 m) back along its flight — so a roof is between a roof burst and the room — and is marked `Spent` (a late raycast of an earlier segment cannot burst it again); a TIME-fuzed one lands and waits; the fuze also runs in flight. Warhead bits are read ONCE at firing | the flight never looks the warhead up |
+| W-5 | as designed; the STRUCK entity is IN the burst (≈ 0 m; never its own cover) and its direct hit comes on top — a warhead mount states no hit damage, so that is the flat default; ⚠ candidates are one query over live `Health` entities in reach, not the spatial grid | detonations are rare; the grid is a later optimisation |
+| W-6′ | ⛔ no `QueryFragment`: fragments use `QueryFire` (the same pieces, the same resistances) × `ArmorModel.PenetrationChance`; colliders through `ColliderOcclusion`, moved verbatim out of the LOS strategy; a round in flight is not cover | one terrain query, as §3a wants |
+| W-7′ | refined: a CLOSED barrier — a slab/stair, a shut door, a building's wall panel — passes the blast by its material, `exp(−R/100 mm)` (0.2 m concrete ≈ 5 %, a wooden door ≈ 95 %); an OPEN obstacle — a free wall, a fence, a solid block, a collider — taller than the target's highest body point puts it in the diffraction shadow (`0.3 → 1` over three obstacle heights, `FireCrossing.TopZ`). Blast is for personnel only (`HullHeight == 0`) | without it the floor below a roof burst would be in a "shadow" of the roof, i.e. hit at 30 % |
+| W-8 | `WeaponFireIntent.AtPoint/TargetPoint`, wire `WeaponFireRequest` with `TargetEntityId 0` + point; `FireProcessingSystem.ArcLaunch` (high for ≥ 40 m/s — a mortar; low for a throw; out of reach ⇒ 45°); gravity in `BallisticsSystem`; arc/time-fuze rounds live `ArcRoundLifetimeTicks`; `FireAtPointExecutor` (WeaponChannel action 2, CGF) + the shared `FireAtPointNodes.FireAtPoint` + curated `FireAtPoint` behaviour | ⏭ the Blueprint channel catalog entry is left to the behaviors lane (palette goldens) |
+| W-9 | as designed: a door inside the lethal radius whose line from the burst crosses only its own leaf | — |
+| W-10 | `DetonationLog` (ring of 64) + `GET /combat/detonations` (MCP `get_combat_detonations`) | — |
+| W-11 | rails `AreaEffectSystemTests` (6), `WarheadFlightTests` (4), `ReferenceLibraryTests` (2 new), `HrotEnvironmentTests` (munitions); premise rows `bt-grenade-posture`, `bt-mortar-roof`; scenarios + `scripts/utility-demo-check.py`; the curated test behaviour `HoldStance` | — |
+| — | ⭐ **`CE-3116` found here:** a soldier's 1.8 m collider (its capsule) made the body profile a HULL, so sight, aim and fragments ignored prone/crouched on the live world. `PhysicsColliderReaders.HullHeight` = 0 for a pedestrian; sight (`ForLiveWorld`), fire aim and the area effect read it; the collider still blocks lines up to its full height | §3f's profile, now true on the live world |
 
 ## 4. Change map — what each consumer must do
 

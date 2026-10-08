@@ -95,10 +95,9 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private readonly Func<TerrainWorld?> _worldSource;
         private readonly Func<ISimulationView, Entity, float>? _radius;
         private readonly Func<ISimulationView, Entity, float>? _height;
+        private readonly Func<ISimulationView, Entity, float>? _hull;
         private readonly Func<ISimulationView, Entity, StanceId>? _stance;
-        private readonly List<(Entity E, Vector3 P, float R, float H)> _colliders = new();
-        private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
-        private readonly List<int> _near = new();
+        private readonly ColliderOcclusion _occlusion = new();   // ⭐ CE-1032 — the 3-D collider test, shared with fragments (W-6′)
         private TerrainWorld? _world;
         // ⭐ R-219 — the doors as the BATCH's view sees them (BeginBatch); a background perception batch runs on its snapshot
         private DoorStates? _doors;
@@ -108,15 +107,19 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// <param name="colliderHeightReader">Collider height above its Z; 0 = unknown (blocks at any height).</param>
         /// <param name="stanceReader">The entity's current posture. ⚠ Null = Standing — no host composes the stance
         /// runtime yet, so nothing writes <c>StanceStatus</c> on a perception node (<c>CE-3010</c>).</param>
+        /// <param name="hullHeightReader">⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by (0 = by posture); null = the
+        /// collider height. <see cref="PhysicsColliderReaders.HullHeight"/> on every live host: a person's collider is not a hull.</param>
         public TerrainWorldLosStrategy(
             Func<TerrainWorld?> worldSource,
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
             Func<ISimulationView, Entity, float>? colliderHeightReader = null,
-            Func<ISimulationView, Entity, StanceId>? stanceReader = null)
+            Func<ISimulationView, Entity, StanceId>? stanceReader = null,
+            Func<ISimulationView, Entity, float>? hullHeightReader = null)
         {
             _worldSource = worldSource ?? throw new ArgumentNullException(nameof(worldSource));
             _radius = colliderRadiusReader;
             _height = colliderHeightReader;
+            _hull = hullHeightReader ?? colliderHeightReader;
             _stance = stanceReader;
         }
 
@@ -130,21 +133,15 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 TerrainWorldSource.Live(world),   // CE-3018 — the one live source, shared with the perception grid
                 PhysicsColliderReaders.Radius,
                 PhysicsColliderReaders.Height,
-                stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of);   // ⭐ Stage 4 — the logical stance (§3f)
+                stanceReader ?? Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of,    // ⭐ Stage 4 — the logical stance (§3f)
+                PhysicsColliderReaders.HullHeight);                                             // ⭐ CE-3116 — a person by posture
 
         public void BeginBatch(ISimulationView view)
         {
             _world = _worldSource();
             _doors = _world is { Doors.Count: > 0 } ? DoorStates.Of(view, _world) : null;
 
-            _colliders.Clear();
-            foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
-            {
-                if (!view.IsAlive(c)) continue;
-                _colliders.Add((c, view.GetComponentRO<SimTransform>(c).Position,
-                    _radius?.Invoke(view, c) ?? 0f, _height?.Invoke(view, c) ?? 0f));
-            }
-            _index.Build(_colliders.Count, i => new Vector2(_colliders[i].P.X, _colliders[i].P.Y), i => _colliders[i].R);
+            _occlusion.Build(view, _radius, _height);
         }
 
         /// <summary>The height of the entity's eye above its Z for its current posture.</summary>
@@ -156,7 +153,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// half its eye height for its posture (a prone soldier presents a prone silhouette).
         /// </summary>
         public float AimHeight(ISimulationView view, Entity e)
-            => AimHeightFor(view, e, _stance?.Invoke(view, e) ?? StanceId.Standing, _height?.Invoke(view, e) ?? 0f);
+            => AimHeightFor(view, e, _stance?.Invoke(view, e) ?? StanceId.Standing, _hull?.Invoke(view, e) ?? 0f);
 
         /// <summary>
         /// ⭐ THE eye-height rule for <paramref name="stance"/> — the <see cref="SensorMount"/>, else <see cref="DefaultMount"/>.
@@ -210,7 +207,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                     points.Add(new(height, aim, false, trace, null, $"blocked by terrain: transmittance {t.Transmittance:0.###} < {TerrainWorld.SightThreshold}"));
                     continue;
                 }
-                var blocker = BlockingCollider(eye, aim, observer, target, out bool unknownHeight);
+                var blocker = _occlusion.Blocking(eye, aim, observer, target, out bool unknownHeight);
                 points.Add(blocker is { } b
                     ? new(height, aim, false, trace, b, unknownHeight ? "blocked by an entity of unknown height" : "blocked by an entity within its height")
                     : new(height, aim, true, trace, null, trace == null ? "clear (no terrain resident)" : $"clear: transmittance {trace.Value.Transmittance:0.###} ≥ {TerrainWorld.SightThreshold}"));
@@ -227,11 +224,9 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// </summary>
         public IEnumerable<Vector3> BodyPoints(ISimulationView view, Entity target, StanceId stance)
         {
-            var basePos = view.GetComponentRO<SimTransform>(target).Position;
-            float collider = _height?.Invoke(view, target) ?? 0f;
-            float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
-            foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
-                yield return basePos with { Z = basePos.Z + f * scale };
+            var points = new List<Vector3>(3);
+            BodyProfile.Points(view, target, stance, _hull?.Invoke(view, target) ?? 0f, points);
+            return points;
         }
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
@@ -240,35 +235,102 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             eye.Z += EyeHeight(view, observer);
             var basePos = view.GetComponentRO<SimTransform>(target).Position;
             var stance = _stance?.Invoke(view, target) ?? StanceId.Standing;
-            float collider = _height?.Invoke(view, target) ?? 0f;
+            float collider = _hull?.Invoke(view, target) ?? 0f;
             float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
             // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen)
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
                 var aim = basePos with { Z = basePos.Z + f * scale };
                 if (_world != null && _world.SegmentBlocked(eye, aim, _doors)) continue;
-                if (BlockingCollider(eye, aim, observer, target, out _) == null) return true;
+                if (_occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
             }
             return false;
         }
+    }
 
-        private Entity? BlockingCollider(Vector3 eye, Vector3 aim, Entity observer, Entity target, out bool unknownHeight)
+    /// <summary>
+    /// ⭐⭐ <c>CE-1032</c> (R-225 W-6′) — THE 3-D collider test, ONE implementation for sight and for fragments, so the two never
+    /// disagree about what hides a body: every <see cref="PhysicsCollider"/> is an upright cylinder (radius, and
+    /// <see cref="PhysicsCollider.Height"/> above its Z — 0 = unknown, which blocks at every height). Moved verbatim out of
+    /// <see cref="TerrainWorldLosStrategy"/>. ⚠ Not the raycast batch (<c>RaycastSolverSystem</c> is 2-D and resolves a tick later).
+    /// <para>Build once per batch (<see cref="Build"/>), then ask per line; not thread-safe — one instance per caller.</para>
+    /// </summary>
+    public sealed class ColliderOcclusion
+    {
+        private readonly List<(Entity E, Vector3 P, float R, float H)> _colliders = new();
+        private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
+        private readonly List<int> _near = new();
+
+        /// <summary>⚠ A null skip skips nothing — a terrain burst has no struck entity, and index 0 is a real entity.</summary>
+        private static bool Skips(Entity e, Entity skip) => !skip.IsNull && e.Index == skip.Index;
+
+        /// <summary>Colliders gathered by the last <see cref="Build"/>.</summary>
+        public int Count => _colliders.Count;
+
+        /// <summary>Gathers every live collider of <paramref name="view"/>; <paramref name="include"/> = null takes them all.</summary>
+        public void Build(ISimulationView view, Func<ISimulationView, Entity, float>? radius, Func<ISimulationView, Entity, float>? height,
+            Func<ISimulationView, Entity, bool>? include = null)
+        {
+            _colliders.Clear();
+            foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
+            {
+                if (!view.IsAlive(c)) continue;
+                if (include != null && !include(view, c)) continue;
+                _colliders.Add((c, view.GetComponentRO<SimTransform>(c).Position,
+                    radius?.Invoke(view, c) ?? 0f, height?.Invoke(view, c) ?? 0f));
+            }
+            _index.Build(_colliders.Count, i => new Vector2(_colliders[i].P.X, _colliders[i].P.Y), i => _colliders[i].R);
+        }
+
+        /// <summary>
+        /// The first collider (other than <paramref name="skipA"/> and <paramref name="skipB"/>) the line
+        /// <paramref name="from"/>→<paramref name="to"/> passes through within its height, or null.
+        /// </summary>
+        public Entity? Blocking(Vector3 from, Vector3 to, Entity skipA, Entity skipB, out bool unknownHeight)
         {
             unknownHeight = false;
-            var a = new Vector2(eye.X, eye.Y);
-            var b = new Vector2(aim.X, aim.Y);
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
             _index.Query(a, b, _near);
             foreach (int k in _near)
             {
                 var (e, p, r, h) = _colliders[k];
-                if (e.Index == observer.Index || e.Index == target.Index) continue;
+                if (Skips(e, skipA) || Skips(e, skipB)) continue;
                 if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
                 if (h <= 0f) { unknownHeight = true; return e; }   // unknown height — blocks, as before
-                float z0 = eye.Z + ((aim.Z - eye.Z) * t0);
-                float z1 = eye.Z + ((aim.Z - eye.Z) * t1);
+                float z0 = from.Z + ((to.Z - from.Z) * t0);
+                float z1 = from.Z + ((to.Z - from.Z) * t1);
                 if (MathF.Min(z0, z1) < p.Z + h && MathF.Max(z0, z1) > p.Z) return e;
             }
             return null;
+        }
+
+        /// <summary>
+        /// ⭐ W-7′ — the collider on the horizontal line <paramref name="from"/>→<paramref name="to"/> (other than the two skipped)
+        /// that casts the deepest blast SHADOW onto <paramref name="to"/>: one whose top stands above <paramref name="topZ"/> (the
+        /// target's highest body point). Returns false when none does; else <paramref name="best"/> = the smallest
+        /// <paramref name="factor"/>(its height above <paramref name="baseZ"/>, the horizontal distance from it to <paramref name="to"/>)
+        /// — <c>AreaEffect.ShadowFactor</c>. An unknown-height collider is not a shadow (it says nothing about how tall it is).
+        /// </summary>
+        public bool Shadow(Vector3 from, Vector3 to, Entity skipA, Entity skipB, float topZ, float baseZ, Func<float, float, float> factor,
+            out float best)
+        {
+            best = 1f;
+            bool any = false;
+            var a = new Vector2(from.X, from.Y);
+            var b = new Vector2(to.X, to.Y);
+            float length = Vector2.Distance(a, b);
+            _index.Query(a, b, _near);
+            foreach (int k in _near)
+            {
+                var (e, p, r, h) = _colliders[k];
+                if (Skips(e, skipA) || Skips(e, skipB) || h <= 0f) continue;
+                if (p.Z + h <= topZ) continue;
+                if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out _)) continue;
+                float f = factor(p.Z + h - baseZ, (1f - t0) * length);
+                if (f < best) { best = f; any = true; }
+            }
+            return any;
         }
     }
 
@@ -286,6 +348,20 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         /// <summary>The fractions for <paramref name="stance"/> (or the hull, for a target with a collider height).</summary>
         public static IReadOnlyList<float> Fractions(StanceId stance, bool hull)
             => hull ? s_hull : stance switch { StanceId.Prone => s_prone, StanceId.Crouched => s_crouched, _ => s_standing };
+
+        /// <summary>
+        /// ⭐ THE body points of <paramref name="target"/> as world positions (cleared, then filled): the stance's fractions of its eye
+        /// height, or of <paramref name="hullHeight"/> when that is &gt; 0 (a vehicle — <c>PhysicsColliderReaders.HullHeight</c>).
+        /// Sight (<see cref="TerrainWorldLosStrategy.BodyPoints"/>) and the area effect (<c>CE-1032</c> W-6′) both read this.
+        /// </summary>
+        public static void Points(ISimulationView view, Entity target, StanceId stance, float hullHeight, List<Vector3> into)
+        {
+            into.Clear();
+            var basePos = view.GetComponentRO<SimTransform>(target).Position;
+            float scale = hullHeight > 0f ? hullHeight : TerrainWorldLosStrategy.EyeHeightFor(view, target, stance);
+            foreach (float f in Fractions(stance, hullHeight > 0f))
+                into.Add(basePos with { Z = basePos.Z + f * scale });
+        }
     }
 
     internal static class LosGeometry

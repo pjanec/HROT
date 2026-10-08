@@ -442,7 +442,12 @@ namespace Fdp.Toolkit.Terrain
         /// path inside (m), and the ballistic resistance that path presents (mm RHA = the material's per-metre value × the path).
         /// </summary>
         public readonly record struct FireCrossing(float T, float PathMetres, float ResistanceMmRha, string Kind, string? Label,
-            string Material, string? Building, int Storey);
+            string Material, string? Building, int Storey)
+        {
+            /// <summary>⭐ <c>CE-1032</c> (W-7′) — the top of the piece crossed (a wall's top, a slab's level): how tall an obstacle a
+            /// blast wave diffracts over.</summary>
+            public float TopZ { get; init; }
+        }
 
         /// <summary>
         /// ⭐⭐ Buildings §3d P2 (R-217) — the FIRE purpose of the one terrain query (§3a "one query, a solver per purpose"): every
@@ -505,7 +510,7 @@ namespace Fdp.Toolkit.Terrain
                     float path = (hi - lo) * length;
                     float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
                     into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
-                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1));
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1) { TopZ = prism.TopZ });
                 }
             }
 
@@ -521,7 +526,8 @@ namespace Fdp.Toolkit.Terrain
                     float denom = Vector3.Dot(n, to - from);
                     float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom;
                     into.Add(new FireCrossing(along, SlabThicknessMetres, fallbackPerMetre * SlabThicknessMetres,
-                        w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1));
+                        w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1)
+                        { TopZ = MathF.Max(p0.Z, MathF.Max(p1.Z, p2.Z)) });
                     break;
                 }
             }

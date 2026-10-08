@@ -51,6 +51,45 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ Buildings Stage 6 (<c>CE-1032</c>, W-10) — <c>GET /combat/detonations?last=</c>: the last bursts with an area effect, as
+        /// <c>AreaEffectSystem</c> decided them — the warhead and where its numbers came from, every entity in reach with its stance,
+        /// fragment exposure, blast barrier/shadow and the damage each effect did, and the doors breached. Read from the
+        /// <see cref="DetonationLog"/>, never recomputed.
+        /// </summary>
+        public static JsonNode Detonations(EntityRepository world, NetworkEntityMap? map, int last)
+        {
+            var log = DetonationLog.Peek(world);
+            if (log == null)
+                return new JsonObject { ["count"] = 0, ["detonations"] = new JsonArray(), ["note"] = "no warhead has burst on this node (the area effect runs where damage is assessed — SimHost / Editor)" };
+            long? Id(Entity e) => map != null && map.TryGetNetworkId(e, out var id) ? id : null;
+            var arr = new JsonArray();
+            foreach (var d in log.Recent(last))
+            {
+                var effects = new JsonArray();
+                foreach (var x in d.Effects)
+                    effects.Add(new JsonObject
+                    {
+                        ["entity"] = Id(x.Entity), ["entityIndex"] = x.Entity.Index, ["stance"] = x.Stance, ["bodyPoints"] = x.BodyPoints,
+                        ["distance"] = x.Distance,
+                        ["fragmentExposure"] = x.FragmentExposure, ["fragmentFalloff"] = x.FragmentFalloff,
+                        ["fragmentArmourChance"] = x.FragmentArmourChance, ["fragmentDamage"] = x.FragmentDamage,
+                        ["blastFalloff"] = x.BlastFalloff, ["blastBarrier"] = x.BlastBarrier, ["blastShadow"] = x.BlastShadow,
+                        ["blastDamage"] = x.BlastDamage, ["totalDamage"] = x.TotalDamage, ["shieldedBy"] = x.ShieldedBy,
+                    });
+                var doors = new JsonArray();
+                foreach (var k in d.DoorsBreached) doors.Add((JsonNode)k!);
+                arr.Add(new JsonObject
+                {
+                    ["seq"] = d.Seq, ["tick"] = d.Tick, ["shooter"] = Id(d.Shooter), ["struck"] = Id(d.Struck), ["burst"] = V(d.Burst),
+                    ["ammo"] = d.Ammo, ["warhead"] = d.Warhead, ["warheadSource"] = d.WarheadSource,
+                    ["fragmentRadius"] = d.FragmentRadius, ["blastInjuryRadius"] = d.BlastInjuryRadius,
+                    ["effects"] = effects, ["doorsBreached"] = doors,
+                });
+            }
+            return new JsonObject { ["count"] = log.Count, ["returned"] = arr.Count, ["detonations"] = arr };
+        }
+
+        /// <summary>
         /// ⭐ Tuning T-4 — <c>GET /perception/los?observer=&amp;target=</c>: the line of sight between two units as THIS node's perception
         /// decides it — eye and aim heights for the stances used, every terrain crossing with its transmittance, and any entity in
         /// the way. A dry run of the same <see cref="Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy"/> perception composes

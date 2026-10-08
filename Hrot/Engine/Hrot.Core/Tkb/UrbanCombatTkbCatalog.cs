@@ -9,7 +9,7 @@ namespace Hrot.Core.Tkb
 {
     /// <summary>
     /// The ONE shared source of the UrbanCombat TKB templates (types 1001-2003):
-    /// CivilianPedestrian, CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent.
+    /// CivilianPedestrian, CivilianCar, MilitaryAPC, InfantrySoldier, Insurgent, and (⭐ CE-1032) Grenadier and MortarTeam.
     ///
     /// <para><b>Why this lives in Hrot.Core.</b> These templates used to live in
     /// <c>Fdp.Examples.Scenarios</c>, an assembly referenced by exactly TWO production projects
@@ -49,6 +49,10 @@ namespace Hrot.Core.Tkb
         public const int TkbInfantrySoldier    = 2002;
         /// <summary>TKB type code for the Insurgent template.</summary>
         public const int TkbInsurgent          = 2003;
+        /// <summary>⭐ <c>CE-1032</c> — an infantry soldier who also carries hand grenades (mount 1).</summary>
+        public const int TkbGrenadier          = 2004;
+        /// <summary>⭐ <c>CE-1032</c> — an 81 mm mortar team (one mount, indirect).</summary>
+        public const int TkbMortarTeam         = 2005;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         private const float CivilianVisionRange  = 30f;
@@ -79,6 +83,14 @@ namespace Hrot.Core.Tkb
         /// still, ~always inside 37 m, ~42 % at 120 m; half that while moving or under fire.</summary>
         public const float RifleDispersionMils = 6f;
         private const float RpgRange   = 300f, RpgPenetration   = 300f, RpgDamage   = 400f;
+
+        // ⭐ CE-1032 (W-8) — the warhead mounts. Their numbers are the munition's (MunitionTkbCatalog → the reference library by name);
+        //   the mount states only how it is fired: a THROW (15 m/s ⇒ ~23 m at 45°) and a mortar on a reduced charge (60 m/s ⇒ up to
+        //   ~370 m, fired high). No DamagePerHit/Penetration: a direct hit is the flat default; the warhead does the work.
+        private const int   GrenadeCount = 4;
+        private const float GrenadeThrowSpeed = 15f, GrenadeRange = 25f;
+        private const int   MortarBombs = 10;
+        private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
 
         /// <summary>
         /// Registers all five UrbanCombat entity blueprints into <paramref name="tkb"/>.
@@ -150,6 +162,40 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-1032 — Grenadier (2004): the InfantrySoldier, plus hand grenades on mount 1
+            {
+                var t = new TkbTemplate("Grenadier", TkbGrenadier);
+                Master(t, "Grenadier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade },
+                } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-1032 — MortarTeam (2005): an 81 mm mortar, fired high at a point
+            {
+                var t = new TkbTemplate("MortarTeam", TkbMortarTeam);
+                Master(t, "MortarTeam", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 1.5f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = MortarBombs, MuzzleVelocity = MortarMuzzleVelocity, Range = MortarRange, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe } } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
                 tkb.Register(t);
             }
 

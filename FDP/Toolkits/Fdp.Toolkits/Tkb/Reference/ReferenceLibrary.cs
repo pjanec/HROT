@@ -20,7 +20,13 @@ namespace Fdp.Toolkit.Tkb.Reference
 
     /// <summary>An ammunition of the reference library: its driving parameters and what the generator derived from them.</summary>
     public sealed record RefAmmo(string Name, string Type, float CalibreMm, float MassG, float Velocity, float ExplosiveKg,
-        RefPair Generic, float BlastLethalRadiusM, float BlastInjuryRadiusM);
+        RefPair Generic, float BlastLethalRadiusM, float BlastInjuryRadiusM, RefWarhead? Warhead = null);
+
+    /// <summary>
+    /// ⭐ Stage 6 (<c>CE-1032</c>, R-225 W-1) — the GENERATED warhead of an explosive ammo, with the formulas that produced it (its
+    /// provenance on <c>GET /tkb/resolve</c>). Null on a kinetic ammo (no explosive).
+    /// </summary>
+    public sealed record RefWarhead(Fdp.Toolkit.Tkb.Domain.WarheadDto Dto, string BlastFormula, string FragmentFormula);
 
     /// <summary>
     /// ⭐⭐ Buildings programme Stage 3 / tuning T-1 — THE REFERENCE LIBRARY, generated at load from a few driving parameters per
@@ -29,7 +35,8 @@ namespace Fdp.Toolkit.Tkb.Reference
     /// type's NAME) and weapon (by the weapon type's name) when the TKB states no number.
     /// <para>Formulas (deliberately simple engineering approximations — real data overrides):
     /// kinetic <c>pen = k[type] · v · √m</c> · shaped charge <c>pen = coneFactor · calibre</c> · HE <c>pen = factor · calibre</c> ·
-    /// damage <c>perSqrtJoule · √(½ m v²)</c> (kinetic) or <c>perKgExplosive · kg</c> · blast <c>R = Z · W^⅓</c> (for <c>CE-1032</c>).</para>
+    /// damage <c>perSqrtJoule · √(½ m v²)</c> (kinetic) or <c>perKgExplosive · kg</c> · the warhead of an explosive ammo
+    /// (<see cref="RefWarhead"/>, <c>CE-1032</c>): blast <c>R = Z · W^⅓</c>, fragments by Gurney.</para>
     /// <para>⚠ NOT TKB templates: a file-loaded TKB clears the database, and every catalog template is a spawnable entity type
     /// (<c>HrotEnvironmentTests</c>). The library is engine data, embedded like the terrain materials, present on every node.</para>
     /// </summary>
@@ -77,7 +84,7 @@ namespace Fdp.Toolkit.Tkb.Reference
             {
                 var d = AmmoDriving.Parse(name, o, c);
                 ammo[name] = new RefAmmo(name, d.Type, d.CalibreMm, d.MassG, d.Velocity, d.ExplosiveKg,
-                    Pair(d, null, 1f, c), c.ZLethal * Cbrt(d.ExplosiveKg), c.ZInjury * Cbrt(d.ExplosiveKg));
+                    Pair(d, null, 1f, c), c.ZLethal * Cbrt(d.ExplosiveKg), c.ZInjury * Cbrt(d.ExplosiveKg), Warhead(d, c));
             }
 
             var weapons = new Dictionary<string, RefWeapon>(StringComparer.Ordinal);
@@ -137,6 +144,50 @@ namespace Fdp.Toolkit.Tkb.Reference
             return new RefPair(d.Name, weapon, v, pen, dmg, penFormula, dmgFormula);
         }
 
+        /// <summary>
+        /// ⭐ Stage 6 (W-1, W-6′, W-7′) — an explosive ammo's warhead: blast by Hopkinson–Cranz (<c>R = Z · W^⅓</c>), fragments by
+        /// Gurney (<c>v₀ = √2E · √(β / (1 + β/2))</c>, β = explosive / casing mass, a cylinder) with a DeMarre-style penetration of one
+        /// fragment (<c>k · v₀ · √m</c>) and a reach that grows with the casing (<c>r · casing^⅓</c>). Placeholder engineering forms —
+        /// a TKB <see cref="Fdp.Toolkit.Tkb.Domain.WarheadDto"/> overrides all of it.
+        /// </summary>
+        private static RefWarhead? Warhead(AmmoDriving d, Coefficients c)
+        {
+            if (d.ExplosiveKg <= 0f) return null;
+            float w = d.ExplosiveKg;
+            float casing = MathF.Max(d.MassG / 1000f - w, 0.05f * d.MassG / 1000f);
+            float beta = w / casing;
+            float v0 = c.Sqrt2E * MathF.Sqrt(beta / (1f + beta / 2f));
+            float fragKg = c.FragmentMassG / 1000f;
+            float pen = c.FragmentK * v0 * MathF.Sqrt(fragKg);
+            float reach = c.RadiusPerCbrtCasingKg * MathF.Cbrt(casing);
+            var kind = d.Type switch
+            {
+                "frag" => Fdp.Toolkit.Tkb.Domain.WarheadKind.Fragmentation,
+                "heat" or "hedp" => Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge,
+                _ => Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive,
+            };
+            var dto = new Fdp.Toolkit.Tkb.Domain.WarheadDto
+            {
+                Kind = kind,
+                ExplosiveKg = w,
+                BlastLethalRadiusM = c.ZLethal * Cbrt(w),
+                BlastInjuryRadiusM = c.ZInjury * Cbrt(w),
+                BlastLethalDamage = c.BlastLethalDamage,
+                FragmentRadiusM = reach,
+                FragmentPenetrationMm = pen,
+                FragmentDamage = c.PerKgExplosive * w,
+                Fuze = d.FuzeDelayS > 0f ? Fdp.Toolkit.Tkb.Domain.FuzeKind.Time : Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact,
+                FuzeDelayS = d.FuzeDelayS,
+                Indirect = d.Indirect,
+            };
+            string blast = $"R = Z · W^⅓ (Z = {F(c.ZLethal)} / {F(c.ZInjury)}, W = {F(w)} kg) = {F(dto.BlastLethalRadiusM)} / {F(dto.BlastInjuryRadiusM)} m, " +
+                           $"{F(c.BlastLethalDamage)} damage inside the lethal radius";
+            string frag = $"v₀ = √2E · √(β/(1+β/2)) = {F(v0)} m/s (√2E = {F(c.Sqrt2E)}, β = {F(w)} / {F(casing)} kg casing); " +
+                          $"pen = k · v₀ · √m = {F(pen)} mm (k = {F(c.FragmentK)}, m = {F(c.FragmentMassG)} g); " +
+                          $"reach = {F(c.RadiusPerCbrtCasingKg)} · casing^⅓ = {F(reach)} m; damage = perKgExplosive · W = {F(dto.FragmentDamage)}";
+            return new RefWarhead(dto, blast, frag);
+        }
+
         private static float Cbrt(float x) => x > 0f ? MathF.Cbrt(x) : 0f;
         private static string F(float x) => x.ToString("0.###", CultureInfo.InvariantCulture);
 
@@ -153,7 +204,8 @@ namespace Fdp.Toolkit.Tkb.Reference
         private static JsonObject AmmoNode(string ammoJson, string name)
             => Entries(ammoJson, "ammo", "ammo.json").First(e => e.Name == name).Node;
 
-        private sealed record AmmoDriving(string Name, string Type, float CalibreMm, float MassG, float Velocity, float ExplosiveKg, float? ConeFactor)
+        private sealed record AmmoDriving(string Name, string Type, float CalibreMm, float MassG, float Velocity, float ExplosiveKg, float? ConeFactor,
+            float FuzeDelayS = 0f, bool Indirect = false)
         {
             public static AmmoDriving Parse(string name, JsonObject o, Coefficients c)
             {
@@ -163,13 +215,17 @@ namespace Fdp.Toolkit.Tkb.Reference
                 float G(string key, bool required)
                     => o[key] is JsonNode n ? (float)n.GetValue<double>()
                        : required ? throw new ArgumentException($"Reference library ammo.json: '{name}' has no '{key}'.") : 0f;
+                float fuzeDelay = G("fuzeDelayS", false);
+                if (fuzeDelay < 0f) throw new ArgumentException($"Reference library ammo.json: '{name}'.fuzeDelayS must be >= 0.");
                 return new AmmoDriving(name, type, G("calibreMm", true), G("massG", true), G("velocity", true), G("explosiveKg", false),
-                    o["coneFactor"] is JsonNode cf ? (float)cf.GetValue<double>() : null);
+                    o["coneFactor"] is JsonNode cf ? (float)cf.GetValue<double>() : null,
+                    fuzeDelay, o["indirect"] is JsonNode ind && ind.GetValue<bool>());
             }
         }
 
         private sealed record Coefficients(Dictionary<string, float> Kinetic, Dictionary<string, float> Cone,
-            Dictionary<string, float> HighExplosive, float PerSqrtJoule, float PerKgExplosive, float ZLethal, float ZInjury)
+            Dictionary<string, float> HighExplosive, float PerSqrtJoule, float PerKgExplosive, float ZLethal, float ZInjury,
+            float BlastLethalDamage, float Sqrt2E, float FragmentMassG, float FragmentK, float RadiusPerCbrtCasingKg)
         {
             public bool KnowsType(string t) => Kinetic.ContainsKey(t) || Cone.ContainsKey(t) || HighExplosive.ContainsKey(t);
 
@@ -184,7 +240,8 @@ namespace Fdp.Toolkit.Tkb.Reference
                        : throw new ArgumentException($"Reference library coefficients.json: no '{section}.{key}'.");
                 return new Coefficients(Map("kineticPenetration", "k"), Map("shapedChargePenetration", "coneFactor"),
                     Map("highExplosivePenetration", "factor"), V("damage", "perSqrtJoule"), V("damage", "perKgExplosive"),
-                    V("blast", "zLethal"), V("blast", "zInjury"));
+                    V("blast", "zLethal"), V("blast", "zInjury"), V("blast", "lethalDamage"),
+                    V("fragments", "sqrt2E"), V("fragments", "fragmentMassG"), V("fragments", "kPenetration"), V("fragments", "radiusPerCbrtCasingKg"));
             }
         }
 

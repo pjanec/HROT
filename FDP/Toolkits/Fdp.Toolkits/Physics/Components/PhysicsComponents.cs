@@ -45,6 +45,23 @@ namespace Fdp.Toolkit.Physics.Components
 
         public static float Height(ISimulationView view, Entity e)
             => view.HasComponent<PhysicsCollider>(e) ? view.GetComponentRO<PhysicsCollider>(e).Height : 0f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3116</c> — the height a TARGET's body profile scales by: its collider height for a vehicle, ⛔ 0 for a person
+        /// (<see cref="global::CarKinem.Core.VehicleClass.Pedestrian"/>), whose profile follows its posture instead (Buildings §3f). A soldier's
+        /// collider is 1.8 m tall (its capsule), and using that as a hull made sight, aim and fragments ignore prone and crouched on
+        /// the live world. ⚠ <see cref="Height"/> stays what a BLOCKER is: a body still blocks a line up to its full height.
+        /// </summary>
+        public static float HullHeight(ISimulationView view, Entity e)
+        {
+            float h = Height(view, e);
+            return h > 0f && IsPedestrian(view, e) ? 0f : h;
+        }
+
+        private static bool IsPedestrian(ISimulationView view, Entity e)
+            => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
+               && view.HasComponent<global::CarKinem.Core.VehicleParams>(e)
+               && view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class == global::CarKinem.Core.VehicleClass.Pedestrian;
     }
 
     // ── RaycastRequest ────────────────────────────────────────────────────────────

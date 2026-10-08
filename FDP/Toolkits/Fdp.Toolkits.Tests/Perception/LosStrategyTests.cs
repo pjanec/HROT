@@ -221,6 +221,31 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.False(Sees(world, live, obs, tgt));                    // ordered prone ⇒ hidden behind the wall, in that tick
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3116</c> — a SOLDIER's collider is not a hull. On the live world every soldier carries a 1.8 m collider (its capsule,
+        /// <c>StrideRenderModelDefDto.ShapeHeight</c>), and the body profile used to scale by any collider height ⇒ a prone soldier was
+        /// sampled at 0.45/0.9/1.5 m and SEEN over a 0.5 m wall. The live composition reads <c>PhysicsColliderReaders.HullHeight</c>:
+        /// 0 for a pedestrian, so its posture decides; the collider still BLOCKS other lines up to its full height.
+        /// </summary>
+        [Fact]
+        public void CE3116_ASoldiersCollider_IsNotAHull_ProneBehindALowWallStaysHidden()
+        {
+            var low = TerrainWorldParser.Parse(HalfMetreWallAt10);
+            var (world, obs, tgt) = TwoSoldiers(11f);
+            world.RegisterManagedComponent<TerrainWorld>();
+            world.SetSingletonManaged(low);
+            world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            world.AddComponent(tgt, new PhysicsCollider { Radius = 0.3f, Height = 1.8f });
+            world.AddComponent(tgt, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
+            world.AddComponent(tgt, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Prone });
+
+            Assert.True(Sees(world, Strategy(low, StanceId.Standing, StanceId.Prone), obs, tgt));   // the defect: the collider height as a hull
+            Assert.False(Sees(world, TerrainWorldLosStrategy.ForLiveWorld(world), obs, tgt));       // the live composition: by posture
+            Assert.Equal(0f, PhysicsColliderReaders.HullHeight(world, tgt));
+            Assert.Equal(1.8f, PhysicsColliderReaders.Height(world, tgt));                         // still a 1.8 m blocker
+        }
+
         [Fact]
         public void PerceptionTkbTranslator_ProjectsPostureEyeHeights_IntoASensorMount()
         {

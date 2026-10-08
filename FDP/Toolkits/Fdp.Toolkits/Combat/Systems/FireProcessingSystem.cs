@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // Skip if either entity is no longer alive.
                 if (!repo.IsAlive(shooter)) continue;
-                if (!repo.IsAlive(target))  continue;
+                if (!evt.AtPoint && !repo.IsAlive(target)) continue;   // ⭐ CE-1032 W-8 — a point needs no target entity
 
                 // ⛔⛔ CE-198 — THERE IS DELIBERATELY NO NetworkAuthority GATE HERE.
                 //
@@ -105,14 +105,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
-                var targetPos   = repo.GetComponent<SimTransform>(target).Position;
+                var targetPos   = evt.AtPoint ? evt.TargetPoint : repo.GetComponent<SimTransform>(target).Position;
                 // ⭐ Buildings §3d P2 (R-217; AQ85 §D's first half) — the shot flies along the SIGHT line: from the shooter's eye to
                 //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
                 //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
                 //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
                 shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
-                targetPos.Z  += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, HitModel.LogicalStance(repo, target),
-                    Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Height(repo, target));
+                if (!evt.AtPoint)
+                    targetPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.AimHeightFor(repo, target, HitModel.LogicalStance(repo, target),
+                        Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target));   // ⭐ CE-3116 — a person by posture
 
                 // Compute normalised direction from shooter toward target.
                 var delta     = targetPos - shooterPos;
@@ -134,10 +135,28 @@ namespace Fdp.Toolkit.Combat.Systems
                 var flight = sigma > 0f ? HitModel.Rotate(direction, theta) : direction;
                 var velocity  = flight * muzzle;
 
+                // ⭐⭐ Stage 6 (CE-1032, W-1/W-4/W-8) — the round's warhead, read ONCE here: an area effect makes a terrain stop a
+                //   detonation; a time fuze starts counting; an INDIRECT warhead flies a gravity arc to the aim point (high for a
+                //   launcher, a throw for a hand weapon). The flight never looks the warhead up again.
+                long ammo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
+                byte warheadBits = 0; float fuze = 0f;
+                if (ammo != 0 && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                    && Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), ammo).Warhead is { } wh)
+                {
+                    if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
+                    if (wh.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && wh.FuzeDelayS > 0f) { warheadBits |= WarheadRound.TimeFuze; fuze = wh.FuzeDelayS; }
+                    if (wh.Indirect)
+                    {
+                        warheadBits |= WarheadRound.Arc;
+                        velocity = ArcLaunch(shooterPos, targetPos, muzzle, high: muzzle >= CombatConstants.HighArcMinMuzzleVelocity);
+                    }
+                }
+
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
                 //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
                 var muzzlePos = shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
+                if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = shooterPos;   // an arc leaves from the hand / tube
 
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();
@@ -176,6 +195,9 @@ namespace Fdp.Toolkit.Combat.Systems
                     FrontDamage      = damage,
                     FrontPenetration = penetration,
                     TerrainFlags     = 1,
+                    Ammo             = ammo,   // ⭐ CE-1032 W-2 — what the round IS
+                    Warhead          = warheadBits,
+                    FuzeRemaining    = fuze,
                 });
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
@@ -203,6 +225,24 @@ namespace Fdp.Toolkit.Combat.Systems
                     WeaponIndex = evt.WeaponIndex,
                 });
             }
+        }
+
+        /// <summary>
+        /// ⭐ Stage 6 (<c>CE-1032</c>, W-8) — the launch velocity that carries a round at <paramref name="speed"/> from
+        /// <paramref name="from"/> to <paramref name="to"/> under gravity: the HIGH solution (a mortar — steep, onto roofs and over
+        /// walls) or the LOW one (a throw). Out of reach ⇒ 45°, the furthest it can go (it falls short).
+        /// </summary>
+        public static Vector3 ArcLaunch(Vector3 from, Vector3 to, float speed, bool high)
+        {
+            var flat = new Vector2(to.X - from.X, to.Y - from.Y);
+            float d = flat.Length();
+            var dir = d > 1e-4f ? flat / d : Vector2.UnitX;
+            float h = to.Z - from.Z, g = CombatConstants.Gravity, v2 = speed * speed;
+            float disc = v2 * v2 - g * (g * d * d + 2f * h * v2);
+            float angle = disc < 0f || d < 1e-4f
+                ? MathF.PI / 4f
+                : MathF.Atan((v2 + (high ? 1f : -1f) * MathF.Sqrt(disc)) / (g * d));
+            return new Vector3(dir.X * MathF.Cos(angle), dir.Y * MathF.Cos(angle), MathF.Sin(angle)) * speed;
         }
     }
 }

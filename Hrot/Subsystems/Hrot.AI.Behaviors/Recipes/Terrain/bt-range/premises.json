@@ -43,6 +43,28 @@
         { "id": "the hedge hides", "kind": "sight", "from": [89, 30, 1.6], "to": [89, 50, 1.6], "expect": "blocks" },
         { "id": "the 12.7 AP goes through the hedge", "kind": "fire", "round": "hmg-ap", "from": [89, 30, 1.6], "to": [89, 50, 1.6], "expect": "passes" }
       ]
+    },
+    "bt-grenade-posture": {
+      "summary": "CE-1032 — an M67 bursts 5 m in front of the 0.5 m Low Wall: the STANDING man 3 m behind it takes fragments over the wall (chest and head clear it), the PRONE man beside him takes none",
+      "rounds": {
+        "m67": { "fragmentsOf": { "tkbType": 2004, "mount": 1 } }
+      },
+      "premises": [
+        { "id": "a fragment to the prone man's hip is stopped by the Low Wall", "kind": "fire", "round": "m67", "from": [113, 35, 0.1], "to": [113, 43, 0.15], "expect": "stops" },
+        { "id": "a fragment to the prone man's back is stopped by the Low Wall", "kind": "fire", "round": "m67", "from": [110, 35, 0.1], "to": [113, 43, 0.3], "expect": "stops" },
+        { "id": "the standing man's chest clears the Low Wall from the burst", "kind": "sight", "from": [110, 35, 0.1], "to": [107, 43, 0.9], "expect": "seesThrough" },
+        { "id": "the standing man's head clears the Low Wall from the burst", "kind": "sight", "from": [110, 35, 0.1], "to": [107, 43, 1.6], "expect": "seesThrough" }
+      ]
+    },
+    "bt-mortar-roof": {
+      "summary": "CE-1032 — an 81 mm bomb bursts on House A's roof: the man downstairs is spared (the slabs stop fragments and most of the blast), the man in the open courtyard where the second bomb lands is not",
+      "rounds": {
+        "81mm": { "fragmentsOf": { "tkbType": 2005, "mount": 0 } }
+      },
+      "premises": [
+        { "id": "a fragment from the roof burst is stopped by the roof slab", "kind": "fire", "round": "81mm", "from": [105, 104, 6.1], "to": [103, 104, 0.9], "expect": "stops" },
+        { "id": "a fragment from the courtyard burst reaches the man in the open", "kind": "fire", "round": "81mm", "from": [95, 92, 0.1], "to": [95, 95, 0.9], "expect": "passes" }
+      ]
     }
   }
 }

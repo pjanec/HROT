@@ -34,11 +34,16 @@ namespace Hrot.NED.Messages
         /// <summary>Network entity ID of the firing entity.</summary>
         public long ShooterEntityId;
 
-        /// <summary>Network entity ID of the intended target.</summary>
+        /// <summary>Network entity ID of the intended target; ⭐ <c>CE-1032</c> (W-8) 0 = fire at the point (<see cref="PointX"/>…).</summary>
         public long TargetEntityId;
 
         /// <summary>Zero-based weapon slot index (POC: always 0).</summary>
         public int WeaponIndex;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-8) — the aim point of a point fire (a thrown grenade, a mortar), world metres.</summary>
+        public float PointX;
+        public float PointY;
+        public float PointZ;
     }
 
     /// <summary>
@@ -103,6 +108,10 @@ namespace Hrot.NED.Messages
 
         /// <summary>World-space Z coordinate of the hit position.</summary>
         public float HitZ;
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); a receiver looks its warhead up.
+        /// ⛔ Never the warhead numbers (§3e — one source). <see cref="HitEntityId"/> 0 = it detonated on the terrain.</summary>
+        public long MunitionType;
     }
 
     /// <summary>

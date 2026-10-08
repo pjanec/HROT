@@ -1,0 +1,198 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "2a97000b-0000-4000-8000-00000000000b": {
+   "SimTransform": {
+    "Position": [
+     105,
+     20,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7411
+   },
+   "TkbIdentity": {
+    "TkbType": 2005
+   },
+   "EntityInfo": {
+    "Name": "Mortar Roof",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtPoint",
+    "Params": "{\"x\":105,\"y\":104,\"z\":6,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Origin": "Superior"
+   }
+  },
+  "2a97000c-0000-4000-8000-00000000000c": {
+   "SimTransform": {
+    "Position": [
+     95,
+     20,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7412
+   },
+   "TkbIdentity": {
+    "TkbType": 2005
+   },
+   "EntityInfo": {
+    "Name": "Mortar Yard",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtPoint",
+    "Params": "{\"x\":95,\"y\":92,\"z\":0,\"mount\":0,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Origin": "Superior"
+   }
+  },
+  "2a97000d-0000-4000-8000-00000000000d": {
+   "SimTransform": {
+    "Position": [
+     103,
+     104,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7413
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Downstairs",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": "{\"stance\":\"Standing\"}",
+    "Origin": "Superior"
+   }
+  },
+  "2a97000e-0000-4000-8000-00000000000e": {
+   "SimTransform": {
+    "Position": [
+     107,
+     104,
+     3
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7414
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Upstairs",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": "{\"stance\":\"Standing\"}",
+    "Origin": "Superior"
+   }
+  },
+  "2a97000f-0000-4000-8000-00000000000f": {
+   "SimTransform": {
+    "Position": [
+     95,
+     95,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7415
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Courtyard",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": "{\"stance\":\"Standing\"}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

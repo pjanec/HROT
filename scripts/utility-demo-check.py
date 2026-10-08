@@ -523,6 +523,71 @@ def run_doors(c, timeout):
     c.ok(bool(smith_front), "through the front doorway it opened")
 
 
+# ── bt-grenade-posture / bt-mortar-roof (CE-1032, buildings Stage 6) — warheads: blast and fragments ──────────────────────────
+#   docs/DESIGN_Building_Interiors.md §3k. Premises in bt-range/premises.json (DemoPremisesTests). The burst is read back from
+#   GET /combat/detonations — what AreaEffectSystem decided — and the damage from each unit's Health.
+
+def detonations():
+    # ⚠ the area effect runs where damage is assessed (SimHost): read its log there, then give the checks their perspective back
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        return (data(call("GET", "/combat/detonations?last=10")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def effect_on(d, nid):
+    return next((e for e in d.get("effects") or [] if e.get("entity") == nid), None)
+
+
+def run_grenade_posture(c, timeout):
+    ids = ids_by_name()
+    standing, prone = ids.get("Standing"), ids.get("Prone")
+    if not c.ok(None not in (ids.get("Thrower"), standing, prone), "the Thrower, Standing and Prone are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    dets = wait_for(lambda: (x := detonations()) and x, timeout + 10)   # the throw (~1.5 s) + the 4.5 s fuze
+    if not c.ok(dets is not None, "the grenade burst (GET /combat/detonations)"):
+        return
+    d = dets[0]
+    c.ok("M67" in d.get("warheadSource", ""), f"its warhead is the M67's — {d.get('warheadSource', '')[:60]}")
+    b = d.get("burst") or [0, 0, 0]
+    c.ok(abs(b[1] - 35) < 2.0 and b[2] < 0.5, f"it burst on the ground ~5 m in front of the Low Wall — {b}")
+    es, ep = effect_on(d, standing), effect_on(d, prone)
+    if not c.ok(es is not None and ep is not None, "both men were in reach"):
+        return
+    c.ok(es["fragmentExposure"] >= 0.5, f"the STANDING man is exposed over the wall — exposure {es['fragmentExposure']:.2f} (chest and head)")
+    c.ok(ep["fragmentExposure"] <= 0.1 and ep["stance"] == "Prone", f"the PRONE man is not — exposure {ep['fragmentExposure']:.2f}, {ep['stance']}")
+    wait_for(lambda: (h := health(standing)) is not None and h < 99, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
+    hs, hp = health(standing), health(prone)
+    c.ok(hs is not None and hs < 99, f"the standing man is hurt — Health {hs}")
+    c.ok(hp is not None and hp >= 99, f"the prone man is not — Health {hp}")
+
+
+def run_mortar_roof(c, timeout):
+    ids = ids_by_name()
+    down, up, yard = ids.get("Downstairs"), ids.get("Upstairs"), ids.get("Courtyard")
+    if not c.ok(None not in (down, up, yard, ids.get("Mortar Roof"), ids.get("Mortar Yard")), "both mortars and the three men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    dets = wait_for(lambda: (x := detonations()) and len(x) >= 2 and x, timeout + 20)   # two bombs, ~12 s of flight each
+    if not c.ok(dets is not None, f"both bombs burst — {len(detonations())}"):
+        return
+    roof = next((d for d in dets if (d.get("burst") or [0, 0, 0])[2] > 5.5), None)
+    yard_burst = next((d for d in dets if (d.get("burst") or [0, 0, 9])[2] < 0.5), None)
+    c.ok(roof is not None, f"one burst on House A's roof (z ≈ 6.1) — {[d.get('burst') for d in dets]}")
+    c.ok(yard_burst is not None, "one burst in the courtyard")
+    if roof is not None:
+        e = effect_on(roof, down)
+        c.ok(e is None or (e["fragmentExposure"] == 0 and e["blastBarrier"] < 0.1),
+             f"the roof burst reaches the man downstairs only through the slabs — {e and (e['fragmentExposure'], e['blastBarrier'])}")
+    wait_for(lambda: (h := health(yard)) is not None and h < 80, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
+    hy = health(yard)
+    c.ok(hy is not None and hy < 80, f"the man in the open courtyard is badly hurt — Health {hy}")
+    hd = health(down)
+    c.ok(hd is not None and hd >= 90, f"the man downstairs is spared — Health {hd}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -530,7 +595,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-weapon-choice": run_weapon_choice,
              "ua-three-hosts": run_three_hosts,
              "ua-attack-approach": run_attack_approach,
-             "bt-doors": run_doors}
+             "bt-doors": run_doors,
+             "bt-grenade-posture": run_grenade_posture,
+             "bt-mortar-roof": run_mortar_roof}
 
 
 def main():

@@ -1,5 +1,5 @@
 {
-  "$comment": "Reference-library driving parameters per AMMUNITION, matched by the ammo TKB type's NAME. type: ball | ap | apds | apfsds (kinetic) · heat | hedp (shaped charge) · he | frag. calibreMm, massG (the projectile / penetrator), velocity (nominal m/s), explosiveKg (TNT-equivalent; explosive types). Placeholder approximations for development — real TKB data overrides.",
+  "$comment": "Reference-library driving parameters per AMMUNITION, matched by the ammo TKB type's NAME. type: ball | ap | apds | apfsds (kinetic) · heat | hedp (shaped charge) · he | frag. calibreMm, massG (the projectile / penetrator), velocity (nominal m/s), explosiveKg (TNT-equivalent; explosive types), fuzeDelayS (a time fuze; absent = impact), indirect (fired on a high arc at a point). Placeholder approximations for development — real TKB data overrides.",
   "ammo": {
     "5.56x45 ball":    { "type": "ball",   "calibreMm": 5.56, "massG": 4.0,   "velocity": 930 },
     "7.62x51 ball":    { "type": "ball",   "calibreMm": 7.62, "massG": 9.5,   "velocity": 840 },
@@ -16,9 +16,9 @@
     "PG-7V HEAT":      { "type": "heat",   "calibreMm": 85,   "massG": 2200,  "velocity": 300,  "explosiveKg": 0.73, "coneFactor": 3.5 },
     "TOW-2 HEAT":      { "type": "heat",   "calibreMm": 152,  "massG": 21500, "velocity": 280,  "explosiveKg": 3.1 },
     "40mm HEDP":       { "type": "hedp",   "calibreMm": 40,   "massG": 230,   "velocity": 76,   "explosiveKg": 0.045 },
-    "M67 grenade":     { "type": "frag",   "calibreMm": 64,   "massG": 400,   "velocity": 15,   "explosiveKg": 0.24 },
-    "60mm mortar HE":  { "type": "he",     "calibreMm": 60,   "massG": 1700,  "velocity": 210,  "explosiveKg": 0.4 },
-    "81mm mortar HE":  { "type": "he",     "calibreMm": 81,   "massG": 4200,  "velocity": 260,  "explosiveKg": 0.95 },
-    "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0 }
+    "M67 grenade":     { "type": "frag",   "calibreMm": 64,   "massG": 400,   "velocity": 15,   "explosiveKg": 0.24, "fuzeDelayS": 4.5, "indirect": true },
+    "60mm mortar HE":  { "type": "he",     "calibreMm": 60,   "massG": 1700,  "velocity": 210,  "explosiveKg": 0.4, "indirect": true },
+    "81mm mortar HE":  { "type": "he",     "calibreMm": 81,   "massG": 4200,  "velocity": 260,  "explosiveKg": 0.95, "indirect": true },
+    "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0, "indirect": true }
   }
 }

@@ -44,6 +44,15 @@ namespace Fdp.Toolkit.Tkb.Parameters
         public const string Penetration    = "Penetration";
         public const string Range          = "Range";
         public const string DispersionMils = "DispersionMils";
+
+        /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — a munition type's warhead (<see cref="WarheadDto"/>).</summary>
+        public const string WarheadBlastLethalRadius  = "Warhead.BlastLethalRadius";
+        public const string WarheadBlastInjuryRadius  = "Warhead.BlastInjuryRadius";
+        public const string WarheadBlastLethalDamage  = "Warhead.BlastLethalDamage";
+        public const string WarheadFragmentRadius     = "Warhead.FragmentRadius";
+        public const string WarheadFragmentPenetration = "Warhead.FragmentPenetration";
+        public const string WarheadFragmentDamage     = "Warhead.FragmentDamage";
+        public const string WarheadFuzeDelay          = "Warhead.FuzeDelay";
     }
 
     /// <summary>
@@ -83,6 +92,9 @@ namespace Fdp.Toolkit.Tkb.Parameters
                     list.Add(MountRange(template, i));
                     list.Add(Dispersion(template, i));
                 }
+            var (warhead, source, provenance) = Warhead(template);
+            if (warhead != null || template.DisType.Kind == 2)
+                list.AddRange(WarheadParameters(warhead, source, provenance));
             return list;
         }
 
@@ -234,6 +246,49 @@ namespace Fdp.Toolkit.Tkb.Parameters
                         $"reference library: {pair.Ammo} from {pair.Weapon ?? "generic"} — {pair.PenetrationFormula}", ParameterProvenance.ReferenceByName);
             }
             return (0f, "0 = no armour model (flat damage per hit)", ParameterProvenance.EngineFallback);
+        }
+
+        /// <summary>
+        /// ⭐⭐ Stage 6 (<c>CE-1032</c>, R-225 W-1) — THE warhead lookup of a munition type, used by the area effect
+        /// (<c>AreaEffectSystem</c>) AND reported by <c>GET /tkb/resolve</c>, so the two cannot disagree:
+        /// <b>the type's <see cref="WarheadDto"/> → the reference library's generated warhead for the type's NAME
+        /// (<c>ReferenceByName</c>) → none (a kinetic round: no area effect)</b>. ⚠ §3e keys a warhead by the munition's DIS type; by
+        /// name until an ammo carries one (the penetration chain's same limit).
+        /// </summary>
+        /// <param name="ammoType">the munition's TKB type id — what a shot and a detonation carry (W-2); 0 = unknown ⇒ none.</param>
+        public static (WarheadDto? Warhead, string Source, ParameterProvenance Provenance) Warhead(ITkbDatabase? db, long ammoType,
+            Reference.ReferenceLibrary? library = null)
+        {
+            if (db == null || ammoType == 0 || !db.TryGetByType(ammoType, out var ammo) || ammo == null)
+                return (null, ammoType == 0 ? "no munition type" : $"munition type {ammoType} is not in the TKB", ParameterProvenance.NotApplicable);
+            return Warhead(ammo, library);
+        }
+
+        /// <inheritdoc cref="Warhead(ITkbDatabase?, long, Reference.ReferenceLibrary?)"/>
+        public static (WarheadDto? Warhead, string Source, ParameterProvenance Provenance) Warhead(TkbTemplate ammo,
+            Reference.ReferenceLibrary? library = null)
+        {
+            if (ammo == null) throw new ArgumentNullException(nameof(ammo));
+            var own = ammo.GetDescriptor<WarheadDto>();
+            if (own != null) return (own, $"{ammo.Name}: Gen.Warhead", ParameterProvenance.Explicit);
+            var lib = library ?? Reference.ReferenceLibrary.Shared;
+            if (lib.TryGetAmmo(ammo.Name, out var r) && r.Warhead != null)
+                return (r.Warhead.Dto, $"reference library: {r.Name} — blast {r.Warhead.BlastFormula}; fragments {r.Warhead.FragmentFormula}",
+                    ParameterProvenance.ReferenceByName);
+            return (null, $"{ammo.Name}: no Gen.Warhead and no explosive reference ammo of that name ⇒ kinetic (no area effect)",
+                ParameterProvenance.NotApplicable);
+        }
+
+        private static IEnumerable<ResolvedParameter> WarheadParameters(WarheadDto? w, string source, ParameterProvenance provenance)
+        {
+            ResolvedParameter P(string name, float? v) => w == null ? NotApplicable(name, source) : new(name, v, provenance, source);
+            yield return P(ParameterNames.WarheadBlastLethalRadius, w?.BlastLethalRadiusM);
+            yield return P(ParameterNames.WarheadBlastInjuryRadius, w?.BlastInjuryRadiusM);
+            yield return P(ParameterNames.WarheadBlastLethalDamage, w?.BlastLethalDamage);
+            yield return P(ParameterNames.WarheadFragmentRadius, w?.FragmentRadiusM);
+            yield return P(ParameterNames.WarheadFragmentPenetration, w?.FragmentPenetrationMm);
+            yield return P(ParameterNames.WarheadFragmentDamage, w?.FragmentDamage);
+            yield return P(ParameterNames.WarheadFuzeDelay, w?.FuzeDelayS);
         }
 
         /// <summary><c>Weapon[i].Range</c> (m) — 0 = not declared.</summary>

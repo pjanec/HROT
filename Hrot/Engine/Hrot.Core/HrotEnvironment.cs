@@ -37,6 +37,7 @@ namespace Hrot.Map.Common
             //    identical CONTENTS. ⚠ Development default only — the real system loads TKB from files
             //    synced to all nodes (user, 2026-08-31).
             Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // ⭐ CE-1032 — the munition types mounts load (warheads by name)
             RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
             return tkb;
         }

@@ -529,6 +529,8 @@ immutable. The one allocation left is inside DotRecast, below our seam.
 | rails | `TerrainWorldTests.R220_SightFireAndTheDoorTable_AllocateNothingPerCall` · `R220_TheDoorTable_IsReusedOnlyWhileTheDoorsAreUnchanged_AndAHandedOutTableNeverChanges` (a door written within the tick is seen at once) · `RecastNavmeshFactoryTests.R220_PathQueries_AllocateNothingOfTheirOwn_WithOrWithoutTheCallersDoors` (per query, against DotRecast alone) |
 |---|---|
 
+⭐ **`CE-1032` (warheads, `2026-10-08`):** `QueryFire(into)` is also the FRAGMENT trace — one query for rounds and fragments — and each `FireCrossing` now carries the piece's `TopZ` (a wall's top, a slab's level: what a blast wave diffracts over). Still zero allocations (`R220_*`). 📄 [`DESIGN_Building_Interiors.md`](DESIGN_Building_Interiors.md) §3k "Stage 6 as built".
+
 ⚠ **Not covered:** `DotRecastDtCrowdProvider` (synchronous on the main thread, not a background batch) and the per-batch objects a
 solver makes once per batch (`EqsTerrainSight.Sight`'s `TerrainLosService`), which are not per-query costs.
 

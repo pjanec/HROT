@@ -111,6 +111,16 @@ namespace Hrot.Core.Tests
         private static (float Pen, string Text) Round(JsonObject r, Fdp.Toolkit.Tkb.TkbDatabase tkb)
         {
             if (r["penetrationMm"] is JsonNode lit) return ((float)lit.GetValue<double>(), "literal");
+            if (r["fragmentsOf"] is JsonObject frag)   // ⭐ CE-1032 — ONE fragment of the warhead that mount fires (ParameterResolver.Warhead)
+            {
+                long ft = (long)frag["tkbType"]!; int fm = (int)frag["mount"]!;
+                Assert.True(tkb.TryGetByType(ft, out var ftt), $"TKB type {ft} is not in the shipped catalog");
+                var fs = ftt.GetDescriptor<WeaponSuiteDto>();
+                Assert.True(fs != null && fm < fs.Mounts.Count, $"{ftt.Name} has no mount {fm}");
+                var (w, wsrc, _) = ParameterResolver.Warhead(tkb, unchecked((long)fs!.Mounts[fm].AmmoGuid));
+                Assert.True(w != null && w.FragmentPenetrationMm > 0f, $"{ftt.Name} mount {fm} fires no fragmenting warhead ({wsrc})");
+                return (w!.FragmentPenetrationMm, $"{w.FragmentPenetrationMm:0.##} mm — one fragment of {ftt.Name} mount {fm}: {wsrc}");
+            }
             if (r["ammo"] is JsonNode ammo)
             {
                 string? weapon = (string?)r["weapon"];
