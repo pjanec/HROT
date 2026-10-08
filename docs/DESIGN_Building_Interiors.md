@@ -1147,7 +1147,8 @@ classDiagram
     class DetonationNotification { <<existing>> Target may be NONE · + Ammo NEW }
     class MunitionDetonation { <<existing wire>> + MunitionType NEW }
     class AreaEffectSystem { <<NEW, MuscleGround, Simulation>> per detonation with a warhead: candidates in radius → exposure → damage }
-    class TerrainWorld { <<existing>> QueryFire · NEW QueryFragment(into) · NEW BlastShielded }
+    class TerrainWorld { <<existing>> QueryFire · NEW QueryFragment(into) · NEW BlastShadow }
+    class ColliderOcclusion { <<NEW shared, moved out of TerrainWorldLosStrategy>> Blocking(from, to, skip a, skip b) — 3-D cylinders }
     class BodyProfile { <<existing, Stage 4>> points per stance }
     class ArmorModel { <<existing>> PenetrationChance · HitDamage }
     class DamageAssessedEvent { <<existing>> }
@@ -1163,6 +1164,8 @@ classDiagram
     AreaEffectSystem ..> DetonationNotification : consumes
     AreaEffectSystem ..> ParameterResolver : Warhead(Ammo)
     AreaEffectSystem ..> TerrainWorld : per body point
+    AreaEffectSystem ..> ColliderOcclusion : per body point
+    TerrainWorldLosStrategy ..> ColliderOcclusion : the same test
     AreaEffectSystem ..> BodyProfile
     AreaEffectSystem ..> ArmorModel : fragments vs armour
     AreaEffectSystem ..> DamageAssessedEvent : one per affected entity
@@ -1194,7 +1197,7 @@ sequenceDiagram
     A->>A: Warhead(Ammo) · candidates within max radius (spatial grid)
     loop each candidate, each body point of its stance
         A->>T: QueryFragment(burst → point): crossings × PenetrationChance
-        A->>T: BlastShielded(burst → highest point)
+        A->>T: colliders on the line (ColliderOcclusion) · BlastShadow(burst → highest point)
     end
     A-->>O: DamageAssessedEvent per entity → EntityHitDamage
     A-->>D: DoorCommandEvent(Breach) for doors in the lethal radius
@@ -1227,18 +1230,19 @@ no area damage — the same rule `DamageCalculationSystem` applies today.
 | W-3 | a warhead round that stops on terrain detonates there (Target none); kinetic rounds unchanged |
 | W-4 | fuzes v1: impact and time; airburst later |
 | W-5 | `AreaEffectSystem` beside `DamageCalculationSystem`; one `DamageAssessedEvent` per affected entity; applied by the Health owner (R-171); no new damage wire |
-| W-6 | fragments: `QueryFragment` — straight, each crossing × `ArmorModel.PenetrationChance(fragment pen, resistance)`, openings pass; exposure = mean over the stance's body points; damage = fragment damage × falloff × exposure (expected value, R-212); vehicles through their armour |
-| W-7 | blast: falloff lethal → injury radius (Z 2 / 6); shielded only when the line to the HIGHEST body point crosses a wall or slab; personnel only in v1 |
+| W-6′ | fragments, per body point of the target's stance: TERRAIN — `QueryFragment`, straight, each crossing × `ArmorModel.PenetrationChance(fragment pen, resistance)`, openings pass — × ENTITIES — the 3-D collider test line of sight uses (`PhysicsCollider` cylinders, radius + height), moved into ONE shared helper so sight and fragments never disagree; any collider on the line except the target and the struck entity stops fragments (vehicles and bodies alike). Exposure = mean over the points; damage = fragment damage × falloff × exposure (expected value, R-212); a vehicle target takes it through its armour. ⛔ SUPERSEDED W-6: terrain only (🔒 user: *"the physical based is the right way, as it is pretty normal to hide behind vehicles"*) · ⛔ rejected: the raycast batch — it is 2-D (`RaycastSolverSystem` ignores collider height) and a frame late |
+| W-7′ | blast (the shock wave): falloff lethal → injury radius (Z 2 / 6, Hopkinson); an obstacle — wall, slab or vehicle (same collider test) — whose top is above the target's HIGHEST body point puts it in a SHADOW, not a block: the overpressure is scaled by a diffraction factor that recovers with the distance behind the obstacle relative to its height (≈ 0.3 right behind a tall wall → ≈ 1 a few wall-heights back), so a close, large burst still hurts a hidden target; personnel only in v1. ⛔ SUPERSEDED W-7: shielding read as a near-block (🔒 user: *"what about the shock wave effect, even for targets hidden behind obstacles, worth simulationg?"* → *"approved"*) |
+| W-7v2 | ⏭ v2: CONFINEMENT and room-to-room propagation — a burst inside a room is amplified by reflections, overpressure passes through doorways; needs the room/portal graph Sound v2 (§3a) needs ⇒ built once for both, with or after Stage 7. ⚠ Until then a burst indoors is under-modelled |
 | W-8 | indirect: a gravity arc to a ground POINT (`WeaponFireIntent.TargetPoint`), traced through the existing carry ⇒ first contact; `FireAtPoint` shared action node |
 | W-9 | doors in the lethal radius with a clear line → `DoorCommandEvent(Breach)` → Destroyed |
 | W-10 | `DetonationLog` + `GET /combat/detonations`; `/terrain/query?purpose=fragment|blast`; a blast layer |
 | W-11 | rails with in-test numbers (exposure behind a 0.5 m wall: standing ≥ 0.5, prone ≤ 0.1; roof burst spares the ground floor); premise rows (M67, 81 mm); live `bt-grenade-posture`, `bt-mortar-roof` |
 
 **Timing** *(the user's question)*: ⛔ not the raycast batch. The candidates are already known (the spatial grid within the radius)
-and what decides a hit is the TERRAIN between burst and body point, which only `TerrainWorld` models — so the check is a
-synchronous, allocation-free trace per body point. A detonation from an entity hit (Input) is assessed in the SAME frame's
+and what decides a hit is the TERRAIN and the COLLIDERS between burst and body point — a synchronous trace per body point
+(`TerrainWorld` + the shared 3-D collider test, W-6′). A detonation from an entity hit (Input) is assessed in the SAME frame's
 Simulation; one from a terrain stop (PostSimulation) in the NEXT frame's — at most one frame, as a direct hit today.
-⏭ Bodies shielding bodies (a vehicle between burst and soldier) would be the raycast batch's job, with its one-frame delay — v2.
+✅ Bodies shielding bodies (a vehicle between burst and soldier) — W-6′, with the 3-D collider test line of sight already uses, not the 2-D raycast batch.
 
 | rejected | the one fact |
 |---|---|
