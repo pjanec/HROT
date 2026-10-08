@@ -431,6 +431,15 @@ Algorithm:
 
 **Geometric Insight**: Pure Pursuit creates a circular arc from the vehicle to the lookahead point. The curvature of this arc determines the steering angle.
 
+**On a trajectory — the lookahead point is ON THE PATH** *(`CE-3115`, as built `2026-10-08`)*: in `CustomTrajectory` mode the
+desired direction is towards the path point `PathLookahead` metres ahead of the progress
+(`Ld = max(1 m, 2·WheelBase, |v|·LookaheadTimeMin)` — a walker at 1.5 m/s aims 1 m ahead, a car at 15 m/s 7.5 m), so a sideways
+error (a cut corner, an avoidance swerve) closes. Progress still counts motion along the path TANGENT only (CE-2059).
+⛔ SUPERSEDED: the desired direction was the path's tangent at the progress, so the lookahead point was `P_current + tangent·Ld` and
+any drift stayed for good — the mover drove parallel to its path (measured live: a walker 1.4 m off, through a building wall, past
+a closed door). Rail `CarKinematicsSystemTests.CE3115_AMoverOffItsPath_ClosesOntoIt` (car 3 m off, walker 1.5 m off → < 0.3 m;
+red before: 3.00 / 1.50 m to the end).
+
 ### Speed Controller (Controllers/SpeedController.cs)
 
 PI (Proportional-Integral) controller for longitudinal speed control:

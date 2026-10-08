@@ -958,8 +958,8 @@ must pass is ≥ 1.2 m; House A's doors are 1.2 m"* (the stopgap at one 0.3 m ti
 ⚠ **Found by the first 0.9 m live run, fixed** — `bt-doors` failed on some runs (the back door never opened): turning through the
 narrower doorway the mover clipped a jamb, `SurfaceZ` took the ground away inside the wall panel, and the agent was held at the
 upper floor's 3 m from then on. ✅ a wall panel never takes the ground away (📄 `DESIGN_Terrain_World.md` §6).
-⚠ **Open — `bt-doors` passes 4/6 since the tiled bake (6/6 before)** — not the mesh: the plan is the same in-process and live (logged).
-The mover never steers back onto its path (`CE-3115`: trajectory following has no cross-track correction), and the tiled mesh's
+✅ **Fixed by `CE-3115` — `bt-doors` 6/6 again** (it was 4/6 after the tiled bake) — not the mesh: the plan is the same in-process and live (logged).
+The mover never steered back onto its path (`CE-3115`, now pure pursuit ON the path — 📄 `FDP.Toolkit.CarKinem.md`), and the tiled mesh's
 route goes WEST round House A, where the 1.4 m drift the Visitor picks up (corner, avoidance of the Locksmith) runs inside the wall
 and past the back door's mark out of reach; the old east route drifted outside it. The planner now asks for a vertex only where the
 AREA changes (`DT_STRAIGHTPATH_AREA_CROSSINGS`; ⛔ SUPERSEDED: `ALL_CROSSINGS` — the fine tiles cut a corner into 10 cm segments).

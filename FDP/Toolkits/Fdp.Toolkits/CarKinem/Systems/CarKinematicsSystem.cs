@@ -147,6 +147,9 @@ namespace CarKinem.Systems
             Vector2 targetPos;
             Vector2 targetHeading;
             float targetSpeed;
+            // The direction along which motion counts as PROGRESS (CE-2059): the path tangent on a trajectory, which since
+            // CE-3115 is no longer the steering heading.
+            Vector2? progressTangent = null;
             
             switch (nav.Mode)
             {
@@ -158,6 +161,26 @@ namespace CarKinem.Systems
                     
                 case KinematicsMode.CustomTrajectory:
                     (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D);
+                    progressTangent = targetHeading;
+                    // ⭐ CE-3115 — PURE PURSUIT ON THE PATH (📄 FDP.Toolkit.CarKinem.md "Pure Pursuit — geometric path-following
+                    //   using lookahead points"): steer at the path point a lookahead ahead of the progress, so a sideways error —
+                    //   a cut corner, an avoidance swerve — closes. ⛔ It steered along the path's TANGENT there, so any drift
+                    //   stayed for good: live on bt-doors a walker ran 1.4 m off its path, through House A's wall, and passed a
+                    //   closed door out of reach. The same "parallel driving" the Formation branch below already fixes.
+                    //   ⚠ Not on the end-of-path homing leg (already aimed at the end point) or when standing.
+                    if (targetSpeed > 0f && nav.HasArrived == 0
+                        && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var pursued)
+                        && (pursued.IsLooped != 0 || nav.ProgressS < pursued.TotalLength - 0.1f))
+                    {
+                        float ld = PathLookahead(in @params, state.Speed);
+                        var (ahead, _, _) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS + ld);
+                        var toAhead = new Vector2(ahead.X, ahead.Y) - pos2D;
+                        if (toAhead.LengthSquared() > 1e-4f)
+                        {
+                            targetHeading = Vector2.Normalize(toAhead);
+                            targetPos = new Vector2(ahead.X, ahead.Y);
+                        }
+                    }
                     break;
                     
                 case KinematicsMode.Formation:
@@ -307,7 +330,7 @@ namespace CarKinem.Systems
                 // ⭐ CE-2059 — only the motion ALONG the path is progress (targetHeading is the path tangent here); a turn
                 //   or a sideways drift no longer counts. ⚠ Not for the homing leg's direct heading, which is not a tangent —
                 //   progress is already at the end there.
-                nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, targetHeading));
+                nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
             {
@@ -405,6 +428,17 @@ namespace CarKinem.Systems
             }
             return (new Vector2(pos.X, pos.Y), tangent, speed);
         }
+
+        /// <summary>The nearest a path lookahead point may be (m) — a walker turns within it.</summary>
+        public const float MinPathLookaheadMetres = 1.0f;
+
+        /// <summary>
+        /// ⭐ CE-3115 — how far ahead on its path a mover aims (m): at least <see cref="MinPathLookaheadMetres"/> and two wheelbases
+        /// (a vehicle cannot close a nearer point), growing with speed by <see cref="VehicleParams.LookaheadTimeMin"/> seconds.
+        /// A walker at 1.5 m/s aims 1 m ahead; a car at 15 m/s 7.5 m.
+        /// </summary>
+        public static float PathLookahead(in VehicleParams p, float speed)
+            => MathF.Max(MathF.Max(MinPathLookaheadMetres, 2f * p.WheelBase), MathF.Abs(speed) * p.LookaheadTimeMin);
 
         /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
         /// 0 at the end) still lets it get there.</summary>

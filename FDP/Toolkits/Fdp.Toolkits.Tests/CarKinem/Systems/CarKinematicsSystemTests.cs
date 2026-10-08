@@ -384,7 +384,8 @@ namespace CarKinem.Tests.Systems
     
         // ── CE-2059 / CE-2060: a planned path is driven at the requested speed and stops at its end ──────────────
 
-        private static (EntityRepository repo, Entity e, TrajectoryPoolManager pool) TrajectoryWorld(float targetSpeed, float startSpeed, Quaternion? facing = null)
+        private static (EntityRepository repo, Entity e, TrajectoryPoolManager pool) TrajectoryWorld(float targetSpeed, float startSpeed, Quaternion? facing = null,
+            float startY = 0f, VehicleParams? vehicle = null)
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
@@ -401,10 +402,10 @@ namespace CarKinem.Tests.Systems
 
             var e = repo.CreateEntity();
             repo.AddComponent(e, new VehicleState { Speed = startSpeed });
-            repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = facing ?? SimMath.FacingEast });
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(0f, startY, 0f), Rotation = facing ?? SimMath.FacingEast });
             repo.SetAuthority<SimTransform>(e, true);
             repo.AddComponent(e, new SimVelocity { Linear = new Vector3(startSpeed, 0, 0) });
-            repo.AddComponent(e, new VehicleParams
+            repo.AddComponent(e, vehicle ?? new VehicleParams
             {
                 WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = 0.8f,
                 MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 2.5f,
@@ -521,6 +522,35 @@ namespace CarKinem.Tests.Systems
             held.IsBlocked = 0; repo.SetComponent(e, held);
             Run(3f);
             Assert.True(repo.GetComponent<NavState>(e).ProgressS > braked + 2f, "drives on along the same path");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3115</c> — a mover OFF its path closes onto it (pure pursuit on the PATH, 📄 FDP.Toolkit.CarKinem.md). 🔴 Red
+        /// before: it steered along the path's tangent, so it drove the whole path parallel to it at the starting offset — live on
+        /// bt-doors a walker ran 1.4 m off, through House A's wall, and passed a closed door out of reach.
+        /// </summary>
+        [Theory]
+        [InlineData("car", 3.0f)]
+        [InlineData("walker", 1.5f)]
+        public void CE3115_AMoverOffItsPath_ClosesOntoIt(string who, float offset)
+        {
+            var walker = who == "walker";
+            var p = walker ? VehiclePresets.GetPreset(VehicleClass.Pedestrian) : (VehicleParams?)null;
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: walker ? 1.5f : 5f, startSpeed: 0f, startY: offset, vehicle: p);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float worstLate = 0f;
+            for (int i = 0; i < 40 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var pos = repo.GetComponent<SimTransform>(e).Position;
+                if (pos.X > (walker ? 10f : 40f) && pos.X < 90f) worstLate = MathF.Max(worstLate, MathF.Abs(pos.Y));
+            }
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > (walker ? 30f : 60f), "it travelled along the path");
+            Assert.True(worstLate < 0.3f, $"{who} still {worstLate:F2} m off its path after closing (started {offset} m off)");
             pool.Dispose();
             repo.Dispose();
         }
