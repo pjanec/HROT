@@ -469,6 +469,35 @@ namespace CarKinem.Tests.Systems
         }
     
         /// <summary>
+        /// ⭐ <c>CE-3128</c> — a path of two COINCIDENT points (a move to where the unit already stands) arrives, and the unit's
+        /// position stays finite. 🔴 Measured in the ua-danger-crossing-bp twin: the end-of-path heading normalised the zero last
+        /// segment and the rifleman's position became NaN.
+        /// </summary>
+        [Fact]
+        public void CE3128_APathOfTwoCoincidentPoints_Arrives_AndThePositionStaysFinite()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f);
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 0f) }, 7);
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.FinalDestination = Vector3.Zero;
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                Assert.True(float.IsFinite(p.X) && float.IsFinite(p.Y), $"position became {p} at tick {i}");
+            }
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            var (pos, tangent, _) = pool.SampleTrajectory(7, 1f);
+            Assert.True(float.IsFinite(tangent.X) && float.IsFinite(tangent.Y) && float.IsFinite(pos.X));
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2059</c> — a vehicle that must TURN AROUND to start its path still ends at the path's end. 🔴 Measured live
         /// (`--mode all`, the Return leg): progress is integrated from speed, so the U-turn counted as progress along the path
         /// and the vehicle "arrived" 23 m short of home. Arrival is now confirmed by POSITION: a vehicle whose progress says

@@ -273,13 +273,25 @@ namespace CarKinem.Trajectory
 
             // End of trajectory (or exactly at end)
             var lastWp = waypoints[waypoints.Length - 1];
-            Vector2 lastTangent = waypoints.Length > 1
-                ? Vector2.Normalize(
-                    new Vector2(lastWp.Position.X, lastWp.Position.Y)
-                    - new Vector2(waypoints[waypoints.Length - 2].Position.X, waypoints[waypoints.Length - 2].Position.Y))
-                : new Vector2(1, 0);
+            return (lastWp.Position, EndTangent(waypoints), lastWp.DesiredSpeed);
+        }
 
-            return (lastWp.Position, lastTangent, lastWp.DesiredSpeed);
+        /// <summary>
+        /// The direction a trajectory ends in: its last segment of non-zero length, or +X when it has none (one waypoint, or
+        /// every point coincident). ⭐ CE-3128 — a move to where the unit stands is two coincident points, and normalising that
+        /// zero segment put NaN into the unit's position.
+        /// </summary>
+        public static Vector2 EndTangent(NativeArray<TrajectoryWaypoint> waypoints)
+        {
+            if (waypoints.Length == 0) return new Vector2(1, 0);
+            var last = waypoints[waypoints.Length - 1].Position;
+            for (int i = waypoints.Length - 2; i >= 0; i--)
+            {
+                var p = waypoints[i].Position;
+                var d = new Vector2(last.X - p.X, last.Y - p.Y);
+                if (d.LengthSquared() > 1e-6f) return Vector2.Normalize(d);
+            }
+            return new Vector2(1, 0);
         }
 
         /// <summary>Projects an array of Sim (Z-up) positions to their XY (ground-plane) components.</summary>

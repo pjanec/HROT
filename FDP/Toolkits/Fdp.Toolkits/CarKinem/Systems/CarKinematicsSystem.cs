@@ -394,11 +394,7 @@ namespace CarKinem.Systems
                          // Keep current heading (via last tangent) to avoid spinning
                          // Steering is 2D-projected (§0.2); the carried trajectory Z is not fed here.
                          Vector2 lastXY = new Vector2(last.Position.X, last.Position.Y);
-                         Vector2 prevXY = traj.Waypoints.Length > 1
-                            ? new Vector2(traj.Waypoints[traj.Waypoints.Length-2].Position.X, traj.Waypoints[traj.Waypoints.Length-2].Position.Y)
-                            : lastXY;
-                         Vector2 t = traj.Waypoints.Length > 1 ? Vector2.Normalize(lastXY - prevXY) : new Vector2(1,0);
-                         return (lastXY, t, 0f);
+                         return (lastXY, TrajectoryPoolManager.EndTangent(traj.Waypoints), 0f);
                     }
                 }
             }
