@@ -83,6 +83,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ Buildings Stage 5b — a terrain door's live state, owner → every node (readers build their door table from their own view, R-219).
             yield return new EntityDoorStateEgressTranslator(participant);
             yield return new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ Buildings 5d — a door command raised on a node that does not own the door travels to the owner (DoorCommandSystem applies it there).
+            yield return new DoorCommandEgressTranslator(participant, entityMap);
+            yield return new DoorCommandIngressTranslator(participant, entityMap);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);

@@ -176,11 +176,14 @@ namespace Hrot.CGF
                 //   EmbarkExecutor / EjectPassengersExecutor"). 🔴 None was registered here, so the dispatcher ran with no
                 //   interaction executors: an APC's HSM issued EjectPassengers on MobilityLost and nothing executed it — the
                 //   squad stayed aboard with no capabilities. The same set the example hosts register (HeadlessDemoApp).
-                interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
-                {
-                    (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
-                    (BehaviorConstants.ActionIdOpenDoor,        new OpenDoorExecutor()),
-                });
+                interactionExecutors: System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(
+                    new (ushort, IActionExecutor<InteractionChannel>)[]
+                    {
+                        (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
+                    },
+                    // ⭐ Buildings 5d — Open/Close/Lock/Unlock/Breach door, one list so no host forgets a verb
+                    System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),
+                        d => (d.Id, (IActionExecutor<InteractionChannel>)d.Executor)))));
 
             _healthApplicationSystem   = new HealthApplicationSystem();
             _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
@@ -211,6 +214,8 @@ namespace Hrot.CGF
             simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             simList.Add(_healthApplicationSystem);
+            // ⭐ Buildings 5d — the door's OWNER applies door commands (an actor's, or one carried here from another node)
+            simList.Add(new Fdp.Toolkit.Terrain.DoorCommandSystem());
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.

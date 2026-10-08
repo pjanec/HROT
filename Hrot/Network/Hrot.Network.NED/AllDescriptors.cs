@@ -66,6 +66,8 @@ namespace Hrot.NED.Descriptors
         dtAnimationMontageQueueState  = 107, // Muscle → Brain: queue-state           (DD-2 §4.3)
         // ⭐ Buildings Stage 5b — a terrain door's live state (owner → every node). 📄 docs/DESIGN_Building_Interiors.md §3j
         dtDoorState                   = 120,
+        // ⭐ Buildings Stage 5d — a command to a door (any node → the door's owner). 📄 docs/DESIGN_Building_Interiors.md §3j "5d"
+        dtDoorCommand                 = 121,
         // etc., all known descriptor types here
     }
 

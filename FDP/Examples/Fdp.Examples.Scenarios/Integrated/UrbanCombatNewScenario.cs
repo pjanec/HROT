@@ -550,7 +550,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
-            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new OpenDoorExecutor());
+            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new DoorActionExecutor(Fdp.Toolkit.Terrain.DoorVerb.Open));
 
             // D-11 fixture: three-stage pipeline with FlushEcbAndSwap between stages so that
             // ECB-produced events (RaycastResultEvent, HitEvent, bullet TearDown) are visible

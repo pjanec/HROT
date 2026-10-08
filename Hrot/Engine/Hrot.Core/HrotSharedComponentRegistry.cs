@@ -73,6 +73,7 @@ public static class HrotSharedComponentRegistry
         // ⭐ Buildings Stage 5b — door entities: the replicated state and the terrain-object key (§3j). Shared: every node mirrors them.
         world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
 
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();

@@ -74,6 +74,11 @@ public sealed class BuiltInChannelCommandCatalog : IChannelCommandCatalog
             new("FollowRoute",      "Fdp.Toolkit.Behavior.Components.LocomotionChannel",  3, "Fdp.Toolkit.Navigation.FollowRouteParams",   FollowRouteFields),
             new("AimAndFire",       "Fdp.Toolkit.Behavior.Components.WeaponChannel",      1, "Fdp.Toolkit.Combat.Executors.AimAndFireParams", AimAndFireFields),
             new("OpenDoor",         "Fdp.Toolkit.Behavior.Components.InteractionChannel", 4, "Fdp.Toolkit.Behavior.Executors.OpenDoorParams", OpenDoorFields),
+            // ⭐ Buildings 5d — the other door verbs: same params (the door), ids = BehaviorConstants.ActionId*Door
+            new("CloseDoor",        "Fdp.Toolkit.Behavior.Components.InteractionChannel", 5, "Fdp.Toolkit.Behavior.Executors.OpenDoorParams", OpenDoorFields),
+            new("LockDoor",         "Fdp.Toolkit.Behavior.Components.InteractionChannel", 6, "Fdp.Toolkit.Behavior.Executors.OpenDoorParams", OpenDoorFields),
+            new("UnlockDoor",       "Fdp.Toolkit.Behavior.Components.InteractionChannel", 7, "Fdp.Toolkit.Behavior.Executors.OpenDoorParams", OpenDoorFields),
+            new("BreachDoor",       "Fdp.Toolkit.Behavior.Components.InteractionChannel", 8, "Fdp.Toolkit.Behavior.Executors.OpenDoorParams", OpenDoorFields),
             // EjectPassengers has no executor-param struct: the executor reads PassengerBuffer
             // directly from the entity.  Leave System.Int32 as a safe no-op placeholder so
             // NodePinSchema emits a single value pin (exec-only degradation path).

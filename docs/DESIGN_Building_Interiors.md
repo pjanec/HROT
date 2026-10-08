@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -547,7 +547,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
 | **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
 | **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, a door-aware `IDtQueryFilter` reading the live state (⚠ not `SetPolyFlags` — N1), `TraversalKind.Door` on `PlanPath` waypoints | ✅ built (below); carrying `Door` through the trajectory pool + replanning moved to **5d** (N4) |
-| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner; the behaviour nodes are the behaviors lane's | ⏭ |
+| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner | 🟡 5d-1 built (below): commands, rules, transport, executors; 5d-2…4 next |
 | **5e** | scenario `TerrainObjects` section (save writes current door state; load applies it) — the serializer, the distributed merge and the load step each carry it | ✅ built (below); ⚠ `TerrainObjectRef` moved to **5d**, which has its first consumer |
 
 | 5a as built | |
@@ -770,6 +770,94 @@ navmesh judges the caller's table through a per-thread working filter instead of
 📄 [`DESIGN_Terrain_World.md`](DESIGN_Terrain_World.md) §6a.
 
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
+|---|---|
+
+### 5d — door commands *(backend, `2026-10-08`; slices 5d-1 built, 5d-2…5d-4 next)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| door actions run on the ACTOR's Brain node | ✅ `InteractionDispatcherSystem` via `ActionDispatchModule`, scheduled by `CgfLogicPack` (Brain tier: CGF + editor) | ✅ `DESIGN_Ownership_Groups_And_Grants.md` :523 — channels never leave the Brain |
+| the door's state has ONE writer, its owner (the creator) | ✅ `EntityDoorStateEgressTranslator` gates on `HasAuthority(door, PackKey(dtDoorState,0))` | ✅ §3a *"actions executed by the door's owner"*; 5b ownership row |
+| a non-owner's change reaches the owner as a typed command, not a value | ✅ the damage path (`DamageAssessedEgressTranslator` → `EntityHitDamage` → ingress with `IsRemote` → `HealthApplicationSystem` owner gate) | ✅ `.dev/bdc-sst-rules.md:130` *"a specific message to the current owner"*; `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11.1 |
+| the open-door action was a stub | ✅ `OpenDoorExecutor` set Success on the first tick, ignoring its door | ⛔ §3a: adjacent, animation time |
+| a replica before its master has no `NetworkAuthority` | ✅ `GhostCreationSystem.CreateGhost` adds only identity + tracker | — measured, so the applier excludes ghosts |
+| the Door flag is dropped before the mover; nothing replans on a door change | ✅ `PathfindingSolverSystem.cs:407` copies positions only; `TrajectoryWaypoint` has no kind; the only replan is the frustration watchdog | ✅ §3a sequence *"OpenDoor at the waypoint … replanned"*; N4 moved both here |
+
+```mermaid
+classDiagram
+    direction LR
+    class DoorVerb { <<NEW enum>> Open Close Lock Unlock Breach }
+    class DoorRules { <<NEW static>> Apply(from, verb, out to) · ActionSeconds(verb) · ReachMetres }
+    class DoorCommandEvent { <<NEW event 5100>> Door · Verb · Actor · IsRemote }
+    class DoorCommandSystem { <<NEW, owner>> applies via DoorRules · OwnsDoor(repo, door) }
+    class DoorActionExecutor { <<NEW, replaces stub>> one per verb · reach · action time · one command · waits for DoorState }
+    class DoorCommandEgressTranslator { <<NEW>> non-owner only · skips IsRemote }
+    class DoorCommandIngressTranslator { <<NEW>> republishes IsRemote }
+    class EntityDoorStateEgressTranslator { <<5b>> owner publishes the new state }
+    class DoorState { <<5b component>> }
+    DoorActionExecutor ..> DoorRules
+    DoorActionExecutor ..> DoorCommandEvent : raises once
+    DoorCommandSystem ..> DoorCommandEvent : reads
+    DoorCommandSystem ..> DoorRules
+    DoorCommandSystem --> DoorState : writes (owner only)
+    DoorCommandEgressTranslator ..> DoorCommandEvent : local, not owned
+    DoorCommandIngressTranslator ..> DoorCommandEvent : remote
+    EntityDoorStateEgressTranslator ..> DoorState : on change
+```
+*What it shows that prose hid:* nothing but the owner's `DoorCommandSystem` writes `DoorState`. The executor never writes the door:
+it raises a command and reads the answer back from the replicated state, so the action behaves the same whether the door is local or
+on another node.
+
+```mermaid
+sequenceDiagram
+    participant A as actor's Brain (executor)
+    participant E as DoorCommand egress
+    participant O as owner (ingress + DoorCommandSystem)
+    participant S as EntityDoorState egress
+    A->>A: in reach? spend ActionSeconds(verb)
+    A->>A: DoorCommandEvent{door, verb}
+    alt this node owns the door
+        A->>A: DoorCommandSystem applies DoorRules
+    else another node owns it
+        E->>O: EntityDoorCommand (Reliable, KeepAll)
+        O->>O: republish IsRemote · DoorCommandSystem applies
+    end
+    O->>S: DoorState changed
+    S-->>A: EntityDoorState (every node)
+    A->>A: DoorState == expected ⇒ Success (else timeout ⇒ Failure)
+```
+
+```mermaid
+graph TD
+    CGF[CgfLogicPack - CGF and editor] --> DIS[InteractionDispatcher: DoorActionExecutor x5]
+    CGF --> DCS[DoorCommandSystem - Simulation phase]
+    STP[SharedTranslatorPack - every networked host] --> EG[DoorCommand egress + ingress]
+    STP --> DSE[EntityDoorState egress + ingress]
+    REG[HrotSharedComponentRegistry - every host] --> EV[DoorCommandEvent registered]
+    SIM[SimHost - Muscle] -.->|5d-3 raises commands at a door waypoint; applies none| EG
+```
+*What it shows that prose hid:* only the Brain tier applies commands (it is where doors are created and owned). A SimHost raises a
+command (5d-3, the mover at a door waypoint) but never applies one, so its commands always travel through the translators, even in
+`--mode all`, where each host keeps its own world. The dashed edge is not built yet.
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| transport to the owner | ⭐ a typed command on the bus (`DoorCommandEvent`) + its own Reliable/KeepAll topic, the damage path's shape | the attribute edit request (F-10): it carries a VALUE, not a verb with preconditions · a temporary ownership transfer: `bdc-sst-rules.md:130` forbids it for a one-time change |
+| the answer | ⭐ the door's replicated state; the executor waits for the state the verb leads to (timeout 3 s) | an ack message: a second topic for what the state already says |
+| where the rules live | ⭐ one `DoorRules` table, used by the applier (to write) and the executor (to know what to wait for, and to fail at once on a refused verb) | rules in the executor only: a command from the mover or an operator would bypass them |
+| adjacency | ⭐ 2 m horizontally and 1.5 m vertically from the doorway centre; out of reach ⇒ Failure (the behaviour moves the actor there first) | stay Running while out of reach (`EmbarkExecutor`): an action that never ends when nothing walks the actor there |
+| action time | ⭐ `DoorRules.ActionSeconds` (open/close 1 s, lock/unlock 2 s, breach 3 s), spent before the command is sent | instant: the stub's behaviour, contradicts §3a |
+| one executor or five | ⭐ one class, constructed per verb, five action ids (4–8) in one list (`BehaviorConstants.DoorActionExecutors`) every host registers whole | one id with a verb parameter: the blueprint catalog keys a command by action id, so one id would hide four verbs from the palette |
+| the applier's gate | ⭐ the owner of the door-state DESCRIPTOR (`PackKey(dtDoorState,0)`), the key its egress publishes under; a ghost is never the owner | the component claim (`HasAuthority<DoorState>`): not what the publisher tests, so the two could disagree |
+
+| slice | content | state |
+|---|---|---|
+| **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators, `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
+| **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ⏭ |
+| **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`, the `CoarseWaypoints` wire); the mover stops at a closed door, raises Open, waits, goes on | ⏭ |
+| **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ⏭ |
+
+| rails | `DoorCommandTests` (the rules table, owner-only applier, the executor's time/one-command/answer, failure cases, the verb list) · `EntityDoorStateTranslatorTests.Stage5d_ACommandRaisedOnAReplica_IsAppliedByTheOwner_AndTheNewStateComesBack` (the wire) |
 |---|---|
 
 ### 5e — door state is saved in the scenario *(backend, `2026-10-08`, K5)*
