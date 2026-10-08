@@ -296,7 +296,9 @@ namespace Hrot.SimHost
             _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
             _map.AddResource(trajectoryPool);
 
-            _map.AddLayer(new SimHostRoadLayer(road));
+            // ⭐ CE-3124 — the road network is RoadNetworkGizmo now (a reflected gizmo, every host whose world holds the terrain's
+            //   ZoneEnvironmentData). ⚠ The old layer drew THIS boot-time blob (NodeConfiguration.RoadNetworkBlobPath), which no
+            //   config in the repo sets — it never drew terrain roads at all.
 
             // ⭐ CE-3123 — the authored-route half of the old SimHostTrajectoryLayer is AuthoredRouteGizmo now (a reflected
             //   gizmo on every host); its followed-trajectory half became PlannedPathGizmo (CE-3117).

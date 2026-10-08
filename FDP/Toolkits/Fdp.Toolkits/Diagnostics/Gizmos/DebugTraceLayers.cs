@@ -11,6 +11,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte Paths      = 5;
         public const byte Blast      = 6;
         public const byte Hearing    = 7;
+        /// <summary>⭐ <c>CE-3124</c> — the loaded terrain's road network (<c>RoadNetworkGizmo</c>).</summary>
+        public const byte Roads      = 8;
     }
 }
 

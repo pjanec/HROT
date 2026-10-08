@@ -5,8 +5,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// <summary>
     /// Marks a class as a stateless gizmo projector and declares the ECS component
     /// types its matching entities must possess.
-    /// Consumed by the <c>GizmoRegistrarGenerator</c> Roslyn source generator, which
-    /// emits a <c>GizmoRegistrar.RegisterAll</c> method in the annotated assembly.
+    /// Consumed by <see cref="GizmoReflectionRegistrar"/>, which every map host runs (ST-031). ⭐ <c>CE-3123</c>: the old
+    /// <c>GizmoRegistrarGenerator</c> source generator (per-namespace <c>GizmoRegistrar.RegisterAll</c>, with no callers since
+    /// ST-031) is retired. 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public sealed class GizmoProjectorAttribute : Attribute

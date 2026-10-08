@@ -78,6 +78,9 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(mask.IsSet(DebugTraceLayers.Paths));
             Assert.True(mask.IsSet(DebugTraceLayers.Blast));
             Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
+            // ⭐ CE-3124 — the road network has its own toggle too
+            Assert.True(all.IsSet(DebugTraceLayers.Roads));
+            Assert.False(new LayerControlDto { Roads = false }.ToMask().IsSet(DebugTraceLayers.Roads));
         }
 
         // ⭐ CE-3120 — the layer panel shows each family's scope from the settings registry and writes an edit back to it, so the

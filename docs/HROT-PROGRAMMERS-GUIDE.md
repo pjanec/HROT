@@ -540,8 +540,9 @@ noted. All are named constants in code (cite shown).
   no `WeightedSum` fallback (UT0144 → possible no-winner). Runtime weight tweaking is via the
   Tuning registry (§7.2). `FDP/Toolkits/Fdp.Toolkits.Analyzers/SharedUtilityDiagnostics.cs:98-176`
 - 🔴 **`[GizmoProjector]` must implement `IStatelessGizmo`/`IGlobalStatelessGizmo`** or it's
-  silently unregistered (FDP_002). **`[TkbDescriptor]` names must be unique per assembly**
-  (case-insensitive, TKB001). `FDP/Toolkits/Fdp.Toolkits.Analyzers/GizmoRegistrarGenerator.cs:16-30`
+  not registered — caught by the completeness rail `GizmoSchemaFollowsDeclarationRails` (the generator's
+  FDP_002 warning went with the generator, retired `2026-10-08`, CE-3123). **`[TkbDescriptor]` names must be unique per assembly**
+  (case-insensitive, TKB001).
 
 ### 6.4 Mission plan, unit hierarchy & squad
 - 🔴 **`MissionControlExecutionSystem`** needs a live repo and must contain **zero DDS / JSON /
