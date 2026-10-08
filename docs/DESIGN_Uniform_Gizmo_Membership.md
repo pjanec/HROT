@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT
-updated: 2026-09-22
+updated: 2026-10-08
 current-answer: §9 is the AS-BUILT and it CLOSES §7.3/§7.4; §8 is the mechanism, §7.2 still corrects §1's inventory. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
   that matters: the editor declares all six projector families and every other host declares a subset.
   §3 the design, §4 the UML, §5 the rails, §6 the risks.
@@ -458,3 +458,10 @@ recorded because it arms itself the day a hot-reloaded assembly carries a projec
 
 ⭐ **§8.7's headless publish-gate** — the user ruled the cost acceptable and gating optional; untouched.
 ⭐ **§8.5's uncosted-publishing finding** stands as recorded; this batch changed **membership**, not gating.
+
+### ⚠ 9.6 Measured `2026-10-08` (backend, investigating "what is still wired on only some hosts") — **two facts §9 did not state**
+
+| fact | evidence | consequence |
+|---|---|---|
+| ⭐ **discovery is complete in production because of the RUNNER, not the registrar** — every host is a library run inside `Hrot.ClusterRunner`, the one executable, which pre-loads every `Hrot.*`/`Fdp.*` DLL from its folder **except `Hrot.AI.Behaviors`** (kept out of the default load context for hot reload) | `Hrot.ClusterRunner/Program.cs` `LoadReferencedAssemblies`; all five host `.csproj` are `OutputType=Library`. ⚠ Of the five host assemblies only Editor and IG reference `Hrot.IG`, where `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` live | the three `Hrot.IG` projectors reach SimHost/CGF/Replay only through the pre-load. ⛔ **Not measured:** whether `HillAttackGizmo` (`Hrot.AI.Behaviors`) is registered on a process running no CGF/Editor/IG |
+| 🔴 **the completeness rail is weaker than §8.2 ④ says** — it compares `DiscoverProjectorTypes()` with `RegisterAll()`'s result, **both read from the same loaded set**, so a projector whose assembly is not loaded is absent from BOTH and the rail stays green | `Hrot.ClusterRunner.Tests/GizmoSchemaFollowsDeclarationRails.cs` `EveryProjectorInSource_IsRegisteredAtRuntime` | §8.2 ④'s *"source count vs runtime … a projector whose assembly a mode never loads"* is **not** what the rail checks |
