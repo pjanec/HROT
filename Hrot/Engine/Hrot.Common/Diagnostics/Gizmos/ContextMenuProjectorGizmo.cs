@@ -51,6 +51,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,          Label = "Select",       Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,          Label = "Rotate",       Shortcut = "R" },
+                new ContextMenuItemDto { IsSeparator = true },
+                GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
             }, SerializerOptions);
 
         /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
@@ -67,6 +69,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
+                new ContextMenuItemDto { IsSeparator = true },
+                GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
             }, SerializerOptions);
 
         /// <summary>Menu for a tactical graphics area overlay.</summary>

@@ -39,6 +39,49 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
         public const int FirstUntoggledLayer = 8;
 
+        // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
+        //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
+        //   Defaults are GizmoFamilies.DefaultScope's. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5b.
+        public bool PathSelectedOnly { get; set; } = true;
+        public bool PerceptionSelectedOnly { get; set; }
+        public bool ContactsSelectedOnly { get; set; }
+        public bool EqsSelectedOnly { get; set; }
+        public bool UtilitySelectedOnly { get; set; } = true;
+        public bool SquadSelectedOnly { get; set; } = true;
+
+        /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/>.</summary>
+        public void ReadScopes(GizmoSettingsRegistry settings)
+        {
+            GizmoFamilies.Register(settings);
+            PathSelectedOnly       = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
+            PerceptionSelectedOnly = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception);
+            ContactsSelectedOnly   = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory);
+            EqsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
+            UtilitySelectedOnly    = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
+            SquadSelectedOnly      = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
+        }
+
+        /// <summary>⭐ <c>CE-3120</c> — writes the families' scopes into <paramref name="settings"/>.</summary>
+        public void WriteScopes(GizmoSettingsRegistry settings)
+        {
+            GizmoFamilies.Register(settings);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path,            PathSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception,      PerceptionSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory,    ContactsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             EqsSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, UtilitySelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, SquadSelectedOnly);
+        }
+
+        private static bool Selected(GizmoSettingsRegistry s, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags f) =>
+            GizmoFamilies.ScopeOf(s, f) == GizmoScope.SelectedOrPinned;
+
+        private static void Set(GizmoSettingsRegistry s, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags f, bool selectedOnly)
+        {
+            var scope = selectedOnly ? GizmoScope.SelectedOrPinned : GizmoScope.All;
+            if (GizmoFamilies.ScopeOf(s, f) != scope) GizmoFamilies.SetScope(s, f, scope);
+        }
+
         // Returns the 256-bit layer visibility mask derived from the DTO flags.
         public LayerMask256 ToMask()
         {
@@ -91,6 +134,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private LayerControlDto _dto = new();
         private LayerMask256 _activeLayers;
         private bool _isEditing;
+        private readonly GizmoSettingsRegistry? _settings;   // ⭐ CE-3120 — where the family scopes live
 
         // IGizmoInteractionHandler
         public bool RequiresExclusiveFocus => false;
@@ -101,9 +145,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
             long anchorId,
             FdpEventBus interactionBus,
             IComponentEditService editService,
-            IGizmoUiStatePublisher? uiPublisher = null)
+            IGizmoUiStatePublisher? uiPublisher = null,
+            GizmoSettingsRegistry? settings = null)
         {
             _anchorId = anchorId;
+            _settings = settings;
+            if (settings != null) _dto.ReadScopes(settings);
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
             _projector = new StructInspectorProjector<LayerControlDto>(
                 editService ?? throw new ArgumentNullException(nameof(editService)),
@@ -136,6 +183,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (string.IsNullOrWhiteSpace(payloadJson)) return;
             _projector.ApplyUpdate(payloadJson, ref _dto);
             _activeLayers = _dto.ToMask();
+            if (_settings != null) _dto.WriteScopes(_settings);
             _isEditing = false;
         }
 

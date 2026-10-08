@@ -48,5 +48,15 @@ namespace Hrot.Common.Constants
         public const int ToggleAiTrace    = 251;
         /// <summary>Toggle <c>DebugState.Behavior.EmitToLog</c> on the target entity.</summary>
         public const int ToggleAiTraceLog = 252;
+
+        // --- Gizmo pins (CE-3120, R-227) — toggle a gizmo family on ONE unit (DebugState.Ai) ---
+        public const int PinGizmosPath       = 260;
+        public const int PinGizmosPerception = 261;
+        public const int PinGizmosContacts   = 262;
+        public const int PinGizmosEqs        = 263;
+        public const int PinGizmosUtility    = 264;
+        public const int PinGizmosSquad      = 265;
+        public const int PinGizmosAll        = 266;
+        public const int UnpinGizmosAll      = 267;
     }
 }

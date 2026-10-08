@@ -458,6 +458,10 @@ namespace Hrot.SimHost
                 actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
                     Hrot.SimHost.Diagnostics.AiTraceContextMenu.PublishToggle(
                         view, target, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog));
+                // ⭐ CE-3122 — the system that APPLIES those toggles (and CE-3120's gizmo pins). 🔴 It was registered only by
+                //   BehaviorDiagnosticsModule, on CGF and the Editor, so SimHost published PatchDebugStateCommand and nothing applied it:
+                //   its AI-trace menu items were inert. ⚠ Only the patch system: the trace ring buffers stay the Brain's.
+                ctx.Kernel.RegisterGlobalSystem(new Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem());
                 // Route gizmo interaction translators and publisher through the network factory
                 // so that SimHostApp has no direct dependency on Hrot.Network.NED.
                 CycloneNetworkIngressSystem? gizmoIngress = null;

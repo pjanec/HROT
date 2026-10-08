@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-08 (rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
-build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227)
+build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
 current-answer: §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
@@ -528,7 +528,7 @@ rewritten only on change) · new `DebugTraceGizmoTests` (burst drawn for 1 s, so
   pulls only each node's `.fdp` and `.fdp.meta.json` (`ReferenceArchiveHandler.cs:80-95`). 🔒 *"Terrain is part of the scenario, which i
   think shoukd become the part od the package with the recordinga (by copying). Terrain could stay referenced by name only."*
 
-## 5b. Gizmo scope and pins — *"selected only"*, *"all"*, and *"keep showing this unit"* *(`CE-3120`, `CE-3121`, backend, `2026-10-08`; build-state: READY-TO-BUILD)*
+## 5b. Gizmo scope and pins — *"selected only"*, *"all"*, and *"keep showing this unit"* *(`CE-3120`, `CE-3121`, `CE-3122`, backend, `2026-10-08`; build-state: BUILT — as-built at the end of this section)*
 
 🔒 **User, `2026-10-08`:** *"Sometimes i want the effect shown for selected entity only, sometimes i need to pin this gizmo 'enabled' to this entity because i need to see entity's gizmos temporarily even if entity not selected"* · decisions A–E *"Approved"* · F: *"① approved, fold them into gizmos"* — **R-227**.
 
@@ -556,7 +556,7 @@ classDiagram
   class CullingStateVisibilityPolicy { <<existing>> }
   class MapInteractionPack { <<existing, grows>> DefaultVisibilityPolicy: culling OR family policy; registers pin actions }
   class GizmoSettingsRegistry { <<existing>> map.scope.Family = 0 All, 1 SelectedOrPinned }
-  class LayerControlDto { <<existing, grows>> +PathsSelectedOnly +ContactsSelectedOnly ... }
+  class LayerControlDto { <<existing, grows>> +PathSelectedOnly +ContactsSelectedOnly ... ReadScopes() WriteScopes() }
   class LayerControlGizmo { <<existing, grows>> writes the scope settings on Apply }
   class DebugState { <<existing>> Ai = the PINS }
   class GizmoPins { <<NEW>> Toggle(view, target, family) publishes PatchDebugStateCommand }
@@ -640,6 +640,26 @@ the dashed red edge is the remaining gap (IG has no AI to pin).
 
 ⚠ **Not measured:** whether a `Transient` component survives an in-host replay seek (if not, pins are re-set after a jump).
 ⚠ **Stated plainly:** the folded squad/utility gizmos are written from the overlays' INTENT — their placement was never real.
+
+### As built *(`2026-10-08`)* — the diagrams above hold; where the code landed and what it chose
+
+| piece | home | as built — and any deviation |
+|---|---|---|
+| `GizmoScope`, `GizmoFamilies` | `Fdp.Toolkits` `Diagnostics/Gizmos/GizmoFamilies.cs` | the ONE table: `SettingKey` = `map.scope.<Family>`, `DefaultScope`, `Label` (TargetMemory shows as *Contacts*), `Register`, `ScopeOf` (an unset or non-int value reads as the default), `SetScope` |
+| `GizmoProjectorAttribute.Family` | `Fdp.Toolkits` | a named argument; `None` = no family ⇒ no family policy |
+| `GizmoFamilyVisibilityPolicy` | `Hrot.Presentation` `ScenarioEditor/Map/` | reads the scope live each frame; selection and pins are each read only when their component type is REGISTERED on the world ⇒ IG (no `DebugState`) keeps the scope and simply has no pins |
+| pack wiring | `MapInteractionPack` | ⭐ deviation: the host's resolver now LAYERS over the defaults (`host(type) ?? defaults(type)`) instead of replacing them — before, a host resolver silently dropped the culling policy for every type it did not name. One cached policy per family |
+| layer panel | `LayerControlDto` `PathSelectedOnly`…`SquadSelectedOnly` + `ReadScopes`/`WriteScopes`; `LayerControlGizmo(settings:)` | reads on construction, writes on Apply — the panel and the policy share the registry, so there is no copy to drift |
+| pins | `Hrot.Common` `Diagnostics/Gizmos/GizmoPins.cs`; ids `PinGizmosPath`…`UnpinGizmosAll` = 260–267 | `Toggle`/`SetAll` publish `PatchDebugStateCommand { Ai: { <family>: bool } }`; a no-op where `DebugState` is not registered. `Submenu()` is appended (after a separator) to the Healthy and Degraded unit menus; the pack registers the 8 actions on every map host |
+| `CE-3122` | `SimHostApp` | `DebugStatePatchSystem` registered as a global system ⇒ SimHost's existing *Toggle AI Trace* items work too |
+| family tags | `PlannedPathGizmo` Path · `VisibilityConeGizmo` Perception · `LineOfSightGizmo` TargetMemory · `EqsSensorGizmo` (IG) Eqs · `UtilityDecisionGizmo` UtilityDecision · `SquadGizmo` SquadAssignment | — |
+| `UtilityDecisionGizmo` | `Hrot.Presentation` | ⭐ deviation from F: one line per LOGGED decision (`UtilityDecisionLog` holds up to 4), not only the latest — a unit with two decision points showed one before |
+| `SquadGizmo` | `Hrot.Presentation` | skips dead or position-less members (the skeleton drew them at the origin); the danger box reuses `DangerAreaGizmo.Box` |
+| deletion | `Hrot.Diagnostics.Overlays` (+ `.Tests`) | removed from disk and from `IOS-IG-SimHost.sln`; its project doc carries a WITHDRAWN block; `docs/projects` pointers updated |
+
+**Rails** *(each in its feature's existing suite)*: `MapCullingPolicyTests` — `CE3120_ThePathFamily_DrawsTheSelectedAndThePinned_UntilItsScopeIsAll`, `CE3120_ThePackRegistersThePinActions_AndAPinTouchesOnlyItsFamily` (also asserts the menu carries every pin id) · `LayerControlGizmoTests` — `CE3120_TheLayerPanel_ReadsAndWritesTheFamilyScopes` · `DebugTraceGizmoTests` — `CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision`, `CE3121_TheSquadGizmo_LinksTheCommanderToItsLivingMembers`.
+
+⚠ **Still not measured:** whether a `Transient` `DebugState` survives an in-host replay seek.
 
 ## 6. Slices
 

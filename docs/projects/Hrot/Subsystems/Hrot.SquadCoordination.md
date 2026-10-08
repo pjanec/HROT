@@ -403,8 +403,8 @@ FDP/Toolkits/Fdp.Toolkits.Tests/Squad/
         HillCrestHullDownManeuverTests.cs
         BrieferCatalogManeuverTests.cs   -- StackAndRoomEntry + TravellingOverwatch
 
-Hrot/Diagnostics/Hrot.Diagnostics.Overlays/
-    SquadCoordinationOverlaySource.cs    -- §10 overlay (extends SquadAssignmentOverlaySource)
+Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/
+    SquadGizmo.cs                        -- §10 overlay, as a map gizmo (CE-3121; the Hrot.Diagnostics.Overlays sources were folded in and deleted)
 ```
 
 The `SquadState` / `SquadAwareEngagement` Blueprint recipes live in
@@ -485,7 +485,7 @@ distinguishes altitude-separated contacts.
 | `Hrot.Core` | Entity type constants |
 | `Hrot.AI.Behaviors` | Maneuver HSM shells, Blueprint recipe prototypes |
 | `Hrot.CGF` | `TacticalIntentResolutionSystem`, `BehaviorIngressSystem` |
-| `Hrot.Diagnostics.Overlays` | `SquadCoordinationOverlaySource` consumer |
+| `Hrot.Presentation` | `SquadGizmo` consumer (CE-3121 — replaced the deleted `Hrot.Diagnostics.Overlays` source) |
 
 ---
 

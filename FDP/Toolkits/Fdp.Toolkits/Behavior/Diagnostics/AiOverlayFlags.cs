@@ -3,10 +3,10 @@ using System;
 namespace Fdp.Toolkit.Behavior.Diagnostics
 {
     /// <summary>
-    /// Per-entity AI subsystem overlay toggles. Carried in <see cref="DebugState.Ai"/>
-    /// alongside <see cref="BehaviorDebugFlags"/> in the <see cref="DebugState"/> family.
-    /// Off-by-default; near-zero cost when all bits are zero (a single flag check per entity
-    /// in the gizmo source query).
+    /// ⭐ <c>CE-3120</c> (R-227) — the map GIZMO FAMILIES, and per unit (<see cref="DebugState.Ai"/>) which families are PINNED on
+    /// it: a pinned family draws for that unit even when the family's scope is "selected only" and the unit is not selected.
+    /// A projector names its family in <c>[GizmoProjector(Family = ...)]</c>. Off by default. ⚠ These bits first served the
+    /// <c>IGizmoSource</c> overlay family, folded into gizmos by <c>CE-3121</c>. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5b.
     /// </summary>
     [Flags]
     public enum AiOverlayFlags : ushort
@@ -18,5 +18,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         UtilityDecision = 1 << 3,   // per-option bars, winner, consideration breakdown
         SquadAssignment = 1 << 4,   // leader-member-target assignment lines
         Channels        = 1 << 5,   // active locomotion/weapon/interaction action
+        /// <summary>⭐ <c>CE-3120</c> — the planned path and its look-ahead (<c>PlannedPathGizmo</c>).</summary>
+        Path            = 1 << 6,
     }
 }

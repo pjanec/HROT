@@ -227,7 +227,9 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>
         /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
         /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
-        /// default to everything else.
+        /// default to everything else. ⭐ <c>CE-3120</c>: also a <c>GizmoFamilyVisibilityPolicy</c> to every projector that
+        /// names a family. A host resolver is LAYERED over these defaults — it wins for the types it answers (non-null), the
+        /// defaults fill in the rest.
         ///
         /// <para>⭐ The right axis: policy varies per HOST and per PROJECTOR. An attribute or an interface
         /// member could only vary per projector, which is why §3.4's design needed a resolver rather than

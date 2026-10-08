@@ -855,7 +855,7 @@ It uses squad inputs to choose among three maneuver options:
 |---|---|---|
 | `Hrot.Utility.Editor` | [Hrot.Utility.Editor.md](../../Hrot/Editor/Hrot.Utility.Editor.md) | Visual card-table editor, curve widget, live preview, emitter |
 | `Hrot.Diagnostics.Tuning` | [Hrot.Diagnostics.Tuning.md](../../Hrot/Diagnostics/Hrot.Diagnostics.Tuning.md) | TuningRegistry, TuningConsoleGizmo, binder, snapshot/restore |
-| `Hrot.Diagnostics.Overlays` | [Hrot.Diagnostics.Overlays.md](../../Hrot/Diagnostics/Hrot.Diagnostics.Overlays.md) | AiOverlayFlags, five overlay sources, budget arbiter |
+| `Hrot.Diagnostics.Overlays` | [Hrot.Diagnostics.Overlays.md](../../Hrot/Diagnostics/Hrot.Diagnostics.Overlays.md) | ⛔ WITHDRAWN `2026-10-08` (`CE-3121`) — folded into map gizmos (`UtilityDecisionGizmo`, `SquadGizmo`), see `DESIGN_Terrain_Combat_Tuning.md` §5b |
 
 ---
 

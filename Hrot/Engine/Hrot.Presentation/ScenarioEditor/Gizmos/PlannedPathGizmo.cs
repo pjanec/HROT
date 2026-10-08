@@ -12,12 +12,12 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// RECORDED <see cref="PathTrace"/> — the polyline, every door step as a square, the progress point at
 /// <see cref="NavState.ProgressS"/> (by distance) and the look-ahead point the controller steers at,
 /// <c>ProgressS + CarKinematicsSystem.PathLookahead(params, speed)</c> — the same function, so the two cannot disagree. A per-entity
-/// gizmo, drawn for EVERY mover today (the host selection gate reaches only the drag handles, CE-123); a per-gizmo "selected only"
-/// scope is proposed in docs/DESIGN_Terrain_Combat_Tuning.md §5a. Toggled by the <c>Paths</c> bit of the layer control.
+/// gizmo of the <c>Path</c> family (⭐ <c>CE-3120</c>): by default it draws for the selected and the pinned movers, switchable to every
+/// mover in the layer panel (§5b). Toggled by the <c>Paths</c> bit of the layer control.
 /// <para>⚠ The look-ahead is sampled on the polyline; a spline trajectory bends between its points, so on one the dot can sit a
 /// little off the curve the controller samples. Pedestrian and navmesh paths are linear.</para>
 /// </summary>
-[GizmoProjector(typeof(PathTrace), typeof(NavState))]
+[GizmoProjector(typeof(PathTrace), typeof(NavState), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path)]
 public sealed class PlannedPathGizmo : IStatelessGizmo
 {
     private static readonly Rgba32 PathColor      = new(40, 120, 230, 220);

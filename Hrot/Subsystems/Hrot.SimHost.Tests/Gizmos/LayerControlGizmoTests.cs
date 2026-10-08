@@ -79,6 +79,36 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(mask.IsSet(DebugTraceLayers.Blast));
             Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
         }
+
+        // ⭐ CE-3120 — the layer panel shows each family's scope from the settings registry and writes an edit back to it, so the
+        // visibility policy (which reads the registry) follows the panel on the next frame.
+        [Fact]
+        public void CE3120_TheLayerPanel_ReadsAndWritesTheFamilyScopes()
+        {
+            var settings = new GizmoSettingsRegistry();
+            var edit = MakeEditService();
+            var gizmo = new LayerControlGizmo(7, new FdpEventBus(), edit, settings: settings);
+            Assert.Equal(GizmoScope.SelectedOrPinned,
+                GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
+            Assert.Equal(GizmoScope.All,
+                GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
+
+            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = true };
+            string json;
+            using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+            gizmo.OnStructUpdate(json);
+
+            Assert.Equal(GizmoScope.All,
+                GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
+            Assert.Equal(GizmoScope.SelectedOrPinned,
+                GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
+
+            var reread = new LayerControlDto();
+            reread.ReadScopes(settings);
+            Assert.False(reread.PathSelectedOnly);
+            Assert.True(reread.ContactsSelectedOnly);
+            Assert.True(reread.SquadSelectedOnly);   // untouched family keeps its default
+        }
     }
 
     // ==========================================================================

@@ -6,7 +6,7 @@ using Fdp.Toolkit.Perception.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform))]
+    [GizmoProjector(typeof(TargetMemory), typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory)]
     public sealed class LineOfSightGizmo : IStatelessGizmo
     {
         public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)

@@ -127,4 +127,45 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal(new Vector2(1, 0), closedTip);
         Assert.Equal(new Vector2(0, 1), DoorLeafGizmo.OpenTip(hinge, closedTip));
     }
+    // ⭐ CE-3121 — the utility gizmo writes one line per logged decision, AT the unit (the dormant overlay wrote one at the origin).
+    [Fact]
+    public void CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision()
+    {
+        _w.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new SimTransform { Position = new Vector3(30, 40, 0) });
+        var log = default(Fdp.Toolkit.Utility.UtilityDecisionLog);
+        var slots = log.SlotsRW();
+        slots[0].DecisionId = 7; slots[0].Winner = 3; slots[0].Margin = 0.25f;
+        slots[1].DecisionId = 9; slots[1].Winner = 1; slots[1].Margin = 0.5f;
+        _w.AddComponent(unit, log);
+
+        new UtilityDecisionGizmo().Draw(_w, unit, _draw);
+        Assert.Equal(2, _draw.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Text));
+    }
+
+    // ⭐ CE-3121 — the squad gizmo draws a line from the commander to every LIVING member, at the members' real positions (the
+    // dormant overlay drew them origin to origin).
+    [Fact]
+    public void CE3121_TheSquadGizmo_LinksTheCommanderToItsLivingMembers()
+    {
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        _w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        var a = _w.CreateEntity(); _w.AddComponent(a, new SimTransform { Position = new Vector3(10, 0, 0) });
+        var b = _w.CreateEntity(); _w.AddComponent(b, new SimTransform { Position = new Vector3(0, 10, 0) });
+        var gone = _w.CreateEntity(); _w.AddComponent(gone, new SimTransform { Position = new Vector3(5, 5, 0) });
+        var cmd = _w.CreateEntity();
+        _w.AddComponent(cmd, new SimTransform { Position = new Vector3(0, 0, 0) });
+        var roster = default(Fdp.Core.CommandHierarchy.UnitRoster);
+        Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, a);
+        Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, b);
+        Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, gone);
+        _w.AddComponent(cmd, roster);
+        _w.AddComponent(cmd, default(Fdp.Toolkit.Squad.SquadCognitiveState));
+        _w.DestroyEntity(gone);
+
+        new SquadGizmo().Draw(_w, cmd, _draw);
+        var ends = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Line).Select(p => p.LineEnd).ToArray();
+        Assert.Equal(new[] { new Vector3(10, 0, 0), new Vector3(0, 10, 0) }, ends);
+    }
 }

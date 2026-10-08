@@ -10,7 +10,7 @@ namespace Hrot.IG.Gizmos
     // GZ-PROJ: Draws the EQS search radius and lines to the current Top-K query results
     // for each entity carrying an EqsSensor component.
     // Visibility is controlled by three GizmoSettingsRegistry toggles.
-    [GizmoProjector(typeof(SimTransform), typeof(EqsSensor))]
+    [GizmoProjector(typeof(SimTransform), typeof(EqsSensor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs)]
     public sealed class EqsSensorGizmo : IStatelessGizmo
     {
         private readonly GizmoSettingsRegistry _settings;
