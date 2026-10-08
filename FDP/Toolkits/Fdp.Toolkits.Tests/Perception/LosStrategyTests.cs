@@ -247,13 +247,12 @@ namespace Fdp.Toolkit.Perception.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-1032</c> — the observer and the target never block their OWN line, however their handles are spelled: a
-        /// background solver may hand the strategy a handle rebuilt from an id with generation 0 (<see cref="Entity.IsNull"/> true).
-        /// 📌 A skip rule that treated such a handle as "nobody" made every soldier's 1.8 m collider hide its own eye — every
-        /// visual sensor went blind on the live cluster while <c>GET /perception/los</c> (real handles) still said clear.
+        /// ⭐ <c>CE-1032</c> — the collider test shared with fragments (<see cref="ColliderOcclusion"/>) skips by INDEX: the observer's
+        /// and the target's own 1.8 m colliders never block their own line, and the "no entity" sentinel
+        /// (<see cref="ColliderOcclusion.Nobody"/>) skips nothing — not even entity index 0 (a terrain burst has no struck entity).
         /// </summary>
         [Fact]
-        public void CE1032_TheObserverAndTargetNeverBlockTheirOwnLine_EvenThroughAGenerationZeroHandle()
+        public void CE1032_OwnCollidersNeverBlockTheirOwnLine_AndNobodySkipsNothing()
         {
             var (world, obs, tgt) = TwoSoldiers(20f);
             world.AddComponent(obs, new PhysicsCollider { Radius = 0.3f, Height = 1.8f });
@@ -261,7 +260,13 @@ namespace Fdp.Toolkit.Perception.Tests
             var s = Strategy(null);
             s.BeginBatch(world);
             Assert.True(s.IsVisible(world, obs, tgt));
-            Assert.True(s.IsVisible(world, new Entity(obs.Index, 0), new Entity(tgt.Index, 0)));   // rebuilt from an id
+
+            var occ = new ColliderOcclusion();
+            occ.Build(world, PhysicsRadiusReader(), (v, e) => v.GetComponentRO<PhysicsCollider>(e).Height);
+            var eye = new Vector3(0, 0, 1.7f);
+            var aim = new Vector3(20, 0, 0.9f);
+            Assert.Null(occ.Blocking(eye, aim, obs, tgt, out _));
+            Assert.Equal(obs, occ.Blocking(eye, aim, ColliderOcclusion.Nobody, tgt, out _));   // index 0 is NOT skipped by Nobody
         }
 
         [Fact]
