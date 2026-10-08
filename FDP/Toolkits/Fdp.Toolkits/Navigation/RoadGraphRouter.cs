@@ -207,10 +207,17 @@ namespace Fdp.Toolkit.Navigation
             }
         }
 
-        /// <summary>Adds <paramref name="p"/> unless it repeats the last point (stitched legs share their ends).</summary>
+        /// <summary>
+        /// Adds <paramref name="p"/>; a point within 10 cm of the last one REPLACES it (stitched legs share their ends, and the
+        /// later point wins — so a route's final point is exactly the requested end, never a road sample a few cm short of it).
+        /// </summary>
         public static void Append(List<Vector3> output, Vector3 p)
         {
-            if (output.Count > 0 && Vector2.DistanceSquared(new Vector2(output[^1].X, output[^1].Y), new Vector2(p.X, p.Y)) < 0.01f) return;
+            if (output.Count > 0 && Vector2.DistanceSquared(new Vector2(output[^1].X, output[^1].Y), new Vector2(p.X, p.Y)) < 0.01f)
+            {
+                output[^1] = p;
+                return;
+            }
             output.Add(p);
         }
 
