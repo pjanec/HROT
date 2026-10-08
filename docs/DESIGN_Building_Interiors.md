@@ -950,7 +950,7 @@ panel) — the hall door never connected (📄 `DESIGN_Terrain_World.md` §6) ·
 START) was centred ON the inner wall · ③ a 1.0 m doorway leaves 0.4 m after the 0.3 m infantry erosion — one or two 0.3 m voxels, so
 it bakes or not by grid alignment. ⇒ ⭐ **a doorway an infantry agent must pass is ≥ 1.2 m at the current bake (0.3 m radius, 0.3 m
 cells)**; House A's doors are 1.2 m. Rail `RecastNavmeshFactoryTests.Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`.
-④ ⏳ **OPEN — the agent plans on the VEHICLE layer** (1.8 m: no doorway admits it): `NavLayerSelection.For` reads `VehicleState` as "a vehicle", and SimHost infantry carries it (`CE-3112`, Q67 §3D). Until it is decided, `bt-doors` cannot pass live; the in-process rail plans on the infantry layer.
+④ ✅ **the agent planned on the VEHICLE layer** (1.8 m: no doorway admits it): `NavLayerSelection.For` read `VehicleState` as "a vehicle", and SimHost infantry carries it. Fixed by R-222 (`CE-3112`): the layer is mapped from the TKB locomotion class (`Pedestrian` ⇒ Infantry); the human templates now say `Pedestrian`.
 ⚠ Real doors are 0.8–0.9 m: passing them needs a finer interior bake (a smaller cell, or a tiled bake with finer tiles in
 buildings — with `CE-1029`/R-218 P2), not a narrower radius.
 

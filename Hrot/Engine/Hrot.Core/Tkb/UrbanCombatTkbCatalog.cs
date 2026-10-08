@@ -1,4 +1,5 @@
 using System;
+using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
@@ -107,7 +108,7 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
                 Master(t, "CivilianPedestrian", new DISEntityType { Kind = 3, Domain = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
@@ -142,7 +143,7 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
                 Master(t, "InfantrySoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils } } });
@@ -157,7 +158,7 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
                 Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage } } });

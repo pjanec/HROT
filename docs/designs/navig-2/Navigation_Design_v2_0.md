@@ -998,6 +998,17 @@ struct NavAgentProfile {
 
 EQS `NavmeshReachable`/`PathCost` default `layerMask` from `ctx.Self`'s `NavAgentProfile.PreferredLayerMask`.
 
+> ⛔ **§8.3 SUPERSEDED for layer selection, `2026-10-08` (`CE-3112`, backend).** `NavAgentProfile` was never stamped in production
+> (Q67 §3C), so the rule fell back on "a `VehicleState` entity is a vehicle" (`CE-3025`) — and SimHost infantry carries
+> `VehicleState`, so every soldier planned on the 1.8 m vehicle mesh. 🔒 **User:** *"we could have navmeshes in baked in several
+> variants (profiles for different parameters ranges - soldier, usual vehicle...), and based on the true entity params (from TKB)
+> to map to the exiting supported profile"* · *"Approved, go with class mapping"*. ⭐ **As built:** `NavLayerSelection.For` maps the
+> TKB locomotion class already on the entity (`VehicleParams.Class`, copied from `VehicleParametersDto`) onto the FIXED baked layers:
+> `Pedestrian` ⇒ Infantry, any other class ⇒ Vehicle; an explicit layer on the order still wins (the hook for a runtime change —
+> prone, caves). The class decides, not the size: a soldier opens doors and climbs stairs, a vehicle does neither. ⛔ No runtime
+> per-entity profile component is stamped (the user: *"this feels a bit like an overkill for this stage of the engine"*); the
+> `NavAgentProfile` read stays only for callers that set it explicitly. The human TKB templates carry `VehicleClass = Pedestrian`.
+
 ### 8.4 EQS revision (separate doc, mentioned here for completeness)
 
 Mandatory but mechanical: add `NavLayerMask` parameter to `NavmeshReachable` and `PathCost` tests. Default = entity's `PreferredLayerMask`. Backwards-compatible at the BTree-author level if default is auto-supplied.
