@@ -461,6 +461,12 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
 - **Why Z-up everywhere:** a Y-up API leaks the library's convention into every caller — and already produced four
   mixed sites, one of them a live route bug (`CE-3013`).
 - **Why prisms are solid in v1:** enterable buildings need doors/stairs; garages cover multi-level through slabs+ramps.
+- **Why the ground grid skips only SOLID prisms** *(`TerrainWorldMesh`, as built `2026-10-08`)*: the ground is a grid of cells
+  (2 m on a 200 m world), and a cell is dropped when its CENTRE lies in a prism — so the hollow inside of a solid block never
+  bakes as floor. ⛔ It used to apply to WALL PANELS too (building walls, fences, free walls: `Panel ≥ 0`), and a 0.15 m inner
+  wall that crossed a cell centre cut a 2 m strip out of the floor — bt-range House A's hall and front doorways never
+  connected (found by the `bt-doors` live run). ⭐ A panel is thin and its own side faces block, so it keeps the ground under
+  it. 📄 `DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
 
 ## 6a. ALLOCATION — a background batch allocates nothing per query *(R-220, backend, `2026-10-08`)*
 

@@ -344,4 +344,57 @@ public sealed class RecastNavmeshFactoryTests
         foreach (var th in threads) th.Join();
         Assert.True(errors.IsEmpty, string.Join(" | ", errors.Select(e => e.GetType().Name + ": " + e.Message).Take(3)));
     }
+
+    /// <summary>
+    /// ⭐ Buildings 5d (bt-doors) — the SHIPPED House A (bt-range) is reachable through EACH of its doorways for infantry: the front
+    /// (outside → west room), the back (outside → east room) and the inner hall door (east → west room); and with the front LOCKED and
+    /// the back CLOSED (the bt-doors scenario) the route into the west room goes round by the back door and marks it.
+    /// <para>📐 Found by the first bt-doors live run (`2026-10-08`), three causes: the template's front door was at 4.5 (`at` is the
+    /// opening's START), so its 1.0 m spanned 104.5..105.5 — centred ON the inner wall (x 105); a 1.0 m doorway leaves 0.4 m after the
+    /// 0.3 m infantry erosion — one or two 0.3 m voxels, so whether it bakes depends on grid alignment (the doors are 1.2 m now); and
+    /// <c>TerrainWorldMesh</c> dropped every
+    /// 2 m ground cell whose centre lay in a wall panel, so the 0.15 m inner wall at x 105 (a cell centre) cut a 2 m strip out of the
+    /// floor (walkable ended at 103.8 and began at 106.2) and neither the hall nor the front doorway connected. The agent got a
+    /// partial path to the wall and "arrived" outside.</para>
+    /// </summary>
+    [Fact]
+    public void Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
+            TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        var open = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world,
+            ("bt-range/House A/front", TerrainDoorState.Open), ("bt-range/House A/back", TerrainDoorState.Open), ("bt-range/House A/hall", TerrainDoorState.Open));
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        var south = new Vector3(104.5f, 94, 0); var north = new Vector3(108, 112, 0);
+        var west = new Vector3(102, 104, 0);   var east = new Vector3(108, 104, 0);
+        var results = new[]
+        {
+            ("front: outside S -> west room", nav.PathExists(south, west, Inf, open)),
+            ("back: outside N -> east room",  nav.PathExists(north, east, Inf, open)),
+            ("hall: east room -> west room",  nav.PathExists(east, west, Inf, open)),
+        };
+        Assert.True(results.All(r => r.Item2), string.Join(" · ", results.Select(r => $"{r.Item1}={r.Item2}")) + $" · doorPolys={nav.DoorPolyCount(NavLayerMask.Infantry)}");
+
+        var scenario = Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world,
+            ("bt-range/House A/front", TerrainDoorState.Locked), ("bt-range/House A/back", TerrainDoorState.Closed), ("bt-range/House A/hall", TerrainDoorState.Open));
+        var wps = new NavWaypoint[128];
+        int n = nav.PlanPath(new Vector3(104.2f, 94, 0), west, wps, Inf, scenario);
+        Assert.True(n > 0);
+        Assert.True(Vector2.Distance(new Vector2(wps[n - 1].Position.X, wps[n - 1].Position.Y), new Vector2(west.X, west.Y)) < 0.5f,
+            $"the path must reach the west room, not stop short (partial path) — ends at {wps[n - 1].Position}");
+        Assert.Contains(Enumerable.Range(0, n), i => wps[i].Traversal == TraversalKind.Door
+            && Vector2.Distance(new Vector2(wps[i].Position.X, wps[i].Position.Y), new Vector2(107.4f, 108)) < 1.5f);   // the back door (x 108..106.8)
+        Assert.DoesNotContain(Enumerable.Range(0, n), i => Vector2.Distance(new Vector2(wps[i].Position.X, wps[i].Position.Y), new Vector2(104.2f, 100)) < 0.8f);   // not the locked front
+
+        // the cluster bakes BOTH layers and a request arriving with no layer (0 ⇒ "any") must still get the infantry route, not the
+        // first layer's partial one
+        var both = (DotRecastNavmeshProvider)new RecastNavmeshFactory().Build(world)!;
+        int m = both.PlanPath(new Vector3(104.2f, 94, 0), west, wps, 0xFFFFFFFFu, scenario);
+        Assert.True(m > 0 && Vector2.Distance(new Vector2(wps[m - 1].Position.X, wps[m - 1].Position.Y), new Vector2(west.X, west.Y)) < 0.5f,
+            $"any-layer request: the path must reach the west room — ends at {(m > 0 ? wps[m - 1].Position : default)}");
+    }
 }

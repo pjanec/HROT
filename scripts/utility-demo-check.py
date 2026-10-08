@@ -458,8 +458,8 @@ def run_attack_approach(c, timeout):
 
 
 # ── bt-doors (CE-3104, buildings 5d) — a locked front door is routed round; a closed back door is opened on the way ─────
-#   docs/DESIGN_Building_Interiors.md §3j "5d-3 / 5d-4 as built". House A (bt-range, SW corner (100,100)): front (104.5,100)
-#   LOCKED by the terrain, back (108,108) CLOSED by the scenario's TerrainObjects section, hall (105,106) open. The Visitor
+#   docs/DESIGN_Building_Interiors.md §3j "5d-3 / 5d-4 as built". House A (bt-range, SW corner (100,100)): front (104.2,100), 1.2 m
+#   LOCKED by the terrain, back (107.4,108) CLOSED by the scenario's TerrainObjects section, hall (105,106) open. The Visitor
 #   starts south of the locked front and is ordered into the west room.
 
 def doors_by_key():
@@ -484,7 +484,7 @@ def run_doors(c, timeout):
     went_in_front = []
     def watch():
         p = position(visitor)
-        if p and 103.5 <= p[0] <= 105.5 and 99.5 <= p[1] <= 101.0:
+        if p and 103.5 <= p[0] <= 104.9 and 99.5 <= p[1] <= 101.0:
             went_in_front.append(p)
         return p
 
@@ -492,7 +492,7 @@ def run_doors(c, timeout):
     opened = wait_for(lambda: (watch() and doors_by_key().get(back, {}).get("state") == "Open") and position(visitor), timeout * 2)
     if not c.ok(opened is not None, "the back door is opened"):
         return
-    dist = ((opened[0] - 108.0) ** 2 + (opened[1] - 108.0) ** 2) ** 0.5
+    dist = ((opened[0] - 107.4) ** 2 + (opened[1] - 108.0) ** 2) ** 0.5
     c.ok(dist <= 3.0, f"by the Visitor standing at it ({dist:.1f} m from the doorway)")
 
     # ③ it walks on, through the hall door, into the west room
