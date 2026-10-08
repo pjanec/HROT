@@ -131,7 +131,7 @@ namespace Hrot.SimHost.Tests
             int seededCount = seeded.GetAll().Count();
             int urbanOnly   = urbanCombatOnly.GetAll().Count();
 
-            Assert.Equal(5, urbanOnly);          // the catalogue is exactly the five templates
+            Assert.Equal(7, urbanOnly);          // the five templates + ⭐ CE-1032's Grenadier (2004) and MortarTeam (2005)
             Assert.True(seededCount > urbanOnly,
                 $"CreateTkb() carries {seededCount} templates and UrbanCombat alone is {urbanOnly}. " +
                 "CreateTkb() must ALSO carry NedTkbCatalog's content — equal counts mean a contributor " +
