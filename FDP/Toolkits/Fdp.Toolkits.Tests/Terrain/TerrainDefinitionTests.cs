@@ -183,4 +183,58 @@ public sealed class TerrainDefinitionTests
             "MEASURED 2026-09-17: the attribute is ignored on the auto-registration path, so the type "
           + "defaults to recordable. If this now fails, the engine has been fixed — delete this rail.");
     }
+
+    // ── CE-3126 (R-229): the geo origin is part of the terrain file ────────────────────────────
+
+    [Fact]
+    public void CE3126_Parse_ReadsTheOrigin_AbsentIsNull_MalformedThrows()
+    {
+        var d = TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":48.1,"lon":-11.5,"alt":420}}""");
+        Assert.Equal(new TerrainGeoOrigin(48.1, -11.5, 420), d.Origin);
+
+        Assert.Equal(new TerrainGeoOrigin(1, 2, 0), TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":1,"lon":2}}""").Origin);
+        Assert.Null(TerrainDefinitionParser.Parse("""{"schemaVersion":2}""").Origin);   // ⛔ no default — zeros downstream
+
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":1}}"""));
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":[1,2]}"""));
+        Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse("""{"schemaVersion":2,"origin":{"lat":91,"lon":0}}"""));
+    }
+
+    /// <summary>⭐ The shipped terrains carry their origin as data (Berlin — the scenarios on them store Berlin lat/lon).</summary>
+    [Theory]
+    [InlineData("test-town")]
+    [InlineData("bt-range")]
+    [InlineData("basic-desert")]
+    public void CE3126_EveryShippedTerrain_DeclaresItsOrigin(string terrain)
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
+            dir = System.IO.Path.GetDirectoryName(dir)!;
+        Assert.NotNull(dir);
+        var path = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", terrain, "terrain.json");
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(path));
+        Assert.Equal(new TerrainGeoOrigin(52.52, 13.405, 0.0), d.Origin);
+    }
+
+    /// <summary>
+    /// ⭐ A transform starts at 0,0,0 with VALID matrices (before CE-3126 a bare instance mapped everything to the origin), and
+    /// switching the origin moves the same local point to a different lat/lon while the round trip stays exact.
+    /// </summary>
+    [Fact]
+    public void CE3126_WGS84Transform_StartsAtZero_AndSwitchesOrigin()
+    {
+        var t = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+        Assert.Equal((0.0, 0.0, 0.0), t.Origin);
+        var local = new System.Numerics.Vector3(489f, 296f, 0f);
+        var (lat0, lon0, _) = t.ToGeodetic(local);
+        Assert.InRange(lat0, 0.0026, 0.0028);
+        Assert.InRange(lon0, 0.0043, 0.0045);
+
+        t.SetOrigin(52.52, 13.405, 0.0);
+        var (lat, lon, alt) = t.ToGeodetic(local);
+        Assert.InRange(lat, 52.522, 52.523);
+        var back = t.ToCartesian(lat, lon, alt);
+        Assert.True(System.Numerics.Vector3.Distance(back, local) < 0.05f, $"{back}");
+        Assert.Equal(52.52, t.Origin.lat, 9);
+    }
 }

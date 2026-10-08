@@ -205,6 +205,8 @@ class Program
 
                 // 1. Create isolated memory spaces per subsystem
                 var entityMap    = new NetworkEntityMap();
+                // ⭐ CE-3126 — the network factory holds it and the node's builder ADOPTS it (HrotNodeBuilder), so this is
+                //   the node's ONE transform — the one a terrain commit sets the origin on. 📄 docs/DESIGN_Geo_Origin.md §2 C.
                 var geoTransform = HrotEnvironment.CreateGeoTransform();
                 var eventBus     = new FdpEventBus();
         
@@ -437,7 +439,9 @@ class Program
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
                         windowCtrl?.WindowManager?.MessageLogRegistry),
                     behaviorRegistry: behaviorRegistryGetter,
-                    geoTransform: HrotEnvironment.CreateGeoTransform(),
+                    // ⭐ CE-3126 — null: the service reads the ACTIVE perspective's world singleton, the node's one transform,
+                    //   whose origin the terrain sets. A fresh instance here would stay at 0,0,0 while the cluster moved.
+                    geoTransform: null,
                     // ⭐⭐ CE-515 — the ACTIVE perspective's pack, on every node (was IG only).
                     entityCreation: ClusterDebugApiComposition.EntityCreation(subsystems),
                     aiDebugSurface: aiDebugSurfaceGetter);

@@ -42,7 +42,7 @@ public sealed class NedReplicationModuleTests
     private static NedReplicationModule BuildModule(NodeRole role)
     {
         var entityMap    = new NetworkEntityMap();
-        var geoTransform = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform();
+        var geoTransform = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
         var eventBus     = new FdpEventBus();
         return new NedReplicationModule(
             participant:  null,         // headless — no DDS
@@ -118,7 +118,7 @@ public sealed class NedReplicationModuleTests
     public void InvalidRole_Throws_ArgumentException()
     {
         var entityMap    = new NetworkEntityMap();
-        var geoTransform = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform();
+        var geoTransform = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
         var eventBus     = new FdpEventBus();
 
         Assert.Throws<ArgumentException>(() =>

@@ -82,14 +82,18 @@ namespace Hrot.Map.Common.Tests
         }
 
         [Fact]
-        public void CreateGeoTransform_UsesBerlinOrigin()
+        public void CreateGeoTransform_HasNoDefaultOrigin_ZeroUntilATerrainSetsIt()
         {
+            // ⭐ CE-3126 (R-229) — "No default berlin. Missing geo = zeros."
             var transform = HrotEnvironment.CreateGeoTransform();
 
             var (lat, lon, _) = transform.ToGeodetic(Vector3.Zero);
 
-            Assert.InRange(lat, 52.52 - CoordinateToleranceDeg, 52.52 + CoordinateToleranceDeg);
-            Assert.InRange(lon, 13.405 - CoordinateToleranceDeg, 13.405 + CoordinateToleranceDeg);
+            Assert.InRange(lat, -CoordinateToleranceDeg, CoordinateToleranceDeg);
+            Assert.InRange(lon, -CoordinateToleranceDeg, CoordinateToleranceDeg);
+            // and a local offset maps to a real point (the matrices are valid at construction, not all zeros)
+            var (lat2, lon2, _) = transform.ToGeodetic(new Vector3(1000f, 1000f, 0f));
+            Assert.True(lat2 > 0.005 && lon2 > 0.005, $"({lat2}, {lon2})");
         }
 
         [Fact]

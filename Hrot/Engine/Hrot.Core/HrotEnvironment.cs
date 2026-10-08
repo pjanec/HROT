@@ -10,10 +10,6 @@ namespace Hrot.Map.Common
     /// </summary>
     public static class HrotEnvironment
     {
-        private const double BerlinLatitudeDeg = 52.52;
-        private const double BerlinLongitudeDeg = 13.405;
-        private const double BerlinAltitudeMeters = 0.0;
-
         /// <summary>
         /// Builds the process's TKB database with the catalogue CONTENTS every host must share.
         ///
@@ -42,12 +38,21 @@ namespace Hrot.Map.Common
             return tkb;
         }
 
-        public static WGS84Transform CreateGeoTransform()
-        {
-            var transform = new WGS84Transform();
-            transform.SetOrigin(BerlinLatitudeDeg, BerlinLongitudeDeg, BerlinAltitudeMeters);
-            return transform;
-        }
+        /// <summary>
+        /// A node's geo transform, at origin 0,0,0 until a terrain commit sets the terrain's own origin
+        /// (<c>TerrainResidency.ApplyGeoOrigin</c>). ⛔ <c>CE-3126</c> (R-229) — this used to set a hard-coded Berlin origin;
+        /// 🔒 user, <c>2026-10-08</c>: <i>"No default berlin. Missing geo = zeros."</i> The shipped terrains carry Berlin as their
+        /// own data. ⚠ Call it ONCE per node — the node builder adopts the network factory's instance; a second one would not
+        /// follow the terrain. 📄 docs/DESIGN_Geo_Origin.md §2.
+        /// </summary>
+        public static WGS84Transform CreateGeoTransform() => new WGS84Transform();
+
+        /// <summary>
+        /// A geo transform at a CALLER-SUPPLIED origin (degrees, degrees, metres) — for tests and tools whose data is authored
+        /// against a known place without loading a terrain. ⛔ Production nodes take the origin from the terrain instead.
+        /// </summary>
+        public static WGS84Transform CreateGeoTransform(double latDeg, double lonDeg, double altMeters)
+            => new WGS84Transform(latDeg, lonDeg, altMeters);
 
         public static DdsParticipant CreateParticipant(int domainId)
         {

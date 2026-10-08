@@ -192,9 +192,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _activeRepo!,
-                    // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels). No geo transform here, so
-                    //   MissionPresentationGizmo is REPORTED as not drawn rather than registered by hand elsewhere.
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(behaviorRegistry),
+                    // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels, mission lines). ⭐ CE-3126 — the
+                    //   replay's geo transform (origin from the recording), so MissionPresentationGizmo draws here too.
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, behaviorRegistry),
                     GizmoUiPublisher = _gizmoUiHub,
                     // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
                     IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
@@ -294,6 +294,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
                     _manager = FederatedReplayManager.LoadGroup(paths);
                     _manager.OnTimeChanged += OnManagerTimeChanged;
+                    ApplyRecordingGeoOrigin();   // CE-3126
 
                     CreateOrReplaceFederationPanel();
 
@@ -586,6 +587,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _transientBuilder = builder;
         _manager = FederatedReplayManager.LoadGroup(paths);
         _manager.OnTimeChanged += OnManagerTimeChanged;
+        ApplyRecordingGeoOrigin();   // CE-3126
         _timelinePanel?.SetManager(_manager);
 
         CreateOrReplaceFederationPanel();
@@ -646,6 +648,42 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         // ⭐⭐ The shared list, not a local copy of three RegisterEvent calls.
         Hrot.Map.Common.PresentationComponentRegistry.RegisterAll(repo);
         EnsureNetworkEntityMap(repo);
+        // ⭐ CE-3126 — the replay's ONE geo transform, on every repo this host binds, like every other node's world.
+        repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_geoTransform);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> (R-229) — the replay's geo transform. Its origin comes from the RECORDING
+    /// (<see cref="ApplyRecordingGeoOrigin"/>), never from the terrain file at replay time: 🔒 user — <i>"Origin can be saved in
+    /// recording metadata in case terrain with remembered name no longer exists"</i>. Held by the map's projectors
+    /// (MapServices) and published on every bound repo. 📄 docs/DESIGN_Geo_Origin.md §2 F.
+    /// </summary>
+    private readonly Fdp.Modules.Geographic.Transforms.WGS84Transform _geoTransform = new();
+
+    /// <summary>The replay's geo transform (test seam).</summary>
+    internal Fdp.Modules.Geographic.IGeographicTransform GeoTransform => _geoTransform;
+
+    /// <summary>
+    /// ⭐ <c>CE-3126</c> — sets the replay's origin from the loaded recording's metadata (the local-entities provider node's,
+    /// else any node's that has one). A recording that pre-dates the field keeps 0,0,0 and says so.
+    /// </summary>
+    private void ApplyRecordingGeoOrigin()
+    {
+        if (_manager == null) return;
+        Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? origin = null;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
+            origin = primary.Playback?.Metadata?.GeoOrigin;
+        if (origin == null)
+            foreach (var ctx in _manager.Contexts.Values)
+                if ((origin = ctx.Playback?.Metadata?.GeoOrigin) != null) break;
+        if (origin == null)
+        {
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn(
+                "[ReplayBrowser] the recording carries no geo origin (it pre-dates CE-3126) — lat/lon shown at origin 0,0,0.");
+            _geoTransform.SetOrigin(0.0, 0.0, 0.0);
+            return;
+        }
+        _geoTransform.SetOrigin(origin.Lat, origin.Lon, origin.Alt);
     }
 
     /// <summary>
@@ -791,6 +829,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _manager?.Dispose();
         _manager = FederatedReplayManager.LoadGroup(new[] { path });
         _manager.OnTimeChanged += OnManagerTimeChanged;
+        ApplyRecordingGeoOrigin();   // CE-3126
         _timelinePanel?.SetManager(_manager);
         OnManagerTimeChanged();
     }

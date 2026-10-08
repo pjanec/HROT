@@ -28,14 +28,6 @@ public static class IgNetworkConstants
     /// </summary>
     public const int MapGroupId = 1;
 
-    // --- Geographic origin (default exercise area, degrees) ---
-
-    /// <summary>Default WGS84 latitude origin for the exercise area.</summary>
-    public const double GeoOriginLatDeg = 52.52;
-
-    /// <summary>Default WGS84 longitude origin for the exercise area.</summary>
-    public const double GeoOriginLonDeg = 13.405;
-
-    /// <summary>Default WGS84 altitude origin (meters above ellipsoid).</summary>
-    public const double GeoOriginAltMeters = 0.0;
+    // ⛔ CE-3126 (R-229) — the default exercise-area origin (Berlin) that lived here is gone: nothing read it, and the origin
+    //   now comes from the terrain file ("No default berlin. Missing geo = zeros."). 📄 docs/DESIGN_Geo_Origin.md.
 }

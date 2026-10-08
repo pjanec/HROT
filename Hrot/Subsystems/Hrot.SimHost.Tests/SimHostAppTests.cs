@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domain);
 
             var entityMap      = new NetworkEntityMap();
-            var wgs84          = HrotEnvironment.CreateGeoTransform();
+            var wgs84          = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var behaviorReg    = new BehaviorRegistry();
             var compiler       = AttributeCompilerFactory.Build(wgs84);
 

@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Replay
 
             if (++_framesSinceKeyframe >= KeyframeInterval)
             {
+                StampWorld(repo, _recorder.Metadata);   // CE-3126 — cheap; once per keyframe keeps it current
                 _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
                 _framesSinceKeyframe = 0;
             }
@@ -65,6 +66,24 @@ namespace Fdp.Toolkit.Replay
             }
 
             _prevTick = repo.GlobalVersion;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — writes the recorded world's terrain name and geo origin into <paramref name="metadata"/>:
+        /// the terrain so a replay can load it by name, the origin so it is placed where it was recorded even if that terrain
+        /// is gone or its origin edited since. Both read from world singletons; a world without them leaves the fields as
+        /// they are. 📄 docs/DESIGN_Geo_Origin.md §2 E.
+        /// </summary>
+        public static void StampWorld(EntityRepository repo, Fdp.Core.FlightRecorder.Metadata.RecordingMetadata metadata)
+        {
+            metadata.TerrainName = Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo) ?? "";
+            if (repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                && repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() is { } geo)
+            {
+                var (lat, lon, alt) = geo.Origin;
+                var o = metadata.GeoOrigin ??= new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord();
+                o.Lat = lat; o.Lon = lon; o.Alt = alt;
+            }
         }
     }
 }

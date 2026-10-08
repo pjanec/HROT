@@ -73,7 +73,7 @@ public sealed class ClusterOpE2eScriptTests
         var factory = new NedNetworkFactory(
             participant:  testParticipant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.None);

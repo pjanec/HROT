@@ -41,7 +41,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         var factory = new NedNetworkFactory(
             participant:  null,
             entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
@@ -51,7 +51,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         var igFactory = new NedNetworkFactory(
             participant:  _igParticipant,
             entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.Map2D);

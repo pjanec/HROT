@@ -65,7 +65,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         var factory = new NedNetworkFactory(
             participant:  participant,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.None);

@@ -75,7 +75,25 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public string World { get; init; } = string.Empty;
 
+        /// <summary>
+        /// ⭐ <c>CE-3126</c> (R-229) — where the terrain's local metres sit on the Earth: the geodetic point its (0,0,0) is.
+        /// Committing the terrain sets every node's geo transform to it (<c>TerrainResidency.Commit</c>), so lat/lon on the wire
+        /// and in exports follow the terrain. ⛔ No default in code: a terrain that declares none has origin 0,0,0 (said once in
+        /// the log). 📄 docs/DESIGN_Geo_Origin.md §2 A/B.
+        /// </summary>
+        public TerrainGeoOrigin? Origin { get; init; }
+
         /// <summary>True when this definition declares nothing to load — legal, and not an error.</summary>
         public bool IsEmpty => RoadNetworks.Count == 0 && string.IsNullOrEmpty(World);
+    }
+
+    /// <summary>
+    /// A geodetic point — latitude and longitude in degrees, altitude in metres — as a terrain file declares its origin.
+    /// 📄 docs/DESIGN_Geo_Origin.md §2 A.
+    /// </summary>
+    public readonly record struct TerrainGeoOrigin(double Lat, double Lon, double Alt)
+    {
+        /// <summary>The origin a node has when no terrain says otherwise.</summary>
+        public static readonly TerrainGeoOrigin Zero = new(0.0, 0.0, 0.0);
     }
 }

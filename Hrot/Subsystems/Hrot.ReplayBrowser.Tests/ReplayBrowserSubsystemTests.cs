@@ -874,4 +874,37 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         Assert.Equal(initialTicks, _subsystem.Manager!.BaseWallTicks);
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3126 (R-229) — the recorder writes the terrain name and the geo origin into the recording's metadata, and the
+    /// Replay Browser places the replay at THAT origin (not the terrain file's at replay time — the terrain may be gone).
+    /// 📄 docs/DESIGN_Geo_Origin.md §2 E/F.
+    /// </summary>
+    [Fact]
+    public void CE3126_TheRecordingCarriesItsOrigin_AndTheReplayUsesIt()
+    {
+        string path = Path.Combine(_tempDir, "geo.fdp");
+        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 };
+        using (var repo = new EntityRepository())
+        {
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform(48.1, 11.5, 500.0);
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = "test-town" });
+            using var rec = new AsyncRecorder(path, meta);
+            Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+            rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        }
+        var written = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(path + ".meta.json"));
+        Assert.Equal("test-town", written.TerrainName);
+        Assert.NotNull(written.GeoOrigin);
+        Assert.Equal(48.1, written.GeoOrigin!.Lat, 9);
+
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        var (lat, lon, alt) = _subsystem.GeoTransform.Origin;
+        Assert.Equal(48.1, lat, 9);
+        Assert.Equal(11.5, lon, 9);
+        Assert.Equal(500.0, alt, 9);
+    }
 }

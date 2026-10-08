@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — A revised, B revised, C–F approved by the user 2026-10-08 (CE-3126)
+build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class)
 updated: 2026-10-08
-current-answer: §2 the decisions (leans) · §3 the UML
-stale-below: none
+current-answer: §2 the decisions · §3 the UML (as-built) · §4 as-built notes
+stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: none
 known-conflict: none
 related-designs:
@@ -41,7 +41,7 @@ Today every node turns local metres into lat/lon with a hard-coded Berlin origin
 |---|---|---|
 | **A** ✅ *(revised)* | `terrain.json` gains `"origin": { "lat", "lon", "alt" }` → `TerrainDefinition.Origin`. ⛔ **No Berlin default in code** (`HrotEnvironment.CreateGeoTransform`'s hard-coded origin goes). The shipped terrains carry Berlin as their OWN DATA — measured: `scenarios/tt-nav-los` (test-town) stores its move target as Berlin lat/lon | origin in the scenario — two scenarios on one terrain could disagree about where it is |
 | **B** ✅ *(revised)* | a terrain WITHOUT an origin — and a node with no terrain loaded — has origin **0, 0, 0**, said once in the log. ⚠ Measured consequence: `scenarios/test-move` has no terrain and stores a Berlin lat/lon target ⇒ its value is rewritten to the same local point under 0,0,0 | a Berlin default — ruled out; refuse to load — breaks every terrain without an origin |
-| **C** ✅ | ONE transform per node: `GeoOrigin` (Hrot.Core) — an `IGeographicTransform` that holds an IMMUTABLE `WGS84Transform` snapshot and swaps it atomically. `HrotNodeBuilder` creates it; the replication module, the network factories, `SimHostApp`, the runner and Stride take `Context.GeoTransform` instead of calling `CreateGeoTransform()` again; it is the world singleton too | call `SetOrigin` on each of today's instances — they are not all reachable, and `SetOrigin` is not thread-safe |
+| **C** ✅ *(⚠ as-built differs — §4 ①)* | ONE transform per node: `GeoOrigin` (Hrot.Core) — an `IGeographicTransform` that holds an IMMUTABLE `WGS84Transform` snapshot and swaps it atomically. `HrotNodeBuilder` creates it; the replication module, the network factories, `SimHostApp`, the runner and Stride take `Context.GeoTransform` instead of calling `CreateGeoTransform()` again; it is the world singleton too | call `SetOrigin` on each of today's instances — they are not all reachable, and `SetOrigin` is not thread-safe |
 | **D** ✅ | `TerrainResidency.Commit` sets the origin (`GeoOrigin.Set(definition.Origin)`) — on every node, in the same cluster transaction that commits the terrain | a separate "set origin" message — a second protocol that can disagree with the terrain |
 | **E** ✅ | `RecordingMetadata` gains `TerrainName` (with `CE-3118`) AND `GeoOrigin`; the recorder writes the node's current origin | name only — the user's case: the named terrain may be gone, or its origin edited since |
 | **F** ✅ | the Replay Browser sets its `GeoOrigin` from the recording's metadata (authoritative for that recording), then loads the terrain by name if it still exists (`CE-3118`) | origin from the terrain file at replay time — wrong if the file changed after recording |
@@ -58,28 +58,31 @@ classDiagram
   direction LR
   class IGeographicTransform { <<existing>> ToCartesian(lat,lon,alt) ToGeodetic(v) Origin }
   class WGS84Transform { <<existing>> SetOrigin is NOT thread-safe }
-  class GeoOrigin { <<NEW, Hrot.Core>> Set(origin) swaps an immutable WGS84Transform snapshot }
-  class TerrainDefinition { <<existing, grows>> +Origin lat lon alt }
-  class TerrainDefinitionParser { <<existing, grows>> reads origin, default + log when absent }
-  class TerrainResidency { <<existing, grows>> Commit sets GeoOrigin }
-  class HrotNodeBuilder { <<existing, changes>> creates the ONE GeoOrigin = Context.GeoTransform }
-  class RecordingMetadata { <<existing, grows>> +TerrainName +GeoOrigin }
-  class ReplayBrowserSubsystem { <<existing, grows>> GeoOrigin from metadata, passes it to the map }
+  class WGS84Transform { <<existing, changed>> immutable State swapped atomically; starts at 0,0,0 }
+  class INetworkFactory { <<existing, grows>> +GeoTransform }
+  class TerrainDefinition { <<existing, grows>> +Origin TerrainGeoOrigin? }
+  class TerrainDefinitionParser { <<existing, grows>> reads origin; absent = null; malformed throws }
+  class TerrainResidency { <<existing, grows>> Commit / Unload call ApplyGeoOrigin }
+  class HrotNodeBuilder { <<existing, changes>> adopts ExternalGeoTransform or the factory's; publishes the world singleton }
+  class RecordingMetadata { <<existing, grows>> +TerrainName +GeoOrigin GeoOriginRecord }
+  class RecorderTickSystem { <<existing, grows>> StampWorld per keyframe }
+  class ReplayBrowserSubsystem { <<existing, grows>> own WGS84Transform, origin from metadata }
   class DdsTranslators { <<existing>> hold IGeographicTransform }
-  GeoOrigin ..|> IGeographicTransform
-  GeoOrigin o-- WGS84Transform
-  HrotNodeBuilder --> GeoOrigin
+  WGS84Transform ..|> IGeographicTransform
+  INetworkFactory --> IGeographicTransform
+  HrotNodeBuilder ..> INetworkFactory
+  HrotNodeBuilder --> WGS84Transform
   TerrainResidency ..> TerrainDefinition
-  TerrainResidency ..> GeoOrigin
+  TerrainResidency ..> IGeographicTransform : world singleton
   TerrainDefinitionParser ..> TerrainDefinition
   DdsTranslators ..> IGeographicTransform
-  RecordingMetadata ..> GeoOrigin
+  RecorderTickSystem ..> RecordingMetadata
   ReplayBrowserSubsystem ..> RecordingMetadata
-  ReplayBrowserSubsystem ..> GeoOrigin
+  ReplayBrowserSubsystem --> WGS84Transform
 ```
 
-*What the picture shows that prose hid:* nothing that converts holds a `WGS84Transform` any more — they all hold the interface, and the one
-object behind it on a node can change its origin without any of them being rebuilt.
+*What the picture shows that prose hid:* every converter holds the interface, and on a node it is ONE object — the network factory's,
+adopted by the builder and published as the world singleton — so the terrain commit reaches it through the world without any wiring.
 
 ### Sequence — a cluster load switches every node's origin together
 
@@ -88,14 +91,14 @@ sequenceDiagram
   participant O as Orchestrator (load transaction)
   participant T as TerrainLoadStep (each node)
   participant R as TerrainResidency
-  participant G as GeoOrigin
+  participant G as World singleton IGeographicTransform
   participant X as DDS translators
   O->>T: prepare(terrain name)
   T->>R: Prepare (off-thread) reads terrain.json incl. origin
   O->>T: commit
   T->>R: Commit (main thread)
-  R->>G: Set(definition.Origin)
-  Note over G: atomic snapshot swap
+  R->>G: ApplyGeoOrigin, SetOrigin(definition.Origin or 0,0,0)
+  Note over G: atomic State swap
   X->>G: ToGeodetic / ToCartesian (next frame, new origin)
 ```
 
@@ -105,15 +108,33 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  NB[HrotNodeBuilder, every node] -->|creates ONE| GO[GeoOrigin]
+  NF[Network factory, runner / Stride] -->|holds| GO[the node's WGS84Transform]
+  NB[HrotNodeBuilder, every node] -->|adopts + publishes| GO
   GO -->|Context.GeoTransform| REP[Replication module + network factories]
   GO -->|world singleton| WS[debug API, map pick, drag gizmo, AI nodes]
   GO -->|MapServices| MAP[map gizmos]
   TR[TerrainResidency.Commit, cluster load] -->|Set origin| GO
   REC[Recorder] -->|writes origin + terrain name| META[RecordingMetadata]
-  META -->|Set origin| RGO[Replay Browser GeoOrigin]
+  META -->|SetOrigin| RGO[Replay Browser WGS84Transform]
   OLD[today: 6+ CreateGeoTransform calls per process]
   style OLD stroke:#c00,stroke-dasharray: 5 5
 ```
 
-*What it shows:* the dashed box is what goes away — every extra `CreateGeoTransform()` becomes a reference to the node's one `GeoOrigin`.
+*What it shows:* the dashed box is what goes away — every extra `CreateGeoTransform()` on a node becomes a reference to the node's one transform.
+
+## 4. As-built *(`CE-3126`, `2026-10-08`)*
+
+| # | what was built | where |
+|---|---|---|
+| ① ⚠ **deviation from C** | ⛔ no `GeoOrigin` class. `WGS84Transform` itself now keeps everything derived from the origin in one immutable `State`, swapped by a single volatile write, and starts at 0,0,0 with valid matrices. ⭐ Reuse over build: that makes EVERY instance safe to switch, not only a new wrapper's — and a bare `new WGS84Transform()` no longer maps everything to the origin (its matrices used to be all zeros until `SetOrigin`) | `WGS84Transform.cs` |
+| ② | one transform per node: `INetworkFactory.GeoTransform` (NED/BDC return theirs) → `HrotNodeBuilder` adopts `HrotNodeConfig.ExternalGeoTransform` ?? the factory's ?? a new one, and **publishes it as the world singleton on every node** (IG published none before). The replication extensions take `context.GeoTransform`; SimHostApp adopts the factory's and passes it as `ExternalGeoTransform`; the runner's cluster debug API passes `null` so it reads the active perspective's singleton | `HrotNodeBuilder.cs`, `HrotNodeBuilderReplicationExtensions.cs`, `SimHostApp.cs`, `ClusterRunner/Program.cs` |
+| ③ | `TerrainResidency.ApplyGeoOrigin(world, origin, name)` sets the world singleton's origin — called by `Commit` (before the definition is published) and `Unload` (zeros). Missing origin ⇒ 0,0,0 plus one warning | `TerrainResidency.cs` |
+| ④ | `HrotEnvironment.CreateGeoTransform()` returns a transform at 0,0,0 — **no Berlin in code**. The three shipped terrains carry `"origin": {52.52, 13.405, 0}` as data; `scenarios/test-move` (no terrain) has its move target rewritten to the same local point (489, 296) under 0,0,0 | `HrotEnvironment.cs`, `Recipes/Terrain/*/terrain.json`, `scenarios/test-move` |
+| ⑤ | `RecordingMetadata.TerrainName` + `GeoOrigin` (`GeoOriginRecord`), stamped by `RecorderTickSystem.StampWorld` at each keyframe from the world singletons (the only production keyframe path) | `RecordingMetadata.cs`, `RecorderTickSystem.cs` |
+| ⑥ | the Replay Browser owns a `WGS84Transform`, publishes it on every repo it binds, gives it to the map (`MapServices`, so mission lines now draw in replay), and sets its origin from the loaded recording's metadata; a recording without one ⇒ 0,0,0 plus a warning | `ReplayBrowserSubsystem.cs` |
+
+| ⑦ | tests that author positions against Berlin without a terrain now SAY so: `HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0)` (an explicit-origin overload; 24 test call sites). The unread `IgNetworkConstants.GeoOrigin*` Berlin constants are deleted | test projects, `IgNetworkConstants.cs` |
+
+⚠ **Left, flagged:** `NodeConfiguration.GeodeticOrigin` (a config default, Tel Aviv) is read by nothing but its own config tests — a second origin source in name only. Lean: retire it with the next SimHost config change; not removed here (no rush removals).
+
+⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.

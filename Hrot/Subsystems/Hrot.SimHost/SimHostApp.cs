@@ -336,7 +336,10 @@ namespace Hrot.SimHost
             FdpLog<SimHostApp>.Info("[Node-{0}] Simulation Rate: {1} Hz", localNodeId, nodeConfig.SimulationRateHz);
 
             // ── 2. Geodetic transform — created before builder so behavior lambdas can close over it ──
-            var wgs84     = HrotEnvironment.CreateGeoTransform();
+            // ⭐ CE-3126 — the node's ONE transform: the network factory's (its translators already convert with it), else a
+            //   fresh one; handed to the builder below (ExternalGeoTransform) so the context, the world singleton and the wire
+            //   agree, and a terrain commit moves all of them. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+            var wgs84     = _networkFactory?.GeoTransform ?? HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
             // ── 3. Behavior registry (empty on the Muscle shell; Brain behaviors live in CgfBehaviorSetup) ──
@@ -365,6 +368,7 @@ namespace Hrot.SimHost
                 NodeId              = localNodeId,
                 Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
                 ExternalParticipant = shellParticipant,
+                ExternalGeoTransform = wgs84,   // CE-3126
                 LocalTempRoot       = Path.Combine(
                     string.IsNullOrEmpty(nodeConfig.LocalTempRoot)
                         ? Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()
