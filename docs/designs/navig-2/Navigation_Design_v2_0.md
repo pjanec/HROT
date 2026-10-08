@@ -827,7 +827,14 @@ map, before any cost is taken. 📌 Found by the S5 live run: in `ua-danger-cros
 `Cross` first sends it to a near handle where it already stands. The navmesh cost of that move was "no path", and the point merge
 in `RoadGraphRouter.Append` collapsed it to one point. Either way the move failed every tick and the unit crept across at about
 0.03 m/s without arriving. The pre-CE-3128 navmesh solve had returned the two points. Rail:
-`CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute`. **With no navmesh the road graph remains the only planner** (as before), so a `Never` order
+`CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute`.
+
+**S5 as run (`2026-10-08`).** Live on fresh clusters: `ua-danger-crossing` FAILED at first (the defect above, and the
+pre-CE-3128 base passed the same run), then PASSED with the fix. `ua-danger-crossing-bp`, `ua-posture`, `ua-attack-approach`
+and `ua-threat-ranking` PASSED. ⚠ **The "vehicle with `Prefer` drives Main Street, with `Never` cuts across" check ran
+in-process, not live** (`CE3128_ShippedTestTown_PreferDrivesMainStreet_NeverDoesNot`, a real Recast mesh on the shipped
+test-town). No scenario can author `Never` until `CE-3130`, and the only test-town vehicle scenario (`tt-nav-los`) has no
+check script. **With no navmesh the road graph remains the only planner** (as before), so a `Never` order
 there is unreachable. `DdsPathRequest` (the scale-out solver node's wire) still carries only `MobilityProfile` — it already
 dropped `BackendForce` and the layer; `RoadUse` joins that known gap (`CE-3129`). Rails: `PathfindingSolverBackendSelectionTests`
 `CE3128_*` (the actor's choice, two-way, mid-segment entry, curve, the replan carrying the order, the default by class),
