@@ -15,7 +15,7 @@ related-designs:
     T5 (Z picks the floor), T7 (multi-level), T8 (Stride renders the same file, "later").
   - DESIGN_Add_Entity_Picker.md §2c — level 0 = ground everywhere; filed CE-1031, which this doc resolves.
   - designs/navig-2/Navigation_Design_v2_0.md — owns TraversalKind.Door (§4) and multi-layer navmesh (§8); doors here
-    feed it.
+    feed it. §14 OWNS runtime navmesh change (R-218): 5c's door filter is its STATE half; wall breaching (E3) waits on its P2.
   - designs/group-maneuvers/Squad_Coordination_Design_v1_1.md §8.6 — stack-and-room-entry; built roles, no geometry.
   - blueprints/Architect_Question_85_Hit_Chance.md §D — bullets against terrain walls; shares this doc's trace query.
   - DESIGN_Terrain_Combat_Tuning.md — OWNS the defaults (reference library + provenance), the demo/test plan and the
@@ -690,7 +690,7 @@ sequenceDiagram
 
 | decision | lean | rejected (one line each) |
 |---|---|---|
-| **N1** how a door's state reaches the planner | ⭐ a `DoorAwareQueryFilter` reads `TerrainWorld.DoorState` at query time — ⚠ **mechanism changed from §3a's `SetPolyFlags`**, behaviour identical | runtime `SetPolyFlags` — mutates the mesh two background threads read (CE-2122) · a mesh copy per state change — a rebake by another name |
+| **N1** how a door's state reaches the planner | ⭐ a `DoorAwareQueryFilter` reads `TerrainWorld.DoorState` at query time (the STATE half of Navigation v2 §14; geometry changes use its snapshot swap — R-218) — ⚠ **mechanism changed from §3a's `SetPolyFlags`**, behaviour identical | runtime `SetPolyFlags` — mutates the mesh two background threads read (CE-2122) · a mesh copy per state change — a rebake by another name |
 | **N2** which agents may open doors | ⭐ the Infantry layer (closed = passable at a cost); the Vehicle layer never uses a door poly | a per-agent capability component — none exists and nothing would write it yet; add it when a unit type needs to differ |
 | **N3** the cost of a closed door | ⭐ `ClosedDoorPenaltyMetres = 10` added when entering a closed door's poly — a detour shorter than ~10 m wins | no penalty — a closed door would look free · a multiplier — a doorway poly is short, so it would barely register |
 | **N4** door waypoints and replanning | ⭐ `PlanPath` marks `Traversal = Door` now; **carrying it through the trajectory pool, and replanning on a door change, move to 5d** with their consumer (the door action) | carrying it now — three hops (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`) for a value nothing reads until 5d |

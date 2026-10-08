@@ -1,13 +1,17 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
-current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; the rest is the
-  architectural contract.
+updated: 2026-10-08 (§14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+current-answer: §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
+  navmesh change, rewritten 2026-10-08, R-218); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
-  - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6)
+  - ../../DESIGN_Building_Interiors.md — authors the doors behind TraversalKind.Door (door area on navmesh polygons, B5/B6);
+    §3j 5c is the STATE half of §14 (the door-aware query filter)
+  - ../../blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T6: placed static obstacles are baked by rebuilding
+    the affected tiles — the GEOMETRY half of §14 (P2)
+  - ../../blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — R7: the per-node tile cache (P2's cache)
   - docs/DESIGN_Terrain_World.md — owns the terrain world, the Recast bake per terrain and W6 (which hosts compose the solver).
   - docs/designs/brain-death/BD1-DESIGN.md — owns the Brain lifecycle; §1.1 is why MoveToExecutor.OnExit's STOP must reach the
     Muscle (the egress publishes a Mode None with an IntentId since CE-3026).
@@ -1209,15 +1213,92 @@ In all-in-one mode, the same call resolves directly against the shared in-proces
 | `ActionIdJoinFormation` | Kept (deferred design) | Will surface in formations doc |
 | `ActionIdFollowRoadGraph` | **Removed** | Subsumed by `MoveTo` with `BackendForce = RoadGraph` |
 
-## 14. Patch-propagation forward-compatibility
+## 14. Runtime navmesh change — patch propagation *(rewritten `2026-10-08`, approved)*
 
-- API surface in place:
-  - `INavmeshProvider.QueryVersion(bounds, layerMask)` → returns constant `1` initially
-  - `PathResult.NavmeshVersionAtPlan` carried but never differs initially
-  - `NavigationStatus.NavmeshVersionObserved` carried but never differs initially
-  - `MoveToExecutor` replan-on-version-mismatch logic in place but never fires initially
-- Final stage: `INavmeshProvider` implementation maintains regional version vectors; patches bump regional versions; `QueryVersion` becomes meaningful. No Brain-side code changes required.
-- Patch propagation DDS shape: deferred, brief sketch in §14.x of the final doc.
+> 🔒 **User, `2026-10-08`:** *"So we cant write to the navmesh at all? No changes ever at runtime? We will need to one day. How
+> can we make it possible, prepare for that?"* → **"Approved"** — runtime navmesh change: P1 snapshot now, P2 tiles with
+> CE-1029, P3 replan in 5d (R-218).
+
+⭐ **The navmesh CAN change at runtime — never IN PLACE under a query.** Two kinds of change, two mechanisms:
+
+| change | examples | mechanism | state |
+|---|---|---|---|
+| **STATE on fixed geometry** | a door, smoke, a danger cost, a pre-baked bridge up/down | the **query filter** reads the live state at query time — the polygons were baked with their own area id | ✅ doors (`DoorAwareQueryFilter`, Building Interiors §3j 5c) |
+| **GEOMETRY** | a breached wall, a crater, a collapsed or placed building (AQ81 T6) | **copy-on-write**: rebuild off-thread, **swap one immutable snapshot** atomically; in-flight queries finish on the old one | ⭐ P1 snapshot ✅ · P2 tiles ⏭ |
+
+```mermaid
+classDiagram
+    direction LR
+    class INavmeshProvider { <<existing>> PlanPath · PathExists · PathCost · QueryVersion() }
+    class SwitchableNavmeshProvider { <<existing>> Publish(provider) — whole-provider swap at terrain commit, generation in QueryVersion }
+    class DotRecastNavmeshProvider { <<existing>> Volatile Snapshot NEW (P1) · Rebake = build a new snapshot, swap }
+    class NavmeshSnapshot { <<NEW P1, immutable>> per layer: DtNavMesh + filter + door polys · Version }
+    class DoorAwareQueryFilter { <<existing, 5c>> STATE changes: reads live door state }
+    class NavmeshTileRebuilder { <<P2, with CE-1029>> rebuild the tiles a change touches, off-thread, into a NEW snapshot }
+    class PathReplanCheck { <<P3, with 5d>> a path whose stamped version is older than the region's ⇒ replan }
+    INavmeshProvider <|.. SwitchableNavmeshProvider
+    INavmeshProvider <|.. DotRecastNavmeshProvider
+    SwitchableNavmeshProvider o-- DotRecastNavmeshProvider
+    DotRecastNavmeshProvider --> NavmeshSnapshot : one field, swapped whole
+    NavmeshSnapshot *-- DoorAwareQueryFilter : one per layer
+    NavmeshTileRebuilder ..> NavmeshSnapshot : produces
+    PathReplanCheck ..> INavmeshProvider : QueryVersion
+```
+*What it shows that prose hid:* a query reads ONE snapshot field once and uses only that object, so a swap can never be seen
+half-done — the same reason the whole-provider `Publish` at terrain load is already safe. The tile rebuilder (P2) only ever
+PRODUCES a snapshot; nothing writes into one.
+
+```mermaid
+sequenceDiagram
+    participant C as a geometry change (P2: asset op / breach)
+    participant B as NavmeshTileRebuilder (off-thread)
+    participant P as DotRecastNavmeshProvider
+    participant Q as solver / EQS query (background)
+    participant N as NavigationExecution (P3)
+    C->>B: affected bounds
+    B->>B: copy the current tiles, rebuild the touched ones
+    Q->>P: PlanPath — reads snapshot S1 once
+    B->>P: swap S1 for S2 (Volatile write), version + 1
+    Q-->>Q: finishes on S1, untouched
+    N->>P: QueryVersion() newer than the path's stamp
+    N->>N: replan (P3)
+```
+
+```mermaid
+graph TD
+    TR["TerrainResidency.Commit — main thread"] -->|"Publish(whole provider)"| SW["SwitchableNavmeshProvider"]
+    SW --> DR["DotRecastNavmeshProvider"]
+    SOL["PathfindingSolverSystem — SlowBackground"] -->|"reads one snapshot per call"| DR
+    EQS["EQS module — background"] -->|"reads one snapshot per call"| DR
+    RB["Rebake / P2 tile rebuild"] -.->|"swaps the snapshot (P1 makes this safe)"| DR
+    NX["NavigationExecutionSystem"] -.->|"P3 — compares versions, not built"| SW
+    style RB stroke-dasharray: 5 5
+    style NX stroke-dasharray: 5 5
+```
+*Dashed = not reached today:* `Rebake` has no production caller, and nothing compares path versions — 📐 measured
+`2026-10-08` (`PathfindingSolverSystem.cs:422` stamps `NavmeshVersionAtPlan`; no reader in production).
+
+| step | what | when | why then |
+|---|---|---|---|
+| **P1** | the provider's per-layer state becomes ONE immutable `NavmeshSnapshot` behind a `Volatile` field; every query reads it once; `Rebake` builds a new one and swaps | ✅ built `2026-10-08` | the seam every later change goes through; closes the race `Rebake`'s own comment admitted — 📐 **red-proved**: the rail `P1_RebakeWhileOtherThreadsQuery_NeverSeesAHalfSwappedMesh_AndTheVersionMoves` against the pre-P1 provider gives 1493 bad answers in one run (queries seeing no mesh, *"Collection was modified"*); green with P1 |
+| **P2** | tiled bake (`DtNavMeshParams`, ~32 m tiles; `AddTile`/`RemoveTile` are in the shipped DotRecast) + a tile rebuilder producing a new snapshot | with **CE-1029** (slow terrain load) | the same change gives parallel bake and a disk cache; a single-tile mesh today (`RecastNavmeshBaker.cs:281`) means any geometry change is a whole-map rebake |
+| **P3** | replan when the navmesh version moved under a path (regional versions when P2 has regions) | with **Building Interiors 5d** | a door change needs it too; the stamps already ride every path |
+
+| rejected | the one fact |
+|---|---|
+| in-place edits (`SetPolyFlags`, tile replace) under a lock | every query pays the lock; a second concurrency model on the shared mesh (CE-2122) |
+| DotRecast TileCache obstacles | AQ81 T6 rejected them — boxes/cylinders only, a 2nd mechanism beside the asset build; package not referenced |
+| whole-map rebake per change | grows with the map; unmeasured (CE-1029: no bake time ever logged) — tiles fix it structurally |
+
+⛔ **Corrected claims of the original §14** *(it said "API surface in place")*: `QueryVersion(bounds, layerMask)` was never
+built — the as-built is `QueryVersion()` with no region; "`MoveToExecutor` replan-on-version-mismatch logic in place" — **no
+such logic exists** (measured). Both are P3's work. Patch-propagation DDS shape: still deferred — each navigation node rebuilds
+from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
+
+## ⛔ HISTORY — §14 as first written
+
+> - API surface in place: `INavmeshProvider.QueryVersion(bounds, layerMask)` → returns constant `1` initially · `PathResult.NavmeshVersionAtPlan` carried but never differs initially · `NavigationStatus.NavmeshVersionObserved` carried but never differs initially · `MoveToExecutor` replan-on-version-mismatch logic in place but never fires initially
+> - Final stage: `INavmeshProvider` implementation maintains regional version vectors; patches bump regional versions; `QueryVersion` becomes meaningful. No Brain-side code changes required.
 
 ## 15. Performance & budgeting
 

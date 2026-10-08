@@ -64,15 +64,30 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
             _query  = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
         }
 
-        // ⚠ Deliberately NOT disposing the ThreadLocal: Rebake disposes the old layers on the main thread while a background module
-        //   may still be mid-query on them; a disposed ThreadLocal would throw there. The old queries are collected with the layer.
+        // ⚠ Deliberately NOT disposing the ThreadLocal: a swapped-out snapshot may still be mid-query on a background module
+        //   (P1); a disposed ThreadLocal would throw there. The old queries are collected with the snapshot.
         public void Dispose() { /* DotRecast meshes have no unmanaged resources */ }
     }
 
     // ── Fields ───────────────────────────────────────────────────────────────
 
-    private readonly Dictionary<NavLayerMask, LayerState> _layers = new();
-    private uint _queryVersion;
+    /// <summary>
+    /// ⭐⭐ Navigation v2 §14 P1 (R-218) — ONE immutable snapshot of every layer's mesh + filter, behind a single field. A query reads it
+    /// ONCE (<see cref="Current"/>) and uses only that object; a change builds a NEW snapshot and swaps the field (<see cref="Rebake"/>,
+    /// later P2's tile rebuilder). ⇒ the navmesh can change at runtime and an in-flight query on another thread (CE-2122) finishes on the
+    /// old snapshot, untouched. ⛔ Never mutate a snapshot's dictionary or mesh after it is published.
+    /// </summary>
+    private sealed class Snapshot
+    {
+        public readonly IReadOnlyDictionary<NavLayerMask, LayerState> Layers;
+        public readonly uint Version;
+        public Snapshot(IReadOnlyDictionary<NavLayerMask, LayerState> layers, uint version) { Layers = layers; Version = version; }
+    }
+
+    private Snapshot _snapshot = new(new Dictionary<NavLayerMask, LayerState>(), 0);
+
+    /// <summary>The published snapshot — read it ONCE per query.</summary>
+    private Snapshot Current => Volatile.Read(ref _snapshot);
 
     // ── Construction ─────────────────────────────────────────────────────────
 
@@ -87,9 +102,10 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// <param name="meshes">Map from single-bit <see cref="NavLayerMask"/> to its <see cref="DtNavMesh"/>.</param>
     public DotRecastNavmeshProvider(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes)
     {
+        var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
-            _layers[kv.Key] = new LayerState(kv.Value);
-        _queryVersion = 1;
+            layers[kv.Key] = new LayerState(kv.Value);
+        _snapshot = new Snapshot(layers, 1);
     }
 
     /// <summary>
@@ -100,14 +116,15 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     public DotRecastNavmeshProvider(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes, Fdp.Toolkit.Terrain.TerrainWorld world,
         IReadOnlyList<NavDoorways.Volume> doorways)
     {
+        var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
-            _layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
+            layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
                 NavDoorways.DoorPolys(kv.Value, doorways), world, canOpenDoors: kv.Key == NavLayerMask.Infantry));
-        _queryVersion = 1;
+        _snapshot = new Snapshot(layers, 1);
     }
 
     /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
-    public int DoorPolyCount(NavLayerMask layer) => _layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
+    public int DoorPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
 
     // ── NavMesh access (for DotRecastDtCrowdProvider construction) ───────────
 
@@ -121,7 +138,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     /// <returns>True when the layer is present.</returns>
     public bool TryGetNavMesh(NavLayerMask layer, out DtNavMesh? navMesh)
     {
-        if (_layers.TryGetValue(layer, out var ls))
+        if (Current.Layers.TryGetValue(layer, out var ls))
         {
             navMesh = ls.NavMesh;
             return true;
@@ -133,16 +150,17 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     // ── Rebake ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Replaces all navmeshes with a new baked set and increments <see cref="QueryVersion"/>.
-    /// Thread-unsafe; call only from the sim thread.
+    /// Replaces all navmeshes with a new baked set and increments <see cref="QueryVersion"/>. ⭐ P1 (R-218): safe while other threads
+    /// query — they finish on the snapshot they already hold. Concurrent CALLS of Rebake are last-writer-wins (one writer expected).
+    /// <para>⚠ The new layers carry the plain filter; a door-aware rebake goes through <see cref="RecastNavmeshFactory"/> (P2 extends it).</para>
     /// </summary>
     public void Rebake(IReadOnlyDictionary<NavLayerMask, DtNavMesh> meshes)
     {
-        foreach (var ls in _layers.Values) ls.Dispose();
-        _layers.Clear();
+        // ⭐ P1 — build a NEW snapshot and swap it in; the old one is left to the queries still holding it (and the GC).
+        var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
-            _layers[kv.Key] = new LayerState(kv.Value);
-        _queryVersion++;
+            layers[kv.Key] = new LayerState(kv.Value);
+        Volatile.Write(ref _snapshot, new Snapshot(layers, unchecked(Current.Version + 1)));
     }
 
     // ── INavmeshProvider ─────────────────────────────────────────────────────
@@ -178,7 +196,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         var parents = new long[MaxPolys];
         var costs   = new float[MaxPolys];
 
-        foreach (var kv in _layers)
+        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
         {
             if (((uint)kv.Key & layerMask) == 0) continue;
             var ls = kv.Value;
@@ -232,7 +250,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     }
 
     /// <inheritdoc/>
-    public uint QueryVersion() => _queryVersion;
+    public uint QueryVersion() => Current.Version;
 
     /// <inheritdoc/>
     public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
@@ -252,7 +270,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
         var straightBuf    = new DtStraightPath[MaxStraight];
 
         // Try each matching layer; use the first that finds a complete path.
-        foreach (var kv in _layers)
+        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
         {
             if (((uint)kv.Key & layerMask) == 0) continue;
             var ls = kv.Value;
@@ -323,7 +341,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider
     {
         var rc = ToRcVec(position);
 
-        foreach (var kv in _layers)
+        foreach (var kv in Current.Layers)   // ⭐ P1 — one snapshot for the whole query
         {
             if (((uint)kv.Key & layerMask) == 0) continue;
             var ls = kv.Value;

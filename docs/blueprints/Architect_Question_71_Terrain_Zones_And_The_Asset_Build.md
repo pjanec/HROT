@@ -19,6 +19,7 @@ known-conflict: docs/designs/packs-3/DESIGN.md §2.B/§2.C contradicts its OWN d
   (.dev/_DONE/packs-3/design_talk.md:555-567) and contradicts docs/designs/mgmt-1/DESIGN.md §11.
   This document exists to resolve that; it does not pretend the conflict is already settled.
 related-designs:
+  - designs/navig-2/Navigation_Design_v2_0.md §14 — runtime navmesh change (R-218): R7's per-node tile cache is P2's cache
   - docs/DESIGN_Terrain_Zones_And_Assets.md — ⭐ THE WHAT: the component model, both invocation paths,
     the module diagram and the slice-1 real-vs-faked split. THIS document is only the WHY.
   - docs/designs/mgmt-1/DESIGN.md — §11 owns the ZONE as a geographic staged-load unit (ZoneSpec,

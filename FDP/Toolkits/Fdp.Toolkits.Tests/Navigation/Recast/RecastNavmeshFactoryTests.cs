@@ -194,6 +194,52 @@ public sealed class RecastNavmeshFactoryTests
 
     // ── ⭐ CE-2122 — the EQS and NavigationSolver modules query ONE provider from two background threads ─────────
 
+    /// <summary>
+    /// ⭐ Navigation v2 §14 P1 (R-218) — the navmesh CHANGES at runtime while other threads query it: <see cref="DotRecastNavmeshProvider.Rebake"/>
+    /// swaps one immutable snapshot, so a query never sees a half-swapped provider and never throws. Before P1, Rebake cleared the very
+    /// dictionary a background PlanPath was enumerating.
+    /// </summary>
+    [Fact]
+    public void P1_RebakeWhileOtherThreadsQuery_NeverSeesAHalfSwappedMesh_AndTheVersionMoves()
+    {
+        var a = new RecastNavmeshBaker().Bake(Geometry(BlockWorld).v, Geometry(BlockWorld).i, NavLayerMask.Infantry);
+        var b = new RecastNavmeshBaker().Bake(Geometry(OneDoorRoom).v, Geometry(OneDoorRoom).i, NavLayerMask.Infantry);
+        var nav = new DotRecastNavmeshProvider(a);
+        uint v0 = nav.QueryVersion();
+        var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        using var stop = new System.Threading.CancellationTokenSource();
+        var readers = Enumerable.Range(0, 3).Select(_ => new System.Threading.Thread(() =>
+        {
+            try
+            {
+                var wps = new NavWaypoint[64];
+                while (!stop.IsCancellationRequested)
+                {
+                    // (5,30) and (5,5) are open ground in BOTH worlds ⇒ every answer must be "walkable" / "a path" — an empty or
+                    // half-built provider (the pre-P1 Rebake cleared the dictionary a reader was walking) answers "no"
+                    if (!nav.IsWalkable(new Vector3(5, 30, 0))) errors.Enqueue("IsWalkable saw no mesh");
+                    if (nav.PlanPath(new Vector3(5, 30, 0), new Vector3(5, 5, 0), wps, (uint)NavLayerMask.Infantry) < 2)
+                        errors.Enqueue("PlanPath saw no mesh");
+                }
+            }
+            catch (Exception ex) { errors.Enqueue(ex.GetType().Name + ": " + ex.Message); }
+        })).ToArray();
+        foreach (var t in readers) t.Start();
+        for (int i = 0; i < 20000; i++) nav.Rebake(i % 2 == 0 ? b : a);
+        stop.Cancel();
+        foreach (var t in readers) t.Join();
+
+        Assert.True(errors.IsEmpty, $"{errors.Count} bad answers, e.g. " + string.Join(" | ", errors.Distinct().Take(3)));
+        Assert.Equal(v0 + 20000, nav.QueryVersion());
+        Assert.False(nav.IsWalkable(new Vector3(30, 30, 0)));          // the last swap (a: the block) is what queries see now
+    }
+
+    private static (float[] v, int[] i) Geometry(string json)
+    {
+        Assert.True(new TerrainWorldGeometrySource(TerrainWorldParser.Parse(json)).TryGetTriangles(out var v, out var i));
+        return (v, i);
+    }
+
     [Fact]
     public void CE2122_ConcurrentPlanPathAndPathCost_FromSeveralThreads_NeverCorruptTheQuery()
     {
