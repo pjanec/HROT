@@ -1040,6 +1040,12 @@ action without it (the BDC builder sets it; the hand-written catalog did not). �
 (with the `Pedestrian` class of R-222). ⚠ The in-process rail could not see it: it drives the executor directly, past the
 dispatcher's capability gate.
 
+⚠ **Two more, from the second live run, fixed:** ① the Locksmith opened the door and never walked in — `MoveToDoor` left its
+finished walk on the locomotion channel, and the next MoveTo node (`CgfNodes.Action_WriteMoveToChannel`) took that "Success" as
+its own. ⭐ The door nodes now HAND BACK their channel when their activity ends (no action, a new activation id). The MoveTo
+node's own habit is recorded as `CE-3113` (behaviors lane). ② the Visitor came out of the hall doorway on the upper floor (z 3):
+`SurfaceZ` counted the doorway's lintel as solid (📄 `DESIGN_Terrain_World.md` §6).
+
 | rails | `DoorCommandTests.Stage5d2_*` ×3 (the reference is the key in JSON, resolves, refuses an over-long key · OperateDoor puts the verb on the channel and reports the executor's answer once · MoveToDoor aims at the actor's side and succeeds in reach) · live: `bt-doors`' Locksmith unlocks and opens the front and walks in through it |
 |---|---|
 

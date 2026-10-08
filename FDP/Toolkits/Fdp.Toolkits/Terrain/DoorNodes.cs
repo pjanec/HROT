@@ -65,7 +65,16 @@ namespace Fdp.Toolkit.Terrain
                 Fdp.Core.Logging.FdpLog<DoorPassageLog>.Warn($"MoveToDoor: no door '{p.Door}' on this node." + $" (entity {self.Index})");
                 return NodeStatus.Failure;
             }
-            if (DoorActionExecutor.InReach(world, self, door)) { p.Started = 0; return NodeStatus.Success; }
+            if (DoorActionExecutor.InReach(world, self, door))
+            {
+                if (p.Started != 0 && world.HasComponent<LocomotionChannel>(self))
+                {
+                    ref var walk = ref world.GetComponentRW<LocomotionChannel>(self);
+                    if (walk.ActionInstanceId == p.Started && walk.ActiveAction == NavigationConstants.ActionIdMoveTo) Release(ref walk.ActiveAction, ref walk.ActionInstanceId);
+                }
+                p.Started = 0;
+                return NodeStatus.Success;
+            }
             if (!world.HasComponent<LocomotionChannel>(self) || !world.HasComponent<SimTransform>(self))
             {
                 Fdp.Core.Logging.FdpLog<DoorPassageLog>.Warn("MoveToDoor: the entity has no LocomotionChannel / SimTransform." + $" (entity {self.Index})");
@@ -77,6 +86,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 if (channel.Status == NodeStatus.Running) return NodeStatus.Running;
                 p.Started = 0;
+                Release(ref channel.ActiveAction, ref channel.ActionInstanceId);
                 return NodeStatus.Failure;   // the walk ended (arrived or failed) and the actor is still out of reach
             }
 
@@ -117,6 +127,7 @@ namespace Fdp.Toolkit.Terrain
                 if (channel.Status == NodeStatus.Running) return NodeStatus.Running;
                 var done = channel.Status;   // the executor's answer — reported ONCE, then the node is free to be run again
                 p.Started = 0;
+                Release(ref channel.ActiveAction, ref channel.ActionInstanceId);
                 return done;
             }
 
@@ -127,6 +138,17 @@ namespace Fdp.Toolkit.Terrain
             Unsafe.As<byte, OpenDoorParams>(ref channel.Params[0]) = new OpenDoorParams { TargetDoor = door };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ A node hands its channel back when its activity ends: no action, a new activation id (the dispatcher exits the old
+        /// executor). ⛔ Leaving a finished MoveTo on the locomotion channel made the NEXT MoveTo node read its "Success" as its own
+        /// and finish at once (the bt-doors live run: the Locksmith opened the door and never walked in).
+        /// </summary>
+        private static void Release(ref ushort activeAction, ref uint actionInstanceId)
+        {
+            activeAction = 0;
+            unchecked { actionInstanceId++; if (actionInstanceId == 0) actionInstanceId = 1; }
         }
 
         /// <summary>The interaction-channel action id of <paramref name="verb"/> (<see cref="BehaviorConstants.DoorActionExecutors"/>).</summary>

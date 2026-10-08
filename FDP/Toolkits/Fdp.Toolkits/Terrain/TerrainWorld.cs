@@ -196,7 +196,10 @@ namespace Fdp.Toolkit.Terrain
             foreach (var prism in Prisms)
             {
                 if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
-                insideSolid = true;
+                // ⭐ Buildings 5d-2 (live, bt-doors) — a piece that STARTS above reach (a door's lintel at 2.1 m, a window's head)
+                //   is OVERHEAD: you stand under it, so it does not take the ground away. ⛔ It did, and an agent walking through a
+                //   doorway under an upper floor came out at that floor's height (3 m).
+                if (prism.BaseZ <= reach) insideSolid = true;
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 

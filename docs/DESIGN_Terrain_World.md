@@ -461,6 +461,10 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
 - **Why Z-up everywhere:** a Y-up API leaks the library's convention into every caller — and already produced four
   mixed sites, one of them a live route bug (`CE-3013`).
 - **Why prisms are solid in v1:** enterable buildings need doors/stairs; garages cover multi-level through slabs+ramps.
+- **Why an OVERHEAD piece does not take the ground away** *(`SurfaceZ`, as built `2026-10-08`)*: a prism counts as solid
+  under you only when it starts within step reach (`BaseZ ≤ zHint + StepHeight`). ⛔ A door's lintel (2.1–3 m) used to count,
+  removed the ground, and an agent walking through a doorway under an upper floor came out at 3 m (`bt-doors` live run). Its top
+  is still a candidate surface; a full-height wall still takes the ground. Rail `TerrainWorldTests.Stage5d2_UnderADoorwaysLintel_*`.
 - **Why the ground grid skips only SOLID prisms** *(`TerrainWorldMesh`, as built `2026-10-08`)*: the ground is a grid of cells
   (2 m on a 200 m world), and a cell is dropped when its CENTRE lies in a prism — so the hollow inside of a solid block never
   bakes as floor. ⛔ It used to apply to WALL PANELS too (building walls, fences, free walls: `Panel ≥ 0`), and a 0.15 m inner

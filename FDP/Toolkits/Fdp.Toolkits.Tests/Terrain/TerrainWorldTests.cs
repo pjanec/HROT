@@ -348,6 +348,21 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(1.5f, w.SurfaceZ(108, 103.5f, zHint: 1.2f), 2);
         }
 
+        /// <summary>
+        /// ⭐ 5d-2 (live, bt-doors) — a doorway's LINTEL (a piece from 2.1 to 3 m) is overhead: an agent walking through the
+        /// doorway stays on the ground. 🔴 It used to count as solid, took the ground away, and the agent came out on the upper
+        /// floor at 3 m. The upper floor is still where an agent already up there stands.
+        /// </summary>
+        [Fact]
+        public void Stage5d2_UnderADoorwaysLintel_TheGroundStays_TheUpperFloorIsStillReachableFromAbove()
+        {
+            var w = HouseWorld();
+            Assert.Equal(0f, w.SurfaceZ(104.8f, 100f, zHint: 0f));     // in the front doorway (104.5..105.5), under its lintel
+            Assert.Equal(0f, w.SurfaceZ(105f, 106.4f, zHint: 0f));     // in the hall doorway in the inner wall
+            Assert.Equal(3f, w.SurfaceZ(102f, 104f, zHint: 3f));       // already on the upper floor: stays there
+            Assert.True(w.SurfaceZ(103.5f, 100f, zHint: 0f) >= 3f, "inside a FULL-HEIGHT wall piece the ground is still taken away");
+        }
+
         [Fact]
         public void Stage1_SightPassesAWindowAndADoorway_ButNotTheWallBesideThem()
         {
