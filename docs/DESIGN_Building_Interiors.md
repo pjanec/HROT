@@ -548,7 +548,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | **5a** | door leaves + live door state in `TerrainWorld`; sight/`SegmentBlocked`/fire include a Closed/Locked leaf (material `door-wood`: sight 0, 60 mm/m — a rifle round goes through a wooden door); `/doors` reports the LIVE state | ✅ built |
 | **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
 | **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, a door-aware `IDtQueryFilter` reading the live state (⚠ not `SetPolyFlags` — N1), `TraversalKind.Door` on `PlanPath` waypoints | ✅ built (below); carrying `Door` through the trajectory pool + replanning moved to **5d** (N4) |
-| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner | 🟡 5d-1, 5d-3, 5d-4 replan built (below): commands, rules, transport, executors, the mover crossing doors; 5d-2 + `bt-doors` next |
+| **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner | 🟡 5d-1, 5d-3, 5d-4 replan built (below): commands, rules, transport, executors, the mover crossing doors; `bt-doors` passes live; 5d-2 next |
 | **5e** | scenario `TerrainObjects` section (save writes current door state; load applies it) — the serializer, the distributed merge and the load step each carry it | ✅ built (below); ⚠ `TerrainObjectRef` moved to **5d**, which has its first consumer |
 
 | 5a as built | |
@@ -774,7 +774,7 @@ navmesh judges the caller's table through a per-thread working filter instead of
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
 |---|---|
 
-### 5d — door commands *(backend, `2026-10-08`; slices 5d-1, 5d-3, 5d-4 replan built; 5d-2 and `bt-doors` next)*
+### 5d — door commands *(backend, `2026-10-08`; slices 5d-1, 5d-3, 5d-4 built, `bt-doors` passes live; 5d-2 next)*
 
 | claim | code — how it IS | design — how it was MEANT |
 |---|---|---|
@@ -857,7 +857,7 @@ command (5d-3, the mover at a door waypoint) but never applies one, so its comma
 | **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators (⛔ the door-only topic and translators were REPLACED `2026-10-08` by [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) slice I-1: a door command now crosses on the ONE `EntityInteractionRequest` topic as the union case `Door`; the event, rules, executor and `DoorCommandSystem` are unchanged), `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
 | **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ⏭ |
 | **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`); the mover stops at a closed door, raises Open, waits, goes on | ✅ built (below) — ⚠ the `CoarseWaypoints` wire NOT carried: solver and mover are one node (below) |
-| **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ✅ replan built (below) · ⏭ `bt-doors` scenario + live run |
+| **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ✅ replan built (below) · ✅ `bt-doors` passes live (`2026-10-08`) |
 
 | rails | `DoorCommandTests` (the rules table, owner-only applier, the executor's time/one-command/answer, failure cases, the verb list) · `EntityDoorStateTranslatorTests.Stage5d_ACommandRaisedOnAReplica_IsAppliedByTheOwner_AndTheNewStateComesBack` (the wire) |
 |---|---|
