@@ -1,0 +1,55 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "2a960000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     104.5,
+     94,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7301
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Visitor",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": "{\"x\":102,\"y\":104,\"speed\":2,\"arrivalRadius\":1}",
+    "Origin": "Superior"
+   }
+  }
+ },
+ "TerrainObjects": {
+  "bt-range/House A/back": {
+   "door": "Closed"
+  }
+ }
+}

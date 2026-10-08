@@ -454,13 +454,60 @@ def run_attack_approach(c, timeout):
     c.ok(fired is not None, f"…and from there it regains sight and fires ({a0} → {fired})")
 
 
+# ── bt-doors (CE-3104, buildings 5d) — a locked front door is routed round; a closed back door is opened on the way ─────
+#   docs/DESIGN_Building_Interiors.md §3j "5d-3 / 5d-4 as built". House A (bt-range, SW corner (100,100)): front (104.5,100)
+#   LOCKED by the terrain, back (108,108) CLOSED by the scenario's TerrainObjects section, hall (105,106) open. The Visitor
+#   starts south of the locked front and is ordered into the west room.
+
+def doors_by_key():
+    return {d["key"]: d for d in (data(call("GET", "/doors")) or {}).get("doors") or []}
+
+
+def run_doors(c, timeout):
+    ids = ids_by_name()
+    visitor = ids.get("Visitor")
+    if not c.ok(visitor is not None, "the Visitor is loaded"):
+        return
+    front, back, hall = "bt-range/House A/front", "bt-range/House A/back", "bt-range/House A/hall"
+    d = wait_for(lambda: (x := doors_by_key()) and all((x.get(k) or {}).get("runtimeId") for k in (front, back, hall)) and x, timeout)
+    if not c.ok(d is not None, "House A's doors exist as entities"):
+        return
+    c.ok(d[front]["state"] == "Locked", f"the front door is Locked (terrain) — {d[front]['state']}")
+    c.ok(d[back]["state"] == "Closed", f"the back door is Closed (the scenario's TerrainObjects section) — {d[back]['state']}")
+    c.ok(d[hall]["state"] == "Open", f"the hall door is Open — {d[hall]['state']}")
+    call("POST", "/sim/play", {})
+
+    # ① the route goes round the locked front: the Visitor never enters the house by the front doorway
+    went_in_front = []
+    def watch():
+        p = position(visitor)
+        if p and 103.5 <= p[0] <= 105.5 and 99.5 <= p[1] <= 101.0:
+            went_in_front.append(p)
+        return p
+
+    # ② it stops at the CLOSED back door and opens it; the door opens while the Visitor stands at it
+    opened = wait_for(lambda: (watch() and doors_by_key().get(back, {}).get("state") == "Open") and position(visitor), timeout * 2)
+    if not c.ok(opened is not None, "the back door is opened"):
+        return
+    dist = ((opened[0] - 108.0) ** 2 + (opened[1] - 108.0) ** 2) ** 0.5
+    c.ok(dist <= 3.0, f"by the Visitor standing at it ({dist:.1f} m from the doorway)")
+
+    # ③ it walks on, through the hall door, into the west room
+    objective = (102.0, 104.0)
+    arrived = wait_for(lambda: (p := watch()) and ((p[0] - objective[0]) ** 2 + (p[1] - objective[1]) ** 2) ** 0.5 <= 1.5 and p, timeout * 2)
+    c.ok(arrived is not None, f"the Visitor arrives in the west room {objective}")
+    c.ok(not went_in_front, f"never through the locked front doorway ({went_in_front[:1]})")
+    c.ok(doors_by_key().get(front, {}).get("state") == "Locked", "the front door is still Locked")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
              "ua-weapon-choice": run_weapon_choice,
              "ua-three-hosts": run_three_hosts,
-             "ua-attack-approach": run_attack_approach}
+             "ua-attack-approach": run_attack_approach,
+             "bt-doors": run_doors}
 
 
 def main():
