@@ -178,6 +178,33 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
         roadNet.Dispose();
     }
 
+    /// <summary>
+    /// ⭐ CE-3128 — a move to where the unit already stands (a behaviour sent to a handle it is on) is a two-point route, not
+    /// "no path". 📌 Measured live in ua-danger-crossing: a real navmesh answers coincident points with no path, so the
+    /// rush's first leg failed every tick and the rifleman crept across at ~0.03 m/s and never arrived. The pre-CE-3128 navmesh
+    /// solve returned the two points; this pins it for every RoadUse, with roads on the map.
+    /// </summary>
+    [Theory]
+    [InlineData(0f, RoadUse.Neutral)]
+    [InlineData(0.05f, RoadUse.Neutral)]
+    [InlineData(0.05f, RoadUse.Prefer)]
+    [InlineData(0.05f, RoadUse.Never)]
+    public void CE3128_RealNavmesh_AMoveToWhereTheUnitStands_IsATwoPointRoute(float offset, RoadUse roadUse)
+    {
+        var roadNet = BuildInMeshRoad();
+        var navmesh = new DotRecastNavmeshProvider(SharedNavMeshes);
+        var solver  = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
+        InjectZoneEnvironmentData(roadNet);
+
+        var start = new Vector3(20f, -12f, 0f);
+        var result = RunSolver(solver, start, start + new Vector3(offset, offset, 0f), roadUse);
+        Assert.True(result.IsReachable);
+        Assert.True(_pool.TryGetTrajectory(result.RouteHandle, out var route));
+        Assert.Equal(2, route.Waypoints.Length);
+
+        roadNet.Dispose();
+    }
+
     // ── T5-SC2: Both endpoints far from road → Navmesh ───────────────────────
 
     /// <summary>

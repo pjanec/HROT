@@ -34,6 +34,10 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>The farthest a route leaves or joins the road network (m).</summary>
         public const float MaxAccessMeters = 500f;
 
+        /// <summary>A move or leg shorter than this (m) is the two points as asked, costing 0: a real navmesh reports no path
+        /// between coincident points.</summary>
+        public const float ShortMoveMeters = 0.5f;
+
         /// <summary>Waypoints a single navmesh leg may produce.</summary>
         public const int MaxNavWaypoints = 128;
 
@@ -81,6 +85,17 @@ namespace Fdp.Toolkit.Navigation
                 entry = RoadGraphRouter.NearestAccess(roads, Xy(q.Start), forceRoad || navmesh == null ? float.MaxValue : MaxAccessMeters);
                 exit = RoadGraphRouter.NearestAccess(roads, Xy(q.End), forceRoad || navmesh == null ? float.MaxValue : MaxAccessMeters);
                 roadOk = entry.IsValid && exit.IsValid && _router.Route(roads, entry, exit, out roadMetres);
+            }
+
+            // ── A move shorter than half a metre: the two points as asked, on any map ───────────────────────
+            // ⚠ Measured live (ua-danger-crossing): a unit standing at the handle it is sent to. A real navmesh answers
+            // coincident points with no path, and Append would merge them into one point — either way the move FAILED and
+            // the behaviour re-issued it every tick. The pre-CE-3128 navmesh solve returned this two-point path.
+            if (!forceRoad && Vector2.Distance(Xy(q.Start), Xy(q.End)) < ShortMoveMeters)
+            {
+                _points.Add(q.Start);
+                _points.Add(q.End);
+                return Finish(out distance, navmesh != null ? NavigationBackend.Navmesh : NavigationBackend.NavRoadGraph);
             }
 
             // ── No navmesh: the road graph is the only planner (a road-only map) ─────────────────────────────
@@ -169,7 +184,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>A leg's navmesh cost; ⚠ a leg shorter than half a metre costs 0 (a real navmesh reports no path between
         /// coincident points, which would wrongly rule out a unit already standing on the road).</summary>
         private static float LegCost(INavmeshProvider navmesh, Vector3 from, Vector3 to, uint layerMask, Fdp.Toolkit.Terrain.DoorStates? doors)
-            => Vector2.Distance(Xy(from), Xy(to)) < 0.5f ? 0f : navmesh.PathCost(from, to, layerMask, doors);
+            => Vector2.Distance(Xy(from), Xy(to)) < ShortMoveMeters ? 0f : navmesh.PathCost(from, to, layerMask, doors);
 
         private static float HeightAt(INavmeshProvider? navmesh, Vector2 p, uint layer)
             => navmesh != null && navmesh.ProjectToNavmesh(new Vector3(p, 0f), out var snapped, layer) ? snapped.Z : 0f;
