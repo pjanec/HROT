@@ -88,6 +88,34 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Null(result.CanonicalDom!["Zones"]);
         }
 
+        /// <summary>
+        /// ⭐ Buildings 5e — the <c>TerrainObjects</c> sections of the slices union like <c>Entities</c>: a door's state is saved only by
+        /// its owner (one door, one slice), so the same key in two slices is a broken save and fails loudly.
+        /// </summary>
+        [Fact]
+        public void Stage5e_TerrainObjects_UnionAcrossSlices_AndAKeyInTwoSlicesFailsLoud()
+        {
+            JsonObject With(JsonObject dom, params string[] keys)
+            {
+                var section = new JsonObject();
+                foreach (var k in keys) section[k] = new JsonObject { ["door"] = "Locked" };
+                dom["TerrainObjects"] = section;
+                return dom;
+            }
+            var brain = Compatible(400, With(Dom(new[] { "g-a" }), "range/H/front"));
+            var other = Compatible(401, With(Dom(new[] { "g-b" }), "range/H/hall"));
+            var plain = Compatible(1, Dom(new string[0]));                                // no section at all
+
+            var merged = (JsonObject)ScenarioMergeCore.Merge(new[] { brain, other, plain }, OurType).CanonicalDom!["TerrainObjects"]!;
+            Assert.Equal(new[] { "range/H/front", "range/H/hall" }, System.Linq.Enumerable.OrderBy(System.Linq.Enumerable.Select(merged, kv => kv.Key), k => k));
+
+            var twice = Compatible(402, With(Dom(new[] { "g-c" }), "range/H/front"));
+            var ex = Assert.Throws<System.InvalidOperationException>(() => ScenarioMergeCore.Merge(new[] { brain, twice }, OurType));
+            Assert.Contains("range/H/front", ex.Message);
+
+            Assert.Null(ScenarioMergeCore.Merge(new[] { plain }, OurType).CanonicalDom!["TerrainObjects"]);   // nothing to say ⇒ no section
+        }
+
         [Fact]
         public void ForeignSlice_IsRouted_NotMerged_AndNeverParsed()   // §4c
         {

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-07 (rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -13,6 +13,7 @@ related-designs:
     This doc proposes the enterable-building extension of that model; the terrain doc stays the owner.
   - blueprints/Architect_Question_81_SimHost_Test_Terrain_World.md — T1 (2.5D hand-authorable primitives, mesh rejected),
     T5 (Z picks the floor), T7 (multi-level), T8 (Stride renders the same file, "later").
+  - DESIGN_Distributed_Scenario_Persistence.md §4b — owns the save gate and the distributed merge; 5e adds the TerrainObjects section to both.
   - DESIGN_Add_Entity_Picker.md §2c — level 0 = ground everywhere; filed CE-1031, which this doc resolves.
   - designs/navig-2/Navigation_Design_v2_0.md — owns TraversalKind.Door (§4) and multi-layer navmesh (§8); doors here
     feed it. §14 OWNS runtime navmesh change (R-218): 5c's door filter is its STATE half; wall breaching (E3) waits on its P2.
@@ -547,7 +548,7 @@ navmesh (baked open, §3a) and `SurfaceZ` never do; the replicated door entity (
 | **5b** | door ENTITIES (TKB `Door`, created once by the arbiter at load, runtime id from the one allocator, the key map = the `TerrainObjectKey` entities) + replicated `DoorState` + a mirror system writing `SetDoorState` on every node | ✅ built (below) |
 | **5c** | navmesh: doorway convex volumes at bake (door area), door → poly refs, a door-aware `IDtQueryFilter` reading the live state (⚠ not `SetPolyFlags` — N1), `TraversalKind.Door` on `PlanPath` waypoints | ✅ built (below); carrying `Door` through the trajectory pool + replanning moved to **5d** (N4) |
 | **5d** | door commands (`OpenDoor`/`Close`/`Lock`/`Unlock`/`Breach`) executed by the door's owner; the behaviour nodes are the behaviors lane's | ⏭ |
-| **5e** | scenario `terrainObjects` section (save writes current door state; load applies it) + `TerrainObjectRef` — ⚠ the serializer reads only `Entities` and the distributed merge rebuilds only `{$meta, Header, Entities}`, so both need the section added | ⏭ |
+| **5e** | scenario `TerrainObjects` section (save writes current door state; load applies it) — the serializer, the distributed merge and the load step each carry it | ✅ built (below); ⚠ `TerrainObjectRef` moved to **5d**, which has its first consumer |
 
 | 5a as built | |
 |---|---|
@@ -769,6 +770,63 @@ navmesh judges the caller's table through a per-thread working filter instead of
 📄 [`DESIGN_Terrain_World.md`](DESIGN_Terrain_World.md) §6a.
 
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
+|---|---|
+
+### 5e — door state is saved in the scenario *(backend, `2026-10-08`, K5)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a save goes through ONE serializer, a distributed save through ONE merge | ✅ `ScenarioSaveCore.BuildDom` → `ScenarioSerializer.Serialize`; `ScenarioMergeCore.Merge` rebuilds `{$meta, Header, Entities}` only | ✅ `DESIGN_Distributed_Scenario_Persistence.md` §4b (I1–I4) |
+| door entities never reach `Entities` | ✅ `TerrainObjectRequests` sets `IsTransient` ⇒ `ScenarioIgnoreTag`; `CollectSaveableEntities` skips it | ✅ §3b K5 |
+| a door entity is created in ONE place, where its initial state is set | ✅ `ScenarioLoadStep.Commit` → `TerrainObjectRequests.ForDoors` | ✅ §3b K3 |
+| the save gate is the primary owner | ✅ `CollectSaveableEntities` → `HasAuthority` | ✅ Persistence §1 *"save an entity iff you are its non-transient primary owner"* |
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainObjectsSection { <<NEW, static>> Name = "TerrainObjects" · Write(repo) · Of(dom) · ReadDoors(dom/json) }
+    class ScenarioSerializer { <<existing>> Serialize(repo, header) — appends the section }
+    class ScenarioMergeCore { <<existing>> Merge — ⋃ TerrainObjects, a key in two slices throws }
+    class ScenarioLoadStep { <<existing>> PrepareAsync reads the section · Commit passes it on }
+    class TerrainObjectRequests { <<existing>> ForDoors(terrain, existing, allocator, saved) }
+    class DoorState { <<component>> }
+    class TerrainObjectKey { <<managed>> }
+    ScenarioSerializer ..> TerrainObjectsSection : Write
+    ScenarioMergeCore ..> TerrainObjectsSection : Of
+    ScenarioLoadStep ..> TerrainObjectsSection : ReadDoors
+    ScenarioLoadStep ..> TerrainObjectRequests : saved states
+    TerrainObjectsSection ..> DoorState : reads (owned doors)
+    TerrainObjectsSection ..> TerrainObjectKey : the key
+```
+*What it shows that prose hid:* one class owns the section's format. All three places that touch the file call it, so the save, the
+merge and the load cannot disagree about the section's shape.
+
+```mermaid
+sequenceDiagram
+    participant W as Brain world (door entities)
+    participant S as ScenarioSerializer
+    participant M as ScenarioMergeCore
+    participant L as ScenarioLoadStep
+    participant R as TerrainObjectRequests
+    W->>S: Save — door "range/H/front" is Open, authored Locked
+    S->>S: TerrainObjects = { "range/H/front": { "door": "Open" } } (owned + differs only)
+    S->>M: distributed save: one slice per node
+    M->>M: union the slices' TerrainObjects (a key twice ⇒ throw)
+    L->>L: Load — PrepareAsync: ReadDoors(json)
+    L->>R: Commit: ForDoors(terrain, existing, allocator, saved)
+    R->>W: Door request with DoorState = Open (saved), the hall door = its authored state
+```
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| which doors are written | ⭐ the doors this host OWNS whose state **differs from the terrain's authored state** | every door — a later change to the terrain's authored state would never reach a scenario that never touched that door · every door this host sees — each node would write the replicas too, and the merge would throw |
+| the section's name | `TerrainObjects` (PascalCase like `Header`/`Entities`); the reader also accepts `terrainObjects` (K5's spelling) | `terrainObjects` only — the one camelCase key in a PascalCase file |
+| a saved key the terrain does not define | logged and ignored; the next save drops it | fail the load — a renamed door would make every old scenario unloadable |
+| a value that is not a door state | ⛔ the load fails loudly | ignore it — a scenario would silently lose a locked door |
+| `TerrainObjectRef` (K4) | ⏭ **moved to 5d**: its first consumer is a door-command behaviour parameter. The key is stable across loads, so the reference needs no remap pass and nothing in the load path to build now | build it now — a type with no reader |
+| schema version | unchanged (3): the section is optional and older readers ignore an unknown top-level key | a version bump — would need a migration for an additive optional section |
+
+| rails | `ScenarioSerializerTests.Stage5e_TheSaveWritesTheOwnedDoorsThatDifferFromTheTerrain_KeyedByTerrainObjectKey` · `ScenarioMergeCoreTests.Stage5e_TerrainObjects_UnionAcrossSlices_AndAKeyInTwoSlicesFailsLoud` · `ScenarioLoadStepTests.Stage5e_ADoorsStateSurvivesSaveAndLoad_AnUntouchedDoorStartsAsAuthored` |
 |---|---|
 
 ## 4. Change map — what each consumer must do

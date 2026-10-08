@@ -69,6 +69,7 @@ design-basis:
     EntityMaster lifecycle, per-descriptor ownership, the generic OwnershipUpdate transfer — §6c maps it
     onto our ECS and records the PrimaryOwnerId-mirror compliance gap)
 related-designs:
+  - docs/DESIGN_Building_Interiors.md §3j "5e" — owns the TerrainObjects section (door state by terrain-object key): written by the door's owner, unioned by the merge like Entities (a key in two slices throws).
   - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns how a SENDER turns the component claim into "may I publish" (one derived gate; CE-500).
   - docs/designs/routes-1/ROUTES1-DESIGN.md — owns the ROUTE model; §16 records that RoutePlan has no
     scenario translator, so routes pass this gate as entities but reload with no waypoints (BP-518).

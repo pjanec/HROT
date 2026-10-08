@@ -252,6 +252,41 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Equal("range/H/front", all[1].InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key);
     }
 
+    /// <summary>
+    /// ⭐⭐ Stage 5e (📄 docs/DESIGN_Building_Interiors.md §3b K5, §3j "5e") — a door's state survives save → load. The saving world
+    /// opened the authored-LOCKED front door; the save writes it to <c>TerrainObjects</c>; the load creates the door entity in that
+    /// state, while the untouched hall door starts as the terrain authored it.
+    /// </summary>
+    [Fact]
+    public async Task Stage5e_ADoorsStateSurvivesSaveAndLoad_AnUntouchedDoorStartsAsAuthored()
+    {
+        using var saving = TerrainRepo();
+        saving.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+        foreach (var (key, state) in new[] { ("range/H/front", Fdp.Toolkit.Terrain.TerrainDoorState.Open), ("range/H/hall", Fdp.Toolkit.Terrain.TerrainDoorState.Open) })
+        {
+            var e = saving.CreateEntity();
+            saving.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            saving.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = key });
+            saving.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+        }
+        string json = _serializer.Serialize(saving, new ScenarioHeader(SubsystemType)).ToJsonString();
+        Assert.Contains("\"TerrainObjects\"", json);
+
+        using var loading = TerrainRepo();
+        var source = new ScenarioEntityCreationRequestSource();
+        var step   = MakeStep(json, source);
+        var ctx    = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, loading);
+
+        var doors = Drain(source).ToDictionary(
+            r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key,
+            r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);
+        Assert.Equal(2, doors.Count);                                                       // K5 — no door came in as a scenario entity
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/front"]);    // the saved state, not the authored lock
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/hall"]);     // authored open, never written
+    }
+
     // ── THE readiness predicate — one implementation, asked of both targets ───────────────────
 
     /// <summary>⭐ Nothing prepared and nothing queued ⇒ resolved. The trivial arm, stated so the rest mean something.</summary>
