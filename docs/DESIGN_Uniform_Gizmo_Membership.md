@@ -589,5 +589,7 @@ state twice (a rail proves it).
 | **5** | `EqsSensorGizmo`, `EffectPresentationGizmo`, `ProjectilePresentationGizmo` and `EqsGizmoSettings` (now `public`) in `Hrot.Presentation/Gizmos`, namespace `Hrot.ScenarioEditor.Gizmos` | ⚠ namespace changed — see decision 5's row |
 | **6** | `DeploymentAssemblies` (Hrot.Common/Infrastructure): `LoadAll` (the runner's `LoadReferencedAssemblies` is now a call to it), `Skipped = { Hrot.AI.Behaviors }`, `TypesWithAttribute` (metadata read via `System.Reflection.Metadata`); rail `CE3123_EveryProjectorInTheDeployment_ReachesTheRegistrar` names `HillAttackGizmo` as the one projector in a skipped assembly | — |
 
+🔴 **Defect found by the rails, fixed:** `DebugStatePatchCompiler.Build()` set its `_built` flag BEFORE filling its setter table, so a second thread constructing a `DebugStatePatchSystem` saw *built* with an EMPTY table and every patch it applied was dropped — the pin rail passed alone and failed under xunit's parallel classes. With item 1 every map host builds one, so hosts started side by side were exposed. Now built under a lock and published only when complete.
+
 **Rails:** `HostOnlyWiringTests` (6, Presentation) · `AuthoredRouteGizmoTests` (5) · `GizmoSchemaFollowsDeclarationRails.CE3123_…` (ClusterRunner).
 
