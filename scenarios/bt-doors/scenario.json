@@ -45,6 +45,43 @@
     "Params": "{\"x\":102,\"y\":104,\"speed\":2,\"arrivalRadius\":1}",
     "Origin": "Superior"
    }
+  },
+  "2a960000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     102.5,
+     93,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 7302
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Locksmith",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "DoorLocksmith",
+    "Params": "{\"door\":\"bt-range/House A/front\",\"x\":102,\"y\":103,\"speed\":1.5}",
+    "Origin": "Superior"
+   }
   }
  },
  "TerrainObjects": {

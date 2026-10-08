@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-08 (5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1, 5d-3, 5d-4 replan, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
 known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid prism (floors = label only in v1)". This doc is the
@@ -774,7 +774,7 @@ navmesh judges the caller's table through a per-thread working filter instead of
 | rails | `TerrainWorldTests.R219_AQueryOnASnapshot_SeesTheDoorsOfThatSnapshot_NotALaterFlipOnTheLiveWorld` (the reason for the rule: a `SyncFrom` replica keeps the door open while the live world locks it) · `R219_AViewsDoorTable_IsBuiltFromItsDoorEntities` · `Stage5_*`/`Stage5c_*` re-stated on per-view tables · `EntityDoorStateTranslatorTests` (the wire reaches the replica's VIEW) · `TerrainReportTests.Doors_NameTheDoorEntity_AndReportItsState_FromTheWorldsView` |
 |---|---|
 
-### 5d — door commands *(backend, `2026-10-08`; slices 5d-1, 5d-3, 5d-4 built, `bt-doors` passes live; 5d-2 next)*
+### 5d — door commands *(backend, `2026-10-08`; slices 5d-1…5d-4 built, `bt-doors` passes live)*
 
 | claim | code — how it IS | design — how it was MEANT |
 |---|---|---|
@@ -855,7 +855,7 @@ command (5d-3, the mover at a door waypoint) but never applies one, so its comma
 | slice | content | state |
 |---|---|---|
 | **5d-1** | `DoorVerb`/`DoorRules`/`DoorCommandEvent`/`DoorCommandSystem`, the `EntityDoorCommand` topic + translators (⛔ the door-only topic and translators were REPLACED `2026-10-08` by [`DESIGN_Entity_Interactions.md`](DESIGN_Entity_Interactions.md) slice I-1: a door command now crosses on the ONE `EntityInteractionRequest` topic as the union case `Door`; the event, rules, executor and `DoorCommandSystem` are unchanged), `DoorActionExecutor` ×5 on every Brain host, blueprint catalog entries `CloseDoor`/`LockDoor`/`UnlockDoor`/`BreachDoor` | ✅ built |
-| **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ⏭ |
+| **5d-2** | a BTree door node with a `TerrainObjectRef` param (K4: the key, resolved through `TerrainObjects.Find`) | ✅ built (below): `TerrainObjectRef`, `DoorNodes.MoveToDoor`/`OperateDoor`, the curated `DoorLocksmith` |
 | **5d-3** | carry `Door` waypoints planner → mover (`PathfindingSolverSystem`, `TrajectoryWaypoint`, `EngineBackedPathRegistry`); the mover stops at a closed door, raises Open, waits, goes on | ✅ built (below) — ⚠ the `CoarseWaypoints` wire NOT carried: solver and mover are one node (below) |
 | **5d-4** | replan when a door ahead on the path locks (R-218 P3) · the `bt-doors` scenario | ✅ replan built (below) · ✅ `bt-doors` passes live (`2026-10-08`) |
 
@@ -960,6 +960,82 @@ watchdog ends the move) · a DtCrowd host ignores doors.
 | rails | `DoorPassageSystemTests` ×4 (a closed door holds, opens once after the action time, releases when Open · out of reach / open never holds · locked replans once · locked with no replan allowed fails) · `NavigationExecutionSystemTests.Stage5d_AHoldAtADoor_IsNotFrustration` · `CarKinematicsSystemTests.Stage5d_IsBlocked_StopsOnThePath_KeepsIt_AndDrivesOnWhenCleared` · `EngineBackedPathRegistryTests.Stage5d_TheDoorMark_SurvivesThePoolAndTheRegistry` · `GroundKinematicsModuleTests` (5 systems, `DoorPassageSystem` at [4]) |
 |---|---|
 
+### 5d-2 as built — a behaviour names a door and acts on it *(backend, `2026-10-08`; plan approved; R-223 for the test behaviour's form)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an action node is a C# method whose params block the scenario JSON fills | ✅ `CgfNodes.Action_WriteMoveToChannel`; the generated registrars deserialize with the canonical options (`IncludeFields`) | ✅ `DESIGN_BTree_Node_Call_Shapes` (CE-504, the shared signature) |
+| a door reference stores the KEY | ✅ door entities get their numbers at load | ✅ §3b K4 |
+| an unmanaged struct can carry a readable string | ✅ `FixedString64` (`Fdp.Core`), shown as a string by the diagnostics | ⛔ searched, none |
+| the door executor needs the actor in reach; the behaviour brings it there | ✅ `DoorActionExecutor` fails out of reach | ✅ §3j 5d decision "adjacency" |
+| no node wrote the interaction channel before | ✅ grep of the brains and toolkit nodes | ⛔ none; Entity Interactions I-3 is the executor base only |
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainObjectRef { <<NEW, Fdp.Toolkits/Terrain>> Key : FixedString64 · Resolve(repo) · DoorIndex(world) · JSON = the key string }
+    class MoveToDoorParams { <<NEW>> Door · Speed · Started (runtime) }
+    class OperateDoorParams { <<NEW>> Door · Verb · Started (runtime) }
+    class DoorNodes { <<NEW, shared nodes>> MoveToDoor · OperateDoor · ApproachPoint · ActionIdOf }
+    class DoorActionExecutor { <<5d-1>> reach · action time · one command · the answer }
+    class TerrainObjects { <<5b>> Find(repo, key) }
+    class DoorLocksmithBehavior { <<NEW curated tree, Hrot.AI.Behaviors>> MoveToDoor → Unlock → Open → MoveTo }
+    class DoorLocksmithParamsJsonDto { <<NEW contract, Hrot.Core>> door · x · y · speed }
+    TerrainObjectRef ..> TerrainObjects : resolves
+    MoveToDoorParams --> TerrainObjectRef
+    OperateDoorParams --> TerrainObjectRef
+    DoorNodes ..> MoveToDoorParams
+    DoorNodes ..> OperateDoorParams
+    DoorNodes ..> DoorActionExecutor : puts its action on the interaction channel
+    DoorLocksmithBehavior ..> DoorNodes
+    DoorLocksmithBehavior ..> DoorLocksmithParamsJsonDto : its resolver fills one block per node
+```
+*What it shows that prose hid:* the nodes own no door logic — `OperateDoor` only puts the verb on the channel and reports the
+executor's answer; everything a door action means stays in the 5d-1 executor and `DoorRules`.
+
+```mermaid
+sequenceDiagram
+    participant T as BTree (Brain node)
+    participant N as DoorNodes
+    participant L as locomotion channel / MoveTo executor
+    participant I as interaction channel / DoorActionExecutor
+    participant O as door owner
+    T->>N: MoveToDoor(door)
+    N->>N: resolve the key (TerrainObjects.Find) · in reach? ⇒ Success
+    N->>L: MoveTo(approach point on the actor's side), remember the activation id
+    L-->>N: Running … arrived
+    N-->>T: Success (in reach)
+    T->>N: OperateDoor(door, Unlock)
+    N->>I: action 7 + the door, remember the activation id
+    I->>O: after the action time, ONE DoorCommandEvent (R-221)
+    O-->>I: DoorState Unlocked (replicated)
+    I-->>N: Success
+    N-->>T: Success, once (then free to run again)
+```
+
+```mermaid
+graph TD
+    CUR[CuratedBehaviorRegistrar - generated, Hrot.AI.Behaviors] -->|registers DoorLocksmith + its resolver| BEH[BehaviorRegistry]
+    BRAIN[BrainTickSystem - CGF / editor] -->|ticks the tree each frame| NODES[DoorNodes - Fdp.Toolkits]
+    NODES -->|writes| LOCO[LocomotionChannel]
+    NODES -->|writes| INTER[InteractionChannel]
+    ADM[ActionDispatchModule - CgfLogicPack] -->|dispatches| INTER
+    ADM -->|dispatches| LOCO
+```
+*What it shows that prose hid:* the nodes run where the BRAIN runs (CGF, editor); the door's owner may be another node — the
+command crosses through 5d-1's transport, and the answer comes back as the replicated state.
+
+| decision | ⭐ as built | rejected (one line each) |
+|---|---|---|
+| the reference | ⭐ `TerrainObjectRef` = the key in a `FixedString64`; JSON is the key string; a key over 63 bytes is refused, never cut | the door's network id: allocated at load (K4) · the door's terrain index: shifts when the file is edited · a hash: unreadable, cannot be written back |
+| nodes | ⭐ two, composable: `MoveToDoor`, `OperateDoor(verb)` | one "go and operate" node: cannot say unlock-then-open or lock-behind-you |
+| "is this channel activity mine?" | ⭐ the node keeps the activation id it started in its own params block (`Started`, `[JsonIgnore]`, like `FireAtTargetParams.RoundsFired`); it reports the executor's answer ONCE, then a new call starts afresh | comparing the target door: a previous node's finished action on the same door would answer for this one |
+| the approach point | ⭐ 1 m off the doorway centre along the wall's normal, on the actor's side (the terrain's door definition gives the wall) | the door centre: the agent would walk into the leaf |
+| the test behaviour | ⭐ `DoorLocksmith`, a curated C# tree in `Hrot.AI.Behaviors` with a `[BehaviorContract]` DTO and a typed resolver (R-223) | a JSON recipe: string `MethodFqn` references and editor noise for a behaviour no human edits |
+
+| rails | `DoorCommandTests.Stage5d2_*` ×3 (the reference is the key in JSON, resolves, refuses an over-long key · OperateDoor puts the verb on the channel and reports the executor's answer once · MoveToDoor aims at the actor's side and succeeds in reach) · live: `bt-doors`' Locksmith unlocks and opens the front and walks in through it |
+|---|---|
+
 ### 5e — door state is saved in the scenario *(backend, `2026-10-08`, K5)*
 
 | claim | code — how it IS | design — how it was MEANT |
@@ -1011,7 +1087,7 @@ sequenceDiagram
 | the section's name | `TerrainObjects` (PascalCase like `Header`/`Entities`); the reader also accepts `terrainObjects` (K5's spelling) | `terrainObjects` only — the one camelCase key in a PascalCase file |
 | a saved key the terrain does not define | logged and ignored; the next save drops it | fail the load — a renamed door would make every old scenario unloadable |
 | a value that is not a door state | ⛔ the load fails loudly | ignore it — a scenario would silently lose a locked door |
-| `TerrainObjectRef` (K4) | ⏭ **moved to 5d**: its first consumer is a door-command behaviour parameter. The key is stable across loads, so the reference needs no remap pass and nothing in the load path to build now | build it now — a type with no reader |
+| `TerrainObjectRef` (K4) | ✅ **built in 5d-2** (`2026-10-08`); its first consumer is the door nodes' params. The key is stable across loads, so the reference needs no remap pass and nothing in the load path to build now | build it now — a type with no reader |
 | schema version | unchanged (3): the section is optional and older readers ignore an unknown top-level key | a version bump — would need a migration for an additive optional section |
 
 | rails | `ScenarioSerializerTests.Stage5e_TheSaveWritesTheOwnedDoorsThatDifferFromTheTerrain_KeyedByTerrainObjectKey` · `ScenarioMergeCoreTests.Stage5e_TerrainObjects_UnionAcrossSlices_AndAKeyInTwoSlicesFailsLoud` · `ScenarioLoadStepTests.Stage5e_ADoorsStateSurvivesSaveAndLoad_AnUntouchedDoorStartsAsAuthored` |

@@ -21,5 +21,7 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DefendArea = "DefendArea";
         /// <summary>⭐ CE-472 — the tactical intent a commander sends a tank; mapped to <see cref="HullDownAttackRun"/>.</summary>
         public const string HullDownAttack = "HullDownAttack";
+        /// <summary>⭐ Buildings 5d-2 — walk to a door, unlock it, open it, walk through (the curated door test behaviour, R-223).</summary>
+        public const string DoorLocksmith = "DoorLocksmith";
     }
 }

@@ -460,7 +460,7 @@ def run_attack_approach(c, timeout):
 # ── bt-doors (CE-3104, buildings 5d) — a locked front door is routed round; a closed back door is opened on the way ─────
 #   docs/DESIGN_Building_Interiors.md §3j "5d-3 / 5d-4 as built". House A (bt-range, SW corner (100,100)): front (104.2,100), 1.2 m
 #   LOCKED by the terrain, back (107.4,108) CLOSED by the scenario's TerrainObjects section, hall (105,106) open. The Visitor
-#   starts south of the locked front and is ordered into the west room.
+#   starts south of the locked front and is ordered into the west room. The Locksmith (5d-2) runs DoorLocksmith on the front.
 
 def doors_by_key():
     return {d["key"]: d for d in (data(call("GET", "/doors")) or {}).get("doors") or []}
@@ -480,9 +480,19 @@ def run_doors(c, timeout):
     c.ok(d[hall]["state"] == "Open", f"the hall door is Open — {d[hall]['state']}")
     call("POST", "/sim/play", {})
 
+    # the Locksmith (④) works the front door at the same time — its positions are sampled from the start
+    smith = ids.get("Locksmith")
+    smith_front = []
+    def watch_smith():
+        p = position(smith) if smith is not None else None
+        if p and 103.5 <= p[0] <= 104.9 and 99.5 <= p[1] <= 101.0:
+            smith_front.append(p)
+        return p
+
     # ① the route goes round the locked front: the Visitor never enters the house by the front doorway
     went_in_front = []
     def watch():
+        watch_smith()
         p = position(visitor)
         if p and 103.5 <= p[0] <= 104.9 and 99.5 <= p[1] <= 101.0:
             went_in_front.append(p)
@@ -500,7 +510,17 @@ def run_doors(c, timeout):
     arrived = wait_for(lambda: (p := watch()) and ((p[0] - objective[0]) ** 2 + (p[1] - objective[1]) ** 2) ** 0.5 <= 1.5 and p, timeout * 2)
     c.ok(arrived is not None, f"the Visitor arrives in the west room {objective}")
     c.ok(not went_in_front, f"never through the locked front doorway ({went_in_front[:1]})")
-    c.ok(doors_by_key().get(front, {}).get("state") == "Locked", "the front door is still Locked")
+
+    # ④ 5d-2 — the Locksmith runs the curated DoorLocksmith tree (MoveToDoor → Unlock → Open → walk in): the front ends Open,
+    #    and the walk after it goes through the front (the next path uses the door it opened)
+    if not c.ok(smith is not None, "the Locksmith is loaded"):
+        return
+    opened_front = wait_for(lambda: (watch_smith() or True) and doors_by_key().get(front, {}).get("state") == "Open", timeout * 2)
+    c.ok(opened_front is not None, "the Locksmith unlocks and opens the front door")
+    inside = (102.0, 103.0)
+    got_in = wait_for(lambda: (p := watch_smith()) and ((p[0] - inside[0]) ** 2 + (p[1] - inside[1]) ** 2) ** 0.5 <= 1.5 and p, timeout * 2)
+    c.ok(got_in is not None, f"the Locksmith walks in to {inside}")
+    c.ok(bool(smith_front), "through the front doorway it opened")
 
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,

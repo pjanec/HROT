@@ -185,5 +185,129 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(new[] { DoorVerb.Open, DoorVerb.Close, DoorVerb.Lock, DoorVerb.Unlock, DoorVerb.Breach }, System.Linq.Enumerable.Select(list, x => x.Executor.Verb));
             Assert.Equal(new ushort[] { 4, 5, 6, 7, 8 }, System.Linq.Enumerable.Select(list, x => x.Id));
         }
+
+        // ── 5d-2 — a behaviour names a door by key (TerrainObjectRef) and acts on it (DoorNodes) ──────────────────────────────
+
+        // A closed 10 x 8 m room at (20,20); its one door ("front", 1.2 m) is in the south wall, centre (25, 20).
+        private const string OneDoorRoom = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"R","doors":{"front":"locked"},"building":{
+                 "footprint":[[0,0],[10,0],[10,8],[0,8]],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+               "geometry":{"type":"Point","coordinates":[20,20]}}]}
+            """;
+
+        private static EntityRepository KeyedWorld(out Entity door)
+        {
+            var w = World();
+            w.RegisterManagedComponent<TerrainObjectKey>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
+            w.SetSingletonManaged(TerrainWorldParser.Parse(OneDoorRoom, "range"));
+            door = Door(w, L, new Vector3(25, 20, 0));
+            w.SetManagedComponent(door, new TerrainObjectKey { Key = "range/R/front" });
+            return w;
+        }
+
+        private static Entity Walker(EntityRepository w, Vector3 at)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            w.AddComponent(e, new InteractionChannel());
+            w.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
+            return e;
+        }
+
+        /// <summary>⭐ 5d-2 (K4) — the reference IS the key: JSON is the bare key string, it resolves through the door entity, and a
+        /// key that does not fit is refused rather than cut.</summary>
+        [Fact]
+        public void Stage5d2_TerrainObjectRef_IsTheKeyInJson_AndResolvesThroughTheDoorEntity()
+        {
+            var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var p = new OperateDoorParams { Door = new TerrainObjectRef("range/R/front"), Verb = DoorVerb.Unlock };
+            string json = System.Text.Json.JsonSerializer.Serialize(p, opts);
+            Assert.Contains("\"Door\":\"range/R/front\"", json);
+            Assert.Contains("\"Unlock\"", json);
+            Assert.DoesNotContain("Started", json);                                   // runtime, never authored
+            var back = System.Text.Json.JsonSerializer.Deserialize<OperateDoorParams>("{\"Door\":\"range/R/front\",\"Verb\":\"Lock\"}", opts);
+            Assert.Equal(p.Door, back.Door);
+            Assert.Equal(DoorVerb.Lock, back.Verb);
+
+            using var w = KeyedWorld(out var door);
+            Assert.Equal(door, p.Door.Resolve(w));
+            Assert.True(new TerrainObjectRef("range/R/back").Resolve(w).IsNull);
+            Assert.True(TerrainObjectRef.None.Resolve(w).IsNull);
+            Assert.Throws<System.ArgumentException>(() => new TerrainObjectRef(new string('k', 64)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ 5d-2 — OperateDoor puts the verb's action (id 4–8) and the resolved door on the interaction channel, stays Running
+        /// while the executor works, reports its answer ONCE, and is then free to run again; an unknown key fails at once.
+        /// </summary>
+        [Fact]
+        public void Stage5d2_OperateDoor_PutsTheVerbOnTheChannel_AndReportsTheExecutorsAnswerOnce()
+        {
+            using var w = KeyedWorld(out var door);
+            var actor = Walker(w, new Vector3(25, 18.8f, 0));                        // 1.2 m from the doorway: in reach
+            var p = new OperateDoorParams { Door = new TerrainObjectRef("range/R/front"), Verb = DoorVerb.Unlock };
+            var ex = new DoorActionExecutor(DoorVerb.Unlock);
+            var owner = new DoorCommandSystem();
+
+            Assert.Equal(NodeStatus.Running, DoorNodes.OperateDoor(ref p, actor, w));
+            ref var ch = ref w.GetComponentRW<InteractionChannel>(actor);
+            Assert.Equal(BehaviorConstantsIds.Unlock, ch.ActiveAction);
+            Assert.Equal(door, ReadTarget(ref ch));
+            ex.OnEnter(actor, ref ch, w);
+
+            int commands = 0;
+            NodeStatus s = NodeStatus.Running;
+            for (int i = 0; i < 40 && s == NodeStatus.Running; i++) s = Tick(w, ex, actor, 0.1f, owner, ref commands);
+            Assert.Equal(NodeStatus.Success, s);
+            Assert.Equal(C, w.GetComponentRO<DoorState>(door).State);
+            Assert.Equal(1, commands);
+
+            Assert.Equal(NodeStatus.Success, DoorNodes.OperateDoor(ref p, actor, w));   // the answer, once
+            Assert.Equal(0u, p.Started);
+            Assert.Equal(NodeStatus.Running, DoorNodes.OperateDoor(ref p, actor, w));   // then a fresh activation
+
+            var unknown = new OperateDoorParams { Door = new TerrainObjectRef("range/R/nope"), Verb = DoorVerb.Open };
+            Assert.Equal(NodeStatus.Failure, DoorNodes.OperateDoor(ref unknown, actor, w));
+        }
+
+        /// <summary>⭐ 5d-2 — MoveToDoor walks to the doorway's near side ON THE ACTOR'S SIDE of the wall, and succeeds in reach.</summary>
+        [Fact]
+        public void Stage5d2_MoveToDoor_AimsAtTheActorsSideOfTheWall_AndSucceedsInReach()
+        {
+            using var w = KeyedWorld(out var door);
+            var key = new TerrainObjectRef("range/R/front");
+            var outside = Walker(w, new Vector3(25, 10, 0));
+            var inside = Walker(w, new Vector3(23, 24, 0));
+
+            var p = new MoveToDoorParams { Door = key };
+            Assert.Equal(NodeStatus.Running, DoorNodes.MoveToDoor(ref p, outside, w));
+            var to = ReadMoveTo(w, outside);
+            Assert.Equal(25f, to.X, 2);
+            Assert.Equal(20f - DoorNodes.ApproachMetres, to.Y, 2);                    // south of the south wall: the actor's side
+            var q = new MoveToDoorParams { Door = key };
+            DoorNodes.MoveToDoor(ref q, inside, w);
+            Assert.Equal(20f + DoorNodes.ApproachMetres, ReadMoveTo(w, inside).Y, 2);  // inside: north of it
+
+            w.SetComponent(outside, new SimTransform { Position = new Vector3(25, 19, 0), Rotation = Quaternion.Identity });
+            Assert.Equal(NodeStatus.Success, DoorNodes.MoveToDoor(ref p, outside, w));
+        }
+
+        private static class BehaviorConstantsIds { public const ushort Unlock = Fdp.Toolkit.Behavior.BehaviorConstants.ActionIdUnlockDoor; }
+
+        private static unsafe Entity ReadTarget(ref InteractionChannel ch)
+        {
+            fixed (byte* b = ch.Params) return ((OpenDoorParams*)b)->TargetDoor;
+        }
+
+        private static unsafe Vector3 ReadMoveTo(EntityRepository w, Entity e)
+        {
+            var ch = w.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+            return ((Fdp.Toolkit.Navigation.MoveToParams*)ch.Params)->Destination;
+        }
     }
 }
