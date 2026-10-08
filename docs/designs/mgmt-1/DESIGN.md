@@ -35,6 +35,7 @@ related-designs:
     build (PrepareTerrainAsset/CommitTerrainAsset), which §11 does not.
   - docs/designs/packs-3/DESIGN.md — ⛔ its §2.B/§2.C/§2.E built a CONFLICTING zone model (an embedded
     content bundle); now marked superseded. Do not read it as the zone intent.
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5a — CE-3118 (terrain name in the recording metadata) and CE-3119 (the archive carries a scenario copy, §13.3).
 -->
 
 # Distributed Drill Management System — Architecture Design

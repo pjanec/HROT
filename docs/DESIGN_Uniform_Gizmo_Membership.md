@@ -13,6 +13,7 @@ known-conflict: none. ⭐ This IMPLEMENTS UXI-23's gizmo half; ⛔ it does not b
   MapInteractionPack (actions, selection, rubber-band, layer control) — §6.
 related-designs:
   - DESIGN_Terrain_Combat_Tuning.md §5 — terrain/combat debug layers relying on uniform membership
+  - DESIGN_Terrain_Combat_Tuning.md §5a — the debug-trace gizmos; global where SimHost/Replay Browser draw only the selected entity.
 -->
 # DESIGN — **uniform gizmo membership** *(every host, every family)*
 

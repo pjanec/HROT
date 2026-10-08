@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
-build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07
-current-answer: §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+updated: 2026-10-08 (rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226)
+current-answer: §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -14,6 +14,9 @@ related-designs:
   - DESIGN_Utility_AI_Demo_Scenarios.md — the two-forms rule (HTTP check = acceptance, in-process rail = gate) reused in §3.
   - blueprints/DESIGN_Smoke_Suite.md — "do not build a DSL" (xUnit over TestScript); §3 follows it.
   - DESIGN_Uniform_Gizmo_Membership.md — gizmos draw where their data exists; §5 relies on it.
+  - DESIGN_Thermal_And_Acoustic_Sensing.md — the sound sources and anonymous heard estimates §5a's hearing layer draws.
+  - designs/replay-and-modules/DESIGN.md — what runs during replay; §5a's traces are restored state, drawn by gizmos outside the disabled groups.
+  - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
 -->
 
@@ -335,8 +338,171 @@ one-tick latency (the real one is three).
 |---|---|
 | layers are **gizmos that draw only when their data exists** (uniform membership) — no host checks; the Editor shows all because it holds all data | per-host layer lists — would drift from where the data really is |
 | **`LayerControlGizmo` gains these layer bits and is built on every map host** — ✅ **DONE `2026-10-07`**: `MapInteractionPack` now builds the action registry, its dispatcher and the layer control for all five map hosts, and `BuildRenderLayer` builds the renderer the same way everywhere (🔒 user: *"pls unify and share, as usual"*) | |
-| fire/blast/hearing layers **read the same ring buffers** the routes serve, so the map and the API agree | |
+| ⛔ SUPERSEDED by §5a (`2026-10-08`): ~~fire/blast/hearing layers **read the same ring buffers** the routes serve~~ ⇒ the gizmos read **recorded ECS components MIRRORED from those buffers**, so the map, the API and a replay agree | |
 | probes (LOS, levels) are **interactive tools**: click two points or an entity | |
+
+## 5a. Debug traces — what a gizmo draws is RECORDED STATE *(`CE-3117`, backend, `2026-10-08`; build-state: READY-TO-BUILD)*
+
+🔒 **User, `2026-10-08`:** *"Wouldnt it be simplier if we invented special ecs component carrying whatever state we need to visualize, that exist optionally only whwre thier filling modules live, and let them be saved as anything else?"* · *"Gizmo shapes ok."* · *"Accepted."* — **R-226**.
+
+⇒ every debug layer draws from an **ECS component**, never from a side object: the flight recorder keeps it, a **seek** restores it
+(a detonation 0.4 s before the seek target is still in the ring, stamped with its sim time), and the Replay Browser sees it.
+The components are fixed-size structs, `[DataPolicy(NoScenario)]` (recorded and snapshotted, not saved into a scenario), with no
+network translator — they exist only on the node whose module fills them.
+
+### INVENTORY *(graph + grep, `2026-10-08`)*
+
+| query | total | result |
+|---|---|---|
+| `search_graph name_pattern=".*(Percept\|Hear\|Sound\|Sensor\|…\|Path\|Route\|Door\|Detonat\|Blast\|Frag).*Gizmo.*"` | 43 symbols | drawing gizmos: `LineOfSightGizmo`, `EqsSensorGizmo`, `RouteGizmo`, `RouteWaypointGizmo` (authoring) — ⛔ none for doors, blast, hearing, danger areas, planned path |
+| every `[GizmoProjector]` (grep, non-test) | 23 projectors | `FireTraceGizmo` (reads the `ShotLog` side table), `TerrainWorldGizmo` (no door leaves), `VisibilityConeGizmo`, `NavigationTargetGizmo` … |
+| other drawers of the same data | 3 | `SimHostTrajectoryLayer` (SimHost-only raylib layer: selected entity's trajectory, progress dot placed by waypoint COUNT not distance, no look-ahead) · `TargetMemoryOverlaySource` (opt-in `DebugState` overlay) · `PerceptionMapLayer` (Editor) |
+| prior art for "a component that exists for diagnostics" | 1 | ⭐ `UtilityDecisionLog` (`GlobalComponentIds` 333, `NoScenario`, fixed slots, read by `GET /entities/{id}/utility`) — the shape copied here |
+| free component ids, census of backend, behaviors, ui | — | highest allocated 338 of 512 (`FdpConfig.cs:37`); **339–342 free on all three lanes** |
+
+### Claim table
+
+| the design rests on | code — how it IS | design basis |
+|---|---|---|
+| a delta frame records a component only when its version moved; singletons too | `RecorderSystem.cs:298-302`, `:821-836` | `replay-and-modules/DESIGN.md` §2.1 (replay restores state; systems stay off) |
+| a dirty chunk is written whole (64 KB, then LZ4) | `NativeChunkTable.cs:402-407`, `AsyncRecorder.cs:102` | — ⇒ a trace written every frame costs ≈ one compressed chunk per frame; acceptable while firing |
+| `NoScenario` stays recorded | `DataPolicyAttribute.cs:14,41,48` | — |
+| a seek skips events, so an event-fed log would be EMPTY after a seek | `PlaybackSystem.cs:26,195` (`processEvents:false`) | — ⇒ the rejected alternative |
+| per-entity gizmos draw ONLY the selected entity on SimHost and in the Replay Browser | `SimHostApp.cs:411`, `ReplayBrowserSubsystem.cs:197` (`SelectedEntitiesOnly`); `StatelessGizmoSystem.cs:114,141` | `DESIGN_Uniform_Gizmo_Membership.md` §1 ⇒ every layer that must show ALL entities is a **global** gizmo |
+| the acoustic answer carries no source identity | `AcousticPerception.cs` `Hear` (`EntityId = 0L`) | R-207 ⇒ no "true source → estimate" line; the emitter rings show where the sound really was |
+| the look-ahead point is computed each tick and not stored | `CarKinematicsSystem.cs:175,440` (`PathLookahead`) | CE-3115 ⇒ the gizmo recomputes it with the same function |
+| the Replay Browser holds no `TerrainWorld` (`NoReplay`), so doors and walls cannot draw there | `TerrainWorld.cs:80`; grep of `ReplayBrowser` for `TerrainWorld` = 0 files | ⇒ `CE-3118` |
+
+### Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class ShotLog { <<existing side table>> Add / End / EndCarried }
+  class DetonationLog { <<existing side table, grows>> DetonationRecord +Rays }
+  class AreaEffectSystem { <<existing, grows>> records each ray's point + stop }
+  class CombatTraceSystem { <<NEW, DamageAssessmentModule>> mirrors new / ended log entries }
+  class ShotTraces { <<NEW singleton 339>> 64 shots: time, muzzle, end, outcome, 4 crossings }
+  class DetonationTraces { <<NEW singleton 340>> 8 bursts: time, point, radii, 16 targets, 48 rays }
+  class SensorMemoryStage { <<existing>> Flush publishes SoundContactEvent }
+  class HeardTraces { <<NEW per listener 341>> 4 estimates: time, point, radius, class }
+  class PathTraceSystem { <<NEW, GroundKinematicsModule>> rebuilds when the trajectory changes }
+  class TrajectoryPoolManager { <<existing, not in the world>> }
+  class PathTrace { <<NEW per mover 342>> up to 32 points: x y z s traversal }
+  class AcousticEmitter { <<existing component>> ranges + shot/detonation timers }
+  class DangerAreaCognitiveBuffer { <<existing component>> oriented boxes }
+  class DoorState { <<existing component>> }
+  class TargetMemory { <<existing component>> +Anonymous +Radius }
+  class FireTraceGizmo { <<existing, re-sourced>> reads ShotTraces }
+  class DetonationGizmo { <<NEW global>> }
+  class HearingGizmo { <<NEW global>> }
+  class DangerAreaGizmo { <<NEW global>> }
+  class DoorLeafGizmo { <<NEW global>> }
+  class PlannedPathGizmo { <<NEW per entity, selected>> }
+  class LineOfSightGizmo { <<existing, grows>> heard slots drawn as estimates }
+  class LayerControlDto { <<existing, grows>> +Doors +Paths +Blast +Hearing }
+  CombatTraceSystem ..> ShotLog
+  CombatTraceSystem ..> DetonationLog
+  CombatTraceSystem ..> ShotTraces
+  CombatTraceSystem ..> DetonationTraces
+  AreaEffectSystem ..> DetonationLog
+  SensorMemoryStage ..> HeardTraces
+  PathTraceSystem ..> TrajectoryPoolManager
+  PathTraceSystem ..> PathTrace
+  FireTraceGizmo ..> ShotTraces
+  DetonationGizmo ..> DetonationTraces
+  HearingGizmo ..> AcousticEmitter
+  HearingGizmo ..> HeardTraces
+  DangerAreaGizmo ..> DangerAreaCognitiveBuffer
+  DoorLeafGizmo ..> DoorState
+  PlannedPathGizmo ..> PathTrace
+  LineOfSightGizmo ..> TargetMemory
+```
+
+*What the picture shows that prose hid:* no gizmo reads a side object any more — every arrow into a gizmo ends on a component, which
+is the whole replay argument. The two logs keep their writers and their routes; one mirror per module is the only new writer.
+
+### Sequences
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem
+  participant Log as DetonationLog
+  participant M as CombatTraceSystem
+  participant C as DetonationTraces (singleton)
+  participant R as FlightRecorder
+  participant P as Playback (seek to T)
+  participant G as DetonationGizmo
+  AE->>Log: Add(record incl. rays)
+  M->>Log: entries newer than LastMirroredSeq
+  M->>C: write slot (sim time = GlobalTime.TotalTime)
+  R->>C: chunk version moved -> recorded in this delta
+  Note over P: later, a seek to T restores the keyframe + deltas up to T
+  P->>C: restored exactly as it was at T
+  G->>C: draw slots with 0 <= now - time < 1 s
+```
+
+*What it shows:* the gizmo never asks "did an event happen?" — it asks "what is in the ring, and how old is it?", which a seek answers
+by construction. Live, in-host replay and the Replay Browser run the same last step.
+
+### Module relationships — who registers, who fills, who draws
+
+```mermaid
+graph TD
+  DAM[DamageAssessmentModule] -->|registers| CTS[CombatTraceSystem]
+  DAM -->|registers types| ST[ShotTraces + DetonationTraces]
+  PM[Perception: SensorMemoryStage.Flush] -->|writes| HT[HeardTraces]
+  GKM[GroundKinematicsModule] -->|registers| PTS[PathTraceSystem]
+  PTS -->|writes| PT[PathTrace]
+  CTS -->|writes| ST
+  REC[RecordingModule] -->|records| ST
+  REC -->|records| HT
+  REC -->|records| PT
+  MIP[MapInteractionPack on every map host] -->|ticks| GZ[global gizmos + PlannedPathGizmo]
+  GZ -->|reads| ST
+  GZ -->|reads| HT
+  GZ -->|reads| PT
+  RB[Replay Browser sandbox] -->|restores| ST
+  RB -.->|NO TerrainWorld: doors/walls not drawn, CE-3118| DLG[DoorLeafGizmo]
+  style DLG stroke:#c00,stroke-dasharray: 5 5
+```
+
+*What it shows:* the fillers live in the SimHost modules (and the all-in-one Editor), so a CGF or IG map simply has no traces — no
+host check. The one dead edge is the Replay Browser's missing terrain, owned by `CE-3118`.
+
+### The gizmos
+
+| gizmo | kind | layer bit | draws |
+|---|---|---|---|
+| `DetonationGizmo` | global | **6 Blast** *(new)* | for 1 s of sim time: fragment-radius and blast-radius rings (fading); a ray from the burst to each body point — green to the point if clear, orange to the stop point with an ✕; the exposure % at each target |
+| `FireTraceGizmo` | global | 3 FireTraces | unchanged shapes; now reads `ShotTraces` (64 shots, 4 crossings each), so shots replay too |
+| `HearingGizmo` | global | **7 Hearing** *(new)* | every `AcousticEmitter`: a shot or detonation ring expanding from the source to its audible range over the 0.5 s it lasts (radius = range × (1 − time left / 0.5)); a moving entity sends a ring every 1 s sized to its current range. Every listener's `HeardTraces` younger than 1 s: a dashed line to the estimate and its uncertainty circle, coloured by sound class |
+| `DangerAreaGizmo` | global | 2 AiHelpers | each box of every `DangerAreaCognitiveBuffer`: the oriented rectangle (half-extents, yaw) coloured by threat rating, kind as a label |
+| `DoorLeafGizmo` | global | **4 Doors** *(new)* | each door's leaf (from `DoorLeaves`): along the wall when closed, swung 90° on its hinge when open; grey closed · green open · purple locked · red ✕ destroyed |
+| `PlannedPathGizmo` | per entity (the selected one on SimHost) | **5 Paths** *(new)* | `PathTrace` polyline, door steps as markers, the progress point at `NavState.ProgressS` (by distance), the look-ahead point at `ProgressS + PathLookahead(params, speed)` |
+| `LineOfSightGizmo` | per entity | 1 Perception | heard (anonymous) slots: dashed line + uncertainty circle; sighted slots: solid line; both at the stored height |
+
+`LayerControlDto.ToMask()` keeps bits 8–255 always on (it kept 4–255).
+
+### Decisions — why
+
+| ⭐ lean | rejected (one line each) |
+|---|---|
+| **recorded ECS components**, fixed-size structs, `NoScenario`, not replicated | events + a collector — a seek skips events, so the ring is empty after any jump · side tables — never recorded · managed singleton — an in-place list mutation never moves the version, so deltas miss it |
+| **one MIRROR system per module copies the log into the component**, so the log stays the only producer and both cannot disagree | writing the component at the three `ShotLog` seams — three edits of one fact; the mirror is one |
+| **the look-ahead is recomputed**, not stored | storing it — it changes every tick, so its chunk would be re-recorded every frame |
+| **`PathTrace` is rebuilt only when the trajectory's signature (count, length, last point) changes** | rebuilding every tick — the same per-frame recording cost |
+| `SimHostTrajectoryLayer`'s trajectory half is **retired** in favour of `PlannedPathGizmo`; its authored-route half stays | keeping both — two drawings of one path, one of them with a wrong progress dot |
+| the debug logs and routes stay (`/combat/shots`, `/combat/detonations`) — they carry the text (warhead source, shield name) a struct cannot | routes reading the component — loses the explanation |
+
+### Follow-ups (own tasks)
+
+- **`CE-3118`** — the Replay Browser loads the terrain: the terrain NAME goes into the recording metadata, the browser loads that asset
+  into each node's sandbox. 🔒 *"The replay browser must load the terrain in order to display it on the map if nothing else. Twreain
+  name should go to metadata for sure."*
+- **`CE-3119`** — the exercise archive carries a COPY of the scenario files; the terrain stays referenced by name. Measured: the archive
+  pulls only each node's `.fdp` and `.fdp.meta.json` (`ReferenceArchiveHandler.cs:80-95`). 🔒 *"Terrain is part of the scenario, which i
+  think shoukd become the part od the package with the recordinga (by copying). Terrain could stay referenced by name only."*
 
 ## 6. Slices
 

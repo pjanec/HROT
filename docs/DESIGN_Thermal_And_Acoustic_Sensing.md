@@ -18,6 +18,7 @@ related-designs:
   - docs/designs/packs-1/DESIGN.md §7.B — introduced TargetHeardEvent; retired here (§6 A).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover / FallBack; §8 here points their sensor at a heard contact's position.
   - docs/DESIGN_Decision_Layer.md §3.3b — OWNS CombatPosture, whose PostureSensors §8 points the same way.
+  - DESIGN_Terrain_Combat_Tuning.md §5a — the hearing debug layer: emitter rings and heard estimates (HeardTraces), recorded for replay (CE-3117).
 -->
 
 # Thermal and acoustic sensing — S7 (`CE-3055`)
